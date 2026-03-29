@@ -315,6 +315,27 @@ const ALL_TOOLS: Record<string, ToolDef> = {
     },
     endpoint: "/api/edit-html",
   },
+  present3d: {
+    name: "present3d",
+    description:
+      "Display interactive 3D visualizations using the full ShapeScript language with expressions, variables, control flow, and functions.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "Title for the 3D visualization",
+        },
+        script: {
+          type: "string",
+          description:
+            "ShapeScript code defining the 3D scene. Supports primitives (cube, sphere, cylinder, cone, torus), CSG operations (union, difference, intersection), transformations (position, rotation, size), materials (color, opacity), variables, for-loops, if/else, and math functions like sin/cos.",
+        },
+      },
+      required: ["title", "script"],
+    },
+    endpoint: "/api/present3d",
+  },
   editImage: {
     name: "editImage",
     description:

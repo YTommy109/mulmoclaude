@@ -4,6 +4,7 @@ import { executeSpreadsheet } from "@gui-chat-plugin/spreadsheet";
 import { executeQuiz } from "@mulmochat-plugin/quiz";
 import { executeForm } from "@mulmochat-plugin/form";
 import { executeOpenCanvas } from "@gui-chat-plugin/canvas";
+import { executePresent3D } from "@gui-chat-plugin/present3d";
 import { GoogleGenAI } from "@google/genai";
 
 const router = Router();
@@ -106,6 +107,16 @@ router.post("/form", async (req: Request, res: Response) => {
 router.post("/canvas", async (req: Request, res: Response) => {
   try {
     const result = await executeOpenCanvas(null as never, req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: String(err) });
+  }
+});
+
+// present3d — 3D visualization
+router.post("/present3d", async (req: Request, res: Response) => {
+  try {
+    const result = await executePresent3D(null as never, req.body);
     res.json(result);
   } catch (err) {
     res.status(500).json({ message: String(err) });

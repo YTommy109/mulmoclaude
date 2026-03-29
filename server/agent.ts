@@ -26,6 +26,7 @@ const MCP_PLUGINS = new Set([
   "generateHtml",
   "editHtml",
   "editImage",
+  "present3d",
 ]);
 
 export async function* runAgent(
