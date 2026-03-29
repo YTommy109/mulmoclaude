@@ -130,9 +130,7 @@ async function sendMessage(text?: string) {
   isRunning.value = true;
   statusMessage.value = "Thinking...";
 
-  const userResult = makeTextResult(message, "user");
-  toolResults.value.push(userResult);
-  selectedResultUuid.value = userResult.uuid;
+  toolResults.value.push(makeTextResult(message, "user"));
 
   try {
     const response = await fetch("/api/agent", {
@@ -156,9 +154,7 @@ async function sendMessage(text?: string) {
         if (data.type === "status") {
           statusMessage.value = data.message;
         } else if (data.type === "text") {
-          const result = makeTextResult(data.message, "assistant");
-          toolResults.value.push(result);
-          selectedResultUuid.value = result.uuid;
+          toolResults.value.push(makeTextResult(data.message, "assistant"));
         } else if (data.type === "tool_result") {
           const result: ToolResultComplete = data.result;
           const existing = toolResults.value.findIndex(r => r.uuid === result.uuid);
