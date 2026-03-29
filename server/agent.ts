@@ -25,6 +25,7 @@ const MCP_PLUGINS = new Set([
   "openCanvas",
   "generateHtml",
   "editHtml",
+  "editImage",
 ]);
 
 export async function* runAgent(

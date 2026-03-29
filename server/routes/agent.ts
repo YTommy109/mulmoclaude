@@ -29,10 +29,11 @@ router.post("/internal/switch-role", async (req: Request, res: Response) => {
 });
 
 router.post("/agent", async (req: Request, res: Response) => {
-  const { message, roleId, chatSessionId } = req.body as {
+  const { message, roleId, chatSessionId, selectedImageData } = req.body as {
     message: string;
     roleId: string;
     chatSessionId: string;
+    selectedImageData?: string;
   };
 
   if (!message || !roleId || !chatSessionId) {
@@ -73,7 +74,7 @@ router.post("/agent", async (req: Request, res: Response) => {
     JSON.stringify({ source: "user", type: "text", message }) + "\n",
   );
 
-  registerSession(sessionId, send, resultsFilePath);
+  registerSession(sessionId, send, resultsFilePath, selectedImageData);
   const role = getRole(roleId);
 
   try {

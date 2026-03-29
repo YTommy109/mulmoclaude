@@ -9,6 +9,7 @@ import FormPlugin from "@mulmochat-plugin/form/vue";
 import CanvasPlugin from "@gui-chat-plugin/canvas/vue";
 import GenerateHtmlPlugin from "@gui-chat-plugin/generate-html/vue";
 import EditHtmlPlugin from "@gui-chat-plugin/edit-html/vue";
+import EditImagePlugin from "@gui-chat-plugin/edit-image/vue";
 import BrowsePlugin from "@gui-chat-plugin/browse/vue";
 import CameraPlugin from "@gui-chat-plugin/camera/vue";
 import MusicPlugin from "@gui-chat-plugin/music/vue";
@@ -30,6 +31,7 @@ const plugins: Record<string, ToolPlugin> = {
   openCanvas: CanvasPlugin.plugin as unknown as ToolPlugin,
   generateHtml: GenerateHtmlPlugin.plugin as unknown as ToolPlugin,
   editHtml: EditHtmlPlugin.plugin as unknown as ToolPlugin,
+  editImage: EditImagePlugin.plugin as unknown as ToolPlugin,
   browse: BrowsePlugin.plugin as unknown as ToolPlugin,
   camera: CameraPlugin.plugin as unknown as ToolPlugin,
   music: MusicPlugin.plugin as unknown as ToolPlugin,

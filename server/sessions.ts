@@ -5,6 +5,7 @@ type SendFn = (data: unknown) => void;
 interface Session {
   send: SendFn;
   resultsFilePath: string;
+  selectedImageData?: string;
 }
 
 const sessions = new Map<string, Session>();
@@ -13,8 +14,13 @@ export function registerSession(
   id: string,
   send: SendFn,
   resultsFilePath: string,
+  selectedImageData?: string,
 ): void {
-  sessions.set(id, { send, resultsFilePath });
+  sessions.set(id, { send, resultsFilePath, selectedImageData });
+}
+
+export function getSessionImageData(id: string): string | undefined {
+  return sessions.get(id)?.selectedImageData;
 }
 
 export function removeSession(id: string): void {

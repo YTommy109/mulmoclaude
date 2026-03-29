@@ -87,6 +87,19 @@ export const ROLES: Role[] = [
     ],
   },
   {
+    id: "artist",
+    name: "Artist",
+    icon: "palette",
+    prompt:
+      "You are a creative visual artist assistant. Help users generate and edit images, and work on visual compositions on the canvas. Use generateImage to create new images from descriptions, editImage to modify existing images, and openCanvas to set up a visual workspace.",
+    availablePlugins: [
+      "generateImage",
+      "editImage",
+      "openCanvas",
+      "switchRole",
+    ],
+  },
+  {
     id: "dataAnalyzer",
     name: "Data Analyzer",
     icon: "bar_chart",

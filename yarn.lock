@@ -282,6 +282,13 @@
   resolved "https://registry.yarnpkg.com/@gui-chat-plugin/edit-html/-/edit-html-0.1.1.tgz#cd037a791b18149c65e77ecea3ef0aad2a4859b3"
   integrity sha512-mZzHcLFYvfKkVQLm0pvly8QIXpgIMNhJ7gttHY0np7dDbfDShxESEdAHnVFxR1o1utVwTkbXbTI+4zalSm17hQ==
 
+"@gui-chat-plugin/edit-image@^0.3.0":
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/edit-image/-/edit-image-0.3.0.tgz#89045471e0cab9536b8652fc29604c24008e5053"
+  integrity sha512-/8ckzhqpOYAasMnHHcpaGwEIUf/78Em3TxAKHuIeDVIN3IBcdleMoIVmMv3/Nlj0eASTGs3/vid69+Z+JH5OgA==
+  dependencies:
+    gui-chat-protocol "^0.0.3"
+
 "@gui-chat-plugin/generate-html@^0.1.1":
   version "0.1.1"
   resolved "https://registry.yarnpkg.com/@gui-chat-plugin/generate-html/-/generate-html-0.1.1.tgz#ec210c8bface483a02c0ad5727129f3f7a35ff75"

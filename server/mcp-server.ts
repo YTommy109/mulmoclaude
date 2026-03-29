@@ -315,6 +315,23 @@ const ALL_TOOLS: Record<string, ToolDef> = {
     },
     endpoint: "/api/edit-html",
   },
+  editImage: {
+    name: "editImage",
+    description:
+      "Edit or transform the currently selected image based on a prompt. The user must have an image selected in the sidebar. Use for style transfer, modifications, or transformations of existing images.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        prompt: {
+          type: "string",
+          description:
+            "A detailed description of the edits or transformation to apply to the image",
+        },
+      },
+      required: ["prompt"],
+    },
+    endpoint: "/api/edit-image",
+  },
   switchRole: {
     name: "switchRole",
     description:
@@ -355,7 +372,7 @@ async function handleToolCall(
   const tool = tools.find((t) => t.name === name);
   if (!tool) throw new Error(`Unknown tool: ${name}`);
 
-  const res = await fetch(`${BASE_URL}${tool.endpoint}`, {
+  const res = await fetch(`${BASE_URL}${tool.endpoint}?session=${SESSION_ID}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(args),

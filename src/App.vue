@@ -321,6 +321,9 @@ async function sendMessage(text?: string) {
         message,
         roleId: currentRoleId.value,
         chatSessionId: chatSessionId.value,
+        selectedImageData:
+          (selectedResult.value?.data as Record<string, unknown> | undefined)
+            ?.imageData ?? undefined,
       }),
     });
 
