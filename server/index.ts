@@ -3,6 +3,7 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import agentRoutes from "./routes/agent.js";
+import todosRoutes from "./routes/todos.js";
 import { initWorkspace } from "./workspace.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,6 +23,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
 });
 
 app.use("/api", agentRoutes);
+app.use("/api", todosRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../client")));

@@ -19,7 +19,7 @@ export const ROLES: Role[] = [
     name: "Organizer",
     icon: "check_circle",
     prompt: "You are a personal productivity assistant. Help the user manage their todos, calendar, and contacts stored in the workspace. Use the todo, calendar, and contacts tools to display and update data visually.",
-    availablePlugins: ["todo", "calendar", "contacts"],
+    availablePlugins: ["manageTodoList", "calendar", "contacts"],
   },
   {
     id: "developer",

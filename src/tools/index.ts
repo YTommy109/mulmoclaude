@@ -1,8 +1,10 @@
 import type { ToolPlugin } from "./types";
 import TextResponsePlugin from "@gui-chat-plugin/text-response/vue";
+import todoPlugin from "../plugins/todo/index";
 
 const plugins: Record<string, ToolPlugin> = {
   "text-response": TextResponsePlugin.plugin as unknown as ToolPlugin,
+  "manageTodoList": todoPlugin as unknown as ToolPlugin,
 };
 
 export function getPlugin(name: string): ToolPlugin | null {
