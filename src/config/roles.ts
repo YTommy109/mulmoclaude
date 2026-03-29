@@ -38,6 +38,7 @@ export const ROLES: Role[] = [
       "createMindMap",
       "presentDocument",
       "generateImage",
+      "browse",
       "switchRole",
     ],
   },
