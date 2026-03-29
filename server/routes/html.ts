@@ -68,11 +68,9 @@ router.post("/edit-html", async (req: Request, res: Response) => {
   try {
     existingHtml = await readFile(HTML_FILE(), "utf-8");
   } catch {
-    res
-      .status(400)
-      .json({
-        message: "No HTML page has been generated yet. Use generateHtml first.",
-      });
+    res.status(400).json({
+      message: "No HTML page has been generated yet. Use generateHtml first.",
+    });
     return;
   }
   try {
