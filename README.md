@@ -8,8 +8,8 @@ Experience GUI-chat! You chat with Claude Code, and it responds not just with te
 
 ```bash
 # Clone the repository
-git clone git@github.com:receptron/mulmo-claude.git
-cd mulmo-claude
+git clone git@github.com:receptron/mulmoclaude.git
+cd mulmoclaude
 
 # Install dependencies
 yarn install
