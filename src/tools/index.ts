@@ -4,6 +4,11 @@ import MarkdownPlugin from "@gui-chat-plugin/markdown/vue";
 import SpreadsheetPlugin from "@gui-chat-plugin/spreadsheet/vue";
 import MindMapPlugin from "@gui-chat-plugin/mindmap/vue";
 import GenerateImagePlugin from "@mulmochat-plugin/generate-image/vue";
+import QuizPlugin from "@mulmochat-plugin/quiz/vue";
+import FormPlugin from "@mulmochat-plugin/form/vue";
+import CanvasPlugin from "@gui-chat-plugin/canvas/vue";
+import GenerateHtmlPlugin from "@gui-chat-plugin/generate-html/vue";
+import EditHtmlPlugin from "@gui-chat-plugin/edit-html/vue";
 import todoPlugin from "../plugins/todo/index";
 
 const plugins: Record<string, ToolPlugin> = {
@@ -13,6 +18,11 @@ const plugins: Record<string, ToolPlugin> = {
   presentSpreadsheet: SpreadsheetPlugin.plugin as unknown as ToolPlugin,
   createMindMap: MindMapPlugin.plugin as unknown as ToolPlugin,
   generateImage: GenerateImagePlugin.plugin as unknown as ToolPlugin,
+  putQuestions: QuizPlugin.plugin as unknown as ToolPlugin,
+  presentForm: FormPlugin.plugin as unknown as ToolPlugin,
+  openCanvas: CanvasPlugin.plugin as unknown as ToolPlugin,
+  generateHtml: GenerateHtmlPlugin.plugin as unknown as ToolPlugin,
+  editHtml: EditHtmlPlugin.plugin as unknown as ToolPlugin,
 };
 
 export function getPlugin(name: string): ToolPlugin | null {

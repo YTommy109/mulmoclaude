@@ -258,6 +258,23 @@
     protobufjs "^7.5.4"
     ws "^8.18.0"
 
+"@gui-chat-plugin/canvas@^0.3.0":
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/canvas/-/canvas-0.3.0.tgz#dab8770b7a2ab51c392e74bc992e63247905e199"
+  integrity sha512-OMTfNtWdptiH8/9jnVxWhZozARkjdEI4/q6o0+Vb9TpAjgN+b4CzUxC9Iwq1vL2hMx31dw6UZKn97wionpS6Vg==
+  dependencies:
+    vue-drawing-canvas "^1.0.14"
+
+"@gui-chat-plugin/edit-html@^0.1.1":
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/edit-html/-/edit-html-0.1.1.tgz#cd037a791b18149c65e77ecea3ef0aad2a4859b3"
+  integrity sha512-mZzHcLFYvfKkVQLm0pvly8QIXpgIMNhJ7gttHY0np7dDbfDShxESEdAHnVFxR1o1utVwTkbXbTI+4zalSm17hQ==
+
+"@gui-chat-plugin/generate-html@^0.1.1":
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/generate-html/-/generate-html-0.1.1.tgz#ec210c8bface483a02c0ad5727129f3f7a35ff75"
+  integrity sha512-vpuvZYJV8VaotYWKqwRR1f0GrGgoGoWFGxoJHkbrlyVSIStuZ69YuCeVmrx1wJUS4yEe8qi1NINkZRpos0QkLw==
+
 "@gui-chat-plugin/markdown@^0.0.2":
   version "0.0.2"
   resolved "https://registry.yarnpkg.com/@gui-chat-plugin/markdown/-/markdown-0.0.2.tgz#42780a5be86e90fa5eb31b796007ee6026ef2743"
@@ -346,10 +363,24 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
+"@mulmochat-plugin/form@^0.3.1":
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/@mulmochat-plugin/form/-/form-0.3.1.tgz#7e8118ace16f5f0b801a3ed4f42b849fed655c34"
+  integrity sha512-fc21eUvcw5Ci8J/d2FwZRZGlBLeujoiBNWcvB6xUMB6f+l4AwXnfPy6gmXv/og6s8Z6mKpazvYzcJUqfJFd7ag==
+  dependencies:
+    gui-chat-protocol "^0.0.3"
+
 "@mulmochat-plugin/generate-image@^0.3.2":
   version "0.3.2"
   resolved "https://registry.yarnpkg.com/@mulmochat-plugin/generate-image/-/generate-image-0.3.2.tgz#5fb4bdba578e19b1b0c502268796c9dfcf579183"
   integrity sha512-nm9rE1KWpE06OXek6nlG6g8QOfiiC/Fm/ThqvO20KkC/ENLhbRVilz2yi4mKL74TTX39mpTLUCpDTxd9UzaOUw==
+  dependencies:
+    gui-chat-protocol "^0.0.3"
+
+"@mulmochat-plugin/quiz@^0.3.2":
+  version "0.3.2"
+  resolved "https://registry.yarnpkg.com/@mulmochat-plugin/quiz/-/quiz-0.3.2.tgz#c1bac9d7c6c6bfee05eea2557a9498d44f989cfb"
+  integrity sha512-J3qrmwC0ec64SXiXXaqVo4pwo3HU4X48eRm/uPb45p9scC1RIn1Suycery8gE3HDTuJ0xV+nhfj9EHr5tub8oA==
   dependencies:
     gui-chat-protocol "^0.0.3"
 
@@ -2724,6 +2755,18 @@ vscode-uri@^3.0.8:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.1.0.tgz#dd09ec5a66a38b5c3fffc774015713496d14e09c"
   integrity sha512-/BpdSx+yCQGnCvecbyXdxHDkuk55/G3xwnC0GqY4gmQ3j+A+g8kzzgB4Nk/SINjqn6+waqw3EgbVF2QKExkRxQ==
+
+vue-demi@latest:
+  version "0.14.10"
+  resolved "https://registry.yarnpkg.com/vue-demi/-/vue-demi-0.14.10.tgz#afc78de3d6f9e11bf78c55e8510ee12814522f04"
+  integrity sha512-nMZBOwuzabUO0nLgIcc6rycZEebF6eeUfaiQx9+WSk8e29IbLvPU9feI6tqW4kTo3hvoYAJkMh8n8D0fuISphg==
+
+vue-drawing-canvas@^1.0.14:
+  version "1.0.14"
+  resolved "https://registry.yarnpkg.com/vue-drawing-canvas/-/vue-drawing-canvas-1.0.14.tgz#59f21ea89fe62ffa4aaafb25ec5a6f1cb6871da0"
+  integrity sha512-afsG6bGXD1DDP7pKslJX3LNLi07R/S97e/9/LNXnPZQBlsNnrL3T68rmodBHeMHr83onhMfym+t3kLkDuApW1Q==
+  dependencies:
+    vue-demi latest
 
 vue-router@^5.0.3:
   version "5.0.4"

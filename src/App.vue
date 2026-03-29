@@ -222,7 +222,12 @@ function handleUpdateResult(updatedResult: ToolResultComplete) {
   }
 }
 
-const GEMINI_PLUGINS = new Set(["generateImage", "presentDocument"]);
+const GEMINI_PLUGINS = new Set([
+  "generateImage",
+  "presentDocument",
+  "generateHtml",
+  "editHtml",
+]);
 const needsGemini = (roleId: string) =>
   (ROLES.find((r) => r.id === roleId)?.availablePlugins ?? []).some((p) =>
     GEMINI_PLUGINS.has(p),

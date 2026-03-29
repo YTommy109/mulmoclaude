@@ -20,6 +20,11 @@ const MCP_PLUGINS = new Set([
   "createMindMap",
   "generateImage",
   "switchRole",
+  "putQuestions",
+  "presentForm",
+  "openCanvas",
+  "generateHtml",
+  "editHtml",
 ]);
 
 export async function* runAgent(

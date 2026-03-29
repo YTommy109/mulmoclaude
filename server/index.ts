@@ -8,6 +8,7 @@ import todosRoutes from "./routes/todos.js";
 import sessionsRoutes from "./routes/sessions.js";
 import pluginsRoutes from "./routes/plugins.js";
 import imageRoutes from "./routes/image.js";
+import htmlRoutes from "./routes/html.js";
 import { initWorkspace } from "./workspace.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -31,6 +32,7 @@ app.use("/api", todosRoutes);
 app.use("/api", sessionsRoutes);
 app.use("/api", pluginsRoutes);
 app.use("/api", imageRoutes);
+app.use("/api", htmlRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../client")));

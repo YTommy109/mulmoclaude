@@ -199,6 +199,122 @@ const ALL_TOOLS: Record<string, ToolDef> = {
     },
     endpoint: "/api/generate-image",
   },
+  putQuestions: {
+    name: "putQuestions",
+    description:
+      "Present a set of multiple choice questions to test the user's knowledge or abilities. Each question should have 2-6 answer choices.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Optional title for the quiz" },
+        questions: {
+          type: "array",
+          description: "Array of multiple choice questions",
+          items: {
+            type: "object",
+            properties: {
+              question: { type: "string" },
+              choices: {
+                type: "array",
+                items: { type: "string" },
+                minItems: 2,
+                maxItems: 6,
+              },
+              correctAnswer: {
+                type: "number",
+                description: "0-based index of correct answer",
+              },
+            },
+            required: ["question", "choices"],
+          },
+          minItems: 1,
+        },
+      },
+      required: ["questions"],
+    },
+    endpoint: "/api/quiz",
+  },
+  presentForm: {
+    name: "presentForm",
+    description:
+      "Create a structured form to collect information from the user. Supports text, textarea, radio, dropdown, checkbox, date, time, and number fields.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        description: { type: "string" },
+        fields: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              type: {
+                type: "string",
+                enum: [
+                  "text",
+                  "textarea",
+                  "radio",
+                  "dropdown",
+                  "checkbox",
+                  "date",
+                  "time",
+                  "number",
+                ],
+              },
+              label: { type: "string" },
+              description: { type: "string" },
+              required: { type: "boolean" },
+              placeholder: { type: "string" },
+              choices: { type: "array", items: { type: "string" } },
+            },
+            required: ["id", "type", "label"],
+          },
+        },
+      },
+      required: ["fields"],
+    },
+    endpoint: "/api/form",
+  },
+  openCanvas: {
+    name: "openCanvas",
+    description:
+      "Open a drawing canvas for the user to create drawings, sketches, or diagrams.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+    endpoint: "/api/canvas",
+  },
+  generateHtml: {
+    name: "generateHtml",
+    description:
+      "Generate a complete, standalone HTML page using AI. Be descriptive about layout, styling, interactivity, colors, and functionality.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        prompt: {
+          type: "string",
+          description: "Detailed description of the desired HTML page.",
+        },
+      },
+      required: ["prompt"],
+    },
+    endpoint: "/api/generate-html",
+  },
+  editHtml: {
+    name: "editHtml",
+    description:
+      "Edit the currently displayed HTML page. Describe the modifications needed; the current HTML will be updated automatically.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        prompt: {
+          type: "string",
+          description: "Detailed description of the modifications to make.",
+        },
+      },
+      required: ["prompt"],
+    },
+    endpoint: "/api/edit-html",
+  },
   switchRole: {
     name: "switchRole",
     description:
