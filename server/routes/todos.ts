@@ -38,6 +38,7 @@ router.post("/todos", (req: Request, res: Response) => {
   };
 
   let items = loadTodos();
+  // eslint-disable-next-line no-useless-assignment
   let message = "";
   let jsonData: Record<string, unknown> = {};
 

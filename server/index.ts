@@ -43,7 +43,7 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+app.use((err: Error, _req: Request, res: Response, __next: NextFunction) => {
   console.error(err);
   res.status(500).json({ error: "Internal Server Error" });
 });

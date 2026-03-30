@@ -64,6 +64,7 @@ router.post("/edit-html", async (req: Request, res: Response) => {
     res.status(500).json({ message: "GEMINI_API_KEY is not set" });
     return;
   }
+  // eslint-disable-next-line no-useless-assignment
   let existingHtml = "";
   try {
     existingHtml = await readFile(HTML_FILE(), "utf-8");

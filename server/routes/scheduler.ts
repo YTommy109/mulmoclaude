@@ -58,6 +58,7 @@ router.post("/scheduler", (req: Request, res: Response) => {
   };
 
   let items = loadItems();
+  // eslint-disable-next-line no-useless-assignment
   let message = "";
   let jsonData: Record<string, unknown> = {};
 

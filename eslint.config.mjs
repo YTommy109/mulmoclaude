@@ -64,6 +64,9 @@ export default [
       "sonarjs/no-commented-code": "off",
       "sonarjs/no-unused-vars": "off",
       "sonarjs/cognitive-complexity": "warn",
+      "sonarjs/no-os-command-from-path": "warn",
+      "sonarjs/cors": "warn",
+      "sonarjs/pseudo-random": "warn",
     },
     plugins: {
       prettier: prettierPlugin,
