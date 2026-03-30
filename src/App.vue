@@ -139,7 +139,7 @@
             :disabled="
               isRunning || (!geminiAvailable && needsGemini(currentRoleId))
             "
-            @keydown.enter="sendMessage()"
+            @keydown.enter="$event.isComposing || sendMessage()"
           />
           <button
             class="bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
