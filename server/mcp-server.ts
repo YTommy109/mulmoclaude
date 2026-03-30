@@ -53,6 +53,45 @@ const ALL_TOOLS: Record<string, ToolDef> = {
     },
     endpoint: "/api/todos",
   },
+  manageScheduler: {
+    name: "manageScheduler",
+    description:
+      "Manage a scheduler — show, add, update, or delete scheduled items. Each item has a title and dynamic properties (e.g. date, time, location, description). Use this whenever the user mentions events, appointments, reminders, or things to schedule.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["show", "add", "delete", "update"],
+          description: "Action to perform.",
+        },
+        title: {
+          type: "string",
+          description:
+            "For 'add': item title. For 'update': new title (optional).",
+        },
+        id: {
+          type: "string",
+          description: "For 'delete' and 'update': the item id.",
+        },
+        props: {
+          type: "object",
+          description:
+            "For 'add': initial properties like { date, time, location }. For 'update': properties to merge in; set a key to null to remove it.",
+          additionalProperties: {
+            oneOf: [
+              { type: "string" },
+              { type: "number" },
+              { type: "boolean" },
+              { type: "null" },
+            ],
+          },
+        },
+      },
+      required: ["action"],
+    },
+    endpoint: "/api/scheduler",
+  },
   presentDocument: {
     name: "presentDocument",
     description: "Display a document in markdown format.",

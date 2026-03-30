@@ -29,7 +29,8 @@ const schedulerPlugin: ToolPlugin<SchedulerData> = {
         },
         title: {
           type: "string",
-          description: "For 'add': the item title. For 'update': new title (optional).",
+          description:
+            "For 'add': the item title. For 'update': new title (optional).",
         },
         id: {
           type: "string",

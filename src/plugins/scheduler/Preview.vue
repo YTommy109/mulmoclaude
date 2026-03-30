@@ -9,7 +9,9 @@
       :key="item.id"
       class="text-xs truncate text-gray-600"
     >
-      <span v-if="item.props.date" class="text-gray-400 mr-1">{{ item.props.date }}</span>
+      <span v-if="item.props.date" class="text-gray-400 mr-1">{{
+        item.props.date
+      }}</span>
       {{ item.title }}
     </div>
     <div v-if="more > 0" class="text-xs text-gray-400">+ {{ more }} more…</div>

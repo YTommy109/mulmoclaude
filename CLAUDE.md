@@ -85,7 +85,15 @@ Each plugin is a `ToolPlugin` (from `gui-chat-protocol/vue`, extended in `src/to
 - `viewComponent` — Vue component rendered in the canvas
 - `previewComponent` — Vue component shown in the sidebar
 
-Register new plugins in `src/tools/index.ts` and add their name to the relevant role's `availablePlugins` in `src/config/roles.ts`.
+Adding a new plugin requires updates in **four places** — missing any one will silently break it:
+
+1. **`src/plugins/<name>/index.ts`** — plugin definition (`toolDefinition`, `execute()`, components)
+2. **`src/tools/index.ts`** — register in the `plugins` map
+3. **`src/config/roles.ts`** — add plugin name to each role's `availablePlugins`
+4. **`server/agent.ts`** — add plugin name to `MCP_PLUGINS` set (controls which plugins are exposed to the Claude CLI)
+5. **`server/mcp-server.ts`** — add a full entry to `ALL_TOOLS` (name, description, inputSchema, endpoint) so the MCP server can handle the tool call
+
+> Steps 4 and 5 are easy to miss. If a plugin is in `availablePlugins` but absent from `MCP_PLUGINS` or `ALL_TOOLS`, it will be silently dropped and Claude won't see the MCP tool.
 
 ## Tech Stack
 

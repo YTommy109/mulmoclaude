@@ -12,8 +12,7 @@ export interface ScheduledItem {
   props: Record<string, string | number | boolean | null>;
 }
 
-const schedulerFile = () =>
-  path.join(workspacePath, "scheduler", "items.json");
+const schedulerFile = () => path.join(workspacePath, "scheduler", "items.json");
 
 function loadItems(): ScheduledItem[] {
   try {
@@ -32,7 +31,13 @@ function saveItems(items: ScheduledItem[]): void {
 }
 
 router.post("/scheduler", (req: Request, res: Response) => {
-  const { action, title, id, props, items: replaceItems } = req.body as {
+  const {
+    action,
+    title,
+    id,
+    props,
+    items: replaceItems,
+  } = req.body as {
     action: string;
     title?: string;
     id?: string;
@@ -76,9 +81,7 @@ router.post("/scheduler", (req: Request, res: Response) => {
       items = items.filter((i) => i.id !== id);
       saveItems(items);
       message =
-        items.length < before
-          ? `Deleted item ${id}`
-          : `Item not found: ${id}`;
+        items.length < before ? `Deleted item ${id}` : `Item not found: ${id}`;
       jsonData = { deleted: id };
       break;
     }

@@ -18,6 +18,7 @@ export type AgentEvent =
 // Plugin names that have a corresponding MCP tool definition in mcp-server.ts
 const MCP_PLUGINS = new Set([
   "manageTodoList",
+  "manageScheduler",
   "presentDocument",
   "presentSpreadsheet",
   "createMindMap",

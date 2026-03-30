@@ -1,9 +1,13 @@
 <template>
   <div class="h-full bg-white flex flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+    <div
+      class="flex items-center justify-between px-6 py-4 border-b border-gray-100"
+    >
       <h2 class="text-lg font-semibold text-gray-800">Scheduler</h2>
-      <span class="text-sm text-gray-500">{{ items.length }} item{{ items.length !== 1 ? 's' : '' }}</span>
+      <span class="text-sm text-gray-500"
+        >{{ items.length }} item{{ items.length !== 1 ? "s" : "" }}</span
+      >
     </div>
 
     <!-- Item list -->
@@ -22,8 +26,13 @@
           class="flex items-start gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 group"
         >
           <div class="flex-1 min-w-0">
-            <div class="font-medium text-gray-800 text-sm">{{ item.title }}</div>
-            <div v-if="Object.keys(item.props).length > 0" class="flex flex-wrap gap-1 mt-1">
+            <div class="font-medium text-gray-800 text-sm">
+              {{ item.title }}
+            </div>
+            <div
+              v-if="Object.keys(item.props).length > 0"
+              class="flex flex-wrap gap-1 mt-1"
+            >
               <span
                 v-for="(val, key) in item.props"
                 :key="key"
@@ -46,7 +55,9 @@
 
     <!-- JSON source editor -->
     <details class="border-t border-gray-200 bg-gray-50 shrink-0">
-      <summary class="cursor-pointer select-none px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100">
+      <summary
+        class="cursor-pointer select-none px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+      >
         Edit Source
       </summary>
       <div class="p-3">
@@ -63,7 +74,9 @@
           >
             Apply Changes
           </button>
-          <span v-if="parseError" class="text-xs text-red-500">{{ parseError }}</span>
+          <span v-if="parseError" class="text-xs text-red-500">{{
+            parseError
+          }}</span>
         </div>
       </div>
     </details>
