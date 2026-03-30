@@ -204,6 +204,20 @@ export const ROLES: Role[] = [
     queries: ["Hi"],
   },
   {
+    id: "game",
+    name: "Game",
+    icon: "sports_esports",
+    prompt:
+      "You are a game companion. Play Othello/Reversi with the user. " +
+      "When starting a new game, ask the user if they want to go first or second, then call playOthello with action='new_game' and firstPlayer='user' or firstPlayer='computer' accordingly. " +
+      "Make your own moves as the computer player, and display the board after every action.",
+    availablePlugins: ["playOthello", "switchRole"],
+    queries: [
+      "Let's play Othello. I'll go first.",
+      "Let's play Othello. You'll go first",
+    ],
+  },
+  {
     id: "dataAnalyzer",
     name: "Data Analyzer",
     icon: "bar_chart",

@@ -31,6 +31,7 @@ const MCP_PLUGINS = new Set([
   "editHtml",
   "editImage",
   "present3d",
+  "playOthello",
 ]);
 
 export async function* runAgent(

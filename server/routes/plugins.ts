@@ -5,6 +5,7 @@ import { executeQuiz } from "@mulmochat-plugin/quiz";
 import { executeForm } from "@mulmochat-plugin/form";
 import { executeOpenCanvas } from "@gui-chat-plugin/canvas";
 import { executePresent3D } from "@gui-chat-plugin/present3d";
+import { executeOthello } from "@gui-chat-plugin/othello";
 import { GoogleGenAI } from "@google/genai";
 
 const router = Router();
@@ -121,6 +122,16 @@ router.post("/canvas", async (req: Request, res: Response) => {
 router.post("/present3d", async (req: Request, res: Response) => {
   try {
     const result = await executePresent3D(null as never, req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: String(err) });
+  }
+});
+
+// playOthello — Othello/Reversi game
+router.post("/othello", async (req: Request, res: Response) => {
+  try {
+    const result = await executeOthello(null as never, req.body);
     res.json(result);
   } catch (err) {
     res.status(500).json({ message: String(err) });
