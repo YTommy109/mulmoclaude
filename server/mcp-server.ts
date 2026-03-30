@@ -406,7 +406,8 @@ const ALL_TOOLS: Record<string, ToolDef> = {
         },
         board: {
           type: "array",
-          description: "Current board state (8×8 grid). Required for move/pass.",
+          description:
+            "Current board state (8×8 grid). Required for move/pass.",
           items: { type: "array", items: { type: "string" } },
         },
         currentSide: {

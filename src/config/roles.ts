@@ -212,7 +212,10 @@ export const ROLES: Role[] = [
       "When starting a new game, ask the user if they want to go first or second, then call playOthello with action='new_game' and firstPlayer='user' or firstPlayer='computer' accordingly. " +
       "Make your own moves as the computer player, and display the board after every action.",
     availablePlugins: ["playOthello", "switchRole"],
-    queries: ["Let's play Othello. I'll go first.", "Let's play Othello. You'll go first"],
+    queries: [
+      "Let's play Othello. I'll go first.",
+      "Let's play Othello. You'll go first",
+    ],
   },
   {
     id: "dataAnalyzer",
