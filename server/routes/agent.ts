@@ -10,6 +10,9 @@ import { workspacePath } from "../workspace.js";
 const router = Router();
 const PORT = Number(process.env.PORT) || 3001;
 
+// Maps app-level chatSessionId → Claude CLI internal session ID for multi-turn dialog
+const claudeSessionMap = new Map<string, string>();
+
 // Called by the MCP server to push a ToolResult into the active SSE stream
 router.post("/internal/tool-result", async (req: Request, res: Response) => {
   const { session } = req.query as { session: string };
@@ -76,6 +79,7 @@ router.post("/agent", async (req: Request, res: Response) => {
 
   registerSession(sessionId, send, resultsFilePath, selectedImageData);
   const role = getRole(roleId);
+  const claudeSessionId = claudeSessionMap.get(chatSessionId);
 
   try {
     for await (const event of runAgent(
@@ -84,7 +88,12 @@ router.post("/agent", async (req: Request, res: Response) => {
       workspacePath,
       sessionId,
       PORT,
+      claudeSessionId,
     )) {
+      if (event.type === "claude_session_id") {
+        claudeSessionMap.set(chatSessionId, event.id);
+        continue;
+      }
       send(event);
       if (event.type === "text") {
         await appendFile(

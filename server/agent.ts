@@ -12,7 +12,8 @@ export type AgentEvent =
   | { type: "switch_role"; roleId: string }
   | { type: "error"; message: string }
   | { type: "tool_call"; toolUseId: string; toolName: string; args: unknown }
-  | { type: "tool_call_result"; toolUseId: string; content: string };
+  | { type: "tool_call_result"; toolUseId: string; content: string }
+  | { type: "claude_session_id"; id: string };
 
 // Plugin names that have a corresponding MCP tool definition in mcp-server.ts
 const MCP_PLUGINS = new Set([
@@ -37,6 +38,7 @@ export async function* runAgent(
   workspacePath: string,
   sessionId: string,
   port: number,
+  claudeSessionId?: string,
 ): AsyncGenerator<AgentEvent> {
   const systemPrompt = [
     role.prompt,
@@ -81,8 +83,6 @@ export async function* runAgent(
   ];
 
   const args = [
-    "-p",
-    message,
     "--output-format",
     "stream-json",
     "--verbose",
@@ -91,6 +91,12 @@ export async function* runAgent(
     "--allowedTools",
     allowedTools.join(","),
   ];
+
+  if (claudeSessionId) {
+    args.push("--resume", claudeSessionId);
+  }
+
+  args.push("-p", message);
 
   if (hasMcp) {
     args.push("--mcp-config", mcpConfigPath);
@@ -155,6 +161,9 @@ export async function* runAgent(
         }
       } else if (event.type === "result" && typeof event.result === "string") {
         yield { type: "text", message: event.result };
+        if (typeof event.session_id === "string") {
+          yield { type: "claude_session_id", id: event.session_id };
+        }
       }
     }
   }
