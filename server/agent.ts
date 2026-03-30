@@ -10,7 +10,9 @@ export type AgentEvent =
   | { type: "text"; message: string }
   | { type: "tool_result"; result: unknown }
   | { type: "switch_role"; roleId: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "tool_call"; toolUseId: string; toolName: string; args: unknown }
+  | { type: "tool_call_result"; toolUseId: string; content: string };
 
 // Plugin names that have a corresponding MCP tool definition in mcp-server.ts
 const MCP_PLUGINS = new Set([
@@ -120,6 +122,39 @@ export async function* runAgent(
       }
       if (event.type === "assistant") {
         yield { type: "status", message: "Thinking..." };
+        const content = (event.message as { content?: unknown[] })?.content;
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            const b = block as Record<string, unknown>;
+            if (b.type === "tool_use") {
+              yield {
+                type: "tool_call",
+                toolUseId: b.id as string,
+                toolName: b.name as string,
+                args: b.input,
+              };
+            }
+          }
+        }
+      } else if (event.type === "user") {
+        const content = (event.message as { content?: unknown[] })?.content;
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            const b = block as Record<string, unknown>;
+            if (b.type === "tool_result") {
+              const raw = b.content;
+              const contentStr =
+                typeof raw === "string"
+                  ? raw
+                  : JSON.stringify(raw);
+              yield {
+                type: "tool_call_result",
+                toolUseId: b.tool_use_id as string,
+                content: contentStr,
+              };
+            }
+          }
+        }
       } else if (event.type === "result" && typeof event.result === "string") {
         yield { type: "text", message: event.result };
       }

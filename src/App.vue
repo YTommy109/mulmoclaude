@@ -9,7 +9,6 @@
       >
         <div>
           <h1 class="text-lg font-semibold">MulmoClaude</h1>
-          <p class="text-sm text-gray-500">{{ currentRole.name }}</p>
         </div>
         <div class="flex gap-2">
           <button
@@ -26,6 +25,14 @@
             title="Session history"
           >
             <span class="material-icons">history</span>
+          </button>
+          <button
+            class="text-gray-400 hover:text-gray-700"
+            :class="{ 'text-blue-500': showRightSidebar }"
+            @click="toggleRightSidebar"
+            title="Tool call history"
+          >
+            <span class="material-icons">build</span>
           </button>
         </div>
       </div>
@@ -151,7 +158,7 @@
     </div>
 
     <!-- Canvas -->
-    <div class="flex-1 overflow-hidden bg-white text-gray-900">
+    <div class="flex-1 overflow-hidden bg-white text-gray-900 min-w-0">
       <component
         v-if="
           selectedResult && getPlugin(selectedResult.toolName)?.viewComponent
@@ -170,6 +177,12 @@
         <p>Start a conversation</p>
       </div>
     </div>
+    <!-- Right sidebar: tool call history -->
+    <RightSidebar
+      v-if="showRightSidebar"
+      ref="rightSidebarRef"
+      :tool-call-history="toolCallHistory"
+    />
   </div>
 </template>
 
@@ -179,6 +192,8 @@ import { v4 as uuidv4 } from "uuid";
 import { ROLES } from "./config/roles";
 import { getPlugin } from "./tools";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
+import RightSidebar from "./components/RightSidebar.vue";
+import type { ToolCallHistoryItem } from "./components/RightSidebar.vue";
 
 interface SessionSummary {
   id: string;
@@ -203,6 +218,12 @@ const selectedResultUuid = ref<string | null>(null);
 const showHistory = ref(false);
 const sessions = ref<SessionSummary[]>([]);
 const geminiAvailable = ref(true);
+
+const showRightSidebar = ref(
+  localStorage.getItem("right_sidebar_visible") === "true",
+);
+const toolCallHistory = ref<ToolCallHistoryItem[]>([]);
+const rightSidebarRef = ref<InstanceType<typeof RightSidebar> | null>(null);
 
 const selectedResult = computed(
   () =>
@@ -266,11 +287,17 @@ const needsGemini = (roleId: string) =>
     GEMINI_PLUGINS.has(p),
   );
 
+function toggleRightSidebar() {
+  showRightSidebar.value = !showRightSidebar.value;
+  localStorage.setItem("right_sidebar_visible", String(showRightSidebar.value));
+}
+
 function onRoleChange() {
   toolResults.value = [];
   selectedResultUuid.value = null;
   statusMessage.value = "";
   chatSessionId.value = uuidv4();
+  toolCallHistory.value = [];
 }
 
 async function fetchHealth() {
@@ -375,7 +402,27 @@ async function sendMessage(text?: string) {
           continue;
         }
 
-        if (data.type === "status") {
+        if (data.type === "tool_call") {
+          toolCallHistory.value.push({
+            toolUseId: data.toolUseId as string,
+            toolName: data.toolName as string,
+            args: data.args,
+            timestamp: Date.now(),
+          });
+          rightSidebarRef.value?.scrollToBottom();
+        } else if (data.type === "tool_call_result") {
+          const entry = toolCallHistory.value
+            .slice()
+            .reverse()
+            .find(
+              (c) =>
+                c.toolUseId === (data.toolUseId as string) &&
+                c.result === undefined &&
+                c.error === undefined,
+            );
+          if (entry) entry.result = data.content as string;
+          rightSidebarRef.value?.scrollToBottom();
+        } else if (data.type === "status") {
           statusMessage.value = data.message as string;
         } else if (data.type === "switch_role") {
           setTimeout(() => {
