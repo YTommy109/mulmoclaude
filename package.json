@@ -12,7 +12,8 @@
     "server": "tsx server/index.ts",
     "lint": "eslint src server",
     "format": "prettier --write '{src,server}/**/*.{ts,json,yaml,vue}'",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "test": "tsx --test ./test/*/test_*.ts"
   },
   "dependencies": {
     "@google/genai": "^1.47.0",
