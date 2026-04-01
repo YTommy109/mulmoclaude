@@ -43,6 +43,21 @@ Always use Google providers. Required structure:
     },
     {
       "speaker": "Presenter",
+      "text": "Chart beat — use for data, comparisons, trends.",
+      "image": { "type": "chart", "title": "Chart Title", "chartData": { "type": "bar", "labels": ["A", "B", "C"], "datasets": [{ "label": "Series", "data": [10, 20, 30] }] } }
+    },
+    {
+      "speaker": "Presenter",
+      "text": "Diagram beat — use for flows, architectures, relationships.",
+      "image": { "type": "mermaid", "title": "Diagram Title", "code": { "kind": "text", "text": "graph TD\\n  A[Start] --> B[Process] --> C[End]" } }
+    },
+    {
+      "speaker": "Presenter",
+      "text": "Rich interactive beat — use for custom layouts, animations, or anything that benefits from HTML/CSS.",
+      "image": { "type": "html_tailwind", "html": "<div class=\\"flex items-center justify-center h-full text-4xl font-bold text-blue-600\\">Hello World</div>" }
+    },
+    {
+      "speaker": "Presenter",
       "text": "AI video beat.",
       "moviePrompt": "Detailed description — AI generates the video clip"
     }
@@ -54,8 +69,9 @@ Beat visual options (choose one per beat):
 - "moviePrompt": "..."  → top-level string field — AI generates a video clip from the prompt
 - "image": { "type": "textSlide", "slide": { "title", "subtitle"?, "bullets"? } }
 - "image": { "type": "markdown", "markdown": "..." }
-- "image": { "type": "mermaid", "title": "...", "code": { "kind": "text", "text": "..." } }
-- "image": { "type": "chart", "title": "...", "chartData": { ... } }
+- "image": { "type": "chart", "title": "...", "chartData": { "type": "bar"|"line"|"pie"|..., "labels": [...], "datasets": [...] } }  ← PREFER for data/numbers/comparisons
+- "image": { "type": "mermaid", "title": "...", "code": { "kind": "text", "text": "..." } }  ← PREFER for flows/diagrams/relationships
+- "image": { "type": "html_tailwind", "html": "...", "script"?: "..." }  ← PREFER for rich layouts, animations, custom visuals
 
 IMPORTANT: "imagePrompt" and "moviePrompt" are plain string fields on the beat, NOT nested under "image".`,
   parameters: {

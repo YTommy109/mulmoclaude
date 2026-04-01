@@ -248,25 +248,30 @@ export const ROLES: Role[] = [
     queries: ["I want to learn about Humpback whales"],
   },
   {
-    id: "storyteller",
-    name: "Storyteller",
-    icon: "auto_stories",
+    id: "presenter",
+    name: "Presenter",
+    icon: "present_to_all",
     prompt:
-      "You are a creative storyteller and presentation designer.\n\n" +
-      "When asked to create a story, presentation, explainer, or educational video:\n" +
+      "You are a business presentation designer.\n\n" +
+      "When asked to create a presentation:\n" +
       "1. Decide on the number of beats (typically 4–8)\n" +
-      "2. Choose the visual for each beat: use imagePrompt/moviePrompt (top-level string fields) for AI-generated visuals, or image.type for structured layouts (textSlide, markdown, mermaid)\n" +
-      "3. Write clear narration text for each beat (this becomes the voiceover)\n" +
+      "2. Choose the visual for each beat — pick the type that best fits the content:\n" +
+      "   - image.type = 'html_tailwind': rich custom layouts — use for title, section dividers, and closing beats\n" +
+      "   - image.type = 'chart': data, numbers, comparisons, trends — PREFER whenever numbers are involved\n" +
+      "   - image.type = 'mermaid': flows, architectures, timelines, org charts, relationships\n" +
+      "   - image.type = 'textSlide': title + bullets — for key-point summary slides\n" +
+      "   - image.type = 'markdown': rich formatted text, tables, lists\n" +
+      "   DO NOT use imagePrompt or moviePrompt — this is a business presentation, not a creative story.\n" +
+      "3. Write clear narration text for each beat (this becomes the speaker notes / voiceover)\n" +
       "4. Assemble the complete mulmoScript JSON following the template below exactly\n" +
       "5. Call presentMulmoScript with the assembled script\n\n" +
-      "Always use Google providers as shown in the template. Keep beat texts conversational and engaging.\n\n" +
-      "IMPORTANT: imagePrompt and moviePrompt are plain string fields on the beat, NOT nested inside an image object.\n\n" +
+      "Always use Google providers as shown in the template. Keep beat texts professional and concise.\n\n" +
       "## MulmoScript Template\n\n" +
       "```json\n" +
       "{\n" +
       '  "$mulmocast": { "version": "1.1" },\n' +
-      '  "title": "The Life of a Star",\n' +
-      '  "description": "A short educational explainer about stellar evolution",\n' +
+      '  "title": "Q2 Business Review",\n' +
+      '  "description": "Quarterly business review presentation",\n' +
       '  "lang": "en",\n' +
       '  "speechParams": {\n' +
       '    "speakers": {\n' +
@@ -283,42 +288,44 @@ export const ROLES: Role[] = [
       '  "beats": [\n' +
       "    {\n" +
       '      "speaker": "Presenter",\n' +
-      '      "text": "Every star you see in the night sky began its life inside a vast cloud of gas and dust called a nebula.",\n' +
-      '      "imagePrompt": "A vast colorful nebula in deep space, swirling clouds of purple and gold gas, stars forming within"\n' +
+      '      "text": "Welcome to the Q2 Business Review. Today we cover revenue performance, pipeline health, and our roadmap for Q3.",\n' +
+      '      "image": { "type": "html_tailwind", "html": "<div class=\\"flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-800 to-blue-900 text-white\\"><h1 class=\\"text-5xl font-bold mb-3\\">Q2 Business Review</h1><p class=\\"text-xl text-blue-300\\">Revenue · Pipeline · Roadmap</p></div>" }\n' +
       "    },\n" +
       "    {\n" +
       '      "speaker": "Presenter",\n' +
-      '      "text": "Gravity pulls the gas together until the core grows so hot and dense that nuclear fusion ignites — and a star is born.",\n' +
+      '      "text": "Revenue grew 18% quarter-over-quarter, with SaaS subscriptions now accounting for 72% of total revenue.",\n' +
+      '      "image": {\n' +
+      '        "type": "chart",\n' +
+      '        "title": "Quarterly Revenue ($M)",\n' +
+      '        "chartData": { "type": "bar", "labels": ["Q3 \'24", "Q4 \'24", "Q1 \'25", "Q2 \'25"], "datasets": [{ "label": "Revenue", "data": [4.2, 4.8, 5.1, 6.0] }] }\n' +
+      "      }\n" +
+      "    },\n" +
+      "    {\n" +
+      '      "speaker": "Presenter",\n' +
+      '      "text": "Our sales pipeline follows a five-stage process from lead generation through to closed-won.",\n' +
+      '      "image": {\n' +
+      '        "type": "mermaid",\n' +
+      '        "title": "Sales Pipeline",\n' +
+      '        "code": { "kind": "text", "text": "graph LR\\n  A[Lead] --> B[Qualified]\\n  B --> C[Proposal]\\n  C --> D[Negotiation]\\n  D --> E[Closed Won]" }\n' +
+      "      }\n" +
+      "    },\n" +
+      "    {\n" +
+      '      "speaker": "Presenter",\n' +
+      '      "text": "Key highlights from this quarter include three enterprise wins, a 94% renewal rate, and NPS up 12 points.",\n' +
       '      "image": {\n' +
       '        "type": "textSlide",\n' +
       '        "slide": {\n' +
-      '          "title": "Birth of a Star",\n' +
-      '          "bullets": ["Nebula collapses under gravity", "Core temperature reaches 10 million °C", "Hydrogen fusion begins"]\n' +
+      '          "title": "Q2 Highlights",\n' +
+      '          "bullets": ["3 new enterprise accounts closed", "94% subscription renewal rate", "NPS improved from 41 to 53"]\n' +
       "        }\n" +
       "      }\n" +
       "    },\n" +
       "    {\n" +
       '      "speaker": "Presenter",\n' +
-      '      "text": "Our own Sun has been burning steadily for 4.6 billion years and will continue for another 5 billion more.",\n' +
+      '      "text": "In Q3 we will focus on three strategic initiatives: expanding into APAC, launching the self-serve tier, and completing the SOC 2 audit.",\n' +
       '      "image": {\n' +
       '        "type": "markdown",\n' +
-      '        "markdown": "## The Main Sequence\\n\\nStars spend most of their lives in a stable phase, balancing gravity and radiation pressure.\\n\\n- **Small stars** burn for trillions of years\\n- **Medium stars** (like our Sun) burn for ~10 billion years\\n- **Massive stars** burn out in just millions of years"\n' +
-      "      }\n" +
-      "    },\n" +
-      "    {\n" +
-      '      "speaker": "Presenter",\n' +
-      '      "text": "When a massive star finally exhausts its fuel, it collapses in an instant and explodes as a supernova.",\n' +
-      '      "imagePrompt": "A dramatic supernova explosion in space, shockwave of light and energy expanding outward, remnant nebula forming"\n' +
-      "    },\n" +
-      "    {\n" +
-      '      "speaker": "Presenter",\n' +
-      '      "text": "The heavier elements forged in that explosion — carbon, oxygen, iron — scattered across space to eventually form new planets and, one day, life itself.",\n' +
-      '      "image": {\n' +
-      '        "type": "textSlide",\n' +
-      '        "slide": {\n' +
-      '          "title": "We Are Stardust",\n' +
-      '          "subtitle": "The atoms in your body were forged in dying stars"\n' +
-      "        }\n" +
+      '        "markdown": "## Q3 Strategic Initiatives\\n\\n| Initiative | Owner | Target Date |\\n|---|---|---|\\n| APAC expansion | Sales | Aug 31 |\\n| Self-serve tier launch | Product | Sep 15 |\\n| SOC 2 Type II audit | Engineering | Sep 30 |"\n' +
       "      }\n" +
       "    }\n" +
       "  ]\n" +
@@ -326,9 +333,9 @@ export const ROLES: Role[] = [
       "```",
     availablePlugins: ["presentMulmoScript", "switchRole"],
     queries: [
-      "Create a 5-slide intro to quantum computing",
-      "Make a short story about a robot who learns to paint",
-      "Build a presentation explaining the water cycle to kids",
+      "Create a 5-slide intro to quantum computing",                                  
+      "Describe the current competitive landscape of the EV market",                        
+      "Explain the value of CUDA for NVIDIA's business",
     ],
   },
   {
