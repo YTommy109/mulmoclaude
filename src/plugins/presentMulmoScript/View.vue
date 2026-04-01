@@ -58,123 +58,65 @@
           >
         </div>
 
-        <!-- Beat body -->
-        <div class="px-4 py-3 space-y-2">
-          <!-- textSlide: show rendered image if available, else slide text + spinner -->
-          <template v-if="beat.image?.type === 'textSlide'">
-            <div v-if="renderedImages[index]" class="rounded overflow-hidden">
+        <!-- Beat body: thumbnail + narration side by side -->
+        <div class="px-4 py-3">
+          <div class="flex gap-3 items-start">
+            <!-- Thumbnail -->
+            <div
+              class="shrink-0 w-[30%] rounded overflow-hidden border border-gray-200 bg-gray-50"
+            >
               <img
+                v-if="renderedImages[index]"
                 :src="renderedImages[index]"
                 class="w-full object-contain"
                 :alt="`Beat ${index + 1}`"
               />
-            </div>
-            <div v-else class="text-sm text-gray-700">
-              <div class="font-semibold">
-                {{ beat.image.slide?.title }}
-              </div>
               <div
-                v-if="beat.image.slide?.subtitle"
-                class="text-gray-500 text-xs"
+                v-else
+                class="w-full aspect-video flex flex-col items-center justify-center gap-1 p-2"
               >
-                {{ beat.image.slide.subtitle }}
+                <template v-if="renderState[index] === 'rendering'">
+                  <svg
+                    class="animate-spin w-4 h-4 text-green-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    />
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8H4z"
+                    />
+                  </svg>
+                  <span class="text-xs text-green-500">Rendering…</span>
+                </template>
+                <template v-else-if="renderState[index] === 'error'">
+                  <span class="text-xs text-red-400 text-center">{{
+                    renderErrors[index]
+                  }}</span>
+                </template>
+                <template v-else>
+                  <span class="text-xs text-gray-300">{{
+                    beat.image?.type ?? "—"
+                  }}</span>
+                </template>
               </div>
-              <ul
-                v-if="beat.image.slide?.bullets?.length"
-                class="mt-1 space-y-0.5"
-              >
-                <li
-                  v-for="(b, bi) in beat.image.slide.bullets"
-                  :key="bi"
-                  class="text-xs text-gray-600 flex gap-1"
-                >
-                  <span class="text-gray-400">•</span>{{ b }}
-                </li>
-              </ul>
             </div>
-            <!-- Render status -->
-            <div class="flex items-center gap-1.5 text-xs">
-              <template v-if="renderState[index] === 'rendering'">
-                <svg
-                  class="animate-spin w-3 h-3 text-green-500 shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
-                  <circle
-                    class="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    stroke-width="4"
-                  />
-                  <path
-                    class="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8H4z"
-                  />
-                </svg>
-                <span class="text-green-600">Rendering…</span>
-              </template>
-              <template v-else-if="renderState[index] === 'done'">
-                <span class="text-green-500">✓</span>
-                <span class="text-gray-400">Image ready</span>
-              </template>
-              <template v-else-if="renderState[index] === 'error'">
-                <span class="text-red-400">✕</span>
-                <span class="text-red-400">{{ renderErrors[index] }}</span>
-              </template>
-            </div>
-          </template>
 
-          <!-- Other image types -->
-          <div
-            v-else-if="beat.image && beat.image.type !== 'textSlide'"
-            class="text-sm text-gray-700"
-          >
-            <template v-if="beat.image.type === 'markdown'">
-              <div
-                class="text-xs font-mono text-gray-600 bg-gray-50 rounded p-2 line-clamp-4 whitespace-pre-wrap"
-              >
-                {{ markdownPreview(beat.image.markdown) }}
-              </div>
-            </template>
-
-            <template
-              v-else-if="
-                beat.image.type === 'imagePrompt' ||
-                beat.image.type === 'moviePrompt'
-              "
+            <!-- Narration text -->
+            <div
+              v-if="beat.text"
+              class="flex-1 min-w-0 text-sm text-gray-800 leading-relaxed"
             >
-              <div class="text-xs text-gray-600 italic line-clamp-3">
-                "{{ beat.image.prompt }}"
-              </div>
-            </template>
-
-            <template v-else-if="beat.image.type === 'mermaid'">
-              <div class="font-semibold text-xs">{{ beat.image.title }}</div>
-            </template>
-
-            <template v-else-if="beat.image.type === 'chart'">
-              <div class="font-semibold text-xs">{{ beat.image.title }}</div>
-            </template>
-
-            <template v-else>
-              <div class="text-xs text-gray-400 italic">
-                {{ beat.image.type }}
-              </div>
-            </template>
-          </div>
-
-          <!-- Divider -->
-          <div
-            v-if="beat.image && beat.text"
-            class="border-t border-gray-100"
-          />
-
-          <!-- Narration text -->
-          <div v-if="beat.text" class="text-sm text-gray-800 leading-relaxed">
-            {{ beat.text }}
+              {{ beat.text }}
+            </div>
           </div>
         </div>
       </div>
@@ -198,14 +140,7 @@ interface Beat {
   speaker?: string;
   text?: string;
   id?: string;
-  image?: {
-    type: string;
-    markdown?: string | string[];
-    slide?: { title: string; subtitle?: string; bullets?: string[] };
-    prompt?: string;
-    title?: string;
-    [key: string]: unknown;
-  };
+  image?: { type: string; [key: string]: unknown };
 }
 
 interface MulmoScript {
@@ -273,12 +208,6 @@ const TYPE_BADGE: Record<string, string> = {
 
 function badgeClass(type?: string): string {
   return TYPE_BADGE[type ?? ""] ?? "bg-gray-100 text-gray-600";
-}
-
-function markdownPreview(markdown?: string | string[]): string {
-  if (!markdown) return "";
-  const raw = Array.isArray(markdown) ? markdown.join("\n") : markdown;
-  return raw.slice(0, 300);
 }
 
 function downloadJson() {
