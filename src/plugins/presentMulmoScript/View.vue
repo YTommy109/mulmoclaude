@@ -190,7 +190,7 @@ async function renderBeat(index: number) {
 
 onMounted(() => {
   beats.value.forEach((beat, index) => {
-    if (beat.image?.type === "textSlide") {
+    if (beat.image?.type === "textSlide" || beat.image?.type === "markdown") {
       renderBeat(index);
     }
   });
