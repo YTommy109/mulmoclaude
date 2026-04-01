@@ -63,7 +63,7 @@
           <div class="flex gap-3 items-start">
             <!-- Thumbnail -->
             <div
-              class="shrink-0 w-[30%] rounded overflow-hidden border border-gray-200 bg-gray-50"
+              class="shrink-0 w-[50%] rounded overflow-hidden border border-gray-200 bg-gray-50"
             >
               <img
                 v-if="renderedImages[index]"
