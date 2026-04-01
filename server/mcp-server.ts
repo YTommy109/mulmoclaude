@@ -20,7 +20,7 @@ import { TOOL_DEFINITION as MusicDef } from "@gui-chat-plugin/music";
 import TodoDef from "../src/plugins/todo/definition.js";
 import SchedulerDef from "../src/plugins/scheduler/definition.js";
 import PresentMulmoScriptDef from "../src/plugins/presentMulmoScript/definition.js";
-import { toolDefinition as ManageRolesDef } from "../src/plugins/manageRoles/definition.js";
+import ManageRolesDef from "../src/plugins/manageRoles/definition.js";
 import type { ToolDefinition } from "gui-chat-protocol";
 
 const SESSION_ID = process.env.SESSION_ID ?? "";

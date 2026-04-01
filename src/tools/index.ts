@@ -1,4 +1,4 @@
-import type { ToolPlugin } from "./types";
+import type { PluginEntry } from "./types";
 import TextResponsePlugin from "@gui-chat-plugin/text-response/vue";
 import MarkdownPlugin from "@gui-chat-plugin/markdown/vue";
 import SpreadsheetPlugin from "@gui-chat-plugin/spreadsheet/vue";
@@ -22,7 +22,7 @@ import schedulerPlugin from "../plugins/scheduler/index";
 import manageRolesPlugin from "../plugins/manageRoles/index";
 import presentMulmoScriptPlugin from "../plugins/presentMulmoScript/index";
 
-const plugins: Record<string, ToolPlugin> = {
+const plugins: Record<string, PluginEntry> = {
   "Text-response": TextResponsePlugin.plugin,
   manageTodoList: todoPlugin,
   manageScheduler: schedulerPlugin,
@@ -47,17 +47,8 @@ const plugins: Record<string, ToolPlugin> = {
   weather: WeatherPlugin.plugin,
 };
 
-export function getPlugin(name: string): ToolPlugin | null {
+export function getPlugin(name: string): PluginEntry | null {
   return plugins[name] ?? null;
-}
-
-export function getPlugins(names: string[]): Record<string, ToolPlugin> {
-  return Object.fromEntries(
-    names.flatMap((name) => {
-      const plugin = plugins[name];
-      return plugin ? [[name, plugin]] : [];
-    }),
-  );
 }
 
 export function getAllPluginNames(): string[] {
