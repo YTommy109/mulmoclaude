@@ -216,14 +216,12 @@ interface MulmoScript {
   [key: string]: unknown;
 }
 
-const props = defineProps<{ selectedResult: ToolResultComplete }>();
+const props = defineProps<{
+  selectedResult: ToolResultComplete<MulmoScriptData>;
+}>();
 
-const data = computed(
-  () => props.selectedResult.data as MulmoScriptData | undefined,
-);
-const script = computed<MulmoScript>(
-  () => (data.value?.script as MulmoScript) ?? {},
-);
+const data = computed(() => props.selectedResult.data);
+const script = computed<MulmoScript>(() => data.value?.script ?? {});
 const filePath = computed(() => data.value?.filePath ?? "");
 const beats = computed<Beat[]>(() => script.value.beats ?? []);
 

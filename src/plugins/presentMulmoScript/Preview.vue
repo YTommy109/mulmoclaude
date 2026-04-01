@@ -14,9 +14,9 @@ import { computed } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { MulmoScriptData } from "./index";
 
-const props = defineProps<{ result: ToolResultComplete }>();
+const props = defineProps<{ result: ToolResultComplete<MulmoScriptData> }>();
 
-const data = computed(() => props.result.data as MulmoScriptData | undefined);
+const data = computed(() => props.result.data);
 const script = computed(() => data.value?.script);
 const title = computed(
   () =>

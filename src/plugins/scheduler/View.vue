@@ -127,12 +127,12 @@ import { computed, ref, watch } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { SchedulerData, ScheduledItem } from "./index";
 
-const props = defineProps<{ selectedResult: ToolResultComplete }>();
+const props = defineProps<{
+  selectedResult: ToolResultComplete<SchedulerData>;
+}>();
 const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 
-const items = computed(
-  () => (props.selectedResult.data as SchedulerData)?.items ?? [],
-);
+const items = computed(() => props.selectedResult.data?.items ?? []);
 
 // ── YAML helpers ────────────────────────────────────────────────────────────
 

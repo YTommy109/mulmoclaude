@@ -28,8 +28,6 @@ import { computed } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { ManageRolesData } from "./index";
 
-const props = defineProps<{ result: ToolResultComplete }>();
-const customRoles = computed(
-  () => (props.result.data as ManageRolesData)?.customRoles ?? [],
-);
+const props = defineProps<{ result: ToolResultComplete<ManageRolesData> }>();
+const customRoles = computed(() => props.result.data?.customRoles ?? []);
 </script>

@@ -23,9 +23,9 @@ import { computed } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { SchedulerData, ScheduledItem } from "./index";
 
-const props = defineProps<{ result: ToolResultComplete }>();
+const props = defineProps<{ result: ToolResultComplete<SchedulerData> }>();
 
-const items = computed(() => (props.result.data as SchedulerData)?.items ?? []);
+const items = computed(() => props.result.data?.items ?? []);
 
 const today = new Date().toISOString().slice(0, 10);
 

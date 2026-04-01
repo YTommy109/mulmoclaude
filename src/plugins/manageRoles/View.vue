@@ -170,11 +170,13 @@ import { getAllPluginNames } from "../../tools/index";
 const EXCLUDED = new Set(["text-response", "switchRole"]);
 const availablePlugins = getAllPluginNames().filter((p) => !EXCLUDED.has(p));
 
-const props = defineProps<{ selectedResult: ToolResultComplete }>();
+const props = defineProps<{
+  selectedResult: ToolResultComplete<ManageRolesData>;
+}>();
 const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 
 const customRoles = computed(
-  () => (props.selectedResult.data as ManageRolesData)?.customRoles ?? [],
+  () => props.selectedResult.data?.customRoles ?? [],
 );
 
 // ── Selection & edit form ─────────────────────────────────────────────────────

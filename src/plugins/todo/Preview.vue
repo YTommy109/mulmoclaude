@@ -21,9 +21,9 @@ import { computed } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TodoData } from "./index";
 
-const props = defineProps<{ result: ToolResultComplete }>();
+const props = defineProps<{ result: ToolResultComplete<TodoData> }>();
 
-const items = computed(() => (props.result.data as TodoData)?.items ?? []);
+const items = computed(() => props.result.data?.items ?? []);
 const completedCount = computed(
   () => items.value.filter((i) => i.completed).length,
 );
