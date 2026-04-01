@@ -23,7 +23,7 @@ import manageRolesPlugin from "../plugins/manageRoles/index";
 import presentMulmoScriptPlugin from "../plugins/presentMulmoScript/index";
 
 const plugins: Record<string, PluginEntry> = {
-  "Text-response": TextResponsePlugin.plugin,
+  "text-response": TextResponsePlugin.plugin,
   manageTodoList: todoPlugin,
   manageScheduler: schedulerPlugin,
   manageRoles: manageRolesPlugin,
