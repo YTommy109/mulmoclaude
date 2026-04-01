@@ -31,7 +31,7 @@
     </div>
 
     <!-- Beat list -->
-    <div class="flex-1 overflow-y-auto p-4 space-y-3">
+    <div class="flex-1 overflow-y-auto p-2 space-y-1.5">
       <div
         v-for="(beat, index) in beats"
         :key="index"
@@ -40,7 +40,7 @@
         <!-- Beat body: thumbnail + narration side by side -->
         <div class="flex gap-3 items-start">
           <!-- Thumbnail -->
-          <div class="shrink-0 w-[40%] overflow-hidden bg-gray-50">
+          <div class="shrink-0 w-[45%] overflow-hidden bg-gray-50">
             <img
               v-if="renderedImages[index]"
               :src="renderedImages[index]"
@@ -89,7 +89,7 @@
           <!-- Narration text -->
           <div
             v-if="beat.text"
-            class="flex-1 min-w-0 text-sm text-gray-800 leading-relaxed px-4 py-3"
+            class="flex-1 min-w-0 text-sm text-gray-800 leading-relaxed px-2 py-1.5"
           >
             {{ beat.text }}
           </div>
