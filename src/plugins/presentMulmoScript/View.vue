@@ -87,18 +87,15 @@
           </div>
 
           <!-- Narration text -->
-          <div
-            v-if="beat.text"
-            class="flex flex-col flex-1 min-w-0 px-2 py-1.5"
-          >
+          <div class="flex flex-col flex-1 min-w-0 px-2 py-1.5">
             <span class="text-sm text-gray-800 leading-relaxed">{{
-              beat.text
+              effectiveBeat(index).text
             }}</span>
             <div class="flex justify-end mt-auto pt-1">
               <button
                 class="text-gray-400 hover:text-gray-600"
                 :title="sourceOpen[index] ? 'Hide source' : 'Show source'"
-                @click="sourceOpen[index] = !sourceOpen[index]"
+                @click="toggleSource(index)"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -118,12 +115,28 @@
           </div>
         </div>
 
-        <!-- Source view -->
+        <!-- Source editor -->
         <div v-if="sourceOpen[index]" class="border-t border-gray-100">
-          <pre
-            class="text-xs text-gray-600 bg-gray-50 p-2 overflow-x-auto whitespace-pre-wrap break-all"
-            >{{ JSON.stringify(beat, null, 2) }}</pre
-          >
+          <textarea
+            v-model="sourceText[index]"
+            class="w-full text-xs text-gray-600 bg-gray-50 p-2 font-mono resize-none outline-none"
+            rows="8"
+            spellcheck="false"
+          />
+          <div class="flex justify-end px-2 pb-2">
+            <button
+              class="px-2 py-1 text-xs rounded border"
+              :class="
+                isValidBeat(index)
+                  ? 'border-blue-400 text-blue-600 hover:bg-blue-50 cursor-pointer'
+                  : 'border-gray-200 text-gray-300 cursor-not-allowed'
+              "
+              :disabled="!isValidBeat(index)"
+              @click="updateBeat(index)"
+            >
+              Update
+            </button>
+          </div>
         </div>
       </div>
 
@@ -141,6 +154,7 @@
 import { computed, onMounted, reactive } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { MulmoScriptData } from "./index";
+import { mulmoBeatSchema } from "@mulmocast/types";
 
 interface Beat {
   speaker?: string;
@@ -174,6 +188,44 @@ const renderState = reactive<Record<number, RenderState>>({});
 const renderedImages = reactive<Record<number, string>>({});
 const renderErrors = reactive<Record<number, string>>({});
 const sourceOpen = reactive<Record<number, boolean>>({});
+const sourceText = reactive<Record<number, string>>({});
+const localOverrides = reactive<Record<number, Beat>>({});
+
+function effectiveBeat(index: number): Beat {
+  return localOverrides[index] ?? beats.value[index] ?? {};
+}
+
+function toggleSource(index: number) {
+  if (!sourceOpen[index]) {
+    sourceText[index] = JSON.stringify(effectiveBeat(index), null, 2);
+  }
+  sourceOpen[index] = !sourceOpen[index];
+}
+
+function isValidBeat(index: number): boolean {
+  try {
+    const parsed = JSON.parse(sourceText[index] ?? "");
+    return mulmoBeatSchema.safeParse(parsed).success;
+  } catch {
+    return false;
+  }
+}
+
+async function updateBeat(index: number) {
+  const beat = JSON.parse(sourceText[index]) as Beat;
+  const prevImage = JSON.stringify(effectiveBeat(index).image);
+  await fetch("/api/mulmo-script/update-beat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filePath: filePath.value, beatIndex: index, beat }),
+  });
+  localOverrides[index] = beat;
+
+  if (JSON.stringify(beat.image) !== prevImage) {
+    delete renderedImages[index];
+    renderBeat(index);
+  }
+}
 
 async function renderBeat(index: number) {
   renderState[index] = "rendering";

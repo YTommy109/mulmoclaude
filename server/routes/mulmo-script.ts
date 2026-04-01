@@ -10,6 +10,7 @@ import {
   setGraphAILogger,
   type MulmoScript,
 } from "mulmocast";
+import type { MulmoBeat } from "@mulmocast/types";
 
 const router = Router();
 
@@ -31,6 +32,12 @@ interface SaveMulmoScriptBody {
 interface RenderBeatBody {
   filePath: string;
   beatIndex: number;
+}
+
+interface UpdateBeatBody {
+  filePath: string;
+  beatIndex: number;
+  beat: MulmoBeat;
 }
 
 router.post(
@@ -62,6 +69,45 @@ router.post(
 );
 
 router.post(
+  "/mulmo-script/update-beat",
+  (req: Request<object, object, UpdateBeatBody>, res: Response) => {
+    const { filePath, beatIndex, beat } = req.body;
+
+    if (!filePath || beatIndex === undefined || !beat) {
+      res
+        .status(400)
+        .json({ error: "filePath, beatIndex, and beat are required" });
+      return;
+    }
+
+    const storiesDir = path.resolve(workspacePath, "stories");
+    const absoluteFilePath = path.resolve(workspacePath, filePath);
+    if (!absoluteFilePath.startsWith(storiesDir + path.sep)) {
+      res.status(400).json({ error: "Invalid filePath" });
+      return;
+    }
+    if (!fs.existsSync(absoluteFilePath)) {
+      res.status(404).json({ error: `File not found: ${filePath}` });
+      return;
+    }
+
+    const script: MulmoScript = JSON.parse(
+      fs.readFileSync(absoluteFilePath, "utf-8"),
+    );
+
+    if (!Array.isArray(script.beats) || beatIndex >= script.beats.length) {
+      res.status(400).json({ error: "Invalid beatIndex" });
+      return;
+    }
+
+    script.beats[beatIndex] = beat;
+    fs.writeFileSync(absoluteFilePath, JSON.stringify(script, null, 2));
+
+    res.json({ ok: true });
+  },
+);
+
+router.post(
   "/mulmo-script/render-beat",
   async (req: Request<object, object, RenderBeatBody>, res: Response) => {
     const { filePath, beatIndex } = req.body;
@@ -71,7 +117,12 @@ router.post(
       return;
     }
 
-    const absoluteFilePath = path.join(workspacePath, filePath);
+    const storiesDir = path.resolve(workspacePath, "stories");
+    const absoluteFilePath = path.resolve(workspacePath, filePath);
+    if (!absoluteFilePath.startsWith(storiesDir + path.sep)) {
+      res.status(400).json({ error: "Invalid filePath" });
+      return;
+    }
     if (!fs.existsSync(absoluteFilePath)) {
       res.status(404).json({ error: `File not found: ${filePath}` });
       return;
