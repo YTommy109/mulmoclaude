@@ -533,10 +533,10 @@
   dependencies:
     xlsx "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
 
-"@gui-chat-plugin/text-response@^0.1.1":
-  version "0.1.1"
-  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/text-response/-/text-response-0.1.1.tgz#929b57f08b20ff6a8c18a61174d6827bf212d7f8"
-  integrity sha512-xHzLp1vX6niZvwbK6OUfhAMnzpm4bqT1PBLr4Lr/CNmDRSnSsyxv/+A9JP+sf2P3yGBC4iG1m/feMJJC0fw0lA==
+"@gui-chat-plugin/text-response@0.1.2":
+  version "0.1.2"
+  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/text-response/-/text-response-0.1.2.tgz#ebb4376a04a4ff944a1268d00b8e2835aefe6015"
+  integrity sha512-7xk8PCjydRNMCWj5gWAardWHP/yLZaK+NS7DYejlPWS0z9aHoBeG8AaWfIMOngkKEOXgNjyNjaNSEiFcijxLig==
   dependencies:
     gui-chat-protocol "^0.0.3"
     marked "^17.0.1"

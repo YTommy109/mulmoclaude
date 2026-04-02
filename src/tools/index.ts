@@ -1,6 +1,5 @@
 import type { PluginEntry } from "./types";
 import TextResponsePlugin from "@gui-chat-plugin/text-response/vue";
-import TextResponsePreview from "../plugins/text-response/Preview.vue";
 import MarkdownPlugin from "@gui-chat-plugin/markdown/vue";
 import SpreadsheetPlugin from "@gui-chat-plugin/spreadsheet/vue";
 import MindMapPlugin from "@gui-chat-plugin/mindmap/vue";
@@ -24,10 +23,7 @@ import manageRolesPlugin from "../plugins/manageRoles/index";
 import presentMulmoScriptPlugin from "../plugins/presentMulmoScript/index";
 
 const plugins: Record<string, PluginEntry> = {
-  "text-response": {
-    ...TextResponsePlugin.plugin,
-    previewComponent: TextResponsePreview,
-  },
+  "text-response": TextResponsePlugin.plugin,
   manageTodoList: todoPlugin,
   manageScheduler: schedulerPlugin,
   manageRoles: manageRolesPlugin,
