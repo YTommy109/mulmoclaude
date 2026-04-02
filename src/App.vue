@@ -207,6 +207,8 @@
       ref="rightSidebarRef"
       :tool-call-history="toolCallHistory"
       :available-tools="availableTools"
+      :role-prompt="currentRole.prompt"
+      :tool-descriptions="toolDescriptions"
     />
   </div>
 </template>
@@ -345,6 +347,15 @@ const toolCallHistory = ref<ToolCallHistoryItem[]>([]);
 const rightSidebarRef = ref<InstanceType<typeof RightSidebar> | null>(null);
 
 const availableTools = computed(() => currentRole.value.availablePlugins);
+
+const toolDescriptions = computed(() => {
+  const map: Record<string, string> = {};
+  for (const name of currentRole.value.availablePlugins) {
+    const desc = getPlugin(name)?.toolDefinition.description;
+    if (desc) map[name] = desc;
+  }
+  return map;
+});
 
 const selectedResult = computed(
   () =>
