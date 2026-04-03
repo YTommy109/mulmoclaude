@@ -134,7 +134,12 @@
                 }}</span>
               </template>
               <template v-else>
-                <span class="text-xs text-gray-300">{{
+                <span
+                  v-if="effectiveBeat(index).imagePrompt"
+                  class="text-xs text-gray-400 text-center italic leading-relaxed px-1"
+                  >{{ effectiveBeat(index).imagePrompt }}</span
+                >
+                <span v-else class="text-xs text-gray-300">{{
                   beat.image?.type ?? "—"
                 }}</span>
               </template>
@@ -215,6 +220,7 @@ interface Beat {
   speaker?: string;
   text?: string;
   id?: string;
+  imagePrompt?: string;
   image?: { type: string; [key: string]: unknown };
 }
 
