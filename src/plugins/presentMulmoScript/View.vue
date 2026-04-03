@@ -99,8 +99,9 @@
             <img
               v-if="renderedImages[index]"
               :src="renderedImages[index]"
-              class="w-full object-contain"
+              class="w-full object-contain cursor-zoom-in"
               :alt="`Beat ${index + 1}`"
+              @click="lightboxImage = renderedImages[index]"
             />
             <div
               v-else
@@ -240,6 +241,19 @@
         No beats found in script
       </div>
     </div>
+
+    <!-- Lightbox -->
+    <div
+      v-if="lightboxImage"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+      @click="lightboxImage = null"
+    >
+      <img
+        :src="lightboxImage"
+        class="max-w-[90vw] max-h-[90vh] object-contain rounded shadow-2xl"
+        @click.stop
+      />
+    </div>
   </div>
 </template>
 
@@ -284,6 +298,7 @@ const sourceText = reactive<Record<number, string>>({});
 const localOverrides = reactive<Record<number, Beat>>({});
 const movieGenerating = ref(false);
 const moviePath = ref<string | null>(null);
+const lightboxImage = ref<string | null>(null);
 const scriptSourceOpen = ref(false);
 const scriptSourceText = computed(() => JSON.stringify(script.value, null, 2));
 
