@@ -105,6 +105,7 @@ export async function* runAgent(
     "Glob",
     "Grep",
     "WebFetch",
+    "WebSearch",
     ...mcpToolNames,
   ];
 
