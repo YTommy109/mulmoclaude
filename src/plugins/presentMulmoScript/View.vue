@@ -101,12 +101,7 @@
               :src="renderedImages[index]"
               class="w-full object-contain cursor-zoom-in"
               :alt="`Beat ${index + 1}`"
-              @click="
-                lightbox = {
-                  src: renderedImages[index],
-                  text: effectiveBeat(index).text,
-                }
-              "
+              @click="openLightbox(index)"
             />
             <div
               v-else
@@ -253,17 +248,33 @@
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
       @click="lightbox = null"
     >
-      <div class="flex flex-col items-center gap-3" @click.stop>
-        <img
-          :src="lightbox.src"
-          class="max-w-[90vw] max-h-[80vh] object-contain rounded shadow-2xl"
-        />
-        <p
-          v-if="lightbox.text"
-          class="max-w-[90vw] text-center text-white text-2xl leading-relaxed"
+      <div class="flex items-center gap-4" @click.stop>
+        <button
+          class="text-white/60 hover:text-white disabled:opacity-20 text-4xl leading-none"
+          :disabled="!hasPrev"
+          @click="lightboxMove(-1)"
         >
-          {{ lightbox.text }}
-        </p>
+          ‹
+        </button>
+        <div class="flex flex-col items-center gap-3">
+          <img
+            :src="lightbox.src"
+            class="max-w-[80vw] max-h-[80vh] object-contain rounded shadow-2xl"
+          />
+          <p
+            v-if="lightbox.text"
+            class="max-w-[80vw] text-center text-white text-2xl leading-relaxed"
+          >
+            {{ lightbox.text }}
+          </p>
+        </div>
+        <button
+          class="text-white/60 hover:text-white disabled:opacity-20 text-4xl leading-none"
+          :disabled="!hasNext"
+          @click="lightboxMove(1)"
+        >
+          ›
+        </button>
       </div>
     </div>
   </div>
@@ -310,7 +321,46 @@ const sourceText = reactive<Record<number, string>>({});
 const localOverrides = reactive<Record<number, Beat>>({});
 const movieGenerating = ref(false);
 const moviePath = ref<string | null>(null);
-const lightbox = ref<{ src: string; text?: string } | null>(null);
+const lightbox = ref<{ src: string; text?: string; index: number } | null>(
+  null,
+);
+
+function openLightbox(index: number) {
+  lightbox.value = {
+    src: renderedImages[index],
+    text: effectiveBeat(index).text,
+    index,
+  };
+}
+
+const hasPrev = computed(() => {
+  if (!lightbox.value) return false;
+  for (let i = lightbox.value.index - 1; i >= 0; i--) {
+    if (renderedImages[i]) return true;
+  }
+  return false;
+});
+
+const hasNext = computed(() => {
+  if (!lightbox.value) return false;
+  for (let i = lightbox.value.index + 1; i < beats.value.length; i++) {
+    if (renderedImages[i]) return true;
+  }
+  return false;
+});
+
+function lightboxMove(delta: number) {
+  if (!lightbox.value) return;
+  const total = beats.value.length;
+  let i = lightbox.value.index + delta;
+  while (i >= 0 && i < total) {
+    if (renderedImages[i]) {
+      openLightbox(i);
+      return;
+    }
+    i += delta;
+  }
+}
 const scriptSourceOpen = ref(false);
 const scriptSourceText = computed(() => JSON.stringify(script.value, null, 2));
 
