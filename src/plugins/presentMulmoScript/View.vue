@@ -71,13 +71,6 @@
           </svg>
           {{ movieGenerating ? "Generating…" : "Generate Movie" }}
         </button>
-
-        <button
-          class="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
-          @click="downloadJson"
-        >
-          Download JSON
-        </button>
       </div>
     </div>
 
@@ -347,18 +340,5 @@ async function generateMovie() {
   } finally {
     movieGenerating.value = false;
   }
-}
-
-function downloadJson() {
-  const blob = new Blob([JSON.stringify(script.value, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  const name = filePath.value.split("/").pop() ?? "script.json";
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 </script>
