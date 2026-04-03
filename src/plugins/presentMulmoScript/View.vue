@@ -101,7 +101,12 @@
               :src="renderedImages[index]"
               class="w-full object-contain cursor-zoom-in"
               :alt="`Beat ${index + 1}`"
-              @click="lightboxImage = renderedImages[index]"
+              @click="
+                lightbox = {
+                  src: renderedImages[index],
+                  text: effectiveBeat(index).text,
+                }
+              "
             />
             <div
               v-else
@@ -244,15 +249,22 @@
 
     <!-- Lightbox -->
     <div
-      v-if="lightboxImage"
+      v-if="lightbox"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-      @click="lightboxImage = null"
+      @click="lightbox = null"
     >
-      <img
-        :src="lightboxImage"
-        class="max-w-[90vw] max-h-[90vh] object-contain rounded shadow-2xl"
-        @click.stop
-      />
+      <div class="flex flex-col items-center gap-3" @click.stop>
+        <img
+          :src="lightbox.src"
+          class="max-w-[90vw] max-h-[80vh] object-contain rounded shadow-2xl"
+        />
+        <p
+          v-if="lightbox.text"
+          class="max-w-[90vw] text-center text-white text-2xl leading-relaxed"
+        >
+          {{ lightbox.text }}
+        </p>
+      </div>
     </div>
   </div>
 </template>
@@ -298,7 +310,7 @@ const sourceText = reactive<Record<number, string>>({});
 const localOverrides = reactive<Record<number, Beat>>({});
 const movieGenerating = ref(false);
 const moviePath = ref<string | null>(null);
-const lightboxImage = ref<string | null>(null);
+const lightbox = ref<{ src: string; text?: string } | null>(null);
 const scriptSourceOpen = ref(false);
 const scriptSourceText = computed(() => JSON.stringify(script.value, null, 2));
 
