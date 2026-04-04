@@ -11,6 +11,10 @@ import { GoogleGenAI } from "@google/genai";
 
 const router = Router();
 
+interface PluginErrorResponse {
+  message: string;
+}
+
 const IMAGE_PLACEHOLDER = /!\[([^\]]+)\]\(\/?__too_be_replaced_image_path__\)/g;
 
 async function generateInlineImage(prompt: string): Promise<string | null> {
@@ -64,9 +68,18 @@ interface PresentDocumentBody {
   markdown: string;
 }
 
+interface PresentDocumentResponse {
+  message: string;
+  title: string;
+  data: { markdown: string };
+}
+
 router.post(
   "/present-document",
-  async (req: Request<object, unknown, PresentDocumentBody>, res: Response) => {
+  async (
+    req: Request<object, unknown, PresentDocumentBody>,
+    res: Response<PresentDocumentResponse>,
+  ) => {
     const { title, markdown } = req.body;
     const filledMarkdown = await fillImagePlaceholders(markdown);
     res.json({
@@ -78,83 +91,107 @@ router.post(
 );
 
 // presentSpreadsheet — uses package execute for validation/processing
-router.post("/present-spreadsheet", async (req: Request, res: Response) => {
-  try {
-    const result = await executeSpreadsheet(null as never, req.body);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ message: String(err) });
-  }
-});
+router.post(
+  "/present-spreadsheet",
+  async (_req: Request, res: Response<PluginErrorResponse>) => {
+    try {
+      const result = await executeSpreadsheet(null as never, _req.body);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ message: String(err) });
+    }
+  },
+);
 
 // createMindMap — uses package execute for node layout computation
-router.post("/mindmap", async (req: Request, res: Response) => {
-  try {
-    const result = await executeMindMap(null as never, req.body);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ message: String(err) });
-  }
-});
+router.post(
+  "/mindmap",
+  async (_req: Request, res: Response<PluginErrorResponse>) => {
+    try {
+      const result = await executeMindMap(null as never, _req.body);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ message: String(err) });
+    }
+  },
+);
 
 // putQuestions — quiz
-router.post("/quiz", async (req: Request, res: Response) => {
-  try {
-    const result = await executeQuiz(null as never, req.body);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ message: String(err) });
-  }
-});
+router.post(
+  "/quiz",
+  async (_req: Request, res: Response<PluginErrorResponse>) => {
+    try {
+      const result = await executeQuiz(null as never, _req.body);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ message: String(err) });
+    }
+  },
+);
 
 // presentForm — form
-router.post("/form", async (req: Request, res: Response) => {
-  try {
-    const result = await executeForm(null as never, req.body);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ message: String(err) });
-  }
-});
+router.post(
+  "/form",
+  async (_req: Request, res: Response<PluginErrorResponse>) => {
+    try {
+      const result = await executeForm(null as never, _req.body);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ message: String(err) });
+    }
+  },
+);
 
 // openCanvas — drawing canvas
-router.post("/canvas", async (req: Request, res: Response) => {
-  try {
-    const result = await executeOpenCanvas(null as never, req.body);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ message: String(err) });
-  }
-});
+router.post(
+  "/canvas",
+  async (_req: Request, res: Response<PluginErrorResponse>) => {
+    try {
+      const result = await executeOpenCanvas(null as never, _req.body);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ message: String(err) });
+    }
+  },
+);
 
 // present3d — 3D visualization
-router.post("/present3d", async (req: Request, res: Response) => {
-  try {
-    const result = await executePresent3D(null as never, req.body);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ message: String(err) });
-  }
-});
+router.post(
+  "/present3d",
+  async (_req: Request, res: Response<PluginErrorResponse>) => {
+    try {
+      const result = await executePresent3D(null as never, _req.body);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ message: String(err) });
+    }
+  },
+);
 
 // playOthello — Othello/Reversi game
-router.post("/othello", async (req: Request, res: Response) => {
-  try {
-    const result = await executeOthello(null as never, req.body);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ message: String(err) });
-  }
-});
+router.post(
+  "/othello",
+  async (_req: Request, res: Response<PluginErrorResponse>) => {
+    try {
+      const result = await executeOthello(null as never, _req.body);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ message: String(err) });
+    }
+  },
+);
 
 // showMusic — sheet music display
-router.post("/music", async (req: Request, res: Response) => {
-  try {
-    const result = await showMusic(null as never, req.body);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ message: String(err) });
-  }
-});
+router.post(
+  "/music",
+  async (_req: Request, res: Response<PluginErrorResponse>) => {
+    try {
+      const result = await showMusic(null as never, _req.body);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ message: String(err) });
+    }
+  },
+);
 
 export default router;

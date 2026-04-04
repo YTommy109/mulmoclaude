@@ -50,9 +50,24 @@ interface SchedulerBody {
   items?: ScheduledItem[];
 }
 
+interface ErrorResponse {
+  error: string;
+}
+
+interface SchedulerResponse {
+  data: { items: ScheduledItem[] };
+  message: string;
+  jsonData: Record<string, unknown>;
+  instructions: string;
+  updating: boolean;
+}
+
 router.post(
   "/scheduler",
-  (req: Request<object, unknown, SchedulerBody>, res: Response) => {
+  (
+    req: Request<object, unknown, SchedulerBody>,
+    res: Response<SchedulerResponse | ErrorResponse>,
+  ) => {
     const { action, title, id, props, items: replaceItems } = req.body;
 
     let items = loadItems();

@@ -36,9 +36,24 @@ interface TodoBody {
   note?: string;
 }
 
+interface ErrorResponse {
+  error: string;
+}
+
+interface TodoResponse {
+  data: { items: TodoItem[] };
+  message: string;
+  jsonData: Record<string, unknown>;
+  instructions: string;
+  updating: boolean;
+}
+
 router.post(
   "/todos",
-  (req: Request<object, unknown, TodoBody>, res: Response) => {
+  (
+    req: Request<object, unknown, TodoBody>,
+    res: Response<TodoResponse | ErrorResponse>,
+  ) => {
     const { action, text, newText, note } = req.body;
 
     let items = loadTodos();

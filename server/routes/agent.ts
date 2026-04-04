@@ -14,14 +14,21 @@ const PORT = Number(process.env.PORT) || 3001;
 const claudeSessionMap = new Map<string, string>();
 
 // Called by the MCP server to push a ToolResult into the active SSE stream
-router.post("/internal/tool-result", async (req: Request, res: Response) => {
-  const session = String(req.query.session ?? "");
-  const pushed = await pushToSession(session, {
-    type: "tool_result",
-    result: req.body,
-  });
-  res.json({ ok: pushed });
-});
+interface OkResponse {
+  ok: boolean;
+}
+
+router.post(
+  "/internal/tool-result",
+  async (req: Request<object, unknown, unknown>, res: Response<OkResponse>) => {
+    const session = String(req.query.session ?? "");
+    const pushed = await pushToSession(session, {
+      type: "tool_result",
+      result: req.body,
+    });
+    res.json({ ok: pushed });
+  },
+);
 
 // Called by the MCP server to trigger a role switch on the frontend
 interface SwitchRoleBody {
@@ -30,7 +37,10 @@ interface SwitchRoleBody {
 
 router.post(
   "/internal/switch-role",
-  async (req: Request<object, unknown, SwitchRoleBody>, res: Response) => {
+  async (
+    req: Request<object, unknown, SwitchRoleBody>,
+    res: Response<OkResponse>,
+  ) => {
     const session = String(req.query.session ?? "");
     const { roleId } = req.body;
     const pushed = await pushToSession(session, {
@@ -48,9 +58,16 @@ interface AgentBody {
   selectedImageData?: string;
 }
 
+interface ErrorResponse {
+  error: string;
+}
+
 router.post(
   "/agent",
-  async (req: Request<object, unknown, AgentBody>, res: Response) => {
+  async (
+    req: Request<object, unknown, AgentBody>,
+    res: Response<ErrorResponse>,
+  ) => {
     const { message, roleId, chatSessionId, selectedImageData } = req.body;
 
     if (!message || !roleId || !chatSessionId) {

@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { loadAllRoles, loadCustomRoles } from "../roles.js";
-import { BUILTIN_ROLES } from "../../src/config/roles.js";
+import { BUILTIN_ROLES, type Role } from "../../src/config/roles.js";
 import { pushToSession } from "../sessions.js";
 
 const rolesDir = path.join(os.homedir(), "mulmoclaude", "roles");
@@ -11,15 +11,18 @@ const BUILTIN_IDS = new Set(BUILTIN_ROLES.map((r) => r.id));
 
 const router = Router();
 
-router.get("/roles", (_req: Request, res: Response) => {
+router.get("/roles", (_req: Request, res: Response<Role[]>) => {
   res.json(loadAllRoles());
 });
 
-router.post("/roles/manage", async (req: Request, res: Response) => {
-  const session = String(req.query.session ?? "");
-  const result = await executeManageRoles(req.body, session);
-  res.json(result);
-});
+router.post(
+  "/roles/manage",
+  async (req: Request, res: Response<Record<string, unknown>>) => {
+    const session = String(req.query.session ?? "");
+    const result = await executeManageRoles(req.body, session);
+    res.json(result);
+  },
+);
 
 export default router;
 
