@@ -604,7 +604,19 @@ function playAudio(index: number) {
   const audio = new Audio(src);
   playingAudio.value = { index, audio };
   audio.addEventListener("ended", () => {
-    if (playingAudio.value?.index === index) playingAudio.value = null;
+    if (playingAudio.value?.index !== index) return;
+    playingAudio.value = null;
+    if (lightbox.value?.index === index) {
+      lightboxMove(1);
+      const nextIndex = lightbox.value?.index;
+      if (
+        nextIndex !== undefined &&
+        nextIndex !== index &&
+        beatAudios[nextIndex]
+      ) {
+        playAudio(nextIndex);
+      }
+    }
   });
   audio.play();
 }
