@@ -21,6 +21,12 @@
           <span v-if="script.lang">{{ script.lang }}</span>
           <span v-if="filePath" class="truncate">{{ filePath }}</span>
         </div>
+        <button
+          class="mt-2 px-2 py-1 text-xs rounded border border-gray-300 text-gray-500 hover:bg-gray-50 self-start"
+          @click="toggleScriptSource"
+        >
+          {{ scriptSourceOpen ? "Hide Source <>" : "Show Source <>" }}
+        </button>
       </div>
       <div class="ml-4 shrink-0 flex gap-2">
         <!-- Generate / Download Movie -->
@@ -65,14 +71,18 @@
           </svg>
           {{ movieGenerating ? "Generating…" : "Generate Movie" }}
         </button>
-
-        <button
-          class="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
-          @click="downloadJson"
-        >
-          Download JSON
-        </button>
       </div>
+    </div>
+
+    <!-- Source code panel -->
+    <div v-if="scriptSourceOpen" class="border-b border-gray-100 shrink-0">
+      <textarea
+        :value="scriptSourceText"
+        readonly
+        class="w-full text-xs text-gray-600 bg-gray-50 p-3 font-mono resize-none outline-none"
+        rows="16"
+        spellcheck="false"
+      />
     </div>
 
     <!-- Beat list -->
@@ -85,15 +95,24 @@
         <!-- Beat body: thumbnail + narration side by side -->
         <div class="flex gap-3 items-stretch">
           <!-- Thumbnail -->
-          <div class="shrink-0 w-[45%] overflow-hidden bg-gray-50">
+          <div class="relative shrink-0 w-[45%] overflow-hidden bg-gray-50">
             <img
               v-if="renderedImages[index]"
               :src="renderedImages[index]"
-              class="w-full object-contain"
+              class="w-full object-contain cursor-zoom-in"
               :alt="`Beat ${index + 1}`"
+              @click="openLightbox(index)"
             />
+            <button
+              v-if="renderedImages[index] && renderState[index] !== 'rendering'"
+              class="absolute top-1.5 right-1.5 flex items-center gap-1 px-2 py-0.5 text-xs rounded border border-gray-400 text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              :disabled="movieGenerating"
+              @click.stop="regenerateBeat(index)"
+            >
+              ↺
+            </button>
             <div
-              v-else
+              v-else-if="!renderedImages[index]"
               class="w-full aspect-video flex flex-col items-center justify-center gap-1 p-2"
             >
               <template v-if="renderState[index] === 'rendering'">
@@ -124,11 +143,49 @@
                 }}</span>
               </template>
               <template v-else>
-                <span class="text-xs text-gray-300">{{
+                <span
+                  v-if="effectiveBeat(index).imagePrompt"
+                  class="text-xs text-gray-400 text-center italic leading-relaxed px-1"
+                  >{{ effectiveBeat(index).imagePrompt }}</span
+                >
+                <span v-else class="text-xs text-gray-300">{{
                   beat.image?.type ?? "—"
                 }}</span>
               </template>
             </div>
+            <!-- Generate button for imagePrompt beats -->
+            <button
+              v-if="
+                effectiveBeat(index).imagePrompt &&
+                !renderedImages[index] &&
+                renderState[index] !== 'rendering'
+              "
+              class="absolute top-1.5 right-1.5 flex items-center gap-1 px-2 py-0.5 text-xs rounded border border-blue-400 text-blue-600 bg-white hover:bg-blue-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              :disabled="movieGenerating"
+              @click="renderBeat(index)"
+            >
+              <svg
+                v-if="movieGenerating"
+                class="animate-spin w-3 h-3"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                />
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v8H4z"
+                />
+              </svg>
+              Generate
+            </button>
           </div>
 
           <!-- Narration text -->
@@ -136,7 +193,64 @@
             <span class="text-sm text-gray-800 leading-relaxed">{{
               effectiveBeat(index).text
             }}</span>
-            <div class="flex justify-end mt-auto pt-1">
+            <div class="flex justify-between mt-auto pt-1">
+              <!-- Audio controls -->
+              <div class="flex items-center gap-1">
+                <template v-if="audioState[index] === 'generating'">
+                  <svg
+                    class="animate-spin w-3 h-3 text-green-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    />
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8H4z"
+                    />
+                  </svg>
+                </template>
+                <button
+                  v-else-if="beatAudios[index]"
+                  class="text-xs px-2 py-0.5 rounded border"
+                  :class="
+                    playingAudio?.index === index
+                      ? 'border-red-400 text-red-600 hover:bg-red-50'
+                      : 'border-green-400 text-green-600 hover:bg-green-50'
+                  "
+                  @click="playAudio(index)"
+                >
+                  {{ playingAudio?.index === index ? "■ Stop" : "▶ Play" }}
+                </button>
+                <template v-else-if="audioErrors[index]">
+                  <span class="text-xs text-red-400" :title="audioErrors[index]"
+                    >⚠ Error</span
+                  >
+                  <button
+                    v-if="effectiveBeat(index).text"
+                    class="text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    :disabled="movieGenerating"
+                    @click="generateAudio(index)"
+                  >
+                    ↺
+                  </button>
+                </template>
+                <button
+                  v-else-if="effectiveBeat(index).text"
+                  class="text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                  :disabled="movieGenerating"
+                  @click="generateAudio(index)"
+                >
+                  ♪ Generate
+                </button>
+              </div>
               <button
                 class="text-gray-400 hover:text-gray-600"
                 :title="sourceOpen[index] ? 'Hide source' : 'Show source'"
@@ -192,11 +306,61 @@
         No beats found in script
       </div>
     </div>
+
+    <!-- Lightbox -->
+    <div
+      v-if="lightbox"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+      @click="lightbox = null"
+    >
+      <div class="flex items-center gap-4" @click.stop>
+        <button
+          class="text-white/60 hover:text-white disabled:opacity-20 text-4xl leading-none"
+          :disabled="!hasPrev"
+          @click="lightboxMove(-1)"
+        >
+          ‹
+        </button>
+        <div class="flex flex-col items-center gap-3">
+          <img
+            :src="lightbox.src"
+            class="max-w-[80vw] max-h-[80vh] object-contain rounded shadow-2xl"
+          />
+          <div class="flex items-center gap-4">
+            <p
+              v-if="lightbox.text"
+              class="max-w-[80vw] text-center text-white text-2xl leading-relaxed"
+            >
+              {{ lightbox.text }}
+            </p>
+            <button
+              v-if="beatAudios[lightbox.index]"
+              class="shrink-0 text-sm px-3 py-1 rounded border"
+              :class="
+                playingAudio?.index === lightbox.index
+                  ? 'border-red-400 text-red-400 hover:bg-red-400/20'
+                  : 'border-white/60 text-white/60 hover:bg-white/20'
+              "
+              @click="playAudio(lightbox.index)"
+            >
+              {{ playingAudio?.index === lightbox.index ? "■ Stop" : "▶ Play" }}
+            </button>
+          </div>
+        </div>
+        <button
+          class="text-white/60 hover:text-white disabled:opacity-20 text-4xl leading-none"
+          :disabled="!hasNext"
+          @click="lightboxMove(1)"
+        >
+          ›
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { MulmoScriptData } from "./index";
 import { mulmoBeatSchema } from "@mulmocast/types";
@@ -205,6 +369,7 @@ interface Beat {
   speaker?: string;
   text?: string;
   id?: string;
+  imagePrompt?: string;
   image?: { type: string; [key: string]: unknown };
 }
 
@@ -235,6 +400,64 @@ const sourceText = reactive<Record<number, string>>({});
 const localOverrides = reactive<Record<number, Beat>>({});
 const movieGenerating = ref(false);
 const moviePath = ref<string | null>(null);
+const beatAudios = reactive<Record<number, string>>({});
+const audioState = reactive<Record<number, "generating" | "done" | "error">>(
+  {},
+);
+const audioErrors = reactive<Record<number, string>>({});
+const playingAudio = ref<{ index: number; audio: HTMLAudioElement } | null>(
+  null,
+);
+const lightbox = ref<{ src: string; text?: string; index: number } | null>(
+  null,
+);
+
+function openLightbox(index: number) {
+  if (playingAudio.value) {
+    playingAudio.value.audio.pause();
+    playingAudio.value = null;
+  }
+  lightbox.value = {
+    src: renderedImages[index],
+    text: effectiveBeat(index).text,
+    index,
+  };
+}
+
+const hasPrev = computed(() => {
+  if (!lightbox.value) return false;
+  for (let i = lightbox.value.index - 1; i >= 0; i--) {
+    if (renderedImages[i]) return true;
+  }
+  return false;
+});
+
+const hasNext = computed(() => {
+  if (!lightbox.value) return false;
+  for (let i = lightbox.value.index + 1; i < beats.value.length; i++) {
+    if (renderedImages[i]) return true;
+  }
+  return false;
+});
+
+function lightboxMove(delta: number) {
+  if (!lightbox.value) return;
+  const total = beats.value.length;
+  let i = lightbox.value.index + delta;
+  while (i >= 0 && i < total) {
+    if (renderedImages[i]) {
+      openLightbox(i);
+      return;
+    }
+    i += delta;
+  }
+}
+const scriptSourceOpen = ref(false);
+const scriptSourceText = computed(() => JSON.stringify(script.value, null, 2));
+
+function toggleScriptSource() {
+  scriptSourceOpen.value = !scriptSourceOpen.value;
+}
 
 function effectiveBeat(index: number): Beat {
   return localOverrides[index] ?? beats.value[index] ?? {};
@@ -292,20 +515,156 @@ async function renderBeat(index: number) {
   }
 }
 
-onMounted(() => {
-  beats.value.forEach((beat, index) => {
-    const AUTO_RENDER_TYPES = [
-      "textSlide",
-      "markdown",
-      "chart",
-      "mermaid",
-      "html_tailwind",
-    ];
-    if (beat.image?.type && AUTO_RENDER_TYPES.includes(beat.image.type)) {
-      renderBeat(index);
+async function regenerateBeat(index: number) {
+  delete renderedImages[index];
+  renderState[index] = "rendering";
+  try {
+    const res = await fetch("/api/mulmo-script/render-beat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filePath: filePath.value,
+        beatIndex: index,
+        force: true,
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok || json.error) throw new Error(json.error ?? "Render failed");
+    renderedImages[index] = json.image;
+    renderState[index] = "done";
+  } catch (err) {
+    renderErrors[index] = err instanceof Error ? err.message : String(err);
+    renderState[index] = "error";
+  }
+}
+
+async function loadExistingBeatImage(index: number) {
+  try {
+    const params = new URLSearchParams({
+      filePath: filePath.value,
+      beatIndex: String(index),
+    });
+    const res = await fetch(`/api/mulmo-script/beat-image?${params}`);
+    const json = await res.json();
+    if (json.image) {
+      renderedImages[index] = json.image;
+      renderState[index] = "done";
+    }
+  } catch {
+    // silently ignore — image simply hasn't been generated yet
+  }
+}
+
+async function loadExistingBeatAudio(index: number) {
+  try {
+    const params = new URLSearchParams({
+      filePath: filePath.value,
+      beatIndex: String(index),
+    });
+    const res = await fetch(`/api/mulmo-script/beat-audio?${params}`);
+    const json = await res.json();
+    if (json.audio) {
+      beatAudios[index] = json.audio;
+      audioState[index] = "done";
+    }
+  } catch {
+    // silently ignore
+  }
+}
+
+async function generateAudio(index: number) {
+  audioState[index] = "generating";
+  delete audioErrors[index];
+  try {
+    const res = await fetch("/api/mulmo-script/generate-beat-audio", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filePath: filePath.value, beatIndex: index }),
+    });
+    const json = await res.json();
+    if (!res.ok || json.error)
+      throw new Error(json.error ?? "Audio generation failed");
+    beatAudios[index] = json.audio;
+    audioState[index] = "done";
+  } catch (err) {
+    audioErrors[index] = err instanceof Error ? err.message : String(err);
+    audioState[index] = "error";
+  }
+}
+
+function playAudio(index: number) {
+  if (playingAudio.value) {
+    playingAudio.value.audio.pause();
+    const wasIndex = playingAudio.value.index;
+    playingAudio.value = null;
+    if (wasIndex === index) return;
+  }
+  const src = beatAudios[index];
+  if (!src) return;
+  const audio = new Audio(src);
+  playingAudio.value = { index, audio };
+  audio.addEventListener("ended", () => {
+    if (playingAudio.value?.index !== index) return;
+    playingAudio.value = null;
+    if (lightbox.value?.index === index) {
+      lightboxMove(1);
+      const nextIndex = lightbox.value?.index;
+      if (
+        nextIndex !== undefined &&
+        nextIndex !== index &&
+        beatAudios[nextIndex]
+      ) {
+        playAudio(nextIndex);
+      }
     }
   });
-});
+  audio.play();
+}
+
+async function initializeScript() {
+  // Reset per-script state
+  Object.keys(renderState).forEach((k) => delete renderState[+k]);
+  Object.keys(renderedImages).forEach((k) => delete renderedImages[+k]);
+  Object.keys(renderErrors).forEach((k) => delete renderErrors[+k]);
+  Object.keys(sourceOpen).forEach((k) => delete sourceOpen[+k]);
+  Object.keys(sourceText).forEach((k) => delete sourceText[+k]);
+  Object.keys(localOverrides).forEach((k) => delete localOverrides[+k]);
+  Object.keys(beatAudios).forEach((k) => delete beatAudios[+k]);
+  Object.keys(audioState).forEach((k) => delete audioState[+k]);
+  Object.keys(audioErrors).forEach((k) => delete audioErrors[+k]);
+  moviePath.value = null;
+  scriptSourceOpen.value = false;
+
+  const AUTO_RENDER_TYPES = [
+    "textSlide",
+    "markdown",
+    "chart",
+    "mermaid",
+    "html_tailwind",
+  ];
+  beats.value.forEach((beat, index) => {
+    if (beat.image?.type && AUTO_RENDER_TYPES.includes(beat.image.type)) {
+      renderBeat(index);
+    } else if (beat.imagePrompt) {
+      loadExistingBeatImage(index);
+    }
+    if (beat.text) loadExistingBeatAudio(index);
+  });
+
+  if (filePath.value) {
+    try {
+      const params = new URLSearchParams({ filePath: filePath.value });
+      const res = await fetch(`/api/mulmo-script/movie-status?${params}`);
+      const json = await res.json();
+      if (json.moviePath) moviePath.value = json.moviePath;
+    } catch {
+      // ignore
+    }
+  }
+}
+
+onMounted(initializeScript);
+watch(() => props.selectedResult, initializeScript);
 
 async function generateMovie() {
   movieGenerating.value = true;
@@ -315,27 +674,36 @@ async function generateMovie() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filePath: filePath.value }),
     });
-    const json = await res.json();
-    if (!res.ok || json.error)
-      throw new Error(json.error ?? "Generation failed");
-    moviePath.value = json.moviePath;
+    if (!res.ok || !res.body) throw new Error("Generation failed");
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const event = JSON.parse(line.slice(6));
+        if (event.type === "beat_image_done") {
+          loadExistingBeatImage(event.beatIndex);
+        } else if (event.type === "beat_audio_done") {
+          loadExistingBeatAudio(event.beatIndex);
+        } else if (event.type === "done") {
+          moviePath.value = event.moviePath;
+        } else if (event.type === "error") {
+          throw new Error(event.message);
+        }
+      }
+    }
   } catch (err) {
     alert(err instanceof Error ? err.message : String(err));
   } finally {
     movieGenerating.value = false;
   }
-}
-
-function downloadJson() {
-  const blob = new Blob([JSON.stringify(script.value, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  const name = filePath.value.split("/").pop() ?? "script.json";
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 </script>
