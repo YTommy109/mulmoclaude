@@ -28,9 +28,26 @@ interface HtmlPromptBody {
   prompt: string;
 }
 
+interface HtmlSuccessResponse {
+  message: string;
+  instructions?: string;
+  title?: string;
+  data?: { html: string; type: string };
+  updating?: boolean;
+}
+
+interface HtmlErrorResponse {
+  message: string;
+}
+
+type HtmlResponse = HtmlSuccessResponse | HtmlErrorResponse;
+
 router.post(
   "/generate-html",
-  async (req: Request<object, unknown, HtmlPromptBody>, res: Response) => {
+  async (
+    req: Request<object, unknown, HtmlPromptBody>,
+    res: Response<HtmlResponse>,
+  ) => {
     const { prompt } = req.body;
     if (!prompt) {
       res.status(400).json({ message: "prompt is required" });
@@ -63,7 +80,10 @@ router.post(
 
 router.post(
   "/edit-html",
-  async (req: Request<object, unknown, HtmlPromptBody>, res: Response) => {
+  async (
+    req: Request<object, unknown, HtmlPromptBody>,
+    res: Response<HtmlResponse>,
+  ) => {
     const { prompt } = req.body;
     if (!prompt) {
       res.status(400).json({ message: "prompt is required" });

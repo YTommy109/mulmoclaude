@@ -9,9 +9,26 @@ interface GenerateImageBody {
   model?: string;
 }
 
+interface ImageSuccessResponse {
+  message: string;
+  instructions?: string;
+  title?: string;
+  data?: { imageData: string; prompt: string };
+}
+
+interface ImageErrorResponse {
+  success: false;
+  message: string;
+}
+
+type ImageResponse = ImageSuccessResponse | ImageErrorResponse;
+
 router.post(
   "/generate-image",
-  async (req: Request<object, unknown, GenerateImageBody>, res: Response) => {
+  async (
+    req: Request<object, unknown, GenerateImageBody>,
+    res: Response<ImageResponse>,
+  ) => {
     const { prompt, model } = req.body;
 
     if (!prompt) {
@@ -76,7 +93,10 @@ interface EditImageBody {
 
 router.post(
   "/edit-image",
-  async (req: Request<object, unknown, EditImageBody>, res: Response) => {
+  async (
+    req: Request<object, unknown, EditImageBody>,
+    res: Response<ImageResponse>,
+  ) => {
     const { prompt } = req.body;
     const session =
       typeof req.query.session === "string" ? req.query.session : undefined;
