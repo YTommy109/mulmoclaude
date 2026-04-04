@@ -156,12 +156,9 @@ router.get(
         return;
       }
 
-      const imageData = fs.readFileSync(imagePath);
-      const base64 = imageData.toString("base64");
-      res.json({ image: `data:image/png;base64,${base64}` });
+      res.json({ image: fileToDataUri(imagePath, "image/png") });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: errorMessage(err) });
     }
   },
 );
@@ -205,11 +202,19 @@ router.get(
       const relPath = path.relative(workspacePath, outputPath);
       res.json({ moviePath: relPath });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: errorMessage(err) });
     }
   },
 );
+
+function fileToDataUri(filePath: string, mimeType: string): string {
+  const data = fs.readFileSync(filePath);
+  return `data:${mimeType};base64,${data.toString("base64")}`;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 // Helper: resolve and validate a stories filePath, returns absoluteFilePath or null
 function resolveStoryPath(filePath: string, res: Response): string | null {
@@ -273,12 +278,9 @@ router.get(
         return;
       }
 
-      const audioData = fs.readFileSync(audioPath);
-      const base64 = audioData.toString("base64");
-      res.json({ audio: `data:audio/mpeg;base64,${base64}` });
+      res.json({ audio: fileToDataUri(audioPath, "audio/mpeg") });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: errorMessage(err) });
     }
   },
 );
@@ -330,13 +332,10 @@ router.post(
         return;
       }
 
-      const audioData = fs.readFileSync(audioPath);
-      const base64 = audioData.toString("base64");
-      res.json({ audio: `data:audio/mpeg;base64,${base64}` });
+      res.json({ audio: fileToDataUri(audioPath, "audio/mpeg") });
     } catch (err) {
       console.error("[generate-beat-audio] error:", err);
-      const message = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: errorMessage(err) });
     }
   },
 );
@@ -374,13 +373,9 @@ router.post(
         return;
       }
 
-      const imageData = fs.readFileSync(imagePath);
-      const base64 = imageData.toString("base64");
-
-      res.json({ image: `data:image/png;base64,${base64}` });
+      res.json({ image: fileToDataUri(imagePath, "image/png") });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: errorMessage(err) });
     }
   },
 );
@@ -457,8 +452,7 @@ router.post(
         removeSessionProgressCallback(onProgress);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      send({ type: "error", message });
+      send({ type: "error", message: errorMessage(err) });
     } finally {
       res.end();
     }
