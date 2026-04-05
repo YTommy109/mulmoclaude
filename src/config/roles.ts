@@ -50,7 +50,6 @@ export const ROLES: Role[] = [
       "createMindMap",
       "presentDocument",
       "generateImage",
-      "browse",
       "switchRole",
     ],
     queries: [
@@ -164,7 +163,6 @@ export const ROLES: Role[] = [
       "presentDocument",
       "generateImage",
       "camera",
-      "browse",
       "switchRole",
     ],
     queries: ["I want to go to Paris"],
@@ -551,7 +549,7 @@ export const ROLES: Role[] = [
       "## Three Operations\n\n" +
       "### INGEST — process a new source\n" +
       "When the user provides an article, URL, or text to ingest:\n" +
-      "1. If a URL, fetch it with the browse tool first\n" +
+      "1. If a URL, fetch it using the WebFetch tool first\n" +
       "2. Save the raw source to `wiki/sources/<slug>.md`\n" +
       "3. Identify the key entities, concepts, and takeaways\n" +
       "4. Create or update `wiki/pages/<slug>.md` for each — typically 5–15 pages per source\n" +
@@ -581,7 +579,6 @@ export const ROLES: Role[] = [
       "- Maintain `wiki/summary.md` as a compact (≤20 line) plain-text list of key topics — this file is injected into all other roles as ambient context. Update it after significant ingests.",
     availablePlugins: [
       "manageWiki",
-      "browse",
       "presentDocument",
       "generateImage",
       "switchRole",

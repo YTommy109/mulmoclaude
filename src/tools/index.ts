@@ -10,7 +10,6 @@ import CanvasPlugin from "@gui-chat-plugin/canvas/vue";
 import GenerateHtmlPlugin from "@gui-chat-plugin/generate-html/vue";
 import EditHtmlPlugin from "@gui-chat-plugin/edit-html/vue";
 import EditImagePlugin from "@gui-chat-plugin/edit-image/vue";
-import BrowsePlugin from "@gui-chat-plugin/browse/vue";
 import CameraPlugin from "@gui-chat-plugin/camera/vue";
 import MusicPlugin from "@gui-chat-plugin/music/vue";
 import OthelloPlugin from "@gui-chat-plugin/othello/vue";
@@ -40,7 +39,6 @@ const plugins: Record<string, PluginEntry> = {
   generateHtml: GenerateHtmlPlugin.plugin,
   editHtml: EditHtmlPlugin.plugin,
   editImage: EditImagePlugin.plugin,
-  browse: BrowsePlugin.plugin,
   camera: CameraPlugin.plugin,
   showMusic: MusicPlugin.plugin,
   playOthello: OthelloPlugin.plugin,

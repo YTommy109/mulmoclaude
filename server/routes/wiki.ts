@@ -124,6 +124,7 @@ interface WikiData {
   content: string;
   pageEntries?: WikiPageEntry[];
   pageName?: string;
+  error?: string;
 }
 
 interface WikiResponse {

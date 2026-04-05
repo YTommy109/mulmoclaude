@@ -129,6 +129,18 @@
               />
             </span>
           </div>
+          <div v-if="pendingCalls.length > 0" class="mt-1 space-y-0.5">
+            <div
+              v-for="call in pendingCalls"
+              :key="call.toolUseId"
+              class="flex items-center gap-1.5 text-xs text-gray-400"
+            >
+              <span
+                class="w-1.5 h-1.5 rounded-full bg-blue-300 shrink-0 animate-pulse"
+              />
+              <span class="font-mono truncate">{{ call.toolName }}</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -347,6 +359,12 @@ const toolCallHistory = ref<ToolCallHistoryItem[]>([]);
 const rightSidebarRef = ref<InstanceType<typeof RightSidebar> | null>(null);
 
 const availableTools = computed(() => currentRole.value.availablePlugins);
+
+const pendingCalls = computed(() =>
+  toolCallHistory.value.filter(
+    (c) => c.result === undefined && c.error === undefined,
+  ),
+);
 
 const toolDescriptions = computed(() => {
   const map: Record<string, string> = {};
