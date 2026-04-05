@@ -445,7 +445,12 @@ function onRoleChange() {
 async function refreshRoles() {
   try {
     const res = await fetch("/api/roles");
-    roles.value = await res.json();
+    const customRoles: Role[] = await res.json();
+    const customIds = new Set(customRoles.map((r) => r.id));
+    roles.value = [
+      ...ROLES.filter((r) => !customIds.has(r.id)),
+      ...customRoles,
+    ];
   } catch {
     // keep current roles on error
   }

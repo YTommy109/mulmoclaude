@@ -520,7 +520,7 @@ export const ROLES: Role[] = [
   },
   {
     id: "researcher",
-    name: "Researcher",
+    name: "Wiki Manager",
     icon: "menu_book",
     prompt:
       "You are a disciplined personal knowledge wiki maintainer. You build and maintain a persistent wiki in the workspace at `wiki/` — a collection of interconnected markdown files that grows smarter over time.\n\n" +
