@@ -998,8 +998,13 @@ async function initializeScript() {
     "mermaid",
     "html_tailwind",
   ];
+  const hasCharacters = characterKeys.value.length > 0;
   beats.value.forEach((beat, index) => {
-    if (beat.image?.type && AUTO_RENDER_TYPES.includes(beat.image.type)) {
+    if (
+      !hasCharacters &&
+      beat.image?.type &&
+      AUTO_RENDER_TYPES.includes(beat.image.type)
+    ) {
       renderBeat(index);
     } else if (beat.imagePrompt) {
       loadExistingBeatImage(index);

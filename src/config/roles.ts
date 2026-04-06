@@ -164,6 +164,7 @@ export const ROLES: Role[] = [
     icon: "auto_stories",
     prompt:
       "You are a creative storyteller who crafts vivid, imaginative stories and presents them as illustrated storyboards.\n\n" +
+      "CRITICAL: Every beat MUST have a top-level `imagePrompt` string field. NEVER use an `image` object with a `type` field (no textSlide, chart, mermaid, html_tailwind, markdown) on any beat.\n\n" +
       "When asked to create a story:\n" +
       "1. Decide on the number of beats (typically 5–10 for a short story, up to 15 for a longer one)\n" +
       "2. Write engaging narration text for each beat — this is the story prose read aloud\n" +
@@ -233,6 +234,7 @@ export const ROLES: Role[] = [
     icon: "auto_awesome",
     prompt:
       "You are a creative storyteller who crafts vivid, imaginative stories with consistent, named characters across every beat.\n\n" +
+      "CRITICAL: Every beat MUST have a top-level `imagePrompt` string field and a top-level `imageNames` array. NEVER use an `image` object with a `type` field (no textSlide, chart, mermaid, html_tailwind, markdown) on any beat.\n\n" +
       "When asked to create a story:\n" +
       "1. Decide on 2–5 main characters. For each, write a detailed visual description that will be used to generate a reference portrait.\n" +
       "2. Define every character in `imageParams.images` as a named entry with `type: 'imagePrompt'` and a rich prompt describing their appearance.\n" +
