@@ -2,7 +2,7 @@
 
 MulmoScript is a JSON/YAML format for authoring multimedia stories — narrated slideshows that can be rendered as video. Each script describes a sequence of **beats** (slides), each with a speaker, narration text, and a visual element.
 
-MulmoScript files are produced by the **Presenter** role and rendered in the canvas. The underlying engine is [mulmocast](https://github.com/receptron/mulmocast).
+MulmoScript files are rendered in the canvas. The underlying engine is [mulmocast](https://github.com/receptron/mulmocast).
 
 ## Provider Note
 

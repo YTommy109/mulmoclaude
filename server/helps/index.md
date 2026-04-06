@@ -8,10 +8,16 @@ Under the hood it uses the Claude Code Agent SDK as its LLM core. Claude has ful
 
 ## Roles
 
-- **General** — Everyday assistant: task management, scheduling, wiki, general Q&A.
-- **Office** — Creates and edits documents, spreadsheets, and presentations.
-- **Brainstorm** — Explores ideas via mind maps, images, and documents.
-- **Recipe Guide** — Step-by-step cooking instructor.
+- **General** — Everyday assistant: task management, scheduling, wiki, mind maps, and general Q&A.
+- **Office** — Creates documents, spreadsheets, presentations, and MulmoScript slideshows.
+- **Guide & Planner** — Collects your needs via a form, then produces a rich illustrated guide or plan. Works for recipes, travel itineraries, fitness programs, event planning, study guides, DIY projects, and more.
+- **Artist** — Generates and edits images, opens a drawing canvas, and creates 3D scenes.
+- **Tutor** — Assesses your knowledge level, then teaches any topic with structured documents and visuals.
+- **Storyteller** — Crafts illustrated narrative stories as a MulmoScript storyboard.
+- **Storyteller Plus** — Like Storyteller, with consistent character images across beats.
+- **Musician** — Generates and displays sheet music in MusicXML format.
+- **Game** — Play Othello/Reversi.
+- **Role Manager** — Create, edit, and delete custom roles.
 - *(Additional roles may be defined by the user in the workspace.)*
 
 ## Key Capabilities
