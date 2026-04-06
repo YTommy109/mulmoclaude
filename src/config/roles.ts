@@ -158,7 +158,6 @@ export const ROLES: Role[] = [
       "presentForm",
       "presentDocument",
       "generateImage",
-      "camera",
       "switchRole",
     ],
     queries: ["I want to go to Paris"],
