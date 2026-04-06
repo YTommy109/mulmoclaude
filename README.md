@@ -1,6 +1,6 @@
 # MulmoClaude
 
-Experience GUI-chat with long-term memory! You chat with Claude Code, and it responds not just with text but with interactive visual tools — documents, spreadsheets, mind maps, images, forms, 3D scenes, piano, and more. A built-in personal wiki gives Claude persistent, structured knowledge that grows with every conversation.
+Experience GUI-chat with Claude Code — and long-term memory! You chat with Claude Code, and it responds not just with text but with interactive visual tools — documents, spreadsheets, mind maps, images, forms, 3D scenes, piano, and more. A built-in personal wiki gives Claude persistent, structured knowledge that grows with every conversation.
 
 ## Installation
 
