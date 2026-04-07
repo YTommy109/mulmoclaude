@@ -4,25 +4,9 @@
  * back to the active frontend SSE stream via the session registry.
  */
 
-import { TOOL_DEFINITION as MarkdownDef } from "@gui-chat-plugin/markdown";
-import { TOOL_DEFINITION as SpreadsheetDef } from "@gui-chat-plugin/spreadsheet";
-import { TOOL_DEFINITION as MindMapDef } from "@gui-chat-plugin/mindmap";
-import { TOOL_DEFINITION as GenerateImageDef } from "@mulmochat-plugin/generate-image";
-import { TOOL_DEFINITION as QuizDef } from "@mulmochat-plugin/quiz";
-import { TOOL_DEFINITION as FormDef } from "@mulmochat-plugin/form";
-import { TOOL_DEFINITION as CanvasDef } from "@gui-chat-plugin/canvas";
-import { TOOL_DEFINITION as EditImageDef } from "@gui-chat-plugin/edit-image";
-import { TOOL_DEFINITION as Present3DDef } from "@gui-chat-plugin/present3d";
-import { TOOL_DEFINITION as OthelloDef } from "@gui-chat-plugin/othello";
-import { TOOL_DEFINITION as MusicDef } from "@gui-chat-plugin/music";
-import TodoDef from "../src/plugins/todo/definition.js";
-import SchedulerDef from "../src/plugins/scheduler/definition.js";
-import PresentMulmoScriptDef from "../src/plugins/presentMulmoScript/definition.js";
-import ManageRolesDef from "../src/plugins/manageRoles/definition.js";
-import WikiDef from "../src/plugins/wiki/definition.js";
-import PresentHtmlDef from "../src/plugins/presentHtml/definition.js";
 import type { ToolDefinition } from "gui-chat-protocol";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
+import { TOOL_ENDPOINTS, PLUGIN_DEFS } from "./plugin-names.js";
 
 type JsonRpcId = string | number | null;
 
@@ -65,27 +49,6 @@ function fromPackage(def: ToolDefinition, endpoint: string): ToolDef {
   };
 }
 
-// Endpoint map — the only MulmoChat-specific part per tool
-const TOOL_ENDPOINTS: Record<string, string> = {
-  [TodoDef.name]: "/api/todos",
-  [SchedulerDef.name]: "/api/scheduler",
-  [MarkdownDef.name]: "/api/present-document",
-  [SpreadsheetDef.name]: "/api/present-spreadsheet",
-  [MindMapDef.name]: "/api/mindmap",
-  [GenerateImageDef.name]: "/api/generate-image",
-  [QuizDef.name]: "/api/quiz",
-  [FormDef.name]: "/api/form",
-  [CanvasDef.name]: "/api/canvas",
-  [PresentHtmlDef.name]: "/api/present-html",
-  [EditImageDef.name]: "/api/edit-image",
-  [Present3DDef.name]: "/api/present3d",
-  [OthelloDef.name]: "/api/othello",
-  [MusicDef.name]: "/api/music",
-  [ManageRolesDef.name]: "/api/roles/manage",
-  [PresentMulmoScriptDef.name]: "/api/mulmo-script",
-  [WikiDef.name]: "/api/wiki",
-};
-
 // Pure MCP tools (no GUI) — auto-registered from server/mcp-tools/
 const mcpToolDefs: Record<string, ToolDef> = Object.fromEntries(
   mcpTools.filter(isMcpToolEnabled).map((t) => [
@@ -101,25 +64,10 @@ const mcpToolDefs: Record<string, ToolDef> = Object.fromEntries(
 const ALL_TOOLS: Record<string, ToolDef> = {
   ...mcpToolDefs,
   ...Object.fromEntries(
-    [
-      TodoDef,
-      SchedulerDef,
-      PresentMulmoScriptDef,
-      MarkdownDef,
-      SpreadsheetDef,
-      MindMapDef,
-      GenerateImageDef,
-      QuizDef,
-      FormDef,
-      CanvasDef,
-      PresentHtmlDef,
-      EditImageDef,
-      Present3DDef,
-      OthelloDef,
-      MusicDef,
-      ManageRolesDef,
-      WikiDef,
-    ].map((def) => [def.name, fromPackage(def, TOOL_ENDPOINTS[def.name])]),
+    PLUGIN_DEFS.map((def) => [
+      def.name,
+      fromPackage(def, TOOL_ENDPOINTS[def.name]),
+    ]),
   ),
   switchRole: {
     name: "switchRole",

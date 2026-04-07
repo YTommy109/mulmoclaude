@@ -6,6 +6,7 @@ import { join } from "path";
 import type { Role } from "../src/config/roles.js";
 import { loadAllRoles } from "./roles.js";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
+import { MCP_PLUGIN_NAMES } from "./plugin-names.js";
 
 export type AgentEvent =
   | { type: "status"; message: string }
@@ -35,26 +36,10 @@ type ClaudeStreamEvent =
   | { type: "user"; message: ClaudeMessage }
   | { type: "result"; result: string; session_id?: string };
 
-// Plugin names that have a corresponding MCP tool definition in mcp-server.ts
+// Plugin names from shared registry + MCP-only tools (no GUI)
 const MCP_PLUGINS = new Set([
-  "manageTodoList",
-  "manageScheduler",
-  "presentDocument",
-  "presentSpreadsheet",
-  "createMindMap",
-  "generateImage",
-  "switchRole",
-  "putQuestions",
-  "presentForm",
-  "openCanvas",
-  "presentHtml",
-  "editImage",
-  "present3D",
-  "playOthello",
-  "manageRoles",
-  "presentMulmoScript",
-  "showMusic",
-  "manageWiki",
+  ...MCP_PLUGIN_NAMES,
+  ...mcpTools.filter(isMcpToolEnabled).map((t) => t.definition.name),
 ]);
 
 function buildMemoryContext(workspacePath: string): string {
@@ -143,11 +128,7 @@ export async function* runAgent(
       : []),
   ].join("\n\n");
 
-  const enabledMcpToolNames = new Set(
-    mcpTools.filter(isMcpToolEnabled).map((t) => t.definition.name),
-  );
-  const knownTools = new Set([...MCP_PLUGINS, ...enabledMcpToolNames]);
-  const activePlugins = role.availablePlugins.filter((p) => knownTools.has(p));
+  const activePlugins = role.availablePlugins.filter((p) => MCP_PLUGINS.has(p));
 
   // Write temp MCP config if there are plugins to expose
   const mcpConfigPath = join(tmpdir(), `mulmoclaude-mcp-${sessionId}.json`);
