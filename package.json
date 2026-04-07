@@ -19,7 +19,7 @@
     "test": "tsx --test ./test/*/test_*.ts"
   },
   "resolutions": {
-    "tar": "7.5.11"
+    "tar": "7.5.13"
   },
   "dependencies": {
     "@google/genai": "^1.47.0",
