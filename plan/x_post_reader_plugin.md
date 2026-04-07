@@ -1,8 +1,15 @@
-# X Post Reader — Plan
+# X MCP Tools — Plan
 
 ## Goal
 
-Add a `readXPost` MCP tool that fetches a post from X (Twitter) via the official X API v2 and returns its content as text to Claude. This is a **pure LLM tool** — no GUI rendering, no Vue components.
+Add two MCP tools for X (Twitter) via the official X API v2, both returning plain text to Claude. These are **pure LLM tools** — no GUI rendering, no Vue components.
+
+| Tool | Description |
+|---|---|
+| `readXPost` | Fetch a single post by URL or tweet ID |
+| `searchX` | Search recent posts by keyword/query |
+
+Both share the same `X_BEARER_TOKEN` and live in a single file `server/mcp-tools/x.ts`.
 
 ---
 
@@ -19,9 +26,9 @@ Add a `readXPost` MCP tool that fetches a post from X (Twitter) via the official
 
 ## X API v2 Details
 
-**Endpoint**: `GET https://api.twitter.com/2/tweets/:id`
+### `readXPost` — Tweet lookup
 
-**Auth**: `Authorization: Bearer <X_BEARER_TOKEN>` (app-only, no user login needed)
+**Endpoint**: `GET https://api.twitter.com/2/tweets/:id`
 
 **Query params**:
 ```
@@ -30,7 +37,17 @@ expansions=author_id
 user.fields=name,username
 ```
 
-**Free tier**: 500,000 tweet reads/month — sufficient for personal use.
+**Free tier**: 500,000 reads/month.
+
+### `searchX` — Recent search
+
+**Endpoint**: `GET https://api.twitter.com/2/tweets/search/recent`
+
+**Key params**: `query`, `max_results` (10–100), same `tweet.fields`/`expansions`/`user.fields` as above.
+
+**Free tier**: Rate-limited to 1 request/15 seconds on Basic plan. `max_results` defaults to 10.
+
+**Auth for both**: `Authorization: Bearer <X_BEARER_TOKEN>` — same token, no extra credentials.
 
 ---
 
@@ -41,35 +58,28 @@ Pure MCP tools (no GUI) live in `server/mcp-tools/`. Unlike `src/plugins/`, ther
 ```
 server/
   mcp-tools/
-    x-post.ts       ← definition + handler for readXPost
-    index.ts        ← barrel: exports allMcpTools[] used by mcp-server.ts and routes
+    x.ts            ← readXPost + searchX (share Bearer Token + helpers)
+    index.ts        ← barrel: exports mcpTools[] used by mcp-server.ts and routes
 ```
 
 **Adding a future MCP tool = add one file to `server/mcp-tools/` and register it in `index.ts`.**
 
-Each tool file exports:
+Each tool file exports one entry per tool:
+
 ```typescript
-export const definition = {
-  name: "readXPost",
-  description: "...",
-  inputSchema: { ... },
-}
-
-// Optional — env vars that must be set for this tool to be enabled
-export const requiredEnv = ["X_BEARER_TOKEN"]
-
-// Optional — injected into the system prompt so Claude knows when to use this tool
-export const prompt = "Use the readXPost tool whenever the user shares a URL from x.com or twitter.com."
-
-export async function handler(args: { url: string }): Promise<string> {
-  // business logic — returns plain text to Claude
+// A single MCP tool module — x.ts exports two of these
+export interface McpTool {
+  definition: { name: string; description: string; inputSchema: object }
+  requiredEnv?: string[]   // hidden + disabled if any are unset
+  prompt?: string          // injected into system prompt when active
+  handler: (args: Record<string, unknown>) => Promise<string>
 }
 ```
 
 The barrel `index.ts` collects all tools and exposes an Express router:
 ```typescript
-import * as xPost from "./x-post.js"
-export const mcpTools = [xPost]
+import { readXPost, searchX } from "./x.js"
+export const mcpTools: McpTool[] = [readXPost, searchX]
 
 // Express router
 export const mcpToolsRouter = Router()
@@ -86,11 +96,11 @@ mcpToolsRouter.get("/", (_req, res) => {
 })
 ```
 
-`mcp-server.ts` imports `mcpTools` once to register all definitions and handlers, instead of one import per tool. `server/index.ts` mounts a single `/api/mcp-tools` router (from the barrel) rather than individual routes per tool.
+`mcp-server.ts` imports `mcpTools` once to register all definitions and handlers. `server/index.ts` mounts a single `/api/mcp-tools` router rather than individual routes per tool.
 
-The role builder (`src/plugins/manageRoles/View.vue`) fetches `GET /api/mcp-tools` on mount and merges enabled tools into the plugin checklist. Tools with `enabled: false` are hidden entirely from the list. This means `readXPost` only appears as an option when `X_BEARER_TOKEN` is configured in the environment.
+The role builder (`src/plugins/manageRoles/View.vue`) fetches `GET /api/mcp-tools` on mount and merges enabled tools into the plugin checklist. Tools with `enabled: false` are hidden entirely.
 
-`agent.ts` also skips disabled tools when building `activePlugins`:
+`agent.ts` skips disabled tools when building `activePlugins`:
 ```typescript
 const enabledMcpToolNames = new Set(
   mcpTools
@@ -100,14 +110,13 @@ const enabledMcpToolNames = new Set(
 const knownTools = new Set([...MCP_PLUGINS, ...enabledMcpToolNames])
 ```
 
-`agent.ts` merges tool prompts from active pure MCP tools into `pluginPrompts` before building the system prompt:
+`agent.ts` also merges tool prompts from active pure MCP tools into `pluginPrompts`:
 ```typescript
 const mcpToolPrompts = Object.fromEntries(
   mcpTools
     .filter(t => t.prompt && activePlugins.includes(t.definition.name))
     .map(t => [t.definition.name, t.prompt])
 )
-// merge with any client-supplied pluginPrompts
 const mergedPluginPrompts = { ...mcpToolPrompts, ...pluginPrompts }
 ```
 
@@ -115,27 +124,27 @@ const mergedPluginPrompts = { ...mcpToolPrompts, ...pluginPrompts }
 
 ## Architecture
 
-Unlike GUI plugins, this tool:
-- Does **not** push a visual ToolResult to the frontend SSE stream
-- Does **not** need a `src/plugins/` entry or Vue components
-- Just returns the tweet content as plain text back to Claude
+Unlike GUI plugins, these tools:
+- Do **not** push a visual ToolResult to the frontend SSE stream
+- Do **not** need a `src/plugins/` entry or Vue components
+- Just return content as plain text back to Claude
 
-The Express route (`/api/mcp-tools`) is used because the MCP server process is only passed a limited env (SESSION_ID, PORT, etc.) and cannot read `.env` directly. The main Express server process has full env access.
+The Express route (`/api/mcp-tools`) is used because the MCP server process is only passed a limited env (SESSION_ID, PORT, etc.) and cannot read `.env` directly.
 
 ---
 
 ## Implementation
 
-### 1. `server/mcp-tools/x-post.ts`
+### 1. `server/mcp-tools/x.ts`
 
-Exports `definition` and `handler`:
+Shared helper: `fetchX(path, params)` — adds `Authorization: Bearer` header, handles 401/404/429 with descriptive error strings.
 
-- `definition` — tool schema with name `readXPost`, description instructing Claude to use this for any x.com/twitter.com URL, and `inputSchema: { url: string }`
-- `handler(args)`:
-  - Returns an error string if `X_BEARER_TOKEN` is unset
-  - Extracts tweet ID using regex `/status\/(\d+)/`; also accepts a bare numeric ID
-  - Calls X API v2 with `Authorization: Bearer <token>`
-  - On success, returns a plain text summary:
+**`readXPost`**:
+- `inputSchema`: `{ url: string }` — full x.com/twitter.com URL or bare tweet ID
+- `handler`:
+  - Extracts tweet ID via regex `/status\/(\d+)/`; falls back to bare numeric ID
+  - Calls `GET /2/tweets/:id` with tweet fields + author expansion
+  - Returns:
     ```
     @username (Name) · 2025-01-01
 
@@ -143,50 +152,54 @@ Exports `definition` and `handler`:
 
     Likes: 42 | Retweets: 5 | Replies: 2
     ```
-  - Returns descriptive error strings for X API errors (401, 404, 429, etc.)
+- `prompt`: `"Use readXPost whenever the user shares a URL from x.com or twitter.com."`
+
+**`searchX`**:
+- `inputSchema`: `{ query: string, max_results?: number }` — `max_results` 10–100, defaults to 10
+- `handler`:
+  - Calls `GET /2/tweets/search/recent?query=<query>&max_results=<n>` with same fields
+  - Returns a numbered list:
+    ```
+    Search: "your query" — 8 results
+
+    1. @username (Name) · 2025-01-01
+       Tweet text here...
+       Likes: 10 | Retweets: 2
+
+    2. ...
+    ```
+- `prompt`: `"Use searchX to find recent posts on X by keyword or topic."`
+
+Both export `requiredEnv = ["X_BEARER_TOKEN"]`.
 
 ### 2. `server/mcp-tools/index.ts`
 
-```typescript
-import * as xPost from "./x-post.js"
-
-export const mcpTools = [xPost]
-
-// Express router — one POST /:tool route dispatching to the right handler
-import { Router } from "express"
-export const mcpToolsRouter = Router()
-mcpToolsRouter.post("/:tool", ...)
-```
+Barrel + Express router as described above.
 
 ### 3. `server/mcp-server.ts`
 
 - Import `mcpTools` from `./mcp-tools/index.js`
 - Add each tool's `definition` to `ALL_TOOLS`
-- Handle MCP tool calls: call `handler(args)` directly (or via the Express route), return text to Claude — **no** frontend push
+- Handle calls by routing to the Express endpoint; return text to Claude — **no** frontend push
 
 ### 4. `server/index.ts`
 
-- Import `mcpToolsRouter` from `./mcp-tools/index.js`
 - Mount: `app.use("/api/mcp-tools", mcpToolsRouter)`
 
 ### 5. `server/agent.ts`
 
 - Import `mcpTools` from `./mcp-tools/index.js`
-- Extend the allowed set dynamically so pure MCP tools are auto-discovered:
+- Replace `MCP_PLUGINS`-only filter with combined set (enabled MCP tools auto-discovered):
   ```typescript
-  const knownTools = new Set([
-    ...MCP_PLUGINS,
-    ...mcpTools.map(t => t.definition.name),
-  ])
-  const activePlugins = role.availablePlugins.filter(p => knownTools.has(p))
+  const knownTools = new Set([...MCP_PLUGINS, ...enabledMcpToolNames])
   ```
 - `MCP_PLUGINS` is unchanged — it continues to cover all GUI plugins
 
-After this change, adding a new pure MCP tool **never requires editing `agent.ts`** — only the tool file, `mcp-tools/index.ts`, and `roles.ts`.
+After this change, **`agent.ts` never needs editing when adding future MCP tools**.
 
 ### 6. `src/config/roles.ts`
 
-- Add `"readXPost"` to `availablePlugins` for relevant roles
+- Add `"readXPost"` and `"searchX"` to `availablePlugins` for relevant roles
 
 ---
 
@@ -194,7 +207,7 @@ After this change, adding a new pure MCP tool **never requires editing `agent.ts
 
 New files:
 ```
-server/mcp-tools/x-post.ts     ← definition + handler
+server/mcp-tools/x.ts          ← readXPost + searchX tools
 server/mcp-tools/index.ts      ← barrel + Express router
 ```
 
@@ -202,19 +215,21 @@ Edits to existing files:
 - `server/mcp-server.ts` — import mcpTools, register definitions, handle calls (no frontend push)
 - `server/index.ts` — mount `/api/mcp-tools` router
 - `server/agent.ts` — extend allowed set with enabled mcpTools names (MCP_PLUGINS unchanged)
-- `src/config/roles.ts` — add `"readXPost"` to relevant roles' availablePlugins
+- `src/config/roles.ts` — add `"readXPost"` and `"searchX"` to relevant roles' availablePlugins
 - `src/plugins/manageRoles/View.vue` — fetch `GET /api/mcp-tools` on mount, merge enabled tools into plugin checklist
 
 ---
 
 ## Notes & Decisions
 
-- **No npm library** — plain `fetch` with `Authorization: Bearer` is sufficient.
-- **No `src/plugins/` entry** — no visual output; Claude receives the tweet as text.
-- **No frontend push** — `handleToolCall` for MCP tools skips `POST /api/internal/tool-result`.
-- **Bearer Token in main process** — Express server reads `X_BEARER_TOKEN`; no changes to how the MCP subprocess env is configured.
+- **Two tools, one file** — `readXPost` and `searchX` share `X_BEARER_TOKEN` and a `fetchX` helper; no reason to split them across files.
+- **No npm library** — plain `fetch` with `Authorization: Bearer` is sufficient for both endpoints.
+- **No `src/plugins/` entry** — no visual output; Claude receives results as text.
+- **No frontend push** — MCP tool handlers skip `POST /api/internal/tool-result`.
+- **Bearer Token in main process** — Express server reads `X_BEARER_TOKEN`; no changes to MCP subprocess env.
 - **Graceful missing-token error** — return a clear string so Claude can tell the user what to configure.
-- **One file per tool** — no definition/implementation split needed since there are no Vue imports to avoid.
-- **Optional `requiredEnv` export** — list of env var names that must be set for the tool to be enabled. Tools with missing env vars are hidden from the role builder and excluded from `activePlugins` in `agent.ts`. No restart logic needed — the check runs at request time.
-- **Optional `prompt` export** — each tool file can export a `prompt` string injected into the system prompt via the existing `pluginPrompts` mechanism. Use this to tell Claude when to invoke the tool (e.g. URL patterns, trigger conditions).
-- **`agent.ts` is not touched when adding future MCP tools** — `mcpTools` barrel is imported once; new tools are auto-discovered. Only `MCP_PLUGINS` (GUI plugins) requires manual updates.
+- **One file per concern** — both X tools share auth/helpers naturally; unrelated tools get separate files.
+- **`requiredEnv`** — tools with unset env vars are hidden from the role builder and excluded from `activePlugins`. Check runs at request time, no restart needed.
+- **`prompt`** — per-tool system prompt hint tells Claude when to invoke each tool automatically.
+- **`searchX` rate limit** — 1 req/15 sec on Basic plan. No client-side throttling needed for personal use; X API returns 429 which the handler surfaces as a clear error.
+- **`agent.ts` never touched for new MCP tools** — `mcpTools` barrel is imported once; new tools are auto-discovered via `index.ts`.
