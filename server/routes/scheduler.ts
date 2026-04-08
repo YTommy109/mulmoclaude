@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
-import fs from "fs";
 import path from "path";
 import { workspacePath } from "../workspace.js";
+import { loadJsonFile, saveJsonFile } from "../utils/file.js";
 
 const router = Router();
 
@@ -15,13 +15,7 @@ export interface ScheduledItem {
 const schedulerFile = () => path.join(workspacePath, "scheduler", "items.json");
 
 function loadItems(): ScheduledItem[] {
-  try {
-    const file = schedulerFile();
-    if (!fs.existsSync(file)) return [];
-    return JSON.parse(fs.readFileSync(file, "utf-8"));
-  } catch {
-    return [];
-  }
+  return loadJsonFile<ScheduledItem[]>(schedulerFile(), []);
 }
 
 function sortItems(items: ScheduledItem[]): ScheduledItem[] {
@@ -37,9 +31,7 @@ function sortItems(items: ScheduledItem[]): ScheduledItem[] {
 }
 
 function saveItems(items: ScheduledItem[]): void {
-  const file = schedulerFile();
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(items, null, 2));
+  saveJsonFile(schedulerFile(), items);
 }
 
 interface SchedulerBody {

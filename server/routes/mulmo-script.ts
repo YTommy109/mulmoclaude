@@ -21,19 +21,10 @@ import {
   type MulmoScript,
 } from "mulmocast";
 import type { MulmoBeat, MulmoImagePromptMedia } from "@mulmocast/types";
+import { slugify } from "../utils/slug.js";
 
 const router = Router();
 const storiesDir = path.resolve(workspacePath, "stories");
-
-function slugify(title: string): string {
-  return (
-    title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 60) || "script"
-  );
-}
 
 interface SaveMulmoScriptBody {
   script: MulmoScript;

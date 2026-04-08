@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
-import { GoogleGenAI } from "@google/genai";
 import { getSessionImageData } from "../sessions.js";
+import { getGeminiClient } from "../utils/gemini.js";
 
 const router = Router();
 
@@ -36,16 +36,8 @@ router.post(
       return;
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      res
-        .status(500)
-        .json({ success: false, message: "GEMINI_API_KEY is not set" });
-      return;
-    }
-
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = getGeminiClient();
       const modelName = model ?? "gemini-3.1-flash-image-preview";
 
       const response = await ai.models.generateContent({
@@ -116,16 +108,8 @@ router.post(
       return;
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      res
-        .status(500)
-        .json({ success: false, message: "GEMINI_API_KEY is not set" });
-      return;
-    }
-
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = getGeminiClient();
       const modelName = "gemini-3.1-flash-image-preview";
       const base64Data = currentImageData.replace(
         /^data:image\/[^;]+;base64,/,

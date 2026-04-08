@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
-import fs from "fs";
 import path from "path";
 import { workspacePath } from "../workspace.js";
+import { loadJsonFile, saveJsonFile } from "../utils/file.js";
 
 const router = Router();
 
@@ -16,17 +16,11 @@ export interface TodoItem {
 const todosFile = () => path.join(workspacePath, "todos", "todos.json");
 
 function loadTodos(): TodoItem[] {
-  try {
-    const file = todosFile();
-    if (!fs.existsSync(file)) return [];
-    return JSON.parse(fs.readFileSync(file, "utf-8"));
-  } catch {
-    return [];
-  }
+  return loadJsonFile<TodoItem[]>(todosFile(), []);
 }
 
 function saveTodos(items: TodoItem[]): void {
-  fs.writeFileSync(todosFile(), JSON.stringify(items, null, 2));
+  saveJsonFile(todosFile(), items);
 }
 
 interface TodoBody {

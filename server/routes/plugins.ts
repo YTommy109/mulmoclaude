@@ -7,7 +7,7 @@ import { executeOpenCanvas } from "@gui-chat-plugin/canvas";
 import { executePresent3D } from "@gui-chat-plugin/present3d";
 import { executeOthello } from "@gui-chat-plugin/othello";
 import { showMusic } from "@gui-chat-plugin/music";
-import { GoogleGenAI } from "@google/genai";
+import { getGeminiClient, isGeminiAvailable } from "../utils/gemini.js";
 
 const router = Router();
 
@@ -18,10 +18,9 @@ interface PluginErrorResponse {
 const IMAGE_PLACEHOLDER = /!\[([^\]]+)\]\(\/?__too_be_replaced_image_path__\)/g;
 
 async function generateInlineImage(prompt: string): Promise<string | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
+  if (!isGeminiAvailable()) return null;
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = getGeminiClient();
     const response = await ai.models.generateContent({
       model: "gemini-3.1-flash-image-preview",
       contents: [{ text: prompt }],
@@ -43,7 +42,7 @@ async function generateInlineImage(prompt: string): Promise<string | null> {
 }
 
 async function fillImagePlaceholders(markdown: string): Promise<string> {
-  if (!process.env.GEMINI_API_KEY) return markdown;
+  if (!isGeminiAvailable()) return markdown;
   const matches = [...markdown.matchAll(IMAGE_PLACEHOLDER)];
   if (matches.length === 0) return markdown;
 

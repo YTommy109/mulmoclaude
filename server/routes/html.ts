@@ -1,16 +1,14 @@
 import { Router, Request, Response } from "express";
-import { GoogleGenAI } from "@google/genai";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { workspacePath } from "../workspace.js";
+import { getGeminiClient, isGeminiAvailable } from "../utils/gemini.js";
 
 const router = Router();
 const HTML_FILE = () => path.join(workspacePath, "html", "current.html");
 
 async function callGemini(prompt: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = getGeminiClient();
   const response = await ai.models.generateContent({
     model: "gemini-2.0-flash",
     contents: [{ text: prompt }],
@@ -53,7 +51,7 @@ router.post(
       res.status(400).json({ message: "prompt is required" });
       return;
     }
-    if (!process.env.GEMINI_API_KEY) {
+    if (!isGeminiAvailable()) {
       res.status(500).json({ message: "GEMINI_API_KEY is not set" });
       return;
     }
@@ -89,7 +87,7 @@ router.post(
       res.status(400).json({ message: "prompt is required" });
       return;
     }
-    if (!process.env.GEMINI_API_KEY) {
+    if (!isGeminiAvailable()) {
       res.status(500).json({ message: "GEMINI_API_KEY is not set" });
       return;
     }

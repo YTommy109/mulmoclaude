@@ -2,18 +2,9 @@ import { Router, Request, Response } from "express";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { workspacePath } from "../workspace.js";
+import { slugify } from "../utils/slug.js";
 
 const router = Router();
-
-function slugify(title: string): string {
-  return (
-    title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 60) || "page"
-  );
-}
 
 interface PresentHtmlBody {
   html: string;
