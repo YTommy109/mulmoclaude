@@ -92,17 +92,15 @@ describe("buildWikiContext", () => {
     assert.ok(result.includes("wiki/SCHEMA.md"));
   });
 
-  it("skips empty summary.md content but does not fall back to layout hint", () => {
+  it("falls back to layout hint when summary.md is empty", () => {
     mkdirSync(join(workspace, "wiki"), { recursive: true });
     writeFileSync(join(workspace, "wiki", "index.md"), "# Index");
     writeFileSync(join(workspace, "wiki", "summary.md"), "  ");
     const result = buildWikiContext(workspace);
-    // summary.md exists but is empty — no summary reference, no layout hint
     assert.ok(result !== null);
     assert.ok(!result.includes("<reference type=\"wiki-summary\">"));
-    assert.ok(!result.includes("wiki/pages/"));
-    // Result is empty string since no parts were added
-    assert.equal(result, "");
+    assert.ok(result.includes("wiki/index.md"));
+    assert.ok(result.includes("wiki/pages/"));
   });
 });
 
@@ -148,7 +146,7 @@ describe("buildSystemPrompt", () => {
   });
 
   it("includes plugin prompt sections when provided", () => {
-    const role = makeRole();
+    const role = makeRole({ availablePlugins: ["manageTodoList"] });
     const result = buildSystemPrompt({
       role,
       workspacePath: workspace,

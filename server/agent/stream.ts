@@ -44,10 +44,16 @@ export function blockToEvent(block: ClaudeContentBlock): AgentEvent | null {
   }
   if (block.type === "tool_result" && block.tool_use_id) {
     const raw = block.content;
+    const content =
+      typeof raw === "string"
+        ? raw
+        : raw === undefined
+          ? ""
+          : JSON.stringify(raw);
     return {
       type: "tool_call_result",
       toolUseId: block.tool_use_id,
-      content: typeof raw === "string" ? raw : JSON.stringify(raw),
+      content,
     };
   }
   return null;

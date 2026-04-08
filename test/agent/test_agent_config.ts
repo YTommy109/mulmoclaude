@@ -68,7 +68,9 @@ describe("buildCliArgs", () => {
     });
 
     const allowedIdx = args.indexOf("--allowedTools");
+    assert.ok(allowedIdx >= 0, "--allowedTools flag must exist");
     const allowedStr = args[allowedIdx + 1];
+    assert.equal(typeof allowedStr, "string");
     assert.ok(allowedStr.includes("mcp__mulmoclaude__manageTodoList"));
     assert.ok(allowedStr.includes("Bash"));
   });

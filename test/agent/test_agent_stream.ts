@@ -42,11 +42,11 @@ describe("blockToEvent", () => {
       tool_use_id: "tu_3",
       content: [1, 2],
     };
-    const result = blockToEvent(block);
-    assert.ok(result);
-    if (result.type === "tool_call_result") {
-      assert.equal(result.content, "[1,2]");
-    }
+    assert.deepEqual(blockToEvent(block), {
+      type: "tool_call_result",
+      toolUseId: "tu_3",
+      content: "[1,2]",
+    });
   });
 
   it("returns null for tool_use missing id", () => {
@@ -59,6 +59,18 @@ describe("blockToEvent", () => {
 
   it("returns null for tool_result missing tool_use_id", () => {
     assert.equal(blockToEvent({ type: "tool_result", content: "x" }), null);
+  });
+
+  it("returns empty string for tool_result with undefined content", () => {
+    const block: ClaudeContentBlock = {
+      type: "tool_result",
+      tool_use_id: "tu_4",
+    };
+    assert.deepEqual(blockToEvent(block), {
+      type: "tool_call_result",
+      toolUseId: "tu_4",
+      content: "",
+    });
   });
 
   it("returns null for unknown block type", () => {
