@@ -40,6 +40,20 @@ export function buildMcpConfig(params: McpConfigParams): object {
   const mcpServerPath = useDocker
     ? "/app/server/mcp-server.ts"
     : join(projectRoot, "server/mcp-server.ts");
+
+  // When running in Docker the MCP server subprocess won't inherit the host
+  // environment. Pass sentinel values for required env vars of enabled tools
+  // so isMcpToolEnabled() returns the same result inside the container.
+  // The actual API calls happen on the host server, so real values aren't needed.
+  const mcpToolEnv: Record<string, string> = {};
+  if (useDocker) {
+    for (const tool of mcpTools.filter(isMcpToolEnabled)) {
+      for (const key of tool.requiredEnv ?? []) {
+        if (process.env[key]) mcpToolEnv[key] = "1";
+      }
+    }
+  }
+
   return {
     mcpServers: {
       mulmoclaude: {
@@ -54,6 +68,7 @@ export function buildMcpConfig(params: McpConfigParams): object {
             ? {
                 MCP_HOST: "host.docker.internal",
                 NODE_PATH: "/app/node_modules",
+                ...mcpToolEnv,
               }
             : {}),
         },
