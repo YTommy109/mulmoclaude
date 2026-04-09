@@ -22,6 +22,7 @@ const TEXT_EXTENSIONS = new Set([
   ".tsx",
   ".vue",
   ".html",
+  ".htm",
   ".css",
   ".csv",
   ".log",

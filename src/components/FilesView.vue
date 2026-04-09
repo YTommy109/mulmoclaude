@@ -44,13 +44,34 @@
           Loading...
         </div>
         <template v-else-if="content">
-          <!-- Text (including .md — rendered as plain text to avoid
-               XSS risk from prompt-injected HTML in workspace files) -->
-          <pre
-            v-if="content.kind === 'text'"
-            class="p-4 text-xs whitespace-pre-wrap font-mono text-gray-800"
-            >{{ content.content }}</pre
-          >
+          <template v-if="content.kind === 'text'">
+            <!-- Markdown: use the same renderer as chat responses -->
+            <div v-if="isMarkdown" class="h-full">
+              <TextResponseView
+                :selected-result="markdownResult(content.content)"
+              />
+            </div>
+            <!-- HTML: sandboxed iframe preview (scripts disabled) -->
+            <iframe
+              v-else-if="isHtml"
+              :srcdoc="content.content"
+              class="w-full h-full border-0"
+              sandbox=""
+              title="HTML preview"
+            />
+            <!-- JSON: pretty-printed, or raw if parse fails -->
+            <pre
+              v-else-if="isJson"
+              class="p-4 text-xs whitespace-pre-wrap font-mono text-gray-800"
+              >{{ prettyJson(content.content) }}</pre
+            >
+            <!-- Plain text fallback -->
+            <pre
+              v-else
+              class="p-4 text-xs whitespace-pre-wrap font-mono text-gray-800"
+              >{{ content.content }}</pre
+            >
+          </template>
           <!-- Image -->
           <div
             v-else-if="content.kind === 'image'"
@@ -82,6 +103,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import FileTree, { type TreeNode } from "./FileTree.vue";
+import TextResponseView from "../plugins/textResponse/View.vue";
+import type { ToolResultComplete } from "gui-chat-protocol/vue";
+import type { TextResponseData } from "@gui-chat-plugin/text-response";
 
 const STORAGE_KEY = "files_selected_path";
 const RECENT_THRESHOLD_MS = 60 * 1000;
@@ -115,6 +139,38 @@ const selectedPath = ref<string | null>(null);
 const content = ref<FileContent | null>(null);
 const contentLoading = ref(false);
 const contentError = ref<string | null>(null);
+
+function hasExt(filePath: string | null, exts: string[]): boolean {
+  if (!filePath) return false;
+  const lower = filePath.toLowerCase();
+  return exts.some((ext) => lower.endsWith(ext));
+}
+
+const isMarkdown = computed(() =>
+  hasExt(selectedPath.value, [".md", ".markdown"]),
+);
+const isHtml = computed(() => hasExt(selectedPath.value, [".html", ".htm"]));
+const isJson = computed(() => hasExt(selectedPath.value, [".json"]));
+
+function prettyJson(raw: string): string {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    // Malformed JSON — show the raw text so the user can still read it
+    return raw;
+  }
+}
+
+function markdownResult(text: string): ToolResultComplete<TextResponseData> {
+  return {
+    uuid: "files-preview",
+    toolName: "text-response",
+    message: text,
+    title: selectedPath.value ?? "",
+    // role: "user" hides the PDF download button in TextResponseView
+    data: { text, role: "user", transportKind: "text-rest" },
+  };
+}
 
 const recentPaths = computed(() => {
   const set = new Set<string>();
