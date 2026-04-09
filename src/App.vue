@@ -41,6 +41,7 @@
       <!-- History popup -->
       <div
         v-if="showHistory"
+        ref="historyPopupRef"
         class="absolute left-0 right-0 bottom-0 bg-white border-b border-gray-200 shadow-lg z-50 overflow-y-auto"
         :style="{ top: headerRef ? headerRef.offsetHeight + 'px' : '4rem' }"
       >
@@ -182,8 +183,15 @@
       <!-- Sample queries -->
       <div
         v-if="showQueries"
-        class="px-4 pt-3 flex flex-wrap gap-2 border-t border-gray-200"
+        class="px-4 pt-3 pb-1 flex flex-wrap gap-2 border-t border-gray-200 relative"
       >
+        <button
+          class="absolute top-1 right-1 text-gray-300 hover:text-gray-500"
+          title="Hide suggestions"
+          @click="queriesHidden = true"
+        >
+          <span class="material-icons text-sm">close</span>
+        </button>
         <button
           v-for="query in currentRole.queries"
           :key="query"
@@ -380,6 +388,7 @@ const chatListRef = ref<HTMLDivElement | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const historyButtonRef = ref<HTMLButtonElement | null>(null);
+const historyPopupRef = ref<HTMLDivElement | null>(null);
 const headerRef = ref<HTMLDivElement | null>(null);
 
 function scrollChatToBottom() {
@@ -520,11 +529,14 @@ function handleKeyNavigation(e: KeyboardEvent) {
   selectedResultUuid.value = results[nextIndex].uuid;
 }
 
+const queriesHidden = ref(false);
+
 const showQueries = computed(
   () =>
     !!currentRole.value.queries?.length &&
     !isRunning.value &&
-    toolResults.value.length < 4,
+    !queriesHidden.value &&
+    toolResults.value.length === 0,
 );
 
 function roleIcon(roleId: string): string {
@@ -593,6 +605,7 @@ function onRoleChange() {
   statusMessage.value = "";
   chatSessionId.value = uuidv4();
   toolCallHistory.value = [];
+  queriesHidden.value = false;
 }
 
 async function refreshRoles() {
@@ -804,7 +817,9 @@ async function sendMessage(text?: string) {
 function handleClickOutsideHistory(e: MouseEvent) {
   if (!showHistory.value) return;
   const target = e.target as Node;
-  if (historyButtonRef.value && !historyButtonRef.value.contains(target)) {
+  const insideButton = historyButtonRef.value?.contains(target) ?? false;
+  const insidePopup = historyPopupRef.value?.contains(target) ?? false;
+  if (!insideButton && !insidePopup) {
     showHistory.value = false;
   }
 }
