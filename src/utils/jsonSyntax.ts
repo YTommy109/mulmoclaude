@@ -95,3 +95,25 @@ export function prettyJson(raw: string): string {
     return raw;
   }
 }
+
+export interface JsonlLine {
+  tokens: JsonToken[];
+  parseError: boolean;
+}
+
+// Tokenize a JSON Lines document: one JSON value per non-empty line.
+// Each parseable line is pretty-printed before tokenization so the
+// output shows a readable multi-line record per entry. Malformed
+// lines are tokenized as-is with `parseError: true` so the caller
+// can mark them visually.
+export function tokenizeJsonl(raw: string): JsonlLine[] {
+  const lines = raw.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  return lines.map((line) => {
+    try {
+      const pretty = JSON.stringify(JSON.parse(line), null, 2);
+      return { tokens: tokenizeJson(pretty), parseError: false };
+    } catch {
+      return { tokens: tokenizeJson(line), parseError: true };
+    }
+  });
+}

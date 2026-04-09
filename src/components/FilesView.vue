@@ -120,6 +120,29 @@
               :key="i"
               :class="JSON_TOKEN_CLASS[tok.type]"
             >{{ tok.value }}</span></pre>
+            <!-- JSONL / NDJSON: one pretty-printed + colored record per line -->
+            <div v-else-if="isJsonl" class="p-4 space-y-2">
+              <div
+                v-for="(line, i) in jsonlLines"
+                :key="i"
+                class="rounded border bg-gray-50 p-3"
+                :class="line.parseError ? 'border-red-300' : 'border-gray-200'"
+              >
+                <div
+                  v-if="line.parseError"
+                  class="text-xs text-red-600 mb-1 font-sans"
+                >
+                  parse error
+                </div>
+                <pre
+                  class="text-xs font-mono text-gray-800 whitespace-pre-wrap"
+                ><span
+                  v-for="(tok, j) in line.tokens"
+                  :key="j"
+                  :class="JSON_TOKEN_CLASS[tok.type]"
+                >{{ tok.value }}</span></pre>
+              </div>
+            </div>
             <!-- Plain text fallback -->
             <pre
               v-else
@@ -163,6 +186,7 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TextResponseData } from "@gui-chat-plugin/text-response";
 import {
   tokenizeJson,
+  tokenizeJsonl,
   prettyJson,
   JSON_TOKEN_CLASS,
 } from "../utils/jsonSyntax";
@@ -220,10 +244,18 @@ function toggleMdRaw(): void {
 }
 const isHtml = computed(() => hasExt(selectedPath.value, [".html", ".htm"]));
 const isJson = computed(() => hasExt(selectedPath.value, [".json"]));
+const isJsonl = computed(() =>
+  hasExt(selectedPath.value, [".jsonl", ".ndjson"]),
+);
 
 const jsonTokens = computed(() => {
   if (!content.value || content.value.kind !== "text") return [];
   return tokenizeJson(prettyJson(content.value.content));
+});
+
+const jsonlLines = computed(() => {
+  if (!content.value || content.value.kind !== "text") return [];
+  return tokenizeJsonl(content.value.content);
 });
 
 const mdFrontmatter = computed(() => {
