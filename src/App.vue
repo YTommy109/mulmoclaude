@@ -400,7 +400,13 @@ const showRightSidebar = ref(
 const toolCallHistory = ref<ToolCallHistoryItem[]>([]);
 const rightSidebarRef = ref<InstanceType<typeof RightSidebar> | null>(null);
 
-const availableTools = computed(() => currentRole.value.availablePlugins);
+const disabledMcpTools = ref(new Set<string>());
+
+const availableTools = computed(() =>
+  currentRole.value.availablePlugins.filter(
+    (p) => !disabledMcpTools.value.has(p),
+  ),
+);
 
 const PENDING_MIN_MS = 500;
 const displayTick = ref(0);
@@ -607,6 +613,19 @@ async function fetchHealth() {
   }
 }
 
+async function fetchMcpToolsStatus() {
+  try {
+    const res = await fetch("/api/mcp-tools");
+    if (!res.ok) return;
+    const tools: { name: string; enabled: boolean }[] = await res.json();
+    disabledMcpTools.value = new Set(
+      tools.filter((t) => !t.enabled).map((t) => t.name),
+    );
+  } catch {
+    // ignore — all tools remain visible if the fetch fails
+  }
+}
+
 async function fetchSessions(): Promise<SessionSummary[]> {
   try {
     const res = await fetch("/api/sessions");
@@ -772,6 +791,7 @@ async function sendMessage(text?: string) {
 
 onMounted(async () => {
   fetchHealth();
+  fetchMcpToolsStatus();
   refreshRoles();
   window.addEventListener("roles-updated", refreshRoles);
   window.addEventListener("keydown", handleKeyNavigation);

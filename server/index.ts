@@ -15,7 +15,11 @@ import rolesRoutes from "./routes/roles.js";
 import mulmoScriptRoutes from "./routes/mulmo-script.js";
 import wikiRoutes from "./routes/wiki.js";
 import pdfRoutes from "./routes/pdf.js";
-import { mcpToolsRouter } from "./mcp-tools/index.js";
+import {
+  mcpToolsRouter,
+  mcpTools,
+  isMcpToolEnabled,
+} from "./mcp-tools/index.js";
 import { initWorkspace } from "./workspace.js";
 import { isDockerAvailable, ensureSandboxImage } from "./docker.js";
 
@@ -111,6 +115,23 @@ function isPortFree(port: number): Promise<boolean> {
       );
       sandboxEnabled = false;
     }
+  }
+
+  const enabledMcpTools = mcpTools.filter(isMcpToolEnabled);
+  const disabledMcpTools = mcpTools.filter((t) => !isMcpToolEnabled(t));
+  if (enabledMcpTools.length > 0) {
+    console.log(
+      `[mcp] Available: ${enabledMcpTools.map((t) => t.definition.name).join(", ")}`,
+    );
+  }
+  if (disabledMcpTools.length > 0) {
+    const names = disabledMcpTools
+      .map(
+        (t) =>
+          t.definition.name + " (" + (t.requiredEnv ?? []).join(", ") + ")",
+      )
+      .join(", ");
+    console.log(`[mcp] Unavailable (missing env): ${names}`);
   }
 
   app.listen(PORT, "0.0.0.0", () => {
