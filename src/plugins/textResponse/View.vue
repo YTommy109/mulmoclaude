@@ -5,7 +5,7 @@
       class="flex justify-end px-4 py-2 border-b border-gray-100 shrink-0"
     >
       <button
-        class="px-3 py-1 text-xs rounded-full border transition-colors border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 w-16 flex items-center justify-center gap-1"
+        class="px-3 py-1 text-xs rounded-full border transition-colors border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 flex items-center justify-center gap-1"
         :disabled="pdfDownloading"
         @click="downloadPdf"
       >
@@ -29,8 +29,11 @@
             d="M4 12a8 8 0 018-8v8H4z"
           />
         </svg>
-        <span v-else>↓ PDF</span>
-        <span v-if="pdfDownloading">PDF</span>
+        <template v-if="!pdfDownloading">
+          <span class="material-icons text-sm leading-none">download</span>
+          <span>PDF</span>
+        </template>
+        <span v-else>PDF</span>
       </button>
       <span
         v-if="pdfError"
