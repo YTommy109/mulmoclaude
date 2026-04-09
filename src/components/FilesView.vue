@@ -22,13 +22,21 @@
         v-if="selectedPath"
         class="px-4 py-2 border-b border-gray-200 text-xs text-gray-500 font-mono shrink-0 flex items-center gap-2"
       >
-        <span class="truncate">{{ selectedPath }}</span>
+        <span class="truncate min-w-0">{{ selectedPath }}</span>
         <span v-if="content" class="text-gray-400 shrink-0"
           >· {{ formatBytes(content.size) }}</span
         >
         <span v-if="content?.modifiedMs" class="text-gray-400 shrink-0"
           >· {{ formatTime(content.modifiedMs) }}</span
         >
+        <button
+          v-if="isMarkdown"
+          class="ml-auto shrink-0 px-2 py-0.5 rounded border border-gray-200 text-gray-600 hover:bg-gray-100 font-sans"
+          :title="mdRawMode ? 'Show rendered Markdown' : 'Show raw source'"
+          @click="toggleMdRaw"
+        >
+          {{ mdRawMode ? "Rendered" : "Raw" }}
+        </button>
       </div>
       <div class="flex-1 overflow-auto min-h-0">
         <div
@@ -45,12 +53,55 @@
         </div>
         <template v-else-if="content">
           <template v-if="content.kind === 'text'">
-            <!-- Markdown: use the same renderer as chat responses -->
-            <div v-if="isMarkdown" class="h-full">
-              <TextResponseView
-                :selected-result="markdownResult(content.content)"
-              />
+            <!-- Markdown rendered: frontmatter panel + body -->
+            <div
+              v-if="isMarkdown && !mdRawMode"
+              class="h-full flex flex-col overflow-auto"
+            >
+              <div
+                v-if="mdFrontmatter && mdFrontmatter.fields.length > 0"
+                class="shrink-0 m-4 mb-0 rounded border border-gray-200 bg-gray-50 p-3 text-xs"
+              >
+                <div
+                  v-for="field in mdFrontmatter.fields"
+                  :key="field.key"
+                  class="flex items-baseline gap-2 py-0.5"
+                >
+                  <span class="font-semibold text-gray-600 shrink-0"
+                    >{{ field.key }}:</span
+                  >
+                  <template v-if="Array.isArray(field.value)">
+                    <span class="flex flex-wrap gap-1">
+                      <span
+                        v-for="item in field.value"
+                        :key="item"
+                        class="rounded-full bg-white border border-gray-300 px-2 py-0.5 text-gray-700"
+                      >
+                        {{ item }}
+                      </span>
+                    </span>
+                  </template>
+                  <span v-else class="text-gray-800 break-words">{{
+                    field.value
+                  }}</span>
+                </div>
+              </div>
+              <div class="flex-1 min-h-0">
+                <TextResponseView
+                  :selected-result="
+                    markdownResult(
+                      mdFrontmatter ? mdFrontmatter.body : content.content,
+                    )
+                  "
+                />
+              </div>
             </div>
+            <!-- Markdown raw source (includes frontmatter) -->
+            <pre
+              v-else-if="isMarkdown && mdRawMode"
+              class="p-4 text-xs whitespace-pre-wrap font-mono text-gray-800"
+              >{{ content.content }}</pre
+            >
             <!-- HTML: sandboxed iframe preview (scripts disabled) -->
             <iframe
               v-else-if="isHtml"
@@ -110,8 +161,15 @@ import FileTree, { type TreeNode } from "./FileTree.vue";
 import TextResponseView from "../plugins/textResponse/View.vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TextResponseData } from "@gui-chat-plugin/text-response";
+import {
+  tokenizeJson,
+  prettyJson,
+  JSON_TOKEN_CLASS,
+} from "../utils/jsonSyntax";
+import { extractFrontmatter } from "../utils/frontmatter";
 
 const STORAGE_KEY = "files_selected_path";
+const MD_RAW_STORAGE_KEY = "files_md_raw_mode";
 const RECENT_THRESHOLD_MS = 60 * 1000;
 
 interface TextContent {
@@ -153,91 +211,25 @@ function hasExt(filePath: string | null, exts: string[]): boolean {
 const isMarkdown = computed(() =>
   hasExt(selectedPath.value, [".md", ".markdown"]),
 );
+
+const mdRawMode = ref(localStorage.getItem(MD_RAW_STORAGE_KEY) === "true");
+
+function toggleMdRaw(): void {
+  mdRawMode.value = !mdRawMode.value;
+  localStorage.setItem(MD_RAW_STORAGE_KEY, String(mdRawMode.value));
+}
 const isHtml = computed(() => hasExt(selectedPath.value, [".html", ".htm"]));
 const isJson = computed(() => hasExt(selectedPath.value, [".json"]));
-
-function prettyJson(raw: string): string {
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2);
-  } catch {
-    // Malformed JSON — show the raw text so the user can still read it
-    return raw;
-  }
-}
-
-type JsonTokenType =
-  | "key"
-  | "string"
-  | "number"
-  | "keyword"
-  | "punct"
-  | "whitespace";
-
-interface JsonToken {
-  type: JsonTokenType;
-  value: string;
-}
-
-const JSON_TOKEN_CLASS: Record<JsonTokenType, string> = {
-  key: "text-blue-700",
-  string: "text-green-700",
-  number: "text-orange-600",
-  keyword: "text-purple-700",
-  punct: "text-gray-500",
-  whitespace: "",
-};
-
-// Regex splits a JSON document into recognisable tokens. Strings are
-// matched before numbers/keywords so escaped quotes inside strings
-// stay together. Anything that doesn't match (syntax errors, stray
-// chars) is emitted as a "punct" token so the user still sees it.
-const JSON_TOKEN_RE =
-  /("(?:[^"\\]|\\.)*")|(\btrue\b|\bfalse\b|\bnull\b)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|(\s+)|([{}[\]:,])/g;
-
-function tokenizeJson(raw: string): JsonToken[] {
-  const tokens: JsonToken[] = [];
-  JSON_TOKEN_RE.lastIndex = 0;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null = JSON_TOKEN_RE.exec(raw);
-  while (match !== null) {
-    if (match.index > lastIndex) {
-      tokens.push({ type: "punct", value: raw.slice(lastIndex, match.index) });
-    }
-    if (match[1] !== undefined)
-      tokens.push({ type: "string", value: match[1] });
-    else if (match[2] !== undefined)
-      tokens.push({ type: "keyword", value: match[2] });
-    else if (match[3] !== undefined)
-      tokens.push({ type: "number", value: match[3] });
-    else if (match[4] !== undefined)
-      tokens.push({ type: "whitespace", value: match[4] });
-    else if (match[5] !== undefined)
-      tokens.push({ type: "punct", value: match[5] });
-    lastIndex = JSON_TOKEN_RE.lastIndex;
-    match = JSON_TOKEN_RE.exec(raw);
-  }
-  if (lastIndex < raw.length) {
-    tokens.push({ type: "punct", value: raw.slice(lastIndex) });
-  }
-  // A string that precedes ":" (skipping whitespace) is an object key.
-  for (let i = 0; i < tokens.length; i++) {
-    if (tokens[i].type !== "string") continue;
-    let j = i + 1;
-    while (j < tokens.length && tokens[j].type === "whitespace") j++;
-    if (
-      j < tokens.length &&
-      tokens[j].type === "punct" &&
-      tokens[j].value === ":"
-    ) {
-      tokens[i] = { type: "key", value: tokens[i].value };
-    }
-  }
-  return tokens;
-}
 
 const jsonTokens = computed(() => {
   if (!content.value || content.value.kind !== "text") return [];
   return tokenizeJson(prettyJson(content.value.content));
+});
+
+const mdFrontmatter = computed(() => {
+  if (!content.value || content.value.kind !== "text") return null;
+  if (!isMarkdown.value) return null;
+  return extractFrontmatter(content.value.content);
 });
 
 function markdownResult(text: string): ToolResultComplete<TextResponseData> {
