@@ -668,15 +668,23 @@ const selectedResult = computed(
     toolResults.value.find((r) => r.uuid === selectedResultUuid.value) ?? null,
 );
 
-// Merged list for history pane: live sessions first, then server-only sessions
+// Type-guard for the user-side branch of a text-response result. Used
+// to surface the first user message as a preview for live sessions
+// that haven't been persisted to disk yet.
+function isUserTextResponse(r: ToolResultComplete): boolean {
+  if (r.toolName !== "text-response") return false;
+  const data = r.data;
+  if (typeof data !== "object" || data === null) return false;
+  if (!("role" in data)) return false;
+  return data.role === "user";
+}
+
+// Merged list for the history pane: live sessions in `sessionMap`
+// merged with server-only sessions, sorted newest-first by startedAt.
 const mergedSessions = computed((): SessionSummary[] => {
   const liveIds = new Set(sessionMap.keys());
   const liveSummaries: SessionSummary[] = [...sessionMap.values()].map((s) => {
-    const firstUserMsg = s.toolResults.find(
-      (r) =>
-        r.toolName === "text-response" &&
-        (r.data as { role?: string } | null)?.role === "user",
-    );
+    const firstUserMsg = s.toolResults.find(isUserTextResponse);
     return {
       id: s.id,
       roleId: s.roleId,
@@ -685,7 +693,17 @@ const mergedSessions = computed((): SessionSummary[] => {
     };
   });
   const serverOnly = sessions.value.filter((s) => !liveIds.has(s.id));
-  return [...liveSummaries, ...serverOnly];
+  return [...liveSummaries, ...serverOnly].sort(
+    (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+  );
+});
+
+// Centralised hasUnread reset: whenever the user switches to a session
+// (either by clicking it in history, by creating a new one, or by
+// loading one from the server), clear that session's unread flag.
+watch(currentSessionId, (id) => {
+  const session = sessionMap.get(id);
+  if (session) session.hasUnread = false;
 });
 
 const SCROLL_AMOUNT = 60;
@@ -919,10 +937,10 @@ async function toggleHistory() {
 }
 
 async function loadSession(id: string) {
-  // Already live in memory — just switch to it
+  // Already live in memory — just switch to it. The watch on
+  // currentSessionId clears the unread flag automatically.
   const live = sessionMap.get(id);
   if (live) {
-    live.hasUnread = false;
     currentSessionId.value = id;
     currentRoleId.value = live.roleId;
     showHistory.value = false;
@@ -1127,15 +1145,21 @@ function handleClickOutsideLock(e: MouseEvent) {
 }
 
 onMounted(async () => {
-  createNewSession();
-  fetchHealth();
-  fetchMcpToolsStatus();
-  refreshRoles();
+  // Listeners first so the UI responds to interactions even if the
+  // async fetches below take a moment.
   window.addEventListener("roles-updated", refreshRoles);
   window.addEventListener("keydown", handleKeyNavigation);
   window.addEventListener("mousedown", handleClickOutsideHistory);
   window.addEventListener("mousedown", handleClickOutsideLock);
   window.addEventListener("keydown", handleViewModeShortcut);
+  // Fire-and-forget side fetches.
+  fetchHealth();
+  fetchMcpToolsStatus();
+  // Roles must be loaded before the first session is created, so
+  // createNewSession() picks a roleId that exists in the merged
+  // role list (built-in + custom).
+  await refreshRoles();
+  createNewSession();
 });
 
 onUnmounted(() => {
