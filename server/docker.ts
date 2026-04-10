@@ -77,6 +77,7 @@ async function buildImage(sha: string): Promise<void> {
       ],
       { cwd: process.cwd(), stdio: ["ignore", "inherit", "inherit"] },
     );
+    proc.on("error", reject);
     proc.on("close", (code) => {
       if (code === 0) resolve();
       else reject(new Error(`docker build exited with code ${code}`));
