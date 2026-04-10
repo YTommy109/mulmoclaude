@@ -22,7 +22,11 @@ const toolDefinition: ToolDefinition = {
         properties: {
           id: { type: "string" },
           name: { type: "string" },
-          icon: { type: "string" },
+          icon: {
+            type: "string",
+            description:
+              "A Material Icons ligature name (lowercase with underscores, e.g. 'smart_toy', 'science', 'draw', 'translate'). Default to 'smart_toy' if unsure.",
+          },
           prompt: { type: "string" },
           availablePlugins: { type: "array", items: { type: "string" } },
           queries: { type: "array", items: { type: "string" } },

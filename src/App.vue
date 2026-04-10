@@ -30,13 +30,13 @@
             <!-- Active sessions badge -->
             <span
               v-if="activeSessionCount > 0"
-              class="absolute -top-1.5 -right-1.5 min-w-[1rem] h-4 px-0.5 bg-blue-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none"
+              class="absolute -top-1.5 -left-1.5 min-w-[1rem] h-4 px-0.5 bg-yellow-400 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none"
               >{{ activeSessionCount }}</span
             >
             <!-- Unread replies badge -->
             <span
               v-if="unreadCount > 0"
-              class="absolute -bottom-1.5 -right-1.5 min-w-[1rem] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none"
+              class="absolute -top-1.5 -right-1.5 min-w-[1rem] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none"
               >{{ unreadCount }}</span
             >
           </button>
@@ -136,9 +136,9 @@
             class="cursor-pointer rounded border p-2 text-sm transition-colors"
             :class="
               sessionMap.get(session.id)?.isRunning
-                ? 'border-green-400 bg-green-50 hover:bg-green-100'
+                ? 'border-yellow-400 bg-yellow-50 hover:bg-yellow-100'
                 : sessionMap.get(session.id)?.hasUnread
-                  ? 'border-red-400 bg-red-50 hover:bg-red-100'
+                  ? 'border-gray-400 bg-white hover:bg-gray-50'
                   : session.id === currentSessionId
                     ? 'border-blue-400 bg-blue-50 hover:bg-blue-100'
                     : 'border-gray-200 hover:bg-gray-50'
@@ -153,18 +153,17 @@
               <span class="ml-auto flex items-center gap-1.5">
                 <span
                   v-if="sessionMap.get(session.id)?.isRunning"
-                  class="flex items-center gap-0.5 text-green-600 font-medium"
+                  class="flex items-center gap-0.5 text-yellow-600 font-medium"
                 >
                   <span
-                    class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"
+                    class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"
                   />
                   Running
                 </span>
                 <span
                   v-else-if="sessionMap.get(session.id)?.hasUnread"
-                  class="flex items-center gap-0.5 text-red-600 font-medium"
+                  class="flex items-center gap-0.5 text-gray-900 font-bold"
                 >
-                  <span class="w-1.5 h-1.5 rounded-full bg-red-500" />
                   Unread
                 </span>
                 <span v-else>{{ formatDate(session.startedAt) }}</span>
@@ -174,9 +173,9 @@
               class="truncate"
               :class="
                 sessionMap.get(session.id)?.isRunning
-                  ? 'text-green-800'
+                  ? 'text-yellow-800'
                   : sessionMap.get(session.id)?.hasUnread
-                    ? 'text-red-800 font-medium'
+                    ? 'text-gray-900 font-bold'
                     : 'text-gray-700'
               "
             >
@@ -187,17 +186,73 @@
       </div>
 
       <!-- Role selector -->
-      <div class="p-4 border-b border-gray-200 flex items-center gap-2">
+      <div
+        class="p-4 border-b border-gray-200 flex items-center gap-2 relative"
+      >
         <span class="text-sm text-gray-500 shrink-0">Role</span>
-        <select
-          v-model="currentRoleId"
-          class="flex-1 bg-white border border-gray-300 rounded px-3 py-2 text-sm text-gray-900"
-          @change="onRoleChange"
+        <button
+          ref="roleButtonRef"
+          class="flex-1 flex items-center gap-2 bg-white border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 hover:bg-gray-50 text-left"
+          @click="showRoleDropdown = !showRoleDropdown"
         >
-          <option v-for="role in roles" :key="role.id" :value="role.id">
+          <span class="material-icons text-base text-gray-500">{{
+            roleIcon(currentRoleId)
+          }}</span>
+          <span class="flex-1 truncate">{{ currentRole.name }}</span>
+          <span class="material-icons text-sm text-gray-400">expand_more</span>
+        </button>
+        <div
+          v-if="showRoleDropdown"
+          ref="roleDropdownRef"
+          class="absolute left-4 right-4 top-full z-50 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
+        >
+          <button
+            v-for="role in roles"
+            :key="role.id"
+            class="w-full flex items-center gap-1.5 px-3 py-1 text-sm text-gray-900 hover:bg-gray-50 text-left"
+            @click="
+              currentRoleId = role.id;
+              showRoleDropdown = false;
+              onRoleChange();
+            "
+          >
+            <span class="material-icons text-base text-gray-400">{{
+              roleIcon(role.id)
+            }}</span>
             {{ role.name }}
-          </option>
-        </select>
+          </button>
+        </div>
+      </div>
+
+      <!-- Session tab bar -->
+      <div class="px-2 py-1 border-b border-gray-200 flex gap-1">
+        <template v-for="i in 6" :key="i">
+          <button
+            v-if="tabSessions[i - 1]"
+            class="flex-1 flex items-center justify-center py-1 rounded transition-colors"
+            :class="
+              tabSessions[i - 1].id === currentSessionId
+                ? 'border border-gray-300 bg-white shadow-sm'
+                : 'hover:bg-gray-100'
+            "
+            :title="
+              tabSessions[i - 1].preview || roleName(tabSessions[i - 1].roleId)
+            "
+            @click="loadSession(tabSessions[i - 1].id)"
+          >
+            <span
+              class="material-icons text-base"
+              :class="[
+                tabColor(tabSessions[i - 1]),
+                sessionMap.get(tabSessions[i - 1].id)?.isRunning
+                  ? 'animate-spin [animation-duration:3s]'
+                  : '',
+              ]"
+              >{{ roleIcon(tabSessions[i - 1].roleId) }}</span
+            >
+          </button>
+          <div v-else class="flex-1" />
+        </template>
       </div>
 
       <!-- Gemini API key warning -->
@@ -571,6 +626,9 @@ const historyPopupRef = ref<HTMLDivElement | null>(null);
 const lockButtonRef = ref<HTMLButtonElement | null>(null);
 const lockPopupRef = ref<HTMLDivElement | null>(null);
 const headerRef = ref<HTMLDivElement | null>(null);
+const roleButtonRef = ref<HTMLButtonElement | null>(null);
+const roleDropdownRef = ref<HTMLDivElement | null>(null);
+const showRoleDropdown = ref(false);
 
 function scrollChatToBottom() {
   nextTick(() => {
@@ -704,6 +762,15 @@ const mergedSessions = computed((): SessionSummary[] => {
   );
 });
 
+const tabSessions = computed(() => mergedSessions.value.slice(0, 6));
+
+function tabColor(session: SessionSummary): string {
+  const live = sessionMap.get(session.id);
+  if (live?.isRunning) return "text-yellow-400";
+  if (live?.hasUnread) return "text-gray-900";
+  return "text-gray-400";
+}
+
 // Centralised hasUnread reset: whenever the user switches to a session
 // (either by clicking it in history, by creating a new one, or by
 // loading one from the server), clear that session's unread flag.
@@ -797,7 +864,10 @@ const showQueries = computed(
 );
 
 function roleIcon(roleId: string): string {
-  return roles.value.find((r) => r.id === roleId)?.icon ?? "star";
+  const icon = roles.value.find((r) => r.id === roleId)?.icon ?? "star";
+  // Material Icon names are lowercase letters and underscores only.
+  // Fall back to a generic icon if an emoji or other value was stored.
+  return /^[a-z_]+$/.test(icon) ? icon : "smart_toy";
 }
 
 function roleName(roleId: string): string {
@@ -886,6 +956,14 @@ function toggleRightSidebar() {
 }
 
 function createNewSession(roleId?: string): ActiveSession {
+  // Remove the latest session if it's empty (no messages exchanged)
+  const latest = [...sessionMap.values()].sort(
+    (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+  )[0];
+  if (latest && latest.toolResults.length === 0) {
+    sessionMap.delete(latest.id);
+  }
+
   const id = uuidv4();
   const rId = roleId ?? currentRoleId.value;
   const session: ActiveSession = {
@@ -1006,6 +1084,10 @@ async function loadSession(id: string) {
   const resolvedSelectedUuid =
     lastTool?.uuid ?? toolResultsList[toolResultsList.length - 1]?.uuid ?? null;
 
+  const originalStartedAt =
+    sessions.value.find((s) => s.id === id)?.startedAt ??
+    new Date().toISOString();
+
   sessionMap.set(id, {
     id,
     roleId,
@@ -1016,7 +1098,7 @@ async function loadSession(id: string) {
     selectedResultUuid: resolvedSelectedUuid,
     hasUnread: false,
     abortController: markRaw(new AbortController()),
-    startedAt: new Date().toISOString(),
+    startedAt: originalStartedAt,
   });
   currentSessionId.value = id;
   currentRoleId.value = roleId;
@@ -1177,6 +1259,8 @@ async function sendMessage(text?: string) {
     if (currentSessionId.value !== session.id) {
       session.hasUnread = true;
     }
+    // Refresh server session list so tabs stay up to date
+    fetchSessions();
   }
 }
 
@@ -1200,6 +1284,16 @@ function handleClickOutsideLock(e: MouseEvent) {
   }
 }
 
+function handleClickOutsideRoleDropdown(e: MouseEvent) {
+  if (!showRoleDropdown.value) return;
+  const target = e.target as Node;
+  const insideButton = roleButtonRef.value?.contains(target) ?? false;
+  const insideDropdown = roleDropdownRef.value?.contains(target) ?? false;
+  if (!insideButton && !insideDropdown) {
+    showRoleDropdown.value = false;
+  }
+}
+
 onMounted(async () => {
   // Listeners first so the UI responds to interactions even if the
   // async fetches below take a moment.
@@ -1207,10 +1301,12 @@ onMounted(async () => {
   window.addEventListener("keydown", handleKeyNavigation);
   window.addEventListener("mousedown", handleClickOutsideHistory);
   window.addEventListener("mousedown", handleClickOutsideLock);
+  window.addEventListener("mousedown", handleClickOutsideRoleDropdown);
   window.addEventListener("keydown", handleViewModeShortcut);
   // Fire-and-forget side fetches.
   fetchHealth();
   fetchMcpToolsStatus();
+  fetchSessions();
   // Roles must be loaded before the first session is created, so
   // createNewSession() picks a roleId that exists in the merged
   // role list (built-in + custom).
@@ -1223,6 +1319,7 @@ onUnmounted(() => {
   window.removeEventListener("keydown", handleKeyNavigation);
   window.removeEventListener("mousedown", handleClickOutsideHistory);
   window.removeEventListener("mousedown", handleClickOutsideLock);
+  window.removeEventListener("mousedown", handleClickOutsideRoleDropdown);
   window.removeEventListener("keydown", handleViewModeShortcut);
   if (tickInterval !== null) clearInterval(tickInterval);
 });
