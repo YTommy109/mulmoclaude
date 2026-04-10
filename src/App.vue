@@ -34,7 +34,7 @@
               :class="
                 sandboxEnabled
                   ? 'text-green-500 hover:text-green-700'
-                  : 'text-orange-400 hover:text-orange-600'
+                  : 'text-amber-400 hover:text-amber-500'
               "
               :title="
                 sandboxEnabled
@@ -54,7 +54,7 @@
             >
               <p
                 class="mb-2"
-                :class="sandboxEnabled ? 'text-green-800' : 'text-orange-700'"
+                :class="sandboxEnabled ? 'text-green-800' : 'text-amber-500'"
               >
                 <template v-if="sandboxEnabled">
                   <span class="material-icons text-xs align-middle mr-1"
