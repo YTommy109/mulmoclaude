@@ -36,7 +36,7 @@
             <!-- Unread replies badge -->
             <span
               v-if="unreadCount > 0"
-              class="absolute -bottom-1.5 -right-1.5 min-w-[1rem] h-4 px-0.5 bg-green-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none"
+              class="absolute -bottom-1.5 -right-1.5 min-w-[1rem] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none"
               >{{ unreadCount }}</span
             >
           </button>
@@ -138,7 +138,7 @@
               sessionMap.get(session.id)?.isRunning
                 ? 'border-yellow-400 bg-yellow-50 hover:bg-yellow-100'
                 : sessionMap.get(session.id)?.hasUnread
-                  ? 'border-green-400 bg-green-50 hover:bg-green-100'
+                  ? 'border-gray-400 bg-white hover:bg-gray-50'
                   : session.id === currentSessionId
                     ? 'border-blue-400 bg-blue-50 hover:bg-blue-100'
                     : 'border-gray-200 hover:bg-gray-50'
@@ -162,9 +162,8 @@
                 </span>
                 <span
                   v-else-if="sessionMap.get(session.id)?.hasUnread"
-                  class="flex items-center gap-0.5 text-green-600 font-medium"
+                  class="flex items-center gap-0.5 text-gray-900 font-bold"
                 >
-                  <span class="w-1.5 h-1.5 rounded-full bg-green-500" />
                   Unread
                 </span>
                 <span v-else>{{ formatDate(session.startedAt) }}</span>
@@ -176,7 +175,7 @@
                 sessionMap.get(session.id)?.isRunning
                   ? 'text-yellow-800'
                   : sessionMap.get(session.id)?.hasUnread
-                    ? 'text-green-800 font-medium'
+                    ? 'text-gray-900 font-bold'
                     : 'text-gray-700'
               "
             >
@@ -768,7 +767,7 @@ const tabSessions = computed(() => mergedSessions.value.slice(0, 6));
 function tabColor(session: SessionSummary): string {
   const live = sessionMap.get(session.id);
   if (live?.isRunning) return "text-yellow-400";
-  if (live?.hasUnread) return "text-green-500";
+  if (live?.hasUnread) return "text-gray-900";
   return "text-gray-400";
 }
 
