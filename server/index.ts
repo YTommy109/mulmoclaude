@@ -22,6 +22,8 @@ import {
   isMcpToolEnabled,
 } from "./mcp-tools/index.js";
 import { initWorkspace } from "./workspace.js";
+import fs from "fs";
+import os from "os";
 import { isDockerAvailable, ensureSandboxImage } from "./docker.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -100,6 +102,26 @@ function isPortFree(port: number): Promise<boolean> {
     try {
       sandboxEnabled = await isDockerAvailable();
       if (sandboxEnabled) {
+        const credentialsPath = path.join(
+          os.homedir(),
+          ".claude",
+          ".credentials.json",
+        );
+        if (!fs.existsSync(credentialsPath)) {
+          console.error(
+            "[sandbox] Missing credentials file: ~/.claude/.credentials.json",
+          );
+          if (process.platform === "darwin") {
+            console.error(
+              "[sandbox] Run `npm run sandbox:login` to export credentials from Keychain.",
+            );
+          } else {
+            console.error(
+              "[sandbox] Run `claude auth login` to authenticate Claude Code.",
+            );
+          }
+          process.exit(1);
+        }
         console.log(
           "[sandbox] Docker available — building sandbox image if needed",
         );

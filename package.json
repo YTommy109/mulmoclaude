@@ -18,7 +18,8 @@
     "build": "vite build && tsc -p server/tsconfig.json --noEmit",
     "test": "tsx --test ./test/*/test_*.ts",
     "sandbox:remove": "docker rmi mulmoclaude-sandbox",
-    "sandbox:login": "docker run --rm -it -v ~/.claude:/root/.claude mulmoclaude-sandbox claude login"
+    "sandbox:login": "security find-generic-password -s 'Claude Code-credentials' -w > ~/.claude/.credentials.json && echo 'Credentials exported to ~/.claude/.credentials.json'",
+    "sandbox:logout": "rm -f ~/.claude/.credentials.json && echo 'Credentials file removed'"
   },
   "resolutions": {
     "tar": "7.5.13"
