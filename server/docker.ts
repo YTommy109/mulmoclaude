@@ -1,8 +1,9 @@
 import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 import { createHash } from "crypto";
-import { readFileSync } from "fs";
-import { resolve as resolvePath } from "path";
+import { readFileSync, statSync } from "fs";
+import { homedir } from "os";
+import { join, resolve as resolvePath } from "path";
 
 const execFileAsync = promisify(execFile);
 
@@ -12,9 +13,39 @@ const LABEL_KEY = "mulmoclaude.dockerfile.sha256";
 
 let _dockerEnabled: boolean | null = null;
 
+function assertClaudeFiles(): void {
+  const claudeDir = join(homedir(), ".claude");
+  const claudeJson = join(homedir(), ".claude.json");
+
+  try {
+    if (!statSync(claudeDir).isDirectory()) {
+      console.error(`[sandbox] ${claudeDir} exists but is not a directory.`);
+      process.exit(1);
+    }
+  } catch {
+    console.error(
+      `[sandbox] ${claudeDir} not found. Run 'claude' once to initialize.`,
+    );
+    process.exit(1);
+  }
+
+  try {
+    if (!statSync(claudeJson).isFile()) {
+      console.error(`[sandbox] ${claudeJson} exists but is not a file.`);
+      process.exit(1);
+    }
+  } catch {
+    console.error(
+      `[sandbox] ${claudeJson} not found. Run 'claude' once to initialize.`,
+    );
+    process.exit(1);
+  }
+}
+
 export async function isDockerAvailable(): Promise<boolean> {
   if (process.env.DISABLE_SANDBOX === "1") return false;
   if (_dockerEnabled !== null) return _dockerEnabled;
+  assertClaudeFiles();
   try {
     await execFileAsync("docker", ["ps", "-q"], { timeout: 5000 });
     _dockerEnabled = true;
