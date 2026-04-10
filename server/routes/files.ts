@@ -14,6 +14,8 @@ const TEXT_EXTENSIONS = new Set([
   ".markdown",
   ".txt",
   ".json",
+  ".jsonl",
+  ".ndjson",
   ".yaml",
   ".yml",
   ".js",
