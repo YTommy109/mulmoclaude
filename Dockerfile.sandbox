@@ -1,3 +1,4 @@
 FROM node:22-slim
 RUN npm install -g @anthropic-ai/claude-code tsx
-WORKDIR /workspace
+USER node
+WORKDIR /home/node/mulmoclaude

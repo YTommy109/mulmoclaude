@@ -26,15 +26,16 @@ export async function* runAgent(
   claudeSessionId?: string,
   pluginPrompts?: Record<string, string>,
 ): AsyncGenerator<AgentEvent> {
-  const systemPrompt = buildSystemPrompt({
-    role,
-    workspacePath,
-    pluginPrompts,
-  });
-
   const activePlugins = getActivePlugins(role);
   const hasMcp = activePlugins.length > 0;
   const useDocker = await isDockerAvailable();
+
+  const containerWorkspacePath = "/home/node/mulmoclaude";
+  const systemPrompt = buildSystemPrompt({
+    role,
+    workspacePath: useDocker ? containerWorkspacePath : workspacePath,
+    pluginPrompts,
+  });
 
   // Compute MCP config paths — host path for writing/cleanup,
   // arg path for what gets passed to the claude CLI (container path if docker).
@@ -44,7 +45,7 @@ export async function* runAgent(
     const mcpConfigDir = join(workspacePath, ".mulmoclaude");
     await mkdir(mcpConfigDir, { recursive: true });
     mcpConfigHostPath = join(mcpConfigDir, `mcp-${sessionId}.json`);
-    mcpConfigArgPath = `/workspace/.mulmoclaude/mcp-${sessionId}.json`;
+    mcpConfigArgPath = `/home/node/mulmoclaude/.mulmoclaude/mcp-${sessionId}.json`;
   } else {
     mcpConfigHostPath = join(tmpdir(), `mulmoclaude-mcp-${sessionId}.json`);
     mcpConfigArgPath = mcpConfigHostPath;
@@ -75,6 +76,8 @@ export async function* runAgent(
       ? ["--add-host", "host.docker.internal:host-gateway"]
       : [];
 
+  const uid = process.getuid?.() ?? 1000;
+  const gid = process.getgid?.() ?? 1000;
   const projectRoot = process.cwd();
   const proc = useDocker
     ? spawn(
@@ -82,6 +85,12 @@ export async function* runAgent(
         [
           "run",
           "--rm",
+          "--cap-drop",
+          "ALL",
+          "--user",
+          `${uid}:${gid}`,
+          "-e",
+          "HOME=/home/node",
           "-v",
           `${toDockerPath(projectRoot)}/node_modules:/app/node_modules:ro`,
           "-v",
@@ -89,9 +98,11 @@ export async function* runAgent(
           "-v",
           `${toDockerPath(projectRoot)}/src:/app/src:ro`,
           "-v",
-          `${toDockerPath(workspacePath)}:/workspace`,
+          `${toDockerPath(workspacePath)}:/home/node/mulmoclaude`,
           "-v",
-          `${toDockerPath(homedir())}/.claude:/root/.claude`,
+          `${toDockerPath(homedir())}/.claude:/home/node/.claude`,
+          "-v",
+          `${toDockerPath(homedir())}/.claude.json:/home/node/.claude.json`,
           ...extraHosts,
           "mulmoclaude-sandbox",
           "claude",

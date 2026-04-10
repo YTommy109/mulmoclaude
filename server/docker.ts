@@ -1,15 +1,51 @@
-import { execFile } from "child_process";
+import { execFile, spawn } from "child_process";
 import { promisify } from "util";
+import { createHash } from "crypto";
+import { readFileSync, statSync } from "fs";
+import { homedir } from "os";
+import { join, resolve as resolvePath } from "path";
 
 const execFileAsync = promisify(execFile);
 
 const IMAGE_NAME = "mulmoclaude-sandbox";
+const DOCKERFILE = "Dockerfile.sandbox";
+const LABEL_KEY = "mulmoclaude.dockerfile.sha256";
 
 let _dockerEnabled: boolean | null = null;
+
+function assertClaudeFiles(): void {
+  const claudeDir = join(homedir(), ".claude");
+  const claudeJson = join(homedir(), ".claude.json");
+
+  try {
+    if (!statSync(claudeDir).isDirectory()) {
+      console.error(`[sandbox] ${claudeDir} exists but is not a directory.`);
+      process.exit(1);
+    }
+  } catch {
+    console.error(
+      `[sandbox] ${claudeDir} not found. Run 'claude' once to initialize.`,
+    );
+    process.exit(1);
+  }
+
+  try {
+    if (!statSync(claudeJson).isFile()) {
+      console.error(`[sandbox] ${claudeJson} exists but is not a file.`);
+      process.exit(1);
+    }
+  } catch {
+    console.error(
+      `[sandbox] ${claudeJson} not found. Run 'claude' once to initialize.`,
+    );
+    process.exit(1);
+  }
+}
 
 export async function isDockerAvailable(): Promise<boolean> {
   if (process.env.DISABLE_SANDBOX === "1") return false;
   if (_dockerEnabled !== null) return _dockerEnabled;
+  assertClaudeFiles();
   try {
     await execFileAsync("docker", ["ps", "-q"], { timeout: 5000 });
     _dockerEnabled = true;
@@ -19,18 +55,63 @@ export async function isDockerAvailable(): Promise<boolean> {
   return _dockerEnabled;
 }
 
+function getDockerfileSha256(): string {
+  const content = readFileSync(resolvePath(process.cwd(), DOCKERFILE));
+  return createHash("sha256").update(content).digest("hex");
+}
+
+async function buildImage(sha: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(
+      "docker",
+      [
+        "build",
+        "-t",
+        IMAGE_NAME,
+        "--label",
+        `${LABEL_KEY}=${sha}`,
+        "-f",
+        DOCKERFILE,
+        "--load",
+        ".",
+      ],
+      { cwd: process.cwd(), stdio: ["ignore", "inherit", "inherit"] },
+    );
+    proc.on("error", reject);
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`docker build exited with code ${code}`));
+    });
+  });
+}
+
 export async function ensureSandboxImage(): Promise<void> {
+  const expectedSha = getDockerfileSha256();
+
+  let needsBuild = false;
   try {
-    await execFileAsync("docker", ["image", "inspect", IMAGE_NAME]);
+    const { stdout } = await execFileAsync("docker", [
+      "image",
+      "inspect",
+      IMAGE_NAME,
+      "--format",
+      `{{index .Config.Labels "${LABEL_KEY}"}}`,
+    ]);
+    if (stdout.trim() !== expectedSha) {
+      console.log(
+        "[sandbox] Dockerfile.sandbox changed, rebuilding sandbox image...",
+      );
+      needsBuild = true;
+    }
   } catch {
     console.log(
       "[sandbox] Building sandbox image (first time only, may take a minute)...",
     );
-    await execFileAsync(
-      "docker",
-      ["build", "-t", IMAGE_NAME, "-f", "Dockerfile.sandbox", "--load", "."],
-      { cwd: process.cwd() },
-    );
+    needsBuild = true;
+  }
+
+  if (needsBuild) {
+    await buildImage(expectedSha);
     console.log("[sandbox] Sandbox image built.");
   }
 }
