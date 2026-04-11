@@ -23,7 +23,7 @@ Create a **simple task scheduling service** (Task Manager) built around a single
 2. **Simple registration API** — `registerTask()` / `removeTask()`.
 3. **Two schedule types** — time-of-day or fixed interval.
 4. **Fire-and-forget execution** — tasks run asynchronously; errors are logged, never propagated.
-5. **Operational visibility** — last run time, next run time, error state per task.
+5. **Operational visibility** — last run time, error state per task.
 6. **Safe startup/shutdown** — `start()` / `stop()` lifecycle.
 7. **Testability** — injectable clock function.
 
@@ -56,14 +56,16 @@ Every tick (1 minute or 1 second):
 2. For each enabled task in the registry:
    - Compute whether it is due based on its schedule type.
    - If due, call `task.run()` asynchronously (no await — fire-and-forget).
-   - Update `lastStartedAt`. On completion, update `lastFinishedAt` / `lastError`.
+   - On completion, update `lastRunAt` / `lastError`.
 3. That's it.
 
 ### Schedule Types
 
-**Interval** (`every`): Run every N milliseconds. A task is due when `now - lastStartedAt >= intervalMs`.
+Both types are **wall-clock aligned to UTC**. No elapsed-time tracking needed.
 
-**Time-of-day** (`daily`): Run once per day at a specific `HH:MM` (24h format, in configured timezone). A task is due when the current time matches the target hour/minute and it hasn't already run today.
+**Interval**: Run at fixed wall-clock positions. `intervalMs` divides the day into equal slots starting from midnight UTC. E.g., `intervalMs: 4 * 60 * 60 * 1000` (4 hours) fires at 0:00, 4:00, 8:00, 12:00, 16:00, 20:00 UTC. A task is due when the current slot differs from the slot of its last run.
+
+**Daily**: Run once per day at a specific `HH:MM` (24h format, UTC). A task is due when the current hour/minute matches and it hasn't already run today.
 
 ---
 
@@ -72,7 +74,7 @@ Every tick (1 minute or 1 second):
 ```ts
 export type TaskSchedule =
   | { type: "interval"; intervalMs: number }
-  | { type: "daily"; time: string; timezone?: string }; // time: "HH:MM", timezone default: UTC
+  | { type: "daily"; time: string };                     // time: "HH:MM" in UTC
 
 export interface TaskDefinition {
   id: string;                    // globally unique; stable across restarts
@@ -88,8 +90,7 @@ export interface TaskRuntimeState {
   enabled: boolean;
   running: boolean;
 
-  lastStartedAt?: Date;
-  lastFinishedAt?: Date;
+  lastRunAt?: Date;
   lastError?: { message: string; at: Date };
 
   runCount: number;
@@ -149,7 +150,7 @@ taskManager.registerTask({
 taskManager.registerTask({
   id: "digest.daily",
   description: "Generate and send daily digest",
-  schedule: { type: "daily", time: "13:00", timezone: "UTC" },
+  schedule: { type: "daily", time: "13:00" },
   run: async () => {
     await digestService.generateAndSend();
   },
@@ -172,43 +173,53 @@ function onTick(now: Date) {
     if (!task.enabled) continue;
 
     if (isDue(task, now)) {
-      task.state.lastStartedAt = now;
       task.state.running = true;
       task.state.runCount++;
 
       task.def.run({ taskId: task.def.id, now })
+        .then(() => {
+          task.state.lastRunAt = now;
+        })
         .catch((err) => {
           task.state.errorCount++;
           task.state.lastError = { message: String(err), at: new Date() };
-          logger?.error({ taskId: task.def.id, error: err }, "task failed");
         })
         .finally(() => {
           task.state.running = false;
-          task.state.lastFinishedAt = new Date();
         });
     }
   }
 }
 
+function getSlot(time: Date, intervalMs: number): number {
+  const msSinceMidnight =
+    time.getUTCHours() * 3600000 +
+    time.getUTCMinutes() * 60000 +
+    time.getUTCSeconds() * 1000 +
+    time.getUTCMilliseconds();
+  return Math.floor(msSinceMidnight / intervalMs);
+}
+
 function isDue(task: TaskEntry, now: Date): boolean {
   const { schedule } = task.def;
+  const { lastRunAt } = task.state;
 
   if (schedule.type === "interval") {
-    if (!task.state.lastStartedAt) return true; // never run → run immediately
-    return now.getTime() - task.state.lastStartedAt.getTime() >= schedule.intervalMs;
+    const currentSlot = getSlot(now, schedule.intervalMs);
+    if (!lastRunAt) return currentSlot === 0; // first run at slot 0
+    return getSlot(lastRunAt, schedule.intervalMs) !== currentSlot;
   }
 
   if (schedule.type === "daily") {
     const [hh, mm] = schedule.time.split(":").map(Number);
-    const taskTime = toTimezone(now, schedule.timezone ?? "UTC");
-    if (taskTime.hours === hh && taskTime.minutes === mm) {
-      // Only fire if we haven't already run during this minute
-      if (!task.state.lastStartedAt) return true;
-      const lastRun = toTimezone(task.state.lastStartedAt, schedule.timezone ?? "UTC");
-      return lastRun.date !== taskTime.date; // different calendar day
-    }
-    return false;
+    if (now.getUTCHours() !== hh || now.getUTCMinutes() !== mm) return false;
+    if (!lastRunAt) return true;
+    return lastRunAt.getUTCDate() !== now.getUTCDate()
+        || lastRunAt.getUTCMonth() !== now.getUTCMonth()
+        || lastRunAt.getUTCFullYear() !== now.getUTCFullYear();
   }
+
+  return false;
 }
 ```
 
@@ -311,11 +322,10 @@ taskManager.stop();
 ## 12) Testing Strategy
 
 ### Unit Tests
-1. `isDue()` logic for interval schedules (first run, elapsed, not yet).
-2. `isDue()` logic for daily schedules (correct time, already run today, timezone).
-3. Registration validation (duplicate IDs, invalid time format).
-4. `removeTask` while running (should not crash).
-5. `runNow` fires immediately.
+1. `isDue()` logic for interval schedules (slot boundary, same slot, day rollover).
+2. `isDue()` logic for daily schedules (correct time, already run today).
+3. `removeTask` while running (should not crash).
+4. `runNow` fires immediately.
 
 ### Integration Tests
 1. Start/stop lifecycle with fake clock.
