@@ -26,9 +26,15 @@ import fs from "fs";
 import os from "os";
 import { isDockerAvailable, ensureSandboxImage } from "./docker.js";
 import { maybeRunJournal } from "./journal/index.js";
+import { createPubSub } from "./pub-sub/index.js";
+import { createTaskManager } from "./task-manager/index.js";
+import type { ITaskManager } from "./task-manager/index.js";
+import type { IPubSub } from "./pub-sub/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const debugMode = process.argv.includes("--debug");
 
 initWorkspace();
 
@@ -159,8 +165,23 @@ function isPortFree(port: number): Promise<boolean> {
     console.log(`[mcp] Unavailable (missing env): ${names}`);
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const httpServer = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
+
+    // --- Pub/Sub ---
+    const pubsub = createPubSub(httpServer);
+
+    // --- Task Manager ---
+    const taskManager = createTaskManager({
+      tickMs: debugMode ? 1_000 : 60_000,
+    });
+
+    if (debugMode) {
+      registerDebugTasks(taskManager, pubsub);
+    }
+
+    taskManager.start();
+
     // Debug switch: set JOURNAL_FORCE_RUN_ON_STARTUP=1 to run a full
     // journal pass immediately without waiting for a session end or
     // the hourly interval. Fire-and-forget — journal errors never
@@ -173,3 +194,25 @@ function isPortFree(port: number): Promise<boolean> {
     }
   });
 })();
+
+function registerDebugTasks(taskManager: ITaskManager, pubsub: IPubSub) {
+  let count = 0;
+
+  taskManager.registerTask({
+    id: "debug.counter",
+    description:
+      "Debug counter — logs and publishes debug.beat, self-removes after 10 runs",
+    schedule: { type: "interval", intervalMs: 1_000 },
+    run: async () => {
+      count++;
+      const last = count === 10;
+      console.log(`[task-manager] debug.counter: ${count}`);
+      pubsub.publish("debug.beat", { count, last });
+      if (last) {
+        taskManager.removeTask("debug.counter");
+      }
+    },
+  });
+
+  console.log("[debug] Debug mode active — registered debug tasks");
+}

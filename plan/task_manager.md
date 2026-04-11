@@ -53,18 +53,17 @@ TaskManager
 Every tick (1 minute or 1 second):
 1. Get current time via injected `now()`.
 2. For each enabled task in the registry:
-   - Compute whether it is due based on its schedule type.
+   - Check if the current time (rounded to the tick) aligns with the task's schedule.
    - If due, call `task.run()` asynchronously (no await — fire-and-forget).
-   - On completion, update internal `lastRunAt`. Log errors.
-3. That's it.
+3. That's it. No state tracked between ticks.
 
 ### Schedule Types
 
 Both types are **wall-clock aligned to UTC**. No elapsed-time tracking needed.
 
-**Interval**: Run at fixed wall-clock positions. `intervalMs` divides the day into equal slots starting from midnight UTC. E.g., `intervalMs: 4 * 60 * 60 * 1000` (4 hours) fires at 0:00, 4:00, 8:00, 12:00, 16:00, 20:00 UTC. A task is due when the current slot differs from the slot of its last run.
+**Interval**: Run at fixed wall-clock positions. `intervalMs` divides the day into equal slots starting from midnight UTC. E.g., `intervalMs: 4 * 60 * 60 * 1000` (4 hours) fires at 0:00, 4:00, 8:00, 12:00, 16:00, 20:00 UTC. A task is due when the current time (rounded to the tick) is a multiple of the interval.
 
-**Daily**: Run once per day at a specific `HH:MM` (24h format, UTC). A task is due when the current hour/minute matches and it hasn't already run today.
+**Daily**: Run once per day at a specific `HH:MM` (24h format, UTC). A task is due when the current hour and minute match.
 
 ---
 
@@ -88,8 +87,7 @@ export interface TaskRunContext {
   now: Date;                     // the tick time that triggered this run
 }
 
-// Internal per-task state (not exported):
-// - lastRunAt?: Date  — used by isDue() to avoid double-firing within the same slot
+// No internal state needed — isDue() is purely a function of the current time.
 
 ```
 
@@ -156,46 +154,30 @@ taskManager.start();
 
 ```ts
 function onTick(now: Date) {
-  for (const task of registry.values()) {
-    if (!task.enabled) continue;
+  for (const def of registry.values()) {
+    if (def.enabled === false) continue;
+    if (!isDue(now, def.schedule, tickMs)) continue;
 
-    if (isDue(task, now)) {
-      task.lastRunAt = now;
-
-      task.def.run({ taskId: task.def.id, now })
-        .catch((err) => {
-          console.error(`[task-manager] ${task.def.id} failed:`, err);
-        });
-    }
+    def.run({ taskId: def.id, now })
+      .catch((err) => {
+        console.error(`[task-manager] ${def.id} failed:`, err);
+      });
   }
 }
 
-function getSlot(time: Date, intervalMs: number): number {
-  const msSinceMidnight =
-    time.getUTCHours() * 3600000 +
-    time.getUTCMinutes() * 60000 +
-    time.getUTCSeconds() * 1000 +
-    time.getUTCMilliseconds();
-  return Math.floor(msSinceMidnight / intervalMs);
-}
-
-function isDue(task: TaskEntry, now: Date): boolean {
-  const { schedule } = task.def;
-  const { lastRunAt } = task;
-
+function isDue(now: Date, schedule: TaskSchedule, tickMs: number): boolean {
   if (schedule.type === "interval") {
-    const currentSlot = getSlot(now, schedule.intervalMs);
-    if (!lastRunAt) return currentSlot === 0; // first run at slot 0
-    return getSlot(lastRunAt, schedule.intervalMs) !== currentSlot;
+    const msSinceMidnight =
+      now.getUTCHours() * 3600000 +
+      now.getUTCMinutes() * 60000 +
+      now.getUTCSeconds() * 1000;
+    const rounded = Math.floor(msSinceMidnight / tickMs) * tickMs;
+    return rounded % schedule.intervalMs === 0;
   }
 
   if (schedule.type === "daily") {
     const [hh, mm] = schedule.time.split(":").map(Number);
-    if (now.getUTCHours() !== hh || now.getUTCMinutes() !== mm) return false;
-    if (!lastRunAt) return true;
-    return lastRunAt.getUTCDate() !== now.getUTCDate()
-        || lastRunAt.getUTCMonth() !== now.getUTCMonth()
-        || lastRunAt.getUTCFullYear() !== now.getUTCFullYear();
+    return now.getUTCHours() === hh && now.getUTCMinutes() === mm;
   }
 
   return false;
