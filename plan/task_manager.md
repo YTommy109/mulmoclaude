@@ -226,36 +226,7 @@ function isDue(task: TaskEntry, now: Date): boolean {
 
 ---
 
-## 9) Debug Mode
-
-### Activation
-
-Pass `--debug-tasks` as a command line argument to the server:
-
-```bash
-tsx server/index.ts --debug-tasks
-```
-
-Or in package.json:
-```json
-"dev:server:debug": "tsx server/index.ts --debug-tasks"
-```
-
-### Behavior
-
-When `--debug-tasks` is active:
-1. Tick interval is **1 second** instead of 60 seconds.
-2. A built-in **counter test task** is registered automatically:
-   - ID: `debug.counter`
-   - Schedule: `{ type: "interval", intervalMs: 1_000 }` (every 1 second)
-   - Maintains an internal counter, increments on each run, logs `[task-manager] debug.counter: N` to the console.
-   - After 10 runs, unregisters itself via `removeTask("debug.counter")`.
-
-This provides an immediate smoke test of the full lifecycle: register → tick → execute → self-unregister.
-
----
-
-## 10) File/Module Plan
+## 9) File/Module Plan
 
 ```text
 server/
@@ -267,17 +238,9 @@ That's it — the entire implementation fits in one file.
 
 Bootstrap integration in `server/index.ts`:
 ```ts
-const debugTasks = process.argv.includes("--debug-tasks");
+const taskManager = createTaskManager({ tickMs });
 
-const taskManager = createTaskManager({
-  tickMs: debugTasks ? 1_000 : 60_000,
-});
-
-// clients register tasks here...
-
-if (debugTasks) {
-  registerDebugTasks(taskManager);
-}
+// register tasks here...
 
 taskManager.start();
 
@@ -285,9 +248,11 @@ taskManager.start();
 taskManager.stop();
 ```
 
+Debug mode (tick interval, test tasks) is described in `plan/debug_mode.md`.
+
 ---
 
-## 11) Testing Strategy
+## 10) Testing Strategy
 
 ### Unit Tests
 1. `isDue()` logic for interval schedules (slot boundary, same slot, day rollover).
@@ -300,12 +265,10 @@ taskManager.stop();
 3. Error in one task does not block others.
 
 ### Smoke Test
-Run `tsx server/index.ts --debug-tasks` and observe 10 counter log lines followed by self-unregistration. No other infrastructure needed.
+See `plan/debug_mode.md` — the `--debug` flag registers a self-removing counter task for instant smoke testing.
 
 ---
 
-## 12) Decision Summary
+## 11) Decision Summary
 
 The Task Manager is built around a single `setInterval` tick loop. Every tick checks which tasks are due and fires them asynchronously. No cron library, no retry, no concurrency control, no state tracking — just a registry, a timer, and fire-and-forget execution. The entire implementation fits in one file.
-
-A `--debug-tasks` CLI flag switches to 1-second ticks and registers a self-removing counter task for instant smoke testing.
