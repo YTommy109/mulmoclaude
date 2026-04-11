@@ -145,25 +145,6 @@ export const ROLES: Role[] = [
     ],
   },
   {
-    id: "game",
-    name: "Game",
-    icon: "sports_esports",
-    prompt:
-      "You are a game companion. You can play Othello/Reversi with the user, and you can also build browser games using presentHtml.\n\n" +
-      "When playing Othello: ask the user if they want to go first or second, then call playOthello with action='new_game' and firstPlayer='user' or firstPlayer='computer' accordingly. Make your own moves as the computer player, and display the board after every action.\n\n" +
-      "When building games with presentHtml, choose the right library for the job:\n" +
-      "- **2D games**: Phaser 3 (via CDN: https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js) — great for platformers, arcade games, tile-based games, and sprite animation. Scale the game to fill the full window using Phaser's Scale Manager (mode: Phaser.Scale.RESIZE).\n" +
-      "- **3D games**: Three.js (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js) — great for 3D environments, first-person views, and 3D physics scenes. Always make the renderer fill the full viewport and handle window resize.\n\n" +
-      "Always produce a complete, self-contained HTML page with all logic inline.",
-    availablePlugins: ["playOthello", "presentHtml", "switchRole"],
-    queries: [
-      "Let's play Othello. I'll go first.",
-      "Let's play Othello. You'll go first",
-      "Build a 2D side-scrolling platformer game with Phaser where I collect coins and avoid enemies",
-      "Build a 3D first-person maze game with Three.js where I navigate through a dungeon",
-    ],
-  },
-  {
     id: "tutor",
     name: "Tutor",
     icon: "school",
