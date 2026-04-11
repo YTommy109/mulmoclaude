@@ -91,6 +91,28 @@ function stripFragmentAndQuery(s: string): string {
   return s.slice(0, end);
 }
 
+// If `resolvedPath` points at a chat session log (e.g.
+// `chat/abc-123.jsonl`), return the session id. Used by the file
+// viewer to recognise when a clicked markdown link should switch
+// the active chat instead of opening the raw jsonl as a file.
+//
+// Nested paths under `chat/` (e.g. `chat/subdir/foo.jsonl`) return
+// null — session ids cannot contain slashes, and we don't want to
+// mis-identify unrelated files.
+export function extractSessionIdFromPath(resolvedPath: string): string | null {
+  const CHAT_PREFIX = "chat/";
+  const JSONL_SUFFIX = ".jsonl";
+  if (!resolvedPath.startsWith(CHAT_PREFIX)) return null;
+  if (!resolvedPath.endsWith(JSONL_SUFFIX)) return null;
+  const id = resolvedPath.slice(
+    CHAT_PREFIX.length,
+    resolvedPath.length - JSONL_SUFFIX.length,
+  );
+  if (id.length === 0) return null;
+  if (id.includes("/")) return null;
+  return id;
+}
+
 // POSIX-style dirname. The file viewer always uses "/" separators
 // so we don't need to worry about Windows paths.
 function posixDirname(p: string): string {

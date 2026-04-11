@@ -204,6 +204,7 @@ import { extractFrontmatter } from "../utils/format/frontmatter";
 import {
   isExternalHref,
   resolveWorkspaceLink,
+  extractSessionIdFromPath,
 } from "../utils/path/relativeLink";
 
 const STORAGE_KEY = "files_selected_path";
@@ -230,6 +231,13 @@ type FileContent = TextContent | MetaContent;
 
 const props = defineProps<{
   refreshToken?: number;
+}>();
+
+const emit = defineEmits<{
+  // Emitted when the user clicks a markdown link whose target is
+  // a chat session jsonl; App.vue should load that session into
+  // the active chat view rather than opening the raw jsonl.
+  loadSession: [sessionId: string];
 }>();
 
 const tree = ref<TreeNode | null>(null);
@@ -441,6 +449,15 @@ function handleMarkdownLinkClick(event: MouseEvent): void {
   if (!resolved) return;
   event.preventDefault();
   event.stopPropagation();
+  // Chat session link: hand off to App.vue so the sidebar chat
+  // switches to that session instead of opening the raw jsonl
+  // as a file. Direct clicks in the file tree still open the
+  // jsonl in raw view — only markdown link clicks route here.
+  const sessionId = extractSessionIdFromPath(resolved);
+  if (sessionId !== null) {
+    emit("loadSession", sessionId);
+    return;
+  }
   selectFile(resolved);
 }
 

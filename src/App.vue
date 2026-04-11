@@ -432,7 +432,11 @@
           @update-result="handleUpdateResult"
         />
         <!-- Files mode -->
-        <FilesView v-else :refresh-token="filesRefreshToken" />
+        <FilesView
+          v-else
+          :refresh-token="filesRefreshToken"
+          @load-session="onFilesViewLoadSession"
+        />
       </div>
     </div>
     <!-- Right sidebar: tool call history -->
@@ -732,6 +736,18 @@ function handleUpdateResult(updatedResult: ToolResultComplete) {
 // actually shows up in the canvas.
 function onSidebarItemClick(uuid: string) {
   selectedResultUuid.value = uuid;
+  if (canvasViewMode.value === "files") {
+    setCanvasViewMode("single");
+  }
+}
+
+// Bridge from FilesView: a user clicked a markdown link to a chat
+// session (e.g. "[session abc](../../chat/abc-123.jsonl)" inside
+// a journal summary). Switch the active session AND pop the canvas
+// out of files mode, otherwise they'd still be staring at the file
+// tree after the session loaded.
+function onFilesViewLoadSession(sessionId: string): void {
+  loadSession(sessionId);
   if (canvasViewMode.value === "files") {
     setCanvasViewMode("single");
   }

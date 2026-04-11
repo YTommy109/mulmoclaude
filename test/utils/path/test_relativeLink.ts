@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   isExternalHref,
   resolveWorkspaceLink,
+  extractSessionIdFromPath,
 } from "../../../src/utils/path/relativeLink.js";
 
 describe("isExternalHref", () => {
@@ -164,5 +165,43 @@ describe("resolveWorkspaceLink", () => {
       resolveWorkspaceLink("summaries/topics/foo.md", "?query=1"),
       null,
     );
+  });
+});
+
+describe("extractSessionIdFromPath", () => {
+  it("extracts a session id from chat/<id>.jsonl", () => {
+    assert.equal(
+      extractSessionIdFromPath("chat/abc-123-def.jsonl"),
+      "abc-123-def",
+    );
+  });
+
+  it("handles a full UUID", () => {
+    const uuid = "550e8400-e29b-41d4-a716-446655440000";
+    assert.equal(extractSessionIdFromPath(`chat/${uuid}.jsonl`), uuid);
+  });
+
+  it("returns null for paths outside chat/", () => {
+    assert.equal(extractSessionIdFromPath("wiki/foo.jsonl"), null);
+    assert.equal(extractSessionIdFromPath("foo/chat/abc.jsonl"), null);
+  });
+
+  it("returns null for non-jsonl extensions", () => {
+    assert.equal(extractSessionIdFromPath("chat/abc.md"), null);
+    assert.equal(extractSessionIdFromPath("chat/abc.json"), null);
+    assert.equal(extractSessionIdFromPath("chat/abc"), null);
+  });
+
+  it("returns null when the id portion is empty", () => {
+    assert.equal(extractSessionIdFromPath("chat/.jsonl"), null);
+  });
+
+  it("returns null for nested paths under chat/", () => {
+    assert.equal(extractSessionIdFromPath("chat/subdir/foo.jsonl"), null);
+  });
+
+  it("returns null for the bare chat/ directory", () => {
+    assert.equal(extractSessionIdFromPath("chat/"), null);
+    assert.equal(extractSessionIdFromPath("chat"), null);
   });
 });
