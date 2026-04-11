@@ -12,6 +12,7 @@ import {
 } from "../sessions.js";
 import { workspacePath } from "../workspace.js";
 import { maybeRunJournal } from "../journal/index.js";
+import { maybeIndexSession } from "../chat-index/index.js";
 
 const router = Router();
 const PORT = Number(process.env.PORT) || 3001;
@@ -174,6 +175,18 @@ router.post(
           console.warn("[journal] unexpected error in background:", err);
         },
       );
+      // Same fire-and-forget pattern as the journal above. The
+      // chat indexer is self-gated by `indexedAt` freshness, holds
+      // a per-session lock, and skips sessions still in the live
+      // registry — so back-to-back turns on the same conversation
+      // don't spam the CLI.
+      maybeIndexSession({
+        sessionId,
+        activeSessionIds: getActiveSessionIds(),
+      }).catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn("[chat-index] unexpected error in background:", err);
+      });
     }
   },
 );

@@ -2,6 +2,8 @@ import { Router, Request, Response } from "express";
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
 import { workspacePath } from "../workspace.js";
+import { readManifest } from "../chat-index/indexer.js";
+import type { ChatIndexEntry } from "../chat-index/types.js";
 
 async function readSessionMeta(
   chatDir: string,
@@ -45,6 +47,11 @@ interface SessionSummary {
   // sidebar history list by this so active sessions float to the top.
   updatedAt: string;
   preview: string;
+  // Populated when the chat indexer has produced a summary for this
+  // session. The frontend renders `summary` as a smaller second line
+  // under the preview in the history popup. See #123.
+  summary?: string;
+  keywords?: string[];
 }
 
 const router = Router();
@@ -53,6 +60,14 @@ router.get(
   "/sessions",
   async (_req: Request, res: Response<SessionSummary[]>) => {
     const chatDir = path.join(workspacePath, "chat");
+    // Load the chat-index manifest once per request so each
+    // session lookup is a cheap Map.get rather than a file read.
+    // Sessions without an index entry fall back to the legacy
+    // first-user-message preview below.
+    const manifest = await readManifest(workspacePath);
+    const indexById = new Map<string, ChatIndexEntry>(
+      manifest.entries.map((e) => [e.id, e]),
+    );
     try {
       const files = (await readdir(chatDir)).filter((f) =>
         f.endsWith(".jsonl"),
@@ -83,12 +98,24 @@ router.get(
                   }
                 })
                 .find((e): e is SessionEntry => e?.source === "user");
+              const indexEntry = indexById.get(id);
+              // Prefer the AI-generated title when available,
+              // fall back to the raw first user message otherwise.
+              // `summary` and `keywords` are spread conditionally
+              // to respect the server tsconfig's
+              // exactOptionalPropertyTypes.
               return {
                 id,
                 roleId: meta.roleId,
                 startedAt: meta.startedAt,
                 updatedAt: new Date(fileStat.mtimeMs).toISOString(),
-                preview: firstUserLine?.message ?? "",
+                preview: indexEntry?.title ?? firstUserLine?.message ?? "",
+                ...(indexEntry?.summary !== undefined && {
+                  summary: indexEntry.summary,
+                }),
+                ...(indexEntry?.keywords !== undefined && {
+                  keywords: indexEntry.keywords,
+                }),
               };
             } catch {
               return null;

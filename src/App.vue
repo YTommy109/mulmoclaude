@@ -183,6 +183,15 @@
             >
               {{ session.preview || "(no messages)" }}
             </p>
+            <!-- Optional second line: AI-generated summary of the
+                 session, populated by the chat indexer (#123).
+                 Older sessions with no index entry simply omit this. -->
+            <p
+              v-if="session.summary"
+              class="text-xs text-gray-500 truncate mt-0.5"
+            >
+              {{ session.summary }}
+            </p>
           </div>
         </div>
       </div>

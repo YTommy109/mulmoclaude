@@ -5,7 +5,7 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { ToolCallHistoryItem } from "./toolCallHistory";
 
 // Server `/api/sessions` summary. Optional `summary` and `keywords`
-// are populated by the chat indexer (PR #94) when present.
+// are populated by the chat indexer (#123) when present.
 //
 // `updatedAt` is the most recent activity timestamp — taken from the
 // jsonl file's mtime on the server side and bumped whenever the
