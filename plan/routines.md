@@ -223,16 +223,12 @@ Each routine execution is recorded in `{workspace}/tasks/history.json` so users 
 
 ### Data Model
 
+Each entry is a pointer from a routine to the chat session it created. All other details (role, timestamps, conversation content) live in the chat session record itself.
+
 ```ts
 interface RoutineExecution {
   routineId: string;             // which routine ran
-  routineName: string;           // snapshot of the name at execution time
-  sessionId: string;             // the chat session created by this run
-  roleId: string;
-  startedAt: string;             // ISO timestamp
-  finishedAt: string;            // ISO timestamp
-  status: "success" | "error";
-  error?: string;                // error message if status is "error"
+  sessionId: string;             // pointer to workspace/chat/{sessionId}.*
 }
 ```
 
@@ -241,15 +237,8 @@ interface RoutineExecution {
 ```json
 {
   "executions": [
-    {
-      "routineId": "a1b2c3",
-      "routineName": "Daily OpenAI summary",
-      "sessionId": "d4e5f6-...",
-      "roleId": "office",
-      "startedAt": "2026-04-11T11:00:01Z",
-      "finishedAt": "2026-04-11T11:02:34Z",
-      "status": "success"
-    }
+    { "routineId": "a1b2c3", "sessionId": "d4e5f6-..." },
+    { "routineId": "a1b2c3", "sessionId": "g7h8i9-..." }
   ]
 }
 ```
@@ -258,23 +247,10 @@ The array is append-only. Newest entries are appended to the end. A reasonable c
 
 ### Recording
 
-In `executeRoutine()`, record the execution after the agent finishes:
+In `executeRoutine()`, append the pointer after the agent finishes:
 
 ```ts
-const startedAt = new Date().toISOString();
-// ... run agent ...
-const finishedAt = new Date().toISOString();
-
-appendExecution({
-  routineId: routine.id,
-  routineName: routine.name,
-  sessionId,
-  roleId: routine.roleId,
-  startedAt,
-  finishedAt,
-  status: error ? "error" : "success",
-  error: error ? String(error) : undefined,
-});
+appendExecution({ routineId: routine.id, sessionId });
 ```
 
 ### Server API
