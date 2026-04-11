@@ -7,9 +7,11 @@
   "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "concurrently -n server,client -k \"npm run server\" \"sleep 2 && vite\"",
+    "dev:debug": "concurrently -n server,client -k \"npm run server:debug\" \"sleep 2 && vite\"",
     "dev:client": "vite",
     "dev:server": "tsx server/index.ts",
     "server": "tsx server/index.ts",
+    "server:debug": "tsx server/index.ts --debug",
     "lint": "eslint src server",
     "format": "prettier --write '{src,server,test}/**/*.{ts,json,yaml,vue}'",
     "typecheck": "vue-tsc --noEmit",
