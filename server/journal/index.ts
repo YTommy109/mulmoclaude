@@ -102,13 +102,22 @@ async function runJournalPass(opts: {
       summarize,
       activeSessionIds,
     });
+    // Only advance lastDailyRunAt when no days were skipped —
+    // otherwise we'd wait a full interval before retrying a failed
+    // day, letting transient archivist failures silently lose events.
     nextState = {
       ...afterDaily,
-      lastDailyRunAt: new Date(now).toISOString(),
+      ...(result.skipped.length === 0 && {
+        lastDailyRunAt: new Date(now).toISOString(),
+      }),
     };
+    const skipSuffix =
+      result.skipped.length > 0
+        ? ` (${result.skipped.length} days skipped, will retry)`
+        : "";
     // eslint-disable-next-line no-console
     console.log(
-      `[journal] daily pass done: ${result.sessionsIngested.length} sessions, ${result.daysTouched.length} days, ${result.topicsCreated.length} topics created, ${result.topicsUpdated.length} updated`,
+      `[journal] daily pass done: ${result.sessionsIngested.length} sessions, ${result.daysTouched.length} days, ${result.topicsCreated.length} topics created, ${result.topicsUpdated.length} updated${skipSuffix}`,
     );
   }
 
@@ -119,9 +128,18 @@ async function runJournalPass(opts: {
       nextState,
       { workspaceRoot, summarize },
     );
+    // Same rule as daily: only advance the timestamp when the pass
+    // actually ran to completion. A "skipped: too few topics" case
+    // is still considered successful — there was simply nothing to
+    // do — and we allow it to bump so we don't re-check on every
+    // session-end.
+    const optimizationSucceeded =
+      !result.skipped || result.skippedReason === "fewer than 2 topics";
     nextState = {
       ...afterOpt,
-      lastOptimizationRunAt: new Date(now).toISOString(),
+      ...(optimizationSucceeded && {
+        lastOptimizationRunAt: new Date(now).toISOString(),
+      }),
     };
     if (result.skipped) {
       // eslint-disable-next-line no-console

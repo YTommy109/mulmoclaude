@@ -105,7 +105,12 @@ export async function runOptimizationPass(
     );
 
     for (const src of fromSlugs) {
-      await moveToArchive(workspaceRoot, src);
+      // Only record the merge as successful if the source file
+      // actually moved. If moveToArchive fails (missing file, IO
+      // error) we leave the source out of the removed set so the
+      // in-memory knownTopics state stays accurate.
+      const moved = await moveToArchive(workspaceRoot, src);
+      if (!moved) continue;
       removed.add(src);
       result.mergedSlugs.push(src);
     }
@@ -115,7 +120,8 @@ export async function runOptimizationPass(
   for (const rawSlug of parsed.archives) {
     const slug = slugify(rawSlug);
     if (removed.has(slug)) continue;
-    await moveToArchive(workspaceRoot, slug);
+    const moved = await moveToArchive(workspaceRoot, slug);
+    if (!moved) continue;
     removed.add(slug);
     result.archivedSlugs.push(slug);
   }
@@ -156,19 +162,26 @@ async function loadTopicHeads(
   return out;
 }
 
+// Move a topic file into archive/topics/. Returns true on success,
+// false if the source didn't exist or rename failed — the caller
+// uses the boolean to decide whether to update state for this slug.
 async function moveToArchive(
   workspaceRoot: string,
   slug: string,
-): Promise<void> {
+): Promise<boolean> {
   const src = topicPathFor(workspaceRoot, slug);
   const dst = archivedTopicPathFor(workspaceRoot, slug);
   try {
     await fsp.mkdir(path.dirname(dst), { recursive: true });
     await fsp.rename(src, dst);
+    return true;
   } catch (err) {
     // Source may not exist (e.g. the LLM named a slug that was
-    // never a real file). Log and continue — non-fatal.
+    // never a real file) or the rename hit an unexpected IO error.
+    // Log and return false — the caller leaves state untouched for
+    // this slug so the in-memory knownTopics stays accurate.
     // eslint-disable-next-line no-console
     console.warn(`[journal] could not archive ${slug}:`, err);
+    return false;
   }
 }

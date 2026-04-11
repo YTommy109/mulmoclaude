@@ -20,9 +20,15 @@ export function summariesRoot(workspaceRoot: string): string {
 }
 
 // summaries/daily/YYYY/MM/DD.md for a given ISO-ish date ("YYYY-MM-DD").
-// Input is validated only minimally — callers should supply already-
-// formatted strings produced by toIsoDate().
+// Throws if `isoDate` is not exactly YYYY-MM-DD — catches typos at
+// the boundary instead of producing "undefined/undefined.md" paths
+// downstream.
 export function dailyPathFor(workspaceRoot: string, isoDate: string): string {
+  if (!isValidIsoDate(isoDate)) {
+    throw new Error(
+      `[journal] dailyPathFor: expected YYYY-MM-DD, got "${isoDate}"`,
+    );
+  }
   const [year, month, day] = isoDate.split("-");
   return path.join(
     summariesRoot(workspaceRoot),
@@ -31,6 +37,30 @@ export function dailyPathFor(workspaceRoot: string, isoDate: string): string {
     month,
     `${day}.md`,
   );
+}
+
+// Strict YYYY-MM-DD check without a regex (sonarjs/slow-regex). We
+// deliberately don't validate that the date is real (no "2026-02-31"
+// rejection) — that's the LLM's / caller's job; we only make sure
+// the string can be split into 3 numeric components so the
+// downstream path math won't produce garbage.
+function isValidIsoDate(s: string): boolean {
+  if (s.length !== 10) return false;
+  if (s[4] !== "-" || s[7] !== "-") return false;
+  return (
+    isNumeric(s.slice(0, 4)) &&
+    isNumeric(s.slice(5, 7)) &&
+    isNumeric(s.slice(8, 10))
+  );
+}
+
+function isNumeric(s: string): boolean {
+  if (s.length === 0) return false;
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    if (code < 48 || code > 57) return false;
+  }
+  return true;
 }
 
 // summaries/topics/<slug>.md

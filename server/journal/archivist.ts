@@ -105,10 +105,28 @@ export const runClaudeCli: Summarize = async (systemPrompt, userPrompt) => {
       }
     });
 
-    // Write everything in one shot, then close stdin so the CLI
-    // knows input is complete.
-    child.stdin.write(`${systemPrompt}\n\n---\n\n${userPrompt}`);
-    child.stdin.end();
+    // Surface stdin write errors (e.g. EPIPE if the child exited
+    // before we finished writing) instead of silently dropping them.
+    child.stdin.on("error", (err: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      reject(err);
+    });
+
+    // Send the full prompt in one write. If Node's stream layer
+    // signals backpressure (write returns false), wait for "drain"
+    // before calling end() so we don't close stdin while the buffer
+    // still has data to flush. For typical archivist prompts this
+    // path rarely fires, but very large session excerpts can reach
+    // it.
+    const payload = `${systemPrompt}\n\n---\n\n${userPrompt}`;
+    const flushed = child.stdin.write(payload);
+    if (flushed) {
+      child.stdin.end();
+    } else {
+      child.stdin.once("drain", () => child.stdin.end());
+    }
   });
 };
 

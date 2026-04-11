@@ -214,8 +214,19 @@ export async function runDailyPass(
     }
   }
 
-  // Mark all dirty sessions as processed (with their observed mtime).
+  // Only mark a dirty session as processed if none of the days it
+  // contributed to were skipped. A session whose day we failed to
+  // summarize must stay "dirty" so the next pass retries it —
+  // otherwise a transient LLM failure would permanently hide those
+  // events from the journal.
+  const skippedSessionIds = new Set<string>();
+  for (const skip of result.skipped) {
+    const bucket = dayBuckets.get(skip.date);
+    if (!bucket) continue;
+    for (const excerpt of bucket) skippedSessionIds.add(excerpt.sessionId);
+  }
   const justProcessed: SessionFileMeta[] = dirty
+    .filter((id) => !skippedSessionIds.has(id))
     .map((id) => dirtyMetaById.get(id))
     .filter((m): m is SessionFileMeta => m !== undefined);
   result.sessionsIngested = justProcessed.map((m) => m.id);
@@ -352,7 +363,14 @@ export function entryToExcerpt(
     };
   }
   // tool_result entries: {source: "tool", type: "tool_result", result: {toolName, message, ...}}
-  if (type === "tool_result" && typeof entry.result === "object") {
+  // `typeof null === "object"` so we must explicitly reject null
+  // to avoid a NullPointerException-style crash when accessing
+  // r.toolName below.
+  if (
+    type === "tool_result" &&
+    typeof entry.result === "object" &&
+    entry.result !== null
+  ) {
     const r = entry.result as Record<string, unknown>;
     const toolName = typeof r.toolName === "string" ? r.toolName : "tool";
     const label =

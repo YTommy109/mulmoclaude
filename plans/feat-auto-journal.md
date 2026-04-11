@@ -29,7 +29,7 @@ The system is **fully automatic**:
 
 ## Storage layout
 
-```
+```text
 workspace/
   chat/                              # EXISTING — raw session logs
     <sessionId>.jsonl                # append-only event log
@@ -202,7 +202,7 @@ Pure filesystem derivation — no LLM. Rebuilt at the end of every journal pass.
 
 ## File layout (code)
 
-```
+```text
 server/
   journal/
     index.ts              # public entry: maybeRunJournal()
@@ -230,7 +230,7 @@ All non-LLM logic is extracted into pure functions and lives in files designed t
 The LLM wrapper `archivist.ts` takes an injected `summarize: (systemPrompt, userPrompt) => Promise<string>` so tests can pass a fake. The default exports `runClaudeCli` which shells out to the `claude` binary. Tests never spawn a subprocess; they supply a deterministic fake that returns canned JSON.
 
 Test files:
-```
+```text
 test/journal/
   test_paths.ts
   test_diff.ts

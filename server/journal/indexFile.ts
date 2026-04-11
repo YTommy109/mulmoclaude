@@ -99,7 +99,14 @@ function compareTopicsNewestFirst(
   const bt = b.lastUpdatedIso ? Date.parse(b.lastUpdatedIso) : NaN;
   const aValid = !Number.isNaN(at);
   const bValid = !Number.isNaN(bt);
-  if (aValid && bValid) return bt - at;
+  if (aValid && bValid) {
+    // Tie-break on slug when timestamps are identical so the index
+    // output is deterministic across repeated rebuilds. Without this,
+    // equal-mtime topics fall back to input order, which depends on
+    // readdir ordering and varies by filesystem.
+    if (bt !== at) return bt - at;
+    return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0;
+  }
   if (aValid) return -1;
   if (bValid) return 1;
   return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0;
