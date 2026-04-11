@@ -109,19 +109,25 @@ function isPortFree(port: number): Promise<boolean> {
           ".credentials.json",
         );
         if (!fs.existsSync(credentialsPath)) {
-          console.error(
-            "[sandbox] Missing credentials file: ~/.claude/.credentials.json",
-          );
           if (process.platform === "darwin") {
-            console.error(
-              "[sandbox] Run `npm run sandbox:login` to export credentials from Keychain.",
-            );
+            const { refreshCredentials } = await import("./credentials.js");
+            const ok = await refreshCredentials();
+            if (!ok) {
+              console.error(
+                "[sandbox] Failed to export credentials from macOS Keychain.",
+              );
+              console.error("[sandbox] Run `npm run sandbox:login` manually.");
+              process.exit(1);
+            }
           } else {
+            console.error(
+              "[sandbox] Missing credentials file: ~/.claude/.credentials.json",
+            );
             console.error(
               "[sandbox] Run `claude auth login` to authenticate Claude Code.",
             );
+            process.exit(1);
           }
-          process.exit(1);
         }
         console.log(
           "[sandbox] Docker available — building sandbox image if needed",
