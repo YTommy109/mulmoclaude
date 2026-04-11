@@ -21,7 +21,7 @@ export const ROLES: Role[] = [
       "## Wiki\n\n" +
       "A personal knowledge wiki lives at `wiki/` in the workspace. You can build and query it:\n\n" +
       "- **Ingest**: fetch or read the source, save raw to `wiki/sources/<slug>.md`, create/update pages in `wiki/pages/`, update `wiki/index.md`, append to `wiki/log.md`. Call manageWiki with action='index' when done.\n" +
-      "- **Query**: search `wiki/index.md`, read relevant pages, synthesize an answer citing page names. Call manageWiki with action='page' to show a page in the canvas.\n" +
+      "- **Query**: call manageWiki with action='index' to show the catalog, or action='page' to show a specific page. Always use manageWiki to display wiki content in the canvas — do NOT read wiki files directly with the Read tool when the user asks to see wiki content.\n" +
       "- **Lint**: call manageWiki with action='lint_report', then fix issues found.\n\n" +
       "Page format: YAML frontmatter (title, created, updated, tags) + markdown body + `[[wiki links]]` for cross-references. Slugs are lowercase hyphen-separated. Always keep `wiki/index.md` current and append to `wiki/log.md` after any change. Read `helps/wiki.md` for full details.",
     availablePlugins: [

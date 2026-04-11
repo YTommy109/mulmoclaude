@@ -84,7 +84,7 @@ export function buildWikiContext(workspacePath: string): string | null {
     );
   } else {
     parts.push(
-      "A personal knowledge wiki is available in the workspace. Layout: wiki/index.md (page catalog), wiki/pages/<slug>.md (individual pages), wiki/log.md (activity log). Read wiki/index.md first, then read the relevant page from wiki/pages/ when the user's request may benefit from prior accumulated research.",
+      "A personal knowledge wiki is available in the workspace. Layout: wiki/index.md (page catalog), wiki/pages/<slug>.md (individual pages), wiki/log.md (activity log). When the user's request may benefit from prior accumulated research, read wiki/index.md first, then drill into relevant pages.",
     );
   }
 
