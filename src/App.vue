@@ -327,19 +327,20 @@
       <div v-if="showQueries" class="border-t border-gray-200">
         <div
           v-if="queriesExpanded"
+          ref="queriesListRef"
           class="px-4 pt-2 max-h-64 overflow-y-auto flex flex-col gap-1"
         >
           <button
             v-for="query in currentRole.queries"
             :key="query"
             class="text-left text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded px-3 py-1.5 border border-gray-300 transition-colors"
-            @click="
-              queriesExpanded = false;
-              sendMessage(query);
-            "
+            @click="onQueryClick($event, query)"
           >
             {{ query }}
           </button>
+          <p class="text-center text-[10px] text-gray-400 py-0.5">
+            click to send · shift+click to edit
+          </p>
         </div>
         <button
           class="w-full flex items-center justify-between px-4 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors"
@@ -688,8 +689,29 @@ function handleKeyNavigation(e: KeyboardEvent) {
 }
 
 const queriesExpanded = ref(false);
+const queriesListRef = ref<HTMLDivElement | null>(null);
+
+watch(queriesExpanded, (expanded) => {
+  if (expanded) {
+    nextTick(() => {
+      if (queriesListRef.value) {
+        queriesListRef.value.scrollTop = queriesListRef.value.scrollHeight;
+      }
+    });
+  }
+});
 
 const showQueries = computed(() => !!currentRole.value.queries?.length);
+
+function onQueryClick(e: MouseEvent, query: string) {
+  queriesExpanded.value = false;
+  if (e.shiftKey) {
+    userInput.value = query;
+    nextTick(() => textareaRef.value?.focus());
+  } else {
+    sendMessage(query);
+  }
+}
 
 // Local wrappers that thread the reactive `roles.value` into the
 // pure helpers in src/utils/role.ts. Template bindings keep the
