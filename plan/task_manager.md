@@ -1,43 +1,40 @@
-# Generic Cron Task Manager — Design Document
+# Task Manager — Design Document
 
 ## 1) Context and Problem
 
 The Node server is growing a set of background services that need periodic execution (cleanup, sync, reminder checks, digest generation, etc.).
 
-If each service manages its own timer/cron lifecycle, we get:
+If each service manages its own timer lifecycle, we get:
 - duplicated scheduling logic,
-- inconsistent error handling/retry behavior,
-- hard-to-observe runtime state,
+- inconsistent error handling,
 - increased risk of timer leaks on restart/hot reload,
-- no single place to enforce limits (max concurrency, overlap policy, shutdown semantics).
+- no single place to observe what's running.
 
 ### Goal
-Create a **generic task scheduling service** (Task Manager) that lets feature services register cron jobs declaratively while centralizing:
-- scheduling,
-- execution lifecycle,
-- observability,
-- resilience,
-- graceful shutdown.
+
+Create a **simple task scheduling service** (Task Manager) built around a single `setInterval` timer that wakes up every tick (1 minute in production, 1 second in debug mode), checks which tasks are due, and fires them asynchronously. No cron library, no retry logic, no concurrency limits — just a tick loop and a task registry.
 
 ---
 
 ## 2) Design Goals and Non-Goals
 
-## Goals
-1. **Single scheduling abstraction** for all background cron tasks.
-2. **Simple registration API** for services (`registerTask(...)`).
-3. **Deterministic runtime behavior** (explicit overlap and retry policies).
-4. **Operational visibility** (last run, next run, duration, errors, disabled state).
-5. **Safe startup/shutdown** with lifecycle hooks integrated into server boot.
-6. **Testability** through dependency-injected clock/scheduler adapter.
+### Goals
+1. **Single timer** — one `setInterval` drives all task scheduling.
+2. **Simple registration API** — `registerTask()` / `removeTask()`.
+3. **Two schedule types** — time-of-day or fixed interval.
+4. **Fire-and-forget execution** — tasks run asynchronously; errors are logged, never propagated.
+5. **Operational visibility** — last run time, next run time, error state per task.
+6. **Safe startup/shutdown** — `start()` / `stop()` lifecycle.
+7. **Testability** — injectable clock function.
 
-## Non-Goals (v1)
-1. Distributed job coordination across multiple server instances.
-2. Durable queued execution (e.g., RabbitMQ/SQS-backed workers).
-3. Exactly-once semantics across crashes.
-4. A user-facing UI for editing cron expressions.
-5. Persisting schedule definitions inside the Task Manager itself.
-6. Task dependency/ordering (e.g., "run B after A completes").
+### Non-Goals
+1. Cron expressions or cron library dependency.
+2. Retry or backoff logic.
+3. Concurrency limits or overlap policies.
+4. Sequential/ordered execution.
+5. Distributed coordination across server instances.
+6. Persistence of schedule definitions (clients own this).
+7. Task dependency/ordering.
 
 ---
 
@@ -49,115 +46,67 @@ Feature Service B -----+--> TaskManager.registerTask(def)
 Feature Service C ----/
 
 TaskManager
-  - Registry (task metadata + handlers)
-  - SchedulerAdapter (cron engine wrapper)
-  - Runner (guards, timeout, retry, metrics)
-  - StateStore (in-memory runtime state)
-  - Hooks/Events (logs + optional telemetry)
+  - Registry: Map<id, TaskEntry>
+  - Timer: single setInterval (60s prod / 1s debug)
+  - Tick handler: iterates registry, checks isDue(), fires run()
 ```
 
-### Components
+### How the Tick Works
 
-1. **TaskManager**
-   - Public API for register/start/stop/runNow/list.
-   - Owns task registry and runtime state.
+Every tick (1 minute or 1 second):
+1. Get current time via injected `now()`.
+2. For each enabled task in the registry:
+   - Compute whether it is due based on its schedule type.
+   - If due, call `task.run()` asynchronously (no await — fire-and-forget).
+   - Update `lastStartedAt`. On completion, update `lastFinishedAt` / `lastError`.
+3. That's it.
 
-2. **SchedulerAdapter**
-   - Wraps cron library (`node-cron` or equivalent).
-   - Converts cron expression + timezone into schedule handles.
-   - Keeps cron dependency isolated for easier replacement/testing.
+### Schedule Types
 
-3. **TaskRunner**
-   - Executes handlers with policies:
-     - overlap control,
-     - timeout,
-     - retry/backoff,
-     - jitter (optional),
-     - instrumentation.
+**Interval** (`every`): Run every N milliseconds. A task is due when `now - lastStartedAt >= intervalMs`.
 
-4. **StateStore (in-memory)**
-   - Maintains state snapshot per task:
-     - status (`idle|running|error|disabled`),
-     - `lastStartedAt`, `lastFinishedAt`, `lastSuccessAt`, `lastError`,
-     - run counters.
+**Time-of-day** (`daily`): Run once per day at a specific `HH:MM` (24h format, in configured timezone). A task is due when the current time matches the target hour/minute and it hasn't already run today.
 
-5. **Observability Hooks**
-   - Structured logging and optional callback/event emitter for metrics sinks.
+### Persistence Boundary
 
-### Persistence Boundary (Important)
-
-- **Task Manager runtime state is process-local and ephemeral.**
-- **Task schedule intent must be persisted by Task Manager clients** (services/plugins/features) in their own storage.
-- On server startup, each client:
-  1. Loads its persisted schedule records.
-  2. Rebuilds `TaskDefinition` objects.
-  3. Re-registers them with `TaskManager.registerTask(s)` before `startAll()`.
-
-This keeps Task Manager generic and stateless with respect to domain persistence, while still supporting restart safety through deterministic re-registration.
+- Task Manager runtime state is process-local and ephemeral.
+- Task schedule intent must be persisted by clients in their own storage.
+- On server startup, each client loads its persisted records and re-registers tasks before `start()`.
 
 ---
 
 ## 4) Data Model
 
 ```ts
-export type OverlapPolicy = "skip" | "queue_one" | "parallel";
+export type TaskSchedule =
+  | { type: "interval"; intervalMs: number }
+  | { type: "daily"; time: string; timezone?: string }; // time: "HH:MM", timezone default: UTC
 
 export interface TaskDefinition {
-  id: string;                  // globally unique; stable across restarts
+  id: string;                    // globally unique; stable across restarts
   description?: string;
-  cron: string;                // cron expression
-  timezone?: string;           // default: UTC
-  enabled?: boolean;           // default: true
-
-  overlapPolicy?: OverlapPolicy; // default: "skip"
-  maxConcurrentRuns?: number;    // only meaningful with "parallel"; default: 5
-  timeoutMs?: number;            // hard execution timeout
-  maxRetries?: number;           // default: 0
-  retryBackoffMs?: number;       // base backoff
-  maxRetryBackoffMs?: number;    // cap for exponential backoff; default: 60_000
-  jitterMs?: number;             // optional random delay before run
-
-  tags?: string[];               // grouping/filtering
-
+  schedule: TaskSchedule;
+  enabled?: boolean;             // default: true
   run: (ctx: TaskRunContext) => Promise<void>;
 }
 
 export interface TaskRuntimeState {
   id: string;
+  description?: string;
   enabled: boolean;
-  status: "idle" | "running" | "error" | "disabled";
-  runningCount: number;
-  queued: boolean;
+  running: boolean;
 
-  lastStartedAt?: string;
-  lastFinishedAt?: string;
-  lastSuccessAt?: string;
-  lastDurationMs?: number;
+  lastStartedAt?: Date;
+  lastFinishedAt?: Date;
+  lastError?: { message: string; at: Date };
 
   runCount: number;
-  successCount: number;
   errorCount: number;
-
-  nextRunAt?: string;
-  lastError?: {
-    message: string;
-    at: string;
-  };
 }
 
 export interface TaskRunContext {
-  signal: AbortSignal;
-  now: () => Date;
-  logger: {
-    info: (obj: unknown, msg?: string) => void;
-    warn: (obj: unknown, msg?: string) => void;
-    error: (obj: unknown, msg?: string) => void;
-  };
-  meta: {
-    taskId: string;
-    attempt: number;
-    trigger: "cron" | "manual" | "startup";
-  };
+  taskId: string;
+  now: Date;                     // the tick time that triggered this run
 }
 ```
 
@@ -168,146 +117,149 @@ export interface TaskRunContext {
 ```ts
 interface ITaskManager {
   registerTask(def: TaskDefinition): void;
-  registerTasks(defs: TaskDefinition[]): void;
-  removeTask(taskId: string): void;   // stop schedule + remove from registry
+  removeTask(taskId: string): void;
 
-  startAll(): Promise<void>;     // bind cron schedules
-  stopAll(): Promise<void>;      // stop schedules + wait/abort running
+  start(): void;                 // start the tick timer
+  stop(): void;                  // stop the tick timer
 
-  runNow(taskId: string): Promise<void>;
+  runNow(taskId: string): void;  // fire a task immediately (async)
 
-  enableTask(taskId: string): void;
-  disableTask(taskId: string): void;
-
-  getTaskState(taskId: string): TaskRuntimeState | undefined;
-  listTaskStates(): TaskRuntimeState[];
+  getState(taskId: string): TaskRuntimeState | undefined;
+  listStates(): TaskRuntimeState[];
 }
 ```
 
-### Registration Pattern
-
-Each feature service exports task definitions and registers them during server bootstrap.
-
-For restart safety, each service is responsible for loading its own persisted schedule records first:
+### Constructor
 
 ```ts
-// startup/bootstrap pseudocode
-const taskManager = createTaskManager({ logger, now: () => new Date(), shutdownTimeoutMs: 30_000 });
+interface TaskManagerOptions {
+  tickMs?: number;               // default: 60_000 (1 minute); set to 1_000 for debug
+  now?: () => Date;              // injectable clock; default: () => new Date()
+  logger?: TaskLogger;           // optional structured logger
+}
 
-const reminderSchedules = await reminderScheduleRepo.loadAll(); // persisted by reminder domain
-taskManager.registerTasks(createReminderTasks(deps, reminderSchedules));
+function createTaskManager(options?: TaskManagerOptions): ITaskManager;
+```
 
-const cleanupSchedules = await cleanupConfigRepo.loadAll(); // persisted by cleanup domain
-taskManager.registerTasks(createCleanupTasks(deps, cleanupSchedules));
+### Registration
 
-taskManager.registerTasks(createSyncTasks(deps)); // static schedule example
+```ts
+const taskManager = createTaskManager({ tickMs: 60_000 });
 
-await taskManager.startAll();
+taskManager.registerTask({
+  id: "cleanup.sessions",
+  description: "Delete expired sessions",
+  schedule: { type: "interval", intervalMs: 10 * 60 * 1000 }, // every 10 minutes
+  run: async ({ taskId, now }) => {
+    await sessionStore.deleteExpired();
+  },
+});
+
+taskManager.registerTask({
+  id: "digest.daily",
+  description: "Generate and send daily digest",
+  schedule: { type: "daily", time: "13:00", timezone: "UTC" },
+  run: async () => {
+    await digestService.generateAndSend();
+  },
+});
+
+taskManager.start();
 ```
 
 ### Removing Tasks
 
-`removeTask(taskId)` stops the cron schedule and removes the task from the registry. If the task is currently running, it is aborted via its `AbortController`. Calling `removeTask` on a non-existent ID is a no-op (idempotent).
+`removeTask(taskId)` removes the task from the registry. If the task's `run()` is currently executing, it continues to completion (fire-and-forget). Calling `removeTask` on a non-existent ID is a no-op.
 
-### Optional Upsert API for Dynamic Clients
+---
 
-To simplify re-registration flows for clients with mutable schedules, Task Manager can expose an optional helper:
+## 6) Tick Logic (Pseudocode)
 
 ```ts
-upsertTask(def: TaskDefinition): void;
+function onTick(now: Date) {
+  for (const task of registry.values()) {
+    if (!task.enabled) continue;
+
+    if (isDue(task, now)) {
+      task.state.lastStartedAt = now;
+      task.state.running = true;
+      task.state.runCount++;
+
+      task.def.run({ taskId: task.def.id, now })
+        .catch((err) => {
+          task.state.errorCount++;
+          task.state.lastError = { message: String(err), at: new Date() };
+          logger?.error({ taskId: task.def.id, error: err }, "task failed");
+        })
+        .finally(() => {
+          task.state.running = false;
+          task.state.lastFinishedAt = new Date();
+        });
+    }
+  }
+}
+
+function isDue(task: TaskEntry, now: Date): boolean {
+  const { schedule } = task.def;
+
+  if (schedule.type === "interval") {
+    if (!task.state.lastStartedAt) return true; // never run → run immediately
+    return now.getTime() - task.state.lastStartedAt.getTime() >= schedule.intervalMs;
+  }
+
+  if (schedule.type === "daily") {
+    const [hh, mm] = schedule.time.split(":").map(Number);
+    const taskTime = toTimezone(now, schedule.timezone ?? "UTC");
+    if (taskTime.hours === hh && taskTime.minutes === mm) {
+      // Only fire if we haven't already run during this minute
+      if (!task.state.lastStartedAt) return true;
+      const lastRun = toTimezone(task.state.lastStartedAt, schedule.timezone ?? "UTC");
+      return lastRun.date !== taskTime.date; // different calendar day
+    }
+    return false;
+  }
+}
 ```
 
-- `upsertTask` replaces existing registration for the same `id` atomically.
-- Intended for boot-time replay and runtime schedule edits originating from client-owned persistence.
-- If not implemented in v1, clients can emulate it with `disableTask/remove+register` semantics in a thin wrapper.
+---
+
+## 7) Startup and Shutdown
+
+### Startup
+1. Construct `TaskManager` with options.
+2. Each client loads persisted schedule intent and registers tasks.
+3. Call `start()` — begins the tick timer.
+
+### Shutdown
+1. Call `stop()` — clears the `setInterval`.
+2. Currently running tasks continue to completion (no abort).
+3. No new tasks will be triggered.
 
 ---
 
-## 6) Execution Semantics
+## 8) Error Handling
 
-### 6.1 Overlap Policy
-
-1. **skip** (default)
-   - If already running, new trigger is skipped and logged.
-
-2. **queue_one**
-   - If running, keep a single queued flag. Additional triggers while queued are dropped.
-   - When the current run finishes, execute one more time immediately using the current time (not the original trigger time).
-   - If the current run errors, the queued run still fires (errors don't consume the queued slot).
-
-3. **parallel**
-   - Allow concurrent runs up to `maxConcurrentRuns` (default: 5).
-   - If the limit is reached, additional triggers are skipped and logged.
-
-### 6.2 Timeout
-
-- If `timeoutMs` is set, run is wrapped with `AbortController` timeout.
-- Handler should honor `signal` for cooperative cancellation.
-- Timeout counts as failure and enters retry flow.
-
-### 6.3 Retry
-
-- Retries occur within same trigger execution chain.
-- Delay formula: `min(retryBackoffMs * 2^(attempt-1), maxRetryBackoffMs)` where `maxRetryBackoffMs` defaults to 60 seconds.
-- Retries emit structured events for observability.
-- Note: if the process crashes during a retry backoff delay, the remaining retries are lost. This is acceptable given the non-goal of crash resilience; clients that need stronger guarantees should persist retry state in their own storage.
-
-### 6.4 Jitter
-
-- Optional random delay `[0, jitterMs]` before each trigger execution.
-- Reduces synchronized bursts when many tasks share schedules.
+- All `run()` errors are caught in the `.catch()` of the fire-and-forget promise.
+- Errors are logged and stored in `lastError` on the task's runtime state.
+- A failing task never affects other tasks or the tick timer.
+- No retry — if a task fails, it will be attempted again at its next scheduled time.
 
 ---
 
-## 7) Startup, Shutdown, and Lifecycle
+## 9) Observability
 
-## Startup
-1. Construct `TaskManager` with logger + clock + `shutdownTimeoutMs` (default: 30 000).
-2. Each client loads persisted schedule intent from its own store.
-3. Register all tasks before serving traffic.
-4. Validate task IDs and cron expressions.
-5. Start scheduler handles for enabled tasks.
-6. Optionally run a selected set with `trigger = "startup"`.
+### Logging
+Events (all optional, via injected logger):
+- `task.registered` — task added to registry
+- `task.removed` — task removed from registry
+- `task.started` — task execution began
+- `task.succeeded` — task execution completed
+- `task.failed` — task execution threw
 
-## Shutdown
-1. Stop creating new scheduled triggers.
-2. For running tasks:
-   - wait up to `shutdownTimeoutMs` (default: 30 000),
-   - then abort via `AbortController`.
-3. Emit final shutdown summary log.
-
----
-
-## 8) Error Handling Strategy
-
-- All run errors are caught in `TaskRunner` boundary (never unhandled).
-- Error metadata stored in task runtime state.
-- Structured log fields:
-  - `taskId`, `attempt`, `trigger`, `durationMs`, `errorMessage`.
-- Failure in one task must not affect other schedules.
-
----
-
-## 9) Observability and Operations
-
-## Logging
-Recommended events:
-- `task.registered`
-- `task.started`
-- `task.succeeded`
-- `task.failed`
-- `task.skipped_overlap`
-- `task.retried`
-- `task.disabled` / `task.enabled`
-
-## Runtime Introspection
-Expose internal endpoint for debugging (optional v1.1):
-- `GET /api/admin/tasks`
-  - returns `listTaskStates()`.
-- `POST /api/admin/tasks/:id/run`
-  - manual trigger for ops.
-
-(Endpoint should be protected if exposed beyond localhost/admin contexts.)
+### Runtime Introspection
+Optional endpoint for debugging:
+- `GET /api/admin/tasks` — returns `listStates()`.
+- `POST /api/admin/tasks/:id/run` — manual trigger via `runNow()`.
 
 ---
 
@@ -315,116 +267,57 @@ Expose internal endpoint for debugging (optional v1.1):
 
 At registration time:
 - `id` must be non-empty and unique.
-- `cron` must parse successfully.
+- `schedule.intervalMs` must be > 0 (for interval type).
+- `schedule.time` must match `HH:MM` format (for daily type).
 - `run` must be a function.
-- policy fields must be sane (e.g., `timeoutMs > 0` if provided).
 
-On validation failure:
-- fail fast during startup with clear error.
+On validation failure: throw immediately.
 
 ---
 
-## 11) Example Task Definitions
-
-```ts
-// cleanup service
-{
-  id: "cleanup.sessions",
-  description: "Delete expired sessions",
-  cron: "*/10 * * * *", // every 10 minutes
-  timezone: "UTC",
-  overlapPolicy: "skip",
-  timeoutMs: 20_000,
-  maxRetries: 1,
-  retryBackoffMs: 1000,
-  run: async ({ signal, logger }) => {
-    await sessionStore.deleteExpired({ signal });
-    logger.info({ taskId: "cleanup.sessions" }, "expired sessions deleted");
-  }
-}
-
-// digest service
-{
-  id: "digest.daily",
-  cron: "0 13 * * *",
-  timezone: "UTC",
-  overlapPolicy: "queue_one",
-  timeoutMs: 120_000,
-  maxRetries: 2,
-  retryBackoffMs: 5000,
-  jitterMs: 30_000,
-  run: async ({ signal }) => {
-    await digestService.generateAndSend({ signal });
-  }
-}
-```
-
----
-
-## 12) File/Module Plan (Suggested)
+## 11) File/Module Plan
 
 ```text
 server/
   task-manager/
-    index.ts               // createTaskManager + exported types
-    types.ts               // TaskDefinition, TaskRuntimeState, etc.
-    scheduler-adapter.ts   // cron wrapper
-    runner.ts              // execution logic (timeout/retry/overlap)
-    state-store.ts         // runtime state handling
+    index.ts               // createTaskManager, exported types
+    types.ts               // TaskDefinition, TaskRuntimeState, TaskSchedule, etc.
 ```
 
-Bootstrap integration:
-- `server/index.ts` creates one TaskManager singleton.
-- Each background-capable service owns persistence and exports:
-  - `loadXxxSchedules()` (from domain storage),
-  - `createXxxTasks(deps, schedules)` (maps persisted records to `TaskDefinition[]`).
+That's it — the entire implementation fits in two files.
+
+Bootstrap integration in `server/index.ts`:
+```ts
+const taskManager = createTaskManager({
+  tickMs: process.env.DEBUG_TASKS ? 1_000 : 60_000,
+});
+
+// clients register tasks here...
+
+taskManager.start();
+
+// on shutdown:
+taskManager.stop();
+```
 
 ---
 
-## 13) Testing Strategy
+## 12) Testing Strategy
 
-## Unit Tests
-1. Registration validation (duplicate IDs, invalid cron).
-2. Overlap policies:
-   - skip,
-   - queue_one,
-   - parallel.
-3. Retry behavior and backoff math.
-4. Timeout abort propagation.
-5. State transitions on success/failure.
+### Unit Tests
+1. `isDue()` logic for interval schedules (first run, elapsed, not yet).
+2. `isDue()` logic for daily schedules (correct time, already run today, timezone).
+3. Registration validation (duplicate IDs, invalid time format).
+4. `removeTask` while running (should not crash).
+5. `runNow` fires immediately.
 
-## Integration Tests
-1. Start/stop lifecycle with fake scheduler adapter.
-2. Multiple tasks running independently.
-3. Manual `runNow` while scheduled triggers also fire.
-
-## Fault Injection
-- Simulate handler throw, slow handler, ignored abort.
-- Ensure no unhandled promise rejections.
+### Integration Tests
+1. Start/stop lifecycle with fake clock.
+2. Multiple tasks with different schedules firing independently.
+3. Error in one task does not block others.
 
 ---
 
-## 14) Rollout Plan
+## 13) Decision Summary
 
-1. Implement TaskManager framework with no existing tasks migrated.
-2. Define client persistence contract (what schedule intent each domain must store).
-3. Migrate one low-risk task (e.g., cleanup) as pilot using persisted schedule replay.
-4. Add task state endpoint for observability.
-5. Migrate remaining cron services incrementally.
-6. Remove legacy per-service timers.
-
----
-
-## 15) Future Enhancements
-
-1. Persistent run history (SQLite/file) for postmortems.
-2. Global concurrency limits and per-tag throttling.
-3. Leader-election/distributed lock for multi-instance deployments.
-4. Config-driven schedules via workspace config file.
-5. Pause windows / maintenance mode.
-
----
-
-## 16) Decision Summary
-
-This design centralizes cron execution in a reusable Task Manager that keeps feature services focused on domain logic while providing consistent lifecycle management, safer execution semantics, and better operational visibility. It is intentionally single-process and in-memory for v1. Persistence is handled by Task Manager clients, which store schedule intent and re-register tasks on restart, giving restart safety without coupling Task Manager to any specific storage model.
+This design replaces the previous cron-based architecture with a single `setInterval` tick loop. Every tick checks which tasks are due and fires them asynchronously. No cron library, no retry, no concurrency control, no overlap policies — just a registry, a timer, and fire-and-forget execution. The entire implementation fits in ~150 lines across two files.
