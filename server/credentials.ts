@@ -40,16 +40,3 @@ export async function refreshCredentials(): Promise<boolean> {
     return false;
   }
 }
-
-/**
- * Check whether an error message from the claude CLI indicates an
- * authentication failure (expired or invalid OAuth token).
- */
-export function isAuthError(stderr: string): boolean {
-  return (
-    stderr.includes("authentication_error") ||
-    stderr.includes("Invalid authentication credentials") ||
-    /API Error:\s*401/.test(stderr) ||
-    /Failed to authenticate/.test(stderr)
-  );
-}

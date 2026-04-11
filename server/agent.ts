@@ -1,9 +1,9 @@
-import { spawn, type ChildProcess } from "child_process";
+import { spawn } from "child_process";
 import { mkdir, writeFile, unlink } from "fs/promises";
 import { homedir, tmpdir } from "os";
 import { join } from "path";
 import { isDockerAvailable } from "./docker.js";
-import { refreshCredentials, isAuthError } from "./credentials.js";
+import { refreshCredentials } from "./credentials.js";
 import type { Role } from "../src/config/roles.js";
 import { loadAllRoles } from "./roles.js";
 import { buildSystemPrompt } from "./agent/prompt.js";
@@ -18,57 +18,6 @@ import {
   type RawStreamEvent,
 } from "./agent/stream.js";
 
-function spawnClaude(
-  args: string[],
-  useDocker: boolean,
-  workspacePath: string,
-): ChildProcess {
-  const toDockerPath = (p: string) => p.replace(/\\/g, "/");
-  const extraHosts: string[] =
-    process.platform === "linux"
-      ? ["--add-host", "host.docker.internal:host-gateway"]
-      : [];
-
-  const uid = process.getuid?.() ?? 1000;
-  const gid = process.getgid?.() ?? 1000;
-  const projectRoot = process.cwd();
-  return useDocker
-    ? spawn(
-        "docker",
-        [
-          "run",
-          "--rm",
-          "--cap-drop",
-          "ALL",
-          "--user",
-          `${uid}:${gid}`,
-          "-e",
-          "HOME=/home/node",
-          "-v",
-          `${toDockerPath(projectRoot)}/node_modules:/app/node_modules:ro`,
-          "-v",
-          `${toDockerPath(projectRoot)}/server:/app/server:ro`,
-          "-v",
-          `${toDockerPath(projectRoot)}/src:/app/src:ro`,
-          "-v",
-          `${toDockerPath(workspacePath)}:/home/node/mulmoclaude`,
-          "-v",
-          `${toDockerPath(homedir())}/.claude:/home/node/.claude`,
-          "-v",
-          `${toDockerPath(homedir())}/.claude.json:/home/node/.claude.json`,
-          ...extraHosts,
-          "mulmoclaude-sandbox",
-          "claude",
-          ...args,
-        ],
-        { stdio: ["ignore", "pipe", "pipe"] },
-      )
-    : spawn("claude", args, {
-        cwd: workspacePath,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-}
-
 export async function* runAgent(
   message: string,
   role: Role,
@@ -82,6 +31,12 @@ export async function* runAgent(
   const activePlugins = getActivePlugins(role);
   const hasMcp = activePlugins.length > 0;
   const useDocker = await isDockerAvailable();
+
+  // On macOS sandbox, always refresh credentials from Keychain before each
+  // agent run so that expired OAuth tokens are replaced transparently.
+  if (useDocker && process.platform === "darwin") {
+    await refreshCredentials();
+  }
 
   const containerWorkspacePath = "/home/node/mulmoclaude";
   const fullSystemPrompt = buildSystemPrompt({
@@ -124,37 +79,59 @@ export async function* runAgent(
     mcpConfigPath: hasMcp ? mcpConfigArgPath : undefined,
   });
 
-  // On macOS sandbox, if the first attempt fails with a 401 auth error,
-  // refresh credentials from Keychain and retry. Auth errors cause the CLI
-  // to fail fast with no useful events, so pre-checking avoids the need to
-  // buffer the entire stream.
-  const canRetryAuth = useDocker && process.platform === "darwin";
+  const toDockerPath = (p: string) => p.replace(/\\/g, "/");
+  const extraHosts: string[] =
+    process.platform === "linux"
+      ? ["--add-host", "host.docker.internal:host-gateway"]
+      : [];
+
+  const uid = process.getuid?.() ?? 1000;
+  const gid = process.getgid?.() ?? 1000;
+  const projectRoot = process.cwd();
+  const proc = useDocker
+    ? spawn(
+        "docker",
+        [
+          "run",
+          "--rm",
+          "--cap-drop",
+          "ALL",
+          "--user",
+          `${uid}:${gid}`,
+          "-e",
+          "HOME=/home/node",
+          "-v",
+          `${toDockerPath(projectRoot)}/node_modules:/app/node_modules:ro`,
+          "-v",
+          `${toDockerPath(projectRoot)}/server:/app/server:ro`,
+          "-v",
+          `${toDockerPath(projectRoot)}/src:/app/src:ro`,
+          "-v",
+          `${toDockerPath(workspacePath)}:/home/node/mulmoclaude`,
+          "-v",
+          `${toDockerPath(homedir())}/.claude:/home/node/.claude`,
+          "-v",
+          `${toDockerPath(homedir())}/.claude.json:/home/node/.claude.json`,
+          ...extraHosts,
+          "mulmoclaude-sandbox",
+          "claude",
+          ...args,
+        ],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      )
+    : spawn("claude", args, {
+        cwd: workspacePath,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
 
   try {
-    yield* streamAgent(args, useDocker, workspacePath, canRetryAuth);
-  } finally {
-    if (hasMcp) unlink(mcpConfigHostPath).catch(() => {});
-  }
-}
-
-async function* streamAgent(
-  args: string[],
-  useDocker: boolean,
-  workspacePath: string,
-  canRetryAuth: boolean,
-): AsyncGenerator<AgentEvent> {
-  const proc = spawnClaude(args, useDocker, workspacePath);
-
-  let stderrOutput = "";
-  let authErrorDetected = false;
-
-  try {
-    proc.stderr?.on("data", (chunk: Buffer) => {
+    let stderrOutput = "";
+    proc.stderr.on("data", (chunk: Buffer) => {
       stderrOutput += chunk.toString();
     });
 
     let buffer = "";
-    for await (const chunk of proc.stdout!) {
+    for await (const chunk of proc.stdout) {
       buffer += chunk.toString();
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
@@ -168,13 +145,6 @@ async function* streamAgent(
           continue;
         }
         for (const agentEvent of parseStreamEvent(event)) {
-          if (
-            canRetryAuth &&
-            (agentEvent.type === "text" || agentEvent.type === "error") &&
-            isAuthError(agentEvent.message)
-          ) {
-            authErrorDetected = true;
-          }
           yield agentEvent;
         }
       }
@@ -184,21 +154,6 @@ async function* streamAgent(
       proc.on("close", resolve),
     );
 
-    if (canRetryAuth && !authErrorDetected && isAuthError(stderrOutput)) {
-      authErrorDetected = true;
-    }
-
-    if (authErrorDetected) {
-      console.log(
-        "[sandbox] Authentication error detected — refreshing credentials and retrying...",
-      );
-      const refreshed = await refreshCredentials();
-      if (refreshed) {
-        yield* streamAgent(args, useDocker, workspacePath, false);
-        return;
-      }
-    }
-
     if (exitCode !== 0) {
       yield {
         type: "error",
@@ -207,5 +162,6 @@ async function* streamAgent(
     }
   } finally {
     if (!proc.killed) proc.kill();
+    if (hasMcp) unlink(mcpConfigHostPath).catch(() => {});
   }
 }
