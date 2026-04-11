@@ -342,9 +342,15 @@ const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 
 const items = ref<ScheduledItem[]>(props.selectedResult.data?.items ?? []);
 
+let fetchAbort: AbortController | null = null;
+
 async function fetchItems() {
+  fetchAbort?.abort();
+  const controller = new AbortController();
+  fetchAbort = controller;
   try {
-    const res = await fetch("/api/scheduler");
+    const res = await fetch("/api/scheduler", { signal: controller.signal });
+    if (controller.signal.aborted) return;
     if (res.ok) {
       const json: { data: { items: ScheduledItem[] } } = await res.json();
       items.value = json.data?.items ?? [];
@@ -361,6 +367,7 @@ watch(
   (newItems) => {
     if (newItems) {
       items.value = newItems;
+      fetchItems();
     }
   },
 );

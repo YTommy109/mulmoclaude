@@ -116,9 +116,15 @@ const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 
 const items = ref<TodoItem[]>(props.selectedResult.data?.items ?? []);
 
+let fetchAbort: AbortController | null = null;
+
 async function fetchItems() {
+  fetchAbort?.abort();
+  const controller = new AbortController();
+  fetchAbort = controller;
   try {
-    const res = await fetch("/api/todos");
+    const res = await fetch("/api/todos", { signal: controller.signal });
+    if (controller.signal.aborted) return;
     if (res.ok) {
       const json: { data: { items: TodoItem[] } } = await res.json();
       items.value = json.data?.items ?? [];
@@ -135,6 +141,7 @@ watch(
   (newItems) => {
     if (newItems) {
       items.value = newItems;
+      fetchItems();
     }
   },
 );

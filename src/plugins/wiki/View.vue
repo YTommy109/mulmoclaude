@@ -152,19 +152,12 @@ const pageEntries = ref<WikiPageEntry[]>(
   props.selectedResult.data?.pageEntries ?? [],
 );
 
-watch(
-  () => props.selectedResult.data,
-  (newData) => {
-    if (newData) {
-      action.value = newData.action ?? "index";
-      title.value = newData.title ?? "Wiki";
-      content.value = newData.content ?? "";
-      pageEntries.value = newData.pageEntries ?? [];
-    }
-  },
-);
+let fetchAbort: AbortController | null = null;
 
-onMounted(async () => {
+async function fetchWiki() {
+  fetchAbort?.abort();
+  const controller = new AbortController();
+  fetchAbort = controller;
   try {
     const currentAction = action.value;
     const slug =
@@ -174,7 +167,8 @@ onMounted(async () => {
     const url = slug
       ? `/api/wiki?slug=${encodeURIComponent(slug)}`
       : "/api/wiki";
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: controller.signal });
+    if (controller.signal.aborted) return;
     if (res.ok) {
       const json: { data: WikiData } = await res.json();
       action.value = json.data?.action ?? "index";
@@ -185,7 +179,22 @@ onMounted(async () => {
   } catch {
     // Fall back to prop data
   }
-});
+}
+
+onMounted(fetchWiki);
+
+watch(
+  () => props.selectedResult.data,
+  (newData) => {
+    if (newData) {
+      action.value = newData.action ?? "index";
+      title.value = newData.title ?? "Wiki";
+      content.value = newData.content ?? "";
+      pageEntries.value = newData.pageEntries ?? [];
+      fetchWiki();
+    }
+  },
+);
 
 const renderedContent = computed(() => {
   if (!content.value) return "";
