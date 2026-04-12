@@ -135,7 +135,8 @@ const artStyles = [
 ];
 
 const applyStyle = async (style: { id: string; label: string }) => {
-  await saveDrawingState();
+  const saved = await saveDrawingState();
+  if (!saved) return;
   if (props.sendTextMessage) {
     props.sendTextMessage(
       `Turn my drawing on the canvas into a ${style.label} style image.`,
@@ -162,6 +163,7 @@ const imagePath = ref(
     : "",
 );
 let uploadInFlight = false;
+let pendingSave = false;
 
 const restoreDrawingState = () => {
   if (props.selectedResult?.viewState?.drawingState) {
@@ -181,6 +183,13 @@ const restoreDrawingState = () => {
   } else {
     initialStrokes.value = [];
   }
+  // Reinitialise imagePath from the incoming result so autosaves
+  // after a selectedResult change don't upload against the old path.
+  imagePath.value =
+    props.selectedResult?.data?.imageData &&
+    !props.selectedResult.data.imageData.startsWith("data:")
+      ? props.selectedResult.data.imageData
+      : "";
 };
 restoreDrawingState();
 
@@ -223,33 +232,24 @@ const handleDrawingEnd = () => {
   saveDrawingState();
 };
 
-const uploadImage = async (dataUri: string): Promise<string> => {
-  if (imagePath.value) {
-    // Overwrite existing file
-    const filename = imagePath.value.replace(/^images\//, "");
-    const res = await fetch(`/api/images/${filename}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageData: dataUri }),
-    });
-    if (!res.ok) throw new Error(`PUT failed: ${res.statusText}`);
-    const json: { path: string } = await res.json();
-    return json.path;
-  } else {
-    // Create new file
-    const res = await fetch("/api/images", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageData: dataUri }),
-    });
-    if (!res.ok) throw new Error(`POST failed: ${res.statusText}`);
-    const json: { path: string } = await res.json();
-    return json.path;
+// Returns true if the drawing was successfully persisted, false
+// otherwise. Callers like applyStyle check the return value to avoid
+// sending a style request against stale image data.
+//
+// Captures a local snapshot of props.selectedResult and imagePath at
+// the start so an async upload never accidentally writes against a
+// different result that was swapped in mid-flight.
+const saveDrawingState = async (): Promise<boolean> => {
+  if (!canvasRef.value || !props.selectedResult) return false;
+  if (uploadInFlight) {
+    pendingSave = true;
+    return false;
   }
-};
-
-const saveDrawingState = async () => {
-  if (!canvasRef.value || !props.selectedResult || uploadInFlight) return;
+  // Snapshot the current result and path *before* any await so a
+  // concurrent selectedResult swap doesn't silently redirect the
+  // upload.
+  const boundResult = props.selectedResult;
+  const boundImagePath = imagePath.value;
   uploadInFlight = true;
   try {
     const imageDataUri: string = await canvasRef.value.save();
@@ -262,25 +262,55 @@ const saveDrawingState = async () => {
       canvasHeight: canvasHeight.value,
     };
 
-    const path = await uploadImage(imageDataUri);
-    imagePath.value = path;
+    // If selectedResult changed while we were saving the canvas
+    // bitmap, abort — the upload would go to the wrong session.
+    if (boundResult !== props.selectedResult) return false;
+
+    const savedPath = boundImagePath
+      ? await (async () => {
+          const filename = boundImagePath.replace(/^images\//, "");
+          const res = await fetch(`/api/images/${filename}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageData: imageDataUri }),
+          });
+          if (!res.ok) throw new Error(`PUT failed: ${res.statusText}`);
+          const json: { path: string } = await res.json();
+          return json.path;
+        })()
+      : await (async () => {
+          const res = await fetch("/api/images", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageData: imageDataUri }),
+          });
+          if (!res.ok) throw new Error(`POST failed: ${res.statusText}`);
+          const json: { path: string } = await res.json();
+          return json.path;
+        })();
+
+    imagePath.value = savedPath;
 
     const updatedResult: ToolResult<ImageToolData> = {
-      ...props.selectedResult,
+      ...boundResult,
       data: {
-        prompt: props.selectedResult.data?.prompt || "",
-        imageData: path,
+        prompt: boundResult.data?.prompt || "",
+        imageData: savedPath,
       },
-      viewState: {
-        drawingState,
-      },
+      viewState: { drawingState },
     };
 
     emit("updateResult", updatedResult);
+    return true;
   } catch (error) {
     console.error("Failed to save drawing state:", error);
+    return false;
   } finally {
     uploadInFlight = false;
+    if (pendingSave) {
+      pendingSave = false;
+      void saveDrawingState();
+    }
   }
 };
 

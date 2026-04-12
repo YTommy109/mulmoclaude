@@ -6,7 +6,7 @@ Generated/edited/drawn images are stored as base64-encoded data URIs directly in
 
 ## Goal
 
-Store all images as PNG files in `{workspace}/images/` and replace inline base64 with file references (e.g. `"/images/{uuid}.png"`). The frontend fetches images via the existing `/api/files/raw` route.
+Store all images as PNG files in `{workspace}/images/` and replace inline base64 with file references (e.g. `"images/{uuid}.png"` — no leading slash). The frontend fetches images via the existing `/api/files/raw?path=...` route.
 
 ## Design
 
@@ -106,7 +106,7 @@ export function isImagePath(value: string): boolean {
 /** Convert an imageData value to a displayable URL. */
 export function resolveImageSrc(imageData: string): string {
   if (imageData.startsWith("data:")) return imageData; // legacy data URI
-  return `/api/files/raw/${imageData}`;                 // file reference
+  return `/api/files/raw?path=${encodeURIComponent(imageData)}`;  // file reference
 }
 ```
 

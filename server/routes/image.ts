@@ -15,10 +15,7 @@ import {
 
 const router = Router();
 
-interface GenerateImageBody {
-  prompt: string;
-  model?: string;
-}
+// ── Shared response helpers ──────────────────────────────────────
 
 interface ImageSuccessResponse {
   message: string;
@@ -34,6 +31,65 @@ interface ImageErrorResponse {
 
 type ImageResponse = ImageSuccessResponse | ImageErrorResponse;
 
+// Shared save-and-respond for /generate-image and /edit-image. The
+// only difference between the two routes is how they obtain the raw
+// imageData from Gemini — once that's done, the "save to disk and
+// build the JSON response" step is identical.
+async function respondWithImage(
+  res: Response<ImageResponse>,
+  imageData: string | undefined,
+  fallbackMessage: string | undefined,
+  prompt: string,
+  kind: "generation" | "edit",
+): Promise<void> {
+  if (!imageData) {
+    res.json({ message: fallbackMessage ?? "no image data in response" });
+    return;
+  }
+  const imagePath = await saveImage(imageData);
+  const label = kind === "generation" ? "Generated" : "Edited";
+  res.json({
+    message: `image ${kind} succeeded`,
+    instructions: `Acknowledge that the image was ${kind === "generation" ? "generated" : "edited"} and has been presented to the user.`,
+    title: `${label} Image`,
+    data: { imageData: imagePath, prompt },
+  });
+}
+
+// ── Canvas image storage routes ──────────────────────────────────
+
+interface CanvasImageBody {
+  imageData: string;
+}
+
+interface CanvasImageResponse {
+  path: string;
+}
+
+interface CanvasImageError {
+  error: string;
+}
+
+async function saveCanvasImage(
+  res: Response<CanvasImageResponse | CanvasImageError>,
+  base64: string,
+  writeFn: (b64: string) => Promise<string>,
+): Promise<void> {
+  try {
+    const imagePath = await writeFn(base64);
+    res.json({ path: imagePath });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+}
+
+// ── Routes ───────────────────────────────────────────────────────
+
+interface GenerateImageBody {
+  prompt: string;
+  model?: string;
+}
+
 router.post(
   "/generate-image",
   async (
@@ -41,32 +97,16 @@ router.post(
     res: Response<ImageResponse>,
   ) => {
     const { prompt, model } = req.body;
-
     if (!prompt) {
       res.status(400).json({ success: false, message: "prompt is required" });
       return;
     }
-
     try {
       const { imageData, message } = await generateGeminiImageFromPrompt(
         prompt,
         model,
       );
-      if (imageData) {
-        const imagePath = await saveImage(imageData);
-        res.json({
-          message: "image generation succeeded",
-          instructions:
-            "Acknowledge that the image was generated and has been presented to the user.",
-          title: "Generated Image",
-          data: {
-            imageData: imagePath,
-            prompt,
-          },
-        });
-      } else {
-        res.json({ message: message ?? "no image data in response" });
-      }
+      await respondWithImage(res, imageData, message, prompt, "generation");
     } catch (err) {
       res.status(500).json({ success: false, message: errorMessage(err) });
     }
@@ -86,12 +126,10 @@ router.post(
     const { prompt } = req.body;
     const session =
       typeof req.query.session === "string" ? req.query.session : undefined;
-
     if (!prompt) {
       res.status(400).json({ success: false, message: "prompt is required" });
       return;
     }
-
     const currentImageData = session ? getSessionImageData(session) : undefined;
     if (!currentImageData) {
       res.status(400).json({
@@ -101,7 +139,6 @@ router.post(
       });
       return;
     }
-
     try {
       // Resolve input image to raw base64 — supports both file paths and legacy data URIs
       const base64Data = isImagePath(currentImageData)
@@ -117,40 +154,14 @@ router.post(
           ],
         },
       ]);
-      if (imageData) {
-        const imagePath = await saveImage(imageData);
-        res.json({
-          message: "image edit succeeded",
-          instructions:
-            "Acknowledge that the image was edited and has been presented to the user.",
-          title: "Edited Image",
-          data: {
-            imageData: imagePath,
-            prompt,
-          },
-        });
-      } else {
-        res.json({ message: message ?? "no image data in response" });
-      }
+      await respondWithImage(res, imageData, message, prompt, "edit");
     } catch (err) {
       res.status(500).json({ success: false, message: errorMessage(err) });
     }
   },
 );
 
-// Canvas image storage — POST creates a new file, PUT overwrites existing
-
-interface CanvasImageBody {
-  imageData: string;
-}
-
-interface CanvasImageResponse {
-  path: string;
-}
-
-interface CanvasImageError {
-  error: string;
-}
+// Canvas image persistence — POST creates a new file, PUT overwrites.
 
 router.post(
   "/images",
@@ -163,13 +174,8 @@ router.post(
       res.status(400).json({ error: "imageData is required" });
       return;
     }
-    try {
-      const base64 = stripDataUri(imageData);
-      const imagePath = await saveImage(base64);
-      res.json({ path: imagePath });
-    } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
-    }
+    const base64 = stripDataUri(imageData);
+    await saveCanvasImage(res, base64, async (b64) => saveImage(b64));
   },
 );
 
@@ -189,13 +195,11 @@ router.put(
       res.status(400).json({ error: "invalid image path" });
       return;
     }
-    try {
-      const base64 = stripDataUri(imageData);
-      await overwriteImage(relativePath, base64);
-      res.json({ path: relativePath });
-    } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
-    }
+    const base64 = stripDataUri(imageData);
+    await saveCanvasImage(res, base64, async (b64) => {
+      await overwriteImage(relativePath, b64);
+      return relativePath;
+    });
   },
 );
 

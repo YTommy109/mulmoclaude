@@ -1,28 +1,13 @@
 <template>
-  <div class="min-h-24 flex items-center justify-center">
-    <img
-      v-if="result.data?.imageData"
-      :src="resolvedSrc"
-      class="max-w-full h-auto rounded"
-      alt="Edited image"
-    />
-    <div v-else class="text-gray-400 text-sm">No image yet</div>
-  </div>
+  <ImagePreview :result="result" alt="Edited image" />
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { ImagePreview } from "../ui-image";
 import type { ToolResult } from "gui-chat-protocol";
 import type { ImageToolData } from "./definition";
-import { resolveImageSrc } from "../../utils/image/resolve";
 
-const props = defineProps<{
+defineProps<{
   result: ToolResult<ImageToolData>;
 }>();
-
-const resolvedSrc = computed(() =>
-  props.result.data?.imageData
-    ? resolveImageSrc(props.result.data.imageData)
-    : "",
-);
 </script>
