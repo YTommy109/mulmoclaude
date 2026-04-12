@@ -6,7 +6,11 @@ import { executeForm } from "@mulmochat-plugin/form";
 import { executeOpenCanvas } from "../../src/plugins/canvas/definition.js";
 import { executePresent3D } from "@gui-chat-plugin/present3d";
 import { showMusic } from "@gui-chat-plugin/music";
-import { getGeminiClient, isGeminiAvailable } from "../utils/gemini.js";
+import {
+  generateGeminiImageFromPrompt,
+  isGeminiAvailable,
+} from "../utils/gemini.js";
+import { errorMessage } from "../utils/errors.js";
 
 const router = Router();
 
@@ -14,26 +18,39 @@ interface PluginErrorResponse {
   message: string;
 }
 
+// Wraps a plugin's `execute*` invocation in an Express handler. Each
+// plugin route used to inline the same try/catch + 500 response shell;
+// this collapses them to one line per route.
+//
+// The callback receives the Express request and is responsible for
+// pulling whatever it needs out of `req.body` and forwarding it to
+// the plugin's execute function. `req.body` is `any` by Express
+// default and each plugin's execute function does its own runtime
+// validation — matching the behavior of the inline handlers this
+// replaces.
+function wrapPluginExecute<TResult>(
+  execute: (req: Request) => Promise<TResult>,
+): (
+  req: Request,
+  res: Response<TResult | PluginErrorResponse>,
+) => Promise<void> {
+  return async (req, res) => {
+    try {
+      const result = await execute(req);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ message: errorMessage(err) });
+    }
+  };
+}
+
 const IMAGE_PLACEHOLDER = /!\[([^\]]+)\]\(\/?__too_be_replaced_image_path__\)/g;
 
 async function generateInlineImage(prompt: string): Promise<string | null> {
   if (!isGeminiAvailable()) return null;
   try {
-    const ai = getGeminiClient();
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-image-preview",
-      contents: [{ text: prompt }],
-      config: {
-        responseModalities: ["TEXT", "IMAGE"],
-        imageConfig: { aspectRatio: "16:9" },
-      },
-    });
-    const parts = response.candidates?.[0]?.content?.parts ?? [];
-    for (const part of parts) {
-      if (part.inlineData?.data) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
-    }
+    const { imageData } = await generateGeminiImageFromPrompt(prompt);
+    if (imageData) return `data:image/png;base64,${imageData}`;
   } catch {
     // leave placeholder if generation fails
   }
@@ -89,95 +106,53 @@ router.post(
   },
 );
 
+// `null as never` in the calls below: each plugin's `execute*`
+// function expects a client-side context object as its first
+// argument. The server-side bridge has no such context — these
+// functions only touch their second arg (the request body) on this
+// path — so we satisfy the type signature with a never cast rather
+// than fabricating a fake context.
+
 // presentSpreadsheet — uses package execute for validation/processing
 router.post(
   "/present-spreadsheet",
-  async (_req: Request, res: Response<PluginErrorResponse>) => {
-    try {
-      const result = await executeSpreadsheet(_req.body);
-      res.json(result);
-    } catch (err) {
-      res.status(500).json({ message: String(err) });
-    }
-  },
+  wrapPluginExecute((req) => executeSpreadsheet(req.body)),
 );
 
 // createMindMap — uses package execute for node layout computation
 router.post(
   "/mindmap",
-  async (_req: Request, res: Response<PluginErrorResponse>) => {
-    try {
-      const result = await executeMindMap(null as never, _req.body);
-      res.json(result);
-    } catch (err) {
-      res.status(500).json({ message: String(err) });
-    }
-  },
+  wrapPluginExecute((req) => executeMindMap(null as never, req.body)),
 );
 
 // putQuestions — quiz
 router.post(
   "/quiz",
-  async (_req: Request, res: Response<PluginErrorResponse>) => {
-    try {
-      const result = await executeQuiz(null as never, _req.body);
-      res.json(result);
-    } catch (err) {
-      res.status(500).json({ message: String(err) });
-    }
-  },
+  wrapPluginExecute((req) => executeQuiz(null as never, req.body)),
 );
 
 // presentForm — form
 router.post(
   "/form",
-  async (_req: Request, res: Response<PluginErrorResponse>) => {
-    try {
-      const result = await executeForm(null as never, _req.body);
-      res.json(result);
-    } catch (err) {
-      res.status(500).json({ message: String(err) });
-    }
-  },
+  wrapPluginExecute((req) => executeForm(null as never, req.body)),
 );
 
 // openCanvas — drawing canvas
 router.post(
   "/canvas",
-  async (_req: Request, res: Response<PluginErrorResponse>) => {
-    try {
-      const result = await executeOpenCanvas();
-      res.json(result);
-    } catch (err) {
-      res.status(500).json({ message: String(err) });
-    }
-  },
+  wrapPluginExecute(() => executeOpenCanvas()),
 );
 
 // present3d — 3D visualization
 router.post(
   "/present3d",
-  async (_req: Request, res: Response<PluginErrorResponse>) => {
-    try {
-      const result = await executePresent3D(null as never, _req.body);
-      res.json(result);
-    } catch (err) {
-      res.status(500).json({ message: String(err) });
-    }
-  },
+  wrapPluginExecute((req) => executePresent3D(null as never, req.body)),
 );
 
 // showMusic — sheet music display
 router.post(
   "/music",
-  async (_req: Request, res: Response<PluginErrorResponse>) => {
-    try {
-      const result = await showMusic(null as never, _req.body);
-      res.json(result);
-    } catch (err) {
-      res.status(500).json({ message: String(err) });
-    }
-  },
+  wrapPluginExecute((req) => showMusic(null as never, req.body)),
 );
 
 export default router;

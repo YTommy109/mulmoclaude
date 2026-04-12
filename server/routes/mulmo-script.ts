@@ -22,9 +22,27 @@ import {
 } from "mulmocast";
 import type { MulmoBeat, MulmoImagePromptMedia } from "@mulmocast/types";
 import { slugify } from "../utils/slug.js";
+import { resolveWithinRoot } from "../utils/fs.js";
+import { errorMessage } from "../utils/errors.js";
 
 const router = Router();
 const storiesDir = path.resolve(workspacePath, "stories");
+
+// Lazily realpath the stories dir on first use. We can't realpath at
+// module load because the directory may not exist yet (it's created
+// on demand by /mulmo-script POST). The cache is invalidated never —
+// once the dir exists, its realpath is stable.
+let storiesRealCache: string | null = null;
+function ensureStoriesReal(): string | null {
+  if (storiesRealCache) return storiesRealCache;
+  try {
+    fs.mkdirSync(storiesDir, { recursive: true });
+    storiesRealCache = fs.realpathSync(storiesDir);
+    return storiesRealCache;
+  } catch {
+    return null;
+  }
+}
 
 interface SaveMulmoScriptBody {
   script: MulmoScript;
@@ -211,22 +229,55 @@ function fileToDataUri(filePath: string, mimeType: string): string {
   return `data:${mimeType};base64,${data.toString("base64")}`;
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 // Helper: resolve and validate a stories filePath, returns absoluteFilePath or null
+//
+// Uses the realpath-based resolveWithinRoot helper to defeat
+// symlink-based escapes. The previous implementation used a plain
+// `path.resolve` + `startsWith` check, which a malicious symlink
+// under stories/ could bypass.
+//
+// Callers pass workspace-relative paths like "stories/foo.json" or
+// "stories/__movies__/bar.mp4". We strip the leading "stories/"
+// segment and resolve the remainder against the realpath of the
+// stories directory itself — this works whether stories/ is a
+// regular directory or a legitimate symlink to another location
+// (e.g. workspace/stories → /ext/stories on a different disk).
 function resolveStoryPath(filePath: string, res: Response): string | null {
-  const absoluteFilePath = path.resolve(workspacePath, filePath);
-  if (!absoluteFilePath.startsWith(storiesDir + path.sep)) {
+  const storiesReal = ensureStoriesReal();
+  if (!storiesReal) {
+    res.status(500).json({ error: "stories directory not available" });
+    return null;
+  }
+  // Reject absolute paths and parent traversal at the syntactic
+  // level — defense in depth on top of the realpath check below.
+  if (path.isAbsolute(filePath)) {
     res.status(400).json({ error: "Invalid filePath" });
     return null;
   }
-  if (!fs.existsSync(absoluteFilePath)) {
-    res.status(404).json({ error: `File not found: ${filePath}` });
+  // Strip the optional "stories/" prefix so the remainder is a path
+  // relative to storiesReal. Accepts both "stories/foo.json" (the
+  // canonical caller convention) and bare "foo.json".
+  const STORIES_PREFIX = "stories" + path.sep;
+  const relFromStories =
+    filePath === "stories"
+      ? ""
+      : filePath.startsWith(STORIES_PREFIX) || filePath.startsWith("stories/")
+        ? filePath.slice("stories/".length)
+        : filePath;
+  // resolveWithinRoot enforces both the realpath boundary AND
+  // existence; ENOENT and traversal both produce null. Distinguish
+  // them via a follow-up existsSync so 404 vs 400 stays accurate.
+  const resolved = resolveWithinRoot(storiesReal, relFromStories);
+  if (!resolved) {
+    const candidate = path.resolve(storiesReal, relFromStories);
+    if (!fs.existsSync(candidate)) {
+      res.status(404).json({ error: `File not found: ${filePath}` });
+    } else {
+      res.status(400).json({ error: "Invalid filePath" });
+    }
     return null;
   }
-  return absoluteFilePath;
+  return resolved;
 }
 
 // Helper: build mulmo context for a story file

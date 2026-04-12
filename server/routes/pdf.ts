@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { marked } from "marked";
 import puppeteer from "puppeteer";
+import { errorMessage } from "../utils/errors.js";
 
 const router = Router();
 
@@ -98,9 +99,10 @@ router.post(
       const buffer = await renderPdf(wrapHtml(html, MARKDOWN_CSS), format);
       sendPdf(res, buffer, filename);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
       console.error("[pdf] generation failed:", err);
-      res.status(500).json({ error: `PDF generation failed: ${message}` });
+      res
+        .status(500)
+        .json({ error: `PDF generation failed: ${errorMessage(err)}` });
     }
   },
 );

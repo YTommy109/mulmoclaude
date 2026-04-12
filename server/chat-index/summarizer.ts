@@ -16,6 +16,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { ClaudeCliNotFoundError } from "../journal/archivist.js";
+import { errorMessage } from "../utils/errors.js";
 import type { SummaryResult } from "./types.js";
 
 const SYSTEM_PROMPT =
@@ -118,9 +119,7 @@ export function parseClaudeJsonResult(stdout: string): SummaryResult {
     parsed = JSON.parse(stdout.trim());
   } catch (err) {
     throw new Error(
-      `[chat-index] failed to parse claude json output: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
+      `[chat-index] failed to parse claude json output: ${errorMessage(err)}`,
     );
   }
   if (parsed.is_error) {

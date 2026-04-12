@@ -1,8 +1,10 @@
 import { Router, Request, Response } from "express";
+import fs from "fs";
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
 import { workspacePath } from "../workspace.js";
 import { readManifest } from "../chat-index/indexer.js";
+import { resolveWithinRoot } from "../utils/fs.js";
 import type { ChatIndexEntry } from "../chat-index/types.js";
 
 async function readSessionMeta(
@@ -184,14 +186,30 @@ router.get(
                   entry.result?.data?.filePath
                 ) {
                   try {
+                    // Realpath-based traversal check defeats symlink
+                    // escapes — see resolveWithinRoot in utils/fs.ts.
+                    // Resolve the stories dir's realpath so the
+                    // boundary check works even when stories/ itself
+                    // is a legitimate symlink to another disk.
                     const storiesDir = path.resolve(workspacePath, "stories");
-                    const scriptPath = path.resolve(
-                      workspacePath,
-                      entry.result.data.filePath,
-                    );
-                    if (!scriptPath.startsWith(storiesDir + path.sep)) {
+                    let storiesReal: string;
+                    try {
+                      storiesReal = fs.realpathSync(storiesDir);
+                    } catch {
                       return entry;
                     }
+                    const scriptRelPath: string = entry.result.data.filePath;
+                    if (path.isAbsolute(scriptRelPath)) return entry;
+                    // Strip optional "stories/" prefix so the
+                    // remainder is relative to storiesReal.
+                    const relFromStories = scriptRelPath.startsWith("stories/")
+                      ? scriptRelPath.slice("stories/".length)
+                      : scriptRelPath;
+                    const scriptPath = resolveWithinRoot(
+                      storiesReal,
+                      relFromStories,
+                    );
+                    if (!scriptPath) return entry;
                     const scriptJson = await readFile(scriptPath, "utf-8");
                     return {
                       ...entry,

@@ -3,6 +3,11 @@ import path from "path";
 import { workspacePath } from "../workspace.js";
 import { loadJsonFile, saveJsonFile } from "../utils/file.js";
 import { dispatchTodos, type TodosActionInput } from "./todosHandlers.js";
+import {
+  respondWithDispatchResult,
+  type DispatchSuccessResponse,
+  type DispatchErrorResponse,
+} from "./dispatchResponse.js";
 
 const router = Router();
 
@@ -36,18 +41,6 @@ interface TodoBody extends TodosActionInput {
   action: string;
 }
 
-interface ErrorResponse {
-  error: string;
-}
-
-interface TodoResponse {
-  data: { items: TodoItem[] };
-  message: string;
-  jsonData: Record<string, unknown>;
-  instructions: string;
-  updating: boolean;
-}
-
 // Actions whose handlers may mutate state. "show" / "list_labels"
 // are read-only views; persisting their result would be a no-op.
 const READ_ONLY_ACTIONS = new Set(["show", "list_labels"]);
@@ -56,27 +49,15 @@ router.post(
   "/todos",
   (
     req: Request<object, unknown, TodoBody>,
-    res: Response<TodoResponse | ErrorResponse>,
+    res: Response<DispatchSuccessResponse<TodoItem> | DispatchErrorResponse>,
   ) => {
     const { action, ...input } = req.body;
     const items = loadTodos();
-
     const result = dispatchTodos(action, items, input);
-    if (result.kind === "error") {
-      res.status(result.status).json({ error: result.error });
-      return;
-    }
-
-    if (!READ_ONLY_ACTIONS.has(action)) {
-      saveTodos(result.items);
-    }
-
-    res.json({
-      data: { items: result.items },
-      message: result.message,
-      jsonData: result.jsonData,
+    respondWithDispatchResult(res, result, {
+      shouldPersist: !READ_ONLY_ACTIONS.has(action),
       instructions: "Display the updated todo list to the user.",
-      updating: true,
+      persist: saveTodos,
     });
   },
 );

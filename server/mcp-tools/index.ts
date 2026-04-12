@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { readXPost, searchX } from "./x.js";
+import { errorMessage } from "../utils/errors.js";
 
 export interface McpTool {
   definition: {
@@ -62,8 +63,7 @@ mcpToolsRouter.post(
       const result = await tool.handler(req.body);
       res.json({ result });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: errorMessage(err) });
     }
   },
 );

@@ -40,6 +40,7 @@ import {
 } from "./diff.js";
 import { rewriteWorkspaceLinks } from "./linkRewrite.js";
 import { writeState, type JournalState } from "./state.js";
+import { readTextOrNull } from "../utils/fs.js";
 
 // --- Constants ------------------------------------------------------
 
@@ -265,6 +266,10 @@ async function writeDailySummaryForDate(
 // Apply every topic update the archivist asked for, keeping the
 // in-memory `existingTopics` snapshot in sync so the next day in
 // this same pass sees fresh content. Mutates `existingTopics`.
+//
+// Per-update failures (EACCES, EIO, etc. surfaced by appendOrCreate)
+// are logged and skipped so a single broken topic file doesn't kill
+// the whole pass after days of progress have already been committed.
 async function processTopicUpdatesForDay(
   workspaceRoot: string,
   updates: readonly TopicUpdate[],
@@ -274,10 +279,21 @@ async function processTopicUpdatesForDay(
   const updated: string[] = [];
   for (const update of updates) {
     const normalized = normalizeTopicAction(update, existingTopics);
-    const outcome = await applyTopicUpdate(workspaceRoot, normalized);
-    if (outcome === "created") created.push(normalized.slug);
-    else if (outcome === "updated") updated.push(normalized.slug);
-    await refreshTopicSnapshot(workspaceRoot, normalized.slug, existingTopics);
+    try {
+      const outcome = await applyTopicUpdate(workspaceRoot, normalized);
+      if (outcome === "created") created.push(normalized.slug);
+      else if (outcome === "updated") updated.push(normalized.slug);
+      await refreshTopicSnapshot(
+        workspaceRoot,
+        normalized.slug,
+        existingTopics,
+      );
+    } catch (err) {
+      console.warn(
+        `[journal] failed to apply topic update for ${normalized.slug}:`,
+        err,
+      );
+    }
   }
   return { created, updated };
 }
@@ -722,14 +738,6 @@ async function readAllTopics(
   return out;
 }
 
-async function readTextOrNull(file: string): Promise<string | null> {
-  try {
-    return await fsp.readFile(file, "utf-8");
-  } catch {
-    return null;
-  }
-}
-
 async function writeDailySummary(
   workspaceRoot: string,
   date: string,
@@ -738,6 +746,42 @@ async function writeDailySummary(
   const p = dailyPathFor(workspaceRoot, date);
   await fsp.mkdir(path.dirname(p), { recursive: true });
   await fsp.writeFile(p, content, "utf-8");
+}
+
+// If the file doesn't exist, write `content` fresh; otherwise append
+// it after a blank line. Returns "created" or "updated" so the caller
+// can report which action was taken.
+//
+// Distinguishes a true missing file (ENOENT) from other read errors
+// (permission denied, I/O failure) — without this, a transient EACCES
+// on an existing topic would silently overwrite it.
+//
+// Exported for unit testing in test/journal/test_appendOrCreate.ts.
+export async function appendOrCreate(
+  filePath: string,
+  content: string,
+): Promise<"created" | "updated"> {
+  let existing: string;
+  try {
+    existing = await fsp.readFile(filePath, "utf-8");
+  } catch (err) {
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "code" in err &&
+      err.code === "ENOENT"
+    ) {
+      await fsp.writeFile(filePath, content, "utf-8");
+      return "created";
+    }
+    throw err;
+  }
+  await fsp.writeFile(
+    filePath,
+    `${existing.trimEnd()}\n\n${content}\n`,
+    "utf-8",
+  );
+  return "updated";
 }
 
 async function applyTopicUpdate(
@@ -750,17 +794,7 @@ async function applyTopicUpdate(
   if (update.action === "create") {
     // If the file already exists (e.g. the LLM mis-classified), treat
     // it as an append so we don't clobber prior content.
-    const existing = await readTextOrNull(p);
-    if (existing === null) {
-      await fsp.writeFile(p, update.content, "utf-8");
-      return "created";
-    }
-    await fsp.writeFile(
-      p,
-      `${existing.trimEnd()}\n\n${update.content}\n`,
-      "utf-8",
-    );
-    return "updated";
+    return appendOrCreate(p, update.content);
   }
   if (update.action === "rewrite") {
     const existed = (await readTextOrNull(p)) !== null;
@@ -768,15 +802,5 @@ async function applyTopicUpdate(
     return existed ? "updated" : "created";
   }
   // append
-  const existing = await readTextOrNull(p);
-  if (existing === null) {
-    await fsp.writeFile(p, update.content, "utf-8");
-    return "created";
-  }
-  await fsp.writeFile(
-    p,
-    `${existing.trimEnd()}\n\n${update.content}\n`,
-    "utf-8",
-  );
-  return "updated";
+  return appendOrCreate(p, update.content);
 }

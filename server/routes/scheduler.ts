@@ -6,6 +6,11 @@ import {
   dispatchScheduler,
   type SchedulerActionInput,
 } from "./schedulerHandlers.js";
+import {
+  respondWithDispatchResult,
+  type DispatchSuccessResponse,
+  type DispatchErrorResponse,
+} from "./dispatchResponse.js";
 
 const router = Router();
 
@@ -37,46 +42,22 @@ interface SchedulerBody extends SchedulerActionInput {
   action: string;
 }
 
-interface ErrorResponse {
-  error: string;
-}
-
-interface SchedulerResponse {
-  data: { items: ScheduledItem[] };
-  message: string;
-  jsonData: Record<string, unknown>;
-  instructions: string;
-  updating: boolean;
-}
-
 router.post(
   "/scheduler",
   (
     req: Request<object, unknown, SchedulerBody>,
-    res: Response<SchedulerResponse | ErrorResponse>,
+    res: Response<
+      DispatchSuccessResponse<ScheduledItem> | DispatchErrorResponse
+    >,
   ) => {
     const { action, ...input } = req.body;
     const items = loadItems();
-
     const result = dispatchScheduler(action, items, input);
-    if (result.kind === "error") {
-      res.status(result.status).json({ error: result.error });
-      return;
-    }
-
-    // Persist whenever the action mutated state. "show" returns the
-    // same array reference unchanged, so this no-ops in that case
-    // (saveItems is idempotent for equal content anyway).
-    if (action !== "show") {
-      saveItems(result.items);
-    }
-
-    res.json({
-      data: { items: result.items },
-      message: result.message,
-      jsonData: result.jsonData,
+    // "show" is the only read-only action; everything else mutates.
+    respondWithDispatchResult(res, result, {
+      shouldPersist: action !== "show",
       instructions: "Display the updated scheduler to the user.",
-      updating: true,
+      persist: saveItems,
     });
   },
 );

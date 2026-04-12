@@ -1,3 +1,5 @@
+import { errorMessage } from "../utils/errors.js";
+
 const X_API_BASE = "https://api.twitter.com/2";
 const TWEET_FIELDS =
   "tweet.fields=created_at,author_id,public_metrics,entities";
@@ -39,8 +41,7 @@ async function fetchX(path: string): Promise<XApiResponse> {
       headers: { Authorization: `Bearer ${token}` },
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Network error calling X API: ${msg}`);
+    throw new Error(`Network error calling X API: ${errorMessage(err)}`);
   }
 
   if (response.status === 401)
@@ -113,7 +114,7 @@ export const readXPost = {
         `/tweets/${tweetId}?${TWEET_FIELDS}&${EXPANSIONS}&${USER_FIELDS}`,
       );
     } catch (err) {
-      return err instanceof Error ? err.message : String(err);
+      return errorMessage(err);
     }
 
     if (data.errors?.length)
@@ -187,7 +188,7 @@ export const searchX = {
       params.append("user.fields", "name,username");
       data = await fetchX(`/tweets/search/recent?${params.toString()}`);
     } catch (err) {
-      return err instanceof Error ? err.message : String(err);
+      return errorMessage(err);
     }
 
     if (data.errors?.length)

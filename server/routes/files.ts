@@ -2,6 +2,8 @@ import { Router, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import { workspacePath } from "../workspace.js";
+import { statSafe, readDirSafe, resolveWithinRoot } from "../utils/fs.js";
+import { errorMessage } from "../utils/errors.js";
 
 const router = Router();
 
@@ -122,37 +124,25 @@ function classify(filename: string): ContentKind {
   return "binary";
 }
 
-// Realpath of the workspace, computed once at module load. Using the
-// realpath defeats symlink-based escapes — `path.resolve` + `startsWith`
-// alone is insufficient because a symlink inside the workspace could
-// point at `/etc/passwd` and still pass the prefix check.
+// Cached realpath of the workspace. Computed once at module load so
+// every request avoids the syscall. resolveWithinRoot needs an
+// already-realpath'd root.
 const workspaceReal = fs.realpathSync(workspacePath);
 
+// Wraps the shared resolveWithinRoot helper with the additional
+// hidden-dir traversal check (e.g. `.git/config`). buildTree already
+// hides these from the listing, but the URL endpoints are reachable
+// directly so they need their own check.
 function resolveSafe(relPath: string): string | null {
-  const normalized = path.normalize(relPath || "");
-  const resolved = path.resolve(workspaceReal, normalized);
-  let resolvedReal: string;
-  try {
-    resolvedReal = fs.realpathSync(resolved);
-  } catch {
-    return null;
-  }
-  if (
-    resolvedReal !== workspaceReal &&
-    !resolvedReal.startsWith(workspaceReal + path.sep)
-  ) {
-    return null;
-  }
-  // Reject paths that traverse a hidden directory (e.g. `.git/config`).
-  // buildTree already hides these from the listing, but the URL endpoints
-  // are reachable directly so they need their own check.
-  const relativeFromWorkspace = path.relative(workspaceReal, resolvedReal);
+  const resolved = resolveWithinRoot(workspaceReal, relPath);
+  if (!resolved) return null;
+  const relativeFromWorkspace = path.relative(workspaceReal, resolved);
   if (relativeFromWorkspace) {
     for (const seg of relativeFromWorkspace.split(path.sep)) {
       if (HIDDEN_DIRS.has(seg)) return null;
     }
   }
-  return resolvedReal;
+  return resolved;
 }
 
 interface ByteRange {
@@ -197,22 +187,6 @@ function pipeWithErrorHandling(
     res.status(500).json({ error: `Failed to read file: ${err.message}` });
   });
   stream.pipe(res);
-}
-
-function readDirSafe(absPath: string): fs.Dirent[] {
-  try {
-    return fs.readdirSync(absPath, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-}
-
-function statSafe(absPath: string): fs.Stats | null {
-  try {
-    return fs.statSync(absPath);
-  } catch {
-    return null;
-  }
 }
 
 function buildTree(absPath: string, relPath: string): TreeNode {
@@ -260,8 +234,9 @@ router.get(
       const tree = buildTree(workspaceReal, "");
       res.json(tree);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ error: `Failed to read workspace: ${message}` });
+      res
+        .status(500)
+        .json({ error: `Failed to read workspace: ${errorMessage(err)}` });
     }
   },
 );
@@ -270,31 +245,73 @@ interface PathQuery {
   path?: string;
 }
 
+// Shared validation preamble for /files/content and /files/raw. Both
+// endpoints need to: read `path` from the query, validate it's
+// inside the workspace (with symlink hardening), stat it, and
+// confirm it's a regular file. On any failure this writes the
+// appropriate 4xx response and returns null; the caller bails out.
+//
+// `T` lets each caller's Response type stay precise — both endpoints
+// have different success-shape unions and we just need ErrorResponse
+// to be one of the alternatives.
+//
+// Order matters: stat the syntactic candidate first so a missing
+// file gets a 404, then run the realpath-hardened resolveSafe check
+// for symlink escapes (which would return 400). Doing them in this
+// order keeps 404 reachable for the common "file not found" case
+// instead of conflating it with traversal attempts.
+function resolveAndStatFile<T>(
+  req: Request<object, unknown, unknown, PathQuery>,
+  res: Response<T | ErrorResponse>,
+): { relPath: string; absPath: string; stat: fs.Stats } | null {
+  const relPath = typeof req.query.path === "string" ? req.query.path : "";
+  if (!relPath) {
+    res.status(400).json({ error: "path required" });
+    return null;
+  }
+  // Syntactic candidate (no symlink resolution yet).
+  const candidate = path.resolve(workspaceReal, path.normalize(relPath));
+  const stat = statSafe(candidate);
+  if (!stat) {
+    // Distinguish "missing file under workspace" (404) from "path
+    // syntactically outside workspace" (400). We check the
+    // syntactic relative form, NOT realpath, because the file
+    // doesn't exist so realpath would throw anyway.
+    const relativeFromWorkspace = path.relative(workspaceReal, candidate);
+    const escapesSyntactically =
+      relativeFromWorkspace === ".." ||
+      relativeFromWorkspace.startsWith(`..${path.sep}`);
+    if (escapesSyntactically) {
+      res.status(400).json({ error: "Path outside workspace" });
+    } else {
+      res.status(404).json({ error: "File not found" });
+    }
+    return null;
+  }
+  if (!stat.isFile()) {
+    res.status(400).json({ error: "Not a file" });
+    return null;
+  }
+  // File exists — run the realpath-hardened check to defeat
+  // symlink-escape attempts (e.g. workspace/secret → /etc/passwd).
+  // resolveSafe also rejects paths that traverse a hidden dir.
+  const absPath = resolveSafe(relPath);
+  if (!absPath) {
+    res.status(400).json({ error: "Path outside workspace" });
+    return null;
+  }
+  return { relPath, absPath, stat };
+}
+
 router.get(
   "/files/content",
   (
     req: Request<object, unknown, unknown, PathQuery>,
     res: Response<FileContentResponse | ErrorResponse>,
   ) => {
-    const relPath = typeof req.query.path === "string" ? req.query.path : "";
-    if (!relPath) {
-      res.status(400).json({ error: "path required" });
-      return;
-    }
-    const absPath = resolveSafe(relPath);
-    if (!absPath) {
-      res.status(400).json({ error: "Path outside workspace" });
-      return;
-    }
-    const stat = statSafe(absPath);
-    if (!stat) {
-      res.status(404).json({ error: "File not found" });
-      return;
-    }
-    if (!stat.isFile()) {
-      res.status(400).json({ error: "Not a file" });
-      return;
-    }
+    const ctx = resolveAndStatFile(req, res);
+    if (!ctx) return;
+    const { relPath, absPath, stat } = ctx;
 
     const meta = {
       path: relPath,
@@ -344,8 +361,9 @@ router.get(
     try {
       content = fs.readFileSync(absPath, "utf-8");
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ error: `Failed to read file: ${message}` });
+      res
+        .status(500)
+        .json({ error: `Failed to read file: ${errorMessage(err)}` });
       return;
     }
     res.json({ kind: "text", ...meta, content });
@@ -358,25 +376,10 @@ router.get(
     req: Request<object, unknown, unknown, PathQuery>,
     res: Response<ErrorResponse>,
   ) => {
-    const relPath = typeof req.query.path === "string" ? req.query.path : "";
-    if (!relPath) {
-      res.status(400).json({ error: "path required" });
-      return;
-    }
-    const absPath = resolveSafe(relPath);
-    if (!absPath) {
-      res.status(400).json({ error: "Path outside workspace" });
-      return;
-    }
-    const stat = statSafe(absPath);
-    if (!stat) {
-      res.status(404).json({ error: "File not found" });
-      return;
-    }
-    if (!stat.isFile()) {
-      res.status(400).json({ error: "Not a file" });
-      return;
-    }
+    const ctx = resolveAndStatFile(req, res);
+    if (!ctx) return;
+    const { absPath, stat } = ctx;
+
     if (stat.size > MAX_RAW_BYTES) {
       res.status(413).json({
         error: `File too large to stream (${stat.size} bytes, limit ${MAX_RAW_BYTES})`,
