@@ -180,6 +180,32 @@
             class="w-full h-full border-0"
             title="PDF preview"
           />
+          <!-- Audio -->
+          <div
+            v-else-if="content.kind === 'audio'"
+            class="h-full flex items-center justify-center p-4"
+          >
+            <audio
+              :key="selectedPath"
+              :src="rawUrl(selectedPath)"
+              controls
+              preload="metadata"
+              class="w-full max-w-2xl"
+            />
+          </div>
+          <!-- Video -->
+          <div
+            v-else-if="content.kind === 'video'"
+            class="h-full flex items-center justify-center p-4 bg-black"
+          >
+            <video
+              :key="selectedPath"
+              :src="rawUrl(selectedPath)"
+              controls
+              preload="metadata"
+              class="max-w-full max-h-full"
+            />
+          </div>
           <!-- Binary or too-large -->
           <div v-else class="p-4 text-sm text-gray-500">
             {{ content.message }}
@@ -226,7 +252,7 @@ interface TextContent {
 }
 
 interface MetaContent {
-  kind: "image" | "pdf" | "binary" | "too-large";
+  kind: "image" | "pdf" | "audio" | "video" | "binary" | "too-large";
   path: string;
   size: number;
   modifiedMs: number;

@@ -3,6 +3,7 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { workspacePath } from "../workspace.js";
 import { slugify } from "../utils/slug.js";
+import { errorMessage } from "../utils/errors.js";
 
 const router = Router();
 
@@ -52,9 +53,7 @@ router.post(
         data: { html, title, filePath },
       });
     } catch (err) {
-      res.status(500).json({
-        error: err instanceof Error ? err.message : String(err),
-      });
+      res.status(500).json({ error: errorMessage(err) });
     }
   },
 );

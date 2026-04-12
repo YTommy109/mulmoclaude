@@ -3,6 +3,7 @@ import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { workspacePath } from "../workspace.js";
 import { getGeminiClient, isGeminiAvailable } from "../utils/gemini.js";
+import { errorMessage } from "../utils/errors.js";
 
 const router = Router();
 const HTML_FILE = () => path.join(workspacePath, "html", "current.html");
@@ -69,9 +70,7 @@ router.post(
         data: { html, type: "tailwind" },
       });
     } catch (err) {
-      res
-        .status(500)
-        .json({ message: err instanceof Error ? err.message : String(err) });
+      res.status(500).json({ message: errorMessage(err) });
     }
   },
 );
@@ -114,9 +113,7 @@ router.post(
         updating: true,
       });
     } catch (err) {
-      res
-        .status(500)
-        .json({ message: err instanceof Error ? err.message : String(err) });
+      res.status(500).json({ message: errorMessage(err) });
     }
   },
 );

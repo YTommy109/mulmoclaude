@@ -22,6 +22,11 @@ import {
   type MoveInput,
   type PatchInput,
 } from "./todosItemsHandlers.js";
+import {
+  respondWithDispatchResult,
+  type DispatchSuccessResponse,
+  type DispatchErrorResponse,
+} from "./dispatchResponse.js";
 
 const router = Router();
 
@@ -87,21 +92,17 @@ router.get("/todos", (_req: Request, res: Response<TodosListResponse>) => {
 });
 
 // ── POST /api/todos (legacy MCP action route) ────────────────────
+//
+// Uses the shared dispatcher response plumbing introduced in #145.
+// The legacy MCP `manageTodoList` tool is the only consumer of this
+// route — the file-explorer TodoExplorer calls the new id-based REST
+// routes below instead — so the response shape stays the simple
+// `{ data: { items } }` form. Columns aren't included here on purpose:
+// the chat-side View.vue only reads `data.items`, and the explorer
+// loads columns via GET /api/todos.
 
 interface TodoBody extends TodosActionInput {
   action: string;
-}
-
-interface ErrorResponse {
-  error: string;
-}
-
-interface TodoResponse {
-  data: { items: TodoItem[]; columns: StatusColumn[] };
-  message: string;
-  jsonData: Record<string, unknown>;
-  instructions: string;
-  updating: boolean;
 }
 
 // Actions whose handlers may mutate state. "show" / "list_labels"
@@ -112,27 +113,15 @@ router.post(
   "/todos",
   (
     req: Request<object, unknown, TodoBody>,
-    res: Response<TodoResponse | ErrorResponse>,
+    res: Response<DispatchSuccessResponse<TodoItem> | DispatchErrorResponse>,
   ) => {
     const { action, ...input } = req.body;
     const items = loadTodos();
-
     const result = dispatchTodos(action, items, input);
-    if (result.kind === "error") {
-      res.status(result.status).json({ error: result.error });
-      return;
-    }
-
-    if (!READ_ONLY_ACTIONS.has(action)) {
-      saveTodos(result.items);
-    }
-
-    res.json({
-      data: { items: result.items, columns: loadColumns() },
-      message: result.message,
-      jsonData: result.jsonData,
+    respondWithDispatchResult(res, result, {
+      shouldPersist: !READ_ONLY_ACTIONS.has(action),
       instructions: "Display the updated todo list to the user.",
-      updating: true,
+      persist: saveTodos,
     });
   },
 );
@@ -161,7 +150,7 @@ router.post(
   "/todos/items",
   (
     req: Request<object, unknown, CreateInput>,
-    res: Response<ItemResponse | ErrorResponse>,
+    res: Response<ItemResponse | DispatchErrorResponse>,
   ) => {
     const items = loadTodos();
     const columns = loadColumns();
@@ -183,7 +172,7 @@ router.patch(
   "/todos/items/:id",
   (
     req: Request<ItemIdParams, unknown, PatchInput>,
-    res: Response<ItemResponse | ErrorResponse>,
+    res: Response<ItemResponse | DispatchErrorResponse>,
   ) => {
     const items = loadTodos();
     const columns = loadColumns();
@@ -205,7 +194,7 @@ router.post(
   "/todos/items/:id/move",
   (
     req: Request<ItemIdParams, unknown, MoveInput>,
-    res: Response<ItemResponse | ErrorResponse>,
+    res: Response<ItemResponse | DispatchErrorResponse>,
   ) => {
     const items = loadTodos();
     const columns = loadColumns();
@@ -225,7 +214,10 @@ router.post(
 // DELETE /api/todos/items/:id
 router.delete(
   "/todos/items/:id",
-  (req: Request<ItemIdParams>, res: Response<ItemResponse | ErrorResponse>) => {
+  (
+    req: Request<ItemIdParams>,
+    res: Response<ItemResponse | DispatchErrorResponse>,
+  ) => {
     const items = loadTodos();
     const columns = loadColumns();
     const result = handleDeleteItem(items, req.params.id);
@@ -269,7 +261,7 @@ router.post(
   "/todos/columns",
   (
     req: Request<object, unknown, AddColumnBody>,
-    res: Response<ColumnsResponse | ErrorResponse>,
+    res: Response<ColumnsResponse | DispatchErrorResponse>,
   ) => {
     const items = loadTodos();
     const result = handleAddColumn(loadColumns(), items, req.body);
@@ -287,7 +279,7 @@ router.patch(
   "/todos/columns/:id",
   (
     req: Request<ColumnIdParams, unknown, PatchColumnBody>,
-    res: Response<ColumnsResponse | ErrorResponse>,
+    res: Response<ColumnsResponse | DispatchErrorResponse>,
   ) => {
     const items = loadTodos();
     const result = handlePatchColumn(
@@ -310,7 +302,7 @@ router.delete(
   "/todos/columns/:id",
   (
     req: Request<ColumnIdParams>,
-    res: Response<ColumnsResponse | ErrorResponse>,
+    res: Response<ColumnsResponse | DispatchErrorResponse>,
   ) => {
     const items = loadTodos();
     const result = handleDeleteColumn(loadColumns(), req.params.id, items);
@@ -328,7 +320,7 @@ router.put(
   "/todos/columns/order",
   (
     req: Request<object, unknown, ReorderColumnsBody>,
-    res: Response<ColumnsResponse | ErrorResponse>,
+    res: Response<ColumnsResponse | DispatchErrorResponse>,
   ) => {
     const result = handleReorderColumns(loadColumns(), req.body.ids ?? []);
     if (result.kind === "error") {

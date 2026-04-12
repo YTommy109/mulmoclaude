@@ -1,6 +1,10 @@
 import { Router, Request, Response } from "express";
 import { getSessionImageData } from "../sessions.js";
-import { getGeminiClient } from "../utils/gemini.js";
+import {
+  generateGeminiImageContent,
+  generateGeminiImageFromPrompt,
+} from "../utils/gemini.js";
+import { errorMessage } from "../utils/errors.js";
 
 const router = Router();
 
@@ -37,27 +41,10 @@ router.post(
     }
 
     try {
-      const ai = getGeminiClient();
-      const modelName = model ?? "gemini-3.1-flash-image-preview";
-
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: [{ text: prompt }],
-        config: {
-          responseModalities: ["TEXT", "IMAGE"],
-          imageConfig: { aspectRatio: "16:9" },
-        },
-      });
-
-      const parts = response.candidates?.[0]?.content?.parts ?? [];
-      let imageData: string | undefined;
-      let message: string | undefined;
-
-      for (const part of parts) {
-        if (part.text) message = part.text;
-        if (part.inlineData?.data) imageData = part.inlineData.data;
-      }
-
+      const { imageData, message } = await generateGeminiImageFromPrompt(
+        prompt,
+        model,
+      );
       if (imageData) {
         res.json({
           message: "image generation succeeded",
@@ -73,8 +60,7 @@ router.post(
         res.json({ message: message ?? "no image data in response" });
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ success: false, message: msg });
+      res.status(500).json({ success: false, message: errorMessage(err) });
     }
   },
 );
@@ -109,34 +95,20 @@ router.post(
     }
 
     try {
-      const ai = getGeminiClient();
-      const modelName = "gemini-3.1-flash-image-preview";
       const base64Data = currentImageData.replace(
         /^data:image\/[^;]+;base64,/,
         "",
       );
-
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: [
-          {
-            parts: [
-              { inlineData: { mimeType: "image/png", data: base64Data } },
-              { text: prompt },
-            ],
-          },
-        ],
-      });
-
-      const parts = response.candidates?.[0]?.content?.parts ?? [];
-      let imageData: string | undefined;
-      let message: string | undefined;
-
-      for (const part of parts) {
-        if (part.text) message = part.text;
-        if (part.inlineData?.data) imageData = part.inlineData.data;
-      }
-
+      // /edit-image deliberately omits `config` (no aspectRatio) so
+      // Gemini preserves the input image's dimensions.
+      const { imageData, message } = await generateGeminiImageContent([
+        {
+          parts: [
+            { inlineData: { mimeType: "image/png", data: base64Data } },
+            { text: prompt },
+          ],
+        },
+      ]);
       if (imageData) {
         res.json({
           message: "image edit succeeded",
@@ -152,8 +124,7 @@ router.post(
         res.json({ message: message ?? "no image data in response" });
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ success: false, message: msg });
+      res.status(500).json({ success: false, message: errorMessage(err) });
     }
   },
 );
