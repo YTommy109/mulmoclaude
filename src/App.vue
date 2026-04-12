@@ -553,10 +553,16 @@ const currentSessionId = ref("");
 function navigateToSession(id: string, replace = false): void {
   currentSessionId.value = id;
   const method = replace ? router.replace : router.push;
-  void method({
+  method({
     name: "chat",
     params: { sessionId: id },
     query: route.query,
+  }).catch((err) => {
+    // NavigationDuplicated is harmless (user clicked the same session
+    // they're already on). Anything else is a real bug.
+    if (err?.type !== 16) {
+      console.error("[navigateToSession] push failed:", err);
+    }
   });
 }
 
