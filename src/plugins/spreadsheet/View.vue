@@ -4,6 +4,12 @@
       <div class="text-gray-500">Loading spreadsheet...</div>
     </div>
     <div
+      v-else-if="errorMessage"
+      class="min-h-full p-8 flex items-center justify-center"
+    >
+      <div class="error">{{ errorMessage }}</div>
+    </div>
+    <div
       v-else-if="!resolvedSheets || resolvedSheets.length === 0"
       class="min-h-full p-8 flex items-center justify-center"
     >
@@ -186,6 +192,7 @@ const emit = defineEmits<{
 const engine = new SpreadsheetEngine();
 
 const loading = ref(false);
+const errorMessage = ref("");
 const resolvedSheets = ref<SpreadsheetSheet[]>([]);
 
 function isFilePath(value: unknown): value is string {
@@ -204,19 +211,20 @@ async function fetchSheets(): Promise<void> {
   }
   if (isFilePath(raw)) {
     loading.value = true;
+    errorMessage.value = "";
     try {
       const res = await fetch(
         `/api/files/content?path=${encodeURIComponent(raw)}`,
       );
       if (!res.ok) {
-        console.error("Failed to fetch spreadsheet:", res.statusText);
+        errorMessage.value = `Failed to load spreadsheet: ${res.statusText}`;
         resolvedSheets.value = [];
         return;
       }
       const json: { content?: string } = await res.json();
       resolvedSheets.value = json.content ? JSON.parse(json.content) : [];
     } catch (err) {
-      console.error("Failed to fetch spreadsheet:", err);
+      errorMessage.value = `Failed to load spreadsheet: ${err instanceof Error ? err.message : "Network error"}`;
       resolvedSheets.value = [];
     } finally {
       loading.value = false;
@@ -244,11 +252,11 @@ async function persistSheets(sheets: SpreadsheetSheet[]): Promise<void> {
         body: JSON.stringify({ sheets }),
       });
       if (!res.ok) {
-        console.error("Failed to save spreadsheet:", res.statusText);
+        errorMessage.value = `Failed to save spreadsheet: ${res.statusText}`;
         return;
       }
     } catch (err) {
-      console.error("Failed to save spreadsheet:", err);
+      errorMessage.value = `Failed to save spreadsheet: ${err instanceof Error ? err.message : "Network error"}`;
       return;
     }
   }
