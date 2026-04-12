@@ -1,6 +1,6 @@
 <template>
   <div class="w-full h-full flex flex-col bg-white">
-    <div class="flex-shrink-0 p-4 border-b bg-gray-50">
+    <div class="flex-shrink-0 px-4 py-2 border-b border-gray-100 bg-gray-50">
       <div class="flex items-center justify-between gap-4">
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-2">
@@ -89,10 +89,7 @@
         @mouseup="handleDrawingEnd"
         @touchend="handleDrawingEnd"
       />
-    </div>
-
-    <div class="flex-shrink-0 px-4 pb-4">
-      <div class="flex items-center gap-2 flex-wrap">
+      <div class="flex items-center gap-2 flex-wrap mt-3">
         <span class="text-xs text-gray-500 mr-1">Style:</span>
         <button
           v-for="style in artStyles"
@@ -125,13 +122,13 @@ const emit = defineEmits<{
 const artStyles = [
   { id: "ghibli", label: "Ghibli" },
   { id: "ukiyoe", label: "Ukiyoe" },
-  { id: "sumie", label: "Sumie" },
+  { id: "sumie", label: "Sumi-e" },
   { id: "picasso", label: "Picasso" },
   { id: "gogh", label: "Van Gogh" },
   { id: "photo", label: "Photo-realistic" },
   { id: "watercolor", label: "Watercolor" },
   { id: "popart", label: "Pop Art" },
-  { id: "artnouveau", label: "Art Nouveau" },
+  { id: "american", label: "American Comic" },
   { id: "cyberpunk", label: "Cyberpunk" },
   { id: "pencilsketch", label: "Pencil Sketch" },
   { id: "pixelart", label: "Pixel Art" },
