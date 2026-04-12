@@ -39,10 +39,7 @@ describe("findCellJsonPosition", () => {
   }
 
   it("locates cell (0,0) in the first sheet", () => {
-    assertCellAt(
-      findCellJsonPosition(sample, "Sheet1", 0, 0),
-      `"v": "A1"`,
-    );
+    assertCellAt(findCellJsonPosition(sample, "Sheet1", 0, 0), `"v": "A1"`);
   });
 
   it("locates cell (0,2) — the last column in row 0", () => {
