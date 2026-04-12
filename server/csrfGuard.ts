@@ -44,6 +44,18 @@ const EXTRA_ALLOWED_ORIGINS: ReadonlySet<string> = new Set(
     .filter(Boolean),
 );
 
+// Extra allowed hostnames from the ALLOWED_HOSTS environment
+// variable (comma-separated hostnames, e.g.
+// "mulmoclaude.exe.xyz"). Any origin whose hostname matches
+// is accepted regardless of port — useful for exe.dev proxies
+// where the same host serves multiple ports (3000-9999).
+const EXTRA_ALLOWED_HOSTS: ReadonlySet<string> = new Set(
+  (process.env.ALLOWED_HOSTS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
+
 // Decide whether an Origin header value points at the same
 // machine. Accepts scheme + hostname + optional port; rejects
 // `null`, empty, malformed, subdomain-lookalikes, non-loopback
@@ -60,14 +72,25 @@ export function isLocalhostOrigin(origin: string): boolean {
 }
 
 // Check whether the origin is explicitly listed in
-// ALLOWED_ORIGINS. Compares the full origin string
-// (scheme + host + port) so "https://foo:5173" !=
-// "https://foo:3001". Exported for test.
+// ALLOWED_ORIGINS (full-origin match) or its hostname appears
+// in ALLOWED_HOSTS (any-port match). Exported for test.
 export function isAllowedOrigin(origin: string): boolean {
-  if (!origin || EXTRA_ALLOWED_ORIGINS.size === 0) return false;
-  // Normalize: strip a single trailing slash if present.
-  const normalized = origin.endsWith("/") ? origin.slice(0, -1) : origin;
-  return EXTRA_ALLOWED_ORIGINS.has(normalized);
+  if (!origin) return false;
+  // Full-origin match
+  if (EXTRA_ALLOWED_ORIGINS.size > 0) {
+    const normalized = origin.endsWith("/") ? origin.slice(0, -1) : origin;
+    if (EXTRA_ALLOWED_ORIGINS.has(normalized)) return true;
+  }
+  // Hostname-only match (any port)
+  if (EXTRA_ALLOWED_HOSTS.size > 0) {
+    try {
+      const url = new URL(origin);
+      if (EXTRA_ALLOWED_HOSTS.has(url.hostname)) return true;
+    } catch {
+      // malformed origin — fall through
+    }
+  }
+  return false;
 }
 
 // Express middleware. Safe-method requests (GET / HEAD / OPTIONS)
