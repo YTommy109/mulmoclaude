@@ -67,6 +67,9 @@ test.describe("session navigation via URL", () => {
   });
 
   test("browser forward works after going back", async ({ page }) => {
+    // Navigate through two real (non-empty) sessions so both are in
+    // browser history — the initial empty session is intentionally
+    // replaced out of history by removeCurrentIfEmpty.
     await page.goto("/chat");
     await page.waitForURL(/\/chat\//);
 
@@ -76,11 +79,19 @@ test.describe("session navigation via URL", () => {
       .click();
     await page.waitForURL(new RegExp(SESSION_A.id));
 
-    await page.goBack();
-    await page.waitForURL(/\/chat\//);
+    await openHistoryWithSessions(page);
+    await page
+      .locator(`[data-testid="session-item-${SESSION_B.id}"]`)
+      .click();
+    await page.waitForURL(new RegExp(SESSION_B.id));
 
-    await page.goForward();
+    // Back → session A
+    await page.goBack();
     await page.waitForURL(new RegExp(SESSION_A.id));
+
+    // Forward → session B
+    await page.goForward();
+    await page.waitForURL(new RegExp(SESSION_B.id));
   });
 
   test("direct URL to an existing session loads it", async ({ page }) => {

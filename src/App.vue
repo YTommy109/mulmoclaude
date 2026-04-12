@@ -947,16 +947,24 @@ function toggleRightSidebar() {
   localStorage.setItem("right_sidebar_visible", String(showRightSidebar.value));
 }
 
-function createNewSession(roleId?: string): ActiveSession {
-  // Remove the latest session if it's empty (no messages exchanged).
-  // "Latest" here means most-recently-touched, matching the sort
-  // order the user sees in the sidebar.
-  const latest = [...sessionMap.values()].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  )[0];
-  if (latest && latest.toolResults.length === 0) {
-    sessionMap.delete(latest.id);
+// Remove the current session from sessionMap if it's empty (no messages).
+// Returns true if a session was removed, so the caller can use
+// router.replace instead of router.push to keep the empty session out
+// of browser navigation history.
+function removeCurrentIfEmpty(): boolean {
+  const id = currentSessionId.value;
+  if (!id) return false;
+  const session = sessionMap.get(id);
+  if (session && session.toolResults.length === 0) {
+    sessionMap.delete(id);
+    return true;
   }
+  return false;
+}
+
+function createNewSession(roleId?: string): ActiveSession {
+  // Remove the current session if it's empty (no messages exchanged).
+  removeCurrentIfEmpty();
 
   const id = uuidv4();
   const rId = roleId ?? currentRoleId.value;
@@ -1015,11 +1023,22 @@ async function toggleHistory() {
 }
 
 async function loadSession(id: string) {
+  // Re-selecting the already-active, loaded session is a no-op.
+  // The sessionMap check is needed because the route watcher sets
+  // currentSessionId before calling loadSession — without it the
+  // guard would bail before the session data is fetched.
+  if (id === currentSessionId.value && sessionMap.has(id)) return;
+
+  // If the current session is empty, remove it from memory and use
+  // replace-navigation so the empty session doesn't linger in
+  // browser history (back button won't revisit it).
+  const replaced = removeCurrentIfEmpty();
+
   // Already live in memory — just switch to it. The watch on
   // currentSessionId clears the unread flag automatically.
   const live = sessionMap.get(id);
   if (live) {
-    navigateToSession(id);
+    navigateToSession(id, replaced);
     currentRoleId.value = live.roleId;
     showHistory.value = false;
     return;
@@ -1080,7 +1099,7 @@ async function loadSession(id: string) {
     startedAt: originalStartedAt,
     updatedAt: originalUpdatedAt,
   });
-  navigateToSession(id);
+  navigateToSession(id, replaced);
   currentRoleId.value = roleId;
   showHistory.value = false;
 }
