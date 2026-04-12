@@ -511,6 +511,26 @@ async function writeDailySummary(
   await fsp.writeFile(p, content, "utf-8");
 }
 
+// If the file doesn't exist, write `content` fresh; otherwise append
+// it after a blank line. Returns "created" or "updated" so the caller
+// can report which action was taken.
+async function appendOrCreate(
+  filePath: string,
+  content: string,
+): Promise<"created" | "updated"> {
+  const existing = await readTextOrNull(filePath);
+  if (existing === null) {
+    await fsp.writeFile(filePath, content, "utf-8");
+    return "created";
+  }
+  await fsp.writeFile(
+    filePath,
+    `${existing.trimEnd()}\n\n${content}\n`,
+    "utf-8",
+  );
+  return "updated";
+}
+
 async function applyTopicUpdate(
   workspaceRoot: string,
   update: TopicUpdate,
@@ -521,17 +541,7 @@ async function applyTopicUpdate(
   if (update.action === "create") {
     // If the file already exists (e.g. the LLM mis-classified), treat
     // it as an append so we don't clobber prior content.
-    const existing = await readTextOrNull(p);
-    if (existing === null) {
-      await fsp.writeFile(p, update.content, "utf-8");
-      return "created";
-    }
-    await fsp.writeFile(
-      p,
-      `${existing.trimEnd()}\n\n${update.content}\n`,
-      "utf-8",
-    );
-    return "updated";
+    return appendOrCreate(p, update.content);
   }
   if (update.action === "rewrite") {
     const existed = (await readTextOrNull(p)) !== null;
@@ -539,15 +549,5 @@ async function applyTopicUpdate(
     return existed ? "updated" : "created";
   }
   // append
-  const existing = await readTextOrNull(p);
-  if (existing === null) {
-    await fsp.writeFile(p, update.content, "utf-8");
-    return "created";
-  }
-  await fsp.writeFile(
-    p,
-    `${existing.trimEnd()}\n\n${update.content}\n`,
-    "utf-8",
-  );
-  return "updated";
+  return appendOrCreate(p, update.content);
 }
