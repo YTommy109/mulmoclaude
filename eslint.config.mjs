@@ -68,7 +68,7 @@ export default [
       "sonarjs/no-commented-code": "off",
       "sonarjs/no-unused-vars": "warn",
       "sonarjs/no-nested-conditional": "off",
-      "sonarjs/cognitive-complexity": "warn",
+      "sonarjs/cognitive-complexity": "error",
       "sonarjs/no-os-command-from-path": "warn",
       "sonarjs/cors": "off",
       "sonarjs/pseudo-random": "warn",
