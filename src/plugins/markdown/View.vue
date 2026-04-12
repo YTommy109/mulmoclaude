@@ -18,13 +18,6 @@
             </h1>
             <div class="button-group">
               <button
-                @click="downloadMarkdown"
-                class="download-btn download-btn-green"
-              >
-                <span class="material-icons">download</span>
-                MD
-              </button>
-              <button
                 class="download-btn download-btn-green"
                 :disabled="pdfDownloading"
                 @click="downloadPdf"
@@ -211,26 +204,6 @@ async function downloadPdf() {
   URL.revokeObjectURL(url);
   pdfDownloading.value = false;
 }
-
-const downloadMarkdown = () => {
-  if (!markdownContent.value) return;
-
-  const blob = new Blob([markdownContent.value], { type: "text/markdown" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  const hint = props.selectedResult.data?.filenameHint;
-  const filename = hint
-    ? `${hint.replace(/[/\\:*?"<>|]/g, "_")}.md`
-    : props.selectedResult.title
-      ? `${props.selectedResult.title.replace(/[/\\:*?"<>|]/g, "_")}.md`
-      : "document.md";
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
 
 async function applyMarkdown() {
   const raw = props.selectedResult.data?.markdown;

@@ -36,6 +36,7 @@ const MARKDOWN_CSS = `
   th { background: #f9fafb; font-weight: 600; }
   strong { font-weight: 600; }
   a { color: #2563eb; }
+  img { max-width: 100%; height: auto; }
 `;
 
 const MIME_BY_EXT: Record<string, string> = {
