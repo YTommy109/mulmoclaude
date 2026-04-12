@@ -180,9 +180,13 @@ interface PathQuery {
 // resolveSafe, stat it, and confirm it's a regular file. On any
 // failure this writes the appropriate 4xx response and returns null;
 // the caller bails out.
-function resolveAndStatFile(
+//
+// `T` lets each caller's Response type stay precise — both endpoints
+// have different success-shape unions and we just need ErrorResponse
+// to be one of the alternatives.
+function resolveAndStatFile<T>(
   req: Request<object, unknown, unknown, PathQuery>,
-  res: Response<ErrorResponse | unknown>,
+  res: Response<T | ErrorResponse>,
 ): { relPath: string; absPath: string; stat: fs.Stats } | null {
   const relPath = typeof req.query.path === "string" ? req.query.path : "";
   if (!relPath) {

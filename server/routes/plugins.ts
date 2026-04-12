@@ -18,17 +18,25 @@ interface PluginErrorResponse {
   message: string;
 }
 
-// Wraps a plugin's `execute*` function in an Express handler. Each
+// Wraps a plugin's `execute*` invocation in an Express handler. Each
 // plugin route used to inline the same try/catch + 500 response shell;
-// this collapses them to one line per route. The plugin function
-// receives the request body and returns whatever the plugin's
-// ToolResult shape is — typed as `T` so the response stays type-safe.
-function wrapPluginExecute<T>(
-  execute: (body: unknown) => Promise<T>,
-): (req: Request, res: Response<T | PluginErrorResponse>) => Promise<void> {
+// this collapses them to one line per route.
+//
+// The callback receives the Express request and is responsible for
+// pulling whatever it needs out of `req.body` and forwarding it to
+// the plugin's execute function. `req.body` is `any` by Express
+// default and each plugin's execute function does its own runtime
+// validation — matching the behavior of the inline handlers this
+// replaces.
+function wrapPluginExecute<TResult>(
+  execute: (req: Request) => Promise<TResult>,
+): (
+  req: Request,
+  res: Response<TResult | PluginErrorResponse>,
+) => Promise<void> {
   return async (req, res) => {
     try {
-      const result = await execute(req.body);
+      const result = await execute(req);
       res.json(result);
     } catch (err) {
       res.status(500).json({ message: errorMessage(err) });
@@ -99,24 +107,27 @@ router.post(
 );
 
 // presentSpreadsheet — uses package execute for validation/processing
-router.post("/present-spreadsheet", wrapPluginExecute(executeSpreadsheet));
+router.post(
+  "/present-spreadsheet",
+  wrapPluginExecute((req) => executeSpreadsheet(req.body)),
+);
 
 // createMindMap — uses package execute for node layout computation
 router.post(
   "/mindmap",
-  wrapPluginExecute((body) => executeMindMap(null as never, body)),
+  wrapPluginExecute((req) => executeMindMap(null as never, req.body)),
 );
 
 // putQuestions — quiz
 router.post(
   "/quiz",
-  wrapPluginExecute((body) => executeQuiz(null as never, body)),
+  wrapPluginExecute((req) => executeQuiz(null as never, req.body)),
 );
 
 // presentForm — form
 router.post(
   "/form",
-  wrapPluginExecute((body) => executeForm(null as never, body)),
+  wrapPluginExecute((req) => executeForm(null as never, req.body)),
 );
 
 // openCanvas — drawing canvas
@@ -128,13 +139,13 @@ router.post(
 // present3d — 3D visualization
 router.post(
   "/present3d",
-  wrapPluginExecute((body) => executePresent3D(null as never, body)),
+  wrapPluginExecute((req) => executePresent3D(null as never, req.body)),
 );
 
 // showMusic — sheet music display
 router.post(
   "/music",
-  wrapPluginExecute((body) => showMusic(null as never, body)),
+  wrapPluginExecute((req) => showMusic(null as never, req.body)),
 );
 
 export default router;
