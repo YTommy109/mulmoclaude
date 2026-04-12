@@ -1,17 +1,19 @@
 import { defineConfig } from "@playwright/test";
 
+const port = Number(process.env.VITE_PORT) || 8000;
+
 export default defineConfig({
   testDir: "./tests",
   timeout: 30_000,
   retries: 0,
   use: {
-    baseURL: "http://localhost:8000",
+    baseURL: `http://localhost:${port}`,
     headless: true,
   },
   projects: [{ name: "chromium", use: { browserName: "chromium" } }],
   webServer: {
     command: "yarn dev:client",
-    port: 8000,
+    port,
     reuseExistingServer: true,
     timeout: 15_000,
   },

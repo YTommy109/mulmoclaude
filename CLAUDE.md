@@ -174,3 +174,26 @@ plans/            ← one file per feature/refactor/fix
 - **Server**: Express.js (SSE streaming)
 - **Storage**: Local file system (plain Markdown files)
 - **Language**: TypeScript throughout
+
+## exe.dev 固有の変更（upstream merge 時に維持すること）
+
+このリポジトリは https://github.com/receptron/mulmoclaude のフォーク。
+upstream merge でコンフリクトした場合は以下の変更を exe.dev 側に保つ。
+
+| ファイル | 変更内容 | 理由 |
+|---------|---------|------|
+| `server/index.ts` L276–285 | `sandboxEnabled` 時の Docker ブリッジ IP 二次リスナー | Docker コンテナ内 MCP → ホスト HTTP の到達性確保 |
+| `server/docker.ts` | `getDockerBridgeIp()` | docker0 インターフェースの取得（Node の networkInterfaces が DOWN を無視するため） |
+| `server/csrfGuard.ts` | `isAllowedOrigin()`, `EXTRA_ALLOWED_ORIGINS`, `EXTRA_ALLOWED_HOSTS` | exe.dev リバースプロキシ経由アクセスの CSRF 許可 |
+| `vite.config.ts` | `VITE_PORT` / `VITE_ALLOWED_HOSTS` の env 読み取り | exe.dev ポート要件（デフォルト 8000）とホスト名の外部化 |
+| `e2e/playwright.config.ts` | `VITE_PORT` からのポート読み取り | テスト環境ポートの統一 |
+
+### upstream merge の手順
+
+```bash
+git fetch upstream
+git log upstream/main ^main --oneline   # 差分を確認
+git merge upstream/main
+# コンフリクト解決（上記テーブルを参照）
+yarn format && yarn lint && yarn typecheck && yarn build
+```
