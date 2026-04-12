@@ -442,7 +442,7 @@
         <!-- Stack mode -->
         <StackView
           v-else-if="canvasViewMode === 'stack'"
-          :tool-results="toolResults"
+          :tool-results="sidebarResults"
           :selected-result-uuid="selectedResultUuid"
           :send-text-message="sendMessage"
           @select="(uuid) => (selectedResultUuid = uuid)"
