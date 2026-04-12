@@ -1,11 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
-import {
-  TODOS_RESPONSE,
-  TODO_ITEMS,
-  TODO_COLUMNS,
-  type TodoFixture,
-} from "../fixtures/todos";
+import { TODO_ITEMS, TODO_COLUMNS, type TodoFixture } from "../fixtures/todos";
 
 async function setupTodoMocks(page: Page) {
   await mockAllApis(page);

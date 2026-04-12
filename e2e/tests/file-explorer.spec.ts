@@ -74,8 +74,8 @@ test.describe("file explorer path in URL", () => {
 
     // Expand the wiki dir and click hello.md
     // FileTree dirs start collapsed; click to expand
-    await page.getByText("wiki").click();
-    await page.getByText("hello.md").click();
+    await page.locator('[data-testid="file-tree-dir-wiki"]').click();
+    await page.locator('[data-testid="file-tree-file-hello.md"]').click();
 
     // URL should now contain ?path=wiki/hello.md
     await expect(async () => {

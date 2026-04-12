@@ -45,7 +45,7 @@ SSE from `POST /api/agent`: `{ type: "status" | "tool_result" | "error", ... }`.
 
 Set via `WORKSPACE_PATH` env var (defaults to `cwd()`). All data lives as plain Markdown + YAML frontmatter files:
 
-```
+```text
 workspace/
   chat/           ← session ToolResults (one .jsonl per session)
   chat/index/     ← per-session title/summary cache (chat indexer)
@@ -62,7 +62,7 @@ URL-based navigation via `vue-router` (history mode — clean paths, no `#`). Th
 
 **URL scheme** (see #108 for full plan):
 
-```
+```text
 /                                          → /chat redirect
 /chat                                      → new session, single view
 /chat/:sessionId                           → existing session, single view
@@ -170,7 +170,7 @@ Periodically audit for duplication (`sonarjs/no-duplicate-string` warnings, `jsc
 
 Looking at a directory name should predict what's inside:
 
-```
+```text
 server/
   agent/          ← agent-loop (config, prompt, stream)
   chat-index/     ← per-session summarizer + manifest
@@ -204,7 +204,7 @@ Browser-based tests in `e2e/`. No backend server required — all `/api/*` calls
 
 ### Structure
 
-```
+```text
 e2e/
   playwright.config.ts    ← Chromium-only, auto-starts vite dev client
   fixtures/

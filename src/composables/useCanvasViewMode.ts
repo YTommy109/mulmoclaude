@@ -30,7 +30,8 @@ function applyViewToQuery(
   currentQuery: LocationQuery,
   mode: CanvasViewMode,
 ): LocationQuery {
-  const { view: __view, ...rest } = currentQuery;
+  const rest: LocationQuery = { ...currentQuery };
+  delete rest.view;
   if (mode === "single") return rest;
   return { ...rest, view: mode };
 }
