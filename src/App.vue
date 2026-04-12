@@ -9,13 +9,18 @@
         class="p-4 border-b border-gray-200 flex items-center justify-between"
       >
         <div>
-          <h1 class="text-lg font-semibold" :style="debugTitleStyle">
+          <h1
+            data-testid="app-title"
+            class="text-lg font-semibold"
+            :style="debugTitleStyle"
+          >
             MulmoClaude
           </h1>
         </div>
         <div class="flex gap-2">
           <button
             class="text-gray-400 hover:text-gray-700"
+            data-testid="new-session-btn"
             @click="createNewSession()"
             title="New session"
           >
@@ -23,6 +28,7 @@
           </button>
           <button
             ref="historyButtonRef"
+            data-testid="history-btn"
             class="relative text-gray-400 hover:text-gray-700"
             :class="{ 'text-blue-500': showHistory }"
             @click="toggleHistory"
@@ -145,6 +151,7 @@
                     ? 'border-blue-400 bg-blue-50 hover:bg-blue-100'
                     : 'border-gray-200 hover:bg-gray-50'
             "
+            :data-testid="`session-item-${session.id}`"
             @click="loadSession(session.id)"
           >
             <div class="flex items-center gap-1 text-xs text-gray-500 mb-1">
@@ -249,6 +256,7 @@
             :title="
               tabSessions[i - 1].preview || roleName(tabSessions[i - 1].roleId)
             "
+            :data-testid="`session-tab-${tabSessions[i - 1].id}`"
             @click="loadSession(tabSessions[i - 1].id)"
           >
             <span
@@ -374,6 +382,7 @@
         <div class="flex gap-2">
           <textarea
             ref="textareaRef"
+            data-testid="user-input"
             v-model="userInput"
             placeholder="Type a task..."
             rows="2"
@@ -386,6 +395,7 @@
             "
           />
           <button
+            data-testid="send-btn"
             class="bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="isRunning"
             @click="sendMessage()"
@@ -513,6 +523,7 @@ import { useCanvasViewMode } from "./composables/useCanvasViewMode";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
 import { usePubSub } from "./composables/usePubSub";
+import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 
 // --- Debug beat (pub/sub) ---
 const debugBeatColor = ref<string | null>(null);
@@ -530,9 +541,95 @@ pubsubSubscribe("debug.beat", (data) => {
   }
 });
 
+// --- Routing ---
+const route = useRoute();
+const router = useRouter();
+
 // --- Per-session state ---
 const sessionMap = reactive(new Map<string, ActiveSession>());
+
+// currentSessionId is a plain ref so that synchronous writes (e.g.
+// inside createNewSession, which is called right before sendMessage
+// might run) take effect immediately. The URL is kept in sync via
+// navigateToSession, and external URL changes (back button, typed
+// URL) feed back into the ref via the route watcher below.
+//
+// Earlier attempt used a computed derived from route.params, but
+// router.push is async — the route param doesn't update until the
+// next tick, so any code reading currentSessionId between the push
+// and the tick sees the stale value ("") and drops messages silently.
 const currentSessionId = ref("");
+
+function navigateToSession(id: string, replace = false): void {
+  currentSessionId.value = id;
+  const method = replace ? router.replace : router.push;
+  // Use buildViewQuery() (reads canvasViewMode ref) instead of raw
+  // route.query — the ref may have been updated synchronously by
+  // setCanvasViewMode before this navigation runs, while
+  // route.query.view is still stale (router.push is async).
+  // Build query: view mode + role (omit role if it's the default
+  // to keep URLs clean for the common case).
+  const viewQuery = buildViewQuery();
+  const roleQuery =
+    currentRoleId.value && currentRoleId.value !== roles.value[0]?.id
+      ? { role: currentRoleId.value }
+      : {};
+  method({
+    name: "chat",
+    params: { sessionId: id },
+    query: { ...viewQuery, ...roleQuery },
+  }).catch((err) => {
+    // NavigationDuplicated is harmless (user clicked the same session
+    // they're already on). Anything else is a real bug.
+    if (err?.type !== 16) {
+      console.error("[navigateToSession] push failed:", err);
+    }
+  });
+}
+
+// External URL changes (back/forward button, typed URL) → update ref.
+// If the session isn't in memory, load it from the server.
+watch(
+  () => route.params.sessionId,
+  async (newId) => {
+    if (typeof newId !== "string" || newId === currentSessionId.value) return;
+    currentSessionId.value = newId;
+    if (!sessionMap.has(newId)) {
+      await loadSession(newId);
+      if (!sessionMap.has(newId)) {
+        createNewSession();
+      }
+    }
+  },
+);
+
+// External URL changes for ?role= → sync into currentRoleId.
+// This doesn't trigger onRoleChange (which creates a new session) —
+// the user is just navigating back/forward between sessions that
+// were already associated with a role.
+watch(
+  () => route.query.role,
+  (newRole) => {
+    if (typeof newRole !== "string" || newRole === currentRoleId.value) return;
+    const roleExists = roles.value.some((r) => r.id === newRole);
+    if (roleExists) currentRoleId.value = newRole;
+  },
+);
+
+// External URL changes for ?result= → sync into the session's
+// selectedResultUuid. This handles back/forward and direct URL
+// access with a specific result pre-selected.
+watch(
+  () => route.query.result,
+  (newResult) => {
+    const session = sessionMap.get(currentSessionId.value);
+    if (!session) return;
+    const resultId = typeof newResult === "string" ? newResult : null;
+    if (resultId !== session.selectedResultUuid) {
+      session.selectedResultUuid = resultId;
+    }
+  },
+);
 
 const activeSession = computed(() => sessionMap.get(currentSessionId.value));
 
@@ -546,6 +643,14 @@ const selectedResultUuid = computed({
   get: () => activeSession.value?.selectedResultUuid ?? null,
   set: (val: string | null) => {
     if (activeSession.value) activeSession.value.selectedResultUuid = val;
+    // Sync to URL. Null/empty → remove ?result= for clean URLs.
+    const { result: __result, ...restQuery } = route.query;
+    const nextQuery = val ? { ...restQuery, result: val } : restQuery;
+    router.replace({ query: nextQuery }).catch((err: unknown) => {
+      if (!isNavigationFailure(err)) {
+        console.error("[selectedResultUuid] navigation failed:", err);
+      }
+    });
   },
 });
 
@@ -611,6 +716,7 @@ const showRightSidebar = ref(
 const {
   canvasViewMode,
   setCanvasViewMode,
+  buildViewQuery,
   filesRefreshToken,
   handleViewModeShortcut,
 } = useCanvasViewMode({ isRunning });
@@ -821,10 +927,13 @@ function onSidebarItemClick(uuid: string) {
 // out of files mode, otherwise they'd still be staring at the file
 // tree after the session loaded.
 function onFilesViewLoadSession(sessionId: string): void {
-  loadSession(sessionId);
+  // Set view mode BEFORE loading session so that navigateToSession
+  // (called inside loadSession) picks up the updated canvasViewMode
+  // in its query — avoids a race where two router.push calls fight.
   if (canvasViewMode.value === "files") {
     setCanvasViewMode("single");
   }
+  loadSession(sessionId);
 }
 
 const GEMINI_PLUGINS = new Set(["generateImage", "presentDocument"]);
@@ -866,7 +975,7 @@ function createNewSession(roleId?: string): ActiveSession {
     updatedAt: now,
   };
   sessionMap.set(id, session);
-  currentSessionId.value = id;
+  navigateToSession(id, true);
   currentRoleId.value = rId;
   queriesExpanded.value = false;
   return sessionMap.get(id)!;
@@ -910,7 +1019,7 @@ async function loadSession(id: string) {
   // currentSessionId clears the unread flag automatically.
   const live = sessionMap.get(id);
   if (live) {
-    currentSessionId.value = id;
+    navigateToSession(id);
     currentRoleId.value = live.roleId;
     showHistory.value = false;
     return;
@@ -934,11 +1043,20 @@ async function loadSession(id: string) {
     }
   }
 
+  // If the URL specifies ?result=, prefer it over the heuristic
+  // (which picks the last non-text tool result). This lets bookmarks
+  // restore the exact result the user was looking at.
+  const urlResult =
+    typeof route.query.result === "string" ? route.query.result : null;
   const lastTool = [...toolResultsList]
     .reverse()
     .find((r) => r.toolName !== "text-response");
-  const resolvedSelectedUuid =
+  const heuristicUuid =
     lastTool?.uuid ?? toolResultsList[toolResultsList.length - 1]?.uuid ?? null;
+  const resolvedSelectedUuid =
+    urlResult && toolResultsList.some((r) => r.uuid === urlResult)
+      ? urlResult
+      : heuristicUuid;
 
   const serverSummary = sessions.value.find((s) => s.id === id);
   const nowIso = new Date().toISOString();
@@ -962,7 +1080,7 @@ async function loadSession(id: string) {
     startedAt: originalStartedAt,
     updatedAt: originalUpdatedAt,
   });
-  currentSessionId.value = id;
+  navigateToSession(id);
   currentRoleId.value = roleId;
   showHistory.value = false;
 }
@@ -1165,7 +1283,27 @@ onMounted(async () => {
   // createNewSession() picks a roleId that exists in the merged
   // role list (built-in + custom).
   await refreshRoles();
-  createNewSession();
+
+  // If the URL specifies a role, apply it before session creation.
+  const urlRole =
+    typeof route.query.role === "string" ? route.query.role : null;
+  if (urlRole && roles.value.some((r) => r.id === urlRole)) {
+    currentRoleId.value = urlRole;
+  }
+
+  // If the URL already names a session (e.g. a bookmarked link or a
+  // page reload), try to load it. Otherwise create a fresh one.
+  const initialSessionId = currentSessionId.value;
+  if (initialSessionId) {
+    await loadSession(initialSessionId);
+    // loadSession is a no-op when the server returns 404 — in that
+    // case sessionMap won't have the id, so fall through to create.
+    if (!sessionMap.has(initialSessionId)) {
+      createNewSession();
+    }
+  } else {
+    createNewSession();
+  }
 });
 
 onUnmounted(() => {
