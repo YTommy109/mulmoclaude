@@ -4,6 +4,7 @@ import { createHash } from "crypto";
 import { readFileSync, statSync } from "fs";
 import { homedir } from "os";
 import { join, resolve as resolvePath } from "path";
+import { log } from "./logger/index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -19,24 +20,26 @@ function assertClaudeFiles(): void {
 
   try {
     if (!statSync(claudeDir).isDirectory()) {
-      console.error(`[sandbox] ${claudeDir} exists but is not a directory.`);
+      log.error("sandbox", `${claudeDir} exists but is not a directory.`);
       process.exit(1);
     }
   } catch {
-    console.error(
-      `[sandbox] ${claudeDir} not found. Run 'claude' once to initialize.`,
+    log.error(
+      "sandbox",
+      `${claudeDir} not found. Run 'claude' once to initialize.`,
     );
     process.exit(1);
   }
 
   try {
     if (!statSync(claudeJson).isFile()) {
-      console.error(`[sandbox] ${claudeJson} exists but is not a file.`);
+      log.error("sandbox", `${claudeJson} exists but is not a file.`);
       process.exit(1);
     }
   } catch {
-    console.error(
-      `[sandbox] ${claudeJson} not found. Run 'claude' once to initialize.`,
+    log.error(
+      "sandbox",
+      `${claudeJson} not found. Run 'claude' once to initialize.`,
     );
     process.exit(1);
   }
@@ -98,20 +101,22 @@ export async function ensureSandboxImage(): Promise<void> {
       `{{index .Config.Labels "${LABEL_KEY}"}}`,
     ]);
     if (stdout.trim() !== expectedSha) {
-      console.log(
-        "[sandbox] Dockerfile.sandbox changed, rebuilding sandbox image...",
+      log.info(
+        "sandbox",
+        "Dockerfile.sandbox changed, rebuilding sandbox image...",
       );
       needsBuild = true;
     }
   } catch {
-    console.log(
-      "[sandbox] Building sandbox image (first time only, may take a minute)...",
+    log.info(
+      "sandbox",
+      "Building sandbox image (first time only, may take a minute)...",
     );
     needsBuild = true;
   }
 
   if (needsBuild) {
     await buildImage(expectedSha);
-    console.log("[sandbox] Sandbox image built.");
+    log.info("sandbox", "Sandbox image built.");
   }
 }

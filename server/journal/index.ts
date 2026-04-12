@@ -35,6 +35,7 @@ import {
   ClaudeCliNotFoundError,
   type Summarize,
 } from "./archivist.js";
+import { log } from "../logger/index.js";
 
 // Module-level lock. A boolean is enough for the single-process
 // single-user MulmoClaude server; if two sessions finish at the
@@ -71,10 +72,12 @@ export async function maybeRunJournal(
   } catch (err) {
     if (err instanceof ClaudeCliNotFoundError) {
       disabled = true;
-      console.warn(err.message);
+      log.warn("journal", err.message);
       return;
     }
-    console.warn("[journal] unexpected failure, continuing:", err);
+    log.warn("journal", "unexpected failure, continuing", {
+      error: String(err),
+    });
   } finally {
     running = false;
   }
@@ -95,13 +98,13 @@ async function runJournalPass(opts: MaybeRunJournalOptions): Promise<void> {
   const optimize = opts.force === true || isOptimizationDue(state, now);
   if (!daily && !optimize) return;
   if (opts.force === true) {
-    console.log("[journal] force-run: skipping interval gates");
+    log.info("journal", "force-run: skipping interval gates");
   }
 
   let nextState = state;
 
   if (daily) {
-    console.log("[journal] running daily pass");
+    log.info("journal", "running daily pass");
     const { nextState: afterDaily, result } = await runDailyPass(nextState, {
       workspaceRoot,
       summarize,
@@ -116,17 +119,17 @@ async function runJournalPass(opts: MaybeRunJournalOptions): Promise<void> {
         lastDailyRunAt: new Date(now).toISOString(),
       }),
     };
-    const skipSuffix =
-      result.skipped.length > 0
-        ? ` (${result.skipped.length} days skipped, will retry)`
-        : "";
-    console.log(
-      `[journal] daily pass done: ${result.sessionsIngested.length} sessions, ${result.daysTouched.length} days, ${result.topicsCreated.length} topics created, ${result.topicsUpdated.length} updated${skipSuffix}`,
-    );
+    log.info("journal", "daily pass done", {
+      sessions: result.sessionsIngested.length,
+      days: result.daysTouched.length,
+      topicsCreated: result.topicsCreated.length,
+      topicsUpdated: result.topicsUpdated.length,
+      daysSkipped: result.skipped.length,
+    });
   }
 
   if (optimize) {
-    console.log("[journal] running optimization pass");
+    log.info("journal", "running optimization pass");
     const { nextState: afterOpt, result } = await runOptimizationPass(
       nextState,
       { workspaceRoot, summarize },
@@ -145,13 +148,14 @@ async function runJournalPass(opts: MaybeRunJournalOptions): Promise<void> {
       }),
     };
     if (result.skipped) {
-      console.log(
-        `[journal] optimization pass skipped: ${result.skippedReason}`,
-      );
+      log.info("journal", "optimization pass skipped", {
+        reason: result.skippedReason,
+      });
     } else {
-      console.log(
-        `[journal] optimization pass done: ${result.mergedSlugs.length} merged, ${result.archivedSlugs.length} archived`,
-      );
+      log.info("journal", "optimization pass done", {
+        merged: result.mergedSlugs.length,
+        archived: result.archivedSlugs.length,
+      });
     }
   }
 
