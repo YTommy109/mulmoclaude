@@ -45,6 +45,18 @@ const IMAGE_EXTENSIONS = new Set([
   ".svg",
 ]);
 
+const AUDIO_EXTENSIONS = new Set([
+  ".mp3",
+  ".wav",
+  ".m4a",
+  ".ogg",
+  ".oga",
+  ".flac",
+  ".aac",
+]);
+
+const VIDEO_EXTENSIONS = new Set([".mp4", ".webm", ".mov", ".m4v", ".ogv"]);
+
 const MIME_BY_EXT: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -53,6 +65,18 @@ const MIME_BY_EXT: Record<string, string> = {
   ".webp": "image/webp",
   ".svg": "image/svg+xml",
   ".pdf": "application/pdf",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+  ".m4a": "audio/mp4",
+  ".ogg": "audio/ogg",
+  ".oga": "audio/ogg",
+  ".flac": "audio/flac",
+  ".aac": "audio/aac",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".mov": "video/quicktime",
+  ".m4v": "video/x-m4v",
+  ".ogv": "video/ogg",
 };
 
 export interface TreeNode {
@@ -77,7 +101,7 @@ interface FileContentText {
 }
 
 interface FileContentMeta {
-  kind: "image" | "pdf" | "binary" | "too-large";
+  kind: "image" | "pdf" | "audio" | "video" | "binary" | "too-large";
   path: string;
   size: number;
   modifiedMs: number;
@@ -86,12 +110,14 @@ interface FileContentMeta {
 
 type FileContentResponse = FileContentText | FileContentMeta;
 
-type ContentKind = "text" | "image" | "pdf" | "binary";
+type ContentKind = "text" | "image" | "pdf" | "audio" | "video" | "binary";
 
 function classify(filename: string): ContentKind {
   const ext = path.extname(filename).toLowerCase();
   if (TEXT_EXTENSIONS.has(ext)) return "text";
   if (IMAGE_EXTENSIONS.has(ext)) return "image";
+  if (AUDIO_EXTENSIONS.has(ext)) return "audio";
+  if (VIDEO_EXTENSIONS.has(ext)) return "video";
   if (ext === ".pdf") return "pdf";
   // Files with no extension (e.g. README, LICENSE) — treat as text
   if (!ext) return "text";
@@ -117,6 +143,50 @@ function resolveSafe(relPath: string): string | null {
     }
   }
   return resolved;
+}
+
+interface ByteRange {
+  start: number;
+  end: number;
+}
+
+// Parse an HTTP Range header of the form `bytes=START-END` or
+// `bytes=-SUFFIX`. Returns null for malformed or unsatisfiable ranges
+// so the caller can respond 416. We deliberately reject multi-range
+// requests (`bytes=0-99,200-299`) since browsers don't issue them for
+// media playback and supporting them would complicate the response.
+function parseRange(header: string, size: number): ByteRange | null {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match) return null;
+  const [, startStr, endStr] = match;
+  if (startStr === "" && endStr === "") return null;
+  if (startStr === "") {
+    const suffix = Number(endStr);
+    if (!Number.isFinite(suffix) || suffix <= 0) return null;
+    return { start: Math.max(0, size - suffix), end: size - 1 };
+  }
+  const start = Number(startStr);
+  const end = endStr === "" ? size - 1 : Number(endStr);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  if (start < 0 || end < start || end >= size) return null;
+  return { start, end };
+}
+
+// If the read stream errors mid-flight (file deleted, disk error,
+// permissions changed), surface a clean failure to the client instead
+// of leaving the connection hanging.
+function pipeWithErrorHandling(
+  stream: fs.ReadStream,
+  res: Response<ErrorResponse>,
+): void {
+  stream.on("error", (err) => {
+    if (res.headersSent) {
+      res.destroy(err);
+      return;
+    }
+    res.status(500).json({ error: `Failed to read file: ${err.message}` });
+  });
+  stream.pipe(res);
 }
 
 function buildTree(absPath: string, relPath: string): TreeNode {
@@ -239,7 +309,12 @@ router.get(
     }
 
     const kind = classify(absPath);
-    if (kind === "image" || kind === "pdf") {
+    if (
+      kind === "image" ||
+      kind === "pdf" ||
+      kind === "audio" ||
+      kind === "video"
+    ) {
       res.json({ kind, ...meta });
       return;
     }
@@ -290,20 +365,36 @@ router.get(
     }
     const ext = path.extname(absPath).toLowerCase();
     const mime = MIME_BY_EXT[ext] ?? "application/octet-stream";
+    res.setHeader("Accept-Ranges", "bytes");
     res.setHeader("Content-Type", mime);
-    res.setHeader("Content-Length", String(stat.size));
-    const stream = fs.createReadStream(absPath);
-    // If the read stream errors mid-flight (file deleted, disk error,
-    // permissions changed), surface a clean failure to the client
-    // instead of leaving the connection hanging.
-    stream.on("error", (err) => {
-      if (res.headersSent) {
-        res.destroy(err);
+
+    // Range support is required for `<video>` playback (Safari refuses
+    // to play media without 206 responses) and for seek-past-buffered
+    // in `<audio>`. When no Range header is sent we fall through to
+    // the existing full-file pipe.
+    const rangeHeader = req.headers.range;
+    if (rangeHeader) {
+      const range = parseRange(rangeHeader, stat.size);
+      if (!range) {
+        res.setHeader("Content-Range", `bytes */${stat.size}`);
+        res.status(416).json({ error: "Range not satisfiable" });
         return;
       }
-      res.status(500).json({ error: `Failed to read file: ${err.message}` });
-    });
-    stream.pipe(res);
+      res.status(206);
+      res.setHeader(
+        "Content-Range",
+        `bytes ${range.start}-${range.end}/${stat.size}`,
+      );
+      res.setHeader("Content-Length", String(range.end - range.start + 1));
+      pipeWithErrorHandling(
+        fs.createReadStream(absPath, { start: range.start, end: range.end }),
+        res,
+      );
+      return;
+    }
+
+    res.setHeader("Content-Length", String(stat.size));
+    pipeWithErrorHandling(fs.createReadStream(absPath), res);
   },
 );
 

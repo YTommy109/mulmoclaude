@@ -42,7 +42,15 @@ const PER_MESSAGE_MAX = 500;
 
 // Spawn / budget constants.
 const DEFAULT_TIMEOUT_MS = 120_000;
-const MAX_BUDGET_USD = 0.05;
+// Budget cap per summarization call, forwarded to `claude
+// --max-budget-usd`. Previously 0.05 but that was tight enough
+// that a first-burst call — which pays a one-time cache creation
+// cost on haiku (~28k cache-creation tokens) — would trip the cap
+// and fail with `error_max_budget_usd` even for tiny 600-char
+// transcripts. 0.15 leaves comfortable headroom for cache
+// creation + a generous output allowance while still capping a
+// full 100-session backfill to well under $20.
+const MAX_BUDGET_USD = 0.15;
 
 // Any module that wants to drive the summarizer — including the
 // indexer — takes a SummarizeFn so tests can supply a deterministic
@@ -120,6 +128,73 @@ export function parseClaudeJsonResult(stdout: string): SummaryResult {
     );
   }
   return validateSummaryResult(parsed.structured_output);
+}
+
+// Build the error message for a non-zero `claude` CLI exit.
+//
+// The claude CLI writes its structured result — including error
+// envelopes like `{"is_error":true,"subtype":"error_max_budget_usd",
+// "errors":["Reached maximum budget ($0.05)"]}` — to **stdout**,
+// not stderr. Our previous handler only inspected stderr, so
+// budget-exhaustion and similar failures surfaced as
+// `claude summarize exited 1:` with no details at all, making
+// them impossible to diagnose from the log.
+//
+// Strategy: try to parse stdout as a claude JSON envelope first
+// and extract a human-readable reason from `errors[]` /
+// `subtype` / `result`; fall back to stderr, then to a raw
+// stdout slice, then to a generic "no error output".
+export function formatSpawnError(
+  code: number | null,
+  stdout: string,
+  stderr: string,
+): string {
+  const structured = extractStructuredError(stdout);
+  if (structured !== null) {
+    return `[chat-index] claude summarize exited ${code}: ${structured}`;
+  }
+  const trimmedStderr = stderr.trim();
+  if (trimmedStderr.length > 0) {
+    return `[chat-index] claude summarize exited ${code}: ${trimmedStderr.slice(0, 500)}`;
+  }
+  const trimmedStdout = stdout.trim();
+  if (trimmedStdout.length > 0) {
+    return `[chat-index] claude summarize exited ${code}: ${trimmedStdout.slice(0, 500)}`;
+  }
+  return `[chat-index] claude summarize exited ${code}: no error output`;
+}
+
+// Attempts to extract a useful error reason from a claude JSON
+// envelope. Returns null when stdout is not parseable JSON or
+// the envelope does not indicate an error.
+function extractStructuredError(stdout: string): string | null {
+  const text = stdout.trim();
+  if (text.length === 0) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const obj = parsed as Record<string, unknown>;
+  if (obj.is_error !== true) return null;
+
+  // Prefer the explicit errors[] list if present.
+  if (Array.isArray(obj.errors) && obj.errors.length > 0) {
+    const joined = obj.errors
+      .filter((e): e is string => typeof e === "string")
+      .join("; ");
+    if (joined.length > 0) return joined;
+  }
+  // Fall back to subtype (e.g. "error_max_budget_usd") with an
+  // optional result string for context.
+  const subtype = typeof obj.subtype === "string" ? obj.subtype : "";
+  const result = typeof obj.result === "string" ? obj.result : "";
+  if (subtype.length > 0 && result.length > 0) return `${subtype}: ${result}`;
+  if (subtype.length > 0) return subtype;
+  if (result.length > 0) return result;
+  return "unknown error (no errors / subtype / result fields)";
 }
 
 // Runtime-validate an arbitrary value into a SummaryResult. Missing
@@ -217,11 +292,7 @@ function spawnClaudeSummarize(
       settled = true;
       clearTimeout(timer);
       if (code !== 0) {
-        reject(
-          new Error(
-            `[chat-index] claude summarize exited ${code}: ${stderr.slice(0, 500)}`,
-          ),
-        );
+        reject(new Error(formatSpawnError(code, stdout, stderr)));
         return;
       }
       resolve(stdout);

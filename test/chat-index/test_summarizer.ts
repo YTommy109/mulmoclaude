@@ -5,6 +5,7 @@ import {
   truncate,
   parseClaudeJsonResult,
   validateSummaryResult,
+  formatSpawnError,
 } from "../../server/chat-index/summarizer.js";
 
 describe("extractText", () => {
@@ -167,5 +168,72 @@ describe("validateSummaryResult", () => {
       keywords: "not an array",
     });
     assert.deepEqual(out.keywords, []);
+  });
+});
+
+describe("formatSpawnError", () => {
+  it("extracts errors[] from the claude JSON envelope on stdout", () => {
+    const stdout = JSON.stringify({
+      is_error: true,
+      subtype: "error_max_budget_usd",
+      errors: ["Reached maximum budget ($0.05)"],
+    });
+    const msg = formatSpawnError(1, stdout, "");
+    assert.match(msg, /exited 1/);
+    assert.match(msg, /Reached maximum budget/);
+  });
+
+  it("joins multiple structured errors with '; '", () => {
+    const stdout = JSON.stringify({
+      is_error: true,
+      errors: ["first problem", "second problem"],
+    });
+    const msg = formatSpawnError(1, stdout, "");
+    assert.match(msg, /first problem; second problem/);
+  });
+
+  it("falls back to subtype + result when errors[] is missing", () => {
+    const stdout = JSON.stringify({
+      is_error: true,
+      subtype: "rate_limited",
+      result: "try again later",
+    });
+    const msg = formatSpawnError(1, stdout, "");
+    assert.match(msg, /rate_limited: try again later/);
+  });
+
+  it("falls back to stderr when stdout has no structured error", () => {
+    const msg = formatSpawnError(1, "not json", "bad thing happened");
+    assert.match(msg, /bad thing happened/);
+  });
+
+  it("ignores successful envelopes on stdout (is_error !== true)", () => {
+    const stdout = JSON.stringify({
+      structured_output: { title: "t", summary: "s", keywords: [] },
+    });
+    const msg = formatSpawnError(1, stdout, "real stderr message");
+    assert.match(msg, /real stderr message/);
+  });
+
+  it("falls back to raw stdout when stderr is empty and stdout is non-json", () => {
+    const msg = formatSpawnError(1, "raw garbage output", "");
+    assert.match(msg, /raw garbage output/);
+  });
+
+  it("produces a useful message when both streams are empty", () => {
+    const msg = formatSpawnError(1, "", "");
+    assert.match(msg, /no error output/);
+  });
+
+  it("handles a null exit code (killed)", () => {
+    const msg = formatSpawnError(null, "", "");
+    assert.match(msg, /exited null/);
+  });
+
+  it("truncates a very long stderr fallback", () => {
+    const long = "x".repeat(5000);
+    const msg = formatSpawnError(1, "", long);
+    // 500 chars cap, plus the prefix "...exited 1: "
+    assert.ok(msg.length < 600);
   });
 });
