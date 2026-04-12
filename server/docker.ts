@@ -115,3 +115,31 @@ export async function ensureSandboxImage(): Promise<void> {
     console.log("[sandbox] Sandbox image built.");
   }
 }
+
+/**
+ * Return the IPv4 gateway address of Docker's default bridge network,
+ * or null if it cannot be determined. Docker containers using
+ * `--add-host host.docker.internal:host-gateway` resolve to this IP,
+ * so the server must listen on it for MCP server → host HTTP calls.
+ *
+ * We query the Docker daemon directly rather than reading
+ * `os.networkInterfaces()` because Node skips the `docker0` interface
+ * when its link state is DOWN (which it is whenever no containers are
+ * running — exactly when we need the IP at server startup).
+ */
+export async function getDockerBridgeIp(): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("docker", [
+      "network",
+      "inspect",
+      "bridge",
+      "-f",
+      "{{(index .IPAM.Config 0).Gateway}}",
+    ]);
+    const ip = stdout.trim();
+    // Sanity-check: must look like an IPv4 address
+    return /^\d+\.\d+\.\d+\.\d+$/.test(ip) ? ip : null;
+  } catch {
+    return null;
+  }
+}

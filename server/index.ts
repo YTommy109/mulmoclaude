@@ -24,7 +24,11 @@ import {
 import { initWorkspace } from "./workspace.js";
 import fs from "fs";
 import os from "os";
-import { isDockerAvailable, ensureSandboxImage } from "./docker.js";
+import {
+  isDockerAvailable,
+  ensureSandboxImage,
+  getDockerBridgeIp,
+} from "./docker.js";
 import { maybeRunJournal } from "./journal/index.js";
 import { backfillAllSessions } from "./chat-index/index.js";
 import { createPubSub } from "./pub-sub/index.js";
@@ -260,6 +264,25 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
   const httpServer = app.listen(PORT, "127.0.0.1", () => {
     startRuntimeServices(httpServer);
   });
+
+  // When Docker sandbox is active, the MCP server subprocess runs
+  // inside a container and reaches the host via
+  // `host.docker.internal`, which resolves to the docker0 bridge
+  // gateway (typically 172.17.0.1). The primary listener on
+  // 127.0.0.1 rejects these connections, so we open a secondary
+  // listener on the bridge IP. This is scoped to the Docker
+  // virtual network — not the LAN — so the security posture stays
+  // the same as localhost-only.
+  if (sandboxEnabled) {
+    const bridgeIp = await getDockerBridgeIp();
+    if (bridgeIp) {
+      app.listen(PORT, bridgeIp, () => {
+        console.log(
+          `[sandbox] Also listening on ${bridgeIp}:${PORT} for Docker MCP bridge`,
+        );
+      });
+    }
+  }
 })();
 
 function registerDebugTasks(taskManager: ITaskManager, pubsub: IPubSub) {
