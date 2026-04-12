@@ -233,7 +233,8 @@ const updateCanvasSize = () => {
   if (canvasContainer) {
     const containerRect = canvasContainer.getBoundingClientRect();
 
-    const newWidth = Math.floor(containerRect.width);
+    const padding = 32; // p-4 = 16px each side
+    const newWidth = Math.floor(containerRect.width - padding);
     const newHeight = Math.floor((newWidth * 9) / 16);
 
     // Only update if the size actually changed to avoid unnecessary re-renders
