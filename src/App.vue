@@ -502,14 +502,8 @@ import {
   type SessionSummary,
   type SessionEntry,
   type ActiveSession,
-  isTextEntry,
-  isToolResultEntry,
 } from "./types/session";
-import {
-  isUserTextResponse,
-  extractImageData,
-  makeTextResult,
-} from "./utils/tools/result";
+import { extractImageData, makeTextResult } from "./utils/tools/result";
 import {
   roleIcon as roleIconLookup,
   roleName as roleNameLookup,
@@ -522,6 +516,12 @@ import {
   findPendingToolCall,
   shouldSelectAssistantText,
 } from "./utils/agent/toolCalls";
+import { mergeSessionLists } from "./utils/session/mergeSessions";
+import {
+  parseSessionEntries,
+  resolveSelectedUuid,
+  resolveSessionTimestamps,
+} from "./utils/session/sessionEntries";
 import { usePendingCalls } from "./composables/usePendingCalls";
 import { useClickOutside } from "./composables/useClickOutside";
 import { useCanvasViewMode } from "./composables/useCanvasViewMode";
@@ -758,36 +758,9 @@ const selectedResult = computed(
 // the sidebar, not regress to the raw first user message. Without
 // this merge, opening an indexed session immediately clobbered its
 // sidebar row with the first-user-message preview.
-const mergedSessions = computed((): SessionSummary[] => {
-  const liveIds = new Set(sessionMap.keys());
-  const serverById = new Map<string, SessionSummary>(
-    sessions.value.map((s) => [s.id, s]),
-  );
-  const liveSummaries: SessionSummary[] = [...sessionMap.values()].map((s) => {
-    const firstUserMsg = s.toolResults.find(isUserTextResponse);
-    const serverEntry = serverById.get(s.id);
-    return {
-      id: s.id,
-      roleId: s.roleId,
-      startedAt: s.startedAt,
-      updatedAt: s.updatedAt,
-      preview: serverEntry?.preview || (firstUserMsg?.message ?? ""),
-      ...(serverEntry?.summary !== undefined && {
-        summary: serverEntry.summary,
-      }),
-      ...(serverEntry?.keywords !== undefined && {
-        keywords: serverEntry.keywords,
-      }),
-    };
-  });
-  const serverOnly = sessions.value.filter((s) => !liveIds.has(s.id));
-  return [...liveSummaries, ...serverOnly].sort((a, b) => {
-    const byUpdated =
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-    if (byUpdated !== 0) return byUpdated;
-    return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
-  });
-});
+const mergedSessions = computed((): SessionSummary[] =>
+  mergeSessionLists([...sessionMap.values()], sessions.value),
+);
 
 const tabSessions = computed(() => mergedSessions.value.slice(0, 6));
 
@@ -1050,40 +1023,15 @@ async function loadSession(id: string) {
 
   const meta = entries.find((e) => e.type === "session_meta");
   const roleId = meta?.roleId ?? currentRoleId.value;
-
-  const toolResultsList: ToolResultComplete[] = [];
-  for (const entry of entries) {
-    if (entry.type === "session_meta") continue;
-    if (isTextEntry(entry)) {
-      toolResultsList.push(makeTextResult(entry.message, entry.source));
-    } else if (isToolResultEntry(entry)) {
-      toolResultsList.push(entry.result);
-    }
-  }
-
-  // If the URL specifies ?result=, prefer it over the heuristic
-  // (which picks the last non-text tool result). This lets bookmarks
-  // restore the exact result the user was looking at.
+  const toolResultsList = parseSessionEntries(entries);
   const urlResult =
     typeof route.query.result === "string" ? route.query.result : null;
-  const lastTool = [...toolResultsList]
-    .reverse()
-    .find((r) => r.toolName !== "text-response");
-  const heuristicUuid =
-    lastTool?.uuid ?? toolResultsList[toolResultsList.length - 1]?.uuid ?? null;
-  const resolvedSelectedUuid =
-    urlResult && toolResultsList.some((r) => r.uuid === urlResult)
-      ? urlResult
-      : heuristicUuid;
-
+  const resolvedSelectedUuid = resolveSelectedUuid(toolResultsList, urlResult);
   const serverSummary = sessions.value.find((s) => s.id === id);
-  const nowIso = new Date().toISOString();
-  const originalStartedAt = serverSummary?.startedAt ?? nowIso;
-  // Prefer the server's mtime-derived updatedAt so the loaded
-  // session keeps its place in the most-recently-touched sort;
-  // fall back to startedAt or now if the server summary is absent.
-  const originalUpdatedAt =
-    serverSummary?.updatedAt ?? originalStartedAt ?? nowIso;
+  const { startedAt, updatedAt } = resolveSessionTimestamps(
+    serverSummary,
+    new Date().toISOString(),
+  );
 
   sessionMap.set(id, {
     id,
@@ -1095,8 +1043,8 @@ async function loadSession(id: string) {
     selectedResultUuid: resolvedSelectedUuid,
     hasUnread: false,
     abortController: markRaw(new AbortController()),
-    startedAt: originalStartedAt,
-    updatedAt: originalUpdatedAt,
+    startedAt,
+    updatedAt,
   });
   navigateToSession(id, replaced);
   currentRoleId.value = roleId;
