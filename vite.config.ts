@@ -9,6 +9,8 @@ export default defineConfig({
   },
   server: {
     host: true,
+    port: 8000,
+    allowedHosts: ['mulmoclaude.exe.xyz'],
     proxy: {
       '/api': {
         target: 'http://localhost:3001',

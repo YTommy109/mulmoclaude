@@ -25,7 +25,7 @@ cp .env.example .env
 yarn dev
 ```
 
-This starts both the frontend (Vite) and the backend (Express + Claude Code agent) concurrently. Open [http://localhost:5173](http://localhost:5173) in your browser.
+This starts both the frontend (Vite) and the backend (Express + Claude Code agent) concurrently. Open [http://localhost:8000](http://localhost:8000) in your browser.
 
 ### Why do you need a Gemini API key?
 
