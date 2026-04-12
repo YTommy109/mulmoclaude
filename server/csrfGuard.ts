@@ -33,6 +33,17 @@ const LOCALHOST_HOSTNAMES: ReadonlySet<string> = new Set([
   "::1",
 ]);
 
+// Extra allowed origins from the ALLOWED_ORIGINS environment
+// variable (comma-separated full origins, e.g.
+// "https://mulmoclaude.exe.xyz:5173,https://other.example").
+// Parsed once at module load time.
+const EXTRA_ALLOWED_ORIGINS: ReadonlySet<string> = new Set(
+  (process.env.ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
+
 // Decide whether an Origin header value points at the same
 // machine. Accepts scheme + hostname + optional port; rejects
 // `null`, empty, malformed, subdomain-lookalikes, non-loopback
@@ -46,6 +57,17 @@ export function isLocalhostOrigin(origin: string): boolean {
     return false;
   }
   return LOCALHOST_HOSTNAMES.has(url.hostname);
+}
+
+// Check whether the origin is explicitly listed in
+// ALLOWED_ORIGINS. Compares the full origin string
+// (scheme + host + port) so "https://foo:5173" !=
+// "https://foo:3001". Exported for test.
+export function isAllowedOrigin(origin: string): boolean {
+  if (!origin || EXTRA_ALLOWED_ORIGINS.size === 0) return false;
+  // Normalize: strip a single trailing slash if present.
+  const normalized = origin.endsWith("/") ? origin.slice(0, -1) : origin;
+  return EXTRA_ALLOWED_ORIGINS.has(normalized);
 }
 
 // Express middleware. Safe-method requests (GET / HEAD / OPTIONS)
@@ -70,7 +92,7 @@ export function requireSameOrigin(
     next();
     return;
   }
-  if (isLocalhostOrigin(origin)) {
+  if (isLocalhostOrigin(origin) || isAllowedOrigin(origin)) {
     next();
     return;
   }
