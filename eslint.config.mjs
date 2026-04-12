@@ -69,17 +69,21 @@ export default [
       "no-console": "off",
       "import/no-cycle": "error",
       "sonarjs/no-ignored-exceptions": "error",
-      "sonarjs/redundant-type-aliases": "off",
       "sonarjs/todo-tag": "off",
       "sonarjs/no-commented-code": "off",
-      "sonarjs/no-unused-vars": "warn",
       "sonarjs/no-nested-conditional": "off",
       "sonarjs/cognitive-complexity": "error",
+      // `@typescript-eslint/no-unused-vars` already covers this and
+      // honours the `^__` ignore pattern (see its options above); the
+      // sonarjs version has no configurable options so it can't
+      // exempt intentionally-discarded destructuring targets like
+      // `const { result: __result, ...rest } = ...`. Disable to avoid
+      // double-reporting and to let the `__` convention work.
+      "sonarjs/no-unused-vars": "off",
       // MulmoClaude is a local desktop app — spawning claude/docker/git
       // via PATH is normal operation, not a server-side injection risk.
       "sonarjs/no-os-command-from-path": "off",
-      "sonarjs/cors": "off",
-      "sonarjs/pseudo-random": "warn",
+      "sonarjs/cors": "off"
     },
     plugins: {
       prettier: prettierPlugin,
@@ -127,11 +131,6 @@ export default [
       // sanitised markdown. Warn so the justified usage doesn't
       // block CI — audit per-use at review time.
       "vue/no-v-html": "warn",
-      // Stylistic and auto-fixable via `eslint --fix`. Demote so
-      // a mass auto-fix PR can land cleanly in one commit without
-      // first triggering CI failures.
-      "vue/attributes-order": "warn",
-      "vue/attribute-hyphenation": "warn",
     },
   },
   eslintConfigPrettier,
