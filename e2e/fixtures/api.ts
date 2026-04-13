@@ -114,4 +114,13 @@ export async function mockAllApis(
       json: { name: "", path: "", type: "dir", children: [] },
     }),
   );
+
+  // Default Settings response. Per-test specs (e.g. settings.spec.ts)
+  // can override with a later page.route() which wins due to
+  // Playwright's reverse-order matching.
+  await page.route(urlEndsWith("/api/config"), (route) =>
+    route.fulfill({
+      json: { settings: { extraAllowedTools: [] }, mcp: { servers: [] } },
+    }),
+  );
 }

@@ -3,6 +3,7 @@ import { homedir, tmpdir } from "os";
 import type { Role } from "../../src/config/roles.js";
 import { mcpTools, isMcpToolEnabled } from "../mcp-tools/index.js";
 import { MCP_PLUGIN_NAMES } from "../plugin-names.js";
+import type { McpServerSpec } from "../config.js";
 
 export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
@@ -32,10 +33,100 @@ export interface McpConfigParams {
   activePlugins: string[];
   roleIds: string[];
   useDocker?: boolean;
+  // User-defined MCP servers from <workspace>/configs/mcp.json.
+  // Keys become the server id in the generated --mcp-config file;
+  // values are the standard Claude CLI server spec (HTTP or stdio).
+  userServers?: Record<string, McpServerSpec>;
 }
 
-export function buildMcpConfig(params: McpConfigParams): object {
-  const { sessionId, port, activePlugins, roleIds, useDocker = false } = params;
+// In Docker mode the sandbox container can't reach the host's
+// `localhost` / `127.0.0.1` — those refer to the container's own
+// loopback interface. Rewriting to `host.docker.internal` keeps
+// user-configured local MCP servers reachable.
+export function rewriteLocalhostForDocker(
+  url: string,
+  useDocker: boolean,
+): string {
+  if (!useDocker) return url;
+  return url.replace(
+    /^(https?:\/\/)(localhost|127\.0\.0\.1)(?=[:/]|$)/,
+    "$1host.docker.internal",
+  );
+}
+
+function prepareUserHttpServer(
+  spec: Extract<McpServerSpec, { type: "http" }>,
+  useDocker: boolean,
+): McpServerSpec {
+  return {
+    ...spec,
+    url: rewriteLocalhostForDocker(spec.url, useDocker),
+  };
+}
+
+// Rewrite stdio args so paths that point inside the host workspace are
+// translated to their container equivalents. Paths outside the
+// workspace are left alone — the caller surfaces a warning in the UI
+// before they get this far.
+function prepareUserStdioServer(
+  spec: Extract<McpServerSpec, { type: "stdio" }>,
+  useDocker: boolean,
+  hostWorkspacePath: string,
+): McpServerSpec {
+  if (!useDocker) return spec;
+  const normalisedWs = hostWorkspacePath.endsWith("/")
+    ? hostWorkspacePath
+    : `${hostWorkspacePath}/`;
+  const args = spec.args?.map((arg) => {
+    if (arg === hostWorkspacePath) return CONTAINER_WORKSPACE_PATH;
+    if (arg.startsWith(normalisedWs)) {
+      const rel = arg.slice(normalisedWs.length);
+      return `${CONTAINER_WORKSPACE_PATH}/${rel}`;
+    }
+    return arg;
+  });
+  return { ...spec, args };
+}
+
+export function prepareUserServers(
+  userServers: Record<string, McpServerSpec>,
+  useDocker: boolean,
+  hostWorkspacePath: string,
+): Record<string, McpServerSpec> {
+  const out: Record<string, McpServerSpec> = {};
+  for (const [id, spec] of Object.entries(userServers)) {
+    if (spec.enabled === false) continue;
+    if (spec.type === "http") {
+      out[id] = prepareUserHttpServer(spec, useDocker);
+    } else {
+      out[id] = prepareUserStdioServer(spec, useDocker, hostWorkspacePath);
+    }
+  }
+  return out;
+}
+
+// When running in Docker the MCP server subprocess won't inherit the host
+// environment. Pass sentinel values for required env vars of enabled tools
+// so isMcpToolEnabled() returns the same result inside the container.
+// The actual API calls happen on the host server, so real values aren't needed.
+function collectMcpToolSentinelEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const tool of mcpTools.filter(isMcpToolEnabled)) {
+    for (const key of tool.requiredEnv ?? []) {
+      if (process.env[key]) env[key] = "1";
+    }
+  }
+  return env;
+}
+
+function buildMulmoclaudeServer(params: {
+  sessionId: string;
+  port: number;
+  activePlugins: string[];
+  roleIds: string[];
+  useDocker: boolean;
+}): object {
+  const { sessionId, port, activePlugins, roleIds, useDocker } = params;
   const projectRoot = process.cwd();
   const command = useDocker
     ? "tsx"
@@ -44,40 +135,81 @@ export function buildMcpConfig(params: McpConfigParams): object {
     ? "/app/server/mcp-server.ts"
     : join(projectRoot, "server/mcp-server.ts");
 
-  // When running in Docker the MCP server subprocess won't inherit the host
-  // environment. Pass sentinel values for required env vars of enabled tools
-  // so isMcpToolEnabled() returns the same result inside the container.
-  // The actual API calls happen on the host server, so real values aren't needed.
-  const mcpToolEnv: Record<string, string> = {};
-  if (useDocker) {
-    for (const tool of mcpTools.filter(isMcpToolEnabled)) {
-      for (const key of tool.requiredEnv ?? []) {
-        if (process.env[key]) mcpToolEnv[key] = "1";
+  const dockerEnv = useDocker
+    ? {
+        MCP_HOST: "host.docker.internal",
+        NODE_PATH: "/app/node_modules",
+        ...collectMcpToolSentinelEnv(),
       }
-    }
-  }
+    : {};
 
   return {
-    mcpServers: {
-      mulmoclaude: {
-        command,
-        args: [mcpServerPath],
-        env: {
-          SESSION_ID: sessionId,
-          PORT: String(port),
-          PLUGIN_NAMES: activePlugins.join(","),
-          ROLE_IDS: roleIds.join(","),
-          ...(useDocker
-            ? {
-                MCP_HOST: "host.docker.internal",
-                NODE_PATH: "/app/node_modules",
-                ...mcpToolEnv,
-              }
-            : {}),
-        },
-      },
+    command,
+    args: [mcpServerPath],
+    env: {
+      SESSION_ID: sessionId,
+      PORT: String(port),
+      PLUGIN_NAMES: activePlugins.join(","),
+      ROLE_IDS: roleIds.join(","),
+      ...dockerEnv,
     },
   };
+}
+
+// Never let a user-defined server shadow the built-in internal bridge —
+// even if they pick "mulmoclaude" as the id. Drop the entry silently:
+// the UI already validates ids against the slug pattern, so this is
+// defence-in-depth.
+function excludeReservedKeys(
+  servers: Record<string, McpServerSpec>,
+): Record<string, McpServerSpec> {
+  const out: Record<string, McpServerSpec> = {};
+  for (const [id, spec] of Object.entries(servers)) {
+    if (id === "mulmoclaude") continue;
+    out[id] = spec;
+  }
+  return out;
+}
+
+export function buildMcpConfig(params: McpConfigParams): object {
+  const {
+    sessionId,
+    port,
+    activePlugins,
+    roleIds,
+    useDocker = false,
+    userServers = {},
+  } = params;
+  return {
+    mcpServers: {
+      mulmoclaude: buildMulmoclaudeServer({
+        sessionId,
+        port,
+        activePlugins,
+        roleIds,
+        useDocker,
+      }),
+      ...excludeReservedKeys(userServers),
+    },
+  };
+}
+
+// User-facing `mcp__<server>` wildcard form for --allowedTools. Enabled
+// HTTP servers always participate; stdio servers only participate when
+// we're running natively (since the sandbox image is minimal in Docker).
+export function userServerAllowedToolNames(
+  userServers: Record<string, McpServerSpec>,
+  useDocker: boolean,
+): string[] {
+  const names: string[] = [];
+  for (const [id, spec] of Object.entries(userServers)) {
+    if (spec.enabled === false) continue;
+    // Stdio servers are dropped under Docker because the sandbox
+    // image is too minimal to run most of them (see #162).
+    if (spec.type === "stdio" && useDocker) continue;
+    names.push(`mcp__${id}`);
+  }
+  return names;
 }
 
 export interface CliArgsParams {
@@ -86,6 +218,9 @@ export interface CliArgsParams {
   claudeSessionId?: string;
   message: string;
   mcpConfigPath?: string;
+  // Web UI-managed extension of the allowed-tools list. Merged with
+  // BASE_ALLOWED_TOOLS and the mcp__mulmoclaude__ plugin names.
+  extraAllowedTools?: string[];
 }
 
 export function buildCliArgs(params: CliArgsParams): string[] {
@@ -95,10 +230,15 @@ export function buildCliArgs(params: CliArgsParams): string[] {
     claudeSessionId,
     message,
     mcpConfigPath,
+    extraAllowedTools = [],
   } = params;
 
   const mcpToolNames = activePlugins.map((p) => `mcp__mulmoclaude__${p}`);
-  const allowedTools = [...BASE_ALLOWED_TOOLS, ...mcpToolNames];
+  const allowedTools = [
+    ...BASE_ALLOWED_TOOLS,
+    ...extraAllowedTools,
+    ...mcpToolNames,
+  ];
 
   const args = [
     "--output-format",
