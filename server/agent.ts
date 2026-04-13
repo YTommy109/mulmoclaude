@@ -20,6 +20,7 @@ import {
   type AgentEvent,
   type RawStreamEvent,
 } from "./agent/stream.js";
+import { log } from "./logger/index.js";
 
 type ClaudeProc = ChildProcessByStdio<null, Readable, Readable>;
 
@@ -46,8 +47,16 @@ function spawnClaude(
 
 async function* readAgentEvents(proc: ClaudeProc): AsyncGenerator<AgentEvent> {
   let stderrOutput = "";
+  let stderrBuffer = "";
   proc.stderr.on("data", (chunk: Buffer) => {
-    stderrOutput += chunk.toString();
+    const text = chunk.toString();
+    stderrOutput += text;
+    stderrBuffer += text;
+    const lines = stderrBuffer.split("\n");
+    stderrBuffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line.trim()) log.error("agent-stderr", line);
+    }
   });
 
   let buffer = "";
@@ -73,6 +82,9 @@ async function* readAgentEvents(proc: ClaudeProc): AsyncGenerator<AgentEvent> {
   const exitCode = await new Promise<number>((resolve) =>
     proc.on("close", resolve),
   );
+
+  if (stderrBuffer.trim()) log.error("agent-stderr", stderrBuffer);
+  log.info("agent", "claude exited", { exitCode });
 
   if (exitCode !== 0) {
     yield {
@@ -137,6 +149,17 @@ export async function* runAgent(
     mcpConfigPath: hasMcp ? mcpPaths.argPath : undefined,
   });
 
+  // Don't persist raw sessionId into log sinks (esp. the retained
+  // file sink). A boolean presence flag is enough for operational
+  // debugging and avoids writing identifiers that route back to a
+  // specific session into long-lived log files.
+  log.info("agent", "spawning claude", {
+    roleId: role.id,
+    useDocker,
+    hasMcp,
+    resumed: Boolean(claudeSessionId),
+    hasSessionId: Boolean(sessionId),
+  });
   const proc = spawnClaude(useDocker, workspacePath, cliArgs);
 
   try {

@@ -41,6 +41,7 @@ import {
 import { rewriteWorkspaceLinks } from "./linkRewrite.js";
 import { writeState, type JournalState } from "./state.js";
 import { readTextOrNull } from "../utils/fs.js";
+import { log } from "../logger/index.js";
 
 // --- Constants ------------------------------------------------------
 
@@ -201,9 +202,9 @@ async function processOneDay(
 
   const parsed = parseArchivistOutput(rawOutput);
   if (parsed === null) {
-    console.warn(
-      `[journal] archivist returned unusable JSON for ${date}, skipping`,
-    );
+    log.warn("journal", "archivist returned unusable JSON, skipping", {
+      date,
+    });
     return { kind: "skipped", reason: "unusable archivist JSON" };
   }
 
@@ -240,7 +241,10 @@ async function callSummarizeForDay(
     return await summarize(DAILY_SYSTEM_PROMPT, buildDailyUserPrompt(input));
   } catch (err) {
     if (err instanceof ClaudeCliNotFoundError) throw err;
-    console.warn(`[journal] summarize failed for ${date}, skipping day:`, err);
+    log.warn("journal", "summarize failed, skipping day", {
+      date,
+      error: String(err),
+    });
     return null;
   }
 }
@@ -289,10 +293,10 @@ async function processTopicUpdatesForDay(
         existingTopics,
       );
     } catch (err) {
-      console.warn(
-        `[journal] failed to apply topic update for ${normalized.slug}:`,
-        err,
-      );
+      log.warn("journal", "failed to apply topic update", {
+        slug: normalized.slug,
+        error: String(err),
+      });
     }
   }
   return { created, updated };
@@ -327,7 +331,10 @@ async function persistStateAfterDay(
   try {
     await writeState(workspaceRoot, state);
   } catch (err) {
-    console.warn(`[journal] failed to persist state after ${date}:`, err);
+    log.warn("journal", "failed to persist state after day", {
+      date,
+      error: String(err),
+    });
   }
 }
 
@@ -474,7 +481,10 @@ async function loadDirtySessionExcerpts(
       const excerpts = await loadSessionExcerptsByDate(chatDir, sessionId);
       if (excerpts.size > 0) perSession.set(sessionId, excerpts);
     } catch (err) {
-      console.warn(`[journal] failed to load session ${sessionId}:`, err);
+      log.warn("journal", "failed to load session", {
+        sessionId,
+        error: String(err),
+      });
     }
   }
   return perSession;

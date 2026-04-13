@@ -6,6 +6,7 @@ import puppeteer from "puppeteer";
 import { errorMessage } from "../utils/errors.js";
 import { workspacePath } from "../workspace.js";
 import { resolveWithinRoot } from "../utils/fs.js";
+import { log } from "../logger/index.js";
 
 const router = Router();
 
@@ -80,12 +81,12 @@ function inlineImages(html: string): string {
       // resolveWithinRoot check (it expects a relative path).
       const relToWorkspace = path.relative(workspaceReal, unsafeAbs);
       if (relToWorkspace.startsWith("..") || path.isAbsolute(relToWorkspace)) {
-        console.warn(`[pdf] image path escapes workspace: ${src}`);
+        log.warn("pdf", "image path escapes workspace", { src });
         return _match;
       }
       const abs = resolveWithinRoot(workspaceReal, relToWorkspace);
       if (!abs) {
-        console.warn(`[pdf] image path rejected by safe-resolve: ${src}`);
+        log.warn("pdf", "image path rejected by safe-resolve", { src });
         return _match;
       }
       try {
@@ -94,7 +95,7 @@ function inlineImages(html: string): string {
         const mime = MIME_BY_EXT[ext] ?? "application/octet-stream";
         return `${before}data:${mime};base64,${buf.toString("base64")}${after}`;
       } catch {
-        console.warn(`[pdf] could not read image: ${abs}`);
+        log.warn("pdf", "could not read image", { abs });
         return _match;
       }
     },
@@ -158,14 +159,12 @@ router.post(
     }
 
     try {
-      console.log(
-        `[pdf] markdown: filename="${filename}" length=${markdown.length}`,
-      );
+      log.info("pdf", "markdown", { filename, length: markdown.length });
       const html = inlineImages(await marked.parse(markdown));
       const buffer = await renderPdf(wrapHtml(html, MARKDOWN_CSS), format);
       sendPdf(res, buffer, filename);
     } catch (err) {
-      console.error("[pdf] generation failed:", err);
+      log.error("pdf", "generation failed", { error: String(err) });
       res
         .status(500)
         .json({ error: `PDF generation failed: ${errorMessage(err)}` });

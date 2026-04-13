@@ -24,6 +24,7 @@ import type { MulmoBeat, MulmoImagePromptMedia } from "@mulmocast/types";
 import { slugify } from "../utils/slug.js";
 import { resolveWithinRoot } from "../utils/fs.js";
 import { errorMessage } from "../utils/errors.js";
+import { log } from "../logger/index.js";
 
 const router = Router();
 const storiesDir = path.resolve(workspacePath, "stories");
@@ -372,19 +373,23 @@ router.post(
         getBeatAudioPathOrUrl(beat.text ?? "", context, beat, context.lang);
 
       if (!audioPath || !fs.existsSync(audioPath)) {
-        console.error(
-          `[generate-beat-audio] failed: beatIndex=${beatIndex} audioPath=${audioPath} exists=${audioPath ? fs.existsSync(audioPath) : false}`,
-        );
-        console.error(
-          `[generate-beat-audio] beat.text=${JSON.stringify(beat.text)} audioFile=${context.studio.beats[beatIndex]?.audioFile}`,
-        );
+        // Don't write raw `beat.text` into persistent logs — it's
+        // free-form user content and can contain sensitive data.
+        // Operational debug can use length + presence instead.
+        log.error("generate-beat-audio", "audio was not generated", {
+          beatIndex,
+          audioPath,
+          exists: audioPath ? fs.existsSync(audioPath) : false,
+          beatTextLength: typeof beat?.text === "string" ? beat.text.length : 0,
+          audioFilePresent: Boolean(context.studio.beats[beatIndex]?.audioFile),
+        });
         res.status(500).json({ error: "Audio was not generated" });
         return;
       }
 
       res.json({ audio: fileToDataUri(audioPath, "audio/mpeg") });
     } catch (err) {
-      console.error("[generate-beat-audio] error:", err);
+      log.error("generate-beat-audio", "error", { error: String(err) });
       res.status(500).json({ error: errorMessage(err) });
     }
   },

@@ -69,6 +69,15 @@ If Docker is not installed, the app shows a warning banner and continues to work
 
 > **Debug mode**: To run without the sandbox even when Docker is installed, set `DISABLE_SANDBOX=1` before starting the server.
 
+## Logging
+
+The server writes readable text to the console and full-fidelity JSON
+to rotating daily files under `server/logs/`. Everything is
+configurable via `LOG_LEVEL`, `LOG_*_FORMAT`, `LOG_FILE_DIR`, etc.
+
+See [docs/logging.md](docs/logging.md) for the full reference, format
+examples, rotation behaviour, and recipes.
+
 ## Roles
 
 Each role gives Claude a different persona, tool palette, and focus area:
