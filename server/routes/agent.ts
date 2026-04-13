@@ -15,6 +15,7 @@ import { workspacePath } from "../workspace.js";
 import { maybeRunJournal } from "../journal/index.js";
 import { maybeIndexSession } from "../chat-index/index.js";
 import { log } from "../logger/index.js";
+import { createArgsCache, recordToolEvent } from "../tool-trace/index.js";
 
 const router = Router();
 const PORT = Number(process.env.PORT) || 3001;
@@ -151,6 +152,12 @@ router.post(
       ? message
       : prependJournalPointer(message, workspacePath);
 
+    // Per-turn cache used by the tool-trace driver to remember args
+    // from `tool_call` events so the matching `tool_call_result` can
+    // classify properly. Scoped to this handler so toolUseIds can't
+    // collide across turns.
+    const toolArgsCache = createArgsCache();
+
     try {
       for await (const event of runAgent(
         decoratedMessage,
@@ -177,6 +184,21 @@ router.post(
               message: event.message,
             }) + "\n",
           );
+        }
+        if (event.type === "tool_call" || event.type === "tool_call_result") {
+          // Fire-and-forget: tool-trace persistence failures must
+          // not block the SSE stream. Errors are log.warn'd by
+          // recordToolEvent itself.
+          recordToolEvent(event, {
+            workspaceRoot: workspacePath,
+            chatSessionId,
+            resultsFilePath,
+            argsCache: toolArgsCache,
+          }).catch((err) => {
+            log.warn("tool-trace", "unexpected error in background", {
+              error: String(err),
+            });
+          });
         }
       }
       send({ type: "status", message: "Done" });
