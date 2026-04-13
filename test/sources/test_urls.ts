@@ -158,7 +158,7 @@ describe("stableItemId", () => {
     );
   });
 
-  it("is always 8 hex chars (FNV-1a 32-bit)", () => {
+  it("is always 16 hex chars (SHA-256 truncated to 64 bits)", () => {
     for (const input of [
       "",
       "x",
@@ -166,8 +166,8 @@ describe("stableItemId", () => {
       "https://example.com/" + "x".repeat(1000),
     ]) {
       const id = stableItemId(input);
-      assert.equal(id.length, 8);
-      assert.match(id, /^[0-9a-f]{8}$/);
+      assert.equal(id.length, 16);
+      assert.match(id, /^[0-9a-f]{16}$/);
     }
   });
 

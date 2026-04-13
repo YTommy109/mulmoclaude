@@ -27,7 +27,17 @@ export function sourcesRoot(workspaceRoot: string): string {
   return path.join(workspaceRoot, SOURCES_DIR);
 }
 
+// Enforced by every slug-accepting path builder so a caller can't
+// accidentally pass `../other-source` (which path.join would
+// happily resolve outside workspaceRoot).
+function assertValidSlug(slug: string): void {
+  if (!isValidSlug(slug)) {
+    throw new Error(`[sources] invalid slug: "${slug}"`);
+  }
+}
+
 export function sourceFilePath(workspaceRoot: string, slug: string): string {
+  assertValidSlug(slug);
   return path.join(sourcesRoot(workspaceRoot), `${slug}.md`);
 }
 
@@ -36,6 +46,7 @@ export function sourceStateDir(workspaceRoot: string): string {
 }
 
 export function sourceStatePath(workspaceRoot: string, slug: string): string {
+  assertValidSlug(slug);
   return path.join(sourceStateDir(workspaceRoot), `${slug}.json`);
 }
 
@@ -76,6 +87,7 @@ export function dailyNewsPath(workspaceRoot: string, isoDate: string): string {
 }
 
 export function archiveDir(workspaceRoot: string, slug: string): string {
+  assertValidSlug(slug);
   return path.join(newsRoot(workspaceRoot), ARCHIVE_DIR, slug);
 }
 
@@ -92,6 +104,7 @@ export function archivePath(
   slug: string,
   yearMonth: string,
 ): string {
+  assertValidSlug(slug);
   const m = /^(\d{4})-(\d{2})$/.exec(yearMonth);
   if (!m) {
     throw new Error(

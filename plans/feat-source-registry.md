@@ -49,7 +49,7 @@ Claude-side fetchers don't need our robots checking — the `web_fetch` / `web_s
 
 Matches the `wiki/pages/*.md` pattern: one file per source, YAML frontmatter + optional markdown body.
 
-```
+```text
 workspace/
   sources/
     <slug>.md                    ← one file per source
@@ -118,7 +118,7 @@ Users can override categories manually — the next daily run reads the file as-
 
 Piggyback on the existing `server/task-manager/` daily schedule (same rhythm as `server/journal/`):
 
-```
+```text
 08:00 local time (configurable)
   ↓
 maybeAggregateSources({ activeSessionIds })  ← fire-and-forget from task-manager
@@ -174,7 +174,7 @@ The `test` action is the debugging surface: when a user asks "can I register thi
 
 ## File layout (new code)
 
-```
+```text
 server/sources/
   index.ts              ← maybeAggregateSources entry, lock + sentinel
   registry.ts           ← read / write per-source files + state
@@ -249,7 +249,7 @@ Rationale: the original 16 were tech-centric enough that everything non-tech col
 
 Files under `workspace/news/daily/YYYY/MM/DD.md` are human-readable markdown (headings, bullet items, links). At the tail of the file, a ```` ```json ```` fence contains a compact item index the dashboard (#143) can read without regex-scraping markdown:
 
-```markdown
+````markdown
 # Daily brief — 2026-04-13
 
 ## AI
@@ -266,7 +266,7 @@ Files under `workspace/news/daily/YYYY/MM/DD.md` are human-readable markdown (he
   "items": [{"id": "...", "title": "...", "url": "...", "categories": [...], "severity": null, "sourceSlug": "..."}]
 }
 ```
-```
+````
 
 Markdown viewers render the JSON block as a code block and ignore it; dashboard fetches the file and parses the last fenced block as JSON.
 

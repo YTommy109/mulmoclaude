@@ -224,7 +224,9 @@ describe("buildSource — validation", () => {
 });
 
 describe("serializeSource — round trip", () => {
-  function makeSource(over: Partial<Source> = {}): Source {
+  // Renamed from `makeSource` to avoid shadowing the module-level
+  // helper at line 319 (triggers `no-shadow` lint).
+  function makeRoundTripSource(over: Partial<Source> = {}): Source {
     return {
       slug: "hn",
       title: "Hacker News",
@@ -241,7 +243,7 @@ describe("serializeSource — round trip", () => {
   }
 
   it("round-trips a minimal Source", () => {
-    const source = makeSource();
+    const source = makeRoundTripSource();
     const serialized = serializeSource(source);
     const parsed = parseSourceFile(serialized);
     assert.ok(parsed);
@@ -251,7 +253,7 @@ describe("serializeSource — round trip", () => {
   });
 
   it("round-trips with fetcherParams", () => {
-    const source = makeSource({
+    const source = makeRoundTripSource({
       fetcherKind: "github-releases",
       fetcherParams: { github_repo: "anthropics/claude-code" },
     });
@@ -262,7 +264,7 @@ describe("serializeSource — round trip", () => {
   });
 
   it("round-trips notes body", () => {
-    const source = makeSource({
+    const source = makeRoundTripSource({
       notes: "# Notes\n\nWhy this source matters.\n",
     });
     const serialized = serializeSource(source);
@@ -274,7 +276,9 @@ describe("serializeSource — round trip", () => {
   it("quotes values that would confuse the flat-YAML parser", () => {
     // A title containing a colon would otherwise break the reader
     // because the parser splits on the first `:`.
-    const source = makeSource({ title: "Weekly: The Best of the Web" });
+    const source = makeRoundTripSource({
+      title: "Weekly: The Best of the Web",
+    });
     const serialized = serializeSource(source);
     const parsed = parseSourceFile(serialized);
     const rebuilt = buildSource(parsed!.fields, parsed!.body);
@@ -285,7 +289,7 @@ describe("serializeSource — round trip", () => {
     // `true`, `null`, numbers, dates — the reader currently
     // returns them as strings, but if we ever add YAML-native
     // scalar types this protects us.
-    const source = makeSource({ title: "true" });
+    const source = makeRoundTripSource({ title: "true" });
     const serialized = serializeSource(source);
     const parsed = parseSourceFile(serialized);
     const rebuilt = buildSource(parsed!.fields, parsed!.body);
@@ -293,7 +297,7 @@ describe("serializeSource — round trip", () => {
   });
 
   it("sorts fetcherParams alphabetically for stable diffs", () => {
-    const source = makeSource({
+    const source = makeRoundTripSource({
       fetcherParams: { z_key: "1", a_key: "2", m_key: "3" },
     });
     const serialized = serializeSource(source);
@@ -301,6 +305,28 @@ describe("serializeSource — round trip", () => {
     const mIdx = serialized.indexOf("m_key:");
     const zIdx = serialized.indexOf("z_key:");
     assert.ok(aIdx > 0 && mIdx > aIdx && zIdx > mIdx);
+  });
+
+  it("round-trips values with embedded double-quotes", () => {
+    // The serializer writes `\"` inside a double-quoted scalar;
+    // unquote() must JSON-decode the escape so the original string
+    // comes back. Without this, `He said "hi"` round-trips to
+    // `He said \"hi\"`.
+    const source = makeRoundTripSource({ title: 'He said "hi"' });
+    const serialized = serializeSource(source);
+    const parsed = parseSourceFile(serialized);
+    const rebuilt = buildSource(parsed!.fields, parsed!.body);
+    assert.equal(rebuilt!.title, 'He said "hi"');
+  });
+
+  it("round-trips values with backslashes", () => {
+    // `C:\tmp` would come back as `C:\\tmp` without proper escape
+    // handling.
+    const source = makeRoundTripSource({ title: "C:\\tmp\\data" });
+    const serialized = serializeSource(source);
+    const parsed = parseSourceFile(serialized);
+    const rebuilt = buildSource(parsed!.fields, parsed!.body);
+    assert.equal(rebuilt!.title, "C:\\tmp\\data");
   });
 });
 

@@ -6,41 +6,9 @@ import {
   type RateLimiterDeps,
 } from "../../server/sources/rateLimiter.js";
 
-// Build a controllable clock + sleep for deterministic tests.
-// `now()` returns a mutable counter; `sleep(ms)` advances the
-// counter synchronously and resolves on the next microtask so
-// task ordering is preserved without real timers.
-function makeFakeClock(start = 0): {
-  deps: RateLimiterDeps;
-  advance: (ms: number) => void;
-  readonly current: number;
-} {
-  const state = { current: start };
-  return {
-    current: 0,
-    get deps() {
-      return {
-        now: () => state.current,
-        sleep: (ms: number) => {
-          state.current += ms;
-          return Promise.resolve();
-        },
-      };
-    },
-    advance(ms: number) {
-      state.current += ms;
-    },
-    // Proxy so `current` reflects state live.
-    ...Object.defineProperty(
-      { advance: (ms: number) => (state.current += ms) },
-      "current",
-      { get: () => state.current },
-    ),
-  };
-}
-
-// Simpler alternative when we don't need live-binding; returns a
-// deps object plus direct state access.
+// Controllable clock + sleep for deterministic tests. Returns a
+// deps object plus direct state access so tests can advance time
+// without real timers.
 function controllableClock(start = 0): {
   deps: RateLimiterDeps;
   tick: (ms: number) => void;

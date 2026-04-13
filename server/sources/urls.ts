@@ -7,6 +7,8 @@
 //
 // Pure — no I/O, fully testable.
 
+import { createHash } from "node:crypto";
+
 // Tracking parameters we always strip. Case-insensitive on the
 // parameter NAME only.
 const TRACKING_PARAM_PREFIXES: readonly string[] = [
@@ -31,7 +33,7 @@ const TRACKING_PARAMS: ReadonlySet<string> = new Set([
   "share_source",
   "trk",
   "igshid",
-  "CMP",
+  "cmp",
 ]);
 
 function isTrackingParam(name: string): boolean {
@@ -108,23 +110,14 @@ export function normalizeUrl(raw: string): string | null {
   return url.toString();
 }
 
-// Stable content-addressed id for an item. Not cryptographically
-// strong — fast hash suitable for in-memory Set membership and
-// cross-run dedup. Node has `crypto.createHash` but we prefer a
-// synchronous string-in / string-out helper that's easy to drop
-// into a fetcher.
-//
-// Algorithm: FNV-1a 32-bit over the normalized URL, hex-encoded.
-// Collisions are extremely rare at our item volume (tens of
-// thousands over years). If dedup correctness ever depends on
-// this, upgrade to sha-256 — but watch the bundle size for the
-// Vue side if we ever ship this to the browser.
+// Stable content-addressed id for an item. Used for persistent
+// cross-run dedup of news items. Truncated SHA-256 gives ~64 bits
+// of collision resistance — safe into the billions of items, vs.
+// FNV-1a 32-bit which starts colliding in the tens of thousands
+// (birthday-paradox territory at our projected volume).
 export function stableItemId(normalizedUrl: string): string {
-  let hash = 0x811c9dc5; // FNV offset basis
-  for (let i = 0; i < normalizedUrl.length; i++) {
-    hash ^= normalizedUrl.charCodeAt(i);
-    // Multiply by FNV prime (0x01000193), mask to 32-bit.
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash.toString(16).padStart(8, "0");
+  return createHash("sha256")
+    .update(normalizedUrl, "utf8")
+    .digest("hex")
+    .slice(0, 16);
 }

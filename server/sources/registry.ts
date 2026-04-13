@@ -49,6 +49,7 @@ import {
 import { normalizeCategories } from "./taxonomy.js";
 import type { CategorySlug } from "./taxonomy.js";
 import { isValidSlug, sourceFilePath, sourcesRoot } from "./paths.js";
+import { log } from "../logger/index.js";
 
 // --- Frontmatter parsing ------------------------------------------------
 
@@ -122,11 +123,20 @@ function parseValue(raw: string): string | string[] {
 }
 
 function unquote(s: string): string {
-  if (
-    (s.startsWith('"') && s.endsWith('"')) ||
-    (s.startsWith("'") && s.endsWith("'"))
-  ) {
-    return s.slice(1, -1);
+  // Double-quoted strings: yamlScalar writes JSON-compatible escape
+  // sequences (\\ for \, \" for "), so JSON.parse reverses them in
+  // one shot. Fall back to a plain strip if the string is
+  // double-quoted but somehow malformed.
+  if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
+    try {
+      return JSON.parse(s);
+    } catch {
+      return s.slice(1, -1);
+    }
+  }
+  // Single-quoted scalars follow YAML's doubling convention: '' → '.
+  if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) {
+    return s.slice(1, -1).replace(/''/g, "'");
   }
   return s;
 }
@@ -323,8 +333,7 @@ export async function listSources(workspaceRoot: string): Promise<Source[]> {
     const source = await readSource(workspaceRoot, slug);
     if (source) out.push(source);
     else {
-      // eslint-disable-next-line no-console
-      console.warn(`[sources] failed to load source ${slug}, skipping`);
+      log.warn("sources", "failed to load source, skipping", { slug });
     }
   }
   // Deterministic sort by slug so callers can rely on stable order.
