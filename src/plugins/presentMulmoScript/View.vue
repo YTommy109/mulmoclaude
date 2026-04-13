@@ -21,12 +21,6 @@
           <span v-if="script.lang">{{ script.lang }}</span>
           <span v-if="filePath" class="truncate">{{ filePath }}</span>
         </div>
-        <button
-          class="mt-2 px-2 py-1 text-xs rounded border border-gray-300 text-gray-500 hover:bg-gray-50 self-start"
-          @click="toggleScriptSource"
-        >
-          {{ scriptSourceOpen ? "Hide Source <>" : "Show Source <>" }}
-        </button>
       </div>
       <div class="ml-4 shrink-0 flex gap-2">
         <!-- Download Movie -->
@@ -72,17 +66,6 @@
           </template>
         </button>
       </div>
-    </div>
-
-    <!-- Source code panel -->
-    <div v-if="scriptSourceOpen" class="border-b border-gray-100 shrink-0">
-      <textarea
-        :value="scriptSourceText"
-        readonly
-        class="w-full text-xs text-gray-600 bg-gray-50 p-3 font-mono resize-none outline-none"
-        rows="16"
-        spellcheck="false"
-      />
     </div>
 
     <!-- Characters section -->
@@ -448,7 +431,12 @@
         <div v-if="sourceOpen[index]" class="border-t border-gray-100">
           <textarea
             v-model="sourceText[index]"
-            class="w-full text-xs text-gray-600 bg-gray-50 p-2 font-mono resize-none outline-none"
+            class="w-full text-xs text-gray-600 bg-gray-50 p-2 font-mono resize-none"
+            :class="
+              isValidBeat(index)
+                ? 'outline-none'
+                : 'outline outline-2 outline-red-400'
+            "
             rows="8"
             spellcheck="false"
           />
@@ -475,6 +463,43 @@
       >
         No beats found in script
       </div>
+    </div>
+
+    <!-- Bottom bar: Edit Script Source + Copy -->
+    <div class="bottom-bar-wrapper">
+      <details
+        ref="sourceDetails"
+        class="script-source"
+        @toggle="onSourceToggle(($event.target as HTMLDetailsElement).open)"
+      >
+        <summary>Edit Script Source</summary>
+        <textarea
+          v-model="editableSource"
+          class="script-editor"
+          :class="{ 'script-editor-invalid': sourceChanged && !sourceValid }"
+          spellcheck="false"
+        ></textarea>
+        <div class="editor-actions">
+          <button
+            class="apply-btn"
+            :disabled="!sourceChanged || !sourceValid"
+            @click="applySource"
+          >
+            Apply Changes
+          </button>
+          <button class="cancel-btn" @click="cancelSourceEdit">Cancel</button>
+        </div>
+      </details>
+      <button
+        v-show="!editing"
+        class="copy-btn"
+        :title="copied ? 'Copied!' : 'Copy'"
+        @click="copyText"
+      >
+        <span class="material-icons">{{
+          copied ? "check" : "content_copy"
+        }}</span>
+      </button>
     </div>
 
     <!-- Lightbox -->
@@ -535,7 +560,7 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { MulmoScriptData } from "./index";
-import { mulmoBeatSchema } from "@mulmocast/types";
+import { mulmoBeatSchema, mulmoScriptSchema } from "@mulmocast/types";
 import {
   extractErrorMessage,
   getMissingCharacterKeys,
@@ -573,6 +598,7 @@ interface MulmoScript {
 const props = defineProps<{
   selectedResult: ToolResultComplete<MulmoScriptData>;
 }>();
+const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 
 const data = computed(() => props.selectedResult.data);
 const script = computed<MulmoScript>(() => data.value?.script ?? {});
@@ -665,11 +691,94 @@ function lightboxMove(delta: number) {
     i += delta;
   }
 }
-const scriptSourceOpen = ref(false);
-const scriptSourceText = computed(() => JSON.stringify(script.value, null, 2));
+const sourceDetails = ref<HTMLDetailsElement>();
+const editing = ref(false);
+const editableSource = ref("");
+const copied = ref(false);
 
-function toggleScriptSource() {
-  scriptSourceOpen.value = !scriptSourceOpen.value;
+const scriptSourceText = computed(() => JSON.stringify(script.value, null, 2));
+const loadedSource = ref("");
+const sourceChanged = computed(
+  () => editableSource.value !== loadedSource.value,
+);
+const sourceValid = computed(() => {
+  try {
+    const parsed = JSON.parse(editableSource.value);
+    return mulmoScriptSchema.safeParse(parsed).success;
+  } catch {
+    return false;
+  }
+});
+
+async function onSourceToggle(open: boolean) {
+  editing.value = open;
+  if (open) {
+    let text = scriptSourceText.value;
+    // Read the current file from disk so beat-level edits are reflected
+    if (filePath.value) {
+      try {
+        const res = await fetch(
+          `/api/files/content?path=${encodeURIComponent(filePath.value)}`,
+        );
+        if (res.ok) {
+          const json: { content?: string } = await res.json();
+          if (json.content) text = json.content;
+        }
+      } catch {
+        // fall through to in-memory script
+      }
+    }
+    editableSource.value = text;
+    loadedSource.value = text;
+  }
+}
+
+function cancelSourceEdit() {
+  if (sourceDetails.value) sourceDetails.value.open = false;
+}
+
+async function applySource() {
+  let parsed: MulmoScript;
+  try {
+    parsed = JSON.parse(editableSource.value);
+    const res = await fetch("/api/mulmo-script/update-script", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filePath: filePath.value, script: parsed }),
+    });
+    if (!res.ok) {
+      const json = await res.json();
+      throw new Error(json.error ?? "Update failed");
+    }
+  } catch (err) {
+    alert(extractErrorMessage(err));
+    return;
+  }
+
+  // Update the UI with the new script.
+  // Note: the parent's handleUpdateResult uses Object.assign (in-place
+  // mutation), so the watcher on props.selectedResult won't fire.
+  // We emit first so the parent data is updated, then manually
+  // re-initialize the view.
+  emit("updateResult", {
+    ...props.selectedResult,
+    data: { ...props.selectedResult.data, script: parsed },
+  });
+
+  if (sourceDetails.value) sourceDetails.value.open = false;
+  await initializeScript();
+}
+
+async function copyText() {
+  try {
+    await navigator.clipboard.writeText(scriptSourceText.value);
+    copied.value = true;
+    setTimeout(() => {
+      copied.value = false;
+    }, 2000);
+  } catch {
+    // clipboard API may be blocked in some contexts
+  }
 }
 
 function effectiveBeat(index: number): Beat {
@@ -696,6 +805,7 @@ async function updateBeat(index: number) {
     body: JSON.stringify({ filePath: filePath.value, beatIndex: index, beat }),
   });
   localOverrides[index] = beat;
+  sourceOpen[index] = false;
 
   if (JSON.stringify(beat.image) !== prevImage) {
     delete renderedImages[index];
@@ -996,7 +1106,7 @@ async function initializeScript() {
   Object.keys(charErrors).forEach((k) => delete charErrors[k]);
   Object.keys(beatDragOver).forEach((k) => delete beatDragOver[+k]);
   moviePath.value = null;
-  scriptSourceOpen.value = false;
+  if (sourceDetails.value) sourceDetails.value.open = false;
 
   const AUTO_RENDER_TYPES = [
     "textSlide",
@@ -1058,3 +1168,130 @@ async function generateMovie() {
   }
 }
 </script>
+
+<style scoped>
+.bottom-bar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.script-source {
+  padding: 0.5rem;
+  background: #f5f5f5;
+  border-top: 1px solid #e0e0e0;
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+.script-source summary {
+  cursor: pointer;
+  user-select: none;
+  padding: 0.5rem;
+  background: #e8e8e8;
+  border-radius: 4px;
+  font-weight: 500;
+  color: #333;
+}
+
+.script-source[open] summary {
+  margin-bottom: 0.5rem;
+}
+
+.script-source summary:hover {
+  background: #d8d8d8;
+}
+
+.script-editor {
+  width: 100%;
+  height: 40vh;
+  padding: 1rem;
+  background: #ffffff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  color: #333;
+  font-family: "Courier New", monospace;
+  font-size: 0.9rem;
+  resize: vertical;
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.script-editor:focus {
+  outline: none;
+  border-color: #4caf50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
+}
+
+.script-editor-invalid {
+  border-color: #ef4444;
+}
+
+.script-editor-invalid:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1);
+}
+
+.editor-actions {
+  display: flex;
+  justify-content: space-between;
+}
+
+.apply-btn {
+  padding: 0.5rem 1rem;
+  background: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+  font-weight: 500;
+}
+
+.apply-btn:hover {
+  background: #45a049;
+}
+
+.apply-btn:disabled {
+  background: #cccccc;
+  color: #666666;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.cancel-btn {
+  padding: 0.5rem 1rem;
+  background: #e0e0e0;
+  color: #333;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+  font-weight: 500;
+}
+
+.cancel-btn:hover {
+  background: #d0d0d0;
+}
+
+.copy-btn {
+  position: absolute;
+  bottom: 0.3rem;
+  right: 0.65rem;
+  padding: 0.4rem;
+  background: none;
+  border: none;
+  color: #333;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.copy-btn:hover {
+  color: #000;
+}
+
+.copy-btn .material-icons {
+  font-size: 1.15rem;
+}
+</style>

@@ -142,6 +142,29 @@ router.post(
   },
 );
 
+interface UpdateScriptBody {
+  filePath: string;
+  script: MulmoScript;
+}
+
+router.post(
+  "/mulmo-script/update-script",
+  (req: Request<object, object, UpdateScriptBody>, res: Response) => {
+    const { filePath, script: updatedScript } = req.body;
+
+    if (!filePath || !updatedScript) {
+      res.status(400).json({ error: "filePath and script are required" });
+      return;
+    }
+
+    const absoluteFilePath = resolveStoryPath(filePath, res);
+    if (!absoluteFilePath) return;
+
+    fs.writeFileSync(absoluteFilePath, JSON.stringify(updatedScript, null, 2));
+    res.json({ ok: true });
+  },
+);
+
 router.get(
   "/mulmo-script/beat-image",
   async (
