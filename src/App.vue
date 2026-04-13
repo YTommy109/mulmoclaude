@@ -384,13 +384,14 @@ async function refreshSessionStates(): Promise<void> {
   for (const s of summaries) {
     const live = sessionMap.get(s.id);
     if (!live) continue;
-    if (s.isRunning !== undefined) live.isRunning = s.isRunning;
-    if (s.hasUnread !== undefined) {
-      // Don't mark the currently viewed session as unread
-      if (s.hasUnread && s.id === currentSessionId.value) continue;
-      live.hasUnread = s.hasUnread;
+    // Missing fields mean the server has no live entry — reset to defaults.
+    live.isRunning = s.isRunning ?? false;
+    live.statusMessage = s.statusMessage ?? "";
+    const unread = s.hasUnread ?? false;
+    // Don't mark the currently viewed session as unread
+    if (!(unread && s.id === currentSessionId.value)) {
+      live.hasUnread = unread;
     }
-    if (s.statusMessage !== undefined) live.statusMessage = s.statusMessage;
   }
 }
 
