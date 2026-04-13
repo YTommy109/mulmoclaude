@@ -9,7 +9,6 @@
 // mkdtempSync without touching real workspace state.
 
 import fsp from "node:fs/promises";
-import path from "node:path";
 import { defaultSourceState, type SourceState } from "./types.js";
 import { isValidSlug, sourceStateDir, sourceStatePath } from "./paths.js";
 
