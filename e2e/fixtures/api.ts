@@ -84,9 +84,16 @@ export async function mockAllApis(
       url.pathname !== "/api/sessions",
     (route) => {
       const method = route.request().method();
+      const pathname = new URL(route.request().url()).pathname;
       // POST /api/sessions/:id/mark-read
       if (method === "POST") {
         return route.fulfill({ json: { ok: true } });
+      }
+      // GET /api/sessions/:id/state — live session state
+      if (method === "GET" && pathname.endsWith("/state")) {
+        return route.fulfill({
+          json: { isRunning: false, hasUnread: false, statusMessage: "" },
+        });
       }
       // GET /api/sessions/:id
       if (method !== "GET") return route.fallback();

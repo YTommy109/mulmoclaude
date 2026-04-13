@@ -6,7 +6,7 @@ import { workspacePath } from "../workspace.js";
 import { readManifest } from "../chat-index/indexer.js";
 import { resolveWithinRoot } from "../utils/fs.js";
 import type { ChatIndexEntry } from "../chat-index/types.js";
-import { markRead } from "../session-store/index.js";
+import { markRead, getSession } from "../session-store/index.js";
 
 async function readSessionMeta(
   chatDir: string,
@@ -250,6 +250,34 @@ router.post(
   (req: Request<SessionIdParams>, res: Response<{ ok: boolean }>) => {
     const ok = markRead(req.params.id);
     res.json({ ok });
+  },
+);
+
+// Returns the live session state from the in-memory store. Clients
+// use this to check if a session is currently running (e.g. when a
+// second tab opens an in-progress session).
+interface SessionState {
+  isRunning: boolean;
+  hasUnread: boolean;
+  statusMessage: string;
+}
+
+router.get(
+  "/sessions/:id/state",
+  (
+    req: Request<SessionIdParams>,
+    res: Response<SessionState | { error: string }>,
+  ) => {
+    const session = getSession(req.params.id);
+    if (!session) {
+      res.json({ isRunning: false, hasUnread: false, statusMessage: "" });
+      return;
+    }
+    res.json({
+      isRunning: session.isRunning,
+      hasUnread: session.hasUnread,
+      statusMessage: session.statusMessage,
+    });
   },
 );
 

@@ -685,17 +685,20 @@ function tabColor(session: SessionSummary): string {
   return "text-gray-400";
 }
 
-// Centralised hasUnread reset: whenever the user switches to a session
-// (either by clicking it in history, by creating a new one, or by
-// loading one from the server), clear that session's unread flag both
-// locally and on the server (so other clients see the update).
+// Centralised session-switch handler: clear unread flag and subscribe
+// to the session's pub/sub channel if it's running (so a second tab
+// or a tab that navigated to an in-progress session receives events).
 watch(currentSessionId, (id) => {
   const session = sessionMap.get(id);
-  if (session && session.hasUnread) {
+  if (!session) return;
+  if (session.hasUnread) {
     session.hasUnread = false;
     fetch(`/api/sessions/${encodeURIComponent(id)}/mark-read`, {
       method: "POST",
     }).catch(() => {});
+  }
+  if (session.isRunning) {
+    ensureSessionSubscription(session, session.toolResults.length);
   }
 });
 
@@ -901,10 +904,20 @@ async function loadSession(id: string) {
     return;
   }
 
-  // Load from server
-  const res = await fetch(`/api/sessions/${id}`);
-  if (!res.ok) return;
-  const entries: SessionEntry[] = await res.json();
+  // Load session entries and live state in parallel
+  const [entriesRes, stateRes] = await Promise.all([
+    fetch(`/api/sessions/${id}`),
+    fetch(`/api/sessions/${encodeURIComponent(id)}/state`),
+  ]);
+  if (!entriesRes.ok) return;
+  const entries: SessionEntry[] = await entriesRes.json();
+  const liveState: {
+    isRunning: boolean;
+    hasUnread: boolean;
+    statusMessage: string;
+  } = stateRes.ok
+    ? await stateRes.json()
+    : { isRunning: false, hasUnread: false, statusMessage: "" };
 
   const meta = entries.find((e) => e.type === "session_meta");
   const roleId = meta?.roleId ?? currentRoleId.value;
@@ -922,8 +935,8 @@ async function loadSession(id: string) {
     id,
     roleId,
     toolResults: toolResultsList,
-    isRunning: false,
-    statusMessage: "",
+    isRunning: liveState.isRunning,
+    statusMessage: liveState.statusMessage,
     toolCallHistory: [],
     selectedResultUuid: resolvedSelectedUuid,
     hasUnread: false,
