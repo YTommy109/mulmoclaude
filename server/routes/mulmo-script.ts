@@ -157,27 +157,14 @@ router.get(
       return;
     }
 
-    const absoluteFilePath = resolveStoryPath(filePath, res);
-    if (!absoluteFilePath) return;
-
-    try {
-      const context = await buildContext(absoluteFilePath);
-      if (!context) {
-        res.status(500).json({ error: "Failed to initialize mulmo context" });
-        return;
-      }
-
+    await withStoryContext(res, filePath, {}, async ({ context }) => {
       const { imagePath } = getBeatPngImagePath(context, beatIndex);
-
       if (!fs.existsSync(imagePath)) {
         res.json({ image: null });
         return;
       }
-
       res.json({ image: fileToDataUri(imagePath, "image/png") });
-    } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
-    }
+    });
   },
 );
 
@@ -292,6 +279,89 @@ async function buildContext(absoluteFilePath: string, force = false) {
   return initializeContextFromFiles(files, true, force);
 }
 
+// Awaited context type used by every helper that calls buildContext.
+type StoryContext = NonNullable<Awaited<ReturnType<typeof buildContext>>>;
+
+interface WithStoryContextDeps {
+  resolveStoryPath?: (filePath: string, res: Response) => string | null;
+  buildContext?: (
+    absoluteFilePath: string,
+    force?: boolean,
+  ) => Promise<StoryContext | undefined>;
+}
+
+// Shared scaffolding for mulmo-script handlers. Each handler resolves
+// the workspace-relative filePath, builds the mulmo context, and
+// catches unexpected errors with a 500 + errorMessage. Extracted so
+// every handler can focus on its own business logic.
+//
+// Accepts a `deps` param so unit tests can inject fakes without the
+// full mulmocast stack.
+export interface WithStoryContextOptions {
+  force?: boolean;
+  /**
+   * Handler-specific tag included in the helper's failure log so
+   * dashboards can distinguish which route is failing (e.g.
+   * `"generate-beat-audio"`). Falls back to a generic
+   * `"handler failed"` entry when omitted.
+   */
+  operation?: string;
+  /**
+   * Soft-fail override for `buildContext` returning undefined. Some
+   * endpoints (e.g. `GET /beat-audio`) historically returned a
+   * 200 `{ audio: null }` in that case so the frontend can silently
+   * retry. If provided, this callback writes the fallback response
+   * instead of the default 500 `{ error: "Failed to initialize
+   * mulmo context" }`.
+   */
+  onContextMissing?: (res: Response) => void;
+}
+
+export async function withStoryContext(
+  res: Response,
+  filePath: string,
+  options: WithStoryContextOptions,
+  handler: (ctx: {
+    absoluteFilePath: string;
+    context: StoryContext;
+  }) => Promise<void>,
+  deps: WithStoryContextDeps = {},
+): Promise<void> {
+  const resolver = deps.resolveStoryPath ?? resolveStoryPath;
+  const build = deps.buildContext ?? buildContext;
+  const absoluteFilePath = resolver(filePath, res);
+  if (!absoluteFilePath) return;
+  try {
+    const context = await build(absoluteFilePath, options.force ?? false);
+    if (!context) {
+      if (options.onContextMissing) {
+        options.onContextMissing(res);
+      } else {
+        res.status(500).json({ error: "Failed to initialize mulmo context" });
+      }
+      return;
+    }
+    await handler({ absoluteFilePath, context });
+  } catch (err) {
+    // Log every handler failure at warn so operators get a breadcrumb
+    // even when the migrated handler doesn't wrap its own try/catch.
+    // Consistent with the chat-index / wiki-backlinks / journal
+    // fire-and-forget error pattern.
+    log.warn("mulmo-script", "handler failed", {
+      ...(options.operation ? { operation: options.operation } : {}),
+      filePath,
+      error: errorMessage(err),
+    });
+    // Double-write guard: if the handler has already started streaming
+    // or sent a partial response, appending a 500 body here would
+    // trigger Express's "Cannot set headers after they are sent"
+    // warning and corrupt the on-wire response.
+    if (!res.headersSent) {
+      res.status(500).json({ error: errorMessage(err) });
+    }
+  }
+}
+
 router.get(
   "/mulmo-script/beat-audio",
   async (
@@ -307,32 +377,32 @@ router.get(
       return;
     }
 
-    const absoluteFilePath = resolveStoryPath(filePath, res);
-    if (!absoluteFilePath) return;
-
-    try {
-      const context = await buildContext(absoluteFilePath);
-      if (!context) {
-        res.json({ audio: null });
-        return;
-      }
-
-      const beat = context.studio.script.beats[beatIndex];
-      const audioPath = getBeatAudioPathOrUrl(
-        beat.text ?? "",
-        context,
-        beat,
-        context.lang,
-      );
-      if (!audioPath || !fs.existsSync(audioPath)) {
-        res.json({ audio: null });
-        return;
-      }
-
-      res.json({ audio: fileToDataUri(audioPath, "audio/mpeg") });
-    } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
-    }
+    // GET /beat-audio is a probe — the frontend polls it expecting a
+    // 200 with `{ audio: null }` when nothing has been generated yet.
+    // Override the helper's default 500-on-context-missing so the
+    // soft-fail contract is preserved.
+    await withStoryContext(
+      res,
+      filePath,
+      {
+        operation: "beat-audio",
+        onContextMissing: (r) => r.json({ audio: null }),
+      },
+      async ({ context }) => {
+        const beat = context.studio.script.beats[beatIndex];
+        const audioPath = getBeatAudioPathOrUrl(
+          beat.text ?? "",
+          context,
+          beat,
+          context.lang,
+        );
+        if (!audioPath || !fs.existsSync(audioPath)) {
+          res.json({ audio: null });
+          return;
+        }
+        res.json({ audio: fileToDataUri(audioPath, "audio/mpeg") });
+      },
+    );
   },
 );
 
@@ -353,45 +423,45 @@ router.post(
       return;
     }
 
-    const absoluteFilePath = resolveStoryPath(filePath, res);
-    if (!absoluteFilePath) return;
+    await withStoryContext(
+      res,
+      filePath,
+      { force, operation: "generate-beat-audio" },
+      async ({ context }) => {
+        // Thrown errors bubble up to withStoryContext which logs +
+        // returns 500. No inner try/catch needed.
+        await generateBeatAudio(beatIndex, context, {
+          settings: process.env as Record<string, string>,
+        } as Parameters<typeof generateBeatAudio>[2]);
 
-    try {
-      const context = await buildContext(absoluteFilePath, force);
-      if (!context) {
-        res.status(500).json({ error: "Failed to initialize mulmo context" });
-        return;
-      }
+        const beat = context.studio.script.beats[beatIndex];
+        const audioPath =
+          context.studio.beats[beatIndex]?.audioFile ??
+          getBeatAudioPathOrUrl(beat.text ?? "", context, beat, context.lang);
 
-      await generateBeatAudio(beatIndex, context, {
-        settings: process.env as Record<string, string>,
-      } as Parameters<typeof generateBeatAudio>[2]);
+        if (!audioPath || !fs.existsSync(audioPath)) {
+          // Logic-flow failure (not an exception) — emit a targeted log
+          // with the diagnostic payload before responding. The helper's
+          // catch-all log.warn wouldn't fire for this non-throw path.
+          // Don't write raw `beat.text` into persistent logs — it's
+          // free-form user content and can contain sensitive data.
+          log.error("generate-beat-audio", "audio was not generated", {
+            beatIndex,
+            audioPath,
+            exists: audioPath ? fs.existsSync(audioPath) : false,
+            beatTextLength:
+              typeof beat?.text === "string" ? beat.text.length : 0,
+            audioFilePresent: Boolean(
+              context.studio.beats[beatIndex]?.audioFile,
+            ),
+          });
+          res.status(500).json({ error: "Audio was not generated" });
+          return;
+        }
 
-      const beat = context.studio.script.beats[beatIndex];
-      const audioPath =
-        context.studio.beats[beatIndex]?.audioFile ??
-        getBeatAudioPathOrUrl(beat.text ?? "", context, beat, context.lang);
-
-      if (!audioPath || !fs.existsSync(audioPath)) {
-        // Don't write raw `beat.text` into persistent logs — it's
-        // free-form user content and can contain sensitive data.
-        // Operational debug can use length + presence instead.
-        log.error("generate-beat-audio", "audio was not generated", {
-          beatIndex,
-          audioPath,
-          exists: audioPath ? fs.existsSync(audioPath) : false,
-          beatTextLength: typeof beat?.text === "string" ? beat.text.length : 0,
-          audioFilePresent: Boolean(context.studio.beats[beatIndex]?.audioFile),
-        });
-        res.status(500).json({ error: "Audio was not generated" });
-        return;
-      }
-
-      res.json({ audio: fileToDataUri(audioPath, "audio/mpeg") });
-    } catch (err) {
-      log.error("generate-beat-audio", "error", { error: String(err) });
-      res.status(500).json({ error: errorMessage(err) });
-    }
+        res.json({ audio: fileToDataUri(audioPath, "audio/mpeg") });
+      },
+    );
   },
 );
 
@@ -405,16 +475,7 @@ router.post(
       return;
     }
 
-    const absoluteFilePath = resolveStoryPath(filePath, res);
-    if (!absoluteFilePath) return;
-
-    try {
-      const context = await buildContext(absoluteFilePath, force);
-      if (!context) {
-        res.status(500).json({ error: "Failed to initialize mulmo context" });
-        return;
-      }
-
+    await withStoryContext(res, filePath, { force }, async ({ context }) => {
       await generateBeatImage({
         index: beatIndex,
         context,
@@ -422,16 +483,12 @@ router.post(
       });
 
       const { imagePath } = getBeatPngImagePath(context, beatIndex);
-
       if (!fs.existsSync(imagePath)) {
         res.status(500).json({ error: "Image was not generated" });
         return;
       }
-
       res.json({ image: fileToDataUri(imagePath, "image/png") });
-    } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
-    }
+    });
   },
 );
 
@@ -546,26 +603,14 @@ router.get(
       return;
     }
 
-    const absoluteFilePath = resolveStoryPath(filePath, res);
-    if (!absoluteFilePath) return;
-
-    try {
-      const context = await buildContext(absoluteFilePath);
-      if (!context) {
-        res.status(500).json({ error: "Failed to initialize mulmo context" });
-        return;
-      }
-
+    await withStoryContext(res, filePath, {}, async ({ context }) => {
       const imagePath = getReferenceImagePath(context, key, "png");
       if (!fs.existsSync(imagePath)) {
         res.json({ image: null });
         return;
       }
-
       res.json({ image: fileToDataUri(imagePath, "image/png") });
-    } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
-    }
+    });
   },
 );
 
@@ -584,16 +629,7 @@ router.post(
       return;
     }
 
-    const absoluteFilePath = resolveStoryPath(filePath, res);
-    if (!absoluteFilePath) return;
-
-    try {
-      const context = await buildContext(absoluteFilePath);
-      if (!context) {
-        res.status(500).json({ error: "Failed to initialize mulmo context" });
-        return;
-      }
-
+    await withStoryContext(res, filePath, {}, async ({ context }) => {
       const { imagePath } = getBeatPngImagePath(context, beatIndex);
       fs.mkdirSync(path.dirname(imagePath), { recursive: true });
 
@@ -601,9 +637,7 @@ router.post(
       fs.writeFileSync(imagePath, Buffer.from(base64, "base64"));
 
       res.json({ image: fileToDataUri(imagePath, "image/png") });
-    } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
-    }
+    });
   },
 );
 
@@ -620,16 +654,7 @@ router.post(
       return;
     }
 
-    const absoluteFilePath = resolveStoryPath(filePath, res);
-    if (!absoluteFilePath) return;
-
-    try {
-      const context = await buildContext(absoluteFilePath, force);
-      if (!context) {
-        res.status(500).json({ error: "Failed to initialize mulmo context" });
-        return;
-      }
-
+    await withStoryContext(res, filePath, { force }, async ({ context }) => {
       const images = context.studio.script.imageParams?.images ?? {};
       const imageEntry = images[key];
       if (!imageEntry || imageEntry.type !== "imagePrompt") {
@@ -652,11 +677,8 @@ router.post(
         res.status(500).json({ error: "Character image was not generated" });
         return;
       }
-
       res.json({ image: fileToDataUri(imagePath, "image/png") });
-    } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
-    }
+    });
   },
 );
 
@@ -675,16 +697,7 @@ router.post(
       return;
     }
 
-    const absoluteFilePath = resolveStoryPath(filePath, res);
-    if (!absoluteFilePath) return;
-
-    try {
-      const context = await buildContext(absoluteFilePath);
-      if (!context) {
-        res.status(500).json({ error: "Failed to initialize mulmo context" });
-        return;
-      }
-
+    await withStoryContext(res, filePath, {}, async ({ context }) => {
       const imagePath = getReferenceImagePath(context, key, "png");
       fs.mkdirSync(path.dirname(imagePath), { recursive: true });
 
@@ -692,9 +705,7 @@ router.post(
       fs.writeFileSync(imagePath, Buffer.from(base64, "base64"));
 
       res.json({ image: fileToDataUri(imagePath, "image/png") });
-    } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
-    }
+    });
   },
 );
 

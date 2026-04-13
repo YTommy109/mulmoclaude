@@ -17,9 +17,30 @@ export function statSafe(absPath: string): fs.Stats | null {
   }
 }
 
+// Async counterpart of `statSafe` for callers that want to stay off
+// the synchronous I/O path (e.g. tree-walk endpoints that would
+// otherwise block the event loop for the whole workspace).
+export async function statSafeAsync(absPath: string): Promise<fs.Stats | null> {
+  try {
+    return await fs.promises.stat(absPath);
+  } catch {
+    return null;
+  }
+}
+
 export function readDirSafe(absPath: string): fs.Dirent[] {
   try {
     return fs.readdirSync(absPath, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+// Async counterpart of `readDirSafe`. Same "swallow ENOENT/EACCES,
+// return empty" contract.
+export async function readDirSafeAsync(absPath: string): Promise<fs.Dirent[]> {
+  try {
+    return await fs.promises.readdir(absPath, { withFileTypes: true });
   } catch {
     return [];
   }
