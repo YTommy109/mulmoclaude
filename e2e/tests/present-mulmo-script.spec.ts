@@ -136,4 +136,80 @@ test.describe("presentMulmoScript plugin", () => {
     ).toBeVisible();
     expect(errors).toEqual([]);
   });
+
+  // The refactored server handlers all go through withStoryContext →
+  // `{ error: <string> }` on failure, `{ image: "data:..." }` on
+  // success. The View reads exactly those shapes, so the frontend
+  // wiring is the regression net for the refactor.
+
+  test("render-beat success: mocked image surfaces in the View", async ({
+    page,
+  }) => {
+    // 1×1 transparent PNG.
+    const PNG_1X1 =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgAAIAAAUAAeImBZsAAAAASUVORK5CYII=";
+
+    const renderBeatCalls: unknown[] = [];
+    await page.route(
+      (url) => url.pathname === "/api/mulmo-script/render-beat",
+      async (route) => {
+        renderBeatCalls.push(route.request().postDataJSON());
+        return route.fulfill({ json: { image: PNG_1X1 } });
+      },
+    );
+
+    await page.goto("/chat/mulmo-session");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+    await page.getByText(SCRIPT_TITLE).first().click();
+    await expect(
+      page.getByRole("heading", { name: SCRIPT_TITLE, level: 2 }),
+    ).toBeVisible();
+
+    // Beat 0 is a textSlide → auto-rendered on mount via renderBeat,
+    // which hits /api/mulmo-script/render-beat. Wait for the mocked
+    // image to surface in the DOM — proves the server→frontend
+    // contract (`{ image: <data-uri> }` on 200) still holds through
+    // the withStoryContext refactor.
+    await page.waitForFunction(
+      () => {
+        return Array.from(document.querySelectorAll("img")).some((img) =>
+          img.src.startsWith("data:image/png;base64,iVBOR"),
+        );
+      },
+      undefined,
+      { timeout: 5000 },
+    );
+
+    expect(renderBeatCalls.length).toBeGreaterThan(0);
+    for (const call of renderBeatCalls) {
+      expect(call).toMatchObject({
+        filePath: expect.any(String),
+        beatIndex: expect.any(Number),
+      });
+    }
+  });
+
+  test("render-beat error: mocked { error } surfaces to the UI", async ({
+    page,
+  }) => {
+    await page.route(
+      (url) => url.pathname === "/api/mulmo-script/render-beat",
+      (route) =>
+        route.fulfill({
+          status: 500,
+          json: { error: "Image was not generated" },
+        }),
+    );
+
+    await page.goto("/chat/mulmo-session");
+    await page.getByText(SCRIPT_TITLE).first().click();
+    await expect(
+      page.getByRole("heading", { name: SCRIPT_TITLE, level: 2 }),
+    ).toBeVisible();
+
+    // Auto-render on mount hits render-beat for textSlide beats,
+    // which now returns 500 { error }. The View renders the error
+    // string in the placeholder slot.
+    await expect(page.getByText("Image was not generated")).toBeVisible();
+  });
 });
