@@ -120,14 +120,27 @@ router.post(
     const resultsFilePath = path.join(chatDir, `${chatSessionId}.jsonl`);
     const metaFilePath = path.join(chatDir, `${chatSessionId}.json`);
 
-    // Write metadata only on the first message of this session
+    // Write or update metadata. On the first message we create the file
+    // with firstUserMessage so GET /api/sessions never needs to read the
+    // jsonl content. On subsequent turns we backfill firstUserMessage if
+    // missing (migrates pre-existing sessions).
+    let isFirstTurn = false;
     try {
       await access(metaFilePath);
     } catch {
+      isFirstTurn = true;
+    }
+    if (isFirstTurn) {
       await writeFile(
         metaFilePath,
-        JSON.stringify({ roleId, startedAt: new Date().toISOString() }),
+        JSON.stringify({
+          roleId,
+          startedAt: new Date().toISOString(),
+          firstUserMessage: message,
+        }),
       );
+    } else {
+      await backfillFirstUserMessage(metaFilePath, message);
     }
 
     // Append user message for this turn
@@ -310,6 +323,24 @@ async function readClaudeSessionId(
     // file doesn't exist yet
   }
   return undefined;
+}
+
+/** Add firstUserMessage to an existing meta file if it's missing (migration). */
+async function backfillFirstUserMessage(
+  metaFilePath: string,
+  message: string,
+): Promise<void> {
+  try {
+    const meta = JSON.parse(await readFile(metaFilePath, "utf-8"));
+    if (!meta.firstUserMessage) {
+      await writeFile(
+        metaFilePath,
+        JSON.stringify({ ...meta, firstUserMessage: message }),
+      );
+    }
+  } catch {
+    // ignore — meta file may not exist
+  }
 }
 
 async function updateClaudeSessionId(

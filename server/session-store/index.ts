@@ -165,7 +165,8 @@ export function pushSessionEvent(
     if (entry) entry.result = event.content as string;
   } else if (type === "status") {
     session.statusMessage = event.message as string;
-    notifySessionsChanged();
+    // No notifySessionsChanged() here — status updates are high-frequency
+    // and flow to subscribed clients via the session.<id> channel directly.
   }
 
   publishToSessionChannel(chatSessionId, event);
