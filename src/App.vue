@@ -529,6 +529,7 @@ import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
 import { usePubSub } from "./composables/usePubSub";
 import { useHealth } from "./composables/useHealth";
+import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 
 // --- Debug beat (pub/sub) ---
@@ -708,8 +709,8 @@ const { roles, currentRoleId, currentRole, refreshRoles } = useRoles();
 const userInput = ref("");
 const activePane = ref<"sidebar" | "main">("sidebar");
 
-const showHistory = ref(false);
-const sessions = ref<SessionSummary[]>([]);
+const { sessions, showHistory, fetchSessions, toggleHistory } =
+  useSessionHistory();
 const { geminiAvailable, sandboxEnabled, fetchHealth } = useHealth();
 const showLockPopup = ref(false);
 
@@ -1010,23 +1011,6 @@ function createNewSession(roleId?: string): ActiveSession {
 
 function onRoleChange() {
   createNewSession(currentRoleId.value);
-}
-
-async function fetchSessions(): Promise<SessionSummary[]> {
-  try {
-    const res = await fetch("/api/sessions");
-    const data: SessionSummary[] = await res.json();
-    sessions.value = data;
-    return data;
-  } catch {
-    sessions.value = [];
-    return [];
-  }
-}
-
-async function toggleHistory() {
-  showHistory.value = !showHistory.value;
-  if (showHistory.value) await fetchSessions();
 }
 
 async function loadSession(id: string) {
