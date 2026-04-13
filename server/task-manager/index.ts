@@ -1,3 +1,5 @@
+import { log } from "../logger/index.js";
+
 export type TaskSchedule =
   | { type: "interval"; intervalMs: number }
   | { type: "daily"; time: string }; // time: "HH:MM" in UTC
@@ -70,7 +72,10 @@ export function createTaskManager(options?: TaskManagerOptions): ITaskManager {
       if (!isDue(currentTime, def.schedule, tickMs)) continue;
 
       def.run({ taskId: def.id, now: currentTime }).catch((err) => {
-        console.error(`[task-manager] ${def.id} failed:`, err);
+        log.error("task-manager", "task failed", {
+          id: def.id,
+          error: String(err),
+        });
       });
     }
   }
@@ -83,26 +88,26 @@ export function createTaskManager(options?: TaskManagerOptions): ITaskManager {
         );
       }
       registry.set(def.id, def);
-      console.log(`[task-manager] Registered: ${def.id}`);
+      log.info("task-manager", "registered", { id: def.id });
     },
 
     removeTask(taskId: string) {
       if (registry.delete(taskId)) {
-        console.log(`[task-manager] Removed: ${taskId}`);
+        log.info("task-manager", "removed", { id: taskId });
       }
     },
 
     start() {
       if (timer) return;
       timer = setInterval(onTick, tickMs);
-      console.log(`[task-manager] Started (tick: ${tickMs}ms)`);
+      log.info("task-manager", "started", { tickMs });
     },
 
     stop() {
       if (timer) {
         clearInterval(timer);
         timer = null;
-        console.log("[task-manager] Stopped");
+        log.info("task-manager", "stopped");
       }
     },
 

@@ -14,6 +14,7 @@ import {
 import { workspacePath } from "../workspace.js";
 import { maybeRunJournal } from "../journal/index.js";
 import { maybeIndexSession } from "../chat-index/index.js";
+import { log } from "../logger/index.js";
 
 const router = Router();
 const PORT = Number(process.env.PORT) || 3001;
@@ -130,6 +131,15 @@ router.post(
       claudeSessionMap.get(chatSessionId) ??
       (await readClaudeSessionId(metaFilePath, resultsFilePath));
 
+    const requestStartedAt = Date.now();
+    log.info("agent", "request received", {
+      sessionId,
+      chatSessionId,
+      roleId,
+      messageLen: message.length,
+      resumed: Boolean(claudeSessionId),
+    });
+
     // First-turn only: prepend a pointer to the workspace journal so
     // the LLM knows where to find historical context if the user's
     // question benefits from it. On resumed turns the pointer is
@@ -170,7 +180,17 @@ router.post(
         }
       }
       send({ type: "status", message: "Done" });
+      log.info("agent", "request completed", {
+        sessionId,
+        chatSessionId,
+        durationMs: Date.now() - requestStartedAt,
+      });
     } catch (err) {
+      log.error("agent", "request failed", {
+        sessionId,
+        chatSessionId,
+        error: String(err),
+      });
       send({ type: "error", message: String(err) });
     } finally {
       removeSession(sessionId);
@@ -183,7 +203,9 @@ router.post(
         (err) => {
           // Should not actually happen — maybeRunJournal swallows
           // its own errors — but belt-and-suspenders.
-          console.warn("[journal] unexpected error in background:", err);
+          log.warn("journal", "unexpected error in background", {
+            error: String(err),
+          });
         },
       );
       // Same fire-and-forget pattern as the journal above. The
@@ -195,7 +217,9 @@ router.post(
         sessionId,
         activeSessionIds: getActiveSessionIds(),
       }).catch((err) => {
-        console.warn("[chat-index] unexpected error in background:", err);
+        log.warn("chat-index", "unexpected error in background", {
+          error: String(err),
+        });
       });
     }
   },

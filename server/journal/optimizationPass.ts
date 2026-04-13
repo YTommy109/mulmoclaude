@@ -23,6 +23,7 @@ import {
   TOPICS_DIR,
 } from "./paths.js";
 import type { JournalState } from "./state.js";
+import { log } from "../logger/index.js";
 
 // How many characters of each topic file we hand to the optimizer.
 // Enough to judge duplication without blowing up the prompt.
@@ -150,7 +151,9 @@ export async function runOptimizationPass(
     );
   } catch (err) {
     if (err instanceof ClaudeCliNotFoundError) throw err;
-    console.warn(`[journal] optimization summarize failed:`, err);
+    log.warn("journal", "optimization summarize failed", {
+      error: String(err),
+    });
     result.skipped = true;
     result.skippedReason = "summarize failed";
     return { nextState: { ...state }, result };
@@ -158,7 +161,7 @@ export async function runOptimizationPass(
 
   const parsed = extractJsonObject(raw);
   if (!isOptimizationOutput(parsed)) {
-    console.warn(`[journal] optimizer returned unusable JSON, skipping`);
+    log.warn("journal", "optimizer returned unusable JSON, skipping");
     result.skipped = true;
     result.skippedReason = "unusable optimizer JSON";
     return { nextState: { ...state }, result };
@@ -229,7 +232,7 @@ async function moveToArchive(
     // never a real file) or the rename hit an unexpected IO error.
     // Log and return false — the caller leaves state untouched for
     // this slug so the in-memory knownTopics stays accurate.
-    console.warn(`[journal] could not archive ${slug}:`, err);
+    log.warn("journal", "could not archive", { slug, error: String(err) });
     return false;
   }
 }

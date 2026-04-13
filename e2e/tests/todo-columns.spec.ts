@@ -1,6 +1,27 @@
+import { createHash } from "crypto";
 import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
 import { TODO_ITEMS, TODO_COLUMNS, type TodoFixture } from "../fixtures/todos";
+
+// Mirror of server/utils/slug.ts for deterministic id generation in
+// the mock. Keeping this inline avoids a Vite/server import boundary;
+// the unit tests cover correctness of the real implementation.
+function mockSlugifyColumnId(label: string): string {
+  let slug = label
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "_");
+  slug = slug.replace(/^_+|_+$/g, "");
+  // eslint-disable-next-line no-control-regex
+  const hasNonAscii = /[^\x00-\x7F]/.test(label);
+  if (!hasNonAscii) return slug.length > 0 ? slug : "column";
+  const hash = createHash("sha256")
+    .update(label.trim(), "utf-8")
+    .digest("base64url")
+    .slice(0, 16);
+  if (slug.length >= 3) return `${slug}_${hash}`;
+  return hash;
+}
 
 async function setupTodoMocks(page: Page) {
   await mockAllApis(page);
@@ -22,11 +43,17 @@ async function setupTodoMocks(page: Page) {
     (route) => {
       const method = route.request().method();
       if (method === "POST") {
-        // Add column
-        columns = [
-          ...columns,
-          { id: "new_col", label: "New Column" },
-        ];
+        const body = route.request().postDataJSON() ?? {};
+        const label: string =
+          typeof body.label === "string" && body.label.length > 0
+            ? body.label
+            : "New Column";
+        const baseId = mockSlugifyColumnId(label);
+        const existing = new Set(columns.map((c) => c.id));
+        let id = baseId;
+        let n = 2;
+        while (existing.has(id)) id = `${baseId}_${n++}`;
+        columns = [...columns, { id, label }];
       } else if (method === "DELETE") {
         const id = route.request().url().split("/api/todos/columns/").pop();
         columns = columns.filter((c) => c.id !== id);
@@ -173,5 +200,49 @@ test.describe("Todo column management", () => {
     const doneColumn = page.locator('[data-testid="todo-column-done"]');
     await doneColumn.locator("text=more_horiz").click();
     await expect(page.getByText("Already done column")).toBeVisible();
+  });
+
+  test("adds a column with a Japanese label (#161)", async ({ page }) => {
+    await page.goto("/chat?view=files&path=todos/todos.json");
+    await expect(page.getByText("Todo").first()).toBeVisible({
+      timeout: 5000,
+    });
+
+    await page.locator('[data-testid="todo-column-add-btn"]').click();
+    const input = page.locator('input[placeholder="Review"]');
+    await input.fill("完了");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+
+    // The new column's header shows the Japanese label, proving the
+    // UI round-trip accepted the non-ASCII input without crashing.
+    await expect(page.getByText("完了")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("two distinct Japanese labels produce two distinct columns (#161)", async ({
+    page,
+  }) => {
+    await page.goto("/chat?view=files&path=todos/todos.json");
+    await expect(page.getByText("Todo").first()).toBeVisible({
+      timeout: 5000,
+    });
+
+    // First Japanese column
+    await page.locator('[data-testid="todo-column-add-btn"]').click();
+    await page.locator('input[placeholder="Review"]').fill("完了");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText("完了")).toBeVisible({ timeout: 5000 });
+
+    // Second Japanese column — previously would collide on id="column"
+    // and the kanban board would fail to render the second column.
+    await page.locator('[data-testid="todo-column-add-btn"]').click();
+    await page.locator('input[placeholder="Review"]').fill("進行中です");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText("進行中です")).toBeVisible({
+      timeout: 5000,
+    });
+
+    // Both labels coexist → distinct column ids were generated.
+    await expect(page.getByText("完了")).toBeVisible();
+    await expect(page.getByText("進行中です")).toBeVisible();
   });
 });

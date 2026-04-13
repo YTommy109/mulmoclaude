@@ -11,6 +11,7 @@
 
 import { Router, Request, Response } from "express";
 import { backfillAllSessions } from "../chat-index/index.js";
+import { log } from "../logger/index.js";
 
 interface RebuildResponse {
   total: number;
@@ -31,14 +32,16 @@ router.post(
     res: Response<RebuildResponse | RebuildErrorResponse>,
   ) => {
     try {
-      console.log("[chat-index] manual rebuild triggered");
+      log.info("chat-index", "manual rebuild triggered");
       const result = await backfillAllSessions();
-      console.log(
-        `[chat-index] rebuild complete: ${result.indexed}/${result.total} indexed, ${result.skipped} skipped`,
-      );
+      log.info("chat-index", "rebuild complete", {
+        indexed: result.indexed,
+        total: result.total,
+        skipped: result.skipped,
+      });
       res.json(result);
     } catch (err) {
-      console.warn("[chat-index] rebuild failed:", err);
+      log.warn("chat-index", "rebuild failed", { error: String(err) });
       res.status(500).json({
         error: err instanceof Error ? err.message : "unknown error",
       });

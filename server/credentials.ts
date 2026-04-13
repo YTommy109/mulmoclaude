@@ -3,6 +3,7 @@ import { writeFile } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
 import { promisify } from "util";
+import { log } from "./logger/index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -30,13 +31,12 @@ export async function refreshCredentials(): Promise<boolean> {
     if (!credentials) return false;
 
     await writeFile(CREDENTIALS_PATH, credentials + "\n");
-    console.log("[sandbox] Credentials refreshed from macOS Keychain.");
+    log.info("sandbox", "Credentials refreshed from macOS Keychain.");
     return true;
   } catch (err) {
-    console.error(
-      "[sandbox] Failed to refresh credentials from Keychain:",
-      err,
-    );
+    log.error("sandbox", "Failed to refresh credentials from Keychain", {
+      error: String(err),
+    });
     return false;
   }
 }

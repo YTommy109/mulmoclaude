@@ -86,6 +86,7 @@ URL-based navigation via `vue-router` (history mode — clean paths, no `#`). Th
 | `server/journal/` | Workspace journal (daily + optimization passes) |
 | `server/chat-index/` | Per-session summarizer + sidebar title cache |
 | `server/utils/` | Shared helpers: `fs.ts`, `errors.ts` |
+| `server/logger/` | Structured logger (console + rotating file + telemetry stub) |
 | `server/csrfGuard.ts` | CSRF origin-check middleware |
 | `src/config/roles.ts` | Role definitions |
 | `src/tools/index.ts` | Plugin registry |
@@ -248,6 +249,24 @@ Skip if the change is purely cosmetic (Tailwind class tweaks, copy fixes, emoji 
 - **Route order is reversed**: Playwright checks routes last-registered-first. Register catch-all FIRST, specific routes AFTER.
 - **URL predicate functions > globs**: `**/api/roles` doesn't reliably match `http://host/api/roles`. Use `(url) => url.pathname === "/api/roles"` instead.
 - **Hash vs history mode**: Tests that assert URL query params behave differently between hash mode (`/#/chat?view=x`) and history mode (`/chat?view=x`). Write tests against the rendered UI state rather than raw URL strings when possible.
+
+## Server Logging
+
+The server uses the structured logger at `server/logger/`. **Never call `console.*` directly outside that module** — import and use `log.{error,warn,info,debug}(prefix, msg, data?)` instead.
+
+```ts
+import { log } from "../logger/index.js";
+
+log.info("my-module", "did a thing", { count: 3 });
+log.error("my-module", "operation failed", { error: String(err) });
+```
+
+- `prefix` is lowercase, hyphenated, no brackets (the text formatter adds `[ ]`)
+- Put structured values in the `data` payload, not interpolated into `msg` — the JSON file format depends on it
+- Console default is `info`/`text`; file default is `debug`/`json` rotating daily under `server/logs/`
+- Full reference (env vars, formats, rotation, recipes): [`docs/logging.md`](docs/logging.md)
+
+The only remaining `console.*` call is `server/logger/sinks.ts`'s fallback path for when the file sink itself errors.
 
 ## Tech Stack
 
