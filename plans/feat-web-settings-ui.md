@@ -102,39 +102,81 @@ README に新セクション "Configuring Additional Tools" を追加、#171 の
 
 ### Phase 2 — MCP サーバ管理 UI
 
-#125 の調査結果を踏まえると、以下の配管変更が必要:
+#125 の調査結果と Docker モードの制約を踏まえ、Phase 2 を **2a / 2b / 2c** に分割。2a が最も価値が高く、Docker でも動くのでここから着地する。
 
-1. **`buildMcpConfig` の拡張** — `configs/mcp.json` を読み込み、自家 `mulmoclaude` サーバと**マージ** して返す:
+#### Docker モードでの制約まとめ
+
+現状の `Dockerfile.sandbox` は `node:22-slim + claude-code + tsx` の最小構成。ユーザ定義 MCP サーバがどう動くかの事前予測:
+
+| 種類 | Docker モード | 理由 |
+|---|---|---|
+| **HTTP/remote** (Gmail, Calendar, `https://...`) | ✅ 動く | network egress 有り、OAuth credentials は `~/.claude.json` マウントで引き継ぎ |
+| **HTTP/localhost** (`http://localhost:N`) | ⚠️ 要 URL 書き換え | container からは host の localhost に届かない → `host.docker.internal` に自動変換 |
+| **stdio/`npx ...`** | △ 条件付き | container に `node`, `npx`, `tsx` はあるが毎回 npm download (遅 + network 必須) |
+| **stdio/`node ./script.js`** | ❌ パス解決失敗 | host 絶対パスは container 内に存在しない。workspace 内なら `/home/node/mulmoclaude/...` に書き換え要 |
+| **stdio/`python3`, `go`, 任意バイナリ** | ❌ 動かない | image に含まれない |
+
+#### Phase 2a — HTTP MCP のみサポート (最優先)
+
+**スコープ**: `type: "http"` のサーバ追加のみ受け付ける。stdio は次フェーズ。
+
+変更点:
+
+1. **`buildMcpConfig` の拡張** — `configs/mcp.json` を読み、自家 `mulmoclaude` サーバと HTTP サーバのみマージ:
    ```ts
    {
      mcpServers: {
        mulmoclaude: { ... },      // 既存
-       ...userDefinedServers,     // configs/mcp.json からマージ
+       ...userHttpServers,        // configs/mcp.json の http サーバのみ
      }
    }
    ```
 
-2. **`buildCliArgs#allowedTools` の動的化** — 現状は `mcp__mulmoclaude__<plugin>` だけ。ユーザ定義サーバ `foo` の全ツールを通すには `mcp__foo` (Claude CLI のサーバ単位ワイルドカード) を追加する方針で検証 (Claude CLI 側で全ツール許可の書式があるか確認)。無理ならサーバに接続して `tools/list` を取得 → 名前列挙。
+2. **localhost URL の自動書き換え** — Docker モード時 `http://localhost:N` / `http://127.0.0.1:N` → `http://host.docker.internal:N` に変換する純関数を `server/agent/config.ts` に追加、unit test も書く。
 
-3. **`MCP_PLUGIN_NAMES` の動的化** — `getActivePlugins` が静的 Set でフィルタしているが、ユーザ定義サーバは role の `availablePlugins` に紐づかない別経路で素通しするのが自然。具体的には:
-   - `buildMcpConfig` には常に user servers を含める (role に依存しない)
-   - `allowedTools` にも常に user servers のワイルドカードを含める (role に依存しない)
-   - role の `availablePlugins` は既存プラグイン (GUI 付き) の選択用途に限定する
+3. **`buildCliArgs#allowedTools` の動的化** — `mcp__<user-server>` のワイルドカード書式が Claude CLI で有効か検証。有効なら使う、無理なら接続して `tools/list` 取得 → 名前列挙。
 
-4. **UI (SettingsModal の MCP タブ)**:
-   - サーバ一覧 (id, name, type, enabled toggle)
-   - "Add Server" ボタン → フォームダイアログ:
+4. **`MCP_PLUGIN_NAMES` の動的化** — user HTTP サーバは role の `availablePlugins` に紐づかない別経路で素通し:
+   - `buildMcpConfig` には常に user HTTP servers を含める (role 非依存)
+   - `allowedTools` にも常に user HTTP servers のワイルドカードを含める
+   - role の `availablePlugins` は既存 GUI プラグインの選択用途に限定
+
+5. **UI (SettingsModal の MCP タブ)**:
+   - サーバ一覧 (id, name, url, enabled toggle)
+   - "Add HTTP Server" ボタン → フォーム:
      - **Name** (required, slug 化)
-     - **Type**: `stdio` / `http` ラジオ
-     - stdio の場合: command, args (行ごと), env (key/value の動的追加)
-     - http の場合: URL
-   - 既存サーバの編集 / 削除
-   - 保存時にサーバ側で `mcp.json` を書き換え (既存フォーマット準拠)
-   - インポート/エクスポート (JSON ファイル添付 / ダウンロード) — 他の Claude CLI 設定との相互運用
+     - **URL** (required, https: or http: 検証)
+     - **Headers** (key/value の動的追加, API key 用, マスク表示)
+   - 編集 / 削除
+   - 保存時にサーバ側で `mcp.json` を書き換え (Claude CLI フォーマット準拠)
 
-5. **セキュリティ検討**:
-   - ユーザが任意の `command` を入れて子プロセスを起動できる → サーバはローカル (localhost バインド) なので CSRF / オリジンガードで守られているが、 Docker サンドボックス環境での分離方針を明記
-   - env に API key を書く人が出る → ファイルパーミッション (0600) で保存、UI 上はマスク表示
+6. **セキュリティ**:
+   - `headers` 内の secret は UI でマスク、`mcp.json` はパーミッション `0600` で保存
+   - オリジンガード (`requireSameOrigin`) は既存のものが自動適用
+
+**完了条件**: Gmail / Google Calendar / Brave Search / GitHub MCP (HTTP) が Web UI から追加でき、Docker モード・ネイティブモード双方で動くことを確認。
+
+#### Phase 2b — stdio MCP サポート (Docker 配慮)
+
+**前提**: Phase 2a が先に入っていること。
+
+変更点:
+
+1. **`command` allowlist** — 安全のため `command` は `npx` / `node` / `tsx` のみに制限 (UI の radio セレクタ)
+2. **args の workspace パス書き換え** — workspace 内のパス (`workspace/tools/my.js`) → container パス (`/home/node/mulmoclaude/tools/my.js`) に自動変換する純関数を追加
+3. **UI 警告** — Docker モード有効時、workspace 外のパスが含まれる stdio サーバに "Docker 内では動かない可能性" バッジを出す
+4. **env マスク表示** — API key 等を入力する env key/value フォームで value を password 表示、`mcp.json` に保存
+
+**完了条件**: `@modelcontextprotocol/server-filesystem` を workspace 配下のパスで動かす golden path が Docker モードで通る。
+
+#### Phase 2c — sandbox image 拡張 (#162 にオフロード)
+
+Python, git, jq などが欲しい場合は `Dockerfile.sandbox` を拡張する作業が必要。スコープが広いので **この plan では扱わず #162 側で追跡**。Phase 2b と独立して進行可。
+
+#### インポート/エクスポート (Phase 2d — 余力あれば)
+
+- 他の Claude CLI 設定 (`~/.claude.json` の `mcpServers` セクション) からのインポート
+- `mcp.json` ダウンロード
 
 ### Phase 3 — 他の設定項目 (将来)
 
