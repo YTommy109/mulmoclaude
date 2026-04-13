@@ -528,6 +528,7 @@ import { useCanvasViewMode } from "./composables/useCanvasViewMode";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
 import { usePubSub } from "./composables/usePubSub";
+import { useHealth } from "./composables/useHealth";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 
 // --- Debug beat (pub/sub) ---
@@ -709,8 +710,7 @@ const activePane = ref<"sidebar" | "main">("sidebar");
 
 const showHistory = ref(false);
 const sessions = ref<SessionSummary[]>([]);
-const geminiAvailable = ref(true);
-const sandboxEnabled = ref(true);
+const { geminiAvailable, sandboxEnabled, fetchHealth } = useHealth();
 const showLockPopup = ref(false);
 
 const sandboxTestQueries = [
@@ -1010,18 +1010,6 @@ function createNewSession(roleId?: string): ActiveSession {
 
 function onRoleChange() {
   createNewSession(currentRoleId.value);
-}
-
-async function fetchHealth() {
-  try {
-    const res = await fetch("/api/health");
-    if (!res.ok) throw new Error("health check failed");
-    const data = await res.json();
-    geminiAvailable.value = !!data.geminiAvailable;
-    sandboxEnabled.value = !!data.sandboxEnabled;
-  } catch {
-    geminiAvailable.value = false;
-  }
 }
 
 async function fetchSessions(): Promise<SessionSummary[]> {
