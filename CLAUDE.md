@@ -251,6 +251,18 @@ Skip if the change is purely cosmetic (Tailwind class tweaks, copy fixes, emoji 
 - **URL predicate functions > globs**: `**/api/roles` doesn't reliably match `http://host/api/roles`. Use `(url) => url.pathname === "/api/roles"` instead.
 - **Hash vs history mode**: Tests that assert URL query params behave differently between hash mode (`/#/chat?view=x`) and history mode (`/chat?view=x`). Write tests against the rendered UI state rather than raw URL strings when possible.
 
+## Manual Testing
+
+Some behaviours can't be covered by E2E — drag-and-drop via `vuedraggable` / Sortable, HTML canvas pixel state, iframe-sandboxed content, LLM-driven agent flows that require a real backend, etc. Those live in [`docs/manual-testing.md`](docs/manual-testing.md), which is the single source of truth for the out-of-E2E surface.
+
+**Contract for PRs**:
+
+- MUST update [`docs/manual-testing.md`](docs/manual-testing.md) whenever a change deliberately leaves a scenario uncovered by E2E — add an entry with the flow, the reason it can't be automated, and how to smoke-check it.
+- MUST remove / strike-through an entry when a change brings a previously-manual scenario under E2E coverage.
+- Per-PR smoke-test notes go in the PR description, NOT in this doc. The doc is for *persistent* manual-test obligations only.
+
+See `plans/` entries and past PR descriptions (#193 wiki-backlinks, #195 tool-trace, #209 todo-items-crud) for examples of cleanly separating "E2E covers this" from "manual check after each release covers this".
+
 ## Server Logging
 
 The server uses the structured logger at `server/logger/`. **Never call `console.*` directly outside that module** — import and use `log.{error,warn,info,debug}(prefix, msg, data?)` instead.
