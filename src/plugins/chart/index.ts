@@ -31,11 +31,17 @@ const presentChartPlugin: ToolPlugin<PresentChartData> = {
         body: JSON.stringify(args),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: res.statusText }));
+        // Server responds with { error: string }; fall back to
+        // statusText if the body is missing or malformed.
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+          message?: string;
+        } | null;
+        const message = body?.error ?? body?.message ?? res.statusText;
         return {
           toolName: TOOL_NAME,
           uuid: crypto.randomUUID(),
-          error: (err as { message?: string }).message ?? res.statusText,
+          error: message,
         };
       }
       const result = await res.json();

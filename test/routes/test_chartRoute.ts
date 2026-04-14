@@ -73,4 +73,26 @@ describe("isValidChartDocument", () => {
       false,
     );
   });
+
+  it("rejects non-string document.title", () => {
+    assert.equal(
+      isValidChartDocument({ title: 42, charts: [{ option: {} }] }),
+      false,
+    );
+    assert.equal(
+      isValidChartDocument({ title: null, charts: [{ option: {} }] }),
+      false,
+    );
+  });
+
+  it("rejects non-string chart entry title or type", () => {
+    assert.equal(
+      isValidChartDocument({ charts: [{ title: 42, option: {} }] }),
+      false,
+    );
+    assert.equal(
+      isValidChartDocument({ charts: [{ type: {}, option: {} }] }),
+      false,
+    );
+  });
 });

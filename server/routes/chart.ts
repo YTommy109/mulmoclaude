@@ -42,9 +42,14 @@ type PresentChartResponse =
   | PresentChartSuccessResponse
   | PresentChartErrorResponse;
 
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
+}
+
 export function isValidChartDocument(value: unknown): value is ChartDocument {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
+  if (!isOptionalString(candidate.title)) return false;
   if (!Array.isArray(candidate.charts)) return false;
   if (candidate.charts.length === 0) return false;
   return candidate.charts.every((entry) => isValidChartEntry(entry));
@@ -53,6 +58,8 @@ export function isValidChartDocument(value: unknown): value is ChartDocument {
 function isValidChartEntry(value: unknown): value is ChartEntry {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
+  if (!isOptionalString(candidate.title)) return false;
+  if (!isOptionalString(candidate.type)) return false;
   if (
     typeof candidate.option !== "object" ||
     candidate.option === null ||
@@ -76,6 +83,11 @@ router.post(
         error:
           "document must be { charts: [{ option: {...}, title?, type? }, ...] } with at least one entry",
       });
+      return;
+    }
+
+    if (title !== undefined && typeof title !== "string") {
+      res.status(400).json({ error: "title must be a string when provided" });
       return;
     }
 
