@@ -116,6 +116,45 @@ describe("handleAddColumn", () => {
     assert.equal(result.columns[result.columns.length - 1]?.id, "review_2");
   });
 
+  it("generates distinct hash-based ids for different Japanese labels", () => {
+    // Previously both would fall back to id="column" and collide. The
+    // fix hashes the UTF-8 bytes so distinct labels yield distinct ids.
+    const afterFirst = handleAddColumn(cols(), [], { label: "完了" });
+    assert.equal(afterFirst.kind, "success");
+    if (afterFirst.kind !== "success") return;
+    const firstId = afterFirst.columns[afterFirst.columns.length - 1]?.id;
+    assert.ok(firstId && firstId !== "column");
+
+    const afterSecond = handleAddColumn(afterFirst.columns, [], {
+      label: "進行中",
+    });
+    assert.equal(afterSecond.kind, "success");
+    if (afterSecond.kind !== "success") return;
+    const secondId = afterSecond.columns[afterSecond.columns.length - 1]?.id;
+    assert.ok(secondId && secondId !== "column");
+    assert.notEqual(secondId, firstId);
+  });
+
+  it("preserves an ASCII prefix when a mixed label has a useful one", () => {
+    const result = handleAddColumn(cols(), [], { label: "Doing (進行中)" });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    const id = result.columns[result.columns.length - 1]?.id;
+    assert.ok(id?.startsWith("doing_"));
+  });
+
+  it("is deterministic — same label always yields the same id", () => {
+    const a = handleAddColumn(cols(), [], { label: "完了" });
+    const b = handleAddColumn(cols(), [], { label: "完了" });
+    if (a.kind !== "success" || b.kind !== "success") {
+      assert.fail("both should succeed");
+    }
+    assert.equal(
+      a.columns[a.columns.length - 1]?.id,
+      b.columns[b.columns.length - 1]?.id,
+    );
+  });
+
   it("demotes existing done columns when isDone is true", () => {
     const result = handleAddColumn(cols(), [], {
       label: "Archived",

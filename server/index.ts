@@ -16,6 +16,7 @@ import mulmoScriptRoutes from "./routes/mulmo-script.js";
 import wikiRoutes from "./routes/wiki.js";
 import pdfRoutes from "./routes/pdf.js";
 import filesRoutes from "./routes/files.js";
+import configRoutes from "./routes/config.js";
 import {
   mcpToolsRouter,
   mcpTools,
@@ -35,7 +36,10 @@ import { createPubSub } from "./pub-sub/index.js";
 import { createTaskManager } from "./task-manager/index.js";
 import type { ITaskManager } from "./task-manager/index.js";
 import type { IPubSub } from "./pub-sub/index.js";
+import { initSessionStore } from "./session-store/index.js";
 import { requireSameOrigin } from "./csrfGuard.js";
+import { log } from "./logger/index.js";
+import { startChat } from "./routes/agent.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -90,6 +94,7 @@ app.use("/api", mulmoScriptRoutes);
 app.use("/api", wikiRoutes);
 app.use("/api", pdfRoutes);
 app.use("/api", filesRoutes);
+app.use("/api", configRoutes);
 app.use("/api/mcp-tools", mcpToolsRouter);
 
 if (process.env.NODE_ENV === "production") {
@@ -100,7 +105,10 @@ if (process.env.NODE_ENV === "production") {
 }
 
 app.use((err: Error, _req: Request, res: Response, __next: NextFunction) => {
-  console.error(err);
+  log.error("express", "unhandled error", {
+    error: err.message,
+    stack: err.stack,
+  });
   res.status(500).json({ error: "Internal Server Error" });
 });
 
@@ -130,46 +138,42 @@ async function ensureCredentialsAvailable(): Promise<void> {
     const { refreshCredentials } = await import("./credentials.js");
     const ok = await refreshCredentials();
     if (ok) return;
-    console.error(
-      "[sandbox] Failed to export credentials from macOS Keychain.",
+    log.error(
+      "sandbox",
+      "Failed to export credentials from macOS Keychain. Run `npm run sandbox:login` manually.",
     );
-    console.error("[sandbox] Run `npm run sandbox:login` manually.");
     process.exit(1);
   }
-  console.error(
-    "[sandbox] Missing credentials file: ~/.claude/.credentials.json",
-  );
-  console.error(
-    "[sandbox] Run `claude auth login` to authenticate Claude Code.",
+  log.error(
+    "sandbox",
+    "Missing credentials file at ~/.claude/.credentials.json. Run `claude auth login` to authenticate Claude Code.",
   );
   process.exit(1);
 }
 
 async function setupSandbox(): Promise<boolean> {
   if (process.env.DISABLE_SANDBOX === "1") {
-    console.log(
-      "[sandbox] DISABLE_SANDBOX=1 — running unrestricted (debug mode)",
+    log.info(
+      "sandbox",
+      "DISABLE_SANDBOX=1 — running unrestricted (debug mode)",
     );
     return false;
   }
   try {
     const dockerAvailable = await isDockerAvailable();
     if (!dockerAvailable) {
-      console.log("[sandbox] Docker not found — claude will run unrestricted");
+      log.info("sandbox", "Docker not found — claude will run unrestricted");
       return false;
     }
     await ensureCredentialsAvailable();
-    console.log(
-      "[sandbox] Docker available — building sandbox image if needed",
-    );
+    log.info("sandbox", "Docker available — building sandbox image if needed");
     await ensureSandboxImage();
-    console.log("[sandbox] Sandbox ready");
+    log.info("sandbox", "Sandbox ready");
     return true;
   } catch (err) {
-    console.error(
-      "[sandbox] Failed to set up sandbox, running unrestricted:",
-      err,
-    );
+    log.error("sandbox", "Failed to set up sandbox, running unrestricted", {
+      error: String(err),
+    });
     return false;
   }
 }
@@ -178,9 +182,9 @@ function logMcpStatus(): void {
   const enabledMcpTools = mcpTools.filter(isMcpToolEnabled);
   const disabledMcpTools = mcpTools.filter((t) => !isMcpToolEnabled(t));
   if (enabledMcpTools.length > 0) {
-    console.log(
-      `[mcp] Available: ${enabledMcpTools.map((t) => t.definition.name).join(", ")}`,
-    );
+    log.info("mcp", "Available", {
+      tools: enabledMcpTools.map((t) => t.definition.name).join(", "),
+    });
   }
   if (disabledMcpTools.length > 0) {
     const names = disabledMcpTools
@@ -189,7 +193,7 @@ function logMcpStatus(): void {
           t.definition.name + " (" + (t.requiredEnv ?? []).join(", ") + ")",
       )
       .join(", ");
-    console.log(`[mcp] Unavailable (missing env): ${names}`);
+    log.info("mcp", "Unavailable (missing env)", { tools: names });
   }
 }
 
@@ -199,9 +203,9 @@ function maybeForceJournalRun(): void {
   // the hourly interval. Fire-and-forget — journal errors never
   // propagate out of maybeRunJournal.
   if (process.env.JOURNAL_FORCE_RUN_ON_STARTUP !== "1") return;
-  console.log("[journal] JOURNAL_FORCE_RUN_ON_STARTUP=1 — running now");
+  log.info("journal", "JOURNAL_FORCE_RUN_ON_STARTUP=1 — running now");
   maybeRunJournal({ force: true }).catch((err) => {
-    console.warn("[journal] forced startup run failed:", err);
+    log.warn("journal", "forced startup run failed", { error: String(err) });
   });
 }
 
@@ -211,23 +215,30 @@ function maybeForceChatIndexBackfill(): void {
   // feature is rolled out over an existing workspace, or when
   // debugging the indexer itself.
   if (process.env.CHAT_INDEX_FORCE_RUN_ON_STARTUP !== "1") return;
-  console.log("[chat-index] CHAT_INDEX_FORCE_RUN_ON_STARTUP=1 — running now");
+  log.info("chat-index", "CHAT_INDEX_FORCE_RUN_ON_STARTUP=1 — running now");
   backfillAllSessions()
     .then((result) => {
-      console.log(
-        `[chat-index] startup backfill complete: ${result.indexed}/${result.total} indexed, ${result.skipped} skipped`,
-      );
+      log.info("chat-index", "startup backfill complete", {
+        indexed: result.indexed,
+        total: result.total,
+        skipped: result.skipped,
+      });
     })
     .catch((err) => {
-      console.warn("[chat-index] forced startup backfill failed:", err);
+      log.warn("chat-index", "forced startup backfill failed", {
+        error: String(err),
+      });
     });
 }
 
 function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
-  console.log(`Server running on port ${PORT}`);
+  log.info("server", "listening", { port: PORT });
 
   // --- Pub/Sub ---
   const pubsub = createPubSub(httpServer);
+
+  // --- Session Store ---
+  initSessionStore(pubsub);
 
   // --- Task Manager ---
   const taskManager = createTaskManager({
@@ -247,8 +258,9 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
 (async () => {
   const portFree = await isPortFree(PORT);
   if (!portFree) {
-    console.error(
-      `[error] Port ${PORT} is already in use. Stop the other process and try again.`,
+    log.error(
+      "server",
+      `Port ${PORT} is already in use. Stop the other process and try again.`,
     );
     process.exit(1);
   }
@@ -286,43 +298,32 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
 })();
 
 function registerDebugTasks(taskManager: ITaskManager, pubsub: IPubSub) {
-  let count = 0;
+  let tick = 0;
 
   taskManager.registerTask({
-    id: "debug.counter",
+    id: "debug.auto-chat",
     description:
-      "Debug counter — logs and publishes debug.beat, self-removes after 10 runs",
+      "Debug — toggles title color 10 times then starts a General-mode chat, then self-removes",
     schedule: { type: "interval", intervalMs: 1_000 },
     run: async () => {
-      count++;
-      const last = count === 10;
-      console.log(`[task-manager] debug.counter: ${count}`);
-      pubsub.publish("debug.beat", { count, last });
-      if (last) {
-        taskManager.removeTask("debug.counter");
-        registerDebugCounter2(taskManager, pubsub);
-      }
+      tick++;
+      const last = tick === 10;
+      log.info("debug", `auto-chat countdown ${tick}/10`);
+      pubsub.publish("debug.beat", { count: tick, last });
+
+      if (!last) return;
+
+      taskManager.removeTask("debug.auto-chat");
+      const chatSessionId = crypto.randomUUID();
+      log.info("debug", "starting auto-chat", { chatSessionId });
+      const result = await startChat({
+        message: "Tell me about this app, MulmoClaude.",
+        roleId: "general",
+        chatSessionId,
+      });
+      log.info("debug", "auto-chat result", { kind: result.kind });
     },
   });
 
-  console.log("[debug] Debug mode active — registered debug tasks");
-}
-
-function registerDebugCounter2(taskManager: ITaskManager, pubsub: IPubSub) {
-  let count = 0;
-
-  taskManager.registerTask({
-    id: "debug.counter2",
-    description: "Debug counter 2 — fires debug.beat every 2 seconds, 10 times",
-    schedule: { type: "interval", intervalMs: 2_000 },
-    run: async () => {
-      count++;
-      const last = count === 10;
-      console.log(`[task-manager] debug.counter2: ${count}`);
-      pubsub.publish("debug.beat", { count, last });
-      if (last) {
-        taskManager.removeTask("debug.counter2");
-      }
-    },
-  });
+  log.info("debug", "Debug mode active — registered debug tasks");
 }

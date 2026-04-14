@@ -20,6 +20,7 @@ const toolDefinition: ToolDefinition = {
   name: TOOL_NAME,
   description:
     "Open a drawing canvas for the user to create drawings, sketches, or diagrams.",
+  prompt: `When the user asks 'I want to draw an image.', call ${TOOL_NAME} API to open the canvas.`,
   parameters: {
     type: "object",
     properties: {},

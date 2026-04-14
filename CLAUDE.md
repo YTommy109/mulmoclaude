@@ -43,15 +43,16 @@ SSE from `POST /api/agent`: `{ type: "status" | "tool_result" | "error", ... }`.
 
 ### Workspace
 
-Set via `WORKSPACE_PATH` env var (defaults to `cwd()`). All data lives as plain Markdown + YAML frontmatter files:
+Hard-coded to `~/mulmoclaude/` (see `server/workspace.ts:11`). There is **no `WORKSPACE_PATH` env override**; changing the location requires a code edit or a symlink. Full directory layout is documented in [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude); the short version:
 
 ```text
-workspace/
+~/mulmoclaude/
   chat/           ← session ToolResults (one .jsonl per session)
   chat/index/     ← per-session title/summary cache (chat indexer)
   todos/          ← todo items
   calendar/       ← calendar events
   wiki/           ← wiki pages + assets
+  configs/        ← web Settings UI (settings.json, mcp.json)
   summaries/      ← journal output (daily/ + topics/ + archive/)
   memory.md       ← distilled facts always loaded as context
 ```
@@ -86,6 +87,7 @@ URL-based navigation via `vue-router` (history mode — clean paths, no `#`). Th
 | `server/journal/` | Workspace journal (daily + optimization passes) |
 | `server/chat-index/` | Per-session summarizer + sidebar title cache |
 | `server/utils/` | Shared helpers: `fs.ts`, `errors.ts` |
+| `server/logger/` | Structured logger (console + rotating file + telemetry stub) |
 | `server/csrfGuard.ts` | CSRF origin-check middleware |
 | `src/config/roles.ts` | Role definitions |
 | `src/tools/index.ts` | Plugin registry |
@@ -232,11 +234,52 @@ e2e/
 3. Use URL assertions for router behaviour (`expect(page.url()).toContain(...)`)
 4. Override specific API responses per test by adding a `page.route()` AFTER `mockAllApis` (Playwright checks last-registered first)
 
+### When to add E2E coverage
+
+**Whenever a `.vue` component is modified**, consider whether the change needs a new E2E test. Unit tests cover the extracted pure helpers; E2E tests are the regression safety-net for the Vue component's wiring (template bindings, event handlers, reactive state flow, router integration). Concrete triggers:
+
+- Touching `src/App.vue` — almost always add / extend a scenario in `e2e/tests/chat-flow.spec.ts` (the refactor flow).
+- Touching a plugin's `View.vue` / `Preview.vue` — add or extend the plugin-specific spec (e.g. `file-explorer.spec.ts`, `image-plugins.spec.ts`).
+- Adding a new route or changing guard logic — `router-navigation.spec.ts` / `router-guards.spec.ts`.
+- Changing SSE event handling, session loading, or sidebar session merging — `chat-flow.spec.ts` already exercises these; add a case if a new event type / selection rule / merge path is introduced.
+
+Skip if the change is purely cosmetic (Tailwind class tweaks, copy fixes, emoji swaps) with no behavioural path touched.
+
 ### Gotchas
 
 - **Route order is reversed**: Playwright checks routes last-registered-first. Register catch-all FIRST, specific routes AFTER.
 - **URL predicate functions > globs**: `**/api/roles` doesn't reliably match `http://host/api/roles`. Use `(url) => url.pathname === "/api/roles"` instead.
 - **Hash vs history mode**: Tests that assert URL query params behave differently between hash mode (`/#/chat?view=x`) and history mode (`/chat?view=x`). Write tests against the rendered UI state rather than raw URL strings when possible.
+
+## Manual Testing
+
+Some behaviours can't be covered by E2E — drag-and-drop via `vuedraggable` / Sortable, HTML canvas pixel state, iframe-sandboxed content, LLM-driven agent flows that require a real backend, etc. Those live in [`docs/manual-testing.md`](docs/manual-testing.md), which is the single source of truth for the out-of-E2E surface.
+
+**Contract for PRs**:
+
+- MUST update [`docs/manual-testing.md`](docs/manual-testing.md) whenever a change deliberately leaves a scenario uncovered by E2E — add an entry with the flow, the reason it can't be automated, and how to smoke-check it.
+- MUST remove / strike-through an entry when a change brings a previously-manual scenario under E2E coverage.
+- Per-PR smoke-test notes go in the PR description, NOT in this doc. The doc is for *persistent* manual-test obligations only.
+
+See `plans/` entries and past PR descriptions (#193 wiki-backlinks, #195 tool-trace, #209 todo-items-crud) for examples of cleanly separating "E2E covers this" from "manual check after each release covers this".
+
+## Server Logging
+
+The server uses the structured logger at `server/logger/`. **Never call `console.*` directly outside that module** — import and use `log.{error,warn,info,debug}(prefix, msg, data?)` instead.
+
+```ts
+import { log } from "../logger/index.js";
+
+log.info("my-module", "did a thing", { count: 3 });
+log.error("my-module", "operation failed", { error: String(err) });
+```
+
+- `prefix` is lowercase, hyphenated, no brackets (the text formatter adds `[ ]`)
+- Put structured values in the `data` payload, not interpolated into `msg` — the JSON file format depends on it
+- Console default is `info`/`text`; file default is `debug`/`json` rotating daily under `server/logs/`
+- Full reference (env vars, formats, rotation, recipes): [`docs/logging.md`](docs/logging.md)
+
+The only remaining `console.*` call is `server/logger/sinks.ts`'s fallback path for when the file sink itself errors.
 
 ## Tech Stack
 

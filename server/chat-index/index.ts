@@ -16,6 +16,7 @@
 import { workspacePath as defaultWorkspacePath } from "../workspace.js";
 import { ClaudeCliNotFoundError } from "../journal/archivist.js";
 import { indexSession, listSessionIds, type IndexerDeps } from "./indexer.js";
+import { log } from "../logger/index.js";
 
 // Per-session lock. Indexing different sessions in parallel is
 // fine; indexing the same session twice concurrently would just
@@ -74,10 +75,12 @@ export async function maybeIndexSession(
   } catch (err) {
     if (err instanceof ClaudeCliNotFoundError) {
       disabled = true;
-      console.warn(err.message);
+      log.warn("chat-index", err.message);
       return;
     }
-    console.warn("[chat-index] unexpected failure, continuing:", err);
+    log.warn("chat-index", "unexpected failure, continuing", {
+      error: String(err),
+    });
   } finally {
     running.delete(sessionId);
   }
@@ -123,19 +126,25 @@ export async function backfillAllSessions(
       });
       if (entry) {
         result.indexed++;
-        console.log(`[chat-index] indexed ${sessionId}: ${entry.title}`);
+        log.info("chat-index", "indexed", {
+          sessionId,
+          title: entry.title,
+        });
       } else {
         result.skipped++;
       }
     } catch (err) {
       if (err instanceof ClaudeCliNotFoundError) {
         disabled = true;
-        console.warn(err.message);
+        log.warn("chat-index", err.message);
         result.skipped++;
         continue;
       }
       result.skipped++;
-      console.warn(`[chat-index] failed to index ${sessionId}:`, err);
+      log.warn("chat-index", "failed to index", {
+        sessionId,
+        error: String(err),
+      });
     }
   }
   return result;

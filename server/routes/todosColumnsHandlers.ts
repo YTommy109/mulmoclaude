@@ -11,6 +11,7 @@
 // items have somewhere to live and the legacy `completed` boolean has
 // something to map to.
 
+import { hasNonAscii, hashSlug } from "../utils/slug.js";
 import type { TodoItem } from "./todos.js";
 
 export interface StatusColumn {
@@ -46,12 +47,9 @@ export type ColumnsActionResult =
 
 // Convert a free-text label into a URL-safe id. Lowercased ASCII
 // letters/numbers/underscore only; everything else collapses to "_".
-// Empty result falls back to "column".
+// Non-ASCII labels (e.g. Japanese) get a deterministic sha256-based
+// id so distinct labels never collapse to the same fallback "column".
 function slugify(label: string): string {
-  // Lowercased, with all non-alphanumeric runs collapsed to "_". The
-  // single regex pass is intentional: doing the trim separately with
-  // a leading/trailing _+ regex is flagged by sonarjs as potentially
-  // super-linear, so trim the underscores manually instead.
   let slug = label
     .toLowerCase()
     .trim()
@@ -61,7 +59,12 @@ function slugify(label: string): string {
   while (start < end && slug.charCodeAt(start) === 95) start++;
   while (end > start && slug.charCodeAt(end - 1) === 95) end--;
   slug = slug.slice(start, end);
-  return slug.length > 0 ? slug : "column";
+
+  if (!hasNonAscii(label)) return slug.length > 0 ? slug : "column";
+
+  const hash = hashSlug(label.trim());
+  if (slug.length >= 3) return `${slug}_${hash}`;
+  return hash;
 }
 
 // Pick an id that doesn't collide with `existingIds`. Tries the bare

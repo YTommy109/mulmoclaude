@@ -1,92 +1,40 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
-import { TODO_ITEMS, TODO_COLUMNS, type TodoFixture } from "../fixtures/todos";
+import {
+  mockSlugifyColumnId,
+  setupMutableTodoMocks,
+} from "../fixtures/todos-mutable";
 
-async function setupTodoMocks(page: Page) {
+async function setupTodoMocks(page: Page): Promise<void> {
   await mockAllApis(page);
-
-  // Mutable state for column operations.
-  let columns = [...TODO_COLUMNS];
-  let items = [...TODO_ITEMS];
-
-  const buildResponse = () => ({ data: { items, columns } });
-
-  await page.route(
-    (url) => url.pathname === "/api/todos",
-    (route) => route.fulfill({ json: buildResponse() }),
-  );
-
-  // Column operations — return updated state.
-  await page.route(
-    (url) => url.pathname.startsWith("/api/todos/columns"),
-    (route) => {
-      const method = route.request().method();
+  await setupMutableTodoMocks(page, {
+    dispatchColumn(method, id, body, state) {
       if (method === "POST") {
-        // Add column
-        columns = [
-          ...columns,
-          { id: "new_col", label: "New Column" },
-        ];
-      } else if (method === "DELETE") {
-        const id = route.request().url().split("/api/todos/columns/").pop();
-        columns = columns.filter((c) => c.id !== id);
-      } else if (method === "PATCH") {
-        const id = route.request().url().split("/api/todos/columns/").pop();
-        columns = columns.map((c) =>
-          c.id === id ? { ...c, label: "Renamed" } : c,
-        );
+        const label =
+          typeof body.label === "string" && body.label.length > 0
+            ? body.label
+            : "New Column";
+        const baseId = mockSlugifyColumnId(label);
+        const existing = new Set(state.columns.map((c) => c.id));
+        let newId = baseId;
+        let n = 2;
+        while (existing.has(newId)) newId = `${baseId}_${n++}`;
+        return {
+          columns: [...state.columns, { id: newId, label }],
+        };
       }
-      return route.fulfill({ json: buildResponse() });
+      if (method === "DELETE" && id) {
+        return { columns: state.columns.filter((c) => c.id !== id) };
+      }
+      if (method === "PATCH" && id) {
+        return {
+          columns: state.columns.map((c) =>
+            c.id === id ? { ...c, label: "Renamed" } : c,
+          ),
+        };
+      }
     },
-  );
-
-  await page.route(
-    (url) => url.pathname.startsWith("/api/todos/items"),
-    (route) => route.fulfill({ json: buildResponse() }),
-  );
-
-  await page.route(
-    (url) =>
-      url.pathname === "/api/files/content" &&
-      url.searchParams.get("path") === "todos/todos.json",
-    (route) =>
-      route.fulfill({
-        json: {
-          kind: "text",
-          path: "todos/todos.json",
-          content: JSON.stringify(items),
-          size: 500,
-          modifiedMs: Date.now(),
-        },
-      }),
-  );
-
-  await page.route(
-    (url) => url.pathname === "/api/files/tree",
-    (route) =>
-      route.fulfill({
-        json: {
-          name: "",
-          path: "",
-          type: "dir",
-          children: [
-            {
-              name: "todos",
-              path: "todos",
-              type: "dir",
-              children: [
-                {
-                  name: "todos.json",
-                  path: "todos/todos.json",
-                  type: "file",
-                  size: 500,
-                },
-              ],
-            },
-          ],
-        },
-      }),
-  );
+  });
 }
 
 test.describe("Todo column management", () => {
@@ -111,9 +59,7 @@ test.describe("Todo column management", () => {
     });
 
     // Click the first column's menu button (more_horiz icon)
-    const firstColumn = page.locator(
-      '[data-testid="todo-column-backlog"]',
-    );
+    const firstColumn = page.locator('[data-testid="todo-column-backlog"]');
     await firstColumn.locator("text=more_horiz").click();
     await expect(page.getByText("Rename")).toBeVisible();
     await expect(page.getByText("Delete column")).toBeVisible();
@@ -173,5 +119,49 @@ test.describe("Todo column management", () => {
     const doneColumn = page.locator('[data-testid="todo-column-done"]');
     await doneColumn.locator("text=more_horiz").click();
     await expect(page.getByText("Already done column")).toBeVisible();
+  });
+
+  test("adds a column with a Japanese label (#161)", async ({ page }) => {
+    await page.goto("/chat?view=files&path=todos/todos.json");
+    await expect(page.getByText("Todo").first()).toBeVisible({
+      timeout: 5000,
+    });
+
+    await page.locator('[data-testid="todo-column-add-btn"]').click();
+    const input = page.locator('input[placeholder="Review"]');
+    await input.fill("完了");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+
+    // The new column's header shows the Japanese label, proving the
+    // UI round-trip accepted the non-ASCII input without crashing.
+    await expect(page.getByText("完了")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("two distinct Japanese labels produce two distinct columns (#161)", async ({
+    page,
+  }) => {
+    await page.goto("/chat?view=files&path=todos/todos.json");
+    await expect(page.getByText("Todo").first()).toBeVisible({
+      timeout: 5000,
+    });
+
+    // First Japanese column
+    await page.locator('[data-testid="todo-column-add-btn"]').click();
+    await page.locator('input[placeholder="Review"]').fill("完了");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText("完了")).toBeVisible({ timeout: 5000 });
+
+    // Second Japanese column — previously would collide on id="column"
+    // and the kanban board would fail to render the second column.
+    await page.locator('[data-testid="todo-column-add-btn"]').click();
+    await page.locator('input[placeholder="Review"]').fill("進行中です");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText("進行中です")).toBeVisible({
+      timeout: 5000,
+    });
+
+    // Both labels coexist → distinct column ids were generated.
+    await expect(page.getByText("完了")).toBeVisible();
+    await expect(page.getByText("進行中です")).toBeVisible();
   });
 });

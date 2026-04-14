@@ -3,6 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
+import { log } from "./logger/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(__dirname, "helps");
@@ -23,6 +24,10 @@ const SUBDIRS = [
   "images",
   "markdowns",
   "spreadsheets",
+  // Web-configurable settings (app-wide) and user-defined MCP servers
+  // live under this dir so future import/export can ship them as a
+  // unit. See plans/feat-web-settings-ui.md.
+  "configs",
 ];
 
 export function initWorkspace(): string {
@@ -54,9 +59,9 @@ export function initWorkspace(): string {
   const gitDir = path.join(workspacePath, ".git");
   if (!fs.existsSync(gitDir)) {
     execSync("git init", { cwd: workspacePath });
-    console.log(`Initialized git repository in ${workspacePath}`);
+    log.info("workspace", "initialized git repository", { workspacePath });
   }
 
-  console.log(`Workspace: ${workspacePath}`);
+  log.info("workspace", "ready", { workspacePath });
   return workspacePath;
 }

@@ -48,72 +48,13 @@
               >{{ unreadCount }}</span
             >
           </button>
-          <div class="relative">
-            <button
-              ref="lockButtonRef"
-              :class="
-                sandboxEnabled
-                  ? 'text-green-500 hover:text-green-700'
-                  : 'text-amber-400 hover:text-amber-500'
-              "
-              :title="
-                sandboxEnabled
-                  ? 'Sandbox enabled (Docker)'
-                  : 'No sandbox (Docker not found)'
-              "
-              @click="showLockPopup = !showLockPopup"
-            >
-              <span class="material-icons">{{
-                sandboxEnabled ? "lock" : "lock_open"
-              }}</span>
-            </button>
-            <div
-              v-if="showLockPopup"
-              ref="lockPopupRef"
-              class="absolute right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-3 text-xs"
-            >
-              <p
-                class="mb-2"
-                :class="sandboxEnabled ? 'text-green-800' : 'text-amber-500'"
-              >
-                <template v-if="sandboxEnabled">
-                  <span class="material-icons text-xs align-middle mr-1"
-                    >lock</span
-                  >
-                  <strong>Sandbox enabled:</strong> Docker is running.
-                  Filesystem access is isolated.
-                </template>
-                <template v-else>
-                  <span class="material-icons text-xs align-middle mr-1"
-                    >warning</span
-                  >
-                  <strong>No sandbox:</strong> Claude can access all files on
-                  your machine. Install
-                  <a
-                    href="https://www.docker.com/products/docker-desktop/"
-                    target="_blank"
-                    class="underline"
-                    >Docker Desktop</a
-                  >
-                  to enable filesystem isolation.
-                </template>
-              </p>
-              <p class="text-gray-400 mb-1">Test sandbox isolation:</p>
-              <div class="flex flex-col gap-1">
-                <button
-                  v-for="q in sandboxTestQueries"
-                  :key="q"
-                  class="text-left rounded px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
-                  @click="
-                    showLockPopup = false;
-                    sendMessage(q);
-                  "
-                >
-                  {{ q }}
-                </button>
-              </div>
-            </div>
-          </div>
+          <LockStatusPopup
+            ref="lockPopupRef"
+            :sandbox-enabled="sandboxEnabled"
+            :open="showLockPopup"
+            @update:open="showLockPopup = $event"
+            @test-query="sendMessage"
+          />
           <button
             class="text-gray-400 hover:text-gray-700"
             :class="{ 'text-blue-500': showRightSidebar }"
@@ -122,86 +63,27 @@
           >
             <span class="material-icons">build</span>
           </button>
+          <button
+            class="text-gray-400 hover:text-gray-700"
+            data-testid="settings-btn"
+            title="Settings"
+            aria-label="Settings"
+            @click="showSettings = true"
+          >
+            <span class="material-icons">settings</span>
+          </button>
         </div>
       </div>
       <!-- History popup -->
-      <div
+      <SessionHistoryPanel
         v-if="showHistory"
-        ref="historyPopupRef"
-        class="absolute left-0 right-0 bottom-0 bg-white border-b border-gray-200 shadow-lg z-50 overflow-y-auto"
-        :style="{ top: headerRef ? headerRef.offsetHeight + 'px' : '4rem' }"
-      >
-        <div class="p-2 space-y-1">
-          <p
-            v-if="mergedSessions.length === 0"
-            class="text-xs text-gray-400 p-2"
-          >
-            No sessions yet.
-          </p>
-          <div
-            v-for="session in mergedSessions"
-            :key="session.id"
-            class="cursor-pointer rounded border p-2 text-sm transition-colors"
-            :class="
-              sessionMap.get(session.id)?.isRunning
-                ? 'border-yellow-400 bg-yellow-50 hover:bg-yellow-100'
-                : sessionMap.get(session.id)?.hasUnread
-                  ? 'border-gray-400 bg-white hover:bg-gray-50'
-                  : session.id === currentSessionId
-                    ? 'border-blue-400 bg-blue-50 hover:bg-blue-100'
-                    : 'border-gray-200 hover:bg-gray-50'
-            "
-            :data-testid="`session-item-${session.id}`"
-            @click="loadSession(session.id)"
-          >
-            <div class="flex items-center gap-1 text-xs text-gray-500 mb-1">
-              <span class="material-icons text-xs">{{
-                roleIcon(session.roleId)
-              }}</span>
-              <span>{{ roleName(session.roleId) }}</span>
-              <span class="ml-auto flex items-center gap-1.5">
-                <span
-                  v-if="sessionMap.get(session.id)?.isRunning"
-                  class="flex items-center gap-0.5 text-yellow-600 font-medium"
-                >
-                  <span
-                    class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"
-                  />
-                  Running
-                </span>
-                <span
-                  v-else-if="sessionMap.get(session.id)?.hasUnread"
-                  class="flex items-center gap-0.5 text-gray-900 font-bold"
-                >
-                  Unread
-                </span>
-                <span v-else>{{ formatDate(session.updatedAt) }}</span>
-              </span>
-            </div>
-            <p
-              class="truncate"
-              :class="
-                sessionMap.get(session.id)?.isRunning
-                  ? 'text-yellow-800'
-                  : sessionMap.get(session.id)?.hasUnread
-                    ? 'text-gray-900 font-bold'
-                    : 'text-gray-700'
-              "
-            >
-              {{ session.preview || "(no messages)" }}
-            </p>
-            <!-- Optional second line: AI-generated summary of the
-                 session, populated by the chat indexer (#123).
-                 Older sessions with no index entry simply omit this. -->
-            <p
-              v-if="session.summary"
-              class="text-xs text-gray-500 truncate mt-0.5"
-            >
-              {{ session.summary }}
-            </p>
-          </div>
-        </div>
-      </div>
+        ref="historyPanelRef"
+        :sessions="mergedSessions"
+        :current-session-id="currentSessionId"
+        :roles="roles"
+        :top-offset="headerRef?.offsetHeight"
+        @load-session="loadSession"
+      />
 
       <!-- Role selector -->
       <div
@@ -263,7 +145,7 @@
               class="material-icons text-base"
               :class="[
                 tabColor(tabSessions[i - 1]),
-                sessionMap.get(tabSessions[i - 1].id)?.isRunning
+                tabSessions[i - 1].isRunning
                   ? 'animate-spin [animation-duration:3s]'
                   : '',
               ]"
@@ -285,62 +167,16 @@
       </div>
 
       <!-- Tool result previews -->
-      <div
-        ref="chatListRef"
-        class="flex-1 min-h-0 overflow-y-auto p-2 space-y-2 bg-gray-100 outline-none"
-        tabindex="0"
-        @mousedown="activePane = 'sidebar'"
-      >
-        <div
-          v-for="result in sidebarResults"
-          :key="result.uuid"
-          class="cursor-pointer rounded border border-gray-300 p-2 text-sm text-gray-900 hover:opacity-75 transition-opacity"
-          :class="
-            result.uuid === selectedResultUuid ? 'ring-2 ring-blue-500' : ''
-          "
-          @click="onSidebarItemClick(result.uuid)"
-        >
-          <component
-            :is="getPlugin(result.toolName)?.previewComponent"
-            v-if="getPlugin(result.toolName)?.previewComponent"
-            :result="result"
-          />
-          <span v-else>{{ result.title || result.toolName }}</span>
-        </div>
-
-        <!-- Thinking indicator -->
-        <div v-if="isRunning" class="px-2 py-1 text-sm">
-          <div class="flex items-center gap-2 text-gray-500">
-            <span class="text-xs">{{ statusMessage }}</span>
-            <span class="flex gap-1">
-              <span
-                class="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce"
-                style="animation-delay: 0ms"
-              />
-              <span
-                class="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce"
-                style="animation-delay: 150ms"
-              />
-              <span
-                class="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce"
-                style="animation-delay: 300ms"
-              />
-            </span>
-          </div>
-          <div v-if="pendingCalls.length > 0" class="mt-1 space-y-0.5">
-            <div
-              v-for="call in pendingCalls"
-              :key="call.toolUseId"
-              class="flex items-center gap-1.5 text-xs text-gray-400"
-            >
-              <span
-                class="w-1.5 h-1.5 rounded-full bg-blue-300 shrink-0 animate-pulse"
-              />
-              <span class="font-mono truncate">{{ call.toolName }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <ToolResultsPanel
+        ref="toolResultsPanelRef"
+        :results="sidebarResults"
+        :selected-uuid="selectedResultUuid"
+        :is-running="isRunning"
+        :status-message="statusMessage"
+        :pending-calls="pendingCalls"
+        @select="onSidebarItemClick"
+        @activate="activePane = 'sidebar'"
+      />
 
       <!-- Sample queries (expandable pane) -->
       <div v-if="showQueries" class="border-t border-gray-200">
@@ -475,53 +311,63 @@
       :role-prompt="currentRole.prompt"
       :tool-descriptions="toolDescriptions"
     />
+
+    <!-- Global settings modal -->
+    <SettingsModal
+      :open="showSettings"
+      :docker-mode="sandboxEnabled"
+      @update:open="showSettings = $event"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import {
-  ref,
-  computed,
-  watch,
-  nextTick,
-  onMounted,
-  onUnmounted,
-  reactive,
-  markRaw,
-} from "vue";
+import { ref, computed, watch, nextTick, onMounted, reactive } from "vue";
 import { v4 as uuidv4 } from "uuid";
-import { SYSTEM_PROMPT } from "./config/system-prompt";
 import { getPlugin } from "./tools";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import RightSidebar from "./components/RightSidebar.vue";
+import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
+import LockStatusPopup from "./components/LockStatusPopup.vue";
+import ToolResultsPanel from "./components/ToolResultsPanel.vue";
 import CanvasViewToggle from "./components/CanvasViewToggle.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
+import SettingsModal from "./components/SettingsModal.vue";
 import type { SseEvent } from "./types/sse";
 import {
   type SessionSummary,
   type SessionEntry,
   type ActiveSession,
-  isTextEntry,
-  isToolResultEntry,
 } from "./types/session";
-import {
-  isUserTextResponse,
-  extractImageData,
-  makeTextResult,
-} from "./utils/tools/result";
+import { extractImageData, makeTextResult } from "./utils/tools/result";
 import {
   roleIcon as roleIconLookup,
   roleName as roleNameLookup,
 } from "./utils/role/icon";
-import { formatDate } from "./utils/format/date";
 import { findScrollableChild } from "./utils/dom/scrollable";
+import { buildAgentRequestBody } from "./utils/agent/request";
+import {
+  findPendingToolCall,
+  shouldSelectAssistantText,
+} from "./utils/agent/toolCalls";
+import { mergeSessionLists } from "./utils/session/mergeSessions";
+import {
+  parseSessionEntries,
+  resolveSelectedUuid,
+  resolveSessionTimestamps,
+} from "./utils/session/sessionEntries";
 import { usePendingCalls } from "./composables/usePendingCalls";
 import { useClickOutside } from "./composables/useClickOutside";
 import { useCanvasViewMode } from "./composables/useCanvasViewMode";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
 import { usePubSub } from "./composables/usePubSub";
+import { useHealth } from "./composables/useHealth";
+import { useSessionHistory } from "./composables/useSessionHistory";
+import { useRightSidebar } from "./composables/useRightSidebar";
+import { useQueriesPanel } from "./composables/useQueriesPanel";
+import { useEventListeners } from "./composables/useEventListeners";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 
 // --- Debug beat (pub/sub) ---
@@ -540,12 +386,58 @@ pubsubSubscribe("debug.beat", (data) => {
   }
 });
 
+// --- Sessions channel (pub/sub) ---
+// Subscribe to the global `sessions` channel. The server publishes a
+// bare notification (no data) whenever any session's state changes.
+// The client refetches the session list via REST — the server is the
+// single source of truth for isRunning, hasUnread, etc.
+pubsubSubscribe("sessions", () => {
+  refreshSessionStates();
+});
+
+async function refreshSessionStates(): Promise<void> {
+  const summaries = await fetchSessions();
+  for (const s of summaries) {
+    const live = sessionMap.get(s.id);
+    if (!live) continue;
+    // Missing fields mean the server has no live entry — reset to defaults.
+    live.isRunning = s.isRunning ?? false;
+    live.statusMessage = s.statusMessage ?? "";
+    const unread = s.hasUnread ?? false;
+    // Don't mark the currently viewed session as unread
+    if (!(unread && s.id === currentSessionId.value)) {
+      live.hasUnread = unread;
+    }
+  }
+}
+
+async function markSessionRead(id: string): Promise<void> {
+  try {
+    const res = await fetch(
+      `/api/sessions/${encodeURIComponent(id)}/mark-read`,
+      { method: "POST" },
+    );
+    if (!res.ok) {
+      // Server didn't clear the flag — refetch to restore truth.
+      await refreshSessionStates();
+    }
+  } catch {
+    await refreshSessionStates();
+  }
+}
+
 // --- Routing ---
 const route = useRoute();
 const router = useRouter();
 
 // --- Per-session state ---
 const sessionMap = reactive(new Map<string, ActiveSession>());
+
+// Tracks active pub/sub subscriptions per session. The unsubscribe
+// function is stored so we can clean up when the session is removed
+// from memory. Sessions that are running always have an active
+// subscription so events arrive via WebSocket.
+const sessionSubscriptions = new Map<string, () => void>();
 
 // currentSessionId is a plain ref so that synchronous writes (e.g.
 // inside createNewSession, which is called right before sendMessage
@@ -668,8 +560,22 @@ const sidebarResults = computed(() => {
   });
 });
 
-const isRunning = computed(() => activeSession.value?.isRunning ?? false);
-const statusMessage = computed(() => activeSession.value?.statusMessage ?? "");
+// Read running/status from the server session list (single source of
+// truth). Falls back to sessionMap for the brief window before the
+// first fetchSessions completes.
+const currentSummary = computed(() =>
+  sessions.value.find((s) => s.id === currentSessionId.value),
+);
+const isRunning = computed(
+  () =>
+    currentSummary.value?.isRunning ?? activeSession.value?.isRunning ?? false,
+);
+const statusMessage = computed(
+  () =>
+    currentSummary.value?.statusMessage ??
+    activeSession.value?.statusMessage ??
+    "",
+);
 const toolCallHistory = computed(
   () => activeSession.value?.toolCallHistory ?? [],
 );
@@ -689,10 +595,10 @@ const selectedResultUuid = computed({
 });
 
 const activeSessionCount = computed(
-  () => [...sessionMap.values()].filter((s) => s.isRunning).length,
+  () => sessions.value.filter((s) => s.isRunning).length,
 );
 const unreadCount = computed(
-  () => [...sessionMap.values()].filter((s) => s.hasUnread).length,
+  () => sessions.value.filter((s) => s.hasUnread).length,
 );
 
 // --- Global state ---
@@ -701,26 +607,28 @@ const { roles, currentRoleId, currentRole, refreshRoles } = useRoles();
 const userInput = ref("");
 const activePane = ref<"sidebar" | "main">("sidebar");
 
-const showHistory = ref(false);
-const sessions = ref<SessionSummary[]>([]);
-const geminiAvailable = ref(true);
-const sandboxEnabled = ref(true);
+const { sessions, showHistory, fetchSessions, toggleHistory } =
+  useSessionHistory();
+const { geminiAvailable, sandboxEnabled, fetchHealth } = useHealth();
 const showLockPopup = ref(false);
 
-const sandboxTestQueries = [
-  "Run `whoami` and show the result",
-  "Run `hostname` and show the result",
-  "Try to list files in ~/Library",
-  "Read helps/sandbox.md and explain how the sandbox works",
-];
-
-const chatListRef = ref<HTMLDivElement | null>(null);
+const toolResultsPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
+const chatListRef = computed(() => toolResultsPanelRef.value?.root ?? null);
 const canvasRef = ref<HTMLDivElement | null>(null);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const historyButtonRef = ref<HTMLButtonElement | null>(null);
-const historyPopupRef = ref<HTMLDivElement | null>(null);
-const lockButtonRef = ref<HTMLButtonElement | null>(null);
-const lockPopupRef = ref<HTMLDivElement | null>(null);
+// Exposed `root` from SessionHistoryPanel — the click-outside guard
+// needs the actual popup DOM element (not the component instance).
+const historyPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
+const historyPopupRef = computed(() => historyPanelRef.value?.root ?? null);
+// Lock popup exposes its button + popup DOM via defineExpose so the
+// click-outside guard has both references without poking the template.
+const lockPopupRef = ref<{
+  button: HTMLButtonElement | null;
+  popup: HTMLDivElement | null;
+} | null>(null);
+const lockButtonRef = computed(() => lockPopupRef.value?.button ?? null);
+const lockPopupElRef = computed(() => lockPopupRef.value?.popup ?? null);
 const headerRef = ref<HTMLDivElement | null>(null);
 const roleButtonRef = ref<HTMLButtonElement | null>(null);
 const roleDropdownRef = ref<HTMLDivElement | null>(null);
@@ -743,9 +651,8 @@ watch(isRunning, (running) => {
   }
 });
 
-const showRightSidebar = ref(
-  localStorage.getItem("right_sidebar_visible") === "true",
-);
+const { showRightSidebar, toggleRightSidebar } = useRightSidebar();
+const showSettings = ref(false);
 
 const {
   canvasViewMode,
@@ -787,52 +694,36 @@ const selectedResult = computed(
 // the sidebar, not regress to the raw first user message. Without
 // this merge, opening an indexed session immediately clobbered its
 // sidebar row with the first-user-message preview.
-const mergedSessions = computed((): SessionSummary[] => {
-  const liveIds = new Set(sessionMap.keys());
-  const serverById = new Map<string, SessionSummary>(
-    sessions.value.map((s) => [s.id, s]),
-  );
-  const liveSummaries: SessionSummary[] = [...sessionMap.values()].map((s) => {
-    const firstUserMsg = s.toolResults.find(isUserTextResponse);
-    const serverEntry = serverById.get(s.id);
-    return {
-      id: s.id,
-      roleId: s.roleId,
-      startedAt: s.startedAt,
-      updatedAt: s.updatedAt,
-      preview: serverEntry?.preview || (firstUserMsg?.message ?? ""),
-      ...(serverEntry?.summary !== undefined && {
-        summary: serverEntry.summary,
-      }),
-      ...(serverEntry?.keywords !== undefined && {
-        keywords: serverEntry.keywords,
-      }),
-    };
-  });
-  const serverOnly = sessions.value.filter((s) => !liveIds.has(s.id));
-  return [...liveSummaries, ...serverOnly].sort((a, b) => {
-    const byUpdated =
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-    if (byUpdated !== 0) return byUpdated;
-    return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
-  });
-});
+const mergedSessions = computed((): SessionSummary[] =>
+  mergeSessionLists([...sessionMap.values()], sessions.value),
+);
 
 const tabSessions = computed(() => mergedSessions.value.slice(0, 6));
 
 function tabColor(session: SessionSummary): string {
-  const live = sessionMap.get(session.id);
-  if (live?.isRunning) return "text-yellow-400";
-  if (live?.hasUnread) return "text-gray-900";
+  if (session.isRunning) return "text-yellow-400";
+  if (session.hasUnread) return "text-gray-900";
   return "text-gray-400";
 }
 
-// Centralised hasUnread reset: whenever the user switches to a session
-// (either by clicking it in history, by creating a new one, or by
-// loading one from the server), clear that session's unread flag.
+// Centralised session-switch handler: clear unread flag and subscribe
+// to the session's pub/sub channel if it's running (so a second tab
+// or a tab that navigated to an in-progress session receives events).
 watch(currentSessionId, (id) => {
   const session = sessionMap.get(id);
-  if (session) session.hasUnread = false;
+  if (session?.isRunning) {
+    ensureSessionSubscription(session, session.toolResults.length);
+  }
+  // Clear unread in both sessionMap and sessions list (for badge count),
+  // then tell the server so other tabs see it too.
+  const summary = sessions.value.find((s) => s.id === id);
+  const wasUnread =
+    (session && session.hasUnread) || (summary && summary.hasUnread);
+  if (wasUnread) {
+    if (session) session.hasUnread = false;
+    if (summary) summary.hasUnread = false;
+    markSessionRead(id);
+  }
 });
 
 const SCROLL_AMOUNT = 60;
@@ -887,30 +778,17 @@ function handleKeyNavigation(e: KeyboardEvent) {
   selectedResultUuid.value = results[nextIndex].uuid;
 }
 
-const queriesExpanded = ref(false);
-const queriesListRef = ref<HTMLDivElement | null>(null);
-
-watch(queriesExpanded, (expanded) => {
-  if (expanded) {
-    nextTick(() => {
-      if (queriesListRef.value) {
-        queriesListRef.value.scrollTop = queriesListRef.value.scrollHeight;
-      }
-    });
-  }
+// The sendMessage wrapper defers resolution until call time so the
+// composable can be instantiated here, before sendMessage is
+// declared further down. Function declarations are hoisted so the
+// reference is valid at click time.
+const { queriesExpanded, queriesListRef, onQueryClick } = useQueriesPanel({
+  userInput,
+  textareaRef,
+  sendMessage: (msg) => sendMessage(msg),
 });
 
 const showQueries = computed(() => !!currentRole.value.queries?.length);
-
-function onQueryClick(e: MouseEvent, query: string) {
-  queriesExpanded.value = false;
-  if (e.shiftKey) {
-    userInput.value = query;
-    nextTick(() => textareaRef.value?.focus());
-  } else {
-    sendMessage(query);
-  }
-}
 
 // Local wrappers that thread the reactive `roles.value` into the
 // pure helpers in src/utils/role.ts. Template bindings keep the
@@ -982,11 +860,6 @@ const needsGemini = (roleId: string) =>
     GEMINI_PLUGINS.has(p),
   );
 
-function toggleRightSidebar() {
-  showRightSidebar.value = !showRightSidebar.value;
-  localStorage.setItem("right_sidebar_visible", String(showRightSidebar.value));
-}
-
 // Remove the current session from sessionMap if it's empty (no messages).
 // Returns true if a session was removed, so the caller can use
 // router.replace instead of router.push to keep the empty session out
@@ -1018,7 +891,6 @@ function createNewSession(roleId?: string): ActiveSession {
     toolCallHistory: [],
     selectedResultUuid: null,
     hasUnread: false,
-    abortController: markRaw(new AbortController()),
     startedAt: now,
     updatedAt: now,
   };
@@ -1031,35 +903,6 @@ function createNewSession(roleId?: string): ActiveSession {
 
 function onRoleChange() {
   createNewSession(currentRoleId.value);
-}
-
-async function fetchHealth() {
-  try {
-    const res = await fetch("/api/health");
-    if (!res.ok) throw new Error("health check failed");
-    const data = await res.json();
-    geminiAvailable.value = !!data.geminiAvailable;
-    sandboxEnabled.value = !!data.sandboxEnabled;
-  } catch {
-    geminiAvailable.value = false;
-  }
-}
-
-async function fetchSessions(): Promise<SessionSummary[]> {
-  try {
-    const res = await fetch("/api/sessions");
-    const data: SessionSummary[] = await res.json();
-    sessions.value = data;
-    return data;
-  } catch {
-    sessions.value = [];
-    return [];
-  }
-}
-
-async function toggleHistory() {
-  showHistory.value = !showHistory.value;
-  if (showHistory.value) await fetchSessions();
 }
 
 async function loadSession(id: string) {
@@ -1091,57 +934,183 @@ async function loadSession(id: string) {
 
   const meta = entries.find((e) => e.type === "session_meta");
   const roleId = meta?.roleId ?? currentRoleId.value;
-
-  const toolResultsList: ToolResultComplete[] = [];
-  for (const entry of entries) {
-    if (entry.type === "session_meta") continue;
-    if (isTextEntry(entry)) {
-      toolResultsList.push(makeTextResult(entry.message, entry.source));
-    } else if (isToolResultEntry(entry)) {
-      toolResultsList.push(entry.result);
-    }
-  }
-
-  // If the URL specifies ?result=, prefer it over the heuristic
-  // (which picks the last non-text tool result). This lets bookmarks
-  // restore the exact result the user was looking at.
+  const toolResultsList = parseSessionEntries(entries);
   const urlResult =
     typeof route.query.result === "string" ? route.query.result : null;
-  const lastTool = [...toolResultsList]
-    .reverse()
-    .find((r) => r.toolName !== "text-response");
-  const heuristicUuid =
-    lastTool?.uuid ?? toolResultsList[toolResultsList.length - 1]?.uuid ?? null;
-  const resolvedSelectedUuid =
-    urlResult && toolResultsList.some((r) => r.uuid === urlResult)
-      ? urlResult
-      : heuristicUuid;
-
+  const resolvedSelectedUuid = resolveSelectedUuid(toolResultsList, urlResult);
+  // Use server summary for live state (isRunning, etc.) and timestamps
   const serverSummary = sessions.value.find((s) => s.id === id);
-  const nowIso = new Date().toISOString();
-  const originalStartedAt = serverSummary?.startedAt ?? nowIso;
-  // Prefer the server's mtime-derived updatedAt so the loaded
-  // session keeps its place in the most-recently-touched sort;
-  // fall back to startedAt or now if the server summary is absent.
-  const originalUpdatedAt =
-    serverSummary?.updatedAt ?? originalStartedAt ?? nowIso;
+  const { startedAt, updatedAt } = resolveSessionTimestamps(
+    serverSummary,
+    new Date().toISOString(),
+  );
 
   sessionMap.set(id, {
     id,
     roleId,
     toolResults: toolResultsList,
-    isRunning: false,
-    statusMessage: "",
+    isRunning: serverSummary?.isRunning ?? false,
+    statusMessage: serverSummary?.statusMessage ?? "",
     toolCallHistory: [],
     selectedResultUuid: resolvedSelectedUuid,
     hasUnread: false,
-    abortController: markRaw(new AbortController()),
-    startedAt: originalStartedAt,
-    updatedAt: originalUpdatedAt,
+    startedAt,
+    updatedAt,
   });
   navigateToSession(id, replaced);
   currentRoleId.value = roleId;
   showHistory.value = false;
+}
+
+// Seed the session state for a fresh user turn. Not pure (mutates
+// session), but isolated so sendMessage doesn't have the init
+// pattern inline. Returns `runStartIndex` — the index into
+// toolResults at which this run's outputs start, used later to
+// decide whether a trailing text response becomes the selected
+// canvas result.
+function beginUserTurn(session: ActiveSession, message: string): number {
+  // Append the user's message so it renders immediately. State like
+  // isRunning / statusMessage is NOT set here — it comes from the
+  // server via the `sessions` channel notification → refetch cycle,
+  // keeping all clients (including the initiator) in sync.
+  session.updatedAt = new Date().toISOString();
+  session.toolResults.push(makeTextResult(message, "user"));
+  return session.toolResults.length;
+}
+
+// Subscribe to a session's pub/sub channel so events from the server
+// (tool_call, text, tool_result, session_finished, etc.) arrive via
+// WebSocket and are dispatched into the session's reactive state.
+// Returns the unsubscribe function. Idempotent — if a subscription
+// already exists for this session, it's reused.
+function ensureSessionSubscription(
+  session: ActiveSession,
+  runStartIndex: number,
+): void {
+  if (sessionSubscriptions.has(session.id)) return;
+
+  const ctx: AgentEventContext = {
+    session,
+    runStartIndex,
+    setCurrentRoleId: (roleId) => {
+      currentRoleId.value = roleId;
+    },
+    onRoleChange,
+    refreshRoles,
+    scrollSidebarToBottom: () => rightSidebarRef.value?.scrollToBottom(),
+  };
+
+  const channel = `session.${session.id}`;
+  const unsub = pubsubSubscribe(channel, (data) => {
+    const event = data as SseEvent;
+    if (!event || typeof event !== "object") return;
+
+    // session_finished signals end-of-run — clean up subscription.
+    // If the user is viewing this session, tell the server to clear
+    // hasUnread. State updates (isRunning, hasUnread) arrive via the
+    // `sessions` channel notification → refetch cycle.
+    if (event.type === "session_finished") {
+      if (currentSessionId.value === session.id) {
+        markSessionRead(session.id);
+      }
+      unsubscribeSession(session.id);
+      return;
+    }
+
+    applyAgentEvent(event, ctx);
+  });
+
+  sessionSubscriptions.set(session.id, unsub);
+}
+
+function unsubscribeSession(chatSessionId: string): void {
+  const unsub = sessionSubscriptions.get(chatSessionId);
+  if (unsub) {
+    unsub();
+    sessionSubscriptions.delete(chatSessionId);
+  }
+}
+
+// Dispatch a single event from the agent pub/sub channel against an
+// active session. Hoisted so its switch counts toward its own
+// cognitive-complexity budget rather than ballooning the caller's
+// score. Reactive refs / callbacks that live in the setup scope are
+// passed via `ctx` — this keeps the handler a regular named function
+// with a clear signature.
+interface AgentEventContext {
+  session: ActiveSession;
+  runStartIndex: number;
+  setCurrentRoleId: (roleId: string) => void;
+  onRoleChange: () => void;
+  refreshRoles: () => Promise<void>;
+  scrollSidebarToBottom: () => void;
+}
+
+async function applyAgentEvent(
+  event: SseEvent,
+  ctx: AgentEventContext,
+): Promise<void> {
+  const { session, runStartIndex } = ctx;
+  switch (event.type) {
+    case "tool_call":
+      session.toolCallHistory.push({
+        toolUseId: event.toolUseId,
+        toolName: event.toolName,
+        args: event.args,
+        timestamp: Date.now(),
+      });
+      ctx.scrollSidebarToBottom();
+      return;
+    case "tool_call_result": {
+      const entry = findPendingToolCall(
+        session.toolCallHistory,
+        event.toolUseId,
+      );
+      if (entry) entry.result = event.content;
+      ctx.scrollSidebarToBottom();
+      return;
+    }
+    case "status":
+      session.statusMessage = event.message;
+      return;
+    case "switch_role":
+      setTimeout(() => {
+        ctx.setCurrentRoleId(event.roleId);
+        ctx.onRoleChange();
+      }, 0);
+      return;
+    case "roles_updated":
+      await ctx.refreshRoles();
+      return;
+    case "text": {
+      const textResult = makeTextResult(event.message, "assistant");
+      session.toolResults.push(textResult);
+      if (shouldSelectAssistantText(session.toolResults, runStartIndex)) {
+        session.selectedResultUuid = textResult.uuid;
+      }
+      return;
+    }
+    case "tool_result": {
+      const { result } = event;
+      const existing = session.toolResults.findIndex(
+        (r) => r.uuid === result.uuid,
+      );
+      if (existing >= 0) {
+        session.toolResults[existing] = result;
+      } else {
+        session.toolResults.push(result);
+        session.selectedResultUuid = result.uuid;
+      }
+      return;
+    }
+    case "error":
+      console.error("[agent] error event:", event.message);
+      pushErrorMessage(session, event.message);
+      return;
+    case "session_finished":
+      // Handled in the subscription callback — no-op here.
+      return;
+  }
 }
 
 async function sendMessage(text?: string) {
@@ -1149,163 +1118,50 @@ async function sendMessage(text?: string) {
   if (!message || isRunning.value) return;
   userInput.value = "";
 
-  // Capture the session this message belongs to
   const session = sessionMap.get(currentSessionId.value);
   if (!session) return;
 
-  session.isRunning = true;
-  session.statusMessage = "Thinking...";
-  // Bump updatedAt so the session floats to the top of the
-  // "most recently touched" sort in the sidebar as soon as the
-  // user submits a message. The server's jsonl mtime will match
-  // on the next fetchSessions() after the run ends.
-  session.updatedAt = new Date().toISOString();
-  session.toolResults.push(makeTextResult(message, "user"));
-  const runStartIndex = session.toolResults.length;
-
-  // Fresh AbortController for this run
-  session.abortController = markRaw(new AbortController());
-
+  const runStartIndex = beginUserTurn(session, message);
   const sessionRole =
     roles.value.find((r) => r.id === session.roleId) ?? roles.value[0];
   const selectedRes =
     session.toolResults.find((r) => r.uuid === session.selectedResultUuid) ??
     undefined;
 
+  // Subscribe to the session's pub/sub channel BEFORE posting so we
+  // don't miss events. The subscription callback dispatches each
+  // event into the session's reactive state via applyAgentEvent.
+  ensureSessionSubscription(session, runStartIndex);
+
   try {
     const response = await fetch("/api/agent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message,
-        roleId: session.roleId,
-        chatSessionId: session.id,
-        selectedImageData: extractImageData(selectedRes),
-        systemPrompt: SYSTEM_PROMPT,
-        pluginPrompts: Object.fromEntries(
-          sessionRole.availablePlugins
-            .map((name) => [name, getPlugin(name)?.systemPrompt])
-            .filter(
-              (entry): entry is [string, string] =>
-                typeof entry[1] === "string",
-            ),
-        ),
-      }),
-      signal: session.abortController.signal,
+      body: JSON.stringify(
+        buildAgentRequestBody({
+          message,
+          role: sessionRole,
+          chatSessionId: session.id,
+          selectedImageData: extractImageData(selectedRes),
+        }),
+      ),
     });
 
     if (!response.ok) {
       const errBody = await response.text().catch(() => "");
-      console.error(
-        "[agent] HTTP error:",
-        response.status,
-        response.statusText,
-        errBody,
-      );
       pushErrorMessage(
         session,
         `Server error ${response.status}: ${errBody.slice(0, 200)}`,
       );
-      return;
-    }
-    if (!response.body) {
-      pushErrorMessage(session, "No response body received from server.");
-      return;
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let sseBuffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      sseBuffer += decoder.decode(value, { stream: true });
-      const lines = sseBuffer.split("\n");
-      sseBuffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        let data: SseEvent;
-        try {
-          data = JSON.parse(line.slice(6));
-        } catch {
-          continue;
-        }
-
-        if (data.type === "tool_call") {
-          session.toolCallHistory.push({
-            toolUseId: data.toolUseId,
-            toolName: data.toolName,
-            args: data.args,
-            timestamp: Date.now(),
-          });
-          rightSidebarRef.value?.scrollToBottom();
-        } else if (data.type === "tool_call_result") {
-          const entry = session.toolCallHistory
-            .slice()
-            .reverse()
-            .find(
-              (c) =>
-                c.toolUseId === data.toolUseId &&
-                c.result === undefined &&
-                c.error === undefined,
-            );
-          if (entry) entry.result = data.content;
-          rightSidebarRef.value?.scrollToBottom();
-        } else if (data.type === "status") {
-          session.statusMessage = data.message;
-        } else if (data.type === "switch_role") {
-          setTimeout(() => {
-            currentRoleId.value = data.roleId;
-            onRoleChange();
-          }, 0);
-        } else if (data.type === "roles_updated") {
-          await refreshRoles();
-        } else if (data.type === "text") {
-          const textResult = makeTextResult(data.message, "assistant");
-          session.toolResults.push(textResult);
-          const hasPluginResult = session.toolResults
-            .slice(runStartIndex)
-            .some((r) => r.toolName !== "text-response");
-          if (!hasPluginResult) {
-            session.selectedResultUuid = textResult.uuid;
-          }
-        } else if (data.type === "tool_result") {
-          const { result } = data;
-          const existing = session.toolResults.findIndex(
-            (r) => r.uuid === result.uuid,
-          );
-          if (existing >= 0) {
-            session.toolResults[existing] = result;
-          } else {
-            session.toolResults.push(result);
-            session.selectedResultUuid = result.uuid;
-          }
-        } else if (data.type === "error") {
-          console.error("[agent] error event:", data.message);
-          pushErrorMessage(session, data.message);
-        }
-      }
+      unsubscribeSession(session.id);
     }
   } catch (e) {
-    if (!(e instanceof DOMException && e.name === "AbortError")) {
-      console.error("[agent] fetch error:", e);
-      pushErrorMessage(
-        session,
-        e instanceof Error ? e.message : "Connection error.",
-      );
-    }
-  } finally {
-    session.isRunning = false;
-    session.statusMessage = "";
-    // Mark as unread if the user has switched away from this session
-    if (currentSessionId.value !== session.id) {
-      session.hasUnread = true;
-    }
-    // Refresh server session list so tabs stay up to date
-    fetchSessions();
+    console.error("[agent] fetch error:", e);
+    pushErrorMessage(
+      session,
+      e instanceof Error ? e.message : "Connection error.",
+    );
+    unsubscribeSession(session.id);
   }
 }
 
@@ -1317,7 +1173,7 @@ const { handler: handleClickOutsideHistory } = useClickOutside({
 const { handler: handleClickOutsideLock } = useClickOutside({
   isOpen: showLockPopup,
   buttonRef: lockButtonRef,
-  popupRef: lockPopupRef,
+  popupRef: lockPopupElRef,
 });
 const { handler: handleClickOutsideRoleDropdown } = useClickOutside({
   isOpen: showRoleDropdown,
@@ -1325,15 +1181,17 @@ const { handler: handleClickOutsideRoleDropdown } = useClickOutside({
   popupRef: roleDropdownRef,
 });
 
+useEventListeners({
+  onRolesUpdated: refreshRoles,
+  onKeyNavigation: handleKeyNavigation,
+  onViewModeShortcut: handleViewModeShortcut,
+  onClickOutsideHistory: handleClickOutsideHistory,
+  onClickOutsideLock: handleClickOutsideLock,
+  onClickOutsideRoleDropdown: handleClickOutsideRoleDropdown,
+  onTeardown: teardownPendingCalls,
+});
+
 onMounted(async () => {
-  // Listeners first so the UI responds to interactions even if the
-  // async fetches below take a moment.
-  window.addEventListener("roles-updated", refreshRoles);
-  window.addEventListener("keydown", handleKeyNavigation);
-  window.addEventListener("mousedown", handleClickOutsideHistory);
-  window.addEventListener("mousedown", handleClickOutsideLock);
-  window.addEventListener("mousedown", handleClickOutsideRoleDropdown);
-  window.addEventListener("keydown", handleViewModeShortcut);
   // Fire-and-forget side fetches.
   fetchHealth();
   fetchMcpToolsStatus();
@@ -1363,15 +1221,5 @@ onMounted(async () => {
   } else {
     createNewSession();
   }
-});
-
-onUnmounted(() => {
-  window.removeEventListener("roles-updated", refreshRoles);
-  window.removeEventListener("keydown", handleKeyNavigation);
-  window.removeEventListener("mousedown", handleClickOutsideHistory);
-  window.removeEventListener("mousedown", handleClickOutsideLock);
-  window.removeEventListener("mousedown", handleClickOutsideRoleDropdown);
-  window.removeEventListener("keydown", handleViewModeShortcut);
-  teardownPendingCalls();
 });
 </script>

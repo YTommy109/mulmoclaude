@@ -2,7 +2,12 @@ import { Router, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import { workspacePath } from "../workspace.js";
-import { statSafe, readDirSafe, resolveWithinRoot } from "../utils/fs.js";
+import {
+  statSafe,
+  statSafeAsync,
+  readDirSafeAsync,
+  resolveWithinRoot,
+} from "../utils/fs.js";
 import { errorMessage } from "../utils/errors.js";
 
 const router = Router();
@@ -38,8 +43,9 @@ const SENSITIVE_EXTENSIONS = new Set([".pem", ".key", ".crt"]);
 // 1. `resolveSafe` returns null for sensitive paths so every
 //    endpoint (content, raw, anything future) rejects them with a
 //    generic 400.
-// 2. `buildTree` filters them out of `/files/tree`, so the file
-//    explorer never lists them in the first place.
+// 2. `buildTreeAsync` / `listDirShallow` filter them out of
+//    `/files/tree` and `/files/dir`, so the file explorer never
+//    lists them in the first place.
 // 3. The `.env` blocklist below is what keeps `/files/content`
 //    from leaking credentials on a matching-name lookup.
 //
@@ -192,9 +198,9 @@ export function classify(filename: string): ContentKind {
 const workspaceReal = fs.realpathSync(workspacePath);
 
 // Wraps the shared resolveWithinRoot helper with the additional
-// hidden-dir traversal check (e.g. `.git/config`). buildTree already
-// hides these from the listing, but the URL endpoints are reachable
-// directly so they need their own check.
+// hidden-dir traversal check (e.g. `.git/config`). `buildTreeAsync`
+// / `listDirShallow` hide these from the listing, but the URL
+// endpoints are reachable directly so they need their own check.
 function resolveSafe(relPath: string): string | null {
   const resolved = resolveWithinRoot(workspaceReal, relPath);
   if (!resolved) return null;
@@ -292,8 +298,30 @@ function pipeWithErrorHandling(
   stream.pipe(res);
 }
 
-function buildTree(absPath: string, relPath: string): TreeNode {
-  const stat = fs.statSync(absPath);
+// Async workspace tree walker — recurses through the workspace with
+// the same security filters as the original sync implementation
+// (hidden dirs, sensitive files, symlinks all rejected) and the same
+// ordering (dirs before files, alphabetical within type). Uses
+// `fs.promises` throughout so the walk never blocks the event loop,
+// and fans out each directory's children in parallel via
+// `Promise.all`.
+//
+// Exported so unit tests can point it at a tmp dir fixture.
+export async function buildTreeAsync(
+  absPath: string,
+  relPath: string,
+): Promise<TreeNode> {
+  const stat = await statSafeAsync(absPath);
+  if (!stat) {
+    // Caller is expected to have resolved `absPath` beforehand; if it
+    // vanished between resolve and walk, surface an empty dir node.
+    return {
+      name: path.basename(absPath),
+      path: relPath,
+      type: "dir",
+      children: [],
+    };
+  }
   if (!stat.isDirectory()) {
     return {
       name: path.basename(absPath),
@@ -303,22 +331,88 @@ function buildTree(absPath: string, relPath: string): TreeNode {
       modifiedMs: stat.mtimeMs,
     };
   }
-  const entries = readDirSafe(absPath);
-  const children: TreeNode[] = [];
-  for (const entry of entries) {
-    if (HIDDEN_DIRS.has(entry.name)) continue;
-    // Hide sensitive files (`.env`, `id_rsa`, `*.pem`, etc.) from
-    // the tree so they don't even show up in the file explorer
-    // for the user to click on. `resolveSafe` would refuse them
-    // too, but keeping them out of the listing is cleaner.
-    if (!entry.isDirectory() && isSensitivePath(entry.name)) continue;
-    if (entry.isSymbolicLink()) continue; // avoid escaping the workspace
-    const childAbs = path.join(absPath, entry.name);
-    const childRel = relPath ? path.join(relPath, entry.name) : entry.name;
-    const childStat = statSafe(childAbs);
-    if (!childStat) continue;
-    children.push(buildTree(childAbs, childRel));
+  const entries = await readDirSafeAsync(absPath);
+  // Build every surviving child concurrently. Filter:
+  // skip hidden dirs, sensitive files, symlinks,
+  // and entries that fail to stat.
+  const childPromises: Promise<TreeNode | null>[] = entries.map(
+    async (entry): Promise<TreeNode | null> => {
+      if (HIDDEN_DIRS.has(entry.name)) return null;
+      if (!entry.isDirectory() && isSensitivePath(entry.name)) return null;
+      if (entry.isSymbolicLink()) return null;
+      const childAbs = path.join(absPath, entry.name);
+      const childRel = relPath ? path.join(relPath, entry.name) : entry.name;
+      const childStat = await statSafeAsync(childAbs);
+      if (!childStat) return null;
+      return buildTreeAsync(childAbs, childRel);
+    },
+  );
+  const resolved = await Promise.all(childPromises);
+  const children = resolved.filter((c): c is TreeNode => c !== null);
+  children.sort((a, b) => {
+    if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  return {
+    name: relPath ? path.basename(relPath) : "",
+    path: relPath,
+    type: "dir",
+    modifiedMs: stat.mtimeMs,
+    children,
+  };
+}
+
+// Shallow variant: return the given directory's immediate children
+// only (no recursion). Used by the lazy-expand endpoint below — the
+// client fetches one level at a time as the user expands nodes,
+// so the initial Files view load cost is O(root entries) rather than
+// O(all workspace files).
+//
+// Exported for unit tests.
+export async function listDirShallow(
+  absPath: string,
+  relPath: string,
+): Promise<TreeNode> {
+  const stat = await statSafeAsync(absPath);
+  if (!stat || !stat.isDirectory()) {
+    return {
+      name: relPath ? path.basename(relPath) : "",
+      path: relPath,
+      type: "dir",
+      children: [],
+    };
   }
+  const entries = await readDirSafeAsync(absPath);
+  const childPromises: Promise<TreeNode | null>[] = entries.map(
+    async (entry): Promise<TreeNode | null> => {
+      if (HIDDEN_DIRS.has(entry.name)) return null;
+      if (!entry.isDirectory() && isSensitivePath(entry.name)) return null;
+      if (entry.isSymbolicLink()) return null;
+      const childAbs = path.join(absPath, entry.name);
+      const childRel = relPath ? path.join(relPath, entry.name) : entry.name;
+      const childStat = await statSafeAsync(childAbs);
+      if (!childStat) return null;
+      if (childStat.isDirectory()) {
+        return {
+          name: entry.name,
+          path: childRel,
+          type: "dir",
+          modifiedMs: childStat.mtimeMs,
+          // No `children` field — caller fetches via another
+          // /api/files/dir call on expand.
+        };
+      }
+      return {
+        name: entry.name,
+        path: childRel,
+        type: "file",
+        size: childStat.size,
+        modifiedMs: childStat.mtimeMs,
+      };
+    },
+  );
+  const resolved = await Promise.all(childPromises);
+  const children = resolved.filter((c): c is TreeNode => c !== null);
   children.sort((a, b) => {
     if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
     return a.name.localeCompare(b.name);
@@ -334,17 +428,57 @@ function buildTree(absPath: string, relPath: string): TreeNode {
 
 router.get(
   "/files/tree",
-  (
+  async (
     _req: Request<object, unknown, unknown, object>,
     res: Response<TreeNode | ErrorResponse>,
   ) => {
     try {
-      const tree = buildTree(workspaceReal, "");
+      const tree = await buildTreeAsync(workspaceReal, "");
       res.json(tree);
     } catch (err) {
       res
         .status(500)
         .json({ error: `Failed to read workspace: ${errorMessage(err)}` });
+    }
+  },
+);
+
+// Lazy-expand endpoint. Returns one directory's immediate children
+// (no recursion) so the client can render the tree incrementally.
+// `path` is optional; empty / missing = workspace root.
+router.get(
+  "/files/dir",
+  async (
+    req: Request<object, unknown, unknown, PathQuery>,
+    res: Response<TreeNode | ErrorResponse>,
+  ) => {
+    const relPath = typeof req.query.path === "string" ? req.query.path : "";
+    // Empty path = root. resolveSafe handles "" by returning the
+    // workspace root; any traversal / sensitive / missing path → null.
+    const absPath = resolveSafe(relPath);
+    if (!absPath) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const stat = await statSafeAsync(absPath);
+    if (!stat) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    if (!stat.isDirectory()) {
+      res.status(400).json({ error: "path is not a directory" });
+      return;
+    }
+    try {
+      const listing = await listDirShallow(
+        absPath,
+        path.relative(workspaceReal, absPath),
+      );
+      res.json(listing);
+    } catch (err) {
+      res
+        .status(500)
+        .json({ error: `Failed to read directory: ${errorMessage(err)}` });
     }
   },
 );

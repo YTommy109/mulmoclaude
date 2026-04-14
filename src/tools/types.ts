@@ -31,7 +31,6 @@ export type ToolPlugin<
  */
 export interface PluginEntry {
   toolDefinition: ToolDefinition;
-  systemPrompt?: string;
   viewComponent?: Component;
   previewComponent?: Component;
 }

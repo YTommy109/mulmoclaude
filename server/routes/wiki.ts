@@ -1,7 +1,9 @@
 import { Router, Request, Response } from "express";
 import fs from "fs";
+import fsp from "node:fs/promises";
 import path from "path";
 import { workspacePath } from "../workspace.js";
+import { getPageIndex } from "./wiki/pageIndex.js";
 
 const router = Router();
 
@@ -101,33 +103,36 @@ export function parseIndexEntries(content: string): WikiPageEntry[] {
   return entries;
 }
 
-function resolvePagePath(pageName: string): string | null {
+// Resolve a page name to an absolute `.md` path using the in-memory
+// page index (see ./wiki/pageIndex.ts). Index is kept fresh via
+// pagesDir mtime, so zero readdir cost on cache hit.
+async function resolvePagePath(pageName: string): Promise<string | null> {
   const dir = pagesDir();
-  if (!fs.existsSync(dir)) return null;
+  const { slugs } = await getPageIndex(dir);
+  if (slugs.size === 0) return null;
 
-  const slug = pageName
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
-  const exact = path.join(dir, `${slug}.md`);
-  if (fs.existsSync(exact)) return exact;
+  const slug = wikiSlugify(pageName);
 
-  // Fuzzy: find a file that contains the slug or vice versa
-  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".md"));
-  const match = files.find((f) => {
-    const base = f.replace(".md", "");
-    return base.includes(slug) || slug.includes(base);
-  });
-  return match ? path.join(dir, match) : null;
+  const exact = slugs.get(slug);
+  if (exact) return path.join(dir, exact);
+
+  // Fuzzy: same `includes` semantics as the old sync path — iterate
+  // the index's keys, no filesystem access.
+  for (const [key, file] of slugs) {
+    if (slug.includes(key) || key.includes(slug)) {
+      return path.join(dir, file);
+    }
+  }
+  return null;
 }
 
 router.get(
   "/wiki",
-  (req: Request, res: Response<WikiResponse | ErrorResponse>) => {
+  async (req: Request, res: Response<WikiResponse | ErrorResponse>) => {
     const slug =
       typeof req.query.slug === "string" ? req.query.slug : undefined;
     if (slug) {
-      const filePath = resolvePagePath(slug);
+      const filePath = await resolvePagePath(slug);
       const content = filePath ? readFileOrEmpty(filePath) : "";
       const resolvedTitle = filePath ? path.basename(filePath, ".md") : slug;
       res.json({
@@ -201,8 +206,11 @@ function buildIndexResponse(action: string): WikiResponse {
   };
 }
 
-function buildPageResponse(action: string, pageName: string): WikiResponse {
-  const filePath = resolvePagePath(pageName);
+async function buildPageResponse(
+  action: string,
+  pageName: string,
+): Promise<WikiResponse> {
+  const filePath = await resolvePagePath(pageName);
   const content = filePath ? readFileOrEmpty(filePath) : "";
   const resolvedTitle = filePath ? path.basename(filePath, ".md") : pageName;
   const found = !!content;
@@ -298,9 +306,10 @@ export function formatLintReport(issues: readonly string[]): string {
   return `# Wiki Lint Report\n\n${issues.length} ${noun} found:\n\n${issues.join("\n")}`;
 }
 
-function collectLintIssues(): string[] {
+async function collectLintIssues(): Promise<string[]> {
   const dir = pagesDir();
-  if (!fs.existsSync(dir)) {
+  const { slugs } = await getPageIndex(dir);
+  if (slugs.size === 0) {
     return [
       "- Wiki `pages/` directory does not exist yet. Start ingesting sources.",
     ];
@@ -308,21 +317,27 @@ function collectLintIssues(): string[] {
   const indexContent = readFileOrEmpty(indexFile());
   const pageEntries = parseIndexEntries(indexContent);
   const indexedSlugs = new Set(pageEntries.map((e) => e.slug));
-  const pageFiles = fs.readdirSync(dir).filter((f) => f.endsWith(".md"));
-  const fileSlugs = new Set(pageFiles.map((f) => f.replace(".md", "")));
+  const pageFiles = [...slugs.values()];
+  const fileSlugs = new Set(slugs.keys());
 
   const issues: string[] = [];
   issues.push(...findOrphanPages(fileSlugs, indexedSlugs));
   issues.push(...findMissingFiles(pageEntries, fileSlugs));
-  for (const file of pageFiles) {
-    const content = readFileOrEmpty(path.join(dir, file));
-    issues.push(...findBrokenLinksInPage(file, content, fileSlugs));
+  // Parallel read: N small markdown files, ~50 KB each. Bounded by
+  // the number of wiki pages, not by CPU.
+  const contents = await Promise.all(
+    pageFiles.map((f) =>
+      fsp.readFile(path.join(dir, f), "utf-8").catch(() => ""),
+    ),
+  );
+  for (let i = 0; i < pageFiles.length; i++) {
+    issues.push(...findBrokenLinksInPage(pageFiles[i], contents[i], fileSlugs));
   }
   return issues;
 }
 
-function buildLintReportResponse(action: string): WikiResponse {
-  const issues = collectLintIssues();
+async function buildLintReportResponse(action: string): Promise<WikiResponse> {
+  const issues = await collectLintIssues();
   const report = formatLintReport(issues);
   const healthy = issues.length === 0;
   return {
@@ -338,7 +353,7 @@ function buildLintReportResponse(action: string): WikiResponse {
 
 router.post(
   "/wiki",
-  (
+  async (
     req: Request<object, unknown, WikiBody>,
     res: Response<WikiResponse | ErrorResponse>,
   ) => {
@@ -352,13 +367,13 @@ router.post(
           res.status(400).json({ error: "pageName required for page action" });
           return;
         }
-        res.json(buildPageResponse(action, pageName));
+        res.json(await buildPageResponse(action, pageName));
         return;
       case "log":
         res.json(buildLogResponse(action));
         return;
       case "lint_report":
-        res.json(buildLintReportResponse(action));
+        res.json(await buildLintReportResponse(action));
         return;
       default:
         res.status(400).json({ error: `Unknown action: ${action}` });

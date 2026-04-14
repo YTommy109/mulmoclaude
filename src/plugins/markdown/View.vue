@@ -42,21 +42,40 @@
         </div>
       </div>
 
-      <details class="markdown-source">
-        <summary>Edit Markdown Source</summary>
-        <textarea
-          v-model="editableMarkdown"
-          class="markdown-editor"
-          spellcheck="false"
-        ></textarea>
-        <button
-          class="apply-btn"
-          :disabled="!hasChanges || saving"
-          @click="applyMarkdown"
+      <div class="bottom-bar-wrapper">
+        <details
+          ref="sourceDetails"
+          class="markdown-source"
+          @toggle="onDetailsToggle"
         >
-          {{ saving ? "Saving..." : "Apply Changes" }}
+          <summary>Edit Markdown Source</summary>
+          <textarea
+            v-model="editableMarkdown"
+            class="markdown-editor"
+            spellcheck="false"
+          ></textarea>
+          <div class="editor-actions">
+            <button
+              class="apply-btn"
+              :disabled="!hasChanges || saving"
+              @click="applyMarkdown"
+            >
+              {{ saving ? "Saving..." : "Apply Changes" }}
+            </button>
+            <button class="cancel-btn" @click="cancelEdit">Cancel</button>
+          </div>
+        </details>
+        <button
+          v-show="!editing"
+          class="copy-btn"
+          :title="copied ? 'Copied!' : 'Copy'"
+          @click="copyText"
+        >
+          <span class="material-icons">{{
+            copied ? "check" : "content_copy"
+          }}</span>
         </button>
-      </details>
+      </div>
     </template>
   </div>
 </template>
@@ -160,6 +179,32 @@ watch(
   },
 );
 
+const sourceDetails = ref<HTMLDetailsElement>();
+const editing = ref(false);
+const copied = ref(false);
+
+function onDetailsToggle(e: Event) {
+  const open = (e.target as HTMLDetailsElement).open;
+  editing.value = open;
+  if (!open) editableMarkdown.value = markdownContent.value;
+}
+
+function cancelEdit() {
+  if (sourceDetails.value) sourceDetails.value.open = false;
+}
+
+async function copyText() {
+  try {
+    await navigator.clipboard.writeText(markdownContent.value);
+    copied.value = true;
+    setTimeout(() => {
+      copied.value = false;
+    }, 2000);
+  } catch {
+    // clipboard API may be blocked in some contexts
+  }
+}
+
 const {
   pdfDownloading,
   pdfError,
@@ -216,6 +261,9 @@ async function applyMarkdown() {
     },
   };
   emit("updateResult", updatedResult);
+
+  // Close the edit panel
+  if (sourceDetails.value) sourceDetails.value.open = false;
 }
 
 // Watch for external changes to selectedResult (when user clicks different result)
@@ -326,6 +374,31 @@ watch(
   margin-bottom: 0.5em;
 }
 
+.bottom-bar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.copy-btn {
+  position: absolute;
+  bottom: 0.3rem;
+  right: 0.65rem;
+  padding: 0.4rem;
+  background: none;
+  border: none;
+  color: #333;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.copy-btn:hover {
+  color: #000;
+}
+
+.copy-btn .material-icons {
+  font-size: 1.15rem;
+}
+
 .markdown-source {
   padding: 0.5rem;
   background: #f5f5f5;
@@ -403,5 +476,26 @@ watch(
 
 .apply-btn:disabled:hover {
   background: #cccccc;
+}
+
+.editor-actions {
+  display: flex;
+  justify-content: space-between;
+}
+
+.cancel-btn {
+  padding: 0.5rem 1rem;
+  background: #e0e0e0;
+  color: #333;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+  font-weight: 500;
+}
+
+.cancel-btn:hover {
+  background: #d0d0d0;
 }
 </style>

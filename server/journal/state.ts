@@ -11,6 +11,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { summariesRoot, STATE_FILE } from "./paths.js";
+import { log } from "../logger/index.js";
 
 // Bump this when the schema changes in a backwards-incompatible way.
 // Older state files are treated as corrupted and replaced with a
@@ -138,7 +139,9 @@ export async function readState(workspaceRoot: string): Promise<JournalState> {
     // Corrupted JSON or any other read error — fall back to defaults
     // and log a warning. Better to rebuild from scratch than to
     // crash the journal module.
-    console.warn(`[journal] state file unreadable, using defaults:`, err);
+    log.warn("journal", "state file unreadable, using defaults", {
+      error: String(err),
+    });
     return defaultState();
   }
 }

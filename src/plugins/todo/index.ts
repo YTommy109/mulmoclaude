@@ -49,8 +49,6 @@ const todoPlugin: ToolPlugin<TodoData> = {
 
   isEnabled: () => true,
   generatingMessage: "Managing todos...",
-  systemPrompt:
-    "When users mention tasks, things to do, or ask about their todo list, use manageTodoList to help them track items.",
   viewComponent: View,
   previewComponent: Preview,
 };

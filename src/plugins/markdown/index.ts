@@ -4,21 +4,6 @@ import type { MarkdownToolData } from "./definition";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 
-export const SYSTEM_PROMPT = `Use the ${TOOL_NAME} tool to create structured documents with text and embedded images. This tool is ideal for:
-- Guides, tutorials, and how-to content ("create a guide about...", "explain how to...")
-- Educational content (lessons, explanations, timelines, concept visualizations)
-- Reports and presentations (business reports, data analysis, infographics)
-- Articles and blog posts with illustrations
-- Documentation with diagrams or screenshots
-- Recipes with step-by-step photos
-- Travel guides with location images
-- Product presentations or lookbooks
-- Any content that combines written information with supporting visuals
-
-IMPORTANT: Use this tool instead of just generating standalone images when the user wants informational or educational content with visuals. This creates a cohesive document with formatted text (markdown) AND images embedded at appropriate locations. For example, if asked to "create a guide about photosynthesis with a diagram", use ${TOOL_NAME} to create a full guide with explanatory text and the diagram embedded, rather than just generating the diagram image alone.
-
-Format embedded images as: ![Detailed image prompt](__too_be_replaced_image_path__)`;
-
 const markdownPlugin: ToolPlugin<MarkdownToolData> = {
   toolDefinition,
 
@@ -54,7 +39,6 @@ const markdownPlugin: ToolPlugin<MarkdownToolData> = {
 
   isEnabled: () => true,
   generatingMessage: "Creating document...",
-  systemPrompt: SYSTEM_PROMPT,
   viewComponent: View,
   previewComponent: Preview,
 };

@@ -139,6 +139,8 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { WikiData, WikiPageEntry } from "./index";
 import { handleExternalLinkClick } from "../../utils/dom/externalLink";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
+import { renderWikiLinks } from "./helpers";
+import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 
 const props = defineProps<{
   selectedResult: ToolResultComplete<WikiData>;
@@ -186,12 +188,12 @@ watch(
 
 const renderedContent = computed(() => {
   if (!content.value) return "";
-  // Replace [[wiki links]] with styled spans before parsing
-  const withLinks = content.value.replace(
-    /\[\[([^\]]+)\]\]/g,
-    '<span class="wiki-link" data-page="$1">$1</span>',
-  );
-  return marked.parse(withLinks) as string;
+  // Rewrite workspace-relative image refs (`![alt](images/foo.png)`)
+  // to `/api/files/raw?path=...` BEFORE marked parses them — without
+  // this, the browser tries to fetch against the SPA route URL
+  // (/chat/…/images/foo.png) and 404s.
+  const withImages = rewriteMarkdownImageRefs(content.value);
+  return marked.parse(renderWikiLinks(withImages)) as string;
 });
 
 const navError = ref<string | null>(null);

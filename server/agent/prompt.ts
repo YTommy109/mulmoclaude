@@ -2,6 +2,28 @@ import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import type { Role } from "../../src/config/roles.js";
 import { mcpTools, isMcpToolEnabled } from "../mcp-tools/index.js";
+import { PLUGIN_DEFS } from "../plugin-names.js";
+
+export const SYSTEM_PROMPT = `You are MulmoClaude, a versatile assistant app with rich visual output.
+
+## General Rules
+
+- Always respond in the same language the user is using.
+- Be concise and helpful. Avoid unnecessary filler.
+- When you use a tool, briefly explain what you are doing and why.
+
+## Workspace
+
+All data lives in the workspace directory as plain files:
+
+- \`chat/\` — chat session history (one .jsonl per session)
+- \`todos/\` — todo items
+- \`calendar/\` — calendar/scheduler events
+- \`contacts/\` — address book entries
+- \`wiki/\` — personal knowledge wiki (index.md, pages/, sources/, log.md)
+- \`helps/\` — built-in help documents for the app
+- \`memory.md\` — distilled facts always loaded as context
+`;
 
 // Prepend a pointer to the auto-generated workspace journal to the
 // first-turn user message of a new session. The pointer tells the
@@ -97,32 +119,40 @@ export function buildWikiContext(workspacePath: string): string | null {
   return parts.join("\n\n");
 }
 
-export function buildPluginPromptSections(
-  role: Role,
-  pluginPrompts?: Record<string, string>,
-): string[] {
+export function buildPluginPromptSections(role: Role): string[] {
+  const allowedPlugins = new Set(role.availablePlugins);
+
+  // Collect prompts from local plugin definitions (ToolDefinition.prompt).
+  // Some package plugins use an older gui-chat-protocol without the `prompt`
+  // field, so access it via `in` check to keep TypeScript happy.
+  const defPrompts = Object.fromEntries(
+    PLUGIN_DEFS.filter(
+      (d) => "prompt" in d && d.prompt && allowedPlugins.has(d.name),
+    ).map((d) => [d.name, (d as unknown as { prompt: string }).prompt]),
+  );
+
+  // Collect prompts from MCP tools
   const mcpToolPrompts = Object.fromEntries(
     mcpTools
       .filter(
         (t) =>
           t.prompt &&
-          role.availablePlugins.includes(t.definition.name) &&
+          allowedPlugins.has(t.definition.name) &&
           isMcpToolEnabled(t),
       )
       .map((t) => [t.definition.name, t.prompt as string]),
   );
-  const allowedPlugins = new Set(role.availablePlugins);
-  const merged = { ...mcpToolPrompts, ...pluginPrompts };
-  return Object.entries(merged)
-    .filter(([name]) => allowedPlugins.has(name))
-    .map(([name, prompt]) => `### ${name}\n\n${prompt}`);
+
+  // MCP tool prompts override definition prompts if both exist
+  const merged = { ...defPrompts, ...mcpToolPrompts };
+  return Object.entries(merged).map(
+    ([name, prompt]) => `### ${name}\n\n${prompt}`,
+  );
 }
 
 export interface SystemPromptParams {
   role: Role;
   workspacePath: string;
-  pluginPrompts?: Record<string, string>;
-  systemPrompt?: string;
 }
 
 function buildInlinedHelpFiles(
@@ -142,15 +172,15 @@ function buildInlinedHelpFiles(
 }
 
 export function buildSystemPrompt(params: SystemPromptParams): string {
-  const { role, workspacePath, pluginPrompts, systemPrompt } = params;
+  const { role, workspacePath } = params;
 
   const memoryContext = buildMemoryContext(workspacePath);
   const wikiContext = buildWikiContext(workspacePath);
-  const pluginSections = buildPluginPromptSections(role, pluginPrompts);
+  const pluginSections = buildPluginPromptSections(role);
   const helpSections = buildInlinedHelpFiles(role.prompt, workspacePath);
 
   return [
-    ...(systemPrompt ? [systemPrompt] : []),
+    SYSTEM_PROMPT,
     role.prompt,
     `Workspace directory: ${workspacePath}`,
     `Today's date: ${new Date().toISOString().split("T")[0]}`,
