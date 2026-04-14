@@ -249,8 +249,10 @@ async function save(): Promise<void> {
       throw new Error(text || `HTTP ${mcpResponse.status}`);
     }
 
-    statusMessage.value = "Saved. Changes take effect on the next message.";
     emit("saved");
+    // Close on success. Changes take effect on the next message, so
+    // the user has no reason to stay in the modal after a good save.
+    close();
   } catch (err) {
     statusError.value = true;
     statusMessage.value = err instanceof Error ? err.message : "Save failed";

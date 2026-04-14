@@ -101,9 +101,10 @@ test.describe("Settings modal", () => {
 
     await page.locator('[data-testid="settings-save-btn"]').click();
 
-    await expect(page.locator('[data-testid="settings-status"]')).toHaveText(
-      /Saved/,
-    );
+    // Save auto-closes the modal on success.
+    await expect(
+      page.locator('[data-testid="settings-modal"]'),
+    ).not.toBeVisible();
 
     // Verify that the server-side state reflects the submission.
     expect(state.settings.extraAllowedTools).toEqual([
@@ -111,8 +112,7 @@ test.describe("Settings modal", () => {
       "mcp__claude_ai_Google_Calendar",
     ]);
 
-    // Close + reopen → textarea must repopulate from the mocked server.
-    await page.locator('[data-testid="settings-close-btn"]').click();
+    // Reopen → textarea must repopulate from the mocked server.
     await openSettingsModal(page);
     await expect(textarea).toHaveValue(
       "mcp__claude_ai_Gmail\nmcp__claude_ai_Google_Calendar",
@@ -168,9 +168,9 @@ test.describe("Settings MCP tab — HTTP servers (Phase 2a)", () => {
     ).toBeVisible();
 
     await page.locator('[data-testid="settings-save-btn"]').click();
-    await expect(page.locator('[data-testid="settings-status"]')).toHaveText(
-      /Saved/,
-    );
+    await expect(
+      page.locator('[data-testid="settings-modal"]'),
+    ).not.toBeVisible();
     expect(state.mcp.servers.length).toBe(1);
     expect(state.mcp.servers[0]?.id).toBe("gmail");
     expect(state.mcp.servers[0]?.spec.type).toBe("http");
@@ -244,9 +244,9 @@ test.describe("Settings MCP tab — HTTP servers (Phase 2a)", () => {
     await page.locator('[data-testid="settings-tab-mcp"]').click();
     await page.locator('[data-testid="mcp-remove-gmail"]').click();
     await page.locator('[data-testid="settings-save-btn"]').click();
-    await expect(page.locator('[data-testid="settings-status"]')).toHaveText(
-      /Saved/,
-    );
+    await expect(
+      page.locator('[data-testid="settings-modal"]'),
+    ).not.toBeVisible();
     expect(state.mcp.servers.length).toBe(0);
   });
 });
@@ -271,9 +271,9 @@ test.describe("Settings MCP tab — stdio + Docker warnings (Phase 2b)", () => {
       page.locator('[data-testid="mcp-server-files"]'),
     ).toBeVisible();
     await page.locator('[data-testid="settings-save-btn"]').click();
-    await expect(page.locator('[data-testid="settings-status"]')).toHaveText(
-      /Saved/,
-    );
+    await expect(
+      page.locator('[data-testid="settings-modal"]'),
+    ).not.toBeVisible();
     expect(state.mcp.servers[0]?.spec.type).toBe("stdio");
   });
 });
