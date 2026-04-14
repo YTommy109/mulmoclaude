@@ -7,13 +7,17 @@
       <div v-if="treeError" class="p-2 text-xs text-red-600">
         {{ treeError }}
       </div>
-      <div v-else-if="!tree" class="p-2 text-xs text-gray-400">Loading...</div>
+      <div v-else-if="!rootNode" class="p-2 text-xs text-gray-400">
+        Loading...
+      </div>
       <FileTree
         v-else
-        :node="tree"
+        :node="rootNode"
         :selected-path="selectedPath"
         :recent-paths="recentPaths"
+        :children-by-path="childrenByPath"
         @select="selectFile"
+        @load-children="loadDirChildren"
       />
     </div>
     <!-- Content pane -->
@@ -114,12 +118,22 @@
               class="p-4 text-xs whitespace-pre-wrap font-mono text-gray-800"
               >{{ content.content }}</pre
             >
-            <!-- HTML: sandboxed iframe preview (scripts disabled) -->
+            <!-- HTML: sandboxed iframe preview.
+                 `allow-scripts` lets Chart.js / canvas drawing / other
+                 JS-driven HTML (the common case for LLM-generated
+                 results) run. We deliberately DO NOT grant
+                 `allow-same-origin`, so the iframe keeps a null
+                 origin — it can't read MulmoClaude's cookies,
+                 localStorage, or the parent window's DOM.
+                 A CSP meta tag is injected via wrapHtmlWithPreviewCsp
+                 to restrict script loads to a vetted CDN whitelist +
+                 inline; connect-src is `'none'` so the page can't
+                 phone home. See src/utils/html/previewCsp.ts. -->
             <iframe
               v-else-if="isHtml"
-              :srcdoc="content.content"
+              :srcdoc="sandboxedHtml"
               class="w-full h-full border-0"
-              sandbox=""
+              sandbox="allow-scripts"
               title="HTML preview"
             />
             <!-- JSON: pretty-printed with simple syntax coloring. Fall
@@ -220,7 +234,10 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 import FileTree, { type TreeNode } from "./FileTree.vue";
+import { useExpandedDirs } from "../composables/useExpandedDirs";
 import TextResponseView from "../plugins/textResponse/View.vue";
+import { rewriteMarkdownImageRefs } from "../utils/image/rewriteMarkdownImageRefs";
+import { wrapHtmlWithPreviewCsp } from "../utils/html/previewCsp";
 import SchedulerView from "../plugins/scheduler/View.vue";
 import TodoExplorer from "./TodoExplorer.vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
@@ -285,7 +302,19 @@ const emit = defineEmits<{
   loadSession: [sessionId: string];
 }>();
 
-const tree = ref<TreeNode | null>(null);
+// Share the expand-state composable with FileTree so deep-link
+// auto-expand (`?path=wiki/pages/foo.md`) can mark ancestors as
+// expanded before the children arrive.
+const { expand } = useExpandedDirs();
+
+// Root dir metadata (name/path/modifiedMs). Children live in
+// `childrenByPath` below so the lazy-expand cache has a single
+// home — see Phase-2 notes for #200.
+const rootNode = ref<TreeNode | null>(null);
+// Lazy-expand cache: one entry per directory we've fetched via
+// `/api/files/dir`. `undefined` (= not in the map) means "not
+// loaded yet". `null` means "load in flight — show spinner".
+const childrenByPath = ref<Map<string, TreeNode[] | null>>(new Map());
 const treeError = ref<string | null>(null);
 
 // Seed selectedPath from URL query ?path=, falling back to
@@ -319,6 +348,16 @@ function toggleMdRaw(): void {
   localStorage.setItem(MD_RAW_STORAGE_KEY, String(mdRawMode.value));
 }
 const isHtml = computed(() => hasExt(selectedPath.value, [".html", ".htm"]));
+
+// The HTML body handed to the iframe's `srcdoc`. We inject a CSP
+// meta tag that narrows what the LLM's output can load — see
+// src/utils/html/previewCsp.ts. Computed so the injection happens
+// once per content change, not on every render.
+const sandboxedHtml = computed(() =>
+  content.value?.kind === "text" && isHtml.value
+    ? wrapHtmlWithPreviewCsp(content.value.content)
+    : "",
+);
 const isJson = computed(() => hasExt(selectedPath.value, [".json"]));
 const isJsonl = computed(() =>
   hasExt(selectedPath.value, [".jsonl", ".ndjson"]),
@@ -416,30 +455,43 @@ const mdFrontmatter = computed(() => {
 });
 
 function markdownResult(text: string): ToolResultComplete<TextResponseData> {
+  // Rewrite `![alt](path)` refs BEFORE handing the markdown to
+  // TextResponseView (which we don't own — it's a package component)
+  // so workspace-relative image paths resolve via /api/files/raw
+  // instead of 404-ing against the SPA page URL. basePath is the
+  // directory of the current file so `../` refs resolve correctly.
+  const current = selectedPath.value ?? "";
+  const slash = current.lastIndexOf("/");
+  const basePath = slash >= 0 ? current.slice(0, slash) : "";
+  const rewritten = rewriteMarkdownImageRefs(text, basePath);
   return {
     uuid: "files-preview",
     toolName: "text-response",
-    message: text,
+    message: rewritten,
     title: selectedPath.value ?? "",
     // role: "user" hides the PDF download button in TextResponseView
-    data: { text, role: "user", transportKind: "text-rest" },
+    data: { text: rewritten, role: "user", transportKind: "text-rest" },
   };
 }
 
 const recentPaths = computed(() => {
   const set = new Set<string>();
   const now = Date.now();
-  function visit(node: TreeNode) {
-    if (
-      node.type === "file" &&
-      node.modifiedMs &&
-      now - node.modifiedMs < RECENT_THRESHOLD_MS
-    ) {
-      set.add(node.path);
+  // Walk every loaded directory in the cache — lazy-loaded children
+  // may not be rooted under the ref we start from, so iterating the
+  // cache directly is both cheaper and more complete.
+  for (const children of childrenByPath.value.values()) {
+    if (!children) continue;
+    for (const node of children) {
+      if (
+        node.type === "file" &&
+        node.modifiedMs &&
+        now - node.modifiedMs < RECENT_THRESHOLD_MS
+      ) {
+        set.add(node.path);
+      }
     }
-    if (node.children) node.children.forEach(visit);
   }
-  if (tree.value) visit(tree.value);
   return set;
 });
 
@@ -462,15 +514,67 @@ function formatTime(ms: number): string {
   });
 }
 
-async function loadTree(): Promise<void> {
-  treeError.value = null;
+// Fetch the immediate children of one directory via the lazy-expand
+// endpoint added in #207. Stores them in `childrenByPath` under the
+// same `path` the server returned. Idempotent — if already loaded,
+// no-ops. Setting the map value to `null` briefly lets the UI show
+// a spinner while the request is in flight.
+async function loadDirChildren(path: string): Promise<void> {
+  // Already loaded or in flight — skip. `undefined` (not present)
+  // is the only case that kicks off a fetch.
+  if (childrenByPath.value.has(path)) return;
+
+  const next = new Map(childrenByPath.value);
+  next.set(path, null);
+  childrenByPath.value = next;
+
   try {
-    const res = await fetch("/api/files/tree");
-    if (!res.ok) throw new Error(`tree: ${res.status}`);
-    tree.value = await res.json();
+    const url = `/api/files/dir?path=${encodeURIComponent(path)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`dir: ${res.status}`);
+    const node: TreeNode = await res.json();
+    const updated = new Map(childrenByPath.value);
+    updated.set(path, node.children ?? []);
+    childrenByPath.value = updated;
+    // Also expose the root dir's own metadata (name / path /
+    // modifiedMs) for the FileTree header — only relevant for the
+    // workspace root, which the tree renders as "(workspace)".
+    if (path === "") rootNode.value = { ...node, children: [] };
   } catch (err) {
+    // Drop the `null` marker so the user can retry (e.g. via the
+    // refresh-token watcher). Keep the error visible too.
+    const rollback = new Map(childrenByPath.value);
+    rollback.delete(path);
+    childrenByPath.value = rollback;
     treeError.value = err instanceof Error ? err.message : String(err);
   }
+}
+
+// Walk each ancestor of a file path and expand + load it. Used on
+// mount for deep links like `?path=wiki/pages/foo.md` so the tree
+// reveals the selection rather than keeping every directory
+// collapsed.
+async function ensureAncestorsLoaded(filePath: string): Promise<void> {
+  const parts = filePath.split("/").filter(Boolean);
+  if (parts.length <= 1) return; // file sits at root, nothing to expand
+  const ancestors: string[] = [];
+  for (let i = 1; i < parts.length; i++) {
+    ancestors.push(parts.slice(0, i).join("/"));
+  }
+  for (const dir of ancestors) {
+    expand(dir);
+    await loadDirChildren(dir);
+  }
+}
+
+async function reloadRoot(): Promise<void> {
+  // Wipe the whole lazy cache, then re-seed the root. Any
+  // currently-expanded descendants will be re-fetched lazily when
+  // the FileTree re-emits `load-children` from their expanded
+  // state.
+  childrenByPath.value = new Map();
+  treeError.value = null;
+  await loadDirChildren("");
 }
 
 // Tracks the currently in-flight content fetch so a stale response from
@@ -583,16 +687,18 @@ watch(
 watch(
   () => props.refreshToken,
   () => {
-    loadTree();
+    reloadRoot();
     if (selectedPath.value) loadContent(selectedPath.value);
   },
 );
 
 onMounted(async () => {
-  await loadTree();
-  // If the URL already has a ?path=, load that file. Otherwise
-  // leave file-unselected (the "Select a file" placeholder shows).
+  await loadDirChildren("");
+  // Deep-link: if the URL has a selected path, reveal its ancestors
+  // by fetching each dir in sequence so the tree auto-expands to
+  // the selection.
   if (selectedPath.value) {
+    await ensureAncestorsLoaded(selectedPath.value);
     loadContent(selectedPath.value);
   }
 });

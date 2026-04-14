@@ -1,9 +1,10 @@
 import { spawn, type ChildProcessByStdio } from "child_process";
 import { mkdir, writeFile, unlink } from "fs/promises";
 import { dirname } from "path";
-import type { Readable } from "stream";
+import type { Readable, Writable } from "stream";
 import { isDockerAvailable } from "./docker.js";
 import { refreshCredentials } from "./credentials.js";
+import { loadMcpConfig, loadSettings } from "./config.js";
 import type { Role } from "../src/config/roles.js";
 import { loadAllRoles } from "./roles.js";
 import { buildSystemPrompt } from "./agent/prompt.js";
@@ -12,8 +13,11 @@ import {
   buildCliArgs,
   buildDockerSpawnArgs,
   buildMcpConfig,
+  buildUserMessageLine,
   getActivePlugins,
+  prepareUserServers,
   resolveMcpConfigPaths,
+  userServerAllowedToolNames,
 } from "./agent/config.js";
 import {
   parseStreamEvent,
@@ -22,7 +26,7 @@ import {
 } from "./agent/stream.js";
 import { log } from "./logger/index.js";
 
-type ClaudeProc = ChildProcessByStdio<null, Readable, Readable>;
+type ClaudeProc = ChildProcessByStdio<Writable, Readable, Readable>;
 
 function spawnClaude(
   useDocker: boolean,
@@ -32,7 +36,7 @@ function spawnClaude(
   if (!useDocker) {
     return spawn("claude", cliArgs, {
       cwd: workspacePath,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
   }
   const dockerArgs = buildDockerSpawnArgs({
@@ -42,7 +46,7 @@ function spawnClaude(
     gid: process.getgid?.() ?? 1000,
     platform: process.platform,
   });
-  return spawn("docker", dockerArgs, { stdio: ["ignore", "pipe", "pipe"] });
+  return spawn("docker", dockerArgs, { stdio: ["pipe", "pipe", "pipe"] });
 }
 
 async function* readAgentEvents(proc: ClaudeProc): AsyncGenerator<AgentEvent> {
@@ -101,8 +105,6 @@ export interface RunAgentOptions {
   sessionId: string;
   port: number;
   claudeSessionId?: string;
-  pluginPrompts?: Record<string, string>;
-  systemPrompt?: string;
   /** When aborted, the spawned Claude CLI process is killed. */
   abortSignal?: AbortSignal;
 }
@@ -114,13 +116,19 @@ export async function* runAgent(
   sessionId: string,
   port: number,
   claudeSessionId?: string,
-  pluginPrompts?: Record<string, string>,
-  systemPrompt?: string,
   abortSignal?: AbortSignal,
 ): AsyncGenerator<AgentEvent> {
   const activePlugins = getActivePlugins(role);
-  const hasMcp = activePlugins.length > 0;
   const useDocker = await isDockerAvailable();
+
+  // User-defined MCP servers are read per invocation so Settings UI
+  // changes apply immediately. Disabled / malformed entries get
+  // filtered by prepareUserServers; remaining servers are merged into
+  // the --mcp-config payload below.
+  const userMcpRaw = loadMcpConfig().mcpServers;
+  const userServers = prepareUserServers(userMcpRaw, useDocker, workspacePath);
+  const hasUserServers = Object.keys(userServers).length > 0;
+  const hasMcp = activePlugins.length > 0 || hasUserServers;
 
   // On macOS sandbox, always refresh credentials from Keychain before each
   // agent run so that expired OAuth tokens are replaced transparently.
@@ -131,9 +139,13 @@ export async function* runAgent(
   const fullSystemPrompt = buildSystemPrompt({
     role,
     workspacePath: useDocker ? CONTAINER_WORKSPACE_PATH : workspacePath,
-    pluginPrompts,
-    systemPrompt,
   });
+
+  // In debug mode (--debug), dump the full system prompt on the first
+  // message of each session so developers can inspect what the LLM sees.
+  if (!claudeSessionId && process.argv.includes("--debug")) {
+    log.info("agent", "system prompt for new session:\n" + fullSystemPrompt);
+  }
 
   const mcpPaths = resolveMcpConfigPaths({
     workspacePath,
@@ -151,16 +163,28 @@ export async function* runAgent(
       activePlugins,
       roleIds: loadAllRoles().map((r) => r.id),
       useDocker,
+      userServers,
     });
     await writeFile(mcpPaths.hostPath, JSON.stringify(mcpConfig, null, 2));
   }
+
+  // Fresh read on every invocation so the Settings UI can change
+  // allowedTools / MCP servers without a server restart.
+  const settings = loadSettings();
+  const userServerAllowedTools = userServerAllowedToolNames(
+    userServers,
+    useDocker,
+  );
 
   const cliArgs = buildCliArgs({
     systemPrompt: fullSystemPrompt,
     activePlugins,
     claudeSessionId,
-    message,
     mcpConfigPath: hasMcp ? mcpPaths.argPath : undefined,
+    extraAllowedTools: [
+      ...settings.extraAllowedTools,
+      ...userServerAllowedTools,
+    ],
   });
 
   // Don't persist raw sessionId into log sinks (esp. the retained
@@ -175,6 +199,14 @@ export async function* runAgent(
     hasSessionId: Boolean(sessionId),
   });
   const proc = spawnClaude(useDocker, workspacePath, cliArgs);
+
+  // stream-json input mode: stream the user turn as a single JSON
+  // line to stdin, then close the pipe so the CLI knows no further
+  // turns are coming. Writing before attaching the abort handler
+  // is fine — if the write fails because the process already died
+  // for other reasons, the `readAgentEvents` loop below surfaces it.
+  proc.stdin.write(buildUserMessageLine(message));
+  proc.stdin.end();
 
   // If an abort signal is provided, kill the process when it fires.
   const onAbort = () => {

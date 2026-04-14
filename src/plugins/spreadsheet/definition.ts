@@ -26,6 +26,7 @@ const toolDefinition: ToolDefinition = {
   name: TOOL_NAME,
   description:
     "Display an Excel-like spreadsheet with formulas and calculations.",
+  prompt: `Use ${TOOL_NAME} whenever the user needs a spreadsheet-style table, multi-step math, or dynamic what-if analysis—do not summarize in text. Build LIVE sheets where every cell is an object {"v": value, "f": format}. For formulas, set "v" to a string starting with "=" (e.g., {"v": "=B2*1.05", "f": "$#,##0.00"}). For dates, use date strings like "01/15/2025" or date formulas like "=TODAY()" or "=DATE(2025,1,15)". The spreadsheet auto-parses common date formats (MM/DD/YYYY, YYYY-MM-DD, DD-MMM-YYYY) into date serial numbers for calculations. Date arithmetic works: "=B2-TODAY()" calculates days between dates. Never pre-calculate; let the spreadsheet compute using cell refs, functions (SUM, AVERAGE, IF, TODAY, DATE, DATEDIF, etc.), and arithmetic. Standard formats: "$#,##0.00" currency, "#,##0" integer, "0.00%" percent, "0.00" decimal, "MM/DD/YYYY" date, "DD-MMM-YYYY" date, "YYYY-MM-DD" ISO date. Format is optional for plain text/numbers.`,
   parameters: {
     type: "object",
     properties: {
@@ -82,8 +83,6 @@ const toolDefinition: ToolDefinition = {
 };
 
 export default toolDefinition;
-
-export const SYSTEM_PROMPT = `Use ${TOOL_NAME} whenever the user needs a spreadsheet-style table, multi-step math, or dynamic what-if analysis—do not summarize in text. Build LIVE sheets where every cell is an object {"v": value, "f": format}. For formulas, set "v" to a string starting with "=" (e.g., {"v": "=B2*1.05", "f": "$#,##0.00"}). For dates, use date strings like "01/15/2025" or date formulas like "=TODAY()" or "=DATE(2025,1,15)". The spreadsheet auto-parses common date formats (MM/DD/YYYY, YYYY-MM-DD, DD-MMM-YYYY) into date serial numbers for calculations. Date arithmetic works: "=B2-TODAY()" calculates days between dates. Never pre-calculate; let the spreadsheet compute using cell refs, functions (SUM, AVERAGE, IF, TODAY, DATE, DATEDIF, etc.), and arithmetic. Standard formats: "$#,##0.00" currency, "#,##0" integer, "0.00%" percent, "0.00" decimal, "MM/DD/YYYY" date, "DD-MMM-YYYY" date, "YYYY-MM-DD" ISO date. Format is optional for plain text/numbers.`;
 
 export const executeSpreadsheet = async (
   args: SpreadsheetArgs,

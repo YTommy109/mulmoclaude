@@ -8,8 +8,10 @@ import TodoDef from "../src/plugins/todo/definition.js";
 import SchedulerDef from "../src/plugins/scheduler/definition.js";
 import PresentMulmoScriptDef from "../src/plugins/presentMulmoScript/definition.js";
 import ManageRolesDef from "../src/plugins/manageRoles/definition.js";
+import ManageSkillsDef from "../src/plugins/manageSkills/definition.js";
 import WikiDef from "../src/plugins/wiki/definition.js";
 import PresentHtmlDef from "../src/plugins/presentHtml/definition.js";
+import PresentChartDef from "../src/plugins/chart/definition.js";
 import MarkdownDef from "../src/plugins/markdown/definition.js";
 import SpreadsheetDef from "../src/plugins/spreadsheet/definition.js";
 import { TOOL_DEFINITION as MindMapDef } from "@gui-chat-plugin/mindmap";
@@ -33,10 +35,12 @@ export const TOOL_ENDPOINTS: Record<string, string> = {
   [FormDef.name]: "/api/form",
   [CanvasDef.name]: "/api/canvas",
   [PresentHtmlDef.name]: "/api/present-html",
+  [PresentChartDef.name]: "/api/present-chart",
   [EditImageDef.name]: "/api/edit-image",
   [Present3DDef.name]: "/api/present3d",
   [MusicDef.name]: "/api/music",
   [ManageRolesDef.name]: "/api/roles/manage",
+  [ManageSkillsDef.name]: "/api/skills",
   [PresentMulmoScriptDef.name]: "/api/mulmo-script",
   [WikiDef.name]: "/api/wiki",
 };
@@ -54,10 +58,12 @@ export const PLUGIN_DEFS = [
   FormDef,
   CanvasDef,
   PresentHtmlDef,
+  PresentChartDef,
   EditImageDef,
   Present3DDef,
   MusicDef,
   ManageRolesDef,
+  ManageSkillsDef,
   WikiDef,
 ];
 

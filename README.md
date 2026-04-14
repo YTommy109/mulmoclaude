@@ -84,19 +84,81 @@ examples, rotation behaviour, and recipes.
 
 Each role gives Claude a different persona, tool palette, and focus area:
 
-| Role | What it does |
-|---|---|
-| **General** | All-purpose assistant — todos, scheduler, wiki, documents, mind maps |
-| **Office** | Documents, spreadsheets, forms, presentations, data dashboards |
-| **Guide & Planner** | Travel guides, recipe books, trip planners with rich visual output |
-| **Artist** | Image generation, image editing, generative art with p5.js |
-| **Game** | Play Othello, or build browser games with Phaser/Three.js |
-| **Tutor** | Adaptive teaching — evaluates your level before explaining anything |
-| **Storyteller** | Interactive illustrated stories with images and HTML scenes |
-| **Musician** | Compose and play music in the browser |
-| **Role Manager** | Create and edit custom roles |
+| Role                | What it does                                                         |
+| ------------------- | -------------------------------------------------------------------- |
+| **General**         | All-purpose assistant — todos, scheduler, wiki, documents, mind maps |
+| **Office**          | Documents, spreadsheets, forms, presentations, data dashboards       |
+| **Guide & Planner** | Travel guides, recipe books, trip planners with rich visual output   |
+| **Artist**          | Image generation, image editing, generative art with p5.js           |
+| **Game**            | Play Othello, or build browser games with Phaser/Three.js            |
+| **Tutor**           | Adaptive teaching — evaluates your level before explaining anything  |
+| **Storyteller**     | Interactive illustrated stories with images and HTML scenes          |
+| **Musician**        | Compose and play music in the browser                                |
+| **Role Manager**    | Create and edit custom roles                                         |
 
 Switching roles resets Claude's context and swaps in only the tools that role needs — keeping responses fast and focused.
+
+## Skills — Run Your Claude Code Skills from MulmoClaude
+
+MulmoClaude can list and launch the **Claude Code skills** you already have. A skill is any folder under `~/.claude/skills/<name>/` containing a `SKILL.md` file with a YAML frontmatter `description` and a markdown body of instructions. See the [Claude Code Skills docs](https://docs.claude.com/en/docs/claude-code/skills) for details on authoring skills.
+
+### How to use
+
+1. Open MulmoClaude and stay in one of the skill-enabled roles: **General**, **Office**, or **Tutor**.
+2. Ask Claude to show your skills — e.g. *"show my skills"* or *"list skills"*.
+3. Claude invokes the `manageSkills` tool, and a split-pane **Skills** view opens in the canvas:
+   - **Left**: every skill discovered on your machine, with its description and scope badge (`USER` / `PROJECT`).
+   - **Right**: the full `SKILL.md` content of the selected skill.
+4. Click **Run** on a skill. MulmoClaude sends `/<skill-name>` to Claude as a regular chat message; Claude Code's slash-command machinery resolves it against `~/.claude/skills/` and executes the skill's instructions inline in the same chat session.
+
+No extra typing, no copy-pasting SKILL.md bodies — the Run button is a one-click wrapper around `/skill-name`.
+
+### Skill discovery — two scopes
+
+| Scope       | Location                                | Semantics                                                                                 |
+| ----------- | --------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **User**    | `~/.claude/skills/<name>/SKILL.md`      | Personal skills, shared across every project you open with the Claude CLI.                |
+| **Project** | `~/mulmoclaude/.claude/skills/<name>/`  | MulmoClaude-workspace-scoped skills. Project scope **wins** if a name collides with user. |
+
+Both scopes are read-only in phase 0 — edits happen on the file system. A future release will let MulmoClaude itself create / edit project-scope skills.
+
+### Docker sandbox vs non-Docker
+
+MulmoClaude's default **Docker sandbox mode** isolates Claude Code in a container for safety (see [Security](#security)). Skill behaviour differs between the two modes:
+
+| Mode                                 | User skills (`~/.claude/skills/`) | Project skills (`~/mulmoclaude/.claude/skills/`) | Built-in CLI skills (`/simplify`, `/update-config`, …) |
+| ------------------------------------ | --------------------------------- | ------------------------------------------------ | ------------------------------------------------------ |
+| **Non-Docker** (`DISABLE_SANDBOX=1`) | ✅ All work                       | ✅                                               | ✅                                                     |
+| **Docker sandbox** (default)         | ⚠️ See caveats below              | ✅ Mounted via workspace volume                  | ✅                                                     |
+
+**Docker caveats — why user skills sometimes don't work in the sandbox:**
+
+- **Symlinked `~/.claude/skills/`** — if your `~/.claude/skills` (or any sub-entry) is a symlink pointing outside `~/.claude/` (for example `~/.claude/skills → ~/ss/dotfiles/claude/skills`), the symlink's target is not present inside the container. The link appears as **dangling**, and Claude Code falls back to only the built-in skills.
+- **Older Claude CLI inside the sandbox image** — `Dockerfile.sandbox` pins the CLI version at image build time. If that version is behind your host CLI (e.g. 2.1.96 in the image vs 2.1.105 on the host), user-skill discovery may behave differently.
+
+**Workarounds for skill-rich setups that don't play nicely with the sandbox:**
+
+1. **Disable the sandbox for this session**:
+
+   ```bash
+   DISABLE_SANDBOX=1 yarn dev
+   ```
+
+   The Claude CLI runs with your real `~/.claude/` and everything resolves natively. Use this when you trust the prompts you're about to send — sandbox is still the recommended default for untrusted / exploratory work.
+
+2. **Move skills into project scope** — copy the specific skills you want into `~/mulmoclaude/.claude/skills/` (this path is mounted as the workspace volume inside the sandbox, so no symlink drama). Great for skills that are specific to your MulmoClaude workflow anyway.
+
+3. **Flatten symlinks** — if you maintain your skill library via symlinks (e.g. in a dotfiles repo), replacing the top-level `~/.claude/skills` symlink with the real directory is the simplest fix.
+
+### What the skill actually receives
+
+When you press **Run**, MulmoClaude sends a plain user turn containing the slash-command string:
+
+```text
+/my-skill-name
+```
+
+That is the entire payload — MulmoClaude does **not** inline the `SKILL.md` body or extra context. The body is what Claude Code reads when the CLI resolves the slash command on its end. This keeps the chat input small and makes long skills (multi-kilobyte `SKILL.md`) safe to run without blowing up the prompt context.
 
 ## Wiki — Long-Term Memory for Claude Code
 
@@ -125,14 +187,72 @@ Claude uses its built-in file tools (`read`, `write`, `glob`, `grep`) to navigat
 
 Over time the wiki grows into a personal knowledge base that any role can consult, making Claude progressively more useful the more you use it.
 
+## Charts (ECharts)
+
+The `presentChart` plugin renders [Apache ECharts](https://echarts.apache.org/) visualizations in the canvas. Ask for a line, bar, candlestick, sankey, heatmap, or network/graph — Claude writes an ECharts option object, the plugin mounts it. Every chart has a **[↓ PNG]** button for one-click export.
+
+Available in the **General**, **Office**, **Guide & Planner**, and **Tutor** roles. Try:
+
+```text
+Chart last quarter's revenue by region as a bar chart
+Plot AAPL's daily closes for the last 30 days as a candlestick
+Show a sankey of energy flow: coal/gas/solar → electricity → home/industry/transport
+```
+
+### Storage
+
+Each `presentChart` call writes one file under `<workspace>/charts/`:
+
+```text
+<workspace>/charts/
+  sales-overview-1776135210389.chart.json
+  apple-stock-1776135300000.chart.json
+```
+
+A single document can hold any number of charts, which are rendered stacked in the canvas:
+
+```json
+{
+  "title": "Apple Stock Analysis",
+  "charts": [
+    {
+      "title": "Daily close",
+      "type": "line",
+      "option": {
+        "xAxis": {
+          "type": "category",
+          "data": ["2024-01", "2024-02", "2024-03"]
+        },
+        "yAxis": { "type": "value" },
+        "series": [{ "type": "line", "data": [180, 195, 210] }]
+      }
+    },
+    {
+      "title": "Volume",
+      "type": "bar",
+      "option": {
+        "xAxis": {
+          "type": "category",
+          "data": ["2024-01", "2024-02", "2024-03"]
+        },
+        "yAxis": { "type": "value" },
+        "series": [{ "type": "bar", "data": [1000000, 1200000, 950000] }]
+      }
+    }
+  ]
+}
+```
+
+The `option` field is passed to ECharts' [`setOption`](https://echarts.apache.org/en/api.html#echartsInstance.setOption) as-is — you can reference the full [ECharts option reference](https://echarts.apache.org/en/option.html) when hand-editing these files. Edits are reflected the next time the document is re-opened in the canvas.
+
 ## Optional: X (Twitter) MCP Tools
 
 MulmoClaude includes optional MCP tools for reading and searching posts on X (Twitter) via the official X API v2.
 
-| Tool | What it does |
-|---|---|
-| `readXPost` | Fetches a single post by URL or tweet ID |
-| `searchX` | Searches recent posts by keyword or query |
+| Tool        | What it does                              |
+| ----------- | ----------------------------------------- |
+| `readXPost` | Fetches a single post by URL or tweet ID  |
+| `searchX`   | Searches recent posts by keyword or query |
 
 These tools are **disabled by default** and require an X API Bearer Token to activate.
 
@@ -156,6 +276,92 @@ These tools are **only available in custom roles**. The built-in roles do not in
 3. In the plugin checklist, enable `readXPost` and/or `searchX`
 
 Once configured, you can paste any `x.com` or `twitter.com` URL into the chat and Claude will fetch and read it automatically.
+
+## Configuring Additional Tools (Web Settings)
+
+The gear icon in the sidebar opens a Settings modal where you can extend Claude's tool set without editing code. Changes apply on the next message (no server restart required).
+
+### Allowed Tools tab
+
+Paste tool names one per line. Useful for Claude Code's built-in MCP servers (Gmail, Google Calendar) after a one-time OAuth handshake:
+
+```text
+mcp__claude_ai_Gmail
+mcp__claude_ai_Google_Calendar
+```
+
+First, run `claude mcp` once in a terminal and complete the OAuth flow for each service — credentials persist under `~/.claude/`.
+
+### MCP Servers tab
+
+Add external MCP servers without hand-editing JSON. Two types are supported:
+
+- **HTTP** — remote servers (e.g. `https://example.com/mcp`). Works in every mode; in Docker, `localhost` / `127.0.0.1` URLs are rewritten to `host.docker.internal` automatically.
+- **Stdio** — local subprocess, restricted to `npx` / `node` / `tsx` for safety. When Docker sandboxing is enabled, script paths must live under the workspace so they resolve inside the container.
+
+Configuration lives under `<workspace>/configs/`:
+
+```text
+<workspace>/configs/
+  settings.json    ← extra allowed tool names
+  mcp.json         ← Claude CLI --mcp-config compatible
+```
+
+The MCP file uses Claude CLI's standard format so you can copy it between machines, or even use it with the `claude` CLI directly.
+
+### Editing the config files directly
+
+Both files are plain JSON — you can edit them with any text editor instead of the Settings UI. The server re-reads them on every message, so:
+
+- No server restart needed after a file edit.
+- Changes are picked up by the Settings UI too — just close and reopen the modal.
+- The UI and the file are always in sync: saving from the UI overwrites the file, and hand-edits show up in the UI on the next open.
+
+This is handy for:
+
+- Bulk-importing MCP servers from another workstation (copy `mcp.json` over).
+- Version-controlling your setup in a dotfiles repo.
+- Commenting out a server temporarily by flipping `"enabled": false`.
+
+**Example `mcp.json`** — one remote HTTP server (public, no auth) and one local stdio server:
+
+```json
+{
+  "mcpServers": {
+    "deepwiki": {
+      "type": "http",
+      "url": "https://mcp.deepwiki.com/mcp",
+      "enabled": true
+    },
+    "everything": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-everything"],
+      "enabled": true
+    }
+  }
+}
+```
+
+Constraints the server enforces when loading the file:
+
+- `mcpServers` keys (the server id) must match `^[a-z][a-z0-9_-]{0,63}$`.
+- HTTP `url` must parse as `http:` or `https:`.
+- Stdio `command` is restricted to `npx`, `node`, or `tsx`.
+- Entries that fail validation are silently dropped on load (a warning is logged); the rest of the file still applies.
+
+**Example `settings.json`**:
+
+```json
+{
+  "extraAllowedTools": [
+    "mcp__claude_ai_Gmail",
+    "mcp__claude_ai_Google_Calendar"
+  ]
+}
+```
+
+You don't need to list `mcp__<id>` entries for servers defined in `mcp.json` — those are allowed automatically on every agent run. `extraAllowedTools` is only for tools that aren't reachable through your own `mcpServers`, typically Claude Code's built-in `mcp__claude_ai_*` bridges after you've run `claude mcp` and completed OAuth.
 
 ## Workspace
 

@@ -4,8 +4,6 @@ import type { ImageToolData } from "./definition";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 
-export const SYSTEM_PROMPT = `When the user asks 'turn this image into ...', call ${TOOL_NAME} API to generate a new image.`;
-
 const editImagePlugin: ToolPlugin<ImageToolData> = {
   toolDefinition,
 
@@ -41,7 +39,6 @@ const editImagePlugin: ToolPlugin<ImageToolData> = {
 
   isEnabled: () => true,
   generatingMessage: "Editing image...",
-  systemPrompt: SYSTEM_PROMPT,
   viewComponent: View,
   previewComponent: Preview,
 };

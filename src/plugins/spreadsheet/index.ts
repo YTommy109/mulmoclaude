@@ -1,5 +1,5 @@
 import type { ToolPlugin } from "../../tools/types";
-import toolDefinition, { TOOL_NAME, SYSTEM_PROMPT } from "./definition";
+import toolDefinition, { TOOL_NAME } from "./definition";
 import type { SpreadsheetToolData } from "./definition";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
@@ -39,7 +39,6 @@ const spreadsheetPlugin: ToolPlugin<SpreadsheetToolData> = {
 
   isEnabled: () => true,
   generatingMessage: "Creating spreadsheet...",
-  systemPrompt: SYSTEM_PROMPT,
   viewComponent: View,
   previewComponent: Preview,
 };

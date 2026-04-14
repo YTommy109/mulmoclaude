@@ -18,8 +18,6 @@ function createUploadedImageResult(
   };
 }
 
-const SYSTEM_PROMPT = `When you are talking about places, objects, people, movies, books and other things, you MUST use the ${TOOL_NAME} API to draw pictures to make the conversation more engaging.`;
-
 const generateImagePlugin: ToolPlugin<ImageToolData> = {
   toolDefinition,
 
@@ -55,7 +53,6 @@ const generateImagePlugin: ToolPlugin<ImageToolData> = {
 
   isEnabled: () => true,
   generatingMessage: "Generating image...",
-  systemPrompt: SYSTEM_PROMPT,
   inputHandlers: [
     {
       type: "file",

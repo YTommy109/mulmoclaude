@@ -4,8 +4,6 @@ import type { ImageToolData } from "./definition";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 
-export const SYSTEM_PROMPT = `When the user asks 'I want to draw an image.', call ${TOOL_NAME} API to open the canvas.`;
-
 const canvasPlugin: ToolPlugin<ImageToolData> = {
   toolDefinition,
 
@@ -41,7 +39,6 @@ const canvasPlugin: ToolPlugin<ImageToolData> = {
 
   isEnabled: () => true,
   generatingMessage: "Opening drawing canvas...",
-  systemPrompt: SYSTEM_PROMPT,
   viewComponent: View,
   previewComponent: Preview,
 };

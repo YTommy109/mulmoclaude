@@ -3,6 +3,8 @@ import type { ToolDefinition } from "gui-chat-protocol";
 const toolDefinition: ToolDefinition = {
   type: "function",
   name: "manageScheduler",
+  prompt:
+    "When users mention events, appointments, meetings, or things to schedule, use manageScheduler to help them track them. Store relevant details (date, time, location, etc.) as props.",
   description:
     "Manage a scheduler — show, add, update, or delete scheduled items. Each item has a title and dynamic properties (e.g. date, time, location, description). Use this whenever the user mentions events, appointments, reminders, or things to schedule.",
   parameters: {

@@ -24,6 +24,13 @@ const SUBDIRS = [
   "images",
   "markdowns",
   "spreadsheets",
+  // Chart documents saved by the `presentChart` plugin. One file per
+  // invocation; each file can hold multiple charts.
+  "charts",
+  // Web-configurable settings (app-wide) and user-defined MCP servers
+  // live under this dir so future import/export can ship them as a
+  // unit. See plans/feat-web-settings-ui.md.
+  "configs",
 ];
 
 export function initWorkspace(): string {

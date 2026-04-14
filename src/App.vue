@@ -63,6 +63,15 @@
           >
             <span class="material-icons">build</span>
           </button>
+          <button
+            class="text-gray-400 hover:text-gray-700"
+            data-testid="settings-btn"
+            title="Settings"
+            aria-label="Settings"
+            @click="showSettings = true"
+          >
+            <span class="material-icons">settings</span>
+          </button>
         </div>
       </div>
       <!-- History popup -->
@@ -302,13 +311,19 @@
       :role-prompt="currentRole.prompt"
       :tool-descriptions="toolDescriptions"
     />
+
+    <!-- Global settings modal -->
+    <SettingsModal
+      :open="showSettings"
+      :docker-mode="sandboxEnabled"
+      @update:open="showSettings = $event"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, reactive } from "vue";
 import { v4 as uuidv4 } from "uuid";
-import { SYSTEM_PROMPT } from "./config/system-prompt";
 import { getPlugin } from "./tools";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import RightSidebar from "./components/RightSidebar.vue";
@@ -318,6 +333,7 @@ import ToolResultsPanel from "./components/ToolResultsPanel.vue";
 import CanvasViewToggle from "./components/CanvasViewToggle.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
+import SettingsModal from "./components/SettingsModal.vue";
 import type { SseEvent } from "./types/sse";
 import {
   type SessionSummary,
@@ -401,7 +417,27 @@ async function markSessionRead(id: string): Promise<void> {
       `/api/sessions/${encodeURIComponent(id)}/mark-read`,
       { method: "POST" },
     );
-    if (!res.ok) {
+    // The server returns `{ ok: boolean }` — a 200 with `ok: false`
+    // means the endpoint was reached but the flag wasn't actually
+    // cleared (e.g. session not found). Treat that the same as a
+    // transport failure and refetch so the sidebar doesn't go stale.
+    let appLevelOk = true;
+    if (res.ok) {
+      try {
+        const body: unknown = await res.json();
+        if (
+          body !== null &&
+          typeof body === "object" &&
+          (body as { ok?: unknown }).ok === false
+        ) {
+          appLevelOk = false;
+        }
+      } catch {
+        // Body wasn't JSON — treat as failure.
+        appLevelOk = false;
+      }
+    }
+    if (!res.ok || !appLevelOk) {
       // Server didn't clear the flag — refetch to restore truth.
       await refreshSessionStates();
     }
@@ -636,6 +672,7 @@ watch(isRunning, (running) => {
 });
 
 const { showRightSidebar, toggleRightSidebar } = useRightSidebar();
+const showSettings = ref(false);
 
 const {
   canvasViewMode,
@@ -1125,9 +1162,7 @@ async function sendMessage(text?: string) {
           message,
           role: sessionRole,
           chatSessionId: session.id,
-          systemPrompt: SYSTEM_PROMPT,
           selectedImageData: extractImageData(selectedRes),
-          getPluginSystemPrompt: (name) => getPlugin(name)?.systemPrompt,
         }),
       ),
     });
@@ -1168,6 +1203,7 @@ const { handler: handleClickOutsideRoleDropdown } = useClickOutside({
 
 useEventListeners({
   onRolesUpdated: refreshRoles,
+  onSkillRun: (message: string) => sendMessage(message),
   onKeyNavigation: handleKeyNavigation,
   onViewModeShortcut: handleViewModeShortcut,
   onClickOutsideHistory: handleClickOutsideHistory,

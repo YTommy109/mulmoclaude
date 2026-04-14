@@ -42,21 +42,43 @@
         </div>
       </div>
 
-      <details class="markdown-source">
-        <summary>Edit Markdown Source</summary>
-        <textarea
-          v-model="editableMarkdown"
-          class="markdown-editor"
-          spellcheck="false"
-        ></textarea>
-        <button
-          class="apply-btn"
-          :disabled="!hasChanges || saving"
-          @click="applyMarkdown"
+      <div class="bottom-bar-wrapper">
+        <details
+          ref="sourceDetails"
+          class="markdown-source"
+          @toggle="onDetailsToggle"
         >
-          {{ saving ? "Saving..." : "Apply Changes" }}
+          <summary>Edit Markdown Source</summary>
+          <textarea
+            v-model="editableMarkdown"
+            class="markdown-editor"
+            spellcheck="false"
+          ></textarea>
+          <div class="editor-actions">
+            <button
+              class="apply-btn"
+              :disabled="!hasChanges || saving"
+              @click="applyMarkdown"
+            >
+              {{ saving ? "Saving..." : "Apply Changes" }}
+            </button>
+            <button class="cancel-btn" @click="cancelEdit">Cancel</button>
+          </div>
+          <p v-if="saveError" class="save-error" role="alert">
+            ⚠ {{ saveError }}
+          </p>
+        </details>
+        <button
+          v-show="!editing"
+          class="copy-btn"
+          :title="copied ? 'Copied!' : 'Copy'"
+          @click="copyText"
+        >
+          <span class="material-icons">{{
+            copied ? "check" : "content_copy"
+          }}</span>
         </button>
-      </details>
+      </div>
     </template>
   </div>
 </template>
@@ -79,6 +101,9 @@ const emit = defineEmits<{
 
 const loading = ref(false);
 const saving = ref(false);
+// Human-readable message shown next to the Save button when a PUT
+// fails. null while the editor is idle or the last save succeeded.
+const saveError = ref<string | null>(null);
 // The actual markdown content (fetched from server or inline)
 const markdownContent = ref("");
 const editableMarkdown = ref("");
@@ -160,6 +185,35 @@ watch(
   },
 );
 
+const sourceDetails = ref<HTMLDetailsElement>();
+const editing = ref(false);
+const copied = ref(false);
+
+function onDetailsToggle(e: Event) {
+  const open = (e.target as HTMLDetailsElement).open;
+  editing.value = open;
+  if (!open) {
+    editableMarkdown.value = markdownContent.value;
+    saveError.value = null;
+  }
+}
+
+function cancelEdit() {
+  if (sourceDetails.value) sourceDetails.value.open = false;
+}
+
+async function copyText() {
+  try {
+    await navigator.clipboard.writeText(markdownContent.value);
+    copied.value = true;
+    setTimeout(() => {
+      copied.value = false;
+    }, 2000);
+  } catch {
+    // clipboard API may be blocked in some contexts
+  }
+}
+
 const {
   pdfDownloading,
   pdfError,
@@ -181,6 +235,8 @@ async function applyMarkdown() {
   const raw = props.selectedResult.data?.markdown;
   if (!raw) return;
 
+  saveError.value = null;
+
   // If file-based, save to server
   if (isFilePath(raw)) {
     saving.value = true;
@@ -192,11 +248,11 @@ async function applyMarkdown() {
         body: JSON.stringify({ markdown: editableMarkdown.value }),
       });
       if (!res.ok) {
-        console.error("Failed to save markdown:", res.statusText);
+        saveError.value = `Save failed: ${res.status} ${res.statusText}`;
         return;
       }
     } catch (err) {
-      console.error("Failed to save markdown:", err);
+      saveError.value = `Save failed: ${err instanceof Error ? err.message : String(err)}`;
       return;
     } finally {
       saving.value = false;
@@ -216,6 +272,9 @@ async function applyMarkdown() {
     },
   };
   emit("updateResult", updatedResult);
+
+  // Close the edit panel
+  if (sourceDetails.value) sourceDetails.value.open = false;
 }
 
 // Watch for external changes to selectedResult (when user clicks different result)
@@ -326,6 +385,31 @@ watch(
   margin-bottom: 0.5em;
 }
 
+.bottom-bar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.copy-btn {
+  position: absolute;
+  bottom: 0.3rem;
+  right: 0.65rem;
+  padding: 0.4rem;
+  background: none;
+  border: none;
+  color: #333;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.copy-btn:hover {
+  color: #000;
+}
+
+.copy-btn .material-icons {
+  font-size: 1.15rem;
+}
+
 .markdown-source {
   padding: 0.5rem;
   background: #f5f5f5;
@@ -403,5 +487,36 @@ watch(
 
 .apply-btn:disabled:hover {
   background: #cccccc;
+}
+
+.editor-actions {
+  display: flex;
+  justify-content: space-between;
+}
+
+.save-error {
+  margin: 0.5rem 0 0;
+  padding: 0.4rem 0.6rem;
+  background: #fdecea;
+  color: #b71c1c;
+  border: 1px solid #f5c2c7;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.cancel-btn {
+  padding: 0.5rem 1rem;
+  background: #e0e0e0;
+  color: #333;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+  font-weight: 500;
+}
+
+.cancel-btn:hover {
+  background: #d0d0d0;
 }
 </style>

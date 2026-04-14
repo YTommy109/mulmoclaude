@@ -33,8 +33,6 @@ const schedulerPlugin: ToolPlugin<SchedulerData> = {
 
   isEnabled: () => true,
   generatingMessage: "Managing schedule...",
-  systemPrompt:
-    "When users mention events, appointments, meetings, or things to schedule, use manageScheduler to help them track them. Store relevant details (date, time, location, etc.) as props.",
   viewComponent: View,
   previewComponent: Preview,
 };

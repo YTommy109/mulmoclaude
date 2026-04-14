@@ -18,10 +18,29 @@ import { maybeRunJournal } from "../journal/index.js";
 import { maybeIndexSession } from "../chat-index/index.js";
 import { maybeAppendWikiBacklinks } from "../wiki-backlinks/index.js";
 import { log } from "../logger/index.js";
+import { logBackgroundError } from "../utils/logBackgroundError.js";
 import { createArgsCache, recordToolEvent } from "../tool-trace/index.js";
 
 const router = Router();
 const PORT = Number(process.env.PORT) || 3001;
+
+// Short, safe preview of tool args for logs. Full payload may contain
+// base64 images or large blobs, so we cap it. The goal is to make a
+// line like `mcp__deepwiki__read_wiki_contents` grep-able in logs
+// alongside its args shape, not to record the full input.
+const TOOL_ARGS_LOG_PREVIEW_MAX = 200;
+function previewJson(value: unknown): string {
+  let serialised: string;
+  try {
+    serialised = JSON.stringify(value);
+  } catch {
+    return "[unserialisable]";
+  }
+  if (serialised === undefined) return "";
+  return serialised.length > TOOL_ARGS_LOG_PREVIEW_MAX
+    ? `${serialised.slice(0, TOOL_ARGS_LOG_PREVIEW_MAX)}…`
+    : serialised;
+}
 
 // Called by the MCP server to push a ToolResult into the active session.
 interface OkResponse {
@@ -78,13 +97,126 @@ router.post(
   },
 );
 
+// ── Internal API: startChat ─────────────────────────────────────────
+//
+// Shared entry point for starting an agent chat. Called by both the
+// POST /api/agent route and server-side callers (e.g. debug tasks).
+
+export interface StartChatParams {
+  message: string;
+  roleId: string;
+  chatSessionId: string;
+  selectedImageData?: string;
+}
+
+export type StartChatResult =
+  | { kind: "started"; chatSessionId: string }
+  | { kind: "error"; error: string; status?: number };
+
+export async function startChat(
+  params: StartChatParams,
+): Promise<StartChatResult> {
+  const { message, roleId, chatSessionId, selectedImageData } = params;
+
+  if (!message || !roleId || !chatSessionId) {
+    return {
+      kind: "error",
+      error: "message, roleId, and chatSessionId are required",
+      status: 400,
+    };
+  }
+
+  const chatDir = path.join(workspacePath, "chat");
+  await mkdir(chatDir, { recursive: true });
+  const resultsFilePath = path.join(chatDir, `${chatSessionId}.jsonl`);
+  const metaFilePath = path.join(chatDir, `${chatSessionId}.json`);
+
+  // Write or update metadata. On the first message we create the file
+  // with firstUserMessage so GET /api/sessions never needs to read the
+  // jsonl content. On subsequent turns we backfill firstUserMessage if
+  // missing (migrates pre-existing sessions).
+  let isFirstTurn = false;
+  try {
+    await access(metaFilePath);
+  } catch {
+    isFirstTurn = true;
+  }
+  if (isFirstTurn) {
+    await writeFile(
+      metaFilePath,
+      JSON.stringify({
+        roleId,
+        startedAt: new Date().toISOString(),
+        firstUserMessage: message,
+      }),
+    );
+  } else {
+    await backfillFirstUserMessage(metaFilePath, message);
+  }
+
+  // Append user message for this turn
+  await appendFile(
+    resultsFilePath,
+    JSON.stringify({ source: "user", type: "text", message }) + "\n",
+  );
+
+  const now = new Date().toISOString();
+  getOrCreateSession(chatSessionId, {
+    roleId,
+    resultsFilePath,
+    selectedImageData,
+    startedAt: now,
+    updatedAt: now,
+  });
+
+  // Register abort callback and mark running. If the session is
+  // already running, reject with 409 Conflict.
+  const abortController = new AbortController();
+  const started = beginRun(chatSessionId, () => abortController.abort());
+  if (!started) {
+    return { kind: "error", error: "Session is already running", status: 409 };
+  }
+
+  const role = getRole(roleId);
+  const claudeSessionId = await readClaudeSessionId(
+    metaFilePath,
+    resultsFilePath,
+  );
+
+  const requestStartedAt = Date.now();
+  log.info("agent", "request received", {
+    chatSessionId,
+    roleId,
+    messageLen: message.length,
+    resumed: Boolean(claudeSessionId),
+  });
+
+  const decoratedMessage = claudeSessionId
+    ? message
+    : prependJournalPointer(message, workspacePath);
+
+  runAgentInBackground({
+    decoratedMessage,
+    role,
+    chatSessionId,
+    claudeSessionId,
+    abortSignal: abortController.signal,
+    resultsFilePath,
+    metaFilePath,
+    requestStartedAt,
+    toolArgsCache: createArgsCache(),
+  });
+
+  return { kind: "started", chatSessionId };
+}
+
+// ── HTTP route ──────────────────────────────────────────────────────
+
 interface AgentBody {
   message: string;
   roleId: string;
   chatSessionId: string;
   selectedImageData?: string;
-  systemPrompt?: string;
-  pluginPrompts?: Record<string, string>;
 }
 
 interface ErrorResponse {
@@ -101,114 +233,12 @@ router.post(
     req: Request<object, unknown, AgentBody>,
     res: Response<ErrorResponse | AcceptedResponse>,
   ) => {
-    const {
-      message,
-      roleId,
-      chatSessionId,
-      selectedImageData,
-      systemPrompt,
-      pluginPrompts,
-    } = req.body;
-
-    if (!message || !roleId || !chatSessionId) {
-      res
-        .status(400)
-        .json({ error: "message, roleId, and chatSessionId are required" });
+    const result = await startChat(req.body);
+    if (result.kind === "error") {
+      res.status(result.status ?? 500).json({ error: result.error });
       return;
     }
-
-    const chatDir = path.join(workspacePath, "chat");
-    await mkdir(chatDir, { recursive: true });
-    const resultsFilePath = path.join(chatDir, `${chatSessionId}.jsonl`);
-    const metaFilePath = path.join(chatDir, `${chatSessionId}.json`);
-
-    // Write or update metadata. On the first message we create the file
-    // with firstUserMessage so GET /api/sessions never needs to read the
-    // jsonl content. On subsequent turns we backfill firstUserMessage if
-    // missing (migrates pre-existing sessions).
-    let isFirstTurn = false;
-    try {
-      await access(metaFilePath);
-    } catch {
-      isFirstTurn = true;
-    }
-    if (isFirstTurn) {
-      await writeFile(
-        metaFilePath,
-        JSON.stringify({
-          roleId,
-          startedAt: new Date().toISOString(),
-          firstUserMessage: message,
-        }),
-      );
-    } else {
-      await backfillFirstUserMessage(metaFilePath, message);
-    }
-
-    // Append user message for this turn
-    await appendFile(
-      resultsFilePath,
-      JSON.stringify({ source: "user", type: "text", message }) + "\n",
-    );
-
-    const now = new Date().toISOString();
-    getOrCreateSession(chatSessionId, {
-      roleId,
-      resultsFilePath,
-      selectedImageData,
-      startedAt: now,
-      updatedAt: now,
-    });
-
-    // Register abort callback and mark running. If the session is
-    // already running, reject with 409 Conflict.
-    const abortController = new AbortController();
-    const started = beginRun(chatSessionId, () => abortController.abort());
-    if (!started) {
-      res.status(409).json({ error: "Session is already running" });
-      return;
-    }
-
-    // Fire-and-forget: return 202 immediately, run agent in background.
-    // Events are published to the `session.<chatSessionId>` pub/sub
-    // channel — clients subscribe via WebSocket.
-    res.status(202).json({ chatSessionId });
-
-    const role = getRole(roleId);
-    const claudeSessionId = await readClaudeSessionId(
-      metaFilePath,
-      resultsFilePath,
-    );
-
-    const requestStartedAt = Date.now();
-    log.info("agent", "request received", {
-      chatSessionId,
-      roleId,
-      messageLen: message.length,
-      resumed: Boolean(claudeSessionId),
-    });
-
-    const decoratedMessage = claudeSessionId
-      ? message
-      : prependJournalPointer(message, workspacePath);
-
-    runAgentInBackground({
-      decoratedMessage,
-      role,
-      chatSessionId,
-      claudeSessionId,
-      pluginPrompts,
-      systemPrompt,
-      abortSignal: abortController.signal,
-      resultsFilePath,
-      metaFilePath,
-      requestStartedAt,
-      // Per-turn cache used by the tool-trace driver to remember args
-      // from `tool_call` events so the matching `tool_call_result`
-      // can classify properly. Scoped to this request so toolUseIds
-      // can't collide across turns.
-      toolArgsCache: createArgsCache(),
-    });
+    res.status(202).json({ chatSessionId: result.chatSessionId });
   },
 );
 
@@ -220,8 +250,6 @@ interface BackgroundRunParams {
   role: ReturnType<typeof getRole>;
   chatSessionId: string;
   claudeSessionId: string | undefined;
-  pluginPrompts: Record<string, string> | undefined;
-  systemPrompt: string | undefined;
   abortSignal: AbortSignal;
   resultsFilePath: string;
   metaFilePath: string;
@@ -237,8 +265,6 @@ async function runAgentInBackground(
     role,
     chatSessionId,
     claudeSessionId,
-    pluginPrompts,
-    systemPrompt,
     abortSignal,
     resultsFilePath,
     metaFilePath,
@@ -254,8 +280,6 @@ async function runAgentInBackground(
       chatSessionId,
       PORT,
       claudeSessionId,
-      pluginPrompts,
-      systemPrompt,
       abortSignal,
     )) {
       if (event.type === "claude_session_id") {
@@ -274,6 +298,25 @@ async function runAgentInBackground(
           }) + "\n",
         );
       }
+      if (event.type === "tool_call") {
+        log.info("agent-tool", "call", {
+          chatSessionId,
+          toolName: event.toolName,
+          toolUseId: event.toolUseId,
+          argsPreview: previewJson(event.args),
+        });
+      }
+      if (event.type === "tool_call_result") {
+        // Look up the toolName from the cache *before* recordToolEvent
+        // runs (it deletes the cache entry on result).
+        const cached = toolArgsCache.get(event.toolUseId);
+        log.info("agent-tool", "result", {
+          chatSessionId,
+          toolName: cached?.toolName,
+          toolUseId: event.toolUseId,
+          contentBytes: event.content.length,
+        });
+      }
       if (event.type === "tool_call" || event.type === "tool_call_result") {
         // Fire-and-forget: tool-trace persistence failures must not
         // block the agent loop. Errors are log.warn'd by
@@ -283,11 +326,7 @@ async function runAgentInBackground(
           chatSessionId,
           resultsFilePath,
           argsCache: toolArgsCache,
-        }).catch((err) => {
-          log.warn("tool-trace", "unexpected error in background", {
-            error: String(err),
-          });
-        });
+        }).catch(logBackgroundError("tool-trace"));
       }
     }
     log.info("agent", "request completed", {
@@ -304,20 +343,12 @@ async function runAgentInBackground(
     endRun(chatSessionId);
     // Fire-and-forget: journal + chat-index post-processing
     maybeRunJournal({ activeSessionIds: getActiveSessionIds() }).catch(
-      (err) => {
-        log.warn("journal", "unexpected error in background", {
-          error: String(err),
-        });
-      },
+      logBackgroundError("journal"),
     );
     maybeIndexSession({
       sessionId: chatSessionId,
       activeSessionIds: getActiveSessionIds(),
-    }).catch((err) => {
-      log.warn("chat-index", "unexpected error in background", {
-        error: String(err),
-      });
-    });
+    }).catch(logBackgroundError("chat-index"));
     // Walks wiki/pages/ for files modified during this turn and
     // appends a backlink to the originating chat session so the
     // user can jump back from a wiki page to the conversation
@@ -325,11 +356,7 @@ async function runAgentInBackground(
     maybeAppendWikiBacklinks({
       chatSessionId,
       turnStartedAt: requestStartedAt,
-    }).catch((err) => {
-      log.warn("wiki-backlinks", "unexpected error in background", {
-        error: String(err),
-      });
-    });
+    }).catch(logBackgroundError("wiki-backlinks"));
   }
 }
 

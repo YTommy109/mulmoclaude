@@ -1,70 +1,15 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
-import { TODOS_RESPONSE, TODO_ITEMS, TODO_COLUMNS } from "../fixtures/todos";
+import { setupMutableTodoMocks } from "../fixtures/todos-mutable";
+import { TODO_COLUMNS } from "../fixtures/todos";
 
-// Override todo + file mocks so TodoExplorer renders.
+// Read-only TodoExplorer spec — the kanban / list / search / add-dialog
+// flows exercised here don't persist mutations, so we reuse the shared
+// mutable-state fixture with no dispatchers (missing dispatchers echo
+// the current state, which is exactly the behaviour this spec wants).
 async function setupTodoMocks(page: Page) {
   await mockAllApis(page);
-
-  // Override todos with fixture data (registered AFTER mockAllApis
-  // so Playwright checks it first).
-  await page.route(
-    (url) => url.pathname === "/api/todos",
-    (route) => route.fulfill({ json: TODOS_RESPONSE }),
-  );
-  await page.route(
-    (url) => url.pathname.startsWith("/api/todos/"),
-    (route) => {
-      // POST/PATCH/DELETE — return the same fixture for simplicity.
-      return route.fulfill({ json: TODOS_RESPONSE });
-    },
-  );
-
-  // File tree with todos/todos.json so the file explorer can open it.
-  await page.route(
-    (url) => url.pathname === "/api/files/tree",
-    (route) =>
-      route.fulfill({
-        json: {
-          name: "",
-          path: "",
-          type: "dir",
-          children: [
-            {
-              name: "todos",
-              path: "todos",
-              type: "dir",
-              children: [
-                {
-                  name: "todos.json",
-                  path: "todos/todos.json",
-                  type: "file",
-                  size: 500,
-                },
-              ],
-            },
-          ],
-        },
-      }),
-  );
-
-  // File content for todos.json (needed by FilesView to detect the
-  // special-case TodoExplorer rendering).
-  await page.route(
-    (url) =>
-      url.pathname === "/api/files/content" &&
-      url.searchParams.get("path") === "todos/todos.json",
-    (route) =>
-      route.fulfill({
-        json: {
-          kind: "text",
-          path: "todos/todos.json",
-          content: JSON.stringify(TODO_ITEMS),
-          size: 500,
-          modifiedMs: Date.now(),
-        },
-      }),
-  );
+  await setupMutableTodoMocks(page);
 }
 
 test.describe("Todo Explorer", () => {

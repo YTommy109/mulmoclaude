@@ -106,6 +106,12 @@ describe("buildWikiContext", () => {
 });
 
 describe("buildSystemPrompt", () => {
+  it("contains the base SYSTEM_PROMPT", () => {
+    const role = makeRole();
+    const result = buildSystemPrompt({ role, workspacePath: workspace });
+    assert.ok(result.includes("You are MulmoClaude"));
+  });
+
   it("contains role prompt", () => {
     const role = makeRole({ prompt: "You are a chef." });
     const result = buildSystemPrompt({ role, workspacePath: workspace });
@@ -146,18 +152,17 @@ describe("buildSystemPrompt", () => {
     assert.ok(!result.includes("wiki/index.md"));
   });
 
-  it("includes plugin prompt sections when provided", () => {
+  it("includes plugin prompt sections from ToolDefinition.prompt", () => {
+    // manageTodoList has a prompt in its definition.ts — it should
+    // appear in the system prompt when included in availablePlugins.
     const role = makeRole({ availablePlugins: ["manageTodoList"] });
     const result = buildSystemPrompt({
       role,
       workspacePath: workspace,
-      pluginPrompts: {
-        manageTodoList: "Use todos for task tracking",
-      },
     });
     assert.ok(result.includes("## Plugin Instructions"));
     assert.ok(result.includes("### manageTodoList"));
-    assert.ok(result.includes("Use todos for task tracking"));
+    assert.ok(result.includes("todo list"));
   });
 
   it("omits plugin section when no prompts", () => {

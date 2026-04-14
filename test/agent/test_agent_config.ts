@@ -6,10 +6,15 @@ import {
   buildCliArgs,
   buildDockerSpawnArgs,
   buildMcpConfig,
+  buildUserMessageLine,
   CONTAINER_WORKSPACE_PATH,
   type Platform,
+  prepareUserServers,
   resolveMcpConfigPaths,
+  rewriteLocalhostForDocker,
+  userServerAllowedToolNames,
 } from "../../server/agent/config.js";
+import type { McpServerSpec } from "../../server/config.js";
 
 describe("buildMcpConfig", () => {
   it("returns correct structure", () => {
@@ -56,24 +61,42 @@ describe("buildCliArgs", () => {
     const args = buildCliArgs({
       systemPrompt: "You are helpful",
       activePlugins: [],
-      message: "hello",
     });
 
     assert.ok(args.includes("--output-format"));
-    assert.ok(args.includes("stream-json"));
+    assert.ok(args.includes("--input-format"));
+    // stream-json is used for both input and output formats.
+    assert.equal(
+      args.filter((a) => a === "stream-json").length,
+      2,
+      "stream-json should appear twice (input + output format)",
+    );
     assert.ok(args.includes("--verbose"));
     assert.ok(args.includes("--system-prompt"));
     assert.ok(args.includes("You are helpful"));
     assert.ok(args.includes("-p"));
-    assert.ok(args.includes("hello"));
     assert.ok(args.includes("--allowedTools"));
+  });
+
+  it("does NOT pass the user message as a CLI argument", () => {
+    // Regression: the message must arrive via stdin in stream-json
+    // input mode. Passing it as `-p <text>` (the old mode) bypasses
+    // slash-command resolution for Claude Code skills.
+    const args = buildCliArgs({
+      systemPrompt: "You are helpful",
+      activePlugins: [],
+    });
+    const pIdx = args.indexOf("-p");
+    // `-p` is followed by either another flag or end-of-args, never
+    // by a plain text message.
+    const afterP = args[pIdx + 1];
+    assert.ok(afterP === undefined || afterP.startsWith("--"));
   });
 
   it("includes MCP tool names in allowedTools", () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: ["manageTodoList"],
-      message: "hi",
     });
 
     const allowedIdx = args.indexOf("--allowedTools");
@@ -88,7 +111,6 @@ describe("buildCliArgs", () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: [],
-      message: "hi",
       claudeSessionId: "sess_123",
     });
 
@@ -101,7 +123,6 @@ describe("buildCliArgs", () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: [],
-      message: "hi",
     });
 
     assert.ok(!args.includes("--resume"));
@@ -111,7 +132,6 @@ describe("buildCliArgs", () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: ["foo"],
-      message: "hi",
       mcpConfigPath: "/tmp/mcp.json",
     });
 
@@ -124,7 +144,6 @@ describe("buildCliArgs", () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: [],
-      message: "hi",
     });
 
     assert.ok(!args.includes("--mcp-config"));
@@ -251,5 +270,235 @@ describe("buildDockerSpawnArgs", () => {
   it("targets the mulmoclaude-sandbox image", () => {
     const args = buildDockerSpawnArgs(baseParams());
     assert.ok(args.includes("mulmoclaude-sandbox"));
+  });
+});
+
+describe("rewriteLocalhostForDocker", () => {
+  it("leaves urls untouched when docker mode is off", () => {
+    assert.equal(
+      rewriteLocalhostForDocker("http://localhost:9000/foo", false),
+      "http://localhost:9000/foo",
+    );
+  });
+
+  it("rewrites localhost and 127.0.0.1 under docker", () => {
+    assert.equal(
+      rewriteLocalhostForDocker("http://localhost:9000", true),
+      "http://host.docker.internal:9000",
+    );
+    assert.equal(
+      rewriteLocalhostForDocker("https://127.0.0.1:443/mcp", true),
+      "https://host.docker.internal:443/mcp",
+    );
+  });
+
+  it("leaves non-loopback urls alone", () => {
+    assert.equal(
+      rewriteLocalhostForDocker("https://example.com/mcp", true),
+      "https://example.com/mcp",
+    );
+  });
+
+  it("does not match mid-url substrings", () => {
+    // `localhost.example.com` must not trigger; the boundary check is
+    // critical so we don't break legitimate domains.
+    assert.equal(
+      rewriteLocalhostForDocker("https://localhost.example.com", true),
+      "https://localhost.example.com",
+    );
+  });
+});
+
+describe("prepareUserServers", () => {
+  const hostWs = "/Users/me/ws";
+
+  it("drops disabled entries", () => {
+    const servers: Record<string, McpServerSpec> = {
+      on: { type: "http", url: "https://a.example/mcp" },
+      off: {
+        type: "http",
+        url: "https://b.example/mcp",
+        enabled: false,
+      },
+    };
+    const out = prepareUserServers(servers, false, hostWs);
+    assert.deepEqual(Object.keys(out), ["on"]);
+  });
+
+  it("rewrites localhost for http servers in docker mode", () => {
+    const servers: Record<string, McpServerSpec> = {
+      api: { type: "http", url: "http://localhost:8080/mcp" },
+    };
+    const out = prepareUserServers(servers, true, hostWs);
+    const api = out.api;
+    assert.ok(api && api.type === "http");
+    assert.equal(api.url, "http://host.docker.internal:8080/mcp");
+  });
+
+  it("rewrites workspace-scoped args for stdio servers in docker mode", () => {
+    const servers: Record<string, McpServerSpec> = {
+      fs: {
+        type: "stdio",
+        command: "npx",
+        args: [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          `${hostWs}/docs`,
+        ],
+      },
+    };
+    const out = prepareUserServers(servers, true, hostWs);
+    const fs = out.fs;
+    assert.ok(fs && fs.type === "stdio");
+    assert.deepEqual(fs.args, [
+      "-y",
+      "@modelcontextprotocol/server-filesystem",
+      `${CONTAINER_WORKSPACE_PATH}/docs`,
+    ]);
+  });
+
+  it("leaves non-workspace stdio args untouched (caller warns in UI)", () => {
+    const servers: Record<string, McpServerSpec> = {
+      bad: {
+        type: "stdio",
+        command: "node",
+        args: ["/etc/hosts"],
+      },
+    };
+    const out = prepareUserServers(servers, true, hostWs);
+    const bad = out.bad;
+    assert.ok(bad && bad.type === "stdio");
+    assert.deepEqual(bad.args, ["/etc/hosts"]);
+  });
+});
+
+describe("userServerAllowedToolNames", () => {
+  const hostWs = "/Users/me/ws";
+
+  it("emits mcp__<id> wildcards for enabled http servers", () => {
+    const servers: Record<string, McpServerSpec> = {
+      gmail: { type: "http", url: "https://gmail.mcp.claude.com/mcp" },
+      disabled: {
+        type: "http",
+        url: "https://x",
+        enabled: false,
+      },
+    };
+    const prepared = prepareUserServers(servers, false, hostWs);
+    assert.deepEqual(userServerAllowedToolNames(prepared, false), [
+      "mcp__gmail",
+    ]);
+  });
+
+  it("emits mcp__<id> for stdio servers when not in docker mode", () => {
+    const servers: Record<string, McpServerSpec> = {
+      fs: {
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "@modelcontextprotocol/server-filesystem", hostWs],
+      },
+    };
+    const prepared = prepareUserServers(servers, false, hostWs);
+    assert.deepEqual(userServerAllowedToolNames(prepared, false), ["mcp__fs"]);
+  });
+
+  it("drops stdio servers in docker mode (sandbox image is minimal)", () => {
+    const servers: Record<string, McpServerSpec> = {
+      gmail: { type: "http", url: "https://gmail.mcp.claude.com/mcp" },
+      fs: {
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "@modelcontextprotocol/server-filesystem", hostWs],
+      },
+    };
+    const prepared = prepareUserServers(servers, true, hostWs);
+    assert.deepEqual(userServerAllowedToolNames(prepared, true), [
+      "mcp__gmail",
+    ]);
+  });
+});
+
+describe("buildMcpConfig — user servers", () => {
+  it("merges user-defined servers alongside mulmoclaude", () => {
+    const cfg = buildMcpConfig({
+      sessionId: "s1",
+      port: 3001,
+      activePlugins: ["manageTodoList"],
+      roleIds: ["assistant"],
+      userServers: {
+        gmail: {
+          type: "http",
+          url: "https://gmail.mcp.claude.com/mcp",
+        },
+      },
+    }) as Record<string, unknown>;
+    const servers = cfg.mcpServers as Record<string, unknown>;
+    assert.ok(servers.mulmoclaude);
+    assert.ok(servers.gmail);
+  });
+
+  it("refuses to let a user server override the reserved 'mulmoclaude' id", () => {
+    const cfg = buildMcpConfig({
+      sessionId: "s1",
+      port: 3001,
+      activePlugins: ["manageTodoList"],
+      roleIds: ["assistant"],
+      userServers: {
+        mulmoclaude: {
+          type: "http",
+          url: "https://evil.example/mcp",
+        },
+      },
+    }) as Record<string, unknown>;
+    const servers = cfg.mcpServers as Record<string, unknown>;
+    const builtIn = servers.mulmoclaude as { command?: string; url?: string };
+    // The internal bridge always wins — we keep the `command` shape,
+    // never the user-provided `url`.
+    assert.ok(typeof builtIn.command === "string");
+    assert.equal(builtIn.url, undefined);
+  });
+});
+
+describe("buildUserMessageLine", () => {
+  it("produces a newline-terminated JSON object with role user", () => {
+    const line = buildUserMessageLine("hello");
+    assert.ok(line.endsWith("\n"));
+    const parsed = JSON.parse(line.trimEnd());
+    assert.deepEqual(parsed, {
+      type: "user",
+      message: { role: "user", content: "hello" },
+    });
+  });
+
+  it("escapes special characters in the message content", () => {
+    const line = buildUserMessageLine('line1\n"quoted"\tX');
+    const parsed = JSON.parse(line.trimEnd());
+    assert.equal(parsed.message.content, 'line1\n"quoted"\tX');
+  });
+
+  it("preserves slash-command invocations verbatim", () => {
+    // This is why the whole stream-json input path exists — slash
+    // commands must reach Claude untouched so they resolve against
+    // ~/.claude/skills/<name>/SKILL.md.
+    const line = buildUserMessageLine("/shiritori");
+    const parsed = JSON.parse(line.trimEnd());
+    assert.equal(parsed.message.content, "/shiritori");
+  });
+});
+
+describe("buildCliArgs — extraAllowedTools", () => {
+  it("merges extraAllowedTools into --allowedTools", () => {
+    const args = buildCliArgs({
+      systemPrompt: "s",
+      activePlugins: [],
+      extraAllowedTools: [
+        "mcp__claude_ai_Gmail",
+        "mcp__claude_ai_Google_Calendar",
+      ],
+    });
+    const idx = args.indexOf("--allowedTools");
+    const list = args[idx + 1];
+    assert.ok(list.includes("mcp__claude_ai_Gmail"));
+    assert.ok(list.includes("mcp__claude_ai_Google_Calendar"));
   });
 });
