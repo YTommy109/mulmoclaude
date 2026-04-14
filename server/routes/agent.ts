@@ -18,6 +18,7 @@ import { maybeRunJournal } from "../journal/index.js";
 import { maybeIndexSession } from "../chat-index/index.js";
 import { maybeAppendWikiBacklinks } from "../wiki-backlinks/index.js";
 import { log } from "../logger/index.js";
+import { logBackgroundError } from "../utils/logBackgroundError.js";
 import { createArgsCache, recordToolEvent } from "../tool-trace/index.js";
 
 const router = Router();
@@ -325,11 +326,7 @@ async function runAgentInBackground(
           chatSessionId,
           resultsFilePath,
           argsCache: toolArgsCache,
-        }).catch((err) => {
-          log.warn("tool-trace", "unexpected error in background", {
-            error: String(err),
-          });
-        });
+        }).catch(logBackgroundError("tool-trace"));
       }
     }
     log.info("agent", "request completed", {
@@ -346,20 +343,12 @@ async function runAgentInBackground(
     endRun(chatSessionId);
     // Fire-and-forget: journal + chat-index post-processing
     maybeRunJournal({ activeSessionIds: getActiveSessionIds() }).catch(
-      (err) => {
-        log.warn("journal", "unexpected error in background", {
-          error: String(err),
-        });
-      },
+      logBackgroundError("journal"),
     );
     maybeIndexSession({
       sessionId: chatSessionId,
       activeSessionIds: getActiveSessionIds(),
-    }).catch((err) => {
-      log.warn("chat-index", "unexpected error in background", {
-        error: String(err),
-      });
-    });
+    }).catch(logBackgroundError("chat-index"));
     // Walks wiki/pages/ for files modified during this turn and
     // appends a backlink to the originating chat session so the
     // user can jump back from a wiki page to the conversation
@@ -367,11 +356,7 @@ async function runAgentInBackground(
     maybeAppendWikiBacklinks({
       chatSessionId,
       turnStartedAt: requestStartedAt,
-    }).catch((err) => {
-      log.warn("wiki-backlinks", "unexpected error in background", {
-        error: String(err),
-      });
-    });
+    }).catch(logBackgroundError("wiki-backlinks"));
   }
 }
 
