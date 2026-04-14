@@ -140,6 +140,12 @@ export async function* runAgent(
     workspacePath: useDocker ? CONTAINER_WORKSPACE_PATH : workspacePath,
   });
 
+  // Dump the full system prompt on the first message of each session
+  // so developers can inspect what the LLM sees.
+  if (!claudeSessionId) {
+    log.info("agent", "system prompt for new session:\n" + fullSystemPrompt);
+  }
+
   const mcpPaths = resolveMcpConfigPaths({
     workspacePath,
     sessionId,
