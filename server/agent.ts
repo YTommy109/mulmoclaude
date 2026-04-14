@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessByStdio } from "child_process";
 import { mkdir, writeFile, unlink } from "fs/promises";
 import { dirname } from "path";
-import type { Readable } from "stream";
+import type { Readable, Writable } from "stream";
 import { isDockerAvailable } from "./docker.js";
 import { refreshCredentials } from "./credentials.js";
 import { loadMcpConfig, loadSettings } from "./config.js";
@@ -13,6 +13,7 @@ import {
   buildCliArgs,
   buildDockerSpawnArgs,
   buildMcpConfig,
+  buildUserMessageLine,
   getActivePlugins,
   prepareUserServers,
   resolveMcpConfigPaths,
@@ -25,7 +26,7 @@ import {
 } from "./agent/stream.js";
 import { log } from "./logger/index.js";
 
-type ClaudeProc = ChildProcessByStdio<null, Readable, Readable>;
+type ClaudeProc = ChildProcessByStdio<Writable, Readable, Readable>;
 
 function spawnClaude(
   useDocker: boolean,
@@ -35,7 +36,7 @@ function spawnClaude(
   if (!useDocker) {
     return spawn("claude", cliArgs, {
       cwd: workspacePath,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
   }
   const dockerArgs = buildDockerSpawnArgs({
@@ -45,7 +46,7 @@ function spawnClaude(
     gid: process.getgid?.() ?? 1000,
     platform: process.platform,
   });
-  return spawn("docker", dockerArgs, { stdio: ["ignore", "pipe", "pipe"] });
+  return spawn("docker", dockerArgs, { stdio: ["pipe", "pipe", "pipe"] });
 }
 
 async function* readAgentEvents(proc: ClaudeProc): AsyncGenerator<AgentEvent> {
@@ -179,7 +180,6 @@ export async function* runAgent(
     systemPrompt: fullSystemPrompt,
     activePlugins,
     claudeSessionId,
-    message,
     mcpConfigPath: hasMcp ? mcpPaths.argPath : undefined,
     extraAllowedTools: [
       ...settings.extraAllowedTools,
@@ -199,6 +199,14 @@ export async function* runAgent(
     hasSessionId: Boolean(sessionId),
   });
   const proc = spawnClaude(useDocker, workspacePath, cliArgs);
+
+  // stream-json input mode: stream the user turn as a single JSON
+  // line to stdin, then close the pipe so the CLI knows no further
+  // turns are coming. Writing before attaching the abort handler
+  // is fine — if the write fails because the process already died
+  // for other reasons, the `readAgentEvents` loop below surfaces it.
+  proc.stdin.write(buildUserMessageLine(message));
+  proc.stdin.end();
 
   // If an abort signal is provided, kill the process when it fires.
   const onAbort = () => {

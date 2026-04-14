@@ -12,6 +12,9 @@ import { onMounted, onUnmounted } from "vue";
 export interface EventListenerHandlers {
   /** Called when the manageRoles plugin dispatches a `roles-updated` CustomEvent. */
   onRolesUpdated: () => void | Promise<void>;
+  /** Called when the manageSkills View dispatches a `skill-run` CustomEvent —
+   *  detail.message is the composed prompt to send via the chat pipeline. */
+  onSkillRun?: (message: string) => void;
   /** Global keydown for arrow-key navigation / Esc handling. */
   onKeyNavigation: (e: KeyboardEvent) => void;
   /** Global keydown for Cmd/Ctrl+1/2/3 view-mode shortcut. */
@@ -25,6 +28,16 @@ export interface EventListenerHandlers {
 }
 
 export function useEventListeners(handlers: EventListenerHandlers): void {
+  // `skill-run` is a CustomEvent<{ message: string }>. We wrap the
+  // caller's onSkillRun in a typed dispatcher so callers stay
+  // unaware of the event shape.
+  const skillRunWrapper = (e: Event): void => {
+    if (!handlers.onSkillRun) return;
+    const custom = e as CustomEvent<{ message?: unknown }>;
+    const msg = custom.detail?.message;
+    if (typeof msg === "string") handlers.onSkillRun(msg);
+  };
+
   onMounted(() => {
     window.addEventListener("roles-updated", handlers.onRolesUpdated);
     window.addEventListener("keydown", handlers.onKeyNavigation);
@@ -32,6 +45,9 @@ export function useEventListeners(handlers: EventListenerHandlers): void {
     window.addEventListener("mousedown", handlers.onClickOutsideHistory);
     window.addEventListener("mousedown", handlers.onClickOutsideLock);
     window.addEventListener("mousedown", handlers.onClickOutsideRoleDropdown);
+    if (handlers.onSkillRun) {
+      window.addEventListener("skill-run", skillRunWrapper);
+    }
   });
 
   onUnmounted(() => {
@@ -44,6 +60,9 @@ export function useEventListeners(handlers: EventListenerHandlers): void {
       "mousedown",
       handlers.onClickOutsideRoleDropdown,
     );
+    if (handlers.onSkillRun) {
+      window.removeEventListener("skill-run", skillRunWrapper);
+    }
     handlers.onTeardown?.();
   });
 }

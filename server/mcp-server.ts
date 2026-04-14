@@ -144,6 +144,35 @@ async function postJson(
   return res;
 }
 
+// Read-only GET of the skills list, packaged as a ToolResult for the
+// frontend. Extracted so handleToolCall stays under the cognitive-
+// complexity threshold.
+async function handleManageSkills(): Promise<string> {
+  const url = `${BASE_URL}/api/skills?session=${encodeURIComponent(SESSION_ID)}`;
+  let res: Response;
+  try {
+    res = await fetch(url);
+  } catch (err) {
+    throw new Error(
+      `Network error calling /api/skills: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status} calling /api/skills: ${text}`);
+  }
+  const body: { skills: { name: string }[] } = await res.json();
+  const suffix = body.skills.length === 1 ? "" : "s";
+  await postJson("/api/internal/tool-result", {
+    toolName: "manageSkills",
+    uuid: crypto.randomUUID(),
+    title: "Skills",
+    message: `Found ${body.skills.length} skill${suffix}.`,
+    data: body,
+  });
+  return `Listed ${body.skills.length} skill${suffix}`;
+}
+
 async function handleToolCall(
   name: string,
   args: Record<string, unknown>,
@@ -168,6 +197,8 @@ async function handleToolCall(
 
     return result.message ?? (result.error ? `Error: ${result.error}` : "Done");
   }
+
+  if (name === "manageSkills") return handleManageSkills();
 
   // Pure MCP tools — call via /api/mcp-tools/:tool, return text directly
   // (no frontend push). Opt out of postJson's HTTP error throw because

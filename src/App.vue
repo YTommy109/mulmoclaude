@@ -417,7 +417,27 @@ async function markSessionRead(id: string): Promise<void> {
       `/api/sessions/${encodeURIComponent(id)}/mark-read`,
       { method: "POST" },
     );
-    if (!res.ok) {
+    // The server returns `{ ok: boolean }` — a 200 with `ok: false`
+    // means the endpoint was reached but the flag wasn't actually
+    // cleared (e.g. session not found). Treat that the same as a
+    // transport failure and refetch so the sidebar doesn't go stale.
+    let appLevelOk = true;
+    if (res.ok) {
+      try {
+        const body: unknown = await res.json();
+        if (
+          body !== null &&
+          typeof body === "object" &&
+          (body as { ok?: unknown }).ok === false
+        ) {
+          appLevelOk = false;
+        }
+      } catch {
+        // Body wasn't JSON — treat as failure.
+        appLevelOk = false;
+      }
+    }
+    if (!res.ok || !appLevelOk) {
       // Server didn't clear the flag — refetch to restore truth.
       await refreshSessionStates();
     }
@@ -1183,6 +1203,7 @@ const { handler: handleClickOutsideRoleDropdown } = useClickOutside({
 
 useEventListeners({
   onRolesUpdated: refreshRoles,
+  onSkillRun: (message: string) => sendMessage(message),
   onKeyNavigation: handleKeyNavigation,
   onViewModeShortcut: handleViewModeShortcut,
   onClickOutsideHistory: handleClickOutsideHistory,

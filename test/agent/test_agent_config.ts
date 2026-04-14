@@ -6,6 +6,7 @@ import {
   buildCliArgs,
   buildDockerSpawnArgs,
   buildMcpConfig,
+  buildUserMessageLine,
   CONTAINER_WORKSPACE_PATH,
   type Platform,
   prepareUserServers,
@@ -60,24 +61,42 @@ describe("buildCliArgs", () => {
     const args = buildCliArgs({
       systemPrompt: "You are helpful",
       activePlugins: [],
-      message: "hello",
     });
 
     assert.ok(args.includes("--output-format"));
-    assert.ok(args.includes("stream-json"));
+    assert.ok(args.includes("--input-format"));
+    // stream-json is used for both input and output formats.
+    assert.equal(
+      args.filter((a) => a === "stream-json").length,
+      2,
+      "stream-json should appear twice (input + output format)",
+    );
     assert.ok(args.includes("--verbose"));
     assert.ok(args.includes("--system-prompt"));
     assert.ok(args.includes("You are helpful"));
     assert.ok(args.includes("-p"));
-    assert.ok(args.includes("hello"));
     assert.ok(args.includes("--allowedTools"));
+  });
+
+  it("does NOT pass the user message as a CLI argument", () => {
+    // Regression: the message must arrive via stdin in stream-json
+    // input mode. Passing it as `-p <text>` (the old mode) bypasses
+    // slash-command resolution for Claude Code skills.
+    const args = buildCliArgs({
+      systemPrompt: "You are helpful",
+      activePlugins: [],
+    });
+    const pIdx = args.indexOf("-p");
+    // `-p` is followed by either another flag or end-of-args, never
+    // by a plain text message.
+    const afterP = args[pIdx + 1];
+    assert.ok(afterP === undefined || afterP.startsWith("--"));
   });
 
   it("includes MCP tool names in allowedTools", () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: ["manageTodoList"],
-      message: "hi",
     });
 
     const allowedIdx = args.indexOf("--allowedTools");
@@ -92,7 +111,6 @@ describe("buildCliArgs", () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: [],
-      message: "hi",
       claudeSessionId: "sess_123",
     });
 
@@ -105,7 +123,6 @@ describe("buildCliArgs", () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: [],
-      message: "hi",
     });
 
     assert.ok(!args.includes("--resume"));
@@ -115,7 +132,6 @@ describe("buildCliArgs", () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: ["foo"],
-      message: "hi",
       mcpConfigPath: "/tmp/mcp.json",
     });
 
@@ -128,7 +144,6 @@ describe("buildCliArgs", () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: [],
-      message: "hi",
     });
 
     assert.ok(!args.includes("--mcp-config"));
@@ -444,12 +459,38 @@ describe("buildMcpConfig — user servers", () => {
   });
 });
 
+describe("buildUserMessageLine", () => {
+  it("produces a newline-terminated JSON object with role user", () => {
+    const line = buildUserMessageLine("hello");
+    assert.ok(line.endsWith("\n"));
+    const parsed = JSON.parse(line.trimEnd());
+    assert.deepEqual(parsed, {
+      type: "user",
+      message: { role: "user", content: "hello" },
+    });
+  });
+
+  it("escapes special characters in the message content", () => {
+    const line = buildUserMessageLine('line1\n"quoted"\tX');
+    const parsed = JSON.parse(line.trimEnd());
+    assert.equal(parsed.message.content, 'line1\n"quoted"\tX');
+  });
+
+  it("preserves slash-command invocations verbatim", () => {
+    // This is why the whole stream-json input path exists — slash
+    // commands must reach Claude untouched so they resolve against
+    // ~/.claude/skills/<name>/SKILL.md.
+    const line = buildUserMessageLine("/shiritori");
+    const parsed = JSON.parse(line.trimEnd());
+    assert.equal(parsed.message.content, "/shiritori");
+  });
+});
+
 describe("buildCliArgs — extraAllowedTools", () => {
   it("merges extraAllowedTools into --allowedTools", () => {
     const args = buildCliArgs({
       systemPrompt: "s",
       activePlugins: [],
-      message: "hi",
       extraAllowedTools: [
         "mcp__claude_ai_Gmail",
         "mcp__claude_ai_Google_Calendar",

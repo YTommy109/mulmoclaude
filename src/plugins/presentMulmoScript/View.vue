@@ -440,18 +440,24 @@
             rows="8"
             spellcheck="false"
           />
-          <div class="flex justify-end px-2 pb-2">
+          <div class="flex items-center justify-end gap-2 px-2 pb-2">
+            <span
+              v-if="beatSaveErrors[index]"
+              class="text-xs text-red-600"
+              role="alert"
+              >⚠ {{ beatSaveErrors[index] }}</span
+            >
             <button
               class="px-2 py-1 text-xs rounded border"
               :class="
-                isValidBeat(index)
+                isValidBeat(index) && !beatSaving[index]
                   ? 'border-blue-400 text-blue-600 hover:bg-blue-50 cursor-pointer'
                   : 'border-gray-200 text-gray-300 cursor-not-allowed'
               "
-              :disabled="!isValidBeat(index)"
+              :disabled="!isValidBeat(index) || !!beatSaving[index]"
               @click="updateBeat(index)"
             >
-              Update
+              {{ beatSaving[index] ? "Saving…" : "Update" }}
             </button>
           </div>
         </div>
@@ -612,6 +618,10 @@ const renderedImages = reactive<Record<number, string>>({});
 const renderErrors = reactive<Record<number, string>>({});
 const sourceOpen = reactive<Record<number, boolean>>({});
 const sourceText = reactive<Record<number, string>>({});
+// Surface POST /api/mulmo-script/update-beat failures inline next to
+// the Update button. Cleared on next successful save or editor close.
+const beatSaveErrors = reactive<Record<number, string>>({});
+const beatSaving = reactive<Record<number, boolean>>({});
 const localOverrides = reactive<Record<number, Beat>>({});
 const movieGenerating = ref(false);
 const moviePath = ref<string | null>(null);
@@ -696,7 +706,17 @@ const editing = ref(false);
 const editableSource = ref("");
 const copied = ref(false);
 
-const scriptSourceText = computed(() => JSON.stringify(script.value, null, 2));
+// Beats may be edited in-place via `updateBeat()` and rendered through
+// `effectiveBeat()`, so the Copy / source-view text must read the merged
+// shape — otherwise the clipboard returns the original prop snapshot
+// until the full result is reloaded.
+const effectiveScript = computed<MulmoScript>(() => ({
+  ...script.value,
+  beats: beats.value.map((beat, i) => localOverrides[i] ?? beat),
+}));
+const scriptSourceText = computed(() =>
+  JSON.stringify(effectiveScript.value, null, 2),
+);
 const loadedSource = ref("");
 const sourceChanged = computed(
   () => editableSource.value !== loadedSource.value,
@@ -788,6 +808,7 @@ function effectiveBeat(index: number): Beat {
 function toggleSource(index: number) {
   if (!sourceOpen[index]) {
     sourceText[index] = JSON.stringify(effectiveBeat(index), null, 2);
+    delete beatSaveErrors[index];
   }
   sourceOpen[index] = !sourceOpen[index];
 }
@@ -797,13 +818,40 @@ function isValidBeat(index: number): boolean {
 }
 
 async function updateBeat(index: number) {
-  const beat: Beat = JSON.parse(sourceText[index]);
+  let beat: Beat;
+  try {
+    beat = JSON.parse(sourceText[index]);
+  } catch (err) {
+    beatSaveErrors[index] =
+      `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`;
+    return;
+  }
   const prevImage = JSON.stringify(effectiveBeat(index).image);
-  await fetch("/api/mulmo-script/update-beat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filePath: filePath.value, beatIndex: index, beat }),
-  });
+
+  delete beatSaveErrors[index];
+  beatSaving[index] = true;
+  try {
+    const res = await fetch("/api/mulmo-script/update-beat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filePath: filePath.value,
+        beatIndex: index,
+        beat,
+      }),
+    });
+    if (!res.ok) {
+      beatSaveErrors[index] = `Save failed: ${res.status} ${res.statusText}`;
+      return;
+    }
+  } catch (err) {
+    beatSaveErrors[index] =
+      `Save failed: ${err instanceof Error ? err.message : String(err)}`;
+    return;
+  } finally {
+    delete beatSaving[index];
+  }
+
   localOverrides[index] = beat;
   sourceOpen[index] = false;
 
@@ -1097,6 +1145,8 @@ async function initializeScript() {
   Object.keys(renderErrors).forEach((k) => delete renderErrors[+k]);
   Object.keys(sourceOpen).forEach((k) => delete sourceOpen[+k]);
   Object.keys(sourceText).forEach((k) => delete sourceText[+k]);
+  Object.keys(beatSaveErrors).forEach((k) => delete beatSaveErrors[+k]);
+  Object.keys(beatSaving).forEach((k) => delete beatSaving[+k]);
   Object.keys(localOverrides).forEach((k) => delete localOverrides[+k]);
   Object.keys(beatAudios).forEach((k) => delete beatAudios[+k]);
   Object.keys(audioState).forEach((k) => delete audioState[+k]);
