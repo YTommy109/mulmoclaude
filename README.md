@@ -187,6 +187,64 @@ Claude uses its built-in file tools (`read`, `write`, `glob`, `grep`) to navigat
 
 Over time the wiki grows into a personal knowledge base that any role can consult, making Claude progressively more useful the more you use it.
 
+## Charts (ECharts)
+
+The `presentChart` plugin renders [Apache ECharts](https://echarts.apache.org/) visualizations in the canvas. Ask for a line, bar, candlestick, sankey, heatmap, or network/graph — Claude writes an ECharts option object, the plugin mounts it. Every chart has a **[↓ PNG]** button for one-click export.
+
+Available in the **General**, **Office**, **Guide & Planner**, and **Tutor** roles. Try:
+
+```text
+Chart last quarter's revenue by region as a bar chart
+Plot AAPL's daily closes for the last 30 days as a candlestick
+Show a sankey of energy flow: coal/gas/solar → electricity → home/industry/transport
+```
+
+### Storage
+
+Each `presentChart` call writes one file under `<workspace>/charts/`:
+
+```text
+<workspace>/charts/
+  sales-overview-1776135210389.chart.json
+  apple-stock-1776135300000.chart.json
+```
+
+A single document can hold any number of charts, which are rendered stacked in the canvas:
+
+```json
+{
+  "title": "Apple Stock Analysis",
+  "charts": [
+    {
+      "title": "Daily close",
+      "type": "line",
+      "option": {
+        "xAxis": {
+          "type": "category",
+          "data": ["2024-01", "2024-02", "2024-03"]
+        },
+        "yAxis": { "type": "value" },
+        "series": [{ "type": "line", "data": [180, 195, 210] }]
+      }
+    },
+    {
+      "title": "Volume",
+      "type": "bar",
+      "option": {
+        "xAxis": {
+          "type": "category",
+          "data": ["2024-01", "2024-02", "2024-03"]
+        },
+        "yAxis": { "type": "value" },
+        "series": [{ "type": "bar", "data": [1000000, 1200000, 950000] }]
+      }
+    }
+  ]
+}
+```
+
+The `option` field is passed to ECharts' [`setOption`](https://echarts.apache.org/en/api.html#echartsInstance.setOption) as-is — you can reference the full [ECharts option reference](https://echarts.apache.org/en/option.html) when hand-editing these files. Edits are reflected the next time the document is re-opened in the canvas.
+
 ## Optional: X (Twitter) MCP Tools
 
 MulmoClaude includes optional MCP tools for reading and searching posts on X (Twitter) via the official X API v2.

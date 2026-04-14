@@ -20,6 +20,7 @@ import manageSkillsPlugin from "../plugins/manageSkills/index";
 import wikiPlugin from "../plugins/wiki/index";
 import presentMulmoScriptPlugin from "../plugins/presentMulmoScript/index";
 import presentHtmlPlugin from "../plugins/presentHtml/index";
+import presentChartPlugin from "../plugins/chart/index";
 
 const plugins: Record<string, PluginEntry> = {
   "text-response": {
@@ -40,6 +41,7 @@ const plugins: Record<string, PluginEntry> = {
   presentForm: FormPlugin.plugin,
   openCanvas: canvasPlugin,
   presentHtml: presentHtmlPlugin,
+  presentChart: presentChartPlugin,
   editImage: editImagePlugin,
   showMusic: MusicPlugin.plugin,
   piano: PianoPlugin.plugin,
