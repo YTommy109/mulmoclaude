@@ -11,12 +11,14 @@ import chatIndexRoutes from "./routes/chat-index.js";
 import pluginsRoutes from "./routes/plugins.js";
 import imageRoutes from "./routes/image.js";
 import presentHtmlRoutes from "./routes/presentHtml.js";
+import chartRoutes from "./routes/chart.js";
 import rolesRoutes from "./routes/roles.js";
 import mulmoScriptRoutes from "./routes/mulmo-script.js";
 import wikiRoutes from "./routes/wiki.js";
 import pdfRoutes from "./routes/pdf.js";
 import filesRoutes from "./routes/files.js";
 import configRoutes from "./routes/config.js";
+import skillsRoutes from "./routes/skills.js";
 import {
   mcpToolsRouter,
   mcpTools,
@@ -89,12 +91,14 @@ app.use("/api", chatIndexRoutes);
 app.use("/api", pluginsRoutes);
 app.use("/api", imageRoutes);
 app.use("/api", presentHtmlRoutes);
+app.use("/api", chartRoutes);
 app.use("/api", rolesRoutes);
 app.use("/api", mulmoScriptRoutes);
 app.use("/api", wikiRoutes);
 app.use("/api", pdfRoutes);
 app.use("/api", filesRoutes);
 app.use("/api", configRoutes);
+app.use("/api", skillsRoutes);
 app.use("/api/mcp-tools", mcpToolsRouter);
 
 if (process.env.NODE_ENV === "production") {

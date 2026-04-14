@@ -219,7 +219,6 @@ export interface CliArgsParams {
   systemPrompt: string;
   activePlugins: string[];
   claudeSessionId?: string;
-  message: string;
   mcpConfigPath?: string;
   // Web UI-managed extension of the allowed-tools list. Merged with
   // BASE_ALLOWED_TOOLS and the mcp__mulmoclaude__ plugin names.
@@ -231,7 +230,6 @@ export function buildCliArgs(params: CliArgsParams): string[] {
     systemPrompt,
     activePlugins,
     claudeSessionId,
-    message,
     mcpConfigPath,
     extraAllowedTools = [],
   } = params;
@@ -243,27 +241,46 @@ export function buildCliArgs(params: CliArgsParams): string[] {
     ...mcpToolNames,
   ];
 
+  // stream-json input mode: the user message is streamed through
+  // stdin (see `writeUserMessage` in server/agent.ts) rather than
+  // passed as a `-p <text>` argument. This path is required so that
+  // Claude resolves slash-command invocations (e.g. `/shiritori` from
+  // the manageSkills Run button) against `~/.claude/skills/`. In the
+  // old `-p <text>` mode the CLI treats the message as literal text
+  // and "/shiritori" never reaches the skill resolver.
   const args = [
     "--output-format",
+    "stream-json",
+    "--input-format",
     "stream-json",
     "--verbose",
     "--system-prompt",
     systemPrompt,
     "--allowedTools",
     allowedTools.join(","),
+    "-p",
   ];
 
   if (claudeSessionId) {
     args.push("--resume", claudeSessionId);
   }
 
-  args.push("-p", message);
-
   if (mcpConfigPath) {
     args.push("--mcp-config", mcpConfigPath);
   }
 
   return args;
+}
+
+/** JSON line to write to the Claude CLI's stdin when running in
+ *  stream-json input mode. One line per user turn. */
+export function buildUserMessageLine(message: string): string {
+  return (
+    JSON.stringify({
+      type: "user",
+      message: { role: "user", content: message },
+    }) + "\n"
+  );
 }
 
 export interface McpConfigPaths {
@@ -340,6 +357,10 @@ export function buildDockerSpawnArgs(params: DockerSpawnArgsParams): string[] {
   return [
     "run",
     "--rm",
+    // -i keeps the container's stdin open so the stream-json user
+    // message (see buildUserMessageLine) can flow through. Without
+    // this Docker detaches stdin and the CLI reads EOF on startup.
+    "-i",
     "--cap-drop",
     "ALL",
     "--user",

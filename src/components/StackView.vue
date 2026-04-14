@@ -118,6 +118,10 @@ const STACK_NATURAL_TOOLS = new Set<string>([
   "presentDocument",
   "presentSpreadsheet",
   "manageWiki",
+  // presentChart documents can hold multiple charts; fixed-height
+  // clipping forces an inner scrollbar per result. Letting them flow
+  // keeps everything visible in one scroll.
+  "presentChart",
 ]);
 
 function isStackNatural(toolName: string): boolean {
