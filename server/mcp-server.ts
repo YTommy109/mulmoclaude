@@ -204,10 +204,13 @@ async function handleManageSkillsList(): Promise<string> {
 async function handleManageSkillsSave(
   args: Record<string, unknown>,
 ): Promise<string> {
+  // Normalize name once up front so log / result messages below never
+  // interpolate an accidental object / number into `/${name}`.
+  const name = String(args.name ?? "");
   const res = await postJson(
     "/api/skills",
     {
-      name: args.name,
+      name,
       description: args.description,
       body: args.body,
     },
@@ -218,8 +221,8 @@ async function handleManageSkillsSave(
     const detail = errBody.error ?? "HTTP " + res.status;
     return "Error: " + detail;
   }
-  await pushSkillsListResult(`Saved skill "${args.name}".`);
-  return `Saved skill ${args.name}. Run with /${args.name}.`;
+  await pushSkillsListResult(`Saved skill "${name}".`);
+  return `Saved skill ${name}. Run with /${name}.`;
 }
 
 async function handleManageSkillsDelete(

@@ -12,8 +12,7 @@
 // user for a different name.
 
 import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { tmpdir } from "node:os";
+import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { rmdir } from "node:fs/promises";
 import { discoverSkills } from "./discovery.js";
@@ -70,7 +69,10 @@ export async function saveProjectSkill(
   // Atomic write: tmp file in the same directory, then rename.
   // Same-FS rename is atomic on POSIX so a partial write can never
   // leave a half-baked SKILL.md visible to a concurrent reader.
-  const tmpPath = join(tmpdir(), `mulmoclaude-skill-${randomUUID()}.tmp`);
+  // Place the tmp file alongside the final path — using os.tmpdir()
+  // can cross a filesystem boundary on some setups (Docker volumes,
+  // separate /tmp mounts) and cause `rename()` to fail with EXDEV.
+  const tmpPath = `${finalPath}.${randomUUID()}.tmp`;
   try {
     await writeFile(tmpPath, contents, "utf-8");
     await rename(tmpPath, finalPath);
@@ -116,8 +118,10 @@ export async function deleteProjectSkill(
   if (skill.source === "user") return { kind: "user-scope", name };
 
   const dir = projectSkillDir(workspaceRoot, name);
-  // Remove SKILL.md, then the directory. Empty-dir guarantees the
-  // user can recover by re-saving without manual cleanup.
+  // Remove SKILL.md, then try to remove the directory if it's empty.
+  // If the user has dropped extra files alongside SKILL.md (e.g. a
+  // README, assets), rmdir() fails and we leave the directory in
+  // place — the skill itself (the SKILL.md) is gone either way.
   try {
     await unlink(projectSkillPath(workspaceRoot, name));
   } catch (err) {

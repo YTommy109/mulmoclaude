@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
 import {
   isValidSlug,
   projectSkillsDir,
@@ -57,18 +58,25 @@ describe("isValidSlug", () => {
 });
 
 describe("projectSkillsDir / projectSkillPath / projectSkillDir", () => {
+  // Use a platform-appropriate workspace root so the path.join() output
+  // matches on Windows (backslashes) as well as POSIX.
+  const workspace = path.join(path.sep, "tmp", "ws");
+
   it("composes the project skills root under the workspace", () => {
-    const got = projectSkillsDir("/tmp/ws");
-    assert.equal(got, "/tmp/ws/.claude/skills");
+    const got = projectSkillsDir(workspace);
+    assert.equal(got, path.join(workspace, ".claude", "skills"));
   });
 
   it("appends the slug + SKILL.md for projectSkillPath", () => {
-    const got = projectSkillPath("/tmp/ws", "fix-ci");
-    assert.equal(got, "/tmp/ws/.claude/skills/fix-ci/SKILL.md");
+    const got = projectSkillPath(workspace, "fix-ci");
+    assert.equal(
+      got,
+      path.join(workspace, ".claude", "skills", "fix-ci", "SKILL.md"),
+    );
   });
 
   it("returns the dir holding the SKILL.md", () => {
-    const got = projectSkillDir("/tmp/ws", "fix-ci");
-    assert.equal(got, "/tmp/ws/.claude/skills/fix-ci");
+    const got = projectSkillDir(workspace, "fix-ci");
+    assert.equal(got, path.join(workspace, ".claude", "skills", "fix-ci"));
   });
 });
