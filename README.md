@@ -84,17 +84,17 @@ examples, rotation behaviour, and recipes.
 
 Each role gives Claude a different persona, tool palette, and focus area:
 
-| Role | What it does |
-|---|---|
-| **General** | All-purpose assistant — todos, scheduler, wiki, documents, mind maps |
-| **Office** | Documents, spreadsheets, forms, presentations, data dashboards |
-| **Guide & Planner** | Travel guides, recipe books, trip planners with rich visual output |
-| **Artist** | Image generation, image editing, generative art with p5.js |
-| **Game** | Play Othello, or build browser games with Phaser/Three.js |
-| **Tutor** | Adaptive teaching — evaluates your level before explaining anything |
-| **Storyteller** | Interactive illustrated stories with images and HTML scenes |
-| **Musician** | Compose and play music in the browser |
-| **Role Manager** | Create and edit custom roles |
+| Role                | What it does                                                         |
+| ------------------- | -------------------------------------------------------------------- |
+| **General**         | All-purpose assistant — todos, scheduler, wiki, documents, mind maps |
+| **Office**          | Documents, spreadsheets, forms, presentations, data dashboards       |
+| **Guide & Planner** | Travel guides, recipe books, trip planners with rich visual output   |
+| **Artist**          | Image generation, image editing, generative art with p5.js           |
+| **Game**            | Play Othello, or build browser games with Phaser/Three.js            |
+| **Tutor**           | Adaptive teaching — evaluates your level before explaining anything  |
+| **Storyteller**     | Interactive illustrated stories with images and HTML scenes          |
+| **Musician**        | Compose and play music in the browser                                |
+| **Role Manager**    | Create and edit custom roles                                         |
 
 Switching roles resets Claude's context and swaps in only the tools that role needs — keeping responses fast and focused.
 
@@ -129,10 +129,10 @@ Over time the wiki grows into a personal knowledge base that any role can consul
 
 MulmoClaude includes optional MCP tools for reading and searching posts on X (Twitter) via the official X API v2.
 
-| Tool | What it does |
-|---|---|
-| `readXPost` | Fetches a single post by URL or tweet ID |
-| `searchX` | Searches recent posts by keyword or query |
+| Tool        | What it does                              |
+| ----------- | ----------------------------------------- |
+| `readXPost` | Fetches a single post by URL or tweet ID  |
+| `searchX`   | Searches recent posts by keyword or query |
 
 These tools are **disabled by default** and require an X API Bearer Token to activate.
 
@@ -188,6 +188,60 @@ Configuration lives under `<workspace>/configs/`:
 ```
 
 The MCP file uses Claude CLI's standard format so you can copy it between machines, or even use it with the `claude` CLI directly.
+
+### Editing the config files directly
+
+Both files are plain JSON — you can edit them with any text editor instead of the Settings UI. The server re-reads them on every message, so:
+
+- No server restart needed after a file edit.
+- Changes are picked up by the Settings UI too — just close and reopen the modal.
+- The UI and the file are always in sync: saving from the UI overwrites the file, and hand-edits show up in the UI on the next open.
+
+This is handy for:
+
+- Bulk-importing MCP servers from another workstation (copy `mcp.json` over).
+- Version-controlling your setup in a dotfiles repo.
+- Commenting out a server temporarily by flipping `"enabled": false`.
+
+**Example `mcp.json`** — one remote HTTP server (public, no auth) and one local stdio server:
+
+```json
+{
+  "mcpServers": {
+    "deepwiki": {
+      "type": "http",
+      "url": "https://mcp.deepwiki.com/mcp",
+      "enabled": true
+    },
+    "everything": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-everything"],
+      "enabled": true
+    }
+  }
+}
+```
+
+Constraints the server enforces when loading the file:
+
+- `mcpServers` keys (the server id) must match `^[a-z][a-z0-9_-]{0,63}$`.
+- HTTP `url` must parse as `http:` or `https:`.
+- Stdio `command` is restricted to `npx`, `node`, or `tsx`.
+- Entries that fail validation are silently dropped on load (a warning is logged); the rest of the file still applies.
+
+**Example `settings.json`**:
+
+```json
+{
+  "extraAllowedTools": [
+    "mcp__claude_ai_Gmail",
+    "mcp__claude_ai_Google_Calendar"
+  ]
+}
+```
+
+You don't need to list `mcp__<id>` entries for servers defined in `mcp.json` — those are allowed automatically on every agent run. `extraAllowedTools` is only for tools that aren't reachable through your own `mcpServers`, typically Claude Code's built-in `mcp__claude_ai_*` bridges after you've run `claude mcp` and completed OAuth.
 
 ## Workspace
 
