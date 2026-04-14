@@ -55,7 +55,8 @@ describe("collectSkillsFromDir", () => {
     assert.equal(skills[0].description, "Enable CI");
     assert.equal(skills[0].source, "user");
     assert.match(skills[0].body, /## Steps/);
-    assert.match(skills[0].path, /ci_enable\/SKILL\.md$/);
+    // Path uses `/` on POSIX and `\` on Windows; accept either.
+    assert.match(skills[0].path, /[\\/]ci_enable[\\/]SKILL\.md$/);
   });
 
   it("skips directories without a SKILL.md", async () => {
@@ -121,8 +122,11 @@ describe("collectSkillsFromDir", () => {
   });
 
   it("gracefully handles an unreadable SKILL.md", async () => {
-    // Some CI sandboxes run as root which bypasses chmod. Skip when
-    // we can't actually enforce unreadable permissions.
+    // Windows does not honour POSIX-style chmod(0o000); the CI
+    // runner reads the file anyway and the test would fail.
+    if (process.platform === "win32") return;
+    // Some CI sandboxes run as root which also bypasses chmod. Skip
+    // when we can't actually enforce unreadable permissions.
     if (process.getuid && process.getuid() === 0) return;
     const dir = join(root, "locked");
     await mkdir(dir);
