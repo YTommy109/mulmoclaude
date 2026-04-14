@@ -118,12 +118,22 @@
               class="p-4 text-xs whitespace-pre-wrap font-mono text-gray-800"
               >{{ content.content }}</pre
             >
-            <!-- HTML: sandboxed iframe preview (scripts disabled) -->
+            <!-- HTML: sandboxed iframe preview.
+                 `allow-scripts` lets Chart.js / canvas drawing / other
+                 JS-driven HTML (the common case for LLM-generated
+                 results) run. We deliberately DO NOT grant
+                 `allow-same-origin`, so the iframe keeps a null
+                 origin — it can't read MulmoClaude's cookies,
+                 localStorage, or the parent window's DOM.
+                 A CSP meta tag is injected via wrapHtmlWithPreviewCsp
+                 to restrict script loads to a vetted CDN whitelist +
+                 inline; connect-src is `'none'` so the page can't
+                 phone home. See src/utils/html/previewCsp.ts. -->
             <iframe
               v-else-if="isHtml"
-              :srcdoc="content.content"
+              :srcdoc="sandboxedHtml"
               class="w-full h-full border-0"
-              sandbox=""
+              sandbox="allow-scripts"
               title="HTML preview"
             />
             <!-- JSON: pretty-printed with simple syntax coloring. Fall
@@ -226,6 +236,8 @@ import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 import FileTree, { type TreeNode } from "./FileTree.vue";
 import { useExpandedDirs } from "../composables/useExpandedDirs";
 import TextResponseView from "../plugins/textResponse/View.vue";
+import { rewriteMarkdownImageRefs } from "../utils/image/rewriteMarkdownImageRefs";
+import { wrapHtmlWithPreviewCsp } from "../utils/html/previewCsp";
 import SchedulerView from "../plugins/scheduler/View.vue";
 import TodoExplorer from "./TodoExplorer.vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
@@ -336,6 +348,16 @@ function toggleMdRaw(): void {
   localStorage.setItem(MD_RAW_STORAGE_KEY, String(mdRawMode.value));
 }
 const isHtml = computed(() => hasExt(selectedPath.value, [".html", ".htm"]));
+
+// The HTML body handed to the iframe's `srcdoc`. We inject a CSP
+// meta tag that narrows what the LLM's output can load — see
+// src/utils/html/previewCsp.ts. Computed so the injection happens
+// once per content change, not on every render.
+const sandboxedHtml = computed(() =>
+  content.value?.kind === "text" && isHtml.value
+    ? wrapHtmlWithPreviewCsp(content.value.content)
+    : "",
+);
 const isJson = computed(() => hasExt(selectedPath.value, [".json"]));
 const isJsonl = computed(() =>
   hasExt(selectedPath.value, [".jsonl", ".ndjson"]),
@@ -433,13 +455,18 @@ const mdFrontmatter = computed(() => {
 });
 
 function markdownResult(text: string): ToolResultComplete<TextResponseData> {
+  // Rewrite `![alt](path)` refs BEFORE handing the markdown to
+  // TextResponseView (which we don't own — it's a package component)
+  // so workspace-relative image paths resolve via /api/files/raw
+  // instead of 404-ing against the SPA page URL.
+  const rewritten = rewriteMarkdownImageRefs(text);
   return {
     uuid: "files-preview",
     toolName: "text-response",
-    message: text,
+    message: rewritten,
     title: selectedPath.value ?? "",
     // role: "user" hides the PDF download button in TextResponseView
-    data: { text, role: "user", transportKind: "text-rest" },
+    data: { text: rewritten, role: "user", transportKind: "text-rest" },
   };
 }
 
