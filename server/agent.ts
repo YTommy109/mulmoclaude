@@ -4,6 +4,7 @@ import { dirname } from "path";
 import type { Readable } from "stream";
 import { isDockerAvailable } from "./docker.js";
 import { refreshCredentials } from "./credentials.js";
+import { loadMcpConfig, loadSettings } from "./config.js";
 import type { Role } from "../src/config/roles.js";
 import { loadAllRoles } from "./roles.js";
 import { buildSystemPrompt } from "./agent/prompt.js";
@@ -13,7 +14,9 @@ import {
   buildDockerSpawnArgs,
   buildMcpConfig,
   getActivePlugins,
+  prepareUserServers,
   resolveMcpConfigPaths,
+  userServerAllowedToolNames,
 } from "./agent/config.js";
 import {
   parseStreamEvent,
@@ -119,8 +122,16 @@ export async function* runAgent(
   abortSignal?: AbortSignal,
 ): AsyncGenerator<AgentEvent> {
   const activePlugins = getActivePlugins(role);
-  const hasMcp = activePlugins.length > 0;
   const useDocker = await isDockerAvailable();
+
+  // User-defined MCP servers are read per invocation so Settings UI
+  // changes apply immediately. Disabled / malformed entries get
+  // filtered by prepareUserServers; remaining servers are merged into
+  // the --mcp-config payload below.
+  const userMcpRaw = loadMcpConfig().mcpServers;
+  const userServers = prepareUserServers(userMcpRaw, useDocker, workspacePath);
+  const hasUserServers = Object.keys(userServers).length > 0;
+  const hasMcp = activePlugins.length > 0 || hasUserServers;
 
   // On macOS sandbox, always refresh credentials from Keychain before each
   // agent run so that expired OAuth tokens are replaced transparently.
@@ -151,9 +162,18 @@ export async function* runAgent(
       activePlugins,
       roleIds: loadAllRoles().map((r) => r.id),
       useDocker,
+      userServers,
     });
     await writeFile(mcpPaths.hostPath, JSON.stringify(mcpConfig, null, 2));
   }
+
+  // Fresh read on every invocation so the Settings UI can change
+  // allowedTools / MCP servers without a server restart.
+  const settings = loadSettings();
+  const userServerAllowedTools = userServerAllowedToolNames(
+    userServers,
+    useDocker,
+  );
 
   const cliArgs = buildCliArgs({
     systemPrompt: fullSystemPrompt,
@@ -161,6 +181,10 @@ export async function* runAgent(
     claudeSessionId,
     message,
     mcpConfigPath: hasMcp ? mcpPaths.argPath : undefined,
+    extraAllowedTools: [
+      ...settings.extraAllowedTools,
+      ...userServerAllowedTools,
+    ],
   });
 
   // Don't persist raw sessionId into log sinks (esp. the retained

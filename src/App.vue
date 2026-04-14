@@ -63,6 +63,15 @@
           >
             <span class="material-icons">build</span>
           </button>
+          <button
+            class="text-gray-400 hover:text-gray-700"
+            data-testid="settings-btn"
+            title="Settings"
+            aria-label="Settings"
+            @click="showSettings = true"
+          >
+            <span class="material-icons">settings</span>
+          </button>
         </div>
       </div>
       <!-- History popup -->
@@ -302,6 +311,13 @@
       :role-prompt="currentRole.prompt"
       :tool-descriptions="toolDescriptions"
     />
+
+    <!-- Global settings modal -->
+    <SettingsModal
+      :open="showSettings"
+      :docker-mode="sandboxEnabled"
+      @update:open="showSettings = $event"
+    />
   </div>
 </template>
 
@@ -318,6 +334,7 @@ import ToolResultsPanel from "./components/ToolResultsPanel.vue";
 import CanvasViewToggle from "./components/CanvasViewToggle.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
+import SettingsModal from "./components/SettingsModal.vue";
 import type { SseEvent } from "./types/sse";
 import {
   type SessionSummary,
@@ -636,6 +653,7 @@ watch(isRunning, (running) => {
 });
 
 const { showRightSidebar, toggleRightSidebar } = useRightSidebar();
+const showSettings = ref(false);
 
 const {
   canvasViewMode,

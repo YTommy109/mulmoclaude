@@ -157,6 +157,38 @@ These tools are **only available in custom roles**. The built-in roles do not in
 
 Once configured, you can paste any `x.com` or `twitter.com` URL into the chat and Claude will fetch and read it automatically.
 
+## Configuring Additional Tools (Web Settings)
+
+The gear icon in the sidebar opens a Settings modal where you can extend Claude's tool set without editing code. Changes apply on the next message (no server restart required).
+
+### Allowed Tools tab
+
+Paste tool names one per line. Useful for Claude Code's built-in MCP servers (Gmail, Google Calendar) after a one-time OAuth handshake:
+
+```text
+mcp__claude_ai_Gmail
+mcp__claude_ai_Google_Calendar
+```
+
+First, run `claude mcp` once in a terminal and complete the OAuth flow for each service — credentials persist under `~/.claude/`.
+
+### MCP Servers tab
+
+Add external MCP servers without hand-editing JSON. Two types are supported:
+
+- **HTTP** — remote servers (e.g. `https://example.com/mcp`). Works in every mode; in Docker, `localhost` / `127.0.0.1` URLs are rewritten to `host.docker.internal` automatically.
+- **Stdio** — local subprocess, restricted to `npx` / `node` / `tsx` for safety. When Docker sandboxing is enabled, script paths must live under the workspace so they resolve inside the container.
+
+Configuration lives under `<workspace>/configs/`:
+
+```text
+<workspace>/configs/
+  settings.json    ← extra allowed tool names
+  mcp.json         ← Claude CLI --mcp-config compatible
+```
+
+The MCP file uses Claude CLI's standard format so you can copy it between machines, or even use it with the `claude` CLI directly.
+
 ## Workspace
 
 All data is stored as plain files in the workspace directory:

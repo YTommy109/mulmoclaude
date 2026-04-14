@@ -121,6 +121,15 @@ export async function mockAllApis(
     }),
   );
 
+  // Default Settings response. Per-test specs (e.g. settings.spec.ts)
+  // can override with a later page.route() which wins due to
+  // Playwright's reverse-order matching.
+  await page.route(urlEndsWith("/api/config"), (route) =>
+    route.fulfill({
+      json: { settings: { extraAllowedTools: [] }, mcp: { servers: [] } },
+    }),
+  );
+
   // Default agent mock — returns 202 (fire-and-forget). Tests that
   // need to deliver events should register their own route + WS mock
   // AFTER calling mockAllApis.
