@@ -2,12 +2,12 @@ import { Router, Request, Response } from "express";
 import fs from "fs";
 import fsp from "node:fs/promises";
 import path from "path";
-import { workspacePath } from "../workspace.js";
+import { WORKSPACE_PATHS } from "../workspace-paths.js";
 import { getPageIndex } from "./wiki/pageIndex.js";
 
 const router = Router();
 
-const wikiDir = () => path.join(workspacePath, "wiki");
+const wikiDir = () => WORKSPACE_PATHS.wiki;
 const pagesDir = () => path.join(wikiDir(), "pages");
 const indexFile = () => path.join(wikiDir(), "index.md");
 const logFile = () => path.join(wikiDir(), "log.md");

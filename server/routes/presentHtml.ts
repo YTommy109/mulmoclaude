@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
-import { workspacePath } from "../workspace.js";
+import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../workspace-paths.js";
 import { slugify } from "../utils/slug.js";
 import { errorMessage } from "../utils/errors.js";
 
@@ -41,11 +41,11 @@ router.post(
     try {
       const slug = title ? slugify(title) : "page";
       const fname = `${slug}-${Date.now()}.html`;
-      const htmlDir = path.join(workspacePath, "HTMLs");
+      const htmlDir = WORKSPACE_PATHS.htmls;
       await mkdir(htmlDir, { recursive: true });
       await writeFile(path.join(htmlDir, fname), html, "utf-8");
 
-      const filePath = `HTMLs/${fname}`;
+      const filePath = `${WORKSPACE_DIRS.htmls}/${fname}`;
       res.json({
         message: `Saved HTML to ${filePath}`,
         instructions:
