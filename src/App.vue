@@ -370,6 +370,7 @@ import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
 import { useQueriesPanel } from "./composables/useQueriesPanel";
 import { useEventListeners } from "./composables/useEventListeners";
+import { provideAppApi } from "./composables/useAppApi";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 
 // --- Debug beat (pub/sub) ---
@@ -1203,9 +1204,13 @@ const { handler: handleClickOutsideRoleDropdown } = useClickOutside({
   popupRef: roleDropdownRef,
 });
 
+// Plugin Views call back into App.vue via provide/inject (#227).
+provideAppApi({
+  refreshRoles,
+  sendMessage: (message: string) => sendMessage(message),
+});
+
 useEventListeners({
-  onRolesUpdated: refreshRoles,
-  onSkillRun: (message: string) => sendMessage(message),
   onKeyNavigation: handleKeyNavigation,
   onViewModeShortcut: handleViewModeShortcut,
   onClickOutsideHistory: handleClickOutsideHistory,

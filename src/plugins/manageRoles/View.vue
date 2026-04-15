@@ -181,6 +181,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from "vue";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
+import { useAppApi } from "../../composables/useAppApi";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { CustomRole, ManageRolesData } from "./index";
 import { getAllPluginNames } from "../../tools/index";
@@ -215,6 +216,8 @@ const props = defineProps<{
   selectedResult: ToolResultComplete<ManageRolesData>;
 }>();
 const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
+
+const appApi = useAppApi();
 
 const customRoles = ref<CustomRole[]>(
   props.selectedResult.data?.customRoles ?? [],
@@ -316,8 +319,8 @@ async function refreshList() {
       ...result,
       uuid: props.selectedResult.uuid,
     });
-    // Let App.vue know the dropdown needs to refresh
-    window.dispatchEvent(new CustomEvent("roles-updated"));
+    // Let App.vue know the dropdown needs to refresh.
+    await Promise.resolve(appApi.refreshRoles());
   }
 }
 
