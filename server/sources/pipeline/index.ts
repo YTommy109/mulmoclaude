@@ -23,6 +23,12 @@
 // the whole pipeline end-to-end against a mkdtempSync workspace
 // with stub fetchers and a fake summarize.
 
+// Side-effect import: registers every production fetcher so
+// `registryGetFetcher(kind)` below resolves. Without this the
+// pipeline would run, report `no-fetcher` for every source, and
+// write an empty daily file.
+import "../fetchers/registerAll.js";
+
 import { listSources } from "../registry.js";
 import { readManyStates, writeManyStates } from "../sourceState.js";
 import {
