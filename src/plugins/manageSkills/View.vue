@@ -143,7 +143,11 @@ watch(
 );
 
 // Fetch detail when the selection changes. Failures surface inline
-// so the Run button stays disabled and the user sees why.
+// so the Run button stays disabled and the user sees why. Each request
+// captures the `name` it was issued for — if the user clicks another
+// skill while the first fetch is in flight, the slower response is
+// discarded (otherwise stale detail can land under the new selection
+// and break deleteSkill(), which reads `detail.value.name`).
 watch(
   selectedName,
   async (name) => {
@@ -156,6 +160,10 @@ watch(
     const response = await apiGet<{ skill: SkillDetail }>(
       `/api/skills/${encodeURIComponent(name)}`,
     );
+    if (selectedName.value !== name) {
+      // Selection changed while this request was in flight — drop it.
+      return;
+    }
     if (!response.ok) {
       detailError.value = `Failed to load skill: ${response.error}`;
       detail.value = null;

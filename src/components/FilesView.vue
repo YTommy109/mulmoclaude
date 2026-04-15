@@ -593,11 +593,11 @@ async function loadContent(filePath: string): Promise<void> {
     { path: filePath },
     { signal: controller.signal },
   );
+  // Early-return covers abort (network error with status 0) and
+  // exits before any state mutation, so the error branch below only
+  // fires for real failures.
   if (controller.signal.aborted) return;
   if (!result.ok) {
-    // AbortController cancellations come back as network errors
-    // (status 0); swallow them just like the old try/catch did.
-    if (controller.signal.aborted) return;
     contentError.value = result.error;
   } else {
     content.value = result.data;

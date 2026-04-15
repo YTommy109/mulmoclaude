@@ -643,9 +643,9 @@ async function callApi(body: Record<string, unknown>): Promise<boolean> {
   return true;
 }
 
-function remove(item: ScheduledItem) {
+async function remove(item: ScheduledItem): Promise<void> {
   if (selectedId.value === item.id) selectedId.value = null;
-  callApi({ action: "delete", id: item.id });
+  await callApi({ action: "delete", id: item.id });
 }
 
 async function applyChanges() {

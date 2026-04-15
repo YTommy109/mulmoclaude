@@ -291,12 +291,15 @@ async function callManage(
 ): Promise<ManageResult> {
   const result = await apiPost<ManageResult>("/api/roles/manage", body);
   if (!result.ok) {
+    // Prefer the backend's error message (e.g. validation failure
+    // details). Fall back to a status code only when the server didn't
+    // give us anything useful.
     return {
       success: false,
       error:
         result.status === 0
           ? result.error || "Network error"
-          : `Server error: ${result.status}`,
+          : result.error || `Server error: ${result.status}`,
     };
   }
   return result.data;
