@@ -922,7 +922,38 @@ function createNewSession(roleId?: string): ActiveSession {
 }
 
 function onRoleChange() {
-  createNewSession(currentRoleId.value);
+  const session = createNewSession(currentRoleId.value);
+  maybeSeedRoleDefault(session);
+}
+
+// Some roles ship with a "default view" that's useful before any
+// chat exchange. Seed a synthetic tool_result so the canvas renders
+// the plugin immediately on role switch, without requiring the user
+// to first ask Claude to list anything. The result is client-only
+// (never persisted server-side) — any subsequent LLM tool call will
+// replace / augment it in the normal way.
+async function maybeSeedRoleDefault(session: ActiveSession): Promise<void> {
+  if (session.roleId !== "sourceManager") return;
+  try {
+    const res = await fetch("/api/sources");
+    if (!res.ok) return;
+    const body = (await res.json()) as { sources?: unknown[] };
+    const result: ToolResultComplete = {
+      uuid: uuidv4(),
+      toolName: "manageSource",
+      message: "Loaded source registry.",
+      title: "Information sources",
+      data: { sources: body.sources ?? [] },
+    };
+    // Skip if the user has already produced their own result in the
+    // meantime (fast typer + slow fetch race).
+    if (session.toolResults.length > 0) return;
+    session.toolResults.push(result);
+    session.selectedResultUuid = result.uuid;
+  } catch {
+    // Non-fatal: the Add / Rebuild buttons remain reachable via
+    // chat as soon as the user sends any message.
+  }
 }
 
 async function loadSession(id: string) {
