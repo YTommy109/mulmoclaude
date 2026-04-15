@@ -158,31 +158,38 @@ test.describe("manageSkills plugin", () => {
     await expect(page.locator("pre")).toContainText("## Publish");
   });
 
-  test("Run button dispatches a skill-run event carrying the body", async ({
+  test("Run button sends the skill invocation as a slash command", async ({
     page,
   }) => {
+    // Capture the body of the agent POST so we can assert what
+    // sendMessage forwarded. Registered AFTER mockAllApis so this
+    // route wins (Playwright matches last-registered first).
+    const agentPosts: Array<Record<string, unknown>> = [];
+    await page.route(urlEndsWith("/api/agent"), async (route: Route) => {
+      if (route.request().method() === "POST") {
+        agentPosts.push(route.request().postDataJSON());
+        return route.fulfill({
+          status: 202,
+          json: { chatSessionId: "skills-session" },
+        });
+      }
+      return route.fallback();
+    });
+
     await page.goto("/chat/skills-session?result=skills-result-1");
     await expect(page.getByText("MulmoClaude")).toBeVisible();
-
-    // Attach a listener so we can observe the CustomEvent content.
-    await page.evaluate(() => {
-      window.addEventListener("skill-run", (e: Event) => {
-        const custom = e as CustomEvent<{ message: string }>;
-        (window as unknown as { __lastSkillRun: string }).__lastSkillRun =
-          custom.detail.message;
-      });
-    });
 
     // Wait for the detail endpoint to resolve before clicking Run.
     await expect(page.locator("pre")).toContainText("## CI Enable");
     await page.getByTestId("skill-run-btn").click();
 
-    const dispatched = await page.evaluate(
-      () => (window as unknown as { __lastSkillRun?: string }).__lastSkillRun,
-    );
-    // Run button sends the skill invocation as a Claude Code slash
-    // command — Claude CLI resolves /<name> against ~/.claude/skills/
-    // natively, so we don't need to ship the body.
-    expect(dispatched).toBe("/ci_enable");
+    // Run button routes through App.vue's sendMessage via the
+    // useAppApi() provide/inject contract (#227). The slash command
+    // form (`/<name>`) is what Claude CLI resolves against
+    // ~/.claude/skills/ natively, so we don't need to ship the body.
+    await expect
+      .poll(() => agentPosts.length, { timeout: 5000 })
+      .toBeGreaterThan(0);
+    expect(agentPosts[0]?.message).toBe("/ci_enable");
   });
 });
