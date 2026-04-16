@@ -50,6 +50,9 @@ All env vars are **optional unless flagged "required"**. The server reads them a
 |---|---|---|
 | `GEMINI_API_KEY` | `server/utils/gemini.ts` | Enables Gemini image generation / editing. Without it, image plugins surface a UI warning. The `geminiAvailable` flag in `GET /api/health` mirrors this. |
 | `X_BEARER_TOKEN` | `server/mcp-tools/x.ts` | **Required** to enable `readXPost` / `searchX` MCP tools. Tools are silently disabled if absent. |
+| `TELEGRAM_BOT_TOKEN` | `bridges/telegram/` | **Required** for the Telegram bridge. BotFather token. Treat like a password. See [`message_apps/telegram/`](message_apps/telegram/). |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | `bridges/telegram/` | CSV of integer Telegram chat IDs allowed to message the bot. Empty / unset → deny everyone. A non-integer entry halts startup. |
+| `TELEGRAM_POLL_TIMEOUT_SEC` | `bridges/telegram/` | Long-polling timeout in seconds. Defaults `25` (Telegram's recommended max). |
 
 ### Runtime
 
@@ -113,6 +116,8 @@ You never set these by hand; the server constructs them when spawning Claude ins
 | `yarn dev:client` | Vite client only — useful when you've already started the server elsewhere. |
 | `yarn dev:server` / `yarn server` | Express server only. |
 | `yarn server:debug` | Server with `--debug` flag. |
+| `yarn cli` | CLI bridge — REPL in your terminal that talks to the running server (see [`bridge-protocol.md`](bridge-protocol.md)). |
+| `yarn telegram` | Telegram bridge — operator guide at [`message_apps/telegram/`](message_apps/telegram/) (JP: [`README.ja.md`](message_apps/telegram/README.ja.md) / EN: [`README.md`](message_apps/telegram/README.md)). |
 
 ### Static checks
 
@@ -221,6 +226,8 @@ Every HTTP call to `/api/*` requires `Authorization: Bearer <token>`. Layered on
 
 **Dev-mode escape hatch**: setting `MULMOCLAUDE_AUTH_TOKEN=…` before `yarn dev:client` makes the Vite plugin use that value instead of reading the file. Used by `e2e/playwright.config.ts` to inject a predictable token in E2E; also handy for debugging without a running server. Production (Express serving built HTML) never reads env — the in-memory token from `generateAndWriteToken()` is the sole source.
 
+**Server-side pinning (#316)**: setting `MULMOCLAUDE_AUTH_TOKEN=…` before `yarn dev` (or any process that starts Express) makes `generateAndWriteToken()` use that value verbatim instead of generating a fresh random token. The same var is already honoured by the Vite dev plugin and the CLI bridge, so pinning it once in a shared shell / `.env` / docker-compose file keeps the token consistent across a server restart — long-running bridges no longer need a relaunch every time the dev server bounces. A warning logs if the override is shorter than 32 chars; no other validation. Use random-per-startup (the default) for casual dev and the env override only when the restart pain outweighs the leak surface (CI, docker, multi-bridge setups).
+
 **Current scope** (#272 Phase 1+2): Vue client, Express middleware, and the CLI bridge (`yarn cli`). The bridge reads the same `.session-token` file (or `MULMOCLAUDE_AUTH_TOKEN` env var) on startup and attaches the header to its `fetch` calls.
 
 **Files**
@@ -228,7 +235,8 @@ Every HTTP call to `/api/*` requires `Authorization: Bearer <token>`. Layered on
 - `server/auth/bearerAuth.ts` — Express middleware
 - `src/utils/api.ts` — `setAuthToken()` + header injection (no call site changes needed; `apiFetch` auto-attaches)
 - `vite.config.ts` — `mulmoclaudeAuthTokenPlugin` for dev HTML substitution
-- `bridges/cli/token.ts` — bridge-side resolver (env var → file)
+- `bridges/_lib/token.ts` — bridge-side resolver (env var → file)
+- `bridges/_lib/client.ts` — shared socket.io setup for every bridge (see `docs/bridge-protocol.md`)
 
 ---
 

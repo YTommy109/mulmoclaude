@@ -126,17 +126,19 @@ app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
 app.use(skillsRoutes);
-app.use(
-  createChatService({
-    startChat,
-    onSessionEvent,
-    loadAllRoles,
-    getRole,
-    defaultRoleId: DEFAULT_ROLE_ID,
-    transportsDir: WORKSPACE_PATHS.transports,
-    logger: log,
-  }),
-);
+const chatService = createChatService({
+  startChat,
+  onSessionEvent,
+  loadAllRoles,
+  getRole,
+  defaultRoleId: DEFAULT_ROLE_ID,
+  transportsDir: WORKSPACE_PATHS.transports,
+  logger: log,
+  // Socket.io handshake (see #268 Phase A) needs to validate the
+  // same bearer token the HTTP middleware enforces.
+  tokenProvider: getCurrentToken,
+});
+app.use(chatService.router);
 app.use(mcpToolsRouter);
 
 if (env.isProduction) {
@@ -295,6 +297,9 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
   // --- Pub/Sub ---
   const pubsub = createPubSub(httpServer);
 
+  // --- Chat socket transport (Phase A of #268) ---
+  chatService.attachSocket(httpServer);
+
   // --- Session Store ---
   initSessionStore(pubsub);
 
@@ -346,9 +351,12 @@ process.on("SIGTERM", () => {
   // Generate the bearer token before `app.listen` so the first
   // request cannot race an uninitialised `getCurrentToken()`. The
   // middleware defensively handles the null case anyway (401).
-  await generateAndWriteToken();
+  // `env.authTokenOverride` (#316) pins the token across restarts
+  // when set; otherwise a fresh random one is written.
+  await generateAndWriteToken(undefined, env.authTokenOverride);
   log.info("auth", "bearer token written", {
     path: WORKSPACE_PATHS.sessionToken,
+    source: env.authTokenOverride ? "env" : "random",
   });
 
   sandboxEnabled = await setupSandbox();

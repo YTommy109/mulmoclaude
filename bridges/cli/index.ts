@@ -1,84 +1,47 @@
 import * as readline from "readline";
-import { readBridgeToken, TOKEN_FILE_PATH } from "./token.js";
+import { createBridgeClient } from "../_lib/client.js";
 
-const API_URL = process.env.MULMOCLAUDE_API_URL ?? "http://localhost:3001";
 const TRANSPORT_ID = "cli";
 const CHAT_ID = "terminal";
 
-const token = readBridgeToken();
-if (token === null) {
-  console.error(
-    `No bearer token found. The MulmoClaude server writes one to\n` +
-      `  ${TOKEN_FILE_PATH}\n` +
-      `at startup (mode 0600). Start the server with \`yarn dev\` (or\n` +
-      `\`npm run dev\`) first, or set MULMOCLAUDE_AUTH_TOKEN to the\n` +
-      `same value the server is using.`,
-  );
-  process.exit(1);
-}
+async function main(): Promise<void> {
+  const apiUrl = process.env.MULMOCLAUDE_API_URL ?? "http://localhost:3001";
+  console.log("MulmoClaude CLI bridge");
+  console.log(`Connecting to ${apiUrl}`);
+  console.log("Type /help for commands, Ctrl+C to exit.\n");
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
+  const client = createBridgeClient({ transportId: TRANSPORT_ID });
 
-function prompt(): void {
-  rl.question("You: ", async (text) => {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      prompt();
-      return;
-    }
-
-    try {
-      const res = await fetch(
-        `${API_URL}/api/transports/${TRANSPORT_ID}/chats/${CHAT_ID}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ text: trimmed }),
-        },
-      );
-
-      if (res.status === 401) {
-        // Almost always means the server was restarted after this
-        // bridge started — the stale in-memory token no longer
-        // matches the fresh one on disk. Tell the user how to
-        // recover instead of silently failing every subsequent
-        // prompt.
-        console.error(
-          "\nError (401): server rejected the bearer token. The\n" +
-            "server was likely restarted since this bridge started.\n" +
-            "Re-run `yarn cli` to pick up the new token.\n",
-        );
-        prompt();
-        return;
-      }
-
-      if (!res.ok) {
-        const body = await res.text();
-        console.error(`\nError (${res.status}): ${body}\n`);
-        prompt();
-        return;
-      }
-
-      const data: { reply: string } = await res.json();
-      console.log(`\nAssistant: ${data.reply}\n`);
-    } catch (err) {
-      console.error(
-        `\nConnection error: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      console.error("Is the MulmoClaude server running? (yarn dev)\n");
-    }
-
-    prompt();
+  // Server → bridge async push (Phase B of #268). For Telegram this
+  // would call sendMessage; the CLI just prints so the operator can
+  // see scheduled / event-driven pushes arrive.
+  client.onPush((ev) => {
+    console.log(`\n[push] ${ev.chatId}: ${ev.message}\n`);
   });
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  const askOnce = (): Promise<string> =>
+    new Promise((resolve) => rl.question("You: ", resolve));
+
+  for (;;) {
+    const line = (await askOnce()).trim();
+    if (!line) continue;
+
+    const ack = await client.send(CHAT_ID, line);
+    if (ack.ok) {
+      console.log(`\nAssistant: ${ack.reply ?? ""}\n`);
+    } else {
+      const statusSuffix = ack.status ? ` (${ack.status})` : "";
+      const reason = ack.error ?? "unknown";
+      console.error(`\nError${statusSuffix}: ${reason}\n`);
+    }
+  }
 }
 
-console.log("MulmoClaude CLI bridge");
-console.log(`Connecting to ${API_URL}`);
-console.log("Type /help for commands, Ctrl+C to exit.\n");
-prompt();
+main().catch((err) => {
+  console.error("Fatal:", err);
+  process.exit(1);
+});
