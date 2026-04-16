@@ -45,20 +45,6 @@ function isMcpPutBody(value: unknown): value is { servers: McpServerEntry[] } {
   );
 }
 
-// Uniform error responder: prefer the exception's message (useful to
-// the client) and fall back to a static label. Used for every failure
-// path in this router to keep the JSON shape consistent.
-function sendError(
-  res: ConfigRes,
-  status: number,
-  err: unknown,
-  fallback: string,
-): void {
-  res.status(status).json({
-    error: err instanceof Error ? err.message : fallback,
-  });
-}
-
 // Parse an MCP payload through `fromMcpEntries` (which does the full
 // shape validation and throws on anything malformed). On failure,
 // respond 400 and return null so the caller can early-return.
@@ -69,7 +55,7 @@ function parseMcpPayloadOrFail(
   try {
     return fromMcpEntries(servers);
   } catch (err) {
-    sendError(res, 400, err, "invalid mcp entries");
+    badRequest(res, err instanceof Error ? err.message : "invalid mcp entries");
     return null;
   }
 }
@@ -86,7 +72,7 @@ function runSaveOrFail(
     save();
     return true;
   } catch (err) {
-    sendError(res, 500, err, fallback);
+    serverError(res, err instanceof Error ? err.message : fallback);
     return false;
   }
 }
