@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   createPushQueue,
   type PushQueue,
-} from "../../server/chat-service/push-queue.ts";
+} from "../../server/api/chat-service/push-queue.js";
 
 const msg = (chatId: string, message: string) => ({
   chatId,

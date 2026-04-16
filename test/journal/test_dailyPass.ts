@@ -12,13 +12,13 @@ import {
   parseJsonlEvents,
   bucketParsedEvents,
   type ParsedEntry,
-} from "../../server/journal/dailyPass.js";
+} from "../../server/workspace/journal/dailyPass.js";
 import type {
   SessionExcerpt,
   ExistingTopicSnapshot,
-} from "../../server/journal/archivist.js";
-import type { SessionFileMeta } from "../../server/journal/diff.js";
-import type { JournalState } from "../../server/journal/state.js";
+} from "../../server/workspace/journal/archivist.js";
+import type { SessionFileMeta } from "../../server/workspace/journal/diff.js";
+import type { JournalState } from "../../server/workspace/journal/state.js";
 
 describe("entryToExcerpt", () => {
   it("converts a text entry", () => {

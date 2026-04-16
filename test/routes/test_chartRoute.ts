@@ -6,7 +6,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { isValidChartDocument } from "../../server/routes/chart.js";
+import { isValidChartDocument } from "../../server/api/routes/chart.js";
 
 describe("isValidChartDocument", () => {
   it("accepts a minimal one-chart document", () => {

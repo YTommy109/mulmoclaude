@@ -8,7 +8,7 @@ import {
   createArgsCache,
   recordToolEvent,
   type RecordToolEventDeps,
-} from "../../server/tool-trace/index.js";
+} from "../../server/workspace/tool-trace/index.js";
 
 const FIXED_NOW = new Date("2026-04-13T05:18:47.123Z");
 const SID = "a821d112";

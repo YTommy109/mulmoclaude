@@ -17,7 +17,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { homedir } from "node:os";
-import { log } from "../logger/index.js";
+import { log } from "../system/logger/index.js";
 
 // ── Config-mount allowlist ──────────────────────────────────────────
 

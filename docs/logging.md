@@ -2,7 +2,7 @@
 
 The MulmoClaude server has a small, dependency-free structured logger at
 `server/logger/`. It writes to the console **and** to rotating files
-under `server/logs/` by default, with independent configuration for
+under `server/system/logs/` by default, with independent configuration for
 each sink.
 
 Format, level, destination, and retention are all configurable via
@@ -16,12 +16,12 @@ Out of the box:
 | Sink | Enabled | Level | Format | Destination |
 |---|---|---|---|---|
 | Console | yes | `info` | `text` | stdout (info/debug) + stderr (warn/error) |
-| File | yes | `debug` | `json` | `server/logs/server-YYYY-MM-DD.log` (14-day retention) |
+| File | yes | `debug` | `json` | `server/system/logs/server-YYYY-MM-DD.log` (14-day retention) |
 | Telemetry | no | `error` | `json` | *(stub, reserved for future)* |
 
 The console stays human-readable while the file captures every
 `debug`-level line as JSON Lines so you can `grep` / `jq` past
-incidents. `server/logs/` is git-ignored.
+incidents. `server/system/logs/` is git-ignored.
 
 ## Formats
 
@@ -99,7 +99,7 @@ The file sink uses **daily rotation** keyed on UTC date:
 LOG_CONSOLE_LEVEL=warn yarn dev
 ```
 
-Console shows only warnings/errors; the `server/logs/*.log` file still
+Console shows only warnings/errors; the `server/system/logs/*.log` file still
 captures every `debug` line.
 
 ### Console-only (no files)

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   rewriteWorkspaceLinks,
   rewriteMarkdownLinks,
-} from "../../server/journal/linkRewrite.js";
+} from "../../server/workspace/journal/linkRewrite.js";
 
 describe("rewriteWorkspaceLinks", () => {
   it("rewrites a workspace-absolute link from a topic file", () => {

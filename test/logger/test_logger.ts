@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createLogger } from "../../server/logger/index.js";
+import { createLogger } from "../../server/system/logger/index.js";
 
 describe("createLogger level filtering", () => {
   it("respects per-sink level thresholds when routing records", () => {

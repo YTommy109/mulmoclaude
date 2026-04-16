@@ -1,6 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_CONFIG, resolveConfig } from "../../server/logger/config.js";
+import {
+  DEFAULT_CONFIG,
+  resolveConfig,
+} from "../../server/system/logger/config.js";
 
 describe("resolveConfig", () => {
   it("returns defaults when env is empty", () => {

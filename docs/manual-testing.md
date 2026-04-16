@@ -107,14 +107,14 @@ the Claude CLI + MCP + real file system side effects needs an actual
 
 ## 5. Log output (not asserted by E2E)
 
-**Why manual**: the file-sink log goes to `server/logs/` and is not
+**Why manual**: the file-sink log goes to `server/system/logs/` and is not
 wired into the test assertions. Spot-checking is usually enough.
 
 ### What to check after logger changes
 
 - **Startup**: `yarn dev` → console shows `[workspace] / [sandbox] /
   [mcp] / [server] / [task-manager]` info lines at normal ISO timestamps
-- **Agent path**: `server/logs/server-YYYY-MM-DD.log` contains `[agent]`
+- **Agent path**: `server/system/logs/server-YYYY-MM-DD.log` contains `[agent]`
   request received / completed / CLI stderr line-by-line entries
 - **Tool-trace**: `[tool-trace] web_search starting` + `web_search saved`
   pair for a WebSearch turn; debug-level entries visible only under

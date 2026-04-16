@@ -8,10 +8,10 @@ import {
   maybeIndexSession,
   backfillAllSessions,
   __resetForTests,
-} from "../../server/chat-index/index.js";
-import { indexEntryPathFor } from "../../server/chat-index/paths.js";
-import { ClaudeCliNotFoundError } from "../../server/journal/archivist.js";
-import type { SummaryResult } from "../../server/chat-index/types.js";
+} from "../../server/workspace/chat-index/index.js";
+import { indexEntryPathFor } from "../../server/workspace/chat-index/paths.js";
+import { ClaudeCliNotFoundError } from "../../server/workspace/journal/archivist.js";
+import type { SummaryResult } from "../../server/workspace/chat-index/types.js";
 
 let workspace: string;
 

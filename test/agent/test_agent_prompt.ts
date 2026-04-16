@@ -10,7 +10,7 @@ import {
   headingSection,
   prependJournalPointer,
 } from "../../server/agent/prompt.js";
-import { WORKSPACE_FILES } from "../../server/workspace-paths.js";
+import { WORKSPACE_FILES } from "../../server/workspace/paths.js";
 import { dirname } from "path";
 import type { Role } from "../../src/config/roles.js";
 

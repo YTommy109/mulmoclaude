@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   extractJsonObject,
   findBalancedBraceBlock,
-} from "../../server/journal/archivist.js";
+} from "../../server/workspace/journal/archivist.js";
 
 describe("findBalancedBraceBlock", () => {
   it("extracts a simple JSON object", () => {

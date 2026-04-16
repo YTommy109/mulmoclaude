@@ -31,7 +31,7 @@ async function loadEnvFresh(): Promise<EnvSnapshot> {
   cacheBuster++;
   // tsx uses esbuild's import resolver which respects query strings
   // for cache-busting. Each import returns a fresh module instance.
-  const mod = await import(`../../server/env.ts?t=${cacheBuster}`);
+  const mod = await import(`../../server/system/env.ts?t=${cacheBuster}`);
   return mod as EnvSnapshot;
 }
 

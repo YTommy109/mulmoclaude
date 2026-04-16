@@ -4,8 +4,8 @@ import {
   applyRemovedTopics,
   planMerges,
   type RawMerge,
-} from "../../server/journal/optimizationPass.js";
-import type { JournalState } from "../../server/journal/state.js";
+} from "../../server/workspace/journal/optimizationPass.js";
+import type { JournalState } from "../../server/workspace/journal/state.js";
 
 describe("planMerges", () => {
   it("returns an empty list when given no merges", () => {

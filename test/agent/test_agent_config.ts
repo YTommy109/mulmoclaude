@@ -14,7 +14,7 @@ import {
   rewriteLocalhostForDocker,
   userServerAllowedToolNames,
 } from "../../server/agent/config.js";
-import type { McpServerSpec } from "../../server/config.js";
+import type { McpServerSpec } from "../../server/system/config.js";
 
 describe("buildMcpConfig", () => {
   it("returns correct structure", () => {

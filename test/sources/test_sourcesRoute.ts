@@ -11,7 +11,7 @@ import {
   validateFetcherParams,
   resolveSlug,
   deriveSourceSlug,
-} from "../../server/routes/sources.js";
+} from "../../server/api/routes/sources.js";
 
 // --- validateFetcherKind ------------------------------------------------
 

@@ -1,9 +1,9 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import type { Role } from "../../src/config/roles.js";
-import { mcpTools, isMcpToolEnabled } from "../mcp-tools/index.js";
-import { PLUGIN_DEFS } from "../plugin-names.js";
-import { WORKSPACE_DIRS, WORKSPACE_FILES } from "../workspace-paths.js";
+import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
+import { PLUGIN_DEFS } from "./plugin-names.js";
+import { WORKSPACE_DIRS, WORKSPACE_FILES } from "../workspace/paths.js";
 
 export const SYSTEM_PROMPT = `You are MulmoClaude, a versatile assistant app with rich visual output.
 

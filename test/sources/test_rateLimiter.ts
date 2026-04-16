@@ -4,7 +4,7 @@ import {
   HostRateLimiter,
   DEFAULT_MIN_DELAY_MS,
   type RateLimiterDeps,
-} from "../../server/sources/rateLimiter.js";
+} from "../../server/workspace/sources/rateLimiter.js";
 
 // Controllable clock + sleep for deterministic tests. Returns a
 // deps object plus direct state access so tests can advance time

@@ -9,7 +9,7 @@ import {
   computeSearchRelPath,
   formatSearchDateDir,
   writeSearchResult,
-} from "../../server/tool-trace/writeSearch.js";
+} from "../../server/workspace/tool-trace/writeSearch.js";
 
 const FIXED_TS = new Date("2026-04-13T05:18:47.123Z");
 const SID = "a821d112-539b-4f1b-9e19-adc6e9c6a411";

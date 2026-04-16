@@ -4,7 +4,7 @@ import type { Response } from "express";
 import {
   respondWithDispatchResult,
   type DispatchResult,
-} from "../../server/routes/dispatchResponse.js";
+} from "../../server/api/routes/dispatchResponse.js";
 
 // Minimal Response mock that records the status + JSON body the
 // helper writes. We don't pull in supertest because the helper is a

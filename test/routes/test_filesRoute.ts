@@ -28,7 +28,7 @@ import {
   classify,
   isSensitivePath,
   RAW_SECURITY_HEADERS,
-} from "../../server/routes/files.js";
+} from "../../server/api/routes/files.js";
 
 describe("parseRange — happy path", () => {
   it("parses a basic start-end range", () => {

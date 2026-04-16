@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { appendOrCreate } from "../../server/journal/dailyPass.js";
+import { appendOrCreate } from "../../server/workspace/journal/dailyPass.js";
 
 function makeScratch(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mulmoclaude-aoc-"));

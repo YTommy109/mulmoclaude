@@ -11,7 +11,10 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, writeFile, symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { buildTreeAsync, listDirShallow } from "../../server/routes/files.js";
+import {
+  buildTreeAsync,
+  listDirShallow,
+} from "../../server/api/routes/files.js";
 
 // Rough shape — the real TreeNode type isn't exported so we match on
 // the fields we assert against.

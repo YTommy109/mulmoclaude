@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
-import { createFileSink } from "../../server/logger/sinks.js";
-import type { LogRecord } from "../../server/logger/types.js";
+import { createFileSink } from "../../server/system/logger/sinks.js";
+import type { LogRecord } from "../../server/system/logger/types.js";
 
 function record(overrides: Partial<LogRecord> = {}): LogRecord {
   return {

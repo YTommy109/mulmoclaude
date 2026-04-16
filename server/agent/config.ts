@@ -1,10 +1,10 @@
 import { join } from "path";
 import { homedir, tmpdir } from "os";
 import type { Role } from "../../src/config/roles.js";
-import { mcpTools, isMcpToolEnabled } from "../mcp-tools/index.js";
-import { MCP_PLUGIN_NAMES } from "../plugin-names.js";
-import type { McpServerSpec } from "../config.js";
-import { getCurrentToken } from "../auth/token.js";
+import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
+import { MCP_PLUGIN_NAMES } from "./plugin-names.js";
+import type { McpServerSpec } from "../system/config.js";
+import { getCurrentToken } from "../api/auth/token.js";
 
 export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
@@ -136,8 +136,8 @@ function buildMulmoclaudeServer(params: {
     ? "tsx"
     : join(projectRoot, "node_modules/.bin/tsx");
   const mcpServerPath = useDocker
-    ? "/app/server/mcp-server.ts"
-    : join(projectRoot, "server/mcp-server.ts");
+    ? "/app/server/agent/mcp-server.ts"
+    : join(projectRoot, "server/agent/mcp-server.ts");
 
   const dockerEnv = useDocker
     ? {
