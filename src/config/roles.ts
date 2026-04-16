@@ -1,11 +1,23 @@
 import { z } from "zod";
+import { ALL_TOOL_NAMES, type ToolName } from "./toolNames";
+
+// `availablePlugins` accepts every literal listed in `TOOL_NAMES`.
+// Runtime: validate with a literal-union z.enum so a typo or an
+// unknown tool name (e.g. from a future user-defined role loaded off
+// disk) rejects at boundary instead of silently dropping at runtime.
+// Compile time: roles.ts static definitions below get typed as
+// `ToolName[]` via RoleSchema's zod inference, so `presentHTML` vs
+// `presentHtml` kind of typos are caught immediately.
+const toolNameEnum = z.enum(
+  ALL_TOOL_NAMES as readonly [ToolName, ...ToolName[]],
+);
 
 export const RoleSchema = z.object({
   id: z.string(),
   name: z.string(),
   icon: z.string(),
   prompt: z.string(),
-  availablePlugins: z.array(z.string()),
+  availablePlugins: z.array(toolNameEnum),
   queries: z.array(z.string()).optional(),
 });
 
@@ -161,7 +173,7 @@ export const ROLES: Role[] = [
       "presentDocument",
       "presentForm",
       "generateImage",
-      "presentHTML",
+      "presentHtml",
       "presentChart",
       "manageSkills",
       "switchRole",
@@ -341,21 +353,6 @@ export const ROLES: Role[] = [
     ],
   },
   {
-    id: "musician",
-    name: "Musician",
-    icon: "music_note",
-    prompt:
-      "You are a music assistant. Help users explore, compose, and display sheet music. " +
-      "When asked to show or play a piece, generate MusicXML and call showMusic. " +
-      "You can compose simple melodies, explain music theory, and present well-known pieces in MusicXML format.",
-    availablePlugins: ["showMusic", "switchRole"],
-    queries: [
-      "Play a C major scale",
-      "Show me Twinkle Twinkle Little Star",
-      "Compose a short melody in G major",
-    ],
-  },
-  {
     id: "roleManager",
     name: "Role Manager",
     icon: "manage_accounts",
@@ -367,11 +364,64 @@ export const ROLES: Role[] = [
     availablePlugins: ["manageRoles", "switchRole"],
     queries: ["Show my custom roles", "Create a new role for me"],
   },
+  {
+    id: "sourceManager",
+    name: "Source Manager",
+    icon: "rss_feed",
+    prompt:
+      "You are an information-source curator. Help the user register, review, and rebuild their information-source registry (RSS feeds, GitHub repos, arXiv queries).\n\n" +
+      "When asked to show or list sources, call manageSource with action='list' so the canvas displays them.\n\n" +
+      "When registering a source, ask for the canonical URL (RSS feed URL, GitHub repo URL, or arXiv listing URL), infer fetcherKind from it ('rss' for feeds, 'github-releases' or 'github-issues' depending on user intent, 'arxiv' for arxiv.org), and populate fetcherParams accordingly:\n" +
+      "- rss: { rss_url: <feed URL> }\n" +
+      "- github-releases / github-issues: { github_repo: '<owner>/<name>' }\n" +
+      "- arxiv: { arxiv_query: <search query, e.g. cat:cs.CL> }\n\n" +
+      "Let the auto-classifier pick categories by default (omit the categories field) unless the user explicitly specifies some.\n\n" +
+      "When asked to rebuild / refresh / aggregate today's brief, call manageSource with action='rebuild'.\n\n" +
+      "After any register / remove / rebuild, call manageSource with action='list' to render the updated registry — except when the action's own response already includes the refreshed list (the server returns it for every action, so you usually don't need a second call).\n\n" +
+      "## Data layout\n\n" +
+      "The pipeline reads and writes these files (all under the workspace root):\n" +
+      "- `sources/<slug>.md` — source config (YAML frontmatter: title, url, fetcherKind, fetcherParams, schedule, categories, maxItemsPerFetch, addedAt, notes)\n" +
+      "- `sources/_state/<slug>.json` — runtime state (lastFetchedAt, cursor, consecutiveFailures, nextAttemptAt)\n" +
+      "- `news/daily/YYYY/MM/DD.md` — the aggregated daily brief (markdown body + trailing fenced JSON block listing items)\n" +
+      "- `news/archive/<slug>/YYYY/MM.md` — per-source monthly archive; lossless (no cross-source dedup)\n\n" +
+      'When the user asks questions like "summarize last week\'s AI news", "what\'s new on HN today", or "show me articles about <topic>", **read the relevant daily / archive files directly with the Read tool** rather than re-running the pipeline — the data is already there. Use Glob to enumerate date ranges when needed.',
+    availablePlugins: ["manageSource", "switchRole"],
+    queries: [
+      "Show my information sources",
+      "Register the Hacker News RSS feed (https://news.ycombinator.com/rss)",
+      "Register the anthropics/claude-code GitHub releases",
+      "Register an arXiv query for cs.CL new submissions",
+      "Rebuild today's brief",
+    ],
+  },
 ];
 
 export const BUILTIN_ROLES = ROLES;
 
-export const DEFAULT_ROLE_ID = "general";
+// String-literal constants for every built-in role id. Use these
+// instead of inline `"general"` / `"sourceManager"` etc. so that
+// renaming a role id is one place to change and `BuiltInRoleId`
+// catches typos at compile time.
+//
+// Test `test/config/test_roles.ts` asserts these keys/values stay in
+// sync with `ROLES[].id` — adding a new role to ROLES without
+// updating this map fails the test.
+export const BUILTIN_ROLE_IDS = {
+  general: "general",
+  office: "office",
+  guide: "guide",
+  artist: "artist",
+  tutor: "tutor",
+  storyteller: "storyteller",
+  storytellerPlus: "storytellerPlus",
+  roleManager: "roleManager",
+  sourceManager: "sourceManager",
+} as const;
+
+export type BuiltInRoleId =
+  (typeof BUILTIN_ROLE_IDS)[keyof typeof BUILTIN_ROLE_IDS];
+
+export const DEFAULT_ROLE_ID: BuiltInRoleId = BUILTIN_ROLE_IDS.general;
 
 export function getRole(id: string): Role {
   return ROLES.find((r) => r.id === id) ?? ROLES[0];

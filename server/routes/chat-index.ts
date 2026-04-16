@@ -12,6 +12,8 @@
 import { Router, Request, Response } from "express";
 import { backfillAllSessions } from "../chat-index/index.js";
 import { log } from "../logger/index.js";
+import { serverError } from "../utils/httpError.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 interface RebuildResponse {
   total: number;
@@ -26,7 +28,7 @@ interface RebuildErrorResponse {
 const router = Router();
 
 router.post(
-  "/chat-index/rebuild",
+  API_ROUTES.chatIndex.rebuild,
   async (
     _req: Request,
     res: Response<RebuildResponse | RebuildErrorResponse>,
@@ -42,9 +44,7 @@ router.post(
       res.json(result);
     } catch (err) {
       log.warn("chat-index", "rebuild failed", { error: String(err) });
-      res.status(500).json({
-        error: err instanceof Error ? err.message : "unknown error",
-      });
+      serverError(res, err instanceof Error ? err.message : "unknown error");
     }
   },
 );

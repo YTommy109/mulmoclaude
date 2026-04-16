@@ -7,6 +7,9 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
 import { TOOL_ENDPOINTS, PLUGIN_DEFS } from "./plugin-names.js";
+import { errorMessage } from "./utils/errors.js";
+import { API_ROUTES } from "../src/config/apiRoutes.js";
+import { env } from "./env.js";
 
 type JsonRpcId = string | number | null;
 
@@ -25,13 +28,11 @@ interface JsonRpcMessage {
 const isJsonRpcMessage = (v: unknown): v is JsonRpcMessage =>
   typeof v === "object" && v !== null && !Array.isArray(v) && "method" in v;
 
-const SESSION_ID = process.env.SESSION_ID ?? "";
-const PORT = process.env.PORT ?? "3001";
-const PLUGIN_NAMES = (process.env.PLUGIN_NAMES ?? "")
-  .split(",")
-  .filter(Boolean);
-const ROLE_IDS = (process.env.ROLE_IDS ?? "").split(",").filter(Boolean);
-const MCP_HOST = process.env.MCP_HOST ?? "localhost";
+const SESSION_ID = env.mcpSessionId;
+const PORT = env.port;
+const PLUGIN_NAMES = env.mcpPluginNames;
+const ROLE_IDS = env.mcpRoleIds;
+const MCP_HOST = env.mcpHost;
 const BASE_URL = `http://${MCP_HOST}:${PORT}`;
 
 interface ToolDef {
@@ -133,8 +134,7 @@ async function postJson(
       },
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`Network error calling ${path}: ${message}`);
+    throw new Error(`Network error calling ${path}: ${errorMessage(err)}`);
   }
   if (!opts.allowHttpError && !res.ok) {
     const text = await res.text().catch(() => "");
@@ -144,33 +144,105 @@ async function postJson(
   return res;
 }
 
-// Read-only GET of the skills list, packaged as a ToolResult for the
-// frontend. Extracted so handleToolCall stays under the cognitive-
-// complexity threshold.
-async function handleManageSkills(): Promise<string> {
+// Bridge for the manageSkills tool. Routes by `action`:
+//   - "list" (default): GET /api/skills, push the list as a ToolResult
+//   - "save"          : POST /api/skills with { name, description, body }
+//   - "delete"        : DELETE /api/skills/:name
+// In every case, after a successful mutation we re-fetch the list and
+// push it so the canvas reflects the new state immediately.
+async function handleManageSkills(
+  args: Record<string, unknown>,
+): Promise<string> {
+  const action = typeof args.action === "string" ? args.action : "list";
+  if (action === "save") return handleManageSkillsSave(args);
+  if (action === "delete") return handleManageSkillsDelete(args);
+  return handleManageSkillsList();
+}
+
+async function fetchSkillsList(): Promise<{ name: string }[]> {
   const url = `${BASE_URL}/api/skills?session=${encodeURIComponent(SESSION_ID)}`;
   let res: Response;
   try {
     res = await fetch(url);
   } catch (err) {
-    throw new Error(
-      `Network error calling /api/skills: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    throw new Error(`Network error calling /api/skills: ${errorMessage(err)}`);
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`HTTP ${res.status} calling /api/skills: ${text}`);
   }
   const body: { skills: { name: string }[] } = await res.json();
-  const suffix = body.skills.length === 1 ? "" : "s";
-  await postJson("/api/internal/tool-result", {
+  return body.skills;
+}
+
+async function pushSkillsListResult(message: string): Promise<void> {
+  const skills = await fetchSkillsList();
+  await postJson(API_ROUTES.agent.internal.toolResult, {
     toolName: "manageSkills",
     uuid: crypto.randomUUID(),
     title: "Skills",
-    message: `Found ${body.skills.length} skill${suffix}.`,
-    data: body,
+    message,
+    data: { skills },
   });
-  return `Listed ${body.skills.length} skill${suffix}`;
+}
+
+async function handleManageSkillsList(): Promise<string> {
+  const skills = await fetchSkillsList();
+  const suffix = skills.length === 1 ? "" : "s";
+  await postJson(API_ROUTES.agent.internal.toolResult, {
+    toolName: "manageSkills",
+    uuid: crypto.randomUUID(),
+    title: "Skills",
+    message: `Found ${skills.length} skill${suffix}.`,
+    data: { skills },
+  });
+  return `Listed ${skills.length} skill${suffix}`;
+}
+
+async function handleManageSkillsSave(
+  args: Record<string, unknown>,
+): Promise<string> {
+  // Normalize name once up front so log / result messages below never
+  // interpolate an accidental object / number into `/${name}`.
+  const name = String(args.name ?? "");
+  const res = await postJson(
+    API_ROUTES.skills.create,
+    {
+      name,
+      description: args.description,
+      body: args.body,
+    },
+    { allowHttpError: true },
+  );
+  if (!res.ok) {
+    const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+    const detail = errBody.error ?? "HTTP " + res.status;
+    return "Error: " + detail;
+  }
+  await pushSkillsListResult(`Saved skill "${name}".`);
+  return `Saved skill ${name}. Run with /${name}.`;
+}
+
+async function handleManageSkillsDelete(
+  args: Record<string, unknown>,
+): Promise<string> {
+  const name = String(args.name ?? "");
+  const url = `/api/skills/${encodeURIComponent(name)}?session=${encodeURIComponent(SESSION_ID)}`;
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${url}`, { method: "DELETE" });
+  } catch (err) {
+    throw new Error(
+      `Network error calling DELETE ${url}: ${errorMessage(err)}`,
+    );
+  }
+  if (!res.ok) {
+    const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+    const detail = errBody.error ?? "HTTP " + res.status;
+    return "Error: " + detail;
+  }
+  await pushSkillsListResult(`Deleted skill "${name}".`);
+  return `Deleted skill ${name}.`;
 }
 
 async function handleToolCall(
@@ -178,17 +250,19 @@ async function handleToolCall(
   args: Record<string, unknown>,
 ): Promise<string> {
   if (name === "switchRole") {
-    await postJson("/api/internal/switch-role", { roleId: args.roleId });
+    await postJson(API_ROUTES.agent.internal.switchRole, {
+      roleId: args.roleId,
+    });
     return `Switching to ${args.roleId} role`;
   }
 
   if (name === "manageRoles") {
-    const res = await postJson("/api/roles/manage", args);
+    const res = await postJson(API_ROUTES.roles.manage, args);
     const result = await res.json();
 
     // For the list action, push a visual canvas result so the viewer renders
     if (args.action === "list" && result.success) {
-      await postJson("/api/internal/tool-result", {
+      await postJson(API_ROUTES.agent.internal.toolResult, {
         toolName: "manageRoles",
         uuid: crypto.randomUUID(),
         ...result,
@@ -198,7 +272,7 @@ async function handleToolCall(
     return result.message ?? (result.error ? `Error: ${result.error}` : "Done");
   }
 
-  if (name === "manageSkills") return handleManageSkills();
+  if (name === "manageSkills") return handleManageSkills(args);
 
   // Pure MCP tools — call via /api/mcp-tools/:tool, return text directly
   // (no frontend push). Opt out of postJson's HTTP error throw because
@@ -222,7 +296,7 @@ async function handleToolCall(
   const result = await res.json();
 
   // Push visual ToolResult to the frontend via the session
-  await postJson("/api/internal/tool-result", {
+  await postJson(API_ROUTES.agent.internal.toolResult, {
     toolName: name,
     uuid: crypto.randomUUID(),
     ...result,

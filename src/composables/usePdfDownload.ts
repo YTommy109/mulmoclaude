@@ -9,6 +9,8 @@
 // below the download button.
 
 import { ref, type Ref } from "vue";
+import { apiFetchRaw } from "../utils/api";
+import { errorMessage } from "../utils/errors";
 
 export interface UsePdfDownloadHandle {
   pdfDownloading: Ref<boolean>;
@@ -28,7 +30,9 @@ export function usePdfDownload(): UsePdfDownloadHandle {
     pdfDownloading.value = true;
     let url: string | null = null;
     try {
-      const response = await fetch("/api/pdf/markdown", {
+      // PDF endpoint returns a binary blob, not JSON — use the raw
+      // Response escape hatch so we can call `.blob()` ourselves.
+      const response = await apiFetchRaw("/api/pdf/markdown", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ markdown, filename }),
@@ -45,7 +49,7 @@ export function usePdfDownload(): UsePdfDownloadHandle {
       a.download = filename;
       a.click();
     } catch (err) {
-      pdfError.value = err instanceof Error ? err.message : String(err);
+      pdfError.value = errorMessage(err);
     } finally {
       // Always clean up the object URL and release the in-flight flag
       // so the button is never left disabled forever.

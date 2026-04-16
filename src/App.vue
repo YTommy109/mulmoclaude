@@ -19,14 +19,6 @@
         </div>
         <div class="flex gap-2">
           <button
-            class="text-gray-400 hover:text-gray-700"
-            data-testid="new-session-btn"
-            title="New session"
-            @click="createNewSession()"
-          >
-            <span class="material-icons">add_circle_outline</span>
-          </button>
-          <button
             ref="historyButtonRef"
             data-testid="history-btn"
             class="relative text-gray-400 hover:text-gray-700"
@@ -93,6 +85,7 @@
         <button
           ref="roleButtonRef"
           class="flex-1 flex items-center gap-2 bg-white border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 hover:bg-gray-50 text-left"
+          data-testid="role-selector-btn"
           @click="showRoleDropdown = !showRoleDropdown"
         >
           <span class="material-icons text-base text-gray-500">{{
@@ -109,6 +102,7 @@
           <button
             v-for="role in roles"
             :key="role.id"
+            :data-testid="`role-option-${role.id}`"
             class="w-full flex items-center gap-1.5 px-3 py-1 text-sm text-gray-900 hover:bg-gray-50 text-left"
             @click="
               currentRoleId = role.id;
@@ -125,7 +119,16 @@
       </div>
 
       <!-- Session tab bar -->
-      <div class="px-2 py-1 border-b border-gray-200 flex gap-1">
+      <div class="px-2 py-1 border-b border-gray-200 flex gap-1 items-center">
+        <button
+          class="flex-shrink-0 flex items-center justify-center w-7 py-1 rounded border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+          data-testid="new-session-btn"
+          title="New session"
+          aria-label="New session"
+          @click="createNewSession()"
+        >
+          <span class="material-icons text-sm">add</span>
+        </button>
         <template v-for="i in 6" :key="i">
           <button
             v-if="tabSessions[i - 1]"
@@ -224,11 +227,10 @@
             rows="2"
             class="flex-1 bg-white border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
             :disabled="isRunning"
-            @keydown.enter="
-              !$event.isComposing && !$event.shiftKey
-                ? (sendMessage(), $event.preventDefault())
-                : undefined
-            "
+            @compositionstart="onCompositionStart"
+            @compositionend="onCompositionEnd"
+            @keydown="onTextareaKeydown"
+            @blur="onTextareaBlur"
           />
           <button
             data-testid="send-btn"
@@ -247,8 +249,9 @@
       class="flex-1 flex flex-col bg-white text-gray-900 min-w-0 overflow-hidden"
     >
       <div
-        class="flex items-center justify-end px-3 py-2 border-b border-gray-100 shrink-0"
+        class="flex items-center justify-between px-3 py-2 border-b border-gray-100 shrink-0 gap-2"
       >
+        <PluginLauncher @navigate="onPluginNavigate" />
         <CanvasViewToggle
           :model-value="canvasViewMode"
           @update:model-value="setCanvasViewMode"
@@ -331,6 +334,9 @@ import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
 import LockStatusPopup from "./components/LockStatusPopup.vue";
 import ToolResultsPanel from "./components/ToolResultsPanel.vue";
 import CanvasViewToggle from "./components/CanvasViewToggle.vue";
+import PluginLauncher, {
+  type PluginLauncherTarget,
+} from "./components/PluginLauncher.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
 import SettingsModal from "./components/SettingsModal.vue";
@@ -340,6 +346,7 @@ import {
   type SessionEntry,
   type ActiveSession,
 } from "./types/session";
+import { EVENT_TYPES } from "./types/events";
 import { extractImageData, makeTextResult } from "./utils/tools/result";
 import {
   roleIcon as roleIconLookup,
@@ -362,13 +369,17 @@ import { useClickOutside } from "./composables/useClickOutside";
 import { useCanvasViewMode } from "./composables/useCanvasViewMode";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
+import { BUILTIN_ROLE_IDS } from "./config/roles";
 import { usePubSub } from "./composables/usePubSub";
+import { PUBSUB_CHANNELS, sessionChannel } from "./config/pubsubChannels";
 import { useHealth } from "./composables/useHealth";
 import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
 import { useQueriesPanel } from "./composables/useQueriesPanel";
 import { useEventListeners } from "./composables/useEventListeners";
+import { provideAppApi } from "./composables/useAppApi";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
+import { apiGet, apiPost, apiFetchRaw } from "./utils/api";
 
 // --- Debug beat (pub/sub) ---
 const debugBeatColor = ref<string | null>(null);
@@ -377,7 +388,7 @@ const debugTitleStyle = computed(() =>
 );
 
 const { subscribe: pubsubSubscribe } = usePubSub();
-pubsubSubscribe("debug.beat", (data) => {
+pubsubSubscribe(PUBSUB_CHANNELS.debugBeat, (data) => {
   const msg = data as { count: number; last?: boolean };
   if (msg.last) {
     debugBeatColor.value = null;
@@ -391,7 +402,7 @@ pubsubSubscribe("debug.beat", (data) => {
 // bare notification (no data) whenever any session's state changes.
 // The client refetches the session list via REST — the server is the
 // single source of truth for isRunning, hasUnread, etc.
-pubsubSubscribe("sessions", () => {
+pubsubSubscribe(PUBSUB_CHANNELS.sessions, () => {
   refreshSessionStates();
 });
 
@@ -412,36 +423,15 @@ async function refreshSessionStates(): Promise<void> {
 }
 
 async function markSessionRead(id: string): Promise<void> {
-  try {
-    const res = await fetch(
-      `/api/sessions/${encodeURIComponent(id)}/mark-read`,
-      { method: "POST" },
-    );
-    // The server returns `{ ok: boolean }` — a 200 with `ok: false`
-    // means the endpoint was reached but the flag wasn't actually
-    // cleared (e.g. session not found). Treat that the same as a
-    // transport failure and refetch so the sidebar doesn't go stale.
-    let appLevelOk = true;
-    if (res.ok) {
-      try {
-        const body: unknown = await res.json();
-        if (
-          body !== null &&
-          typeof body === "object" &&
-          (body as { ok?: unknown }).ok === false
-        ) {
-          appLevelOk = false;
-        }
-      } catch {
-        // Body wasn't JSON — treat as failure.
-        appLevelOk = false;
-      }
-    }
-    if (!res.ok || !appLevelOk) {
-      // Server didn't clear the flag — refetch to restore truth.
-      await refreshSessionStates();
-    }
-  } catch {
+  const result = await apiPost<{ ok: boolean }>(
+    `/api/sessions/${encodeURIComponent(id)}/mark-read`,
+  );
+  // The server returns `{ ok: boolean }` — a 200 with `ok: false`
+  // means the endpoint was reached but the flag wasn't actually
+  // cleared (e.g. session not found). Treat that the same as a
+  // transport failure and refetch so the sidebar doesn't go stale.
+  if (!result.ok || result.data.ok === false) {
+    // Server didn't clear the flag — refetch to restore truth.
     await refreshSessionStates();
   }
 }
@@ -627,6 +617,45 @@ const { roles, currentRoleId, currentRole, refreshRoles } = useRoles();
 const userInput = ref("");
 const activePane = ref<"sidebar" | "main">("sidebar");
 
+// IME composition tracking. Safari fires `compositionend` BEFORE the
+// confirming Enter's `keydown`, so `event.isComposing` is already
+// false on that keydown — the inline `!isComposing` guard let the
+// message send on IME confirmation. Chrome / Firefox fire
+// `compositionend` AFTER the keydown and keep `isComposing` true,
+// so they handle confirmation correctly on their own.
+//
+// We use a tight time window after `compositionend` (30ms) to suppress
+// only the immediately-following keydown — short enough that Safari's
+// synchronous race fits, long enough that human reaction time on a
+// follow-up Enter (>=100ms) never falls inside.
+let isImeComposing = false;
+let lastCompositionEndAt = 0;
+const SAFARI_IME_RACE_WINDOW_MS = 30;
+function onCompositionStart() {
+  isImeComposing = true;
+}
+function onCompositionEnd() {
+  isImeComposing = false;
+  lastCompositionEndAt = performance.now();
+}
+function onTextareaBlur() {
+  isImeComposing = false;
+  lastCompositionEndAt = 0;
+}
+function onTextareaKeydown(event: KeyboardEvent) {
+  if (event.key !== "Enter" || event.shiftKey) return;
+  if (event.isComposing || isImeComposing) {
+    event.preventDefault();
+    return;
+  }
+  if (performance.now() - lastCompositionEndAt < SAFARI_IME_RACE_WINDOW_MS) {
+    event.preventDefault();
+    return;
+  }
+  event.preventDefault();
+  sendMessage();
+}
+
 const { sessions, showHistory, fetchSessions, toggleHistory } =
   useSessionHistory();
 const { geminiAvailable, sandboxEnabled, fetchHealth } = useHealth();
@@ -683,6 +712,137 @@ const {
 } = useCanvasViewMode({ isRunning });
 const rightSidebarRef = ref<InstanceType<typeof RightSidebar> | null>(null);
 
+// Default HTTP call (endpoint + body + resulting toolName) for each
+// "invoke" launcher target. Mirrors what each plugin's `execute()`
+// does — duplicated here intentionally so the launcher doesn't drag
+// the Vue components into this synchronous code path.
+//
+// Most endpoints already return a `{ data: ... }` envelope that the
+// plugin View expects. Skills is the odd one out — its REST surface
+// returns `{ skills: [...] }` flat, so `wrapData` lifts the payload
+// under `data` before the ToolResult reaches the View.
+const LAUNCHER_INVOKE_SPECS: Record<
+  "todos" | "scheduler" | "skills" | "wiki",
+  {
+    endpoint: string;
+    method: "GET" | "POST";
+    body?: unknown;
+    toolName: string;
+    defaultTitle: string;
+    /** Optional response-shape transform: when set, the ToolResult
+     *  gets `data = wrapData(json)` overlaid on top of the spread. */
+    wrapData?: (json: Record<string, unknown>) => unknown;
+  }
+> = {
+  todos: {
+    endpoint: "/api/todos",
+    method: "POST",
+    body: { action: "show" },
+    toolName: "manageTodoList",
+    defaultTitle: "Todos",
+  },
+  scheduler: {
+    endpoint: "/api/scheduler",
+    method: "POST",
+    body: { action: "show" },
+    toolName: "manageScheduler",
+    defaultTitle: "Schedule",
+  },
+  skills: {
+    endpoint: "/api/skills",
+    method: "GET",
+    toolName: "manageSkills",
+    defaultTitle: "Skills",
+    wrapData: (json) => ({ skills: json.skills ?? [] }),
+  },
+  wiki: {
+    endpoint: "/api/wiki",
+    method: "POST",
+    body: { action: "index" },
+    toolName: "manageWiki",
+    defaultTitle: "Wiki",
+  },
+};
+
+type LauncherInvokeKey = keyof typeof LAUNCHER_INVOKE_SPECS;
+
+function isLauncherInvokeKey(key: string): key is LauncherInvokeKey {
+  return key in LAUNCHER_INVOKE_SPECS;
+}
+
+// Call a plugin's REST endpoint locally and shape the response into
+// a ToolResultComplete so the canvas renders it through the plugin's
+// own View component. Throws on HTTP / network failure; caller is
+// responsible for surfacing the error to the user.
+async function invokePluginForLauncher(
+  key: LauncherInvokeKey,
+): Promise<ToolResultComplete> {
+  const spec = LAUNCHER_INVOKE_SPECS[key];
+  const res = await fetch(spec.endpoint, {
+    method: spec.method,
+    headers:
+      spec.method === "POST" ? { "Content-Type": "application/json" } : {},
+    body: spec.method === "POST" ? JSON.stringify(spec.body ?? {}) : undefined,
+  });
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    const detail =
+      typeof json.error === "string" ? json.error : `HTTP ${res.status}`;
+    throw new Error(`${spec.toolName} failed: ${detail}`);
+  }
+  const data = spec.wrapData ? spec.wrapData(json) : json.data;
+  return {
+    ...json,
+    data,
+    toolName: spec.toolName,
+    uuid: typeof json.uuid === "string" ? json.uuid : crypto.randomUUID(),
+    title: typeof json.title === "string" ? json.title : spec.defaultTitle,
+    message:
+      typeof json.message === "string"
+        ? json.message
+        : `Opened ${spec.defaultTitle}`,
+  } as ToolResultComplete;
+}
+
+// Plugin-launcher click:
+// - "files" target → switch canvas to files view (no plugin call).
+// - "invoke" target → call the plugin locally, push the result into
+//   the current session, select it, switch canvas to single view so
+//   the plugin's View component takes the stage.
+async function onPluginNavigate(target: PluginLauncherTarget): Promise<void> {
+  if (target.kind === "files") {
+    setCanvasViewMode("files");
+    const base = buildViewQuery();
+    const query: Record<string, string> = {};
+    for (const [k, v] of Object.entries(base)) {
+      if (typeof v === "string") query[k] = v;
+    }
+    delete query.path;
+    router.replace({ query }).catch((err: unknown) => {
+      if (!isNavigationFailure(err)) {
+        // eslint-disable-next-line no-console
+        console.error("[plugin-launcher] navigation failed:", err);
+      }
+    });
+    return;
+  }
+
+  const session = sessionMap.get(currentSessionId.value);
+  if (!session) return;
+  if (!isLauncherInvokeKey(target.key)) return;
+
+  try {
+    const result = await invokePluginForLauncher(target.key);
+    session.toolResults.push(result);
+    session.selectedResultUuid = result.uuid;
+    // Single view so the plugin's View takes the full canvas —
+    // stack view would bury the fresh result below older entries.
+    setCanvasViewMode("single");
+  } catch (err) {
+    pushErrorMessage(session, err instanceof Error ? err.message : String(err));
+  }
+}
+
 const { availableTools, toolDescriptions, fetchMcpToolsStatus } = useMcpTools({
   currentRole,
   getDefinition: (name) => getPlugin(name)?.toolDefinition ?? null,
@@ -726,14 +886,27 @@ function tabColor(session: SessionSummary): string {
   return "text-gray-400";
 }
 
-// Centralised session-switch handler: clear unread flag and subscribe
-// to the session's pub/sub channel if it's running (so a second tab
-// or a tab that navigated to an in-progress session receives events).
+// Centralised session-switch handler: subscribe to the current session's
+// pub/sub channel so we receive real-time events even if the session is
+// idle (another tab may start a run). Unsubscribe from idle sessions
+// when switching away (running sessions keep their subscription so they
+// continue receiving events — session_finished will clean them up).
+let previousSessionId: string | null = null;
 watch(currentSessionId, (id) => {
   const session = sessionMap.get(id);
-  if (session?.isRunning) {
+  // Subscribe to the new session's channel
+  if (session) {
     ensureSessionSubscription(session, session.toolResults.length);
   }
+  // Unsubscribe from the previous session if it's not running
+  if (previousSessionId && previousSessionId !== id) {
+    const prevSession = sessionMap.get(previousSessionId);
+    if (prevSession && !prevSession.isRunning) {
+      unsubscribeSession(previousSessionId);
+    }
+  }
+  previousSessionId = id;
+
   // Clear unread in both sessionMap and sessions list (for badge count),
   // then tell the server so other tabs see it too.
   const summary = sessions.value.find((s) => s.id === id);
@@ -918,11 +1091,50 @@ function createNewSession(roleId?: string): ActiveSession {
   navigateToSession(id, true);
   currentRoleId.value = rId;
   queriesExpanded.value = false;
+  nextTick(() => textareaRef.value?.focus());
   return sessionMap.get(id)!;
 }
 
 function onRoleChange() {
-  createNewSession(currentRoleId.value);
+  const session = createNewSession(currentRoleId.value);
+  maybeSeedRoleDefault(session);
+}
+
+// Some roles ship with a "default view" that's useful before any
+// chat exchange. Seed a synthetic tool_result so the canvas renders
+// the plugin immediately on role switch, without requiring the user
+// to first ask Claude to list anything. The result is client-only
+// (never persisted server-side) — any subsequent LLM tool call will
+// replace / augment it in the normal way.
+async function maybeSeedRoleDefault(session: ActiveSession): Promise<void> {
+  if (session.roleId !== BUILTIN_ROLE_IDS.sourceManager) return;
+  const response = await apiGet<{ sources?: unknown[] }>("/api/sources");
+  if (!response.ok) {
+    // Non-fatal: the Add / Rebuild buttons remain reachable via
+    // chat as soon as the user sends any message. Still surface
+    // a visible hint so the blank canvas isn't a mystery.
+    if (session.toolResults.length === 0) {
+      const detail =
+        response.status === 0 ? response.error : `HTTP ${response.status}`;
+      pushErrorMessage(
+        session,
+        `Could not preload sources (${detail}). Ask Claude to list them, or check the server log.`,
+      );
+    }
+    return;
+  }
+  const result: ToolResultComplete = {
+    uuid: uuidv4(),
+    toolName: "manageSource",
+    message: "Loaded source registry.",
+    title: "Information sources",
+    data: { sources: response.data.sources ?? [] },
+  };
+  // Skip if the user has already produced their own result in the
+  // meantime (fast typer + slow fetch race).
+  if (session.toolResults.length > 0) return;
+  session.toolResults.push(result);
+  session.selectedResultUuid = result.uuid;
 }
 
 async function loadSession(id: string) {
@@ -948,11 +1160,11 @@ async function loadSession(id: string) {
   }
 
   // Load from server
-  const res = await fetch(`/api/sessions/${id}`);
-  if (!res.ok) return;
-  const entries: SessionEntry[] = await res.json();
+  const response = await apiGet<SessionEntry[]>(`/api/sessions/${id}`);
+  if (!response.ok) return;
+  const entries = response.data;
 
-  const meta = entries.find((e) => e.type === "session_meta");
+  const meta = entries.find((e) => e.type === EVENT_TYPES.sessionMeta);
   const roleId = meta?.roleId ?? currentRoleId.value;
   const toolResultsList = parseSessionEntries(entries);
   const urlResult =
@@ -965,7 +1177,7 @@ async function loadSession(id: string) {
     new Date().toISOString(),
   );
 
-  sessionMap.set(id, {
+  const newSession: ActiveSession = {
     id,
     roleId,
     toolResults: toolResultsList,
@@ -976,7 +1188,18 @@ async function loadSession(id: string) {
     hasUnread: false,
     startedAt,
     updatedAt,
-  });
+  };
+  sessionMap.set(id, newSession);
+  // Subscribe immediately — the watch(currentSessionId) may have
+  // already fired before the session was in sessionMap (e.g. when
+  // opened via URL), so it couldn't subscribe at that point.
+  // Use sessionMap.get() to obtain the reactive proxy — passing the
+  // raw object would bypass Vue's reactivity tracking.
+  const reactiveSession = sessionMap.get(id)!;
+  ensureSessionSubscription(
+    reactiveSession,
+    reactiveSession.toolResults.length,
+  );
   navigateToSession(id, replaced);
   currentRoleId.value = roleId;
   showHistory.value = false;
@@ -1020,20 +1243,22 @@ function ensureSessionSubscription(
     scrollSidebarToBottom: () => rightSidebarRef.value?.scrollToBottom(),
   };
 
-  const channel = `session.${session.id}`;
+  const channel = sessionChannel(session.id);
   const unsub = pubsubSubscribe(channel, (data) => {
     const event = data as SseEvent;
     if (!event || typeof event !== "object") return;
 
-    // session_finished signals end-of-run — clean up subscription.
-    // If the user is viewing this session, tell the server to clear
-    // hasUnread. State updates (isRunning, hasUnread) arrive via the
-    // `sessions` channel notification → refetch cycle.
-    if (event.type === "session_finished") {
+    // session_finished signals end-of-run. If the user is viewing
+    // this session, clear unread and keep the subscription alive so
+    // we receive events if another tab starts a new run. Only
+    // unsubscribe sessions the user is NOT currently viewing — the
+    // watch(currentSessionId) handler cleans up when switching away.
+    if (event.type === EVENT_TYPES.sessionFinished) {
       if (currentSessionId.value === session.id) {
         markSessionRead(session.id);
+      } else {
+        unsubscribeSession(session.id);
       }
-      unsubscribeSession(session.id);
       return;
     }
 
@@ -1072,7 +1297,7 @@ async function applyAgentEvent(
 ): Promise<void> {
   const { session, runStartIndex } = ctx;
   switch (event.type) {
-    case "tool_call":
+    case EVENT_TYPES.toolCall:
       session.toolCallHistory.push({
         toolUseId: event.toolUseId,
         toolName: event.toolName,
@@ -1081,7 +1306,7 @@ async function applyAgentEvent(
       });
       ctx.scrollSidebarToBottom();
       return;
-    case "tool_call_result": {
+    case EVENT_TYPES.toolCallResult: {
       const entry = findPendingToolCall(
         session.toolCallHistory,
         event.toolUseId,
@@ -1090,19 +1315,37 @@ async function applyAgentEvent(
       ctx.scrollSidebarToBottom();
       return;
     }
-    case "status":
+    case EVENT_TYPES.status:
       session.statusMessage = event.message;
       return;
-    case "switch_role":
+    case EVENT_TYPES.switchRole:
       setTimeout(() => {
         ctx.setCurrentRoleId(event.roleId);
         ctx.onRoleChange();
       }, 0);
       return;
-    case "roles_updated":
+    case EVENT_TYPES.rolesUpdated:
       await ctx.refreshRoles();
       return;
-    case "text": {
+    case EVENT_TYPES.text: {
+      const source = event.source ?? "assistant";
+      if (source === "user") {
+        // The tab that sent the message already added it locally via
+        // beginUserTurn. Deduplicate: skip if the last text-response
+        // is a user message with identical text.
+        const last = session.toolResults[session.toolResults.length - 1];
+        const lastData = last?.data as
+          | { role?: string; text?: string }
+          | undefined;
+        if (
+          last?.toolName === "text-response" &&
+          lastData?.role === "user" &&
+          lastData?.text === event.message
+        )
+          return;
+        session.toolResults.push(makeTextResult(event.message, "user"));
+        return;
+      }
       const textResult = makeTextResult(event.message, "assistant");
       session.toolResults.push(textResult);
       if (shouldSelectAssistantText(session.toolResults, runStartIndex)) {
@@ -1110,7 +1353,7 @@ async function applyAgentEvent(
       }
       return;
     }
-    case "tool_result": {
+    case EVENT_TYPES.toolResult: {
       const { result } = event;
       const existing = session.toolResults.findIndex(
         (r) => r.uuid === result.uuid,
@@ -1123,11 +1366,11 @@ async function applyAgentEvent(
       }
       return;
     }
-    case "error":
+    case EVENT_TYPES.error:
       console.error("[agent] error event:", event.message);
       pushErrorMessage(session, event.message);
       return;
-    case "session_finished":
+    case EVENT_TYPES.sessionFinished:
       // Handled in the subscription callback — no-op here.
       return;
   }
@@ -1154,9 +1397,8 @@ async function sendMessage(text?: string) {
   ensureSessionSubscription(session, runStartIndex);
 
   try {
-    const response = await fetch("/api/agent", {
+    const response = await apiFetchRaw("/api/agent", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
         buildAgentRequestBody({
           message,
@@ -1165,6 +1407,7 @@ async function sendMessage(text?: string) {
           selectedImageData: extractImageData(selectedRes),
         }),
       ),
+      headers: { "Content-Type": "application/json" },
     });
 
     if (!response.ok) {
@@ -1201,9 +1444,13 @@ const { handler: handleClickOutsideRoleDropdown } = useClickOutside({
   popupRef: roleDropdownRef,
 });
 
+// Plugin Views call back into App.vue via provide/inject (#227).
+provideAppApi({
+  refreshRoles,
+  sendMessage: (message: string) => sendMessage(message),
+});
+
 useEventListeners({
-  onRolesUpdated: refreshRoles,
-  onSkillRun: (message: string) => sendMessage(message),
   onKeyNavigation: handleKeyNavigation,
   onViewModeShortcut: handleViewModeShortcut,
   onClickOutsideHistory: handleClickOutsideHistory,

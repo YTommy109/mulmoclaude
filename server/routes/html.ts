@@ -1,12 +1,13 @@
 import { Router, Request, Response } from "express";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
-import { workspacePath } from "../workspace.js";
+import { WORKSPACE_PATHS } from "../workspace-paths.js";
 import { getGeminiClient, isGeminiAvailable } from "../utils/gemini.js";
 import { errorMessage } from "../utils/errors.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
-const HTML_FILE = () => path.join(workspacePath, "html", "current.html");
+const HTML_FILE = () => path.join(WORKSPACE_PATHS.html, "current.html");
 
 async function callGemini(prompt: string): Promise<string> {
   const ai = getGeminiClient();
@@ -42,7 +43,7 @@ interface HtmlErrorResponse {
 type HtmlResponse = HtmlSuccessResponse | HtmlErrorResponse;
 
 router.post(
-  "/generate-html",
+  API_ROUTES.html.generate,
   async (
     req: Request<object, unknown, HtmlPromptBody>,
     res: Response<HtmlResponse>,
@@ -59,7 +60,7 @@ router.post(
     try {
       const fullPrompt = `Generate a complete, standalone HTML page based on this description: ${prompt}\n\nRequirements:\n- Self-contained with all CSS and JS inline\n- Use Tailwind CSS via CDN if needed\n- Return only the HTML code, no explanation`;
       const html = await callGemini(fullPrompt);
-      const htmlDir = path.join(workspacePath, "html");
+      const htmlDir = WORKSPACE_PATHS.html;
       await mkdir(htmlDir, { recursive: true });
       await writeFile(HTML_FILE(), html, "utf-8");
       res.json({
@@ -76,7 +77,7 @@ router.post(
 );
 
 router.post(
-  "/edit-html",
+  API_ROUTES.html.edit,
   async (
     req: Request<object, unknown, HtmlPromptBody>,
     res: Response<HtmlResponse>,

@@ -18,6 +18,7 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { workspacePath as defaultWorkspacePath } from "../workspace.js";
+import { WORKSPACE_DIRS } from "../workspace-paths.js";
 import { log } from "../logger/index.js";
 import { updateSessionBacklinks } from "./sessionBacklinks.js";
 
@@ -53,7 +54,7 @@ export async function maybeAppendWikiBacklinks(
   if (!opts.chatSessionId) return;
   const workspaceRoot = opts.workspaceRoot ?? defaultWorkspacePath;
   const deps: WikiBacklinksDeps = { ...defaultDeps, ...(opts.deps ?? {}) };
-  const pagesDir = path.join(workspaceRoot, "wiki", "pages");
+  const pagesDir = path.join(workspaceRoot, WORKSPACE_DIRS.wiki, "pages");
 
   const files = await listPageFiles(pagesDir, deps);
   if (files.length === 0) return;

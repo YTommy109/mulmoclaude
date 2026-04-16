@@ -7,6 +7,7 @@
 
 import type { Response } from "express";
 import { errorMessage } from "../utils/errors.js";
+import { sendError, serverError } from "../utils/httpError.js";
 
 export type DispatchResult<T> =
   | { kind: "error"; status: number; error: string }
@@ -57,16 +58,14 @@ export function respondWithDispatchResult<T>(
   options: RespondOptions<T>,
 ): void {
   if (result.kind === "error") {
-    res.status(result.status).json({ error: result.error });
+    sendError(res, result.status, result.error);
     return;
   }
   if (options.shouldPersist) {
     try {
       options.persist(result.items);
     } catch (err) {
-      res.status(500).json({
-        error: `Failed to persist changes: ${errorMessage(err)}`,
-      });
+      serverError(res, `Failed to persist changes: ${errorMessage(err)}`);
       return;
     }
   }

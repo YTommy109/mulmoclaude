@@ -1,6 +1,8 @@
 // Pure helpers for presentMulmoScript View.vue. Kept separate so
 // their logic is unit-testable without mounting the Vue component.
 
+import { errorMessage } from "../../utils/errors";
+
 export type SSEEvent =
   | { type: "beat_image_done"; beatIndex: number }
   | { type: "beat_audio_done"; beatIndex: number }
@@ -98,7 +100,7 @@ export function validateBeatJSON(
 
 /** Convert an unknown thrown value into a human-readable string. */
 export function extractErrorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  return errorMessage(err);
 }
 
 /**

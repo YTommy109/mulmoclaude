@@ -7,8 +7,8 @@
       <div>
         <h2 class="text-lg font-semibold text-gray-800">Skills</h2>
         <p class="text-xs text-gray-400 mt-0.5">
-          {{ skills.length }} available · click one to view · "Run" sends its
-          SKILL.md as a message
+          {{ skills.length }} available · click one to view · "Run" invokes it
+          as /&lt;name&gt;
         </p>
       </div>
     </div>
@@ -59,15 +59,28 @@
                 {{ selected.description }}
               </p>
             </div>
-            <button
-              class="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 shrink-0 flex items-center gap-1"
-              :disabled="detailLoading || !detail"
-              data-testid="skill-run-btn"
-              @click="runSkill"
-            >
-              <span class="material-icons text-base">play_arrow</span>
-              Run
-            </button>
+            <div class="flex items-center gap-2 shrink-0">
+              <button
+                v-if="detail && detail.source === 'project'"
+                class="px-3 py-1.5 text-sm rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-40 flex items-center gap-1"
+                :disabled="detailLoading || deleting"
+                data-testid="skill-delete-btn"
+                @click="deleteSkill"
+                title="Delete this project-scope skill"
+              >
+                <span class="material-icons text-base">delete</span>
+                Delete
+              </button>
+              <button
+                class="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 flex items-center gap-1"
+                :disabled="detailLoading || !detail"
+                data-testid="skill-run-btn"
+                @click="runSkill"
+              >
+                <span class="material-icons text-base">play_arrow</span>
+                Run
+              </button>
+            </div>
           </div>
           <div v-if="detailLoading" class="text-sm text-gray-400 italic">
             Loading…
@@ -90,6 +103,8 @@
 import { computed, ref, watch } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { ManageSkillsData, SkillSummary } from "./index";
+import { useAppApi } from "../../composables/useAppApi";
+import { apiGet, apiDelete } from "../../utils/api";
 
 interface SkillDetail {
   name: string;
@@ -103,13 +118,15 @@ const props = defineProps<{
   selectedResult: ToolResultComplete<ManageSkillsData>;
 }>();
 
-const skills = computed<SkillSummary[]>(
-  () => props.selectedResult.data?.skills ?? [],
-);
+// Local mutable copy of the skill list so the Delete button can
+// remove rows without waiting for a fresh tool_result push.
+// Re-seeded whenever the underlying tool result changes.
+const skills = ref<SkillSummary[]>(props.selectedResult.data?.skills ?? []);
 const selectedName = ref<string | null>(skills.value[0]?.name ?? null);
 const detail = ref<SkillDetail | null>(null);
 const detailLoading = ref(false);
 const detailError = ref<string | null>(null);
+const deleting = ref(false);
 
 const selected = computed(
   () => skills.value.find((s) => s.name === selectedName.value) ?? null,
@@ -120,12 +137,17 @@ const selected = computed(
 watch(
   () => props.selectedResult.uuid,
   () => {
+    skills.value = props.selectedResult.data?.skills ?? [];
     selectedName.value = skills.value[0]?.name ?? null;
   },
 );
 
 // Fetch detail when the selection changes. Failures surface inline
-// so the Run button stays disabled and the user sees why.
+// so the Run button stays disabled and the user sees why. Each request
+// captures the `name` it was issued for — if the user clicks another
+// skill while the first fetch is in flight, the slower response is
+// discarded (otherwise stale detail can land under the new selection
+// and break deleteSkill(), which reads `detail.value.name`).
 watch(
   selectedName,
   async (name) => {
@@ -135,36 +157,64 @@ watch(
     }
     detailLoading.value = true;
     detailError.value = null;
-    try {
-      const res = await fetch(`/api/skills/${encodeURIComponent(name)}`);
-      if (!res.ok) {
-        detailError.value = `Failed to load skill: ${res.statusText}`;
-        detail.value = null;
-        return;
-      }
-      const body: { skill: SkillDetail } = await res.json();
-      detail.value = body.skill;
-    } catch (err) {
-      detailError.value = err instanceof Error ? err.message : String(err);
-      detail.value = null;
-    } finally {
-      detailLoading.value = false;
+    const response = await apiGet<{ skill: SkillDetail }>(
+      `/api/skills/${encodeURIComponent(name)}`,
+    );
+    if (selectedName.value !== name) {
+      // Selection changed while this request was in flight — drop it.
+      return;
     }
+    if (!response.ok) {
+      detailError.value = `Failed to load skill: ${response.error}`;
+      detail.value = null;
+    } else {
+      detail.value = response.data.skill;
+    }
+    detailLoading.value = false;
   },
   { immediate: true },
 );
 
 // Run = send the skill invocation as a Claude Code slash command.
 // Claude CLI already knows about every ~/.claude/skills/<name>/SKILL.md
-// at spawn, so sending `/<name>` is enough — no need to ship the
-// body. App.vue listens for the `skill-run` window event and routes
-// to its existing sendMessage pipeline. (See論点 1 on PR #224.)
+// at spawn, so sending `/<name>` is enough — no need to ship the body.
+// Routes through App.vue's sendMessage via provide/inject (#227).
+const appApi = useAppApi();
+
 function runSkill(): void {
   if (!selectedName.value) return;
-  window.dispatchEvent(
-    new CustomEvent("skill-run", {
-      detail: { message: `/${selectedName.value}` },
-    }),
+  appApi.sendMessage(`/${selectedName.value}`);
+}
+
+// Delete is project-scope only — see saveProjectSkill / deleteProjectSkill
+// in server/skills/writer.ts. The button is hidden in the template
+// when source !== "project". A native confirm() is enough for phase 1
+// since the action is reversible by re-saving via the conversation.
+async function deleteSkill(): Promise<void> {
+  if (!detail.value || detail.value.source !== "project") return;
+  const name = detail.value.name;
+  if (
+    !window.confirm(
+      `Delete skill "${name}"? This removes ~/mulmoclaude/.claude/skills/${name}/SKILL.md.`,
+    )
+  ) {
+    return;
+  }
+  deleting.value = true;
+  const result = await apiDelete<unknown>(
+    `/api/skills/${encodeURIComponent(name)}`,
   );
+  deleting.value = false;
+  if (!result.ok) {
+    detailError.value = result.error || "Failed to delete";
+    return;
+  }
+  // Remove from the local list, advance selection, clear detail.
+  const idx = skills.value.findIndex((s) => s.name === name);
+  if (idx >= 0) {
+    skills.value.splice(idx, 1);
+  }
+  selectedName.value = skills.value[0]?.name ?? null;
+  detail.value = null;
 }
 </script>

@@ -10,6 +10,7 @@
 
 import { ref, type Ref } from "vue";
 import { useFreshPluginData } from "../../../composables/useFreshPluginData";
+import { errorMessage } from "../../../utils/errors";
 import type { StatusColumn, TodoItem } from "../index";
 
 interface TodosResponse {
@@ -176,7 +177,7 @@ export function useTodos(
       }
       return ok;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
+      error.value = errorMessage(err);
       return false;
     }
   }

@@ -107,8 +107,12 @@ export async function mockAllApis(
     route.fulfill({ json: DEFAULT_TODOS }),
   );
 
+  // Server returns a plain array of { name, enabled, requiredEnv, prompt }
+  // (see server/mcp-tools/index.ts). The old object-wrapped shape used
+  // here was wrong but hidden by the client's try/catch swallowing the
+  // .filter TypeError on non-array responses.
   await page.route(urlStartsWith("/api/mcp-tools"), (route) =>
-    route.fulfill({ json: { tools: [], disabled: [] } }),
+    route.fulfill({ json: [] }),
   );
 
   await page.route(urlStartsWith("/api/chat-index"), (route) =>

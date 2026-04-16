@@ -88,8 +88,10 @@ import { computed, ref, watch, nextTick } from "vue";
 import { marked } from "marked";
 import type { ToolResult } from "gui-chat-protocol";
 import { isFilePath, type MarkdownToolData } from "./definition";
-import { resolveImageSrc } from "../../utils/image/resolve";
+import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { usePdfDownload } from "../../composables/usePdfDownload";
+import { apiGet, apiPut } from "../../utils/api";
+import { useClipboardCopy } from "../../composables/useClipboardCopy";
 
 const props = defineProps<{
   selectedResult: ToolResult<MarkdownToolData>;
@@ -117,24 +119,18 @@ async function fetchMarkdownContent(): Promise<void> {
   }
   if (isFilePath(raw)) {
     loading.value = true;
-    try {
-      const res = await fetch(
-        `/api/files/content?path=${encodeURIComponent(raw)}`,
-      );
-      if (!res.ok) {
-        console.error("Failed to fetch markdown:", res.statusText);
-        markdownContent.value = "";
-        editableMarkdown.value = "";
-        return;
-      }
-      const json: { content?: string } = await res.json();
-      markdownContent.value = json.content ?? "";
-    } catch (err) {
-      console.error("Failed to fetch markdown:", err);
+    const result = await apiGet<{ content?: string }>("/api/files/content", {
+      path: raw,
+    });
+    if (!result.ok) {
+      console.error("Failed to fetch markdown:", result.error);
       markdownContent.value = "";
-    } finally {
+      editableMarkdown.value = "";
       loading.value = false;
+      return;
     }
+    markdownContent.value = result.data.content ?? "";
+    loading.value = false;
   } else {
     // Legacy inline content
     markdownContent.value = raw;
@@ -149,24 +145,21 @@ const hasChanges = computed(() => {
   return editableMarkdown.value !== markdownContent.value;
 });
 
-// Resolve image paths in rendered HTML so workspace-relative paths become URLs.
-// Markdown files use "../images/xyz.png" (relative from markdowns/ dir);
-// strip the "../" prefix to get the workspace-relative path for resolveImageSrc.
-function resolveImagesInHtml(html: string): string {
-  return html.replace(
-    /(<img\s[^>]*src=")([^"]+)(")/g,
-    (_match, before: string, src: string, after: string) => {
-      if (src.startsWith("data:") || src.startsWith("http")) return _match;
-      const normalized = src.replace(/^\.\.\//, "");
-      return `${before}${resolveImageSrc(normalized)}${after}`;
-    },
-  );
-}
-
 const renderedHtml = computed(() => {
   if (!markdownContent.value) return "";
-  const html = marked(markdownContent.value) as string;
-  return resolveImagesInHtml(html);
+  // Rewrite workspace-relative image refs BEFORE marked parses them —
+  // same approach as wiki/View.vue and FilesView.vue. Markdown files
+  // under `markdowns/<year>/foo.md` typically use `../images/x.png`,
+  // so the basePath is the directory of the file; for inline legacy
+  // content we have no path, so basePath is empty and only rooted
+  // references get rewritten.
+  const raw = props.selectedResult.data?.markdown;
+  const basePath =
+    typeof raw === "string" && isFilePath(raw)
+      ? raw.slice(0, raw.lastIndexOf("/"))
+      : "";
+  const withImages = rewriteMarkdownImageRefs(markdownContent.value, basePath);
+  return marked(withImages) as string;
 });
 
 // Watch for scroll requests from viewState
@@ -187,7 +180,7 @@ watch(
 
 const sourceDetails = ref<HTMLDetailsElement>();
 const editing = ref(false);
-const copied = ref(false);
+const { copied, copy } = useClipboardCopy();
 
 function onDetailsToggle(e: Event) {
   const open = (e.target as HTMLDetailsElement).open;
@@ -203,15 +196,7 @@ function cancelEdit() {
 }
 
 async function copyText() {
-  try {
-    await navigator.clipboard.writeText(markdownContent.value);
-    copied.value = true;
-    setTimeout(() => {
-      copied.value = false;
-    }, 2000);
-  } catch {
-    // clipboard API may be blocked in some contexts
-  }
+  await copy(markdownContent.value);
 }
 
 const {
@@ -240,22 +225,14 @@ async function applyMarkdown() {
   // If file-based, save to server
   if (isFilePath(raw)) {
     saving.value = true;
-    try {
-      const filename = raw.replace(/^markdowns\//, "");
-      const res = await fetch(`/api/markdowns/${filename}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markdown: editableMarkdown.value }),
-      });
-      if (!res.ok) {
-        saveError.value = `Save failed: ${res.status} ${res.statusText}`;
-        return;
-      }
-    } catch (err) {
-      saveError.value = `Save failed: ${err instanceof Error ? err.message : String(err)}`;
+    const filename = raw.replace(/^markdowns\//, "");
+    const result = await apiPut<unknown>(`/api/markdowns/${filename}`, {
+      markdown: editableMarkdown.value,
+    });
+    saving.value = false;
+    if (!result.ok) {
+      saveError.value = `Save failed: ${result.error}`;
       return;
-    } finally {
-      saving.value = false;
     }
   }
 

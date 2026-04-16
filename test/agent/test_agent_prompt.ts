@@ -7,6 +7,7 @@ import {
   buildMemoryContext,
   buildWikiContext,
   buildSystemPrompt,
+  headingSection,
   prependJournalPointer,
 } from "../../server/agent/prompt.js";
 import type { Role } from "../../src/config/roles.js";
@@ -30,6 +31,37 @@ beforeEach(() => {
 
 afterEach(() => {
   rmSync(workspace, { recursive: true, force: true });
+});
+
+describe("headingSection", () => {
+  it("wraps items under a ## heading joined by blank lines", () => {
+    const out = headingSection("Plugin Instructions", [
+      "### a\n\nbody a",
+      "### b\n\nbody b",
+    ]);
+    assert.equal(
+      out,
+      "## Plugin Instructions\n\n### a\n\nbody a\n\n### b\n\nbody b",
+    );
+  });
+
+  it("returns null when the list is empty so callers can skip the section", () => {
+    assert.equal(headingSection("Whatever", []), null);
+  });
+
+  it("keeps a single item verbatim under the heading", () => {
+    const out = headingSection("Reference Files", [
+      "### helps/index.md\n\ncontent",
+    ]);
+    assert.equal(out, "## Reference Files\n\n### helps/index.md\n\ncontent");
+  });
+
+  it("preserves embedded blank lines inside items", () => {
+    // Items can contain their own paragraph breaks; join should use
+    // exactly \n\n between items and not touch the item text.
+    const out = headingSection("Section", ["line1\n\nline2", "line3"]);
+    assert.equal(out, "## Section\n\nline1\n\nline2\n\nline3");
+  });
 });
 
 describe("buildMemoryContext", () => {
@@ -108,25 +140,41 @@ describe("buildWikiContext", () => {
 describe("buildSystemPrompt", () => {
   it("contains the base SYSTEM_PROMPT", () => {
     const role = makeRole();
-    const result = buildSystemPrompt({ role, workspacePath: workspace });
+    const result = buildSystemPrompt({
+      role,
+      workspacePath: workspace,
+      useDocker: false,
+    });
     assert.ok(result.includes("You are MulmoClaude"));
   });
 
   it("contains role prompt", () => {
     const role = makeRole({ prompt: "You are a chef." });
-    const result = buildSystemPrompt({ role, workspacePath: workspace });
+    const result = buildSystemPrompt({
+      role,
+      workspacePath: workspace,
+      useDocker: false,
+    });
     assert.ok(result.includes("You are a chef."));
   });
 
   it("contains workspace path", () => {
     const role = makeRole();
-    const result = buildSystemPrompt({ role, workspacePath: workspace });
+    const result = buildSystemPrompt({
+      role,
+      workspacePath: workspace,
+      useDocker: false,
+    });
     assert.ok(result.includes(`Workspace directory: ${workspace}`));
   });
 
   it("contains today's date", () => {
     const role = makeRole();
-    const result = buildSystemPrompt({ role, workspacePath: workspace });
+    const result = buildSystemPrompt({
+      role,
+      workspacePath: workspace,
+      useDocker: false,
+    });
     const today = new Date().toISOString().split("T")[0];
     assert.ok(result.includes(`Today's date: ${today}`));
   });
@@ -134,7 +182,11 @@ describe("buildSystemPrompt", () => {
   it("contains memory context", () => {
     writeFileSync(join(workspace, "memory.md"), "Remember this");
     const role = makeRole();
-    const result = buildSystemPrompt({ role, workspacePath: workspace });
+    const result = buildSystemPrompt({
+      role,
+      workspacePath: workspace,
+      useDocker: false,
+    });
     assert.ok(result.includes("Remember this"));
   });
 
@@ -142,13 +194,21 @@ describe("buildSystemPrompt", () => {
     mkdirSync(join(workspace, "wiki"), { recursive: true });
     writeFileSync(join(workspace, "wiki", "index.md"), "# Index");
     const role = makeRole();
-    const result = buildSystemPrompt({ role, workspacePath: workspace });
+    const result = buildSystemPrompt({
+      role,
+      workspacePath: workspace,
+      useDocker: false,
+    });
     assert.ok(result.includes("wiki/index.md"));
   });
 
   it("omits wiki context when wiki does not exist", () => {
     const role = makeRole();
-    const result = buildSystemPrompt({ role, workspacePath: workspace });
+    const result = buildSystemPrompt({
+      role,
+      workspacePath: workspace,
+      useDocker: false,
+    });
     assert.ok(!result.includes("wiki/index.md"));
   });
 
@@ -159,15 +219,44 @@ describe("buildSystemPrompt", () => {
     const result = buildSystemPrompt({
       role,
       workspacePath: workspace,
+      useDocker: false,
     });
     assert.ok(result.includes("## Plugin Instructions"));
     assert.ok(result.includes("### manageTodoList"));
     assert.ok(result.includes("todo list"));
   });
 
+  it("emits the Sandbox Tools hint when useDocker is true", () => {
+    const role = makeRole();
+    const result = buildSystemPrompt({
+      role,
+      workspacePath: workspace,
+      useDocker: true,
+    });
+    assert.ok(result.includes("## Sandbox Tools"));
+    // A few key tool mentions so we notice if the list drifts.
+    assert.ok(result.includes("pandas"));
+    assert.ok(result.includes("pandoc"));
+    assert.ok(result.includes("ripgrep"));
+  });
+
+  it("omits the Sandbox Tools hint when useDocker is false", () => {
+    const role = makeRole();
+    const result = buildSystemPrompt({
+      role,
+      workspacePath: workspace,
+      useDocker: false,
+    });
+    assert.ok(!result.includes("## Sandbox Tools"));
+  });
+
   it("omits plugin section when no prompts", () => {
     const role = makeRole();
-    const result = buildSystemPrompt({ role, workspacePath: workspace });
+    const result = buildSystemPrompt({
+      role,
+      workspacePath: workspace,
+      useDocker: false,
+    });
     assert.ok(!result.includes("## Plugin Instructions"));
   });
 });

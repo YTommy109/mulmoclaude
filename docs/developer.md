@@ -149,7 +149,7 @@ You never set these by hand; the server constructs them when spawning Claude ins
 
 Three independent Node processes cooperate at runtime:
 
-1. **Express server** (`server/index.ts`) — listens on `localhost:3001`. Hosts every `/api/*` endpoint, the SSE stream for `POST /api/agent`, the pub-sub bus, and the cron-like task manager. Spawns the Claude CLI per agent invocation.
+1. **Express server** (`server/index.ts`) — listens on `localhost:3001`. Hosts every `/api/*` endpoint, the SSE stream for `POST /api/agent`, the pub-sub bus, and the cron-like [task manager](task-manager.md). Spawns the Claude CLI per agent invocation.
 2. **Vite dev client** — listens on `localhost:5173`, proxies `/api/*` to `:3001`. Production builds skip Vite and let Express serve the static `dist/client`.
 3. **MCP stdio bridge** (`server/mcp-server.ts`) — spawned by the Claude CLI subprocess via `--mcp-config`. No HTTP listener: speaks JSON-RPC over stdin/stdout, forwards Claude's tool calls back to the Express server (`MCP_HOST:PORT/api/*`).
 
@@ -180,6 +180,24 @@ Three independent Node processes cooperate at runtime:
 ```
 
 The `configs/` dir is the home for the [web Settings UI](../README.md#configuring-additional-tools-web-settings) — `settings.json` carries `extraAllowedTools`, `mcp.json` follows Claude CLI's `--mcp-config` format so you can copy it between machines.
+
+---
+
+## Centralized constants (`as const` modules)
+
+Cross-module string literals (endpoint paths, tool names, role IDs, etc.) are defined once and imported everywhere. A typo in an import key fails typecheck; a typo in a raw string literal silently produces a runtime 404 or broken channel.
+
+| Constant | Module | Consumers |
+|---|---|---|
+| `API_ROUTES` | `src/config/apiRoutes.ts` | Server route files (`router.post(API_ROUTES.todos.items, ...)`), frontend fetch calls (`fetch(API_ROUTES.todos.items)`), MCP bridge `postJson` calls |
+| `EVENT_TYPES` / `EventType` | `src/types/events.ts` | SSE stream emitters, pub-sub session events, chat jsonl parsers, `AgentEvent` union discriminators |
+| `WORKSPACE_PATHS` / `WORKSPACE_DIRS` | `server/workspace-paths.ts` | Every server module that reads or writes workspace files |
+| `TOOL_NAMES` / `ToolName` | `src/config/toolNames.ts` | Role definitions (`availablePlugins`), plugin registry, session-store tool matching |
+| `BUILTIN_ROLE_IDS` / `BuiltInRoleId` | `src/config/roles.ts` | Anywhere a built-in role ID appears outside the role definition itself |
+| `PUBSUB_CHANNELS` / `sessionChannel()` | `src/config/pubsubChannels.ts` | Pub-sub publish/subscribe sites in session-store and task-manager |
+| `EVENT_TYPES` / `EventType` | `src/types/events.ts` | SSE event type discriminants in agent loop, session store, and frontend dispatch |
+
+**Convention**: add new entries to the appropriate module before writing the first consumer. Keep the `as const` assertion so TypeScript infers literal types, not `string`.
 
 ---
 

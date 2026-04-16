@@ -14,15 +14,19 @@ import {
   getActiveSessionIds,
 } from "../session-store/index.js";
 import { workspacePath } from "../workspace.js";
+import { WORKSPACE_PATHS } from "../workspace-paths.js";
 import { maybeRunJournal } from "../journal/index.js";
 import { maybeIndexSession } from "../chat-index/index.js";
 import { maybeAppendWikiBacklinks } from "../wiki-backlinks/index.js";
 import { log } from "../logger/index.js";
 import { logBackgroundError } from "../utils/logBackgroundError.js";
 import { createArgsCache, recordToolEvent } from "../tool-trace/index.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
+import { EVENT_TYPES } from "../../src/types/events.js";
+import { env } from "../env.js";
 
 const router = Router();
-const PORT = Number(process.env.PORT) || 3001;
+const PORT = env.port;
 
 // Short, safe preview of tool args for logs. Full payload may contain
 // base64 images or large blobs, so we cap it. The goal is to make a
@@ -48,7 +52,7 @@ interface OkResponse {
 }
 
 router.post(
-  "/internal/tool-result",
+  API_ROUTES.agent.internal.toolResult,
   async (
     req: Request<object, unknown, Record<string, unknown>>,
     res: Response<OkResponse>,
@@ -65,14 +69,14 @@ interface SwitchRoleBody {
 }
 
 router.post(
-  "/internal/switch-role",
+  API_ROUTES.agent.internal.switchRole,
   async (
     req: Request<object, unknown, SwitchRoleBody>,
     res: Response<OkResponse>,
   ) => {
     const chatSessionId = String(req.query.session ?? "");
     pushSessionEvent(chatSessionId, {
-      type: "switch_role",
+      type: EVENT_TYPES.switchRole,
       roleId: req.body.roleId,
     });
     res.json({ ok: true });
@@ -85,7 +89,7 @@ interface CancelBody {
 }
 
 router.post(
-  "/agent/cancel",
+  API_ROUTES.agent.cancel,
   (req: Request<object, unknown, CancelBody>, res: Response<OkResponse>) => {
     const { chatSessionId } = req.body;
     if (!chatSessionId) {
@@ -126,21 +130,61 @@ export async function startChat(
     };
   }
 
-  const chatDir = path.join(workspacePath, "chat");
+  const chatDir = WORKSPACE_PATHS.chat;
   await mkdir(chatDir, { recursive: true });
   const resultsFilePath = path.join(chatDir, `${chatSessionId}.jsonl`);
   const metaFilePath = path.join(chatDir, `${chatSessionId}.json`);
 
-  // Write or update metadata. On the first message we create the file
-  // with firstUserMessage so GET /api/sessions never needs to read the
-  // jsonl content. On subsequent turns we backfill firstUserMessage if
-  // missing (migrates pre-existing sessions).
+  // Check whether this is a brand-new session up front so we can both
+  // (a) decide whether to read persisted hasUnread (skipped for first
+  // turn — nothing on disk yet) and (b) pick meta-write vs backfill
+  // after beginRun succeeds.
   let isFirstTurn = false;
   try {
     await access(metaFilePath);
   } catch {
     isFirstTurn = true;
   }
+
+  // Read persisted hasUnread so the in-memory store starts with the
+  // correct value (survives server restarts). Must happen before
+  // getOrCreateSession; for the first turn the meta file doesn't
+  // exist yet so the value stays undefined.
+  let persistedHasUnread: boolean | undefined;
+  if (!isFirstTurn) {
+    try {
+      const meta = JSON.parse(await readFile(metaFilePath, "utf-8"));
+      persistedHasUnread = meta.hasUnread === true;
+    } catch {
+      // ignore — meta file may be missing or malformed
+    }
+  }
+
+  const now = new Date().toISOString();
+  getOrCreateSession(chatSessionId, {
+    roleId,
+    resultsFilePath,
+    selectedImageData,
+    startedAt: now,
+    updatedAt: now,
+    hasUnread: persistedHasUnread,
+  });
+
+  // Register abort callback and mark running FIRST. If the session
+  // is already running, reject with 409 before we persist anything.
+  // Writing the user message to jsonl or broadcasting it before this
+  // check leaves an orphan message on disk + in every viewing tab
+  // when the run is rejected — see #281.
+  const abortController = new AbortController();
+  const started = beginRun(chatSessionId, () => abortController.abort());
+  if (!started) {
+    return { kind: "error", error: "Session is already running", status: 409 };
+  }
+
+  // Run is committed. Now persist the user message so callers (and
+  // other tabs) see the turn. Metadata first — it powers the sidebar
+  // title cache; the append follows so the jsonl is always a
+  // superset of what metadata advertised.
   if (isFirstTurn) {
     await writeFile(
       metaFilePath,
@@ -157,25 +201,17 @@ export async function startChat(
   // Append user message for this turn
   await appendFile(
     resultsFilePath,
-    JSON.stringify({ source: "user", type: "text", message }) + "\n",
+    JSON.stringify({ source: "user", type: EVENT_TYPES.text, message }) + "\n",
   );
 
-  const now = new Date().toISOString();
-  getOrCreateSession(chatSessionId, {
-    roleId,
-    resultsFilePath,
-    selectedImageData,
-    startedAt: now,
-    updatedAt: now,
+  // Broadcast the user message so other tabs viewing this session
+  // see the input in real time. Runs AFTER beginRun so a 409 never
+  // produces a phantom user message in other clients.
+  pushSessionEvent(chatSessionId, {
+    type: EVENT_TYPES.text,
+    source: "user",
+    message,
   });
-
-  // Register abort callback and mark running. If the session is
-  // already running, reject with 409 Conflict.
-  const abortController = new AbortController();
-  const started = beginRun(chatSessionId, () => abortController.abort());
-  if (!started) {
-    return { kind: "error", error: "Session is already running", status: 409 };
-  }
 
   const role = getRole(roleId);
   const claudeSessionId = await readClaudeSessionId(
@@ -228,7 +264,7 @@ interface AcceptedResponse {
 }
 
 router.post(
-  "/agent",
+  API_ROUTES.agent.run,
   async (
     req: Request<object, unknown, AgentBody>,
     res: Response<ErrorResponse | AcceptedResponse>,
@@ -282,23 +318,23 @@ async function runAgentInBackground(
       claudeSessionId,
       abortSignal,
     )) {
-      if (event.type === "claude_session_id") {
+      if (event.type === EVENT_TYPES.claudeSessionId) {
         await updateClaudeSessionId(metaFilePath, event.id);
         continue;
       }
       pushSessionEvent(chatSessionId, event as Record<string, unknown>);
 
-      if (event.type === "text") {
+      if (event.type === EVENT_TYPES.text) {
         await appendFile(
           resultsFilePath,
           JSON.stringify({
             source: "assistant",
-            type: "text",
+            type: EVENT_TYPES.text,
             message: event.message,
           }) + "\n",
         );
       }
-      if (event.type === "tool_call") {
+      if (event.type === EVENT_TYPES.toolCall) {
         log.info("agent-tool", "call", {
           chatSessionId,
           toolName: event.toolName,
@@ -306,7 +342,7 @@ async function runAgentInBackground(
           argsPreview: previewJson(event.args),
         });
       }
-      if (event.type === "tool_call_result") {
+      if (event.type === EVENT_TYPES.toolCallResult) {
         // Look up the toolName from the cache *before* recordToolEvent
         // runs (it deletes the cache entry on result).
         const cached = toolArgsCache.get(event.toolUseId);
@@ -317,7 +353,10 @@ async function runAgentInBackground(
           contentBytes: event.content.length,
         });
       }
-      if (event.type === "tool_call" || event.type === "tool_call_result") {
+      if (
+        event.type === EVENT_TYPES.toolCall ||
+        event.type === EVENT_TYPES.toolCallResult
+      ) {
         // Fire-and-forget: tool-trace persistence failures must not
         // block the agent loop. Errors are log.warn'd by
         // recordToolEvent itself.
@@ -338,7 +377,10 @@ async function runAgentInBackground(
       chatSessionId,
       error: String(err),
     });
-    pushSessionEvent(chatSessionId, { type: "error", message: String(err) });
+    pushSessionEvent(chatSessionId, {
+      type: EVENT_TYPES.error,
+      message: String(err),
+    });
   } finally {
     endRun(chatSessionId);
     // Fire-and-forget: journal + chat-index post-processing
@@ -377,7 +419,8 @@ async function readClaudeSessionId(
     for (let i = lines.length - 1; i >= 0; i--) {
       try {
         const entry = JSON.parse(lines[i]);
-        if (entry.type === "claude_session_id" && entry.id) return entry.id;
+        if (entry.type === EVENT_TYPES.claudeSessionId && entry.id)
+          return entry.id;
       } catch {
         // skip malformed lines
       }
