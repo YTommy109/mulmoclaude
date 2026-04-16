@@ -78,7 +78,9 @@ function mockRes() {
 // Base timestamps comfortably within the 90-day window so the
 // SESSIONS_LIST_WINDOW_DAYS cutoff never hides them during tests.
 // All per-test timestamps are offsets from this base.
-const BASE_MS = Date.now() - 10 * 86_400_000; // 10 days ago
+// Rounded to whole seconds so the utimes(secs) → stat(mtimeMs)
+// roundtrip doesn't lose sub-ms precision on CI filesystems.
+const BASE_MS = Math.floor((Date.now() - 10 * 86_400_000) / 1000) * 1000;
 
 let tmpRoot: string;
 let chatDir: string;
@@ -182,7 +184,7 @@ beforeEach(async () => {
 describe("GET /api/sessions — full fetch (no ?since=)", () => {
   it("returns every visible session plus an envelope with cursor + empty deletedIds", async () => {
     await writeSession("s1", { mtimeMs: BASE_MS });
-    await writeSession("s2", { mtimeMs: BASE_MS + 100_000 });
+    await writeSession("s2", { mtimeMs: BASE_MS + 100_000_000 });
 
     const { state, res } = mockRes();
     await getHandler({ query: {} } as unknown as Request, res);
@@ -195,12 +197,12 @@ describe("GET /api/sessions — full fetch (no ?since=)", () => {
       body.cursor.startsWith("v1:"),
       `opaque cursor, got: ${body.cursor}`,
     );
-    assert.equal(body.cursor, encodeCursor(BASE_MS + 100_000));
+    assert.equal(body.cursor, encodeCursor(BASE_MS + 100_000_000));
   });
 
   it("sorts newest updatedAt first", async () => {
     await writeSession("older", { mtimeMs: BASE_MS });
-    await writeSession("newer", { mtimeMs: BASE_MS + 500_000 });
+    await writeSession("newer", { mtimeMs: BASE_MS + 500_000_000 });
 
     const { state, res } = mockRes();
     await getHandler({ query: {} } as unknown as Request, res);
@@ -212,12 +214,12 @@ describe("GET /api/sessions — full fetch (no ?since=)", () => {
 describe("GET /api/sessions?since=<cursor> — incremental fetch", () => {
   it("omits sessions whose changeMs <= cursor", async () => {
     await writeSession("old", { mtimeMs: BASE_MS });
-    await writeSession("new", { mtimeMs: BASE_MS + 200_000 });
+    await writeSession("new", { mtimeMs: BASE_MS + 200_000_000 });
 
     const { state, res } = mockRes();
     await getHandler(
       {
-        query: { since: encodeCursor(BASE_MS + 100_000) },
+        query: { since: encodeCursor(BASE_MS + 100_000_000) },
       } as unknown as Request,
       res,
     );
@@ -228,13 +230,13 @@ describe("GET /api/sessions?since=<cursor> — incremental fetch", () => {
   it("includes a session whose chat-index indexedAt bumped past cursor (mtime alone would miss it)", async () => {
     await writeSession("summarised", {
       mtimeMs: BASE_MS,
-      indexedAtMs: BASE_MS + 500_000,
+      indexedAtMs: BASE_MS + 500_000_000,
     });
 
     const { state, res } = mockRes();
     await getHandler(
       {
-        query: { since: encodeCursor(BASE_MS + 100_000) },
+        query: { since: encodeCursor(BASE_MS + 100_000_000) },
       } as unknown as Request,
       res,
     );
@@ -242,7 +244,7 @@ describe("GET /api/sessions?since=<cursor> — incremental fetch", () => {
     assert.deepEqual(ids, ["summarised"]);
     // The returned cursor must advance to the indexedAt time, not
     // just the mtime, so the next call won't re-fetch this row.
-    assert.equal(state.body!.cursor, encodeCursor(BASE_MS + 500_000));
+    assert.equal(state.body!.cursor, encodeCursor(BASE_MS + 500_000_000));
   });
 
   it("returns an empty diff when nothing has changed since cursor", async () => {
@@ -251,7 +253,7 @@ describe("GET /api/sessions?since=<cursor> — incremental fetch", () => {
     const { state, res } = mockRes();
     await getHandler(
       {
-        query: { since: encodeCursor(BASE_MS + 100_000) },
+        query: { since: encodeCursor(BASE_MS + 100_000_000) },
       } as unknown as Request,
       res,
     );
@@ -264,7 +266,7 @@ describe("GET /api/sessions?since=<cursor> — incremental fetch", () => {
 
   it("falls back to a full resend when the cursor is malformed", async () => {
     await writeSession("a", { mtimeMs: BASE_MS });
-    await writeSession("b", { mtimeMs: BASE_MS + 100_000 });
+    await writeSession("b", { mtimeMs: BASE_MS + 100_000_000 });
 
     const { state, res } = mockRes();
     await getHandler(
