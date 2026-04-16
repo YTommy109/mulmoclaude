@@ -7,6 +7,10 @@
 import { appendFile, readFile, writeFile } from "fs/promises";
 import path from "path";
 import type { IPubSub } from "../pub-sub/index.js";
+import {
+  PUBSUB_CHANNELS,
+  sessionChannel,
+} from "../../src/config/pubsubChannels.js";
 import { log } from "../logger/index.js";
 import { workspacePath } from "../workspace.js";
 
@@ -260,7 +264,7 @@ function persistHasUnread(chatSessionId: string, hasUnread: boolean): void {
 }
 
 function publishToSessionChannel(chatSessionId: string, data: unknown): void {
-  pubsub?.publish(`session.${chatSessionId}`, data);
+  pubsub?.publish(sessionChannel(chatSessionId), data);
   const listeners = sessionListeners.get(chatSessionId);
   if (listeners) {
     for (const listener of listeners) {
@@ -271,7 +275,7 @@ function publishToSessionChannel(chatSessionId: string, data: unknown): void {
 
 /** Notify all clients that session state has changed — refetch via REST. */
 function notifySessionsChanged(): void {
-  pubsub?.publish("sessions", {});
+  pubsub?.publish(PUBSUB_CHANNELS.sessions, {});
 }
 
 function evictIdleSessions(): void {

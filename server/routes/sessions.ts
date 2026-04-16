@@ -3,6 +3,7 @@ import fs from "fs";
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
 import { workspacePath } from "../workspace.js";
+import { WORKSPACE_PATHS } from "../workspace-paths.js";
 import { readManifest } from "../chat-index/indexer.js";
 import { resolveWithinRoot } from "../utils/fs.js";
 import type { ChatIndexEntry } from "../chat-index/types.js";
@@ -74,7 +75,7 @@ const WINDOW_MS =
 router.get(
   "/sessions",
   async (_req: Request, res: Response<SessionSummary[]>) => {
-    const chatDir = path.join(workspacePath, "chat");
+    const chatDir = WORKSPACE_PATHS.chat;
     const manifest = await readManifest(workspacePath);
     const indexById = new Map<string, ChatIndexEntry>(
       manifest.entries.map((e) => [e.id, e]),
@@ -158,7 +159,7 @@ router.get(
     res: Response<unknown[] | SessionErrorResponse>,
   ) => {
     const { id } = req.params;
-    const chatDir = path.join(workspacePath, "chat");
+    const chatDir = WORKSPACE_PATHS.chat;
     const filePath = path.join(chatDir, `${id}.jsonl`);
     try {
       const meta = await readSessionMeta(chatDir, id);
@@ -190,7 +191,7 @@ router.get(
                     // Resolve the stories dir's realpath so the
                     // boundary check works even when stories/ itself
                     // is a legitimate symlink to another disk.
-                    const storiesDir = path.resolve(workspacePath, "stories");
+                    const storiesDir = path.resolve(WORKSPACE_PATHS.stories);
                     let storiesReal: string;
                     try {
                       storiesReal = fs.realpathSync(storiesDir);

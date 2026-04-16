@@ -1,10 +1,10 @@
 import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
-import { workspacePath } from "../workspace.js";
+import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../workspace-paths.js";
 import { resolveWithinRoot } from "./fs.js";
 
-const IMAGES_DIR = path.join(workspacePath, "images");
+const IMAGES_DIR = WORKSPACE_PATHS.images;
 
 // Cached realpath of the images directory. resolveWithinRoot requires
 // its root argument to be a realpath so symlinks are handled correctly.
@@ -24,7 +24,10 @@ async function safeResolve(relativePath: string): Promise<string> {
   const root = await ensureImagesDir();
   // Strip the leading "images/" prefix so the caller can pass either
   // "images/abc.png" (the stored form) or just "abc.png".
-  const name = relativePath.replace(/^images\//, "");
+  const name = relativePath.replace(
+    new RegExp(`^${WORKSPACE_DIRS.images}/`),
+    "",
+  );
   const result = resolveWithinRoot(root, name);
   if (!result) {
     throw new Error(`path traversal rejected: ${relativePath}`);
@@ -39,7 +42,7 @@ export async function saveImage(base64Data: string): Promise<string> {
   const filename = `${id}.png`;
   const absPath = path.join(IMAGES_DIR, filename);
   await fs.writeFile(absPath, Buffer.from(base64Data, "base64"));
-  return `images/${filename}`;
+  return `${WORKSPACE_DIRS.images}/${filename}`;
 }
 
 /** Overwrite an existing image file. The relativePath must start with "images/". */
@@ -65,5 +68,7 @@ export function stripDataUri(dataUri: string): string {
 
 /** Check if a string is a file reference (not a data URI). */
 export function isImagePath(value: string): boolean {
-  return value.startsWith("images/") && value.endsWith(".png");
+  return (
+    value.startsWith(`${WORKSPACE_DIRS.images}/`) && value.endsWith(".png")
+  );
 }

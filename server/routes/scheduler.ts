@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import path from "path";
-import { workspacePath } from "../workspace.js";
+import { WORKSPACE_PATHS } from "../workspace-paths.js";
 import { loadJsonFile, saveJsonFile } from "../utils/file.js";
 import {
   dispatchScheduler,
@@ -21,7 +21,7 @@ export interface ScheduledItem {
   props: Record<string, string | number | boolean | null>;
 }
 
-const schedulerFile = () => path.join(workspacePath, "scheduler", "items.json");
+const schedulerFile = () => path.join(WORKSPACE_PATHS.scheduler, "items.json");
 
 function loadItems(): ScheduledItem[] {
   return loadJsonFile<ScheduledItem[]>(schedulerFile(), []);

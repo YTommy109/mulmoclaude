@@ -14,6 +14,7 @@ import {
   getActiveSessionIds,
 } from "../session-store/index.js";
 import { workspacePath } from "../workspace.js";
+import { WORKSPACE_PATHS } from "../workspace-paths.js";
 import { maybeRunJournal } from "../journal/index.js";
 import { maybeIndexSession } from "../chat-index/index.js";
 import { maybeAppendWikiBacklinks } from "../wiki-backlinks/index.js";
@@ -126,7 +127,7 @@ export async function startChat(
     };
   }
 
-  const chatDir = path.join(workspacePath, "chat");
+  const chatDir = WORKSPACE_PATHS.chat;
   await mkdir(chatDir, { recursive: true });
   const resultsFilePath = path.join(chatDir, `${chatSessionId}.jsonl`);
   const metaFilePath = path.join(chatDir, `${chatSessionId}.json`);

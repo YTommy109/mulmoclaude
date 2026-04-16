@@ -14,6 +14,7 @@ import imageRoutes from "./routes/image.js";
 import presentHtmlRoutes from "./routes/presentHtml.js";
 import chartRoutes from "./routes/chart.js";
 import rolesRoutes from "./routes/roles.js";
+import { DEFAULT_ROLE_ID } from "../src/config/roles.js";
 import mulmoScriptRoutes from "./routes/mulmo-script.js";
 import wikiRoutes from "./routes/wiki.js";
 import pdfRoutes from "./routes/pdf.js";
@@ -33,6 +34,7 @@ import { isDockerAvailable, ensureSandboxImage } from "./docker.js";
 import { maybeRunJournal } from "./journal/index.js";
 import { backfillAllSessions } from "./chat-index/index.js";
 import { createPubSub } from "./pub-sub/index.js";
+import { PUBSUB_CHANNELS } from "../src/config/pubsubChannels.js";
 import { createTaskManager } from "./task-manager/index.js";
 import type { ITaskManager } from "./task-manager/index.js";
 import type { IPubSub } from "./pub-sub/index.js";
@@ -294,7 +296,7 @@ function registerDebugTasks(taskManager: ITaskManager, pubsub: IPubSub) {
       tick++;
       const last = tick === 10;
       log.info("debug", `auto-chat countdown ${tick}/10`);
-      pubsub.publish("debug.beat", { count: tick, last });
+      pubsub.publish(PUBSUB_CHANNELS.debugBeat, { count: tick, last });
 
       if (!last) return;
 
@@ -303,7 +305,7 @@ function registerDebugTasks(taskManager: ITaskManager, pubsub: IPubSub) {
       log.info("debug", "starting auto-chat", { chatSessionId });
       const result = await startChat({
         message: "Tell me about this app, MulmoClaude.",
-        roleId: "general",
+        roleId: DEFAULT_ROLE_ID,
         chatSessionId,
       });
       log.info("debug", "auto-chat result", { kind: result.kind });
