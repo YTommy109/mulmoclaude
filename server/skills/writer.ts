@@ -11,13 +11,11 @@
 // MCP bridge) maps this to a 409 Conflict so Claude can ask the
 // user for a different name.
 
-import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
-import { randomUUID } from "node:crypto";
-import { rmdir } from "node:fs/promises";
+import { unlink, rmdir } from "node:fs/promises";
 import { discoverSkills } from "./discovery.js";
 import { isValidSlug, projectSkillDir, projectSkillPath } from "./paths.js";
 import { log } from "../logger/index.js";
+import { writeFileAtomic } from "../utils/file.js";
 
 export interface SaveSkillInput {
   /** Workspace root (typically `~/mulmoclaude`). */
@@ -62,24 +60,15 @@ export async function saveProjectSkill(
   }
 
   const finalPath = projectSkillPath(workspaceRoot, name);
-  await mkdir(dirname(finalPath), { recursive: true });
-
   const contents = formatSkillFile(description, body);
 
-  // Atomic write: tmp file in the same directory, then rename.
-  // Same-FS rename is atomic on POSIX so a partial write can never
-  // leave a half-baked SKILL.md visible to a concurrent reader.
-  // Place the tmp file alongside the final path — using os.tmpdir()
-  // can cross a filesystem boundary on some setups (Docker volumes,
-  // separate /tmp mounts) and cause `rename()` to fail with EXDEV.
-  const tmpPath = `${finalPath}.${randomUUID()}.tmp`;
+  // Atomic + uniqueTmp: same-FS rename is atomic on POSIX so a
+  // partial write can never leave a half-baked SKILL.md visible to a
+  // concurrent reader. The uniqueTmp flag guards against leftover
+  // `.tmp` from a previous crashed run colliding with a new write.
   try {
-    await writeFile(tmpPath, contents, "utf-8");
-    await rename(tmpPath, finalPath);
+    await writeFileAtomic(finalPath, contents, { uniqueTmp: true });
   } catch (err) {
-    // Best-effort cleanup; ignore if rename succeeded then the
-    // tmp removal raced.
-    await unlink(tmpPath).catch(() => {});
     log.error("skills", "save failed", { name, error: String(err) });
     throw err;
   }

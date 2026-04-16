@@ -175,7 +175,11 @@ export function buildSourcesContext(workspacePath: string): string | null {
 }
 
 export function buildPluginPromptSections(role: Role): string[] {
-  const allowedPlugins = new Set(role.availablePlugins);
+  // Widen to Set<string> so the `.has()` checks accept arbitrary
+  // definition names (PLUGIN_DEFS entries and MCP tool names are
+  // typed as `string` upstream; role.availablePlugins is now the
+  // narrower `ToolName[]` after #292).
+  const allowedPlugins = new Set<string>(role.availablePlugins);
 
   // Collect prompts from local plugin definitions (ToolDefinition.prompt).
   // Some package plugins use an older gui-chat-protocol without the `prompt`

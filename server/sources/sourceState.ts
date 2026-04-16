@@ -10,7 +10,8 @@
 
 import fsp from "node:fs/promises";
 import { defaultSourceState, type SourceState } from "./types.js";
-import { isValidSlug, sourceStateDir, sourceStatePath } from "./paths.js";
+import { isValidSlug, sourceStatePath } from "./paths.js";
+import { writeJsonAtomic } from "../utils/file.js";
 
 // Shallow-parse + type-guard one state record. Returns a
 // default state (zeroed counters, empty cursor) when the file
@@ -87,11 +88,7 @@ export async function writeSourceState(
   if (!isValidSlug(state.slug)) {
     throw new Error(`[sources/state] invalid slug: ${state.slug}`);
   }
-  await fsp.mkdir(sourceStateDir(workspaceRoot), { recursive: true });
-  const target = sourceStatePath(workspaceRoot, state.slug);
-  const tmp = `${target}.tmp`;
-  await fsp.writeFile(tmp, JSON.stringify(state, null, 2), "utf-8");
-  await fsp.rename(tmp, target);
+  await writeJsonAtomic(sourceStatePath(workspaceRoot, state.slug), state);
 }
 
 // Convenience: read every state file listed for the given

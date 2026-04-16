@@ -1,13 +1,12 @@
 import { GoogleGenAI, type GenerateContentParameters } from "@google/genai";
+import { env } from "../env.js";
+
+export { isGeminiAvailable } from "../env.js";
 
 export function getGeminiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = env.geminiApiKey;
   if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
   return new GoogleGenAI({ apiKey });
-}
-
-export function isGeminiAvailable(): boolean {
-  return !!process.env.GEMINI_API_KEY;
 }
 
 // --- Image generation -----------------------------------------------

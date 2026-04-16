@@ -14,6 +14,7 @@ import imageRoutes from "./routes/image.js";
 import presentHtmlRoutes from "./routes/presentHtml.js";
 import chartRoutes from "./routes/chart.js";
 import rolesRoutes from "./routes/roles.js";
+import { DEFAULT_ROLE_ID } from "../src/config/roles.js";
 import mulmoScriptRoutes from "./routes/mulmo-script.js";
 import wikiRoutes from "./routes/wiki.js";
 import pdfRoutes from "./routes/pdf.js";
@@ -27,12 +28,14 @@ import {
   isMcpToolEnabled,
 } from "./mcp-tools/index.js";
 import { initWorkspace } from "./workspace.js";
+import { env, isGeminiAvailable } from "./env.js";
 import fs from "fs";
 import os from "os";
 import { isDockerAvailable, ensureSandboxImage } from "./docker.js";
 import { maybeRunJournal } from "./journal/index.js";
 import { backfillAllSessions } from "./chat-index/index.js";
 import { createPubSub } from "./pub-sub/index.js";
+import { PUBSUB_CHANNELS } from "../src/config/pubsubChannels.js";
 import { createTaskManager } from "./task-manager/index.js";
 import type { ITaskManager } from "./task-manager/index.js";
 import type { IPubSub } from "./pub-sub/index.js";
@@ -52,7 +55,7 @@ initWorkspace();
 let sandboxEnabled = false;
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3001;
+const PORT = env.port;
 
 app.disable("x-powered-by");
 // No `cors()` middleware. The Vite dev proxy forwards `/api/*`
@@ -77,7 +80,7 @@ app.use(requireSameOrigin);
 app.get(API_ROUTES.health, (_req: Request, res: Response) => {
   res.json({
     status: "OK",
-    geminiAvailable: !!process.env.GEMINI_API_KEY,
+    geminiAvailable: isGeminiAvailable(),
     sandboxEnabled,
   });
 });
@@ -106,7 +109,7 @@ app.use(skillsRoutes);
 app.use(chatServiceRoutes);
 app.use(mcpToolsRouter);
 
-if (process.env.NODE_ENV === "production") {
+if (env.isProduction) {
   app.use(express.static(path.join(__dirname, "../client")));
   app.get("*", (_req: Request, res: Response) => {
     res.sendFile(path.join(__dirname, "../client/index.html"));
@@ -161,7 +164,7 @@ async function ensureCredentialsAvailable(): Promise<void> {
 }
 
 async function setupSandbox(): Promise<boolean> {
-  if (process.env.DISABLE_SANDBOX === "1") {
+  if (env.disableSandbox) {
     log.info(
       "sandbox",
       "DISABLE_SANDBOX=1 — running unrestricted (debug mode)",
@@ -211,7 +214,7 @@ function maybeForceJournalRun(): void {
   // journal pass immediately without waiting for a session end or
   // the hourly interval. Fire-and-forget — journal errors never
   // propagate out of maybeRunJournal.
-  if (process.env.JOURNAL_FORCE_RUN_ON_STARTUP !== "1") return;
+  if (!env.journalForceRunOnStartup) return;
   log.info("journal", "JOURNAL_FORCE_RUN_ON_STARTUP=1 — running now");
   maybeRunJournal({ force: true }).catch((err) => {
     log.warn("journal", "forced startup run failed", { error: String(err) });
@@ -223,7 +226,7 @@ function maybeForceChatIndexBackfill(): void {
   // session's title summary on startup. Useful the first time the
   // feature is rolled out over an existing workspace, or when
   // debugging the indexer itself.
-  if (process.env.CHAT_INDEX_FORCE_RUN_ON_STARTUP !== "1") return;
+  if (!env.chatIndexForceRunOnStartup) return;
   log.info("chat-index", "CHAT_INDEX_FORCE_RUN_ON_STARTUP=1 — running now");
   backfillAllSessions()
     .then((result) => {
@@ -299,7 +302,7 @@ function registerDebugTasks(taskManager: ITaskManager, pubsub: IPubSub) {
       tick++;
       const last = tick === 10;
       log.info("debug", `auto-chat countdown ${tick}/10`);
-      pubsub.publish("debug.beat", { count: tick, last });
+      pubsub.publish(PUBSUB_CHANNELS.debugBeat, { count: tick, last });
 
       if (!last) return;
 
@@ -308,7 +311,7 @@ function registerDebugTasks(taskManager: ITaskManager, pubsub: IPubSub) {
       log.info("debug", "starting auto-chat", { chatSessionId });
       const result = await startChat({
         message: "Tell me about this app, MulmoClaude.",
-        roleId: "general",
+        roleId: DEFAULT_ROLE_ID,
         chatSessionId,
       });
       log.info("debug", "auto-chat result", { kind: result.kind });

@@ -9,6 +9,7 @@ import { resolveWithinRoot } from "../utils/fs.js";
 import type { ChatIndexEntry } from "../chat-index/types.js";
 import { markRead, getSession } from "../session-store/index.js";
 import { API_ROUTES } from "../../src/config/apiRoutes.js";
+import { env } from "../env.js";
 
 interface SessionMeta {
   roleId: string;
@@ -70,8 +71,7 @@ const router = Router();
 
 // Sessions older than this are excluded from the listing. Set
 // SESSIONS_LIST_WINDOW_DAYS to override (0 = no cutoff).
-const WINDOW_MS =
-  (Number(process.env.SESSIONS_LIST_WINDOW_DAYS) || 90) * 86_400_000;
+const WINDOW_MS = env.sessionsListWindowDays * 86_400_000;
 
 router.get(
   API_ROUTES.sessions.list,

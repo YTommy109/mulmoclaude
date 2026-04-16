@@ -1,4 +1,5 @@
 import { errorMessage } from "../utils/errors.js";
+import { env } from "../env.js";
 
 const X_API_BASE = "https://api.twitter.com/2";
 const TWEET_FIELDS =
@@ -32,7 +33,7 @@ interface XApiResponse {
 }
 
 async function fetchX(path: string): Promise<XApiResponse> {
-  const token = process.env.X_BEARER_TOKEN;
+  const token = env.xBearerToken;
   if (!token) throw new Error("X_BEARER_TOKEN is not configured in .env");
 
   let response: Response;

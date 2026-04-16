@@ -37,7 +37,6 @@
 // doesn't rewrite the user's notes.
 
 import fsp from "node:fs/promises";
-import path from "node:path";
 import {
   isFetcherKind,
   isSourceSchedule,
@@ -48,6 +47,7 @@ import {
 } from "./types.js";
 import { normalizeCategories } from "./taxonomy.js";
 import type { CategorySlug } from "./taxonomy.js";
+import { writeFileAtomic } from "../utils/file.js";
 import { isValidSlug, sourceFilePath, sourcesRoot } from "./paths.js";
 import { log } from "../logger/index.js";
 
@@ -350,11 +350,10 @@ export async function writeSource(
   if (!isValidSlug(source.slug)) {
     throw new Error(`[sources] invalid slug: ${source.slug}`);
   }
-  const target = sourceFilePath(workspaceRoot, source.slug);
-  await fsp.mkdir(path.dirname(target), { recursive: true });
-  const tmp = `${target}.tmp`;
-  await fsp.writeFile(tmp, serializeSource(source), "utf-8");
-  await fsp.rename(tmp, target);
+  await writeFileAtomic(
+    sourceFilePath(workspaceRoot, source.slug),
+    serializeSource(source),
+  );
 }
 
 export async function deleteSource(
