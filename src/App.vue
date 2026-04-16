@@ -323,6 +323,7 @@
       :mcp-tools-error="mcpToolsError"
       @update:open="showSettings = $event"
     />
+    <NotificationToast />
   </div>
 </template>
 
@@ -342,6 +343,7 @@ import PluginLauncher, {
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
 import SettingsModal from "./components/SettingsModal.vue";
+import NotificationToast from "./components/NotificationToast.vue";
 import type { SseEvent } from "./types/sse";
 import {
   type SessionSummary,

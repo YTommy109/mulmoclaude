@@ -273,23 +273,23 @@ setTimeout elapses
   └─ chatService.pushToBridge(transportId, chatId, message)               → Bridge (offline-queued)
 ```
 
-Web subscribers listen on `PUBSUB_CHANNELS.notifications` (`src/config/pubsubChannels.ts`). Bridges receive via the Phase B push socket (`yarn cli` prints `[push] notifications: hello …`).
+Web subscribers listen on `PUBSUB_CHANNELS.notifications` (`src/config/pubsubChannels.ts`). The `useNotifications` composable wraps the subscription; `NotificationToast.vue` renders the latest inbound item as a top-right toast that auto-dismisses after 5 s. Bridges receive via the Phase B push socket (`yarn cli` prints `[push] notifications: hello …`).
 
 ### Observing the PoC end-to-end
 
 1. `yarn dev` (server + Vite)
 2. In a second terminal: `yarn cli`
 3. In a third terminal: fire the curl above with `delaySeconds: 5`
-4. After 5 s: CLI prints `[push] notifications: hello from curl`; browser DevTools → Network → `/ws/pubsub` frame shows an inbound `notifications` event
+4. After 5 s: a toast slides in top-right of the open browser tab ("hello from curl"), and the CLI terminal prints `[push] notifications: hello from curl`
 
 ### Scope caveats
 
-- **No UI**: the Web side has no visible toast yet — lives in #144.
+- **Single toast**, no stack / notification-center bell / bell badge — those land with the real notification center (#144). The toast is intentionally a thin wrapper to confirm the pipeline delivers.
 - **No persistence**: `setTimeout` is in-memory; a server restart before the delay elapses drops the push.
 - **One bridge per call**: `pushToBridge` targets a single `transportId`. Fan-out to every connected bridge is deferred until a caller needs it.
 - **One-shot only**: no repeat / snooze / dedup. Production triggers should go through the notification center once #144 lands.
 
-Full motivation + file plan: `plans/feat-notification-push-scaffold.md`. Implementation: `server/events/notifications.ts` (scheduler) + `server/api/routes/notifications.ts` (HTTP wrapper).
+Full motivation + file plan: `plans/feat-notification-push-scaffold.md`. Implementation: `server/events/notifications.ts` (scheduler) + `server/api/routes/notifications.ts` (HTTP wrapper) + `src/composables/useNotifications.ts` + `src/components/NotificationToast.vue`.
 
 ---
 
