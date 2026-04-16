@@ -1,22 +1,20 @@
+// @package-contract — see ./types.ts
+//
+// Express middleware factory for the transport chat bridge.
+// `createChatService(deps)` returns a Router you mount with
+// `app.use(createChatService(deps))`. All host-app dependencies
+// arrive through `deps`; the module has no direct imports from
+// `../routes/…`, `../roles.js`, `../session-store/…`, or `../logger/…`
+// so it can be lifted into a standalone npm package without
+// internal edits. See #269 / #305.
+
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { log } from "../logger/index.js";
-import { getRole } from "../roles.js";
-import { DEFAULT_ROLE_ID } from "../../src/config/roles.js";
-import { startChat } from "../routes/agent.js";
-import { onSessionEvent } from "../session-store/index.js";
-import {
-  getChatState,
-  setChatState,
-  resetChatState,
-  connectSession,
-} from "./chat-state.js";
-import { handleCommand } from "./commands.js";
-import { badRequest, notFound } from "../utils/httpError.js";
 import { API_ROUTES } from "../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../src/types/events.js";
-
-const router = Router();
+import { createChatStateStore } from "./chat-state.js";
+import { createCommandHandler } from "./commands.js";
+import type { ChatServiceDeps, OnSessionEventFn } from "./types.js";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -38,135 +36,164 @@ interface ConnectRequestParams {
   externalChatId: string;
 }
 
-// ── POST /api/chat/:transportId/:externalChatId ──────────────
-//
-// The main endpoint bridges call. Send text, get a reply.
-
-router.post(
-  API_ROUTES.chatService.message,
-  async (
-    req: Request<ChatRequestParams, unknown, ChatRequestBody>,
-    res: Response,
-  ) => {
-    const { transportId, externalChatId } = req.params;
-    const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
-
-    if (!text) {
-      badRequest(res, "text is required");
-      return;
-    }
-
-    log.info("chat-service", "message received", {
-      transportId,
-      externalChatId,
-      textLength: text.length,
-    });
-
-    // Load or create chat state
-    let chatState = await getChatState(transportId, externalChatId);
-    if (!chatState) {
-      const defaultRole = getRole(DEFAULT_ROLE_ID);
-      chatState = await resetChatState(
-        transportId,
-        externalChatId,
-        defaultRole.id,
-      );
-    }
-
-    // Check for slash commands
-    const commandResult = await handleCommand(text, transportId, chatState);
-    if (commandResult) {
-      res.json({ reply: commandResult.reply });
-      return;
-    }
-
-    // Relay message through startChat()
-    const result = await startChat({
-      message: text,
-      roleId: chatState.roleId,
-      chatSessionId: chatState.sessionId,
-    });
-
-    if (result.kind === "error") {
-      // Session may be busy (409) — tell the bridge
-      const status = result.status ?? 500;
-      if (status === 409) {
-        res.status(409).json({
-          reply: "A previous message is still being processed. Please wait.",
-        });
-        return;
-      }
-      log.error("chat-service", "startChat failed", {
-        transportId,
-        externalChatId,
-        error: result.error,
-      });
-      res.status(status).json({ reply: `Error: ${result.error}` });
-      return;
-    }
-
-    // Collect agent response via in-process event listener
-    try {
-      const reply = await collectAgentReply(chatState.sessionId);
-
-      // Update chat state timestamp
-      await setChatState(transportId, {
-        ...chatState,
-        updatedAt: new Date().toISOString(),
-      });
-
-      res.json({ reply });
-    } catch (err) {
-      log.error("chat-service", "reply collection failed", {
-        transportId,
-        externalChatId,
-        error: String(err),
-      });
-      res.status(500).json({ reply: "Error: failed to collect agent reply" });
-    }
-  },
-);
-
-// ── POST /api/chat/:transportId/:externalChatId/connect ──────
-//
-// Reassign the active session pointer for a transport chat.
-
-router.post(
-  API_ROUTES.chatService.connect,
-  async (
-    req: Request<ConnectRequestParams, unknown, ConnectRequestBody>,
-    res: Response,
-  ) => {
-    const { transportId, externalChatId } = req.params;
-    const chatSessionId =
-      typeof req.body?.chatSessionId === "string"
-        ? req.body.chatSessionId.trim()
-        : "";
-
-    if (!chatSessionId) {
-      badRequest(res, "chatSessionId is required");
-      return;
-    }
-
-    const updated = await connectSession(
-      transportId,
-      externalChatId,
-      chatSessionId,
-    );
-    if (!updated) {
-      notFound(res, "No chat state found for this transport");
-      return;
-    }
-
-    res.json({ ok: true });
-  },
-);
-
-// ── Event collection helper ──────────────────────────────────
+// ── Constants ────────────────────────────────────────────────
 
 const REPLY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
-function collectAgentReply(chatSessionId: string): Promise<string> {
+// Inlined (not imported from `../utils/httpError.js`) so the module
+// has no outbound dependency on the host app's utility modules.
+// See `@package-contract` in ./types.ts.
+const badRequest = (res: Response, error: string) =>
+  res.status(400).json({ error });
+const notFound = (res: Response, error: string) =>
+  res.status(404).json({ error });
+
+// ── Factory ──────────────────────────────────────────────────
+
+export function createChatService(deps: ChatServiceDeps): Router {
+  const { startChat, onSessionEvent, loadAllRoles, getRole, defaultRoleId } =
+    deps;
+  const logger = deps.logger;
+  const store = createChatStateStore({
+    transportsDir: deps.transportsDir,
+    logger,
+  });
+  const handleCommand = createCommandHandler({
+    loadAllRoles,
+    getRole,
+    resetChatState: store.resetChatState,
+  });
+
+  const router = Router();
+
+  // POST /api/chat/:transportId/:externalChatId — send text, get a reply.
+  router.post(
+    API_ROUTES.chatService.message,
+    async (
+      req: Request<ChatRequestParams, unknown, ChatRequestBody>,
+      res: Response,
+    ) => {
+      const { transportId, externalChatId } = req.params;
+      const text =
+        typeof req.body?.text === "string" ? req.body.text.trim() : "";
+
+      if (!text) {
+        badRequest(res, "text is required");
+        return;
+      }
+
+      logger.info("chat-service", "message received", {
+        transportId,
+        externalChatId,
+        textLength: text.length,
+      });
+
+      let chatState = await store.getChatState(transportId, externalChatId);
+      if (!chatState) {
+        const defaultRole = getRole(defaultRoleId);
+        chatState = await store.resetChatState(
+          transportId,
+          externalChatId,
+          defaultRole.id,
+        );
+      }
+
+      const commandResult = await handleCommand(text, transportId, chatState);
+      if (commandResult) {
+        res.json({ reply: commandResult.reply });
+        return;
+      }
+
+      const result = await startChat({
+        message: text,
+        roleId: chatState.roleId,
+        chatSessionId: chatState.sessionId,
+      });
+
+      if (result.kind === "error") {
+        const status = result.status ?? 500;
+        if (status === 409) {
+          // Session busy — tell the bridge to retry.
+          res.status(409).json({
+            reply: "A previous message is still being processed. Please wait.",
+          });
+          return;
+        }
+        logger.error("chat-service", "startChat failed", {
+          transportId,
+          externalChatId,
+          error: result.error,
+        });
+        res.status(status).json({ reply: `Error: ${result.error}` });
+        return;
+      }
+
+      try {
+        const reply = await collectAgentReply(
+          onSessionEvent,
+          chatState.sessionId,
+        );
+        await store.setChatState(transportId, {
+          ...chatState,
+          updatedAt: new Date().toISOString(),
+        });
+        res.json({ reply });
+      } catch (err) {
+        logger.error("chat-service", "reply collection failed", {
+          transportId,
+          externalChatId,
+          error: String(err),
+        });
+        res.status(500).json({ reply: "Error: failed to collect agent reply" });
+      }
+    },
+  );
+
+  // POST /api/chat/:transportId/:externalChatId/connect — reassign
+  // the active session pointer for a transport chat.
+  router.post(
+    API_ROUTES.chatService.connect,
+    async (
+      req: Request<ConnectRequestParams, unknown, ConnectRequestBody>,
+      res: Response,
+    ) => {
+      const { transportId, externalChatId } = req.params;
+      const chatSessionId =
+        typeof req.body?.chatSessionId === "string"
+          ? req.body.chatSessionId.trim()
+          : "";
+
+      if (!chatSessionId) {
+        badRequest(res, "chatSessionId is required");
+        return;
+      }
+
+      const updated = await store.connectSession(
+        transportId,
+        externalChatId,
+        chatSessionId,
+      );
+      if (!updated) {
+        notFound(res, "No chat state found for this transport");
+        return;
+      }
+
+      res.json({ ok: true });
+    },
+  );
+
+  return router;
+}
+
+// Startable independent of the host app — `startChat` is the only
+// outward call, and it's a plain function reference from deps.
+// Keeping this helper free of closure over deps (taking
+// `onSessionEvent` as a parameter) means future packaging doesn't
+// need to re-capture anything.
+function collectAgentReply(
+  onSessionEvent: OnSessionEventFn,
+  chatSessionId: string,
+): Promise<string> {
   return new Promise((resolve) => {
     const textChunks: string[] = [];
 
@@ -203,4 +230,8 @@ function collectAgentReply(chatSessionId: string): Promise<string> {
   });
 }
 
-export default router;
+export type {
+  ChatServiceDeps,
+  StartChatFn,
+  OnSessionEventFn,
+} from "./types.js";

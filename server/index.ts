@@ -21,7 +21,10 @@ import pdfRoutes from "./routes/pdf.js";
 import filesRoutes from "./routes/files.js";
 import configRoutes from "./routes/config.js";
 import skillsRoutes from "./routes/skills.js";
-import chatServiceRoutes from "./chat-service/index.js";
+import { createChatService } from "./chat-service/index.js";
+import { onSessionEvent } from "./session-store/index.js";
+import { getRole, loadAllRoles } from "./roles.js";
+import { WORKSPACE_PATHS } from "./workspace-paths.js";
 import { serverError } from "./utils/httpError.js";
 import {
   mcpToolsRouter,
@@ -107,7 +110,17 @@ app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
 app.use(skillsRoutes);
-app.use(chatServiceRoutes);
+app.use(
+  createChatService({
+    startChat,
+    onSessionEvent,
+    loadAllRoles,
+    getRole,
+    defaultRoleId: DEFAULT_ROLE_ID,
+    transportsDir: WORKSPACE_PATHS.transports,
+    logger: log,
+  }),
+);
 app.use(mcpToolsRouter);
 
 if (env.isProduction) {
