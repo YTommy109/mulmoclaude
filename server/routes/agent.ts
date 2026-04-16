@@ -5,6 +5,10 @@ import { getRole } from "../roles.js";
 import { runAgent } from "../agent.js";
 import { prependJournalPointer } from "../agent/prompt.js";
 import {
+  buildTranscriptPreamble,
+  isStaleSessionError,
+} from "../agent/resumeFailover.js";
+import {
   getOrCreateSession,
   beginRun,
   endRun,
@@ -293,6 +297,72 @@ interface BackgroundRunParams {
   toolArgsCache: ReturnType<typeof createArgsCache>;
 }
 
+// Per-event side-effect context passed to `handleAgentEvent`.
+interface EventContext {
+  chatSessionId: string;
+  resultsFilePath: string;
+  metaFilePath: string;
+  toolArgsCache: ReturnType<typeof createArgsCache>;
+}
+
+// Returns true if the event was handled "out of band" (no pub-sub
+// broadcast, no jsonl append). Right now only `claudeSessionId`
+// events fall into that bucket — they update meta and are otherwise
+// invisible to clients. Everything else is treated as "normal flow":
+// broadcast + optional jsonl append + optional tool-trace side effect.
+async function handleAgentEvent(
+  event: Awaited<ReturnType<typeof runAgent>> extends AsyncGenerator<infer E>
+    ? E
+    : never,
+  ctx: EventContext,
+): Promise<void> {
+  if (event.type === EVENT_TYPES.claudeSessionId) {
+    await updateClaudeSessionId(ctx.metaFilePath, event.id);
+    return;
+  }
+  pushSessionEvent(ctx.chatSessionId, event as Record<string, unknown>);
+
+  if (event.type === EVENT_TYPES.text) {
+    await appendFile(
+      ctx.resultsFilePath,
+      JSON.stringify({
+        source: "assistant",
+        type: EVENT_TYPES.text,
+        message: event.message,
+      }) + "\n",
+    );
+    return;
+  }
+  if (event.type === EVENT_TYPES.toolCall) {
+    log.info("agent-tool", "call", {
+      chatSessionId: ctx.chatSessionId,
+      toolName: event.toolName,
+      toolUseId: event.toolUseId,
+      argsPreview: previewJson(event.args),
+    });
+  } else if (event.type === EVENT_TYPES.toolCallResult) {
+    // Look up the toolName from the cache *before* recordToolEvent
+    // runs (it deletes the cache entry on result).
+    const cached = ctx.toolArgsCache.get(event.toolUseId);
+    log.info("agent-tool", "result", {
+      chatSessionId: ctx.chatSessionId,
+      toolName: cached?.toolName,
+      toolUseId: event.toolUseId,
+      contentBytes: event.content.length,
+    });
+  } else {
+    return;
+  }
+  // Fire-and-forget: tool-trace persistence failures must not block
+  // the agent loop. Errors are log.warn'd by recordToolEvent itself.
+  recordToolEvent(event, {
+    workspaceRoot: workspacePath,
+    chatSessionId: ctx.chatSessionId,
+    resultsFilePath: ctx.resultsFilePath,
+    argsCache: ctx.toolArgsCache,
+  }).catch(logBackgroundError("tool-trace"));
+}
+
 async function runAgentInBackground(
   params: BackgroundRunParams,
 ): Promise<void> {
@@ -308,65 +378,71 @@ async function runAgentInBackground(
     toolArgsCache,
   } = params;
 
-  try {
-    for await (const event of runAgent(
-      decoratedMessage,
-      role,
-      workspacePath,
-      chatSessionId,
-      PORT,
-      claudeSessionId,
-      abortSignal,
-    )) {
-      if (event.type === EVENT_TYPES.claudeSessionId) {
-        await updateClaudeSessionId(metaFilePath, event.id);
-        continue;
-      }
-      pushSessionEvent(chatSessionId, event as Record<string, unknown>);
+  const eventCtx: EventContext = {
+    chatSessionId,
+    resultsFilePath,
+    metaFilePath,
+    toolArgsCache,
+  };
 
-      if (event.type === EVENT_TYPES.text) {
-        await appendFile(
-          resultsFilePath,
-          JSON.stringify({
-            source: "assistant",
-            type: EVENT_TYPES.text,
-            message: event.message,
-          }) + "\n",
-        );
+  // Retry budget for the stale `--resume` id fail-over (#211). Only
+  // meaningful when we entered with a `claudeSessionId`; a fresh
+  // session can't hit that error. One retry max so a looping CLI
+  // bug can't stack infinite replays of the transcript.
+  let failoverAttemptsRemaining = claudeSessionId ? 1 : 0;
+  let currentMessage = decoratedMessage;
+  let currentClaudeSessionId = claudeSessionId;
+
+  try {
+    while (true) {
+      let staleSessionDetected = false;
+      for await (const event of runAgent(
+        currentMessage,
+        role,
+        workspacePath,
+        chatSessionId,
+        PORT,
+        currentClaudeSessionId,
+        abortSignal,
+      )) {
+        if (
+          failoverAttemptsRemaining > 0 &&
+          event.type === EVENT_TYPES.error &&
+          typeof event.message === "string" &&
+          isStaleSessionError(event.message)
+        ) {
+          // Swallow the error — we're about to recover. `break`
+          // abandons the current generator; since the event is only
+          // yielded after the CLI has already exited non-zero, the
+          // subprocess is dead by this point and there's nothing to
+          // clean up beyond what `for await`'s return() already does.
+          staleSessionDetected = true;
+          failoverAttemptsRemaining--;
+          break;
+        }
+        await handleAgentEvent(event, eventCtx);
       }
-      if (event.type === EVENT_TYPES.toolCall) {
-        log.info("agent-tool", "call", {
-          chatSessionId,
-          toolName: event.toolName,
-          toolUseId: event.toolUseId,
-          argsPreview: previewJson(event.args),
-        });
-      }
-      if (event.type === EVENT_TYPES.toolCallResult) {
-        // Look up the toolName from the cache *before* recordToolEvent
-        // runs (it deletes the cache entry on result).
-        const cached = toolArgsCache.get(event.toolUseId);
-        log.info("agent-tool", "result", {
-          chatSessionId,
-          toolName: cached?.toolName,
-          toolUseId: event.toolUseId,
-          contentBytes: event.content.length,
-        });
-      }
-      if (
-        event.type === EVENT_TYPES.toolCall ||
-        event.type === EVENT_TYPES.toolCallResult
-      ) {
-        // Fire-and-forget: tool-trace persistence failures must not
-        // block the agent loop. Errors are log.warn'd by
-        // recordToolEvent itself.
-        recordToolEvent(event, {
-          workspaceRoot: workspacePath,
-          chatSessionId,
-          resultsFilePath,
-          argsCache: toolArgsCache,
-        }).catch(logBackgroundError("tool-trace"));
-      }
+      if (!staleSessionDetected) break;
+
+      // Stale `--resume` recovery: clear the bad id from meta so the
+      // next *external* read of this session doesn't see it, build a
+      // natural-language preamble from the jsonl we already have,
+      // and loop back to `runAgent` without `--resume`. Surface a
+      // status event so the UI pause doesn't look like a hang.
+      log.warn("agent", "stale claude session id — retrying without --resume", {
+        chatSessionId,
+      });
+      await clearClaudeSessionId(metaFilePath);
+      const preamble = await readTranscriptPreamble(resultsFilePath);
+      currentMessage = preamble
+        ? `${preamble}${decoratedMessage}`
+        : decoratedMessage;
+      currentClaudeSessionId = undefined;
+      pushSessionEvent(chatSessionId, {
+        type: EVENT_TYPES.status,
+        message:
+          "Previous session unavailable — continuing with local transcript.",
+      });
     }
     log.info("agent", "request completed", {
       chatSessionId,
@@ -458,6 +534,36 @@ async function updateClaudeSessionId(
     await writeFile(metaFilePath, JSON.stringify({ ...meta, claudeSessionId }));
   } catch {
     // ignore if meta file is missing
+  }
+}
+
+// Drop the (now-stale) `claudeSessionId` key from meta after a
+// `--resume` fail-over. Leaves every other field (roleId, startedAt,
+// firstUserMessage, hasUnread) intact. The new id gets written back
+// by `updateClaudeSessionId` on the retried run's first
+// `claudeSessionId` event.
+async function clearClaudeSessionId(metaFilePath: string): Promise<void> {
+  try {
+    const meta = JSON.parse(await readFile(metaFilePath, "utf-8"));
+    delete meta.claudeSessionId;
+    await writeFile(metaFilePath, JSON.stringify(meta));
+  } catch {
+    // ignore if meta file is missing or unreadable
+  }
+}
+
+// Read the session jsonl and render the transcript preamble used on
+// `--resume` fail-over. Returns "" on any read / parse failure —
+// the retry then runs without a preamble, which is still an
+// improvement over the user seeing the original error.
+async function readTranscriptPreamble(
+  resultsFilePath: string,
+): Promise<string> {
+  try {
+    const jsonl = await readFile(resultsFilePath, "utf-8");
+    return buildTranscriptPreamble(jsonl);
+  } catch {
+    return "";
   }
 }
 
