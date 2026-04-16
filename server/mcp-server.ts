@@ -8,6 +8,7 @@ import type { ToolDefinition } from "gui-chat-protocol";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
 import { TOOL_ENDPOINTS, PLUGIN_DEFS } from "./plugin-names.js";
 import { errorMessage } from "./utils/errors.js";
+import { env } from "./env.js";
 
 type JsonRpcId = string | number | null;
 
@@ -26,13 +27,11 @@ interface JsonRpcMessage {
 const isJsonRpcMessage = (v: unknown): v is JsonRpcMessage =>
   typeof v === "object" && v !== null && !Array.isArray(v) && "method" in v;
 
-const SESSION_ID = process.env.SESSION_ID ?? "";
-const PORT = process.env.PORT ?? "3001";
-const PLUGIN_NAMES = (process.env.PLUGIN_NAMES ?? "")
-  .split(",")
-  .filter(Boolean);
-const ROLE_IDS = (process.env.ROLE_IDS ?? "").split(",").filter(Boolean);
-const MCP_HOST = process.env.MCP_HOST ?? "localhost";
+const SESSION_ID = env.mcpSessionId;
+const PORT = env.port;
+const PLUGIN_NAMES = env.mcpPluginNames;
+const ROLE_IDS = env.mcpRoleIds;
+const MCP_HOST = env.mcpHost;
 const BASE_URL = `http://${MCP_HOST}:${PORT}`;
 
 interface ToolDef {

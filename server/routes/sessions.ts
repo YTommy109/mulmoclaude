@@ -3,16 +3,19 @@ import fs from "fs";
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
 import { workspacePath } from "../workspace.js";
+import { WORKSPACE_PATHS } from "../workspace-paths.js";
 import { readManifest } from "../chat-index/indexer.js";
 import { resolveWithinRoot } from "../utils/fs.js";
 import type { ChatIndexEntry } from "../chat-index/types.js";
 import { markRead, getSession } from "../session-store/index.js";
 import { notFound } from "../utils/httpError.js";
+import { env } from "../env.js";
 
 interface SessionMeta {
   roleId: string;
   startedAt: string;
   firstUserMessage?: string;
+  hasUnread?: boolean;
 }
 
 async function readSessionMeta(
@@ -68,13 +71,12 @@ const router = Router();
 
 // Sessions older than this are excluded from the listing. Set
 // SESSIONS_LIST_WINDOW_DAYS to override (0 = no cutoff).
-const WINDOW_MS =
-  (Number(process.env.SESSIONS_LIST_WINDOW_DAYS) || 90) * 86_400_000;
+const WINDOW_MS = env.sessionsListWindowDays * 86_400_000;
 
 router.get(
   "/sessions",
   async (_req: Request, res: Response<SessionSummary[]>) => {
-    const chatDir = path.join(workspacePath, "chat");
+    const chatDir = WORKSPACE_PATHS.chat;
     const manifest = await readManifest(workspacePath);
     const indexById = new Map<string, ChatIndexEntry>(
       manifest.entries.map((e) => [e.id, e]),
@@ -104,24 +106,23 @@ router.get(
               const preview = indexEntry?.title ?? meta.firstUserMessage ?? "";
 
               const live = getSession(id);
-              return {
+              const summary: SessionSummary = {
                 id,
                 roleId: meta.roleId,
                 startedAt: meta.startedAt,
                 updatedAt: new Date(fileStat.mtimeMs).toISOString(),
                 preview,
-                ...(indexEntry?.summary !== undefined && {
-                  summary: indexEntry.summary,
-                }),
-                ...(indexEntry?.keywords !== undefined && {
-                  keywords: indexEntry.keywords,
-                }),
-                ...(live && {
-                  isRunning: live.isRunning,
-                  hasUnread: live.hasUnread,
-                  statusMessage: live.statusMessage,
-                }),
+                hasUnread: live?.hasUnread ?? meta.hasUnread ?? false,
               };
+              if (indexEntry?.summary !== undefined)
+                summary.summary = indexEntry.summary;
+              if (indexEntry?.keywords !== undefined)
+                summary.keywords = indexEntry.keywords;
+              if (live) {
+                summary.isRunning = live.isRunning;
+                summary.statusMessage = live.statusMessage;
+              }
+              return summary;
             } catch {
               return null;
             }
@@ -159,7 +160,7 @@ router.get(
     res: Response<unknown[] | SessionErrorResponse>,
   ) => {
     const { id } = req.params;
-    const chatDir = path.join(workspacePath, "chat");
+    const chatDir = WORKSPACE_PATHS.chat;
     const filePath = path.join(chatDir, `${id}.jsonl`);
     try {
       const meta = await readSessionMeta(chatDir, id);
@@ -191,7 +192,7 @@ router.get(
                     // Resolve the stories dir's realpath so the
                     // boundary check works even when stories/ itself
                     // is a legitimate symlink to another disk.
-                    const storiesDir = path.resolve(workspacePath, "stories");
+                    const storiesDir = path.resolve(WORKSPACE_PATHS.stories);
                     let storiesReal: string;
                     try {
                       storiesReal = fs.realpathSync(storiesDir);

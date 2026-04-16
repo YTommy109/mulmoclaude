@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
-import { workspacePath } from "../workspace.js";
+import { WORKSPACE_PATHS } from "../workspace-paths.js";
 import { log } from "../logger/index.js";
 
 // ── Types ────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ function isSafeId(id: string): boolean {
 }
 
 function getTransportDir(transportId: string): string {
-  return path.join(workspacePath, "transports", transportId, "chats");
+  return path.join(WORKSPACE_PATHS.transports, transportId, "chats");
 }
 
 function getStatePath(transportId: string, externalChatId: string): string {

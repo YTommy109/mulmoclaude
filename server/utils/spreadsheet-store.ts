@@ -1,10 +1,10 @@
 import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
-import { workspacePath } from "../workspace.js";
+import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../workspace-paths.js";
 import { resolveWithinRoot } from "./fs.js";
 
-const SPREADSHEETS_DIR = path.join(workspacePath, "spreadsheets");
+const SPREADSHEETS_DIR = WORKSPACE_PATHS.spreadsheets;
 
 // Cached realpath of the spreadsheets directory. resolveWithinRoot
 // requires its root argument to be a realpath so symlinks are handled
@@ -25,7 +25,10 @@ async function safeResolve(relativePath: string): Promise<string> {
   const root = await ensureSpreadsheetsDir();
   // Strip the leading "spreadsheets/" prefix so callers can pass either
   // the stored form or just the filename.
-  const name = relativePath.replace(/^spreadsheets\//, "");
+  const name = relativePath.replace(
+    new RegExp(`^${WORKSPACE_DIRS.spreadsheets}/`),
+    "",
+  );
   const result = resolveWithinRoot(root, name);
   if (!result) {
     throw new Error(`path traversal rejected: ${relativePath}`);
@@ -43,7 +46,7 @@ export async function saveSpreadsheet(sheets: unknown[]): Promise<string> {
     JSON.stringify(sheets),
     "utf-8",
   );
-  return `spreadsheets/${filename}`;
+  return `${WORKSPACE_DIRS.spreadsheets}/${filename}`;
 }
 
 /** Overwrite an existing spreadsheet file. */
@@ -59,7 +62,7 @@ export async function overwriteSpreadsheet(
  *  Rejects traversal attempts like "spreadsheets/../outside.json"
  *  so the caller can't rely on the prefix/suffix alone. */
 export function isSpreadsheetPath(value: string): boolean {
-  if (!value.startsWith("spreadsheets/")) return false;
+  if (!value.startsWith(`${WORKSPACE_DIRS.spreadsheets}/`)) return false;
   if (!value.endsWith(".json")) return false;
   // Forbid .. segments anywhere in the path — a realpath check still
   // happens server-side, but this catches obvious cases early.

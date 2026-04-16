@@ -15,6 +15,7 @@ import path from "node:path";
 import { archivePath, dailyNewsPath } from "../paths.js";
 import { errorMessage } from "../../utils/errors.js";
 import type { SourceItem } from "../types.js";
+import { writeFileAtomic } from "../../utils/file.js";
 
 // --- JSON index --------------------------------------------------------
 
@@ -94,11 +95,7 @@ export async function writeDailyFile(
   items: readonly SourceItem[],
 ): Promise<string> {
   const target = dailyNewsPath(workspaceRoot, isoDate);
-  await fsp.mkdir(path.dirname(target), { recursive: true });
-  const tmp = `${target}.tmp`;
-  const content = assembleDailyFile(markdown, items);
-  await fsp.writeFile(tmp, content, "utf-8");
-  await fsp.rename(tmp, target);
+  await writeFileAtomic(target, assembleDailyFile(markdown, items));
   return target;
 }
 

@@ -1,60 +1,45 @@
 import { execSync } from "child_process";
 import fs from "fs";
-import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { log } from "./logger/index.js";
+import {
+  EAGER_WORKSPACE_DIRS,
+  WORKSPACE_PATHS,
+  workspacePath,
+} from "./workspace-paths.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(__dirname, "helps");
 
-export const workspacePath = path.join(os.homedir(), "mulmoclaude");
+// Re-exported so existing callers (`import { workspacePath } from
+// "./workspace.js"`) keep working. See workspace-paths.ts for the
+// definitive source.
+export { workspacePath };
 
 // Must exist before downstream modules call realpathSync(workspacePath) at their own module-load time.
 fs.mkdirSync(workspacePath, { recursive: true });
 
-const SUBDIRS = [
-  "chat",
-  "todos",
-  "calendar",
-  "contacts",
-  "scheduler",
-  "roles",
-  "stories",
-  "images",
-  "markdowns",
-  "spreadsheets",
-  // Chart documents saved by the `presentChart` plugin. One file per
-  // invocation; each file can hold multiple charts.
-  "charts",
-  // Web-configurable settings (app-wide) and user-defined MCP servers
-  // live under this dir so future import/export can ship them as a
-  // unit. See plans/feat-web-settings-ui.md.
-  "configs",
-];
-
 export function initWorkspace(): string {
   // Create directory structure if needed
-  for (const dir of SUBDIRS) {
-    fs.mkdirSync(path.join(workspacePath, dir), { recursive: true });
+  for (const key of EAGER_WORKSPACE_DIRS) {
+    fs.mkdirSync(WORKSPACE_PATHS[key], { recursive: true });
   }
 
   // Create memory.md if it doesn't exist
-  const memoryFile = path.join(workspacePath, "memory.md");
-  if (!fs.existsSync(memoryFile)) {
+  if (!fs.existsSync(WORKSPACE_PATHS.memory)) {
     fs.writeFileSync(
-      memoryFile,
+      WORKSPACE_PATHS.memory,
       "# Memory\n\nDistilled facts about you and your work.\n",
     );
   }
 
   // Always sync all files from server/helps/ into workspace/helps/
-  const helpsDestDir = path.join(workspacePath, "helps");
-  fs.mkdirSync(helpsDestDir, { recursive: true });
+  fs.mkdirSync(WORKSPACE_PATHS.helps, { recursive: true });
   for (const file of fs.readdirSync(TEMPLATES_DIR)) {
     fs.copyFileSync(
       path.join(TEMPLATES_DIR, file),
-      path.join(helpsDestDir, file),
+      path.join(WORKSPACE_PATHS.helps, file),
     );
   }
 
