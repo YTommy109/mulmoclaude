@@ -67,6 +67,14 @@ export async function mockAllApis(
     route.fulfill({ json: DEFAULT_HEALTH }),
   );
 
+  // `/api/sandbox` mirrors the real server's empty-object contract
+  // when the sandbox is off (#329). Tests that need the enabled
+  // branch override this route BEFORE calling mockAllApis —
+  // Playwright checks last-registered-first.
+  await page.route(urlEndsWith("/api/sandbox"), (route) =>
+    route.fulfill({ json: {} }),
+  );
+
   await page.route(urlEndsWith("/api/roles"), (route) =>
     route.fulfill({ json: DEFAULT_ROLES }),
   );
