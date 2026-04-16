@@ -29,13 +29,18 @@ async function loadFresh(): Promise<TokenModule> {
 
 let tmpDir = "";
 let savedHome: string | undefined;
+let savedUserProfile: string | undefined;
 let savedToken: string | undefined;
 
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mulmo-bridge-token-test-"));
   savedHome = process.env.HOME;
+  savedUserProfile = process.env.USERPROFILE;
   savedToken = process.env.MULMOCLAUDE_AUTH_TOKEN;
+  // `os.homedir()` reads HOME on POSIX and USERPROFILE on Windows;
+  // override both so the test is platform-agnostic.
   process.env.HOME = tmpDir;
+  process.env.USERPROFILE = tmpDir;
   delete process.env.MULMOCLAUDE_AUTH_TOKEN;
   // Pre-create the workspace dir so the token file has a home.
   fs.mkdirSync(path.join(tmpDir, "mulmoclaude"), { recursive: true });
@@ -45,6 +50,8 @@ afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
   if (savedHome === undefined) delete process.env.HOME;
   else process.env.HOME = savedHome;
+  if (savedUserProfile === undefined) delete process.env.USERPROFILE;
+  else process.env.USERPROFILE = savedUserProfile;
   if (savedToken === undefined) delete process.env.MULMOCLAUDE_AUTH_TOKEN;
   else process.env.MULMOCLAUDE_AUTH_TOKEN = savedToken;
 });
