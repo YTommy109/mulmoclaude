@@ -27,6 +27,7 @@ import {
   isMcpToolEnabled,
 } from "./mcp-tools/index.js";
 import { initWorkspace } from "./workspace.js";
+import { env, isGeminiAvailable } from "./env.js";
 import fs from "fs";
 import os from "os";
 import { isDockerAvailable, ensureSandboxImage } from "./docker.js";
@@ -51,7 +52,7 @@ initWorkspace();
 let sandboxEnabled = false;
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3001;
+const PORT = env.port;
 
 app.disable("x-powered-by");
 // No `cors()` middleware. The Vite dev proxy forwards `/api/*`
@@ -76,7 +77,7 @@ app.use(requireSameOrigin);
 app.get("/api/health", (_req: Request, res: Response) => {
   res.json({
     status: "OK",
-    geminiAvailable: !!process.env.GEMINI_API_KEY,
+    geminiAvailable: isGeminiAvailable(),
     sandboxEnabled,
   });
 });
@@ -101,7 +102,7 @@ app.use("/api", skillsRoutes);
 app.use("/api", chatServiceRoutes);
 app.use("/api/mcp-tools", mcpToolsRouter);
 
-if (process.env.NODE_ENV === "production") {
+if (env.isProduction) {
   app.use(express.static(path.join(__dirname, "../client")));
   app.get("*", (_req: Request, res: Response) => {
     res.sendFile(path.join(__dirname, "../client/index.html"));
@@ -156,7 +157,7 @@ async function ensureCredentialsAvailable(): Promise<void> {
 }
 
 async function setupSandbox(): Promise<boolean> {
-  if (process.env.DISABLE_SANDBOX === "1") {
+  if (env.disableSandbox) {
     log.info(
       "sandbox",
       "DISABLE_SANDBOX=1 — running unrestricted (debug mode)",
@@ -206,7 +207,7 @@ function maybeForceJournalRun(): void {
   // journal pass immediately without waiting for a session end or
   // the hourly interval. Fire-and-forget — journal errors never
   // propagate out of maybeRunJournal.
-  if (process.env.JOURNAL_FORCE_RUN_ON_STARTUP !== "1") return;
+  if (!env.journalForceRunOnStartup) return;
   log.info("journal", "JOURNAL_FORCE_RUN_ON_STARTUP=1 — running now");
   maybeRunJournal({ force: true }).catch((err) => {
     log.warn("journal", "forced startup run failed", { error: String(err) });
@@ -218,7 +219,7 @@ function maybeForceChatIndexBackfill(): void {
   // session's title summary on startup. Useful the first time the
   // feature is rolled out over an existing workspace, or when
   // debugging the indexer itself.
-  if (process.env.CHAT_INDEX_FORCE_RUN_ON_STARTUP !== "1") return;
+  if (!env.chatIndexForceRunOnStartup) return;
   log.info("chat-index", "CHAT_INDEX_FORCE_RUN_ON_STARTUP=1 — running now");
   backfillAllSessions()
     .then((result) => {

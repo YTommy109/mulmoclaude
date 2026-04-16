@@ -5,6 +5,7 @@ import { readFileSync, statSync } from "fs";
 import { homedir } from "os";
 import { join, resolve as resolvePath } from "path";
 import { log } from "./logger/index.js";
+import { env } from "./env.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -46,7 +47,7 @@ function assertClaudeFiles(): void {
 }
 
 export async function isDockerAvailable(): Promise<boolean> {
-  if (process.env.DISABLE_SANDBOX === "1") return false;
+  if (env.disableSandbox) return false;
   if (_dockerEnabled !== null) return _dockerEnabled;
   assertClaudeFiles();
   try {

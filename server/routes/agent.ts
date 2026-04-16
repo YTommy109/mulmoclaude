@@ -20,9 +20,10 @@ import { maybeAppendWikiBacklinks } from "../wiki-backlinks/index.js";
 import { log } from "../logger/index.js";
 import { logBackgroundError } from "../utils/logBackgroundError.js";
 import { createArgsCache, recordToolEvent } from "../tool-trace/index.js";
+import { env } from "../env.js";
 
 const router = Router();
-const PORT = Number(process.env.PORT) || 3001;
+const PORT = env.port;
 
 // Short, safe preview of tool args for logs. Full payload may contain
 // base64 images or large blobs, so we cap it. The goal is to make a
