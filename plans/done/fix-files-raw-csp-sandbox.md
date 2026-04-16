@@ -40,7 +40,7 @@ CSP `sandbox` alone (no allow-flags) is the strictest setting and the right defa
 
 ## Code change
 
-Single file: `server/routes/files.ts`, inside the `/files/raw` handler.
+Single file: `server/api/routes/files.ts`, inside the `/files/raw` handler.
 
 ```ts
 res.setHeader("Accept-Ranges", "bytes");

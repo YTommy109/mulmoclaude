@@ -9,7 +9,7 @@ Add two MCP tools for X (Twitter) via the official X API v2, both returning plai
 | `readXPost` | Fetch a single post by URL or tweet ID |
 | `searchX` | Search recent posts by keyword/query |
 
-Both share the same `X_BEARER_TOKEN` and live in a single file `server/mcp-tools/x.ts`.
+Both share the same `X_BEARER_TOKEN` and live in a single file `server/agent/mcp-tools/x.ts`.
 
 ---
 
@@ -53,7 +53,7 @@ user.fields=name,username
 
 ## Folder Structure for MCP Tools
 
-Pure MCP tools (no GUI) live in `server/mcp-tools/`. Unlike `src/plugins/`, there is no need to split definition from implementation since there are no Vue imports. Each tool is a single file:
+Pure MCP tools (no GUI) live in `server/agent/mcp-tools/`. Unlike `src/plugins/`, there is no need to split definition from implementation since there are no Vue imports. Each tool is a single file:
 
 ```
 server/
@@ -62,7 +62,7 @@ server/
     index.ts        ← barrel: exports mcpTools[] used by mcp-server.ts and routes
 ```
 
-**Adding a future MCP tool = add one file to `server/mcp-tools/` and register it in `index.ts`.**
+**Adding a future MCP tool = add one file to `server/agent/mcp-tools/` and register it in `index.ts`.**
 
 Each tool file exports one entry per tool:
 
@@ -135,7 +135,7 @@ The Express route (`/api/mcp-tools`) is used because the MCP server process is o
 
 ## Implementation
 
-### 1. `server/mcp-tools/x.ts`
+### 1. `server/agent/mcp-tools/x.ts`
 
 Shared helper: `fetchX(path, params)` — adds `Authorization: Bearer` header, handles 401/404/429 with descriptive error strings.
 
@@ -172,11 +172,11 @@ Shared helper: `fetchX(path, params)` — adds `Authorization: Bearer` header, h
 
 Both export `requiredEnv = ["X_BEARER_TOKEN"]`.
 
-### 2. `server/mcp-tools/index.ts`
+### 2. `server/agent/mcp-tools/index.ts`
 
 Barrel + Express router as described above.
 
-### 3. `server/mcp-server.ts`
+### 3. `server/agent/mcp-server.ts`
 
 - Import `mcpTools` from `./mcp-tools/index.js`
 - Add each tool's `definition` to `ALL_TOOLS`
@@ -186,7 +186,7 @@ Barrel + Express router as described above.
 
 - Mount: `app.use("/api/mcp-tools", mcpToolsRouter)`
 
-### 5. `server/agent.ts`
+### 5. `server/agent/index.ts`
 
 - Import `mcpTools` from `./mcp-tools/index.js`
 - Replace `MCP_PLUGINS`-only filter with combined set (enabled MCP tools auto-discovered):
@@ -207,14 +207,14 @@ After this change, **`agent.ts` never needs editing when adding future MCP tools
 
 New files:
 ```
-server/mcp-tools/x.ts          ← readXPost + searchX tools
-server/mcp-tools/index.ts      ← barrel + Express router
+server/agent/mcp-tools/x.ts          ← readXPost + searchX tools
+server/agent/mcp-tools/index.ts      ← barrel + Express router
 ```
 
 Edits to existing files:
-- `server/mcp-server.ts` — import mcpTools, register definitions, handle calls (no frontend push)
+- `server/agent/mcp-server.ts` — import mcpTools, register definitions, handle calls (no frontend push)
 - `server/index.ts` — mount `/api/mcp-tools` router
-- `server/agent.ts` — extend allowed set with enabled mcpTools names (MCP_PLUGINS unchanged)
+- `server/agent/index.ts` — extend allowed set with enabled mcpTools names (MCP_PLUGINS unchanged)
 - `src/config/roles.ts` — add `"readXPost"` and `"searchX"` to relevant roles' availablePlugins
 - `src/plugins/manageRoles/View.vue` — fetch `GET /api/mcp-tools` on mount, merge enabled tools into plugin checklist
 

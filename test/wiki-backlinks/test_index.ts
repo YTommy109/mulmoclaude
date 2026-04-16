@@ -6,9 +6,9 @@ import path from "path";
 import {
   maybeAppendWikiBacklinks,
   type WikiBacklinksDeps,
-} from "../../server/wiki-backlinks/index.js";
-import { BACKLINKS_MARKER } from "../../server/wiki-backlinks/sessionBacklinks.js";
-import { WORKSPACE_DIRS } from "../../server/workspace-paths.js";
+} from "../../server/workspace/wiki-backlinks/index.js";
+import { BACKLINKS_MARKER } from "../../server/workspace/wiki-backlinks/sessionBacklinks.js";
+import { WORKSPACE_DIRS } from "../../server/workspace/paths.js";
 
 const SID = "3e0382cb-f02f-4f5b-a9a3-a71e50d7ad0c";
 

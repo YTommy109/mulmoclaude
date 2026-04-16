@@ -76,7 +76,7 @@ Right after `express.json()` in `server/index.ts`, before any `app.use("/api", .
 
 ### Structure
 
-- New file `server/csrfGuard.ts` — exports `requireSameOrigin` and its helper `isLocalhostOrigin` for test.
+- New file `server/api/csrfGuard.ts` — exports `requireSameOrigin` and its helper `isLocalhostOrigin` for test.
 - `server/index.ts` imports and wires it in.
 - New test file `test/server/test_csrfGuard.ts` exercises the middleware with fake Req/Res objects.
 

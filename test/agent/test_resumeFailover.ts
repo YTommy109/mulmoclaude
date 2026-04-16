@@ -7,7 +7,7 @@ import {
 } from "../../server/agent/resumeFailover.ts";
 import { EVENT_TYPES } from "../../src/types/events.ts";
 
-// Shape matches what `server/routes/agent.ts` appends to the session
+// Shape matches what `server/api/routes/agent.ts` appends to the session
 // jsonl. Kept close to the production writer so drift breaks the
 // tests loudly.
 function jsonlLine(source: "user" | "assistant", message: string): string {

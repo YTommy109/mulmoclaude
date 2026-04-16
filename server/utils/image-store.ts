@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
-import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../workspace-paths.js";
+import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../workspace/paths.js";
 import { resolveWithinRoot } from "./fs.js";
 
 const IMAGES_DIR = WORKSPACE_PATHS.images;

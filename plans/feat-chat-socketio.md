@@ -83,20 +83,20 @@ Phase B adds `push` for async delivery.
 
 ### In
 
-1. `server/chat-service/relay.ts` — `createRelay(deps) → RelayFn`. Holds
+1. `server/api/chat-service/relay.ts` — `createRelay(deps) → RelayFn`. Holds
    the shared flow previously inlined in `createChatService`
    (load-or-create state → command handler → startChat → collect reply →
    timestamp update). DI-pure; all host deps arrive through the factory.
-2. `server/chat-service/socket.ts` — `attachChatSocket(server, deps) →
+2. `server/api/chat-service/socket.ts` — `attachChatSocket(server, deps) →
    SocketServer`. Handshake validates `transportId` and (if configured)
    `token`. The `message` event dispatches through the injected `RelayFn`.
-3. `server/chat-service/index.ts` — `createChatService(deps)` now
+3. `server/api/chat-service/index.ts` — `createChatService(deps)` now
    returns `{ router, attachSocket, relay }`. Both the HTTP route and
    the socket call the same `relay` so there's one place the chat flow
    lives.
-4. `server/chat-service/types.ts` — add optional `tokenProvider?: () =>
+4. `server/api/chat-service/types.ts` — add optional `tokenProvider?: () =>
    string | null` to `ChatServiceDeps`.
-5. `server/index.ts` — pass `getCurrentToken` (from `server/auth/token.js`)
+5. `server/index.ts` — pass `getCurrentToken` (from `server/api/auth/token.js`)
    as `tokenProvider`; call `chatService.attachSocket(httpServer)` after
    `createPubSub(httpServer)`.
 6. `bridges/cli/index.ts` — rewrite with `socket.io-client`. Reads

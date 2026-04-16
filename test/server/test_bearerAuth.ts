@@ -17,11 +17,11 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import type { Request, Response, NextFunction } from "express";
-import { bearerAuth } from "../../server/auth/bearerAuth.ts";
+import { bearerAuth } from "../../server/api/auth/bearerAuth.js";
 import {
   __resetForTests,
   generateAndWriteToken,
-} from "../../server/auth/token.ts";
+} from "../../server/api/auth/token.js";
 
 interface FakeReq {
   headers: { authorization?: string };

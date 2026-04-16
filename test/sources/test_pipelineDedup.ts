@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { dedupAcrossSources } from "../../server/sources/pipeline/dedup.js";
-import type { SourceItem } from "../../server/sources/types.js";
+import { dedupAcrossSources } from "../../server/workspace/sources/pipeline/dedup.js";
+import type { SourceItem } from "../../server/workspace/sources/types.js";
 
 function makeItem(id: string, sourceSlug: string): SourceItem {
   return {

@@ -6,9 +6,9 @@ import {
   handleMove,
   handlePatch,
   migrateItems,
-} from "../../server/routes/todosItemsHandlers.js";
-import { DEFAULT_COLUMNS } from "../../server/routes/todosColumnsHandlers.js";
-import type { TodoItem } from "../../server/routes/todos.js";
+} from "../../server/api/routes/todosItemsHandlers.js";
+import { DEFAULT_COLUMNS } from "../../server/api/routes/todosColumnsHandlers.js";
+import type { TodoItem } from "../../server/api/routes/todos.js";
 
 function cols() {
   return DEFAULT_COLUMNS.map((c) => ({ ...c }));

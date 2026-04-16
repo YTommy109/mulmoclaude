@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseSkillFrontmatter } from "../../server/skills/parser.js";
+import { parseSkillFrontmatter } from "../../server/workspace/skills/parser.js";
 
 describe("parseSkillFrontmatter", () => {
   it("parses a standard SKILL.md with description + body", () => {

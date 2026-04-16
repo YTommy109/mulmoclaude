@@ -12,9 +12,12 @@ import {
   archiveMonthFor,
   groupItemsForArchive,
   appendItemsToArchives,
-} from "../../server/sources/pipeline/write.js";
-import { archivePath, dailyNewsPath } from "../../server/sources/paths.js";
-import type { SourceItem } from "../../server/sources/types.js";
+} from "../../server/workspace/sources/pipeline/write.js";
+import {
+  archivePath,
+  dailyNewsPath,
+} from "../../server/workspace/sources/paths.js";
+import type { SourceItem } from "../../server/workspace/sources/types.js";
 
 function makeItem(over: Partial<SourceItem> = {}): SourceItem {
   return {

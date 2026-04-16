@@ -45,7 +45,7 @@ Recover automatically when that specific error is detected:
 | File | Kind | Purpose |
 |---|---|---|
 | `server/agent/resumeFailover.ts` | new | `isStaleSessionError`, `buildTranscriptPreamble`, `DEFAULT_TRANSCRIPT_MAX_CHARS` |
-| `server/routes/agent.ts` | edit | Retry loop in `runAgentInBackground`, `clearClaudeSessionId` helper, `readTranscriptPreamble` helper, `handleAgentEvent` extraction (keeps `runAgentInBackground` under the cognitive-complexity cap after adding the outer `while`) |
+| `server/api/routes/agent.ts` | edit | Retry loop in `runAgentInBackground`, `clearClaudeSessionId` helper, `readTranscriptPreamble` helper, `handleAgentEvent` extraction (keeps `runAgentInBackground` under the cognitive-complexity cap after adding the outer `while`) |
 | `test/agent/test_resumeFailover.ts` | new | Unit tests for detection + preamble (filtering, truncation, empty-case, default opt) |
 | `docs/manual-testing.md` | edit | Smoke-test recipe entry |
 

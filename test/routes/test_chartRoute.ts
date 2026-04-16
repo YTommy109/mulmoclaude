@@ -1,4 +1,4 @@
-// Unit tests for server/routes/chart.ts. Validates the payload guard
+// Unit tests for server/api/routes/chart.ts. Validates the payload guard
 // pure-functionally so we don't need to spin up an Express app or
 // touch the filesystem. The route wires slug + timestamp onto a tmp
 // file; that side is covered by the e2e spec.
@@ -6,7 +6,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { isValidChartDocument } from "../../server/routes/chart.js";
+import { isValidChartDocument } from "../../server/api/routes/chart.js";
 
 describe("isValidChartDocument", () => {
   it("accepts a minimal one-chart document", () => {

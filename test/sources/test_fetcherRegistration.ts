@@ -12,9 +12,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import "../../server/sources/fetchers/registerAll.js";
-import { getFetcher } from "../../server/sources/fetchers/index.js";
-import type { FetcherKind } from "../../server/sources/types.js";
+import "../../server/workspace/sources/fetchers/registerAll.js";
+import { getFetcher } from "../../server/workspace/sources/fetchers/index.js";
+import type { FetcherKind } from "../../server/workspace/sources/types.js";
 
 // Kinds that MUST have a registered fetcher after importing
 // registerAll.ts. FETCHER_KINDS itself also contains Claude-CLI-
@@ -34,7 +34,7 @@ describe("fetcher registration (production bootstrap)", () => {
       const fetcher = getFetcher(kind);
       assert.ok(
         fetcher,
-        `no fetcher registered for "${kind}" — did you forget to import it from server/sources/fetchers/registerAll.ts?`,
+        `no fetcher registered for "${kind}" — did you forget to import it from server/workspace/sources/fetchers/registerAll.ts?`,
       );
       assert.equal(fetcher!.kind, kind);
       assert.equal(typeof fetcher!.fetch, "function");

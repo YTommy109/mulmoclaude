@@ -36,7 +36,7 @@ This happens repeatedly. If you're tempted to write `\`` inside a gh body, stop 
 
 ### LLM Core
 
-The agent loop runs via `runAgent()` in `server/agent.ts`. Claude decides autonomously which tools to use — built-in file tools or gui-chat-protocol plugins registered as MCP servers. The MCP server (`server/mcp-server.ts`) is a stdio JSON-RPC bridge spawned by the Claude CLI via `--mcp-config`.
+The agent loop runs via `runAgent()` in `server/agent/index.ts`. Claude decides autonomously which tools to use — built-in file tools or gui-chat-protocol plugins registered as MCP servers. The MCP server (`server/agent/mcp-server.ts`) is a stdio JSON-RPC bridge spawned by the Claude CLI via `--mcp-config`.
 
 ### Plugin Layer
 
@@ -52,7 +52,7 @@ SSE from `POST /api/agent`: `{ type: "status" | "tool_result" | "error", ... }`.
 
 ### Workspace
 
-Hard-coded to `~/mulmoclaude/` (see `server/workspace.ts`). There is **no `WORKSPACE_PATH` env override**; changing the location requires a code edit or a symlink. Post-#284 the layout is grouped into four top-level buckets — full reference in [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude). Short version:
+Hard-coded to `~/mulmoclaude/` (see `server/workspace/workspace.ts`). There is **no `WORKSPACE_PATH` env override**; changing the location requires a code edit or a symlink. Post-#284 the layout is grouped into four top-level buckets — full reference in [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude). Short version:
 
 ```text
 ~/mulmoclaude/
@@ -66,7 +66,7 @@ Hard-coded to `~/mulmoclaude/` (see `server/workspace.ts`). There is **no `WORKS
 
 Pre-#284 workspaces must run `yarn tsx scripts/migrate-workspace-284.ts --execute` (preceded by `--dry-run`) once before the server will start.
 
-**Always reach for constants** (`WORKSPACE_PATHS.<key>` / `WORKSPACE_DIRS.<key>` / `WORKSPACE_FILES.<key>` from `server/workspace-paths.ts`) when composing workspace paths — never hardcode a literal. A rename is one-file edit there; hardcoded literals turn it into a grep-and-edit across the server.
+**Always reach for constants** (`WORKSPACE_PATHS.<key>` / `WORKSPACE_DIRS.<key>` / `WORKSPACE_FILES.<key>` from `server/workspace/paths.ts`) when composing workspace paths — never hardcode a literal. A rename is one-file edit there; hardcoded literals turn it into a grep-and-edit across the server.
 
 ### Routing (vue-router, history mode)
 
@@ -91,15 +91,24 @@ URL-based navigation via `vue-router` (history mode — clean paths, no `#`). Th
 
 ## Key Files
 
+`server/` is grouped by concern (#323). Top-level directories: `agent/`, `api/`, `workspace/`, `events/`, `system/`, `utils/`.
+
 | File | Purpose |
 |---|---|
-| `server/agent.ts` | Agent loop, MCP server creation per role |
-| `server/routes/agent.ts` | `POST /api/agent` → SSE stream |
-| `server/journal/` | Workspace journal (daily + optimization passes) |
-| `server/chat-index/` | Per-session summarizer + sidebar title cache |
+| `server/agent/index.ts` | Agent loop, MCP server creation per role |
+| `server/agent/mcp-server.ts` | stdio JSON-RPC MCP bridge spawned by the Claude CLI |
+| `server/api/routes/agent.ts` | `POST /api/agent` → SSE stream |
+| `server/api/chat-service/` | External-bridge HTTP + socket.io surface |
+| `server/api/auth/` | Bearer token + CSRF gate |
+| `server/workspace/journal/` | Workspace journal (daily + optimization passes) |
+| `server/workspace/chat-index/` | Per-session summarizer + sidebar title cache |
+| `server/workspace/roles.ts` | Custom-role loader over `<workspace>/roles/` |
+| `server/events/pub-sub/` | In-process publish/subscribe (socket.io-backed) |
+| `server/events/session-store/` | In-memory session state + event fan-out |
+| `server/events/task-manager/` | Cron-ish scheduled task runner |
+| `server/system/env.ts` | Single source of truth for `process.env.*` |
+| `server/system/logger/` | Structured logger (console + rotating file + telemetry stub) |
 | `server/utils/` | Shared helpers: `fs.ts`, `errors.ts` |
-| `server/logger/` | Structured logger (console + rotating file + telemetry stub) |
-| `server/csrfGuard.ts` | CSRF origin-check middleware |
 | `src/config/apiRoutes.ts` | Central `/api/*` endpoint path constants (shared by server + frontend) |
 | `src/config/roles.ts` | Role definitions |
 | `src/tools/index.ts` | Plugin registry |
@@ -116,16 +125,16 @@ Each plugin is a `ToolPlugin` (from `gui-chat-protocol/vue`, extended in `src/to
 
 Import the canonical `TOOL_DEFINITION` directly — **do not copy or re-type the schema**. Update **4 places**:
 
-1. `server/mcp-server.ts` — import and add to `TOOL_ENDPOINTS` + `ALL_TOOLS`
+1. `server/agent/mcp-server.ts` — import and add to `TOOL_ENDPOINTS` + `ALL_TOOLS`
 2. `src/tools/index.ts` — register in the `plugins` map using `TOOL_NAME` as key
 3. `src/config/roles.ts` — add to relevant role's `availablePlugins`
-4. `server/agent.ts` — add to `MCP_PLUGINS`
+4. `server/agent/index.ts` — add to `MCP_PLUGINS`
 
-Route handler goes in `server/routes/plugins.ts`. Add the endpoint path to `src/config/apiRoutes.ts`.
+Route handler goes in `server/api/routes/plugins.ts`. Add the endpoint path to `src/config/apiRoutes.ts`.
 
 ### Adding a local plugin (`src/plugins/<name>/`)
 
-Local plugins import Vue components, so `toolDefinition` must be in a **separate file** (`definition.ts`) to allow server-side imports without pulling in Vue. Update **8 places**: `definition.ts`, `index.ts`, `server/routes/<name>.ts`, `server/mcp-server.ts`, `src/tools/index.ts`, `src/config/roles.ts`, `server/agent.ts`, `src/config/apiRoutes.ts`.
+Local plugins import Vue components, so `toolDefinition` must be in a **separate file** (`definition.ts`) to allow server-side imports without pulling in Vue. Update **8 places**: `definition.ts`, `index.ts`, `server/api/routes/<name>.ts`, `server/agent/mcp-server.ts`, `src/tools/index.ts`, `src/config/roles.ts`, `server/agent/index.ts`, `src/config/apiRoutes.ts`.
 
 > If a plugin is in `availablePlugins` but absent from `MCP_PLUGINS` or `ALL_TOOLS`, it will be silently dropped.
 
@@ -154,7 +163,7 @@ String literals that form cross-module contracts (endpoint paths, event types, t
 |---|---|---|
 | API endpoint paths | `src/config/apiRoutes.ts` → `API_ROUTES` | `router.post(API_ROUTES.todos.items, ...)` / `fetch(API_ROUTES.todos.items)` |
 | SSE / event types | `src/types/events.ts` → `EVENT_TYPES` / `EventType` | `{ type: EVENT_TYPES.toolResult, ... }` — also used in `AgentEvent` union |
-| Workspace directories | `server/workspace-paths.ts` → `WORKSPACE_PATHS` | `path.join(WORKSPACE_PATHS.wiki, "pages")` |
+| Workspace directories | `server/workspace/paths.ts` → `WORKSPACE_PATHS` | `path.join(WORKSPACE_PATHS.wiki, "pages")` |
 | Tool names | `src/config/toolNames.ts` → `TOOL_NAMES` / `ToolName` | `availablePlugins: [TOOL_NAMES.manageTodoList, ...]` |
 | Built-in role IDs | `src/config/roles.ts` → `BUILTIN_ROLE_IDS` | `if (roleId === BUILTIN_ROLE_IDS.general)` |
 | Pub-sub channels | `src/config/pubsubChannels.ts` → `sessionChannel()` | `pubsub.publish(sessionChannel(id), event)` |
@@ -192,7 +201,7 @@ The repo runs several PRs in flight at once. Code that sprawls across large func
 
 ### Functions: small, pure, extractable
 
-- Extract pure logic into exported helpers so unit tests can exercise them without a harness. Examples: `parseRange` / `classify` / `isSensitivePath` in `server/routes/files.ts`, `normalizeTopicAction` / `computeJustCompletedSessions` in `server/journal/dailyPass.ts`.
+- Extract pure logic into exported helpers so unit tests can exercise them without a harness. Examples: `parseRange` / `classify` / `isSensitivePath` in `server/api/routes/files.ts`, `normalizeTopicAction` / `computeJustCompletedSessions` in `server/workspace/journal/dailyPass.ts`.
 - Prefer discriminated-union return types (`{ kind: "skipped", reason } | { kind: "processed", ... }`) over null / thrown errors for multi-outcome helpers.
 - Honour the `sonarjs/cognitive-complexity` threshold (**error at >15** in `.ts` / `.js`; temporarily **warn** in `.vue` until pre-existing violations like `App.vue#sendMessage` at 47 and `spreadsheet/View.vue` at 163 are refactored). Split rather than suppress.
 
@@ -216,7 +225,7 @@ Key shared helpers in this repo:
 |---|---|
 | `API_ROUTES` | `src/config/apiRoutes.ts` |
 | `EVENT_TYPES` / `EventType` | `src/types/events.ts` |
-| `WORKSPACE_PATHS` / `WORKSPACE_DIRS` | `server/workspace-paths.ts` |
+| `WORKSPACE_PATHS` / `WORKSPACE_DIRS` | `server/workspace/paths.ts` |
 | `TOOL_NAMES` / `ToolName` | `src/config/toolNames.ts` |
 | `BUILTIN_ROLE_IDS` / `BuiltInRoleId` | `src/config/roles.ts` |
 | `PUBSUB_CHANNELS` / `sessionChannel()` | `src/config/pubsubChannels.ts` |
@@ -224,7 +233,7 @@ Key shared helpers in this repo:
 | `resolveWithinRoot(root, relPath)` | `server/utils/fs.ts` |
 | `errorMessage(err)` | `server/utils/errors.ts` |
 | `statSafe` / `readDirSafe` | `server/utils/fs.ts` |
-| `dispatchResponse(res, result)` | `server/routes/dispatchResponse.ts` |
+| `dispatchResponse(res, result)` | `server/api/routes/dispatchResponse.ts` |
 | `useFreshPluginData(opts)` | `src/composables/useFreshPluginData.ts` |
 | `useCanvasViewMode(opts)` | `src/composables/useCanvasViewMode.ts` |
 | `applyViewToQuery(query, mode)` | `src/composables/useCanvasViewMode.ts` |
@@ -242,13 +251,28 @@ Periodically audit for duplication (`sonarjs/no-duplicate-string` warnings, `jsc
 Looking at a directory name should predict what's inside:
 
 ```text
-server/
-  agent/          ← agent-loop (config, prompt, stream)
-  chat-index/     ← per-session summarizer + manifest
-  journal/        ← workspace journal (daily + optimization)
-  routes/         ← one file per /api/* surface
-  task-manager/   ← cron-like task runner
-  utils/          ← shared helpers, one file per concept
+server/                     ← 6 topical dirs + index.ts + tsconfig.json (#323)
+  index.ts                  ← entry point (bootstrap + route mounting)
+  agent/                    ← Claude subprocess + MCP
+    index.ts                ← runAgent, the agent orchestrator
+    mcp-server.ts           ← stdio MCP bridge spawned by Claude CLI
+    mcp-tools/              ← auto-registered non-GUI MCP tools
+    config.ts, prompt.ts, stream.ts, resumeFailover.ts, sandboxMounts.ts
+  api/                      ← everything external clients touch
+    routes/                 ← one file per /api/* surface
+    chat-service/           ← bridge HTTP + socket.io
+    auth/                   ← bearer token + middleware
+    csrfGuard.ts
+  workspace/                ← workspace-facing background processors + seed data
+    workspace.ts, paths.ts, roles.ts
+    helps/                  ← seed files copied into <workspace>/helps/
+    journal/, chat-index/, wiki-backlinks/, sources/, skills/, tool-trace/
+  events/                   ← in-process event plumbing
+    pub-sub/, session-store/, task-manager/
+  system/                   ← bootstrap + platform + logging
+    env.ts, config.ts, docker.ts, credentials.ts
+    logger/, logs/          (logs/ is gitignored runtime output)
+  utils/                    ← shared helpers, one file per concept
 
 src/
   components/     ← shared Vue components
@@ -266,7 +290,7 @@ plans/            ← one file per feature/refactor/fix
 ```
 
 - Group by *what files are about*, not file kind. `src/plugins/wiki/` keeps def/index/View/Preview together.
-- Mirror source layout in `test/`. `server/journal/dailyPass.ts` → `test/journal/test_dailyPass.ts`.
+- Mirror source layout in `test/`. `server/workspace/journal/dailyPass.ts` → `test/journal/test_dailyPass.ts`.
 - Prefer a new named directory over dropping files into the closest pre-existing bucket.
 
 ## E2E Testing (Playwright)
@@ -337,7 +361,7 @@ See `plans/` entries and past PR descriptions (#193 wiki-backlinks, #195 tool-tr
 
 ## Server Logging
 
-The server uses the structured logger at `server/logger/`. **Never call `console.*` directly outside that module** — import and use `log.{error,warn,info,debug}(prefix, msg, data?)` instead.
+The server uses the structured logger at `server/system/logger/`. **Never call `console.*` directly outside that module** — import and use `log.{error,warn,info,debug}(prefix, msg, data?)` instead.
 
 ```ts
 import { log } from "../logger/index.js";
@@ -348,10 +372,10 @@ log.error("my-module", "operation failed", { error: String(err) });
 
 - `prefix` is lowercase, hyphenated, no brackets (the text formatter adds `[ ]`)
 - Put structured values in the `data` payload, not interpolated into `msg` — the JSON file format depends on it
-- Console default is `info`/`text`; file default is `debug`/`json` rotating daily under `server/logs/`
+- Console default is `info`/`text`; file default is `debug`/`json` rotating daily under `server/system/logs/`
 - Full reference (env vars, formats, rotation, recipes): [`docs/logging.md`](docs/logging.md)
 
-The only remaining `console.*` call is `server/logger/sinks.ts`'s fallback path for when the file sink itself errors.
+The only remaining `console.*` call is `server/system/logger/sinks.ts`'s fallback path for when the file sink itself errors.
 
 ## Tech Stack
 

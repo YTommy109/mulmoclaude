@@ -9,7 +9,7 @@ import {
   DEFAULT_DAILY_INTERVAL_HOURS,
   DEFAULT_OPTIMIZATION_INTERVAL_DAYS,
   type JournalState,
-} from "../../server/journal/state.js";
+} from "../../server/workspace/journal/state.js";
 
 describe("defaultState", () => {
   it("produces a valid fresh state with the current schema version", () => {

@@ -12,7 +12,7 @@ let tmpRoot: string;
 let originalHome: string | undefined;
 let originalUserProfile: string | undefined;
 
-type ConfigModule = typeof import("../../server/config.js");
+type ConfigModule = typeof import("../../server/system/config.js");
 let mod: ConfigModule;
 
 before(async () => {
@@ -25,7 +25,7 @@ before(async () => {
   process.env.USERPROFILE = tmpRoot;
   // Pre-create the workspace root that workspace.ts expects.
   fs.mkdirSync(path.join(tmpRoot, "mulmoclaude"), { recursive: true });
-  mod = await import("../../server/config.js");
+  mod = await import("../../server/system/config.js");
 });
 
 after(async () => {
@@ -200,7 +200,7 @@ describe("loadMcpConfig / saveMcpConfig", () => {
   });
 
   it("round-trips a typical config file", () => {
-    const cfg: import("../../server/config.js").McpConfigFile = {
+    const cfg: import("../../server/system/config.js").McpConfigFile = {
       mcpServers: {
         gmail: {
           type: "http",
@@ -246,7 +246,7 @@ describe("loadMcpConfig / saveMcpConfig", () => {
 
 describe("toMcpEntries / fromMcpEntries", () => {
   it("flattens and re-inflates without loss", () => {
-    const cfg: import("../../server/config.js").McpConfigFile = {
+    const cfg: import("../../server/system/config.js").McpConfigFile = {
       mcpServers: {
         a: { type: "http", url: "https://a.example/mcp" },
         b: { type: "http", url: "https://b.example/mcp" },

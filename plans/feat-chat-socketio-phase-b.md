@@ -82,10 +82,10 @@ Exposed from `createChatService(deps)` as
 
 ### In
 
-1. `server/chat-service/push-queue.ts` — DI-pure
+1. `server/api/chat-service/push-queue.ts` — DI-pure
    `createPushQueue()` returning `{ enqueue, drainFor, sizeFor }`.
    Keeps `Map<transportId, Message[]>` internally.
-2. `server/chat-service/socket.ts`:
+2. `server/api/chat-service/socket.ts`:
    - Bridges join `bridge:${transportId}` in the `io.use` pass-through
      (right after auth).
    - On connection, flush any queued messages for that transportId to
@@ -94,7 +94,7 @@ Exposed from `createChatService(deps)` as
      drained).
    - Export `createPushEmitter(io, queue, logger)` that returns
      `pushToBridge`.
-3. `server/chat-service/index.ts` — `createChatService` returns
+3. `server/api/chat-service/index.ts` — `createChatService` returns
    `pushToBridge` on the `ChatService` interface. Before `attachSocket`
    is called, `pushToBridge` enqueues only (no live emit).
 4. `bridges/cli/index.ts` — listen for `push` events, render as

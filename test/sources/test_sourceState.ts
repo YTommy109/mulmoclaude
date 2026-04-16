@@ -11,12 +11,12 @@ import {
   writeManyStates,
   deleteSourceState,
   validateSourceState,
-} from "../../server/sources/sourceState.js";
-import { sourceStatePath } from "../../server/sources/paths.js";
+} from "../../server/workspace/sources/sourceState.js";
+import { sourceStatePath } from "../../server/workspace/sources/paths.js";
 import {
   defaultSourceState,
   type SourceState,
-} from "../../server/sources/types.js";
+} from "../../server/workspace/sources/types.js";
 
 // --- validateSourceState (pure) ------------------------------------------
 

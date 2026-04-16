@@ -69,11 +69,11 @@ and talk to MulmoClaude via HTTP, just like the Web UI does.
               │ socket.io /ws/chat  (or HTTP POST /api/transports/…/chats/…)
 ┌─────────────▼──────────────────────────────────────────────┐
 │ Layer 3: Chat Service API + state (server-side)            │
-│   server/chat-service/index.ts       ← factory (router+socket) │
-│   server/chat-service/socket.ts      ← socket.io transport │
-│   server/chat-service/relay.ts       ← shared request flow │
-│   server/chat-service/chat-state.ts  ← session pointer     │
-│   server/chat-service/commands.ts    ← /reset, /role, etc. │
+│   server/api/chat-service/index.ts       ← factory (router+socket) │
+│   server/api/chat-service/socket.ts      ← socket.io transport │
+│   server/api/chat-service/relay.ts       ← shared request flow │
+│   server/api/chat-service/chat-state.ts  ← session pointer     │
+│   server/api/chat-service/commands.ts    ← /reset, /role, etc. │
 │   Receives raw text, manages sessions, invokes the agent.  │
 └─────────────┬──────────────────────────────────────────────┘
               │ startChat() — existing public entry point

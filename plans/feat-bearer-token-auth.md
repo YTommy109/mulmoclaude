@@ -85,9 +85,9 @@ right types. The Vite plugin and middleware use narrow explicit types.
 
 | File | Kind | Purpose |
 |---|---|---|
-| `server/auth/token.ts` | new | `getCurrentToken()`, `generateAndWriteToken()`, `deleteTokenFile()` |
-| `server/auth/bearerAuth.ts` | new | Express middleware |
-| `server/workspace-paths.ts` | edit | Add `WORKSPACE_FILES.sessionToken` + `WORKSPACE_PATHS.sessionToken` |
+| `server/api/auth/token.ts` | new | `getCurrentToken()`, `generateAndWriteToken()`, `deleteTokenFile()` |
+| `server/api/auth/bearerAuth.ts` | new | Express middleware |
+| `server/workspace/paths.ts` | edit | Add `WORKSPACE_FILES.sessionToken` + `WORKSPACE_PATHS.sessionToken` |
 | `server/index.ts` | edit | Generate on startup, apply middleware, register shutdown handlers, prod HTML route |
 | `index.html` | edit | Add `<meta name="mulmoclaude-auth" content="__MULMOCLAUDE_AUTH_TOKEN__">` placeholder |
 | `vite.config.ts` | edit | `transformIndexHtml` plugin that reads token file |

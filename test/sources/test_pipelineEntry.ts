@@ -11,27 +11,30 @@ import { join } from "node:path";
 import {
   runSourcesPipeline,
   toLocalIsoDate,
-} from "../../server/sources/pipeline/index.js";
+} from "../../server/workspace/sources/pipeline/index.js";
 import type {
   FetcherDeps,
   SourceFetcher,
-} from "../../server/sources/fetchers/index.js";
+} from "../../server/workspace/sources/fetchers/index.js";
 import type {
   FetcherKind,
   Source,
   SourceItem,
-} from "../../server/sources/types.js";
-import { writeSource } from "../../server/sources/registry.js";
+} from "../../server/workspace/sources/types.js";
+import { writeSource } from "../../server/workspace/sources/registry.js";
 import {
   HostRateLimiter,
   type RateLimiterDeps,
-} from "../../server/sources/rateLimiter.js";
+} from "../../server/workspace/sources/rateLimiter.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   type HttpFetcherDeps,
-} from "../../server/sources/httpFetcher.js";
-import { readSourceState } from "../../server/sources/sourceState.js";
-import { archivePath, dailyNewsPath } from "../../server/sources/paths.js";
+} from "../../server/workspace/sources/httpFetcher.js";
+import { readSourceState } from "../../server/workspace/sources/sourceState.js";
+import {
+  archivePath,
+  dailyNewsPath,
+} from "../../server/workspace/sources/paths.js";
 
 // --- helpers -------------------------------------------------------------
 
@@ -321,7 +324,7 @@ describe("runSourcesPipeline — failure isolation (Q8)", () => {
     await writeSource(workspace, makeSource());
     // Seed state: 3 consecutive failures on the way out.
     const { writeSourceState } =
-      await import("../../server/sources/sourceState.js");
+      await import("../../server/workspace/sources/sourceState.js");
     await writeSourceState(workspace, {
       slug: "hn",
       lastFetchedAt: null,

@@ -8,7 +8,7 @@ import {
   deleteTokenFile,
   generateAndWriteToken,
   getCurrentToken,
-} from "../../server/auth/token.ts";
+} from "../../server/api/auth/token.js";
 
 let tmpDir = "";
 let tokenPath = "";

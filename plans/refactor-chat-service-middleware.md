@@ -2,13 +2,13 @@
 
 ## Goal
 
-Keep `server/chat-service/` inside the mulmoclaude repo for now, but make it shaped exactly like a future standalone npm package (`@mulmoclaude/chat-service`). Nothing inside the module should import from the host app — all host-specific behaviour (startChat, session subscription, role lookup, workspace dir, logger) is passed in via a `ChatServiceDeps` interface.
+Keep `server/api/chat-service/` inside the mulmoclaude repo for now, but make it shaped exactly like a future standalone npm package (`@mulmoclaude/chat-service`). Nothing inside the module should import from the host app — all host-specific behaviour (startChat, session subscription, role lookup, workspace dir, logger) is passed in via a `ChatServiceDeps` interface.
 
 **Load-bearing rule**: once the refactor lands, the chat-service directory is frozen against "just add another import from `../routes/…` or `../roles.js`". Every new dependency MUST be added to `ChatServiceDeps` and threaded through `createChatService(deps)`. This is called out at the top of each chat-service file via a `@package-contract` header comment so future contributors (human or agent) do not silently break the extractability invariant.
 
 ## Today's import surface (to be replaced with DI)
 
-`server/chat-service/index.ts`:
+`server/api/chat-service/index.ts`:
 
 - `../logger/index.js` → `log`
 - `../roles.js` → `getRole`
@@ -19,19 +19,19 @@ Keep `server/chat-service/` inside the mulmoclaude repo for now, but make it sha
 - `../../src/config/apiRoutes.js` → `API_ROUTES`
 - `../../src/types/events.js` → `EVENT_TYPES`
 
-`server/chat-service/chat-state.ts`:
+`server/api/chat-service/chat-state.ts`:
 
 - `../workspace-paths.js` → `WORKSPACE_PATHS.transports`
 - `../logger/index.js` → `log`
 
-`server/chat-service/commands.ts`:
+`server/api/chat-service/commands.ts`:
 
 - `../roles.js` → `getRole`, `loadAllRoles`
 - `./chat-state.js` → `resetChatState`
 
 ## After the refactor
 
-New `ChatServiceDeps` interface (in `server/chat-service/types.ts`):
+New `ChatServiceDeps` interface (in `server/api/chat-service/types.ts`):
 
 ```ts
 export interface ChatServiceDeps {
@@ -45,9 +45,9 @@ export interface ChatServiceDeps {
 }
 ```
 
-`StartChatParams` / `StartChatResult` / `SessionEventListener` / `Role` / `Logger` are re-declared as structural types in `server/chat-service/types.ts` so the module can eventually be extracted without importing from the host app's types.
+`StartChatParams` / `StartChatResult` / `SessionEventListener` / `Role` / `Logger` are re-declared as structural types in `server/api/chat-service/types.ts` so the module can eventually be extracted without importing from the host app's types.
 
-`server/chat-service/index.ts` exports:
+`server/api/chat-service/index.ts` exports:
 
 ```ts
 export function createChatService(deps: ChatServiceDeps): Router { ... }
@@ -99,10 +99,10 @@ app.use(
 
 ## Files touched
 
-- **new** `server/chat-service/types.ts` — `ChatServiceDeps` + structural types
-- **edit** `server/chat-service/index.ts` — factory, keep routes unchanged
-- **edit** `server/chat-service/chat-state.ts` — factory accepting `{ transportsDir, logger }`
-- **edit** `server/chat-service/commands.ts` — factory accepting `{ loadAllRoles, getRole, resetChatState }`
+- **new** `server/api/chat-service/types.ts` — `ChatServiceDeps` + structural types
+- **edit** `server/api/chat-service/index.ts` — factory, keep routes unchanged
+- **edit** `server/api/chat-service/chat-state.ts` — factory accepting `{ transportsDir, logger }`
+- **edit** `server/api/chat-service/commands.ts` — factory accepting `{ loadAllRoles, getRole, resetChatState }`
 - **edit** `server/index.ts` — build deps, mount via factory
 - each chat-service file gets a `@package-contract` header comment
 

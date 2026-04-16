@@ -24,23 +24,23 @@ import { join } from "node:path";
 // NB: we intentionally do NOT import registerAll here. The pipeline
 // module itself is responsible for importing it, so these tests
 // verify that too — if someone removes the bootstrap import from
-// `server/sources/pipeline/index.ts`, this file fails before any of
+// `server/workspace/sources/pipeline/index.ts`, this file fails before any of
 // the realistic HTTP routing even runs.
-import { runSourcesPipeline } from "../../server/sources/pipeline/index.js";
-import { writeSource } from "../../server/sources/registry.js";
+import { runSourcesPipeline } from "../../server/workspace/sources/pipeline/index.js";
+import { writeSource } from "../../server/workspace/sources/registry.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   type HttpFetcherDeps,
-} from "../../server/sources/httpFetcher.js";
+} from "../../server/workspace/sources/httpFetcher.js";
 import {
   HostRateLimiter,
   type RateLimiterDeps,
-} from "../../server/sources/rateLimiter.js";
+} from "../../server/workspace/sources/rateLimiter.js";
 import type {
   FetcherKind,
   Source,
   SourceItem,
-} from "../../server/sources/types.js";
+} from "../../server/workspace/sources/types.js";
 
 let workspace: string;
 

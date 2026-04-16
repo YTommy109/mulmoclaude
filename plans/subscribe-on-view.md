@@ -16,7 +16,7 @@ The per-session `session.<id>` pub/sub subscription only happened when the user 
 
 4. **`applyAgentEvent` `text` case** — handle `source: "user"` events. Deduplicates against the last entry in `toolResults` so the sending tab doesn't show the user message twice.
 
-### `server/routes/agent.ts`
+### `server/api/routes/agent.ts`
 
 Broadcast user messages via `pushSessionEvent({ type: "text", source: "user", message })` after `getOrCreateSession` so other tabs see user input.
 

@@ -27,7 +27,7 @@ their storage file stay valid with zero migration.
 ## Data model
 
 ```ts
-// server/routes/todos.ts and src/plugins/todo/index.ts
+// server/api/routes/todos.ts and src/plugins/todo/index.ts
 export interface TodoItem {
   id: string;
   text: string;
@@ -247,7 +247,7 @@ would be a natural part of that.
 
 ## Server route changes
 
-### `server/routes/todos.ts`
+### `server/api/routes/todos.ts`
 
 - Add `labels?: string[]` to `TodoItem`.
 - Add `filterLabels` and `labels` fields to `TodoBody`:
@@ -370,7 +370,7 @@ a test harness we don't have for todos right now.
 |---|---|---|
 | `plans/feat-todo-labels.md` | new | — (this file) |
 | `src/plugins/todo/labels.ts` | new | 80 |
-| `server/routes/todos.ts` | modified | +90 |
+| `server/api/routes/todos.ts` | modified | +90 |
 | `src/plugins/todo/definition.ts` | modified | +30 |
 | `src/plugins/todo/index.ts` | modified | +1 |
 | `src/plugins/todo/View.vue` | modified | +120 |

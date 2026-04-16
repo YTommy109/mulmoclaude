@@ -41,7 +41,7 @@ Each JSON file contains the sheets array directly:
 
 | Flow | Where data is created | Change |
 |---|---|---|
-| **presentSpreadsheet** | `server/routes/plugins.ts` `/present-spreadsheet` | Write JSON to disk, return path |
+| **presentSpreadsheet** | `server/api/routes/plugins.ts` `/present-spreadsheet` | Write JSON to disk, return path |
 | **View.vue load** | `src/plugins/spreadsheet/View.vue` | Detect path → fetch file from server |
 | **View.vue edit** | `src/plugins/spreadsheet/View.vue` `saveMiniEditor()` / `applyChanges()` | PUT updated sheets to `/api/spreadsheets/:filename` |
 
@@ -49,7 +49,7 @@ Each JSON file contains the sheets array directly:
 
 ### Step 1: Add `spreadsheets/` to workspace
 
-**File: `server/workspace.ts`**
+**File: `server/workspace/workspace.ts`**
 
 - Add `"spreadsheets"` to the `SUBDIRS` array so `initWorkspace()` creates it.
 
@@ -103,7 +103,7 @@ export function isSpreadsheetPath(value: string): boolean {
 
 ### Step 3: Update server route — save to disk
 
-**File: `server/routes/plugins.ts`**
+**File: `server/api/routes/plugins.ts`**
 
 Change the `/present-spreadsheet` handler to:
 1. Call `executeSpreadsheet(req.body)` as before (validates the data).
@@ -112,7 +112,7 @@ Change the `/present-spreadsheet` handler to:
 
 ### Step 4: Add PUT endpoint for edits
 
-**File: `server/routes/plugins.ts`**
+**File: `server/api/routes/plugins.ts`**
 
 Add `PUT /api/spreadsheets/:filename`:
 
@@ -165,9 +165,9 @@ When `data.sheets` is a string (file path), the preview cannot count sheets with
 
 | File | Action |
 |---|---|
-| `server/workspace.ts` | Add `"spreadsheets"` to SUBDIRS |
+| `server/workspace/workspace.ts` | Add `"spreadsheets"` to SUBDIRS |
 | `server/utils/spreadsheet-store.ts` | **New** — save/load/overwrite/detect |
-| `server/routes/plugins.ts` | Save to disk in `/present-spreadsheet`; add PUT endpoint |
+| `server/api/routes/plugins.ts` | Save to disk in `/present-spreadsheet`; add PUT endpoint |
 | `src/plugins/spreadsheet/definition.ts` | Widen `sheets` type to `SpreadsheetSheet[] \| string` |
 | `src/plugins/spreadsheet/View.vue` | Fetch from file on load, save edits via PUT |
 | `src/plugins/spreadsheet/Preview.vue` | Handle string-type sheets gracefully |

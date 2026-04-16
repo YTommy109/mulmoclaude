@@ -4,7 +4,7 @@ import {
   CATEGORY_SLUGS,
   isCategorySlug,
   normalizeCategories,
-} from "../../server/sources/taxonomy.js";
+} from "../../server/workspace/sources/taxonomy.js";
 
 describe("CATEGORY_SLUGS — shape pin", () => {
   it("contains the phase-1 taxonomy with no duplicates", () => {

@@ -36,7 +36,7 @@ interface Skill {
 
 ### Discovery
 
-`server/skills/discovery.ts` exports `discoverSkills(opts)`:
+`server/workspace/skills/discovery.ts` exports `discoverSkills(opts)`:
 
 - Scans `~/.claude/skills/` (user) and `$WORKSPACE/.claude/skills/` (project)
 - For each entry that is a directory (or a symlink resolving to a directory), reads `SKILL.md`
@@ -51,7 +51,7 @@ Pure helpers:
 
 ### REST API
 
-`server/routes/skills.ts`:
+`server/api/routes/skills.ts`:
 
 | Endpoint | Response |
 |---|---|
@@ -84,10 +84,10 @@ App.vue catches it and calls its existing `sendMessage()` helper. The Claude CLI
 ### Registration
 
 Add `manageSkills` to:
-- `server/mcp-server.ts` `TOOL_ENDPOINTS` + `ALL_TOOLS`
+- `server/agent/mcp-server.ts` `TOOL_ENDPOINTS` + `ALL_TOOLS`
 - `src/tools/index.ts` plugin registry
 - `src/config/roles.ts` — at least one role's `availablePlugins`. Start with the `general` role.
-- `server/agent.ts` `MCP_PLUGINS`
+- `server/agent/index.ts` `MCP_PLUGINS`
 
 ### Tests
 
@@ -100,13 +100,13 @@ Add `manageSkills` to:
 ## File additions
 
 ```text
-server/skills/
+server/workspace/skills/
   index.ts               ← public API (discoverSkills)
   discovery.ts           ← scan + merge logic
   parser.ts              ← parseSkillFrontmatter (pure)
   types.ts               ← Skill interface
 
-server/routes/skills.ts  ← GET /api/skills + GET /api/skills/:name
+server/api/routes/skills.ts  ← GET /api/skills + GET /api/skills/:name
 
 src/plugins/manageSkills/
   definition.ts

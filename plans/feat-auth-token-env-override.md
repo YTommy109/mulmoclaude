@@ -25,7 +25,7 @@ environment holds it.
 
 ## Design
 
-1. `server/env.ts` — extend the frozen `env` snapshot with
+1. `server/system/env.ts` — extend the frozen `env` snapshot with
    ```ts
    authTokenOverride: process.env.MULMOCLAUDE_AUTH_TOKEN
    ```
@@ -33,7 +33,7 @@ environment holds it.
    do a plain truthy check). This is the "one place env vars live"
    that `docs/developer.md` already points at.
 
-2. `server/auth/token.ts` — `generateAndWriteToken()` gets an optional
+2. `server/api/auth/token.ts` — `generateAndWriteToken()` gets an optional
    second parameter `override?: string` for testability. In production
    `server/index.ts` passes `env.authTokenOverride`. Inside the
    function:

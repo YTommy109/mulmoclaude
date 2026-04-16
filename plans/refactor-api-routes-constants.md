@@ -41,7 +41,7 @@ Behaviour is identical — Express routes at root do the same matching. The only
 
 ### Structure: flat-ish nested objects by resource family
 
-Mirrors `server/workspace-paths.ts` (#287). Top-level keys group by owning route file; nested keys match the last segment.
+Mirrors `server/workspace/paths.ts` (#287). Top-level keys group by owning route file; nested keys match the last segment.
 
 ```ts
 export const API_ROUTES = {

@@ -16,7 +16,7 @@ Three defects compound into a single concrete attack: a malicious web page the u
 
 ### Defect C — `.env` is in the TEXT_EXTENSIONS whitelist
 
-`server/routes/files.ts:31` includes `.env` in `TEXT_EXTENSIONS`, so `/files/content?path=.env` returns its contents as JSON text. Other sensitive files (`*.pem`, `*.key`, SSH private keys) aren't in the whitelist but are still reachable via `/files/raw` as "binary" — the binary is octet-stream, which a fetch client can still read byte-for-byte.
+`server/api/routes/files.ts:31` includes `.env` in `TEXT_EXTENSIONS`, so `/files/content?path=.env` returns its contents as JSON text. Other sensitive files (`*.pem`, `*.key`, SSH private keys) aren't in the whitelist but are still reachable via `/files/raw` as "binary" — the binary is octet-stream, which a fetch client can still read byte-for-byte.
 
 ## Fix — defense in depth, one PR
 
@@ -44,14 +44,14 @@ The Vite dev proxy in `vite.config.ts` forwards `/api/*` from `localhost:5173` t
 
 Also drop the `import cors from "cors"` line. The `cors` npm package stays in the dep tree for now (could be removed separately), but nothing imports it.
 
-### 3. Add a sensitive-path denylist to `server/routes/files.ts`
+### 3. Add a sensitive-path denylist to `server/api/routes/files.ts`
 
 New helper `isSensitivePath(relPath)` that returns `true` for:
 
 - `.env` and `.env.*` (e.g. `.env.local`, `.env.production`)
 - `*.pem`, `*.key`, `*.crt` — TLS / SSH keys
 - `id_rsa`, `id_ed25519`, `id_ecdsa`, `id_dsa` — and their `.pub` variants are fine (public keys)
-- `credentials.json` — the Claude Code credentials file that `server/credentials.ts` writes
+- `credentials.json` — the Claude Code credentials file that `server/system/credentials.ts` writes
 - `.npmrc` — often holds npm tokens
 - `.htpasswd` — Apache auth file
 

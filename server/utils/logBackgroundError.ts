@@ -1,4 +1,4 @@
-import { log } from "../logger/index.js";
+import { log } from "../system/logger/index.js";
 
 /**
  * Build a `.catch` handler for a fire-and-forget background job that

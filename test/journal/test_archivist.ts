@@ -8,7 +8,7 @@ import {
   isOptimizationOutput,
   type DailyArchivistInput,
   type OptimizationInput,
-} from "../../server/journal/archivist.js";
+} from "../../server/workspace/journal/archivist.js";
 
 describe("buildDailyUserPrompt", () => {
   const baseInput = (

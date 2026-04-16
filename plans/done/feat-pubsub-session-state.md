@@ -8,7 +8,7 @@ Agent events used to flow from the server to a **single client** via an SSE stre
 - A second tab or late-joining client missed all events
 - The sidebar's running/unread badges were client-local fiction
 
-The codebase already had a WebSocket pub/sub system (`server/pub-sub/index.ts` + `src/composables/usePubSub.ts`) used only for debug heartbeat. This plan migrated agent event delivery to that pub/sub layer and moved session state to the server so multiple clients stay in sync.
+The codebase already had a WebSocket pub/sub system (`server/events/pub-sub/index.ts` + `src/composables/usePubSub.ts`) used only for debug heartbeat. This plan migrated agent event delivery to that pub/sub layer and moved session state to the server so multiple clients stay in sync.
 
 ---
 
@@ -27,7 +27,7 @@ The codebase already had a WebSocket pub/sub system (`server/pub-sub/index.ts` +
 | `session.<chatSessionId>` | Per-session streaming events | `tool_call`, `tool_call_result`, `status`, `text`, `tool_result`, `switch_role`, `roles_updated`, `error`, `session_finished` |
 | `sessions` | "Session list changed" notification | `{}` (bare signal, no data) |
 
-### Server-side session state — `server/session-store/`
+### Server-side session state — `server/events/session-store/`
 
 Replaces `server/sessions.ts`. Holds a `Map<chatSessionId, ServerSession>`:
 
@@ -122,20 +122,20 @@ The MCP server receives `chatSessionId` (stable across turns) as `SESSION_ID` en
 
 | File | Purpose |
 |---|---|
-| `server/session-store/index.ts` | `ServerSession` type, Map store, lifecycle (get/create/remove), state mutations (beginRun/endRun/cancelRun/markRead), pub/sub notification, idle eviction |
+| `server/events/session-store/index.ts` | `ServerSession` type, Map store, lifecycle (get/create/remove), state mutations (beginRun/endRun/cancelRun/markRead), pub/sub notification, idle eviction |
 
 ### Modified files
 
 | File | Change |
 |---|---|
-| `server/pub-sub/index.ts` | Unchanged interface — single `publish()` method, no hooks |
-| `server/routes/agent.ts` | Fire-and-forget 202, background agent loop via `runAgentInBackground()`, `POST /api/agent/cancel` |
-| `server/routes/sessions.ts` | `GET /api/sessions` merges live state from session store; added `POST /sessions/:id/mark-read` |
+| `server/events/pub-sub/index.ts` | Unchanged interface — single `publish()` method, no hooks |
+| `server/api/routes/agent.ts` | Fire-and-forget 202, background agent loop via `runAgentInBackground()`, `POST /api/agent/cancel` |
+| `server/api/routes/sessions.ts` | `GET /api/sessions` merges live state from session store; added `POST /sessions/:id/mark-read` |
 | `server/agent/config.ts` | `buildMcpConfig` takes `chatSessionId` as `SESSION_ID` env var |
-| `server/agent.ts` | Added `abortSignal` param to `runAgent()` |
+| `server/agent/index.ts` | Added `abortSignal` param to `runAgent()` |
 | `server/index.ts` | Wires `initSessionStore(pubsub)` |
-| `server/routes/roles.ts` | Uses `pushSessionEvent` from session store |
-| `server/routes/image.ts` | Uses `getSessionImageData` from session store |
+| `server/api/routes/roles.ts` | Uses `pushSessionEvent` from session store |
+| `server/api/routes/image.ts` | Uses `getSessionImageData` from session store |
 | `src/App.vue` | `sessions` channel → `refreshSessionStates()`; `isRunning`/`statusMessage`/badges read from `sessions.value`; `beginUserTurn` no longer sets state; `sendMessage` subscribes to `session.<id>` then POSTs 202 |
 | `src/components/SessionHistoryPanel.vue` | Checks `SessionSummary` fields (server data) for running/unread, `sessionMap` as fallback |
 | `src/utils/session/mergeSessions.ts` | `buildLiveSummary` carries `isRunning`/`hasUnread`/`statusMessage` from server entry |
@@ -149,7 +149,7 @@ The MCP server receives `chatSessionId` (stable across turns) as `SESSION_ID` en
 
 | File | Reason |
 |---|---|
-| `server/sessions.ts` | Replaced by `server/session-store/` |
+| `server/sessions.ts` | Replaced by `server/events/session-store/` |
 | `src/utils/agent/sse.ts` | SSE line parsing no longer needed (WS messages are JSON-framed) |
 | `test/utils/agent/test_sse.ts` | Tests for deleted module |
 

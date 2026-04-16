@@ -67,7 +67,7 @@ user can export each chart as PNG.
   - `title` (optional): short label for the preview sidebar (defaults
     to `document.title` or "Chart")
 
-## Server route (`server/routes/chart.ts`)
+## Server route (`server/api/routes/chart.ts`)
 
 - `POST /api/present-chart` — body is the tool args
   - Slugify the title, timestamp the filename
@@ -85,12 +85,12 @@ user can export each chart as PNG.
 4. `src/plugins/chart/Preview.vue` — small preview card
 5. `src/tools/index.ts` — register
 6. `src/config/roles.ts` — add to general / office / guide / tutor
-7. `server/routes/chart.ts` — new route
+7. `server/api/routes/chart.ts` — new route
 8. `server/index.ts` — mount route
-9. `server/mcp-server.ts` — add to `TOOL_ENDPOINTS` + `ALL_TOOLS`
-10. `server/plugin-names.ts` — add to `TOOL_ENDPOINTS` + `PLUGIN_DEFS`
-11. `server/agent.ts` — add to `MCP_PLUGINS`
-12. `server/workspace.ts` — add `charts` to `SUBDIRS`
+9. `server/agent/mcp-server.ts` — add to `TOOL_ENDPOINTS` + `ALL_TOOLS`
+10. `server/agent/plugin-names.ts` — add to `TOOL_ENDPOINTS` + `PLUGIN_DEFS`
+11. `server/agent/index.ts` — add to `MCP_PLUGINS`
+12. `server/workspace/workspace.ts` — add `charts` to `SUBDIRS`
 
 ## Tests
 

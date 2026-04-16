@@ -54,7 +54,7 @@ Actions:
 ## Files to Create
 
 ### Backend
-- `server/routes/scheduler.ts` — Express router for `POST /api/scheduler`
+- `server/api/routes/scheduler.ts` — Express router for `POST /api/scheduler`
 
 ### Plugin
 - `src/plugins/scheduler/index.ts` — `ToolPlugin` definition + types
@@ -68,7 +68,7 @@ Actions:
 
 ---
 
-## Backend Logic (`server/routes/scheduler.ts`)
+## Backend Logic (`server/api/routes/scheduler.ts`)
 
 ```
 POST /api/scheduler

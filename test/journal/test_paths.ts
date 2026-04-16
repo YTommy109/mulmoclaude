@@ -8,7 +8,7 @@ import {
   archivedTopicPathFor,
   toIsoDate,
   slugify,
-} from "../../server/journal/paths.js";
+} from "../../server/workspace/journal/paths.js";
 
 const WS = "/fake/workspace";
 

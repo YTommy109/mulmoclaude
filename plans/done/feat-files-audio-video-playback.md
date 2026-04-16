@@ -21,7 +21,7 @@ natively without extra plugins.
 
 ## Implementation
 
-### 1. `server/routes/files.ts`
+### 1. `server/api/routes/files.ts`
 
 - Add `AUDIO_EXTENSIONS` and `VIDEO_EXTENSIONS` sets alongside the
   existing `IMAGE_EXTENSIONS`.

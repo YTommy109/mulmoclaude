@@ -24,7 +24,7 @@ WORKDIR /workspace
 
 No home directory secrets, no system credentials, no host filesystem.
 
-### `server/docker.ts`
+### `server/system/docker.ts`
 
 Handles detection and image lifecycle:
 
@@ -116,7 +116,7 @@ export interface CliArgsParams {
 
 The host path is only needed for cleanup (`unlink` after the session).
 
-### `server/mcp-server.ts`
+### `server/agent/mcp-server.ts`
 
 Replace the hardcoded `localhost` with an env var:
 
@@ -131,7 +131,7 @@ const BASE_URL = `http://${MCP_HOST}:${PORT}`;
 
 When the MCP server runs inside Docker, `MCP_HOST` is `host.docker.internal`, allowing it to reach the Express server on the host machine.
 
-### `server/agent.ts`
+### `server/agent/index.ts`
 
 Conditional spawn based on `dockerEnabled`:
 
@@ -232,11 +232,11 @@ Browser → POST /api/agent → Express server
 | Change | File |
 |--------|------|
 | New | `Dockerfile.sandbox` |
-| New | `server/docker.ts` |
+| New | `server/system/docker.ts` |
 | Modified | `server/index.ts` — startup detection + image build |
-| Modified | `server/agent.ts` — conditional spawn |
+| Modified | `server/agent/index.ts` — conditional spawn |
 | Modified | `server/agent/config.ts` — docker-aware MCP config + path handling |
-| Modified | `server/mcp-server.ts` — `MCP_HOST` env var |
+| Modified | `server/agent/mcp-server.ts` — `MCP_HOST` env var |
 
 ## README.md Update
 

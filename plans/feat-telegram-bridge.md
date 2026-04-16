@@ -121,7 +121,7 @@ Edge cases:
 | `TELEGRAM_POLL_TIMEOUT_SEC` | No | Defaults 25 (Telegram recommendation); env for testing |
 
 All read via a small `env.ts` inside `bridges/telegram/` to keep it
-self-contained. We don't route through `server/env.ts` because the
+self-contained. We don't route through `server/system/env.ts` because the
 bridge is a separate process family.
 
 ## Operator story (docs outline)

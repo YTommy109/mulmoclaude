@@ -4,16 +4,16 @@ import {
   parseRepoSlug,
   GithubFetcherError,
   githubFetchJson,
-} from "../../server/sources/fetchers/github.js";
+} from "../../server/workspace/sources/fetchers/github.js";
 import {
   HostRateLimiter,
   type RateLimiterDeps,
-} from "../../server/sources/rateLimiter.js";
+} from "../../server/workspace/sources/rateLimiter.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   type HttpFetcherDeps,
   type RobotsProvider,
-} from "../../server/sources/httpFetcher.js";
+} from "../../server/workspace/sources/httpFetcher.js";
 
 // --- parseRepoSlug ------------------------------------------------------
 

@@ -32,7 +32,7 @@ fetcher:
   # ... type-specific params
 ```
 
-The server-side `fetcher.kind` values map to `server/sources/fetchers/*.ts` modules implementing a common `SourceFetcher` interface. Claude-side ones are triggered by emitting a prompt with the right tool call rather than running HTTP ourselves. Auth-requiring fetchers in phase 3 (e.g. `fetcher.kind: "github-authed"`) just register a new module with the same interface — no framework changes.
+The server-side `fetcher.kind` values map to `server/workspace/sources/fetchers/*.ts` modules implementing a common `SourceFetcher` interface. Claude-side ones are triggered by emitting a prompt with the right tool call rather than running HTTP ourselves. Auth-requiring fetchers in phase 3 (e.g. `fetcher.kind: "github-authed"`) just register a new module with the same interface — no framework changes.
 
 ## Crawl etiquette (for server-side fetching)
 
@@ -116,7 +116,7 @@ Users can override categories manually — the next daily run reads the file as-
 
 ## Daily aggregation pipeline
 
-Piggyback on the existing `server/task-manager/` daily schedule (same rhythm as `server/journal/`):
+Piggyback on the existing `server/events/task-manager/` daily schedule (same rhythm as `server/workspace/journal/`):
 
 ```text
 08:00 local time (configurable)
@@ -175,7 +175,7 @@ The `test` action is the debugging surface: when a user asks "can I register thi
 ## File layout (new code)
 
 ```text
-server/sources/
+server/workspace/sources/
   index.ts              ← maybeAggregateSources entry, lock + sentinel
   registry.ts           ← read / write per-source files + state
   taxonomy.ts           ← fixed category enum (shared with src/)
@@ -191,7 +191,7 @@ server/sources/
     arxiv.ts            ← arXiv API
     webFetch.ts         ← server-side HTML fetch with robots + rate limit
     claudeFetch.ts      ← delegates to an agent session (web_fetch / web_search)
-server/routes/sources.ts ← POST /api/sources/* endpoints
+server/api/routes/sources.ts ← POST /api/sources/* endpoints
 
 src/plugins/manageSource/
   definition.ts
@@ -213,7 +213,7 @@ Reuses the following existing primitives: `task-manager` scheduler, `chat-index/
 
 Designed in but not used in phase 1:
 
-1. **`fetcher` is a tagged union.** Adding `{ kind: "github-authed", envVar: "GITHUB_TOKEN" }` or `{ kind: "x-api", envVar: "X_BEARER_TOKEN" }` just means a new file under `server/sources/fetchers/` implementing the same `SourceFetcher` interface.
+1. **`fetcher` is a tagged union.** Adding `{ kind: "github-authed", envVar: "GITHUB_TOKEN" }` or `{ kind: "x-api", envVar: "X_BEARER_TOKEN" }` just means a new file under `server/workspace/sources/fetchers/` implementing the same `SourceFetcher` interface.
 2. **Source files already have space for auth hints.** Phase 1 ignores them; phase 3 reads them.
 
    ```yaml

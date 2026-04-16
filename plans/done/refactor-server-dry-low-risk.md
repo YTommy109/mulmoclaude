@@ -65,7 +65,7 @@ Extract the 17-line clone (`/files/content` and `/files/raw` both do
 relPath → resolveSafe → statSafe → isFile-check) into a helper
 `resolveAndStatFile(req, res): { absPath, stat } | null`.
 
-### 5. `server/mcp-server.ts` `postJson` helper (audit #3)
+### 5. `server/agent/mcp-server.ts` `postJson` helper (audit #3)
 
 Replace 6 raw `fetch(url, { method: "POST", headers: {...}, body:
 JSON.stringify(...) })` calls with one `postJson(path, body)` closure

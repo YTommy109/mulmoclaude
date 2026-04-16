@@ -64,10 +64,10 @@ Extending `buildDockerSpawnArgs` in `server/agent/config.ts`. Each resolved moun
 ## Files
 
 - **new** `server/agent/sandboxMounts.ts` — allowlist + resolver + parse/validate.
-- **edit** `server/env.ts` — `sandboxSshAgentForward`, `sandboxMountConfigs` (CSV).
+- **edit** `server/system/env.ts` — `sandboxSshAgentForward`, `sandboxMountConfigs` (CSV).
 - **edit** `server/agent/config.ts` — `buildDockerSpawnArgs` consumes resolved mounts + agent forward flag.
 - **new** `docs/sandbox-credentials.md` — user-facing guide. Table of allowed names, what/where, opt-in recipe, what we don't do, what we can't do, troubleshooting.
-- **edit** `server/helps/sandbox.md` — pointer to new doc + one-liner about the flags.
+- **edit** `server/workspace/helps/sandbox.md` — pointer to new doc + one-liner about the flags.
 - **edit** `docs/developer.md` — env var table row.
 - **new** `test/agent/test_sandboxMounts.ts` — unit tests for parse + resolver.
 

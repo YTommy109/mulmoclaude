@@ -5,25 +5,25 @@ import {
   computeNextState,
   backoffDelayMs,
   BACKOFF_MAX_MS,
-} from "../../server/sources/pipeline/fetch.js";
+} from "../../server/workspace/sources/pipeline/fetch.js";
 import type {
   FetcherDeps,
   FetchResult,
   SourceFetcher,
-} from "../../server/sources/fetchers/index.js";
+} from "../../server/workspace/sources/fetchers/index.js";
 import type {
   FetcherKind,
   Source,
   SourceState,
-} from "../../server/sources/types.js";
+} from "../../server/workspace/sources/types.js";
 import {
   HostRateLimiter,
   type RateLimiterDeps,
-} from "../../server/sources/rateLimiter.js";
+} from "../../server/workspace/sources/rateLimiter.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   type HttpFetcherDeps,
-} from "../../server/sources/httpFetcher.js";
+} from "../../server/workspace/sources/httpFetcher.js";
 
 // --- helpers -------------------------------------------------------------
 

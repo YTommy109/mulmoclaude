@@ -7,7 +7,7 @@ import {
   classifySource,
   type ClassifyFn,
   type ClassifyInput,
-} from "../../server/sources/classifier.js";
+} from "../../server/workspace/sources/classifier.js";
 
 // --- buildClassifyPrompt -----------------------------------------------
 
