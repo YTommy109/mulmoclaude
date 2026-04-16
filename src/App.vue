@@ -124,6 +124,7 @@
           class="flex-shrink-0 flex items-center justify-center w-7 py-1 rounded border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
           data-testid="new-session-btn"
           title="New session"
+          aria-label="New session"
           @click="createNewSession()"
         >
           <span class="material-icons text-sm">add</span>
