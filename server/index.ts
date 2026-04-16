@@ -33,6 +33,7 @@ import {
 } from "./agent/mcp-tools/index.js";
 import { initWorkspace } from "./workspace/workspace.js";
 import { env, isGeminiAvailable } from "./system/env.js";
+import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import fs from "fs";
 import os from "os";
 import { isDockerAvailable, ensureSandboxImage } from "./system/docker.js";
@@ -103,6 +104,21 @@ app.get(API_ROUTES.health, (_req: Request, res: Response) => {
     geminiAvailable: isGeminiAvailable(),
     sandboxEnabled,
   });
+});
+
+// Sandbox credential-forwarding state (#329). Returns `{}` when the
+// sandbox is disabled — the popup already renders a distinct
+// "No sandbox" branch in that case and extra fields would be noise.
+// When enabled, returns `{ sshAgent, mounts }`; full debug detail
+// (host paths, skip reasons, unknown names) stays in the server log.
+app.get(API_ROUTES.sandbox, (_req: Request, res: Response) => {
+  const status = buildSandboxStatus({
+    sandboxEnabled,
+    sshAgentForward: env.sandboxSshAgentForward,
+    configMountNames: env.sandboxMountConfigs,
+    sshAuthSock: process.env.SSH_AUTH_SOCK,
+  });
+  res.json(status ?? {});
 });
 
 // Routers register FULL `/api/...` paths internally (see
