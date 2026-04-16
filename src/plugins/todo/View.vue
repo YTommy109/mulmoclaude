@@ -158,6 +158,7 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TodoData, TodoItem } from "./index";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { apiPost } from "../../utils/api";
+import { API_ROUTES } from "../../config/apiRoutes";
 import {
   colorForLabel,
   filterByLabels,
@@ -173,7 +174,7 @@ const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 const items = ref<TodoItem[]>(props.selectedResult.data?.items ?? []);
 
 const { refresh } = useFreshPluginData<TodoItem[]>({
-  endpoint: () => "/api/todos",
+  endpoint: () => API_ROUTES.todos.list,
   extract: (json) => {
     const v = (json as { data?: { items?: TodoItem[] } }).data?.items;
     return Array.isArray(v) ? v : null;
@@ -412,7 +413,7 @@ async function applyItemEdit() {
 
 async function callApi(body: Record<string, unknown>): Promise<boolean> {
   const response = await apiPost<{ data?: { items?: TodoItem[] } }>(
-    "/api/todos",
+    API_ROUTES.todos.dispatch,
     body,
   );
   if (!response.ok) return false;

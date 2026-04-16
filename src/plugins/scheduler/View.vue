@@ -336,6 +336,7 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { SchedulerData, ScheduledItem } from "./index";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { apiPost } from "../../utils/api";
+import { API_ROUTES } from "../../config/apiRoutes";
 
 type YamlScalar = string | number | boolean | null;
 
@@ -347,7 +348,7 @@ const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 const items = ref<ScheduledItem[]>(props.selectedResult.data?.items ?? []);
 
 const { refresh } = useFreshPluginData<ScheduledItem[]>({
-  endpoint: () => "/api/scheduler",
+  endpoint: () => API_ROUTES.scheduler.base,
   extract: (json) => {
     const v = (json as { data?: { items?: ScheduledItem[] } }).data?.items;
     return Array.isArray(v) ? v : null;
@@ -629,7 +630,7 @@ const isModified = computed(() => editorText.value !== toJson(items.value));
 
 async function callApi(body: Record<string, unknown>): Promise<boolean> {
   const response = await apiPost<{ data?: { items?: ScheduledItem[] } }>(
-    "/api/scheduler",
+    API_ROUTES.scheduler.base,
     body,
   );
   if (!response.ok) return false;

@@ -5,6 +5,7 @@
 // independently of fetch / Vue.
 
 import { computed, ref, type ComputedRef } from "vue";
+import { API_ROUTES } from "../config/apiRoutes";
 import type { Role } from "../config/roles";
 import {
   availableToolsFor,
@@ -53,7 +54,7 @@ export function useMcpTools(opts: UseMcpToolsOptions) {
   }
 
   async function fetchMcpToolsStatus(): Promise<void> {
-    const result = await apiGet<McpToolStatus[]>("/api/mcp-tools");
+    const result = await apiGet<McpToolStatus[]>(API_ROUTES.mcpTools.list);
     // Ignore failures and unexpected shapes — all tools remain visible
     // if anything goes wrong. The Array.isArray guard makes explicit
     // the previous behaviour (a try/catch used to silently swallow a

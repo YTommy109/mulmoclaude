@@ -91,6 +91,7 @@ import { isFilePath, type MarkdownToolData } from "./definition";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { apiGet, apiPut } from "../../utils/api";
+import { API_ROUTES } from "../../config/apiRoutes";
 import { useClipboardCopy } from "../../composables/useClipboardCopy";
 
 const props = defineProps<{
@@ -119,9 +120,12 @@ async function fetchMarkdownContent(): Promise<void> {
   }
   if (isFilePath(raw)) {
     loading.value = true;
-    const result = await apiGet<{ content?: string }>("/api/files/content", {
-      path: raw,
-    });
+    const result = await apiGet<{ content?: string }>(
+      API_ROUTES.files.content,
+      {
+        path: raw,
+      },
+    );
     if (!result.ok) {
       console.error("Failed to fetch markdown:", result.error);
       markdownContent.value = "";
@@ -226,9 +230,12 @@ async function applyMarkdown() {
   if (isFilePath(raw)) {
     saving.value = true;
     const filename = raw.replace(/^markdowns\//, "");
-    const result = await apiPut<unknown>(`/api/markdowns/${filename}`, {
-      markdown: editableMarkdown.value,
-    });
+    const result = await apiPut<unknown>(
+      API_ROUTES.plugins.updateMarkdown.replace(":filename", filename),
+      {
+        markdown: editableMarkdown.value,
+      },
+    );
     saving.value = false;
     if (!result.ok) {
       saveError.value = `Save failed: ${result.error}`;

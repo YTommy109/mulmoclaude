@@ -7,6 +7,7 @@
 // sidebar title cache stays fresh.
 
 import { ref, type Ref } from "vue";
+import { API_ROUTES } from "../config/apiRoutes";
 import type { SessionSummary } from "../types/session";
 import { apiGet } from "../utils/api";
 
@@ -20,7 +21,7 @@ export function useSessionHistory(): {
   const showHistory = ref(false);
 
   async function fetchSessions(): Promise<SessionSummary[]> {
-    const result = await apiGet<SessionSummary[]>("/api/sessions");
+    const result = await apiGet<SessionSummary[]>(API_ROUTES.sessions.list);
     if (!result.ok) {
       sessions.value = [];
       return [];

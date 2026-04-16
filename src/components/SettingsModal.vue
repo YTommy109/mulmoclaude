@@ -142,6 +142,7 @@ import { computed, ref, watch } from "vue";
 import SettingsMcpTab from "./SettingsMcpTab.vue";
 import type { McpServerEntry } from "./SettingsMcpTab.vue";
 import { apiGet, apiPut } from "../utils/api";
+import { API_ROUTES } from "../config/apiRoutes";
 
 interface Props {
   open: boolean;
@@ -207,7 +208,7 @@ async function loadConfig(): Promise<void> {
   const response = await apiGet<{
     settings: { extraAllowedTools: string[] };
     mcp?: { servers: McpServerEntry[] };
-  }>("/api/config");
+  }>(API_ROUTES.config.base);
   // A newer open() has already started another load — drop this one.
   if (token !== loadToken) return;
   if (!response.ok) {
@@ -241,7 +242,7 @@ async function save(): Promise<void> {
   statusError.value = false;
   // Single atomic endpoint — avoids the partial-save state where
   // extraAllowedTools is persisted but MCP config write fails.
-  const response = await apiPut<unknown>("/api/config", {
+  const response = await apiPut<unknown>(API_ROUTES.config.base, {
     settings: { extraAllowedTools: parsedToolNames.value },
     mcp: { servers: mcpServers.value },
   });
