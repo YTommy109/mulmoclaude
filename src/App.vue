@@ -364,7 +364,9 @@ import { useClickOutside } from "./composables/useClickOutside";
 import { useCanvasViewMode } from "./composables/useCanvasViewMode";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
+import { BUILTIN_ROLE_IDS } from "./config/roles";
 import { usePubSub } from "./composables/usePubSub";
+import { PUBSUB_CHANNELS, sessionChannel } from "./config/pubsubChannels";
 import { useHealth } from "./composables/useHealth";
 import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
@@ -380,7 +382,7 @@ const debugTitleStyle = computed(() =>
 );
 
 const { subscribe: pubsubSubscribe } = usePubSub();
-pubsubSubscribe("debug.beat", (data) => {
+pubsubSubscribe(PUBSUB_CHANNELS.debugBeat, (data) => {
   const msg = data as { count: number; last?: boolean };
   if (msg.last) {
     debugBeatColor.value = null;
@@ -394,7 +396,7 @@ pubsubSubscribe("debug.beat", (data) => {
 // bare notification (no data) whenever any session's state changes.
 // The client refetches the session list via REST — the server is the
 // single source of truth for isRunning, hasUnread, etc.
-pubsubSubscribe("sessions", () => {
+pubsubSubscribe(PUBSUB_CHANNELS.sessions, () => {
   refreshSessionStates();
 });
 
@@ -988,7 +990,7 @@ function onRoleChange() {
 // (never persisted server-side) — any subsequent LLM tool call will
 // replace / augment it in the normal way.
 async function maybeSeedRoleDefault(session: ActiveSession): Promise<void> {
-  if (session.roleId !== "sourceManager") return;
+  if (session.roleId !== BUILTIN_ROLE_IDS.sourceManager) return;
   try {
     const res = await fetch("/api/sources");
     if (!res.ok) {
@@ -1132,7 +1134,7 @@ function ensureSessionSubscription(
     scrollSidebarToBottom: () => rightSidebarRef.value?.scrollToBottom(),
   };
 
-  const channel = `session.${session.id}`;
+  const channel = sessionChannel(session.id);
   const unsub = pubsubSubscribe(channel, (data) => {
     const event = data as SseEvent;
     if (!event || typeof event !== "object") return;

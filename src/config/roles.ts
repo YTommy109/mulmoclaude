@@ -1,11 +1,23 @@
 import { z } from "zod";
+import { ALL_TOOL_NAMES, type ToolName } from "./toolNames";
+
+// `availablePlugins` accepts every literal listed in `TOOL_NAMES`.
+// Runtime: validate with a literal-union z.enum so a typo or an
+// unknown tool name (e.g. from a future user-defined role loaded off
+// disk) rejects at boundary instead of silently dropping at runtime.
+// Compile time: roles.ts static definitions below get typed as
+// `ToolName[]` via RoleSchema's zod inference, so `presentHTML` vs
+// `presentHtml` kind of typos are caught immediately.
+const toolNameEnum = z.enum(
+  ALL_TOOL_NAMES as readonly [ToolName, ...ToolName[]],
+);
 
 export const RoleSchema = z.object({
   id: z.string(),
   name: z.string(),
   icon: z.string(),
   prompt: z.string(),
-  availablePlugins: z.array(z.string()),
+  availablePlugins: z.array(toolNameEnum),
   queries: z.array(z.string()).optional(),
 });
 
@@ -161,7 +173,7 @@ export const ROLES: Role[] = [
       "presentDocument",
       "presentForm",
       "generateImage",
-      "presentHTML",
+      "presentHtml",
       "presentChart",
       "manageSkills",
       "switchRole",
@@ -401,7 +413,31 @@ export const ROLES: Role[] = [
 
 export const BUILTIN_ROLES = ROLES;
 
-export const DEFAULT_ROLE_ID = "general";
+// String-literal constants for every built-in role id. Use these
+// instead of inline `"general"` / `"sourceManager"` etc. so that
+// renaming a role id is one place to change and `BuiltInRoleId`
+// catches typos at compile time.
+//
+// Test `test/config/test_roles.ts` asserts these keys/values stay in
+// sync with `ROLES[].id` — adding a new role to ROLES without
+// updating this map fails the test.
+export const BUILTIN_ROLE_IDS = {
+  general: "general",
+  office: "office",
+  guide: "guide",
+  artist: "artist",
+  tutor: "tutor",
+  storyteller: "storyteller",
+  storytellerPlus: "storytellerPlus",
+  musician: "musician",
+  roleManager: "roleManager",
+  sourceManager: "sourceManager",
+} as const;
+
+export type BuiltInRoleId =
+  (typeof BUILTIN_ROLE_IDS)[keyof typeof BUILTIN_ROLE_IDS];
+
+export const DEFAULT_ROLE_ID: BuiltInRoleId = BUILTIN_ROLE_IDS.general;
 
 export function getRole(id: string): Role {
   return ROLES.find((r) => r.id === id) ?? ROLES[0];
