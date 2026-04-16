@@ -14,18 +14,27 @@ import { apiGet } from "../utils/api";
 export function useSessionHistory(): {
   sessions: Ref<SessionSummary[]>;
   showHistory: Ref<boolean>;
+  historyError: Ref<string | null>;
   fetchSessions: () => Promise<SessionSummary[]>;
   toggleHistory: () => Promise<void>;
 } {
   const sessions = ref<SessionSummary[]>([]);
   const showHistory = ref(false);
+  // Surfaces the most recent fetch failure. Kept alongside the (stale)
+  // sessions list rather than wiping it — a dropdown that goes blank
+  // the moment the network hiccups is worse UX than one that shows
+  // "⚠ using cached list" with the last-known good entries.
+  const historyError = ref<string | null>(null);
 
   async function fetchSessions(): Promise<SessionSummary[]> {
     const result = await apiGet<SessionSummary[]>(API_ROUTES.sessions.list);
     if (!result.ok) {
-      sessions.value = [];
-      return [];
+      historyError.value = result.error;
+      // Intentionally preserve `sessions.value` — callers keep showing
+      // whatever list was last known to work.
+      return sessions.value;
     }
+    historyError.value = null;
     sessions.value = result.data;
     return result.data;
   }
@@ -35,5 +44,11 @@ export function useSessionHistory(): {
     if (showHistory.value) await fetchSessions();
   }
 
-  return { sessions, showHistory, fetchSessions, toggleHistory };
+  return {
+    sessions,
+    showHistory,
+    historyError,
+    fetchSessions,
+    toggleHistory,
+  };
 }

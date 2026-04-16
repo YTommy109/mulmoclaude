@@ -25,6 +25,12 @@ interface UseMcpToolsOptions {
 export function useMcpTools(opts: UseMcpToolsOptions) {
   const disabledMcpTools = ref(new Set<string>());
   const mcpToolDescriptions = ref<Record<string, string>>({});
+  // Surfaces the most recent GET /api/mcp-tools failure so consumers
+  // (e.g. the Settings modal's MCP tab) can render a small warning.
+  // We intentionally keep the "all tools visible" fallback below so
+  // the UI stays usable; this ref lets the UI tell the user *why* the
+  // list looks incomplete / unfiltered.
+  const mcpToolsError = ref<string | null>(null);
 
   const availableTools = computed(() =>
     availableToolsFor(
@@ -55,11 +61,17 @@ export function useMcpTools(opts: UseMcpToolsOptions) {
 
   async function fetchMcpToolsStatus(): Promise<void> {
     const result = await apiGet<McpToolStatus[]>(API_ROUTES.mcpTools.list);
-    // Ignore failures and unexpected shapes — all tools remain visible
-    // if anything goes wrong. The Array.isArray guard makes explicit
-    // the previous behaviour (a try/catch used to silently swallow a
-    // .filter TypeError when the response wasn't an array).
-    if (!result.ok || !Array.isArray(result.data)) return;
+    if (!result.ok) {
+      mcpToolsError.value = result.error;
+      // Keep the "all tools visible" fallback — not clearing
+      // disabledMcpTools or descriptions means the UI remains usable.
+      return;
+    }
+    if (!Array.isArray(result.data)) {
+      mcpToolsError.value = "Unexpected response shape from /api/mcp-tools";
+      return;
+    }
+    mcpToolsError.value = null;
     const tools = result.data;
     disabledMcpTools.value = new Set(
       tools.filter((t) => !t.enabled).map((t) => t.name),
@@ -72,6 +84,7 @@ export function useMcpTools(opts: UseMcpToolsOptions) {
   return {
     disabledMcpTools,
     mcpToolDescriptions,
+    mcpToolsError,
     availableTools,
     toolDescriptions,
     fetchMcpToolsStatus,

@@ -74,6 +74,7 @@
         :current-session-id="currentSessionId"
         :roles="roles"
         :top-offset="headerRef?.offsetHeight"
+        :error-message="historyError"
         @load-session="loadSession"
       />
 
@@ -319,6 +320,7 @@
     <SettingsModal
       :open="showSettings"
       :docker-mode="sandboxEnabled"
+      :mcp-tools-error="mcpToolsError"
       @update:open="showSettings = $event"
     />
   </div>
@@ -657,7 +659,7 @@ function onTextareaKeydown(event: KeyboardEvent) {
   sendMessage();
 }
 
-const { sessions, showHistory, fetchSessions, toggleHistory } =
+const { sessions, showHistory, historyError, fetchSessions, toggleHistory } =
   useSessionHistory();
 const { geminiAvailable, sandboxEnabled, fetchHealth } = useHealth();
 const showLockPopup = ref(false);
@@ -844,10 +846,11 @@ async function onPluginNavigate(target: PluginLauncherTarget): Promise<void> {
   }
 }
 
-const { availableTools, toolDescriptions, fetchMcpToolsStatus } = useMcpTools({
-  currentRole,
-  getDefinition: (name) => getPlugin(name)?.toolDefinition ?? null,
-});
+const { availableTools, toolDescriptions, mcpToolsError, fetchMcpToolsStatus } =
+  useMcpTools({
+    currentRole,
+    getDefinition: (name) => getPlugin(name)?.toolDefinition ?? null,
+  });
 
 const { pendingCalls, teardown: teardownPendingCalls } = usePendingCalls({
   isRunning,
