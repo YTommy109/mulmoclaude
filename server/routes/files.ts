@@ -9,6 +9,13 @@ import {
   resolveWithinRoot,
 } from "../utils/fs.js";
 import { errorMessage } from "../utils/errors.js";
+import {
+  badRequest,
+  notFound,
+  sendError,
+  serverError,
+} from "../utils/httpError.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 
@@ -293,7 +300,7 @@ function pipeWithErrorHandling(
       res.destroy(err);
       return;
     }
-    res.status(500).json({ error: `Failed to read file: ${err.message}` });
+    serverError(res, `Failed to read file: ${err.message}`);
   });
   stream.pipe(res);
 }
@@ -427,7 +434,7 @@ export async function listDirShallow(
 }
 
 router.get(
-  "/files/tree",
+  API_ROUTES.files.tree,
   async (
     _req: Request<object, unknown, unknown, object>,
     res: Response<TreeNode | ErrorResponse>,
@@ -447,7 +454,7 @@ router.get(
 // (no recursion) so the client can render the tree incrementally.
 // `path` is optional; empty / missing = workspace root.
 router.get(
-  "/files/dir",
+  API_ROUTES.files.dir,
   async (
     req: Request<object, unknown, unknown, PathQuery>,
     res: Response<TreeNode | ErrorResponse>,
@@ -457,16 +464,16 @@ router.get(
     // workspace root; any traversal / sensitive / missing path → null.
     const absPath = resolveSafe(relPath);
     if (!absPath) {
-      res.status(404).json({ error: "Not found" });
+      notFound(res, "Not found");
       return;
     }
     const stat = await statSafeAsync(absPath);
     if (!stat) {
-      res.status(404).json({ error: "Not found" });
+      notFound(res, "Not found");
       return;
     }
     if (!stat.isDirectory()) {
-      res.status(400).json({ error: "path is not a directory" });
+      badRequest(res, "path is not a directory");
       return;
     }
     try {
@@ -476,9 +483,7 @@ router.get(
       );
       res.json(listing);
     } catch (err) {
-      res
-        .status(500)
-        .json({ error: `Failed to read directory: ${errorMessage(err)}` });
+      serverError(res, `Failed to read directory: ${errorMessage(err)}`);
     }
   },
 );
@@ -508,7 +513,7 @@ function resolveAndStatFile<T>(
 ): { relPath: string; absPath: string; stat: fs.Stats } | null {
   const relPath = typeof req.query.path === "string" ? req.query.path : "";
   if (!relPath) {
-    res.status(400).json({ error: "path required" });
+    badRequest(res, "path required");
     return null;
   }
   // Syntactic candidate (no symlink resolution yet).
@@ -524,14 +529,14 @@ function resolveAndStatFile<T>(
       relativeFromWorkspace === ".." ||
       relativeFromWorkspace.startsWith(`..${path.sep}`);
     if (escapesSyntactically) {
-      res.status(400).json({ error: "Path outside workspace" });
+      badRequest(res, "Path outside workspace");
     } else {
-      res.status(404).json({ error: "File not found" });
+      notFound(res, "File not found");
     }
     return null;
   }
   if (!stat.isFile()) {
-    res.status(400).json({ error: "Not a file" });
+    badRequest(res, "Not a file");
     return null;
   }
   // File exists — run the realpath-hardened check to defeat
@@ -539,14 +544,14 @@ function resolveAndStatFile<T>(
   // resolveSafe also rejects paths that traverse a hidden dir.
   const absPath = resolveSafe(relPath);
   if (!absPath) {
-    res.status(400).json({ error: "Path outside workspace" });
+    badRequest(res, "Path outside workspace");
     return null;
   }
   return { relPath, absPath, stat };
 }
 
 router.get(
-  "/files/content",
+  API_ROUTES.files.content,
   (
     req: Request<object, unknown, unknown, PathQuery>,
     res: Response<FileContentResponse | ErrorResponse>,
@@ -613,7 +618,7 @@ router.get(
 );
 
 router.get(
-  "/files/raw",
+  API_ROUTES.files.raw,
   (
     req: Request<object, unknown, unknown, PathQuery>,
     res: Response<ErrorResponse>,
@@ -623,9 +628,11 @@ router.get(
     const { absPath, stat } = ctx;
 
     if (stat.size > MAX_RAW_BYTES) {
-      res.status(413).json({
-        error: `File too large to stream (${stat.size} bytes, limit ${MAX_RAW_BYTES})`,
-      });
+      sendError(
+        res,
+        413,
+        `File too large to stream (${stat.size} bytes, limit ${MAX_RAW_BYTES})`,
+      );
       return;
     }
     const ext = path.extname(absPath).toLowerCase();
@@ -635,7 +642,7 @@ router.get(
     // Sandbox the response so an `.svg` / `.html` / `.pdf` with
     // embedded JavaScript can't escape into the localhost:3001
     // origin via direct navigation or <iframe>. See
-    // plans/fix-files-raw-csp-sandbox.md for the threat model.
+    // plans/done/fix-files-raw-csp-sandbox.md for the threat model.
     applyRawSecurityHeaders(res);
 
     // Range support is required for `<video>` playback (Safari refuses
@@ -652,7 +659,7 @@ router.get(
         // the Content-Range per RFC 7233 §4.4 before sending.
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         res.setHeader("Content-Range", `bytes */${stat.size}`);
-        res.status(416).json({ error: "Range not satisfiable" });
+        sendError(res, 416, "Range not satisfiable");
         return;
       }
       res.status(206);

@@ -36,6 +36,10 @@ const emit = defineEmits<{
   "update:modelValue": [mode: CanvasViewMode];
 }>();
 
+// Files view is no longer exposed through this toggle — the plugin
+// launcher (src/components/PluginLauncher.vue) is the entry point,
+// with dedicated buttons for todos / scheduler / wiki / skills plus
+// a generic "Files" button for the workspace root.
 const MODES: ModeOption[] = [
   {
     key: "single",
@@ -48,12 +52,6 @@ const MODES: ModeOption[] = [
     icon: "view_stream",
     label: "Stack",
     title: "All results stacked (⌘2)",
-  },
-  {
-    key: "files",
-    icon: "folder",
-    label: "Files",
-    title: "Workspace files (⌘3)",
   },
 ];
 </script>

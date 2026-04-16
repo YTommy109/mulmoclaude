@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import path from "path";
-import { workspacePath } from "../workspace.js";
+import { WORKSPACE_PATHS } from "../workspace-paths.js";
 import { loadJsonFile, saveJsonFile } from "../utils/file.js";
 import {
   dispatchScheduler,
@@ -11,6 +11,7 @@ import {
   type DispatchSuccessResponse,
   type DispatchErrorResponse,
 } from "./dispatchResponse.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 
@@ -21,7 +22,7 @@ export interface ScheduledItem {
   props: Record<string, string | number | boolean | null>;
 }
 
-const schedulerFile = () => path.join(workspacePath, "scheduler", "items.json");
+const schedulerFile = () => path.join(WORKSPACE_PATHS.scheduler, "items.json");
 
 function loadItems(): ScheduledItem[] {
   return loadJsonFile<ScheduledItem[]>(schedulerFile(), []);
@@ -32,7 +33,7 @@ function saveItems(items: ScheduledItem[]): void {
 }
 
 router.get(
-  "/scheduler",
+  API_ROUTES.scheduler.base,
   (_req: Request, res: Response<{ data: { items: ScheduledItem[] } }>) => {
     res.json({ data: { items: loadItems() } });
   },
@@ -43,7 +44,7 @@ interface SchedulerBody extends SchedulerActionInput {
 }
 
 router.post(
-  "/scheduler",
+  API_ROUTES.scheduler.base,
   (
     req: Request<object, unknown, SchedulerBody>,
     res: Response<

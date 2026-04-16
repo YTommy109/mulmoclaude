@@ -24,11 +24,13 @@ import type { MulmoBeat, MulmoImagePromptMedia } from "@mulmocast/types";
 import { slugify } from "../utils/slug.js";
 import { resolveWithinRoot } from "../utils/fs.js";
 import { errorMessage } from "../utils/errors.js";
+import { badRequest, notFound, serverError } from "../utils/httpError.js";
 import { log } from "../logger/index.js";
 import {
   validateUpdateBeatBody,
   validateUpdateScriptBody,
 } from "./mulmoScriptValidate.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 const storiesDir = path.resolve(workspacePath, "stories");
@@ -83,12 +85,12 @@ interface FilePathQuery {
 }
 
 router.post(
-  "/mulmo-script",
+  API_ROUTES.mulmoScript.save,
   (req: Request<object, object, SaveMulmoScriptBody>, res: Response) => {
     const { script, filename } = req.body;
 
     if (!script || !Array.isArray(script.beats)) {
-      res.status(400).json({ error: "script with beats array is required" });
+      badRequest(res, "script with beats array is required");
       return;
     }
 
@@ -110,11 +112,11 @@ router.post(
 );
 
 router.post(
-  "/mulmo-script/update-beat",
+  API_ROUTES.mulmoScript.updateBeat,
   (req: Request<object, object, unknown>, res: Response) => {
     const validation = validateUpdateBeatBody(req.body);
     if (!validation.ok) {
-      res.status(400).json({ error: validation.error });
+      badRequest(res, validation.error);
       return;
     }
     const { filePath, beatIndex, beat } = validation.value;
@@ -127,7 +129,7 @@ router.post(
     );
 
     if (!Array.isArray(script.beats) || beatIndex >= script.beats.length) {
-      res.status(400).json({ error: "Invalid beatIndex" });
+      badRequest(res, "Invalid beatIndex");
       return;
     }
 
@@ -139,11 +141,11 @@ router.post(
 );
 
 router.post(
-  "/mulmo-script/update-script",
+  API_ROUTES.mulmoScript.updateScript,
   (req: Request<object, object, unknown>, res: Response) => {
     const validation = validateUpdateScriptBody(req.body);
     if (!validation.ok) {
-      res.status(400).json({ error: validation.error });
+      badRequest(res, validation.error);
       return;
     }
     const { filePath, script: updatedScript } = validation.value;
@@ -157,7 +159,7 @@ router.post(
 );
 
 router.get(
-  "/mulmo-script/beat-image",
+  API_ROUTES.mulmoScript.beatImage,
   async (
     req: Request<object, BeatImageResponse, object, BeatQuery>,
     res: Response<BeatImageResponse>,
@@ -167,7 +169,7 @@ router.get(
       beatIndexStr !== undefined ? parseInt(beatIndexStr, 10) : undefined;
 
     if (!filePath || beatIndex === undefined || isNaN(beatIndex)) {
-      res.status(400).json({ error: "filePath and beatIndex are required" });
+      badRequest(res, "filePath and beatIndex are required");
       return;
     }
 
@@ -183,7 +185,7 @@ router.get(
 );
 
 router.get(
-  "/mulmo-script/movie-status",
+  API_ROUTES.mulmoScript.movieStatus,
   async (
     req: Request<object, MovieStatusResponse, object, FilePathQuery>,
     res: Response<MovieStatusResponse>,
@@ -191,7 +193,7 @@ router.get(
     const { filePath } = req.query;
 
     if (!filePath) {
-      res.status(400).json({ error: "filePath is required" });
+      badRequest(res, "filePath is required");
       return;
     }
 
@@ -221,7 +223,7 @@ router.get(
       const relPath = path.relative(workspacePath, outputPath);
       res.json({ moviePath: relPath });
     } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
+      serverError(res, errorMessage(err));
     }
   },
 );
@@ -247,13 +249,13 @@ function fileToDataUri(filePath: string, mimeType: string): string {
 function resolveStoryPath(filePath: string, res: Response): string | null {
   const storiesReal = ensureStoriesReal();
   if (!storiesReal) {
-    res.status(500).json({ error: "stories directory not available" });
+    serverError(res, "stories directory not available");
     return null;
   }
   // Reject absolute paths and parent traversal at the syntactic
   // level — defense in depth on top of the realpath check below.
   if (path.isAbsolute(filePath)) {
-    res.status(400).json({ error: "Invalid filePath" });
+    badRequest(res, "Invalid filePath");
     return null;
   }
   // Strip the optional "stories/" prefix so the remainder is a path
@@ -273,9 +275,9 @@ function resolveStoryPath(filePath: string, res: Response): string | null {
   if (!resolved) {
     const candidate = path.resolve(storiesReal, relFromStories);
     if (!fs.existsSync(candidate)) {
-      res.status(404).json({ error: `File not found: ${filePath}` });
+      notFound(res, `File not found: ${filePath}`);
     } else {
-      res.status(400).json({ error: "Invalid filePath" });
+      badRequest(res, "Invalid filePath");
     }
     return null;
   }
@@ -351,7 +353,7 @@ export async function withStoryContext(
       if (options.onContextMissing) {
         options.onContextMissing(res);
       } else {
-        res.status(500).json({ error: "Failed to initialize mulmo context" });
+        serverError(res, "Failed to initialize mulmo context");
       }
       return;
     }
@@ -371,13 +373,13 @@ export async function withStoryContext(
     // trigger Express's "Cannot set headers after they are sent"
     // warning and corrupt the on-wire response.
     if (!res.headersSent) {
-      res.status(500).json({ error: errorMessage(err) });
+      serverError(res, errorMessage(err));
     }
   }
 }
 
 router.get(
-  "/mulmo-script/beat-audio",
+  API_ROUTES.mulmoScript.beatAudio,
   async (
     req: Request<object, BeatAudioResponse, object, BeatQuery>,
     res: Response<BeatAudioResponse>,
@@ -387,7 +389,7 @@ router.get(
       beatIndexStr !== undefined ? parseInt(beatIndexStr, 10) : undefined;
 
     if (!filePath || beatIndex === undefined || isNaN(beatIndex)) {
-      res.status(400).json({ error: "filePath and beatIndex are required" });
+      badRequest(res, "filePath and beatIndex are required");
       return;
     }
 
@@ -421,7 +423,7 @@ router.get(
 );
 
 router.post(
-  "/mulmo-script/generate-beat-audio",
+  API_ROUTES.mulmoScript.generateBeatAudio,
   async (
     req: Request<
       object,
@@ -433,7 +435,7 @@ router.post(
     const { filePath, beatIndex, force } = req.body;
 
     if (!filePath || beatIndex === undefined) {
-      res.status(400).json({ error: "filePath and beatIndex are required" });
+      badRequest(res, "filePath and beatIndex are required");
       return;
     }
 
@@ -469,7 +471,7 @@ router.post(
               context.studio.beats[beatIndex]?.audioFile,
             ),
           });
-          res.status(500).json({ error: "Audio was not generated" });
+          serverError(res, "Audio was not generated");
           return;
         }
 
@@ -480,12 +482,12 @@ router.post(
 );
 
 router.post(
-  "/mulmo-script/render-beat",
+  API_ROUTES.mulmoScript.renderBeat,
   async (req: Request<object, object, RenderBeatBody>, res: Response) => {
     const { filePath, beatIndex, force } = req.body;
 
     if (!filePath || beatIndex === undefined) {
-      res.status(400).json({ error: "filePath and beatIndex are required" });
+      badRequest(res, "filePath and beatIndex are required");
       return;
     }
 
@@ -498,7 +500,7 @@ router.post(
 
       const { imagePath } = getBeatPngImagePath(context, beatIndex);
       if (!fs.existsSync(imagePath)) {
-        res.status(500).json({ error: "Image was not generated" });
+        serverError(res, "Image was not generated");
         return;
       }
       res.json({ image: fileToDataUri(imagePath, "image/png") });
@@ -507,12 +509,12 @@ router.post(
 );
 
 router.post(
-  "/mulmo-script/generate-movie",
+  API_ROUTES.mulmoScript.generateMovie,
   async (req: Request<object, object, { filePath: string }>, res: Response) => {
     const { filePath } = req.body;
 
     if (!filePath) {
-      res.status(400).json({ error: "filePath is required" });
+      badRequest(res, "filePath is required");
       return;
     }
 
@@ -605,7 +607,7 @@ interface UploadCharacterImageBody {
 type CharacterImageResponse = { image: string | null } | ErrorResponse;
 
 router.get(
-  "/mulmo-script/character-image",
+  API_ROUTES.mulmoScript.characterImage,
   async (
     req: Request<object, CharacterImageResponse, object, CharacterImageQuery>,
     res: Response<CharacterImageResponse>,
@@ -613,7 +615,7 @@ router.get(
     const { filePath, key } = req.query;
 
     if (!filePath || !key) {
-      res.status(400).json({ error: "filePath and key are required" });
+      badRequest(res, "filePath and key are required");
       return;
     }
 
@@ -629,7 +631,7 @@ router.get(
 );
 
 router.post(
-  "/mulmo-script/upload-beat-image",
+  API_ROUTES.mulmoScript.uploadBeatImage,
   async (
     req: Request<object, BeatImageResponse, UploadBeatImageBody>,
     res: Response<BeatImageResponse>,
@@ -637,9 +639,7 @@ router.post(
     const { filePath, beatIndex, imageData } = req.body;
 
     if (!filePath || beatIndex === undefined || !imageData) {
-      res
-        .status(400)
-        .json({ error: "filePath, beatIndex, and imageData are required" });
+      badRequest(res, "filePath, beatIndex, and imageData are required");
       return;
     }
 
@@ -656,7 +656,7 @@ router.post(
 );
 
 router.post(
-  "/mulmo-script/render-character",
+  API_ROUTES.mulmoScript.renderCharacter,
   async (
     req: Request<object, CharacterImageResponse, RenderCharacterBody>,
     res: Response<CharacterImageResponse>,
@@ -664,7 +664,7 @@ router.post(
     const { filePath, key, force } = req.body;
 
     if (!filePath || !key) {
-      res.status(400).json({ error: "filePath and key are required" });
+      badRequest(res, "filePath and key are required");
       return;
     }
 
@@ -672,7 +672,7 @@ router.post(
       const images = context.studio.script.imageParams?.images ?? {};
       const imageEntry = images[key];
       if (!imageEntry || imageEntry.type !== "imagePrompt") {
-        res.status(400).json({ error: `No imagePrompt entry for key: ${key}` });
+        badRequest(res, `No imagePrompt entry for key: ${key}`);
         return;
       }
 
@@ -688,7 +688,7 @@ router.post(
         force,
       });
       if (!fs.existsSync(imagePath)) {
-        res.status(500).json({ error: "Character image was not generated" });
+        serverError(res, "Character image was not generated");
         return;
       }
       res.json({ image: fileToDataUri(imagePath, "image/png") });
@@ -697,7 +697,7 @@ router.post(
 );
 
 router.post(
-  "/mulmo-script/upload-character-image",
+  API_ROUTES.mulmoScript.uploadCharacterImage,
   async (
     req: Request<object, CharacterImageResponse, UploadCharacterImageBody>,
     res: Response<CharacterImageResponse>,
@@ -705,9 +705,7 @@ router.post(
     const { filePath, key, imageData } = req.body;
 
     if (!filePath || !key || !imageData) {
-      res
-        .status(400)
-        .json({ error: "filePath, key, and imageData are required" });
+      badRequest(res, "filePath, key, and imageData are required");
       return;
     }
 
@@ -723,19 +721,22 @@ router.post(
   },
 );
 
-router.get("/mulmo-script/download-movie", (req: Request, res: Response) => {
-  const moviePath =
-    typeof req.query.moviePath === "string" ? req.query.moviePath : undefined;
+router.get(
+  API_ROUTES.mulmoScript.downloadMovie,
+  (req: Request, res: Response) => {
+    const moviePath =
+      typeof req.query.moviePath === "string" ? req.query.moviePath : undefined;
 
-  if (!moviePath) {
-    res.status(400).json({ error: "moviePath is required" });
-    return;
-  }
+    if (!moviePath) {
+      badRequest(res, "moviePath is required");
+      return;
+    }
 
-  const absolutePath = resolveStoryPath(moviePath, res);
-  if (!absolutePath) return;
+    const absolutePath = resolveStoryPath(moviePath, res);
+    if (!absolutePath) return;
 
-  res.download(absolutePath);
-});
+    res.download(absolutePath);
+  },
+);
 
 export default router;

@@ -8,12 +8,13 @@ import { executeQuiz } from "@mulmochat-plugin/quiz";
 import { executeForm } from "@mulmochat-plugin/form";
 import { executeOpenCanvas } from "../../src/plugins/canvas/definition.js";
 import { executePresent3D } from "@gui-chat-plugin/present3d";
-import { showMusic } from "@gui-chat-plugin/music";
 import {
   generateGeminiImageFromPrompt,
   isGeminiAvailable,
 } from "../utils/gemini.js";
 import { errorMessage } from "../utils/errors.js";
+import { badRequest, serverError } from "../utils/httpError.js";
+import { log } from "../logger/index.js";
 import { saveImage } from "../utils/image-store.js";
 import {
   saveMarkdown,
@@ -25,6 +26,7 @@ import {
   overwriteSpreadsheet,
   isSpreadsheetPath,
 } from "../utils/spreadsheet-store.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 
@@ -66,28 +68,67 @@ async function generateImageFile(prompt: string): Promise<string | null> {
   try {
     const { imageData } = await generateGeminiImageFromPrompt(prompt);
     if (imageData) return saveImage(imageData);
-  } catch {
-    // leave placeholder if generation fails
+    log.warn("present-document", "Gemini returned no image data for prompt", {
+      promptPreview: prompt.slice(0, 80),
+    });
+  } catch (err) {
+    // Surface the failure so missing-image symptoms in the canvas
+    // are debuggable from the server log instead of vanishing.
+    log.warn("present-document", "Gemini image generation failed", {
+      error: errorMessage(err),
+      promptPreview: prompt.slice(0, 80),
+    });
   }
   return null;
 }
 
 async function fillImagePlaceholders(markdown: string): Promise<string> {
-  if (!isGeminiAvailable()) return markdown;
   const matches = [...markdown.matchAll(IMAGE_PLACEHOLDER)];
   if (matches.length === 0) return markdown;
+  // Only attempt generation when Gemini is wired up; otherwise the
+  // placeholder still gets stripped below so we don't leak a broken
+  // <img src="...__too_be_replaced_image_path__"> into the rendered
+  // document.
+  const geminiOk = isGeminiAvailable();
+  if (!geminiOk) {
+    log.warn(
+      "present-document",
+      "GEMINI_API_KEY not set — image placeholders will render as text markers",
+      { placeholderCount: matches.length },
+    );
+  }
 
   const results = await Promise.all(
     matches.map(async (m) => ({
       full: m[0],
       prompt: m[1],
-      url: await generateImageFile(m[1]),
+      url: geminiOk ? await generateImageFile(m[1]) : null,
     })),
   );
 
+  // Surface a single tally line so the operator can see the
+  // success rate even when most calls go through. The per-call
+  // error already lands at warn from generateImageFile's catch.
+  if (geminiOk) {
+    const failed = results.filter((r) => !r.url).length;
+    if (failed > 0) {
+      log.warn("present-document", "image generation had failures", {
+        failed,
+        total: results.length,
+      });
+    }
+  }
+
   let filled = markdown;
   for (const { full, prompt, url } of results) {
-    if (url) filled = filled.replace(full, `![${prompt}](../${url})`);
+    // On success → real image. On failure / no key → italic text
+    // marker so the alt prompt still surfaces but no broken image
+    // 404s through the View. The user can re-render later once
+    // GEMINI_API_KEY is set.
+    filled = filled.replace(
+      full,
+      url ? `![${prompt}](../${url})` : `*🖼️ Image: ${prompt}*`,
+    );
   }
   return filled;
 }
@@ -106,7 +147,7 @@ interface PresentDocumentResponse {
 }
 
 router.post(
-  "/present-document",
+  API_ROUTES.plugins.presentDocument,
   async (
     req: Request<object, unknown, PresentDocumentBody>,
     res: Response<PresentDocumentResponse>,
@@ -136,7 +177,7 @@ interface UpdateMarkdownError {
 }
 
 router.put(
-  "/markdowns/:filename",
+  API_ROUTES.plugins.updateMarkdown,
   async (
     req: Request<{ filename: string }, unknown, UpdateMarkdownBody>,
     res: Response<UpdateMarkdownResponse | UpdateMarkdownError>,
@@ -144,18 +185,18 @@ router.put(
     const relativePath = `markdowns/${req.params.filename}`;
     const { markdown } = req.body;
     if (!markdown) {
-      res.status(400).json({ error: "markdown is required" });
+      badRequest(res, "markdown is required");
       return;
     }
     if (!isMarkdownPath(relativePath)) {
-      res.status(400).json({ error: "invalid markdown path" });
+      badRequest(res, "invalid markdown path");
       return;
     }
     try {
       await overwriteMarkdown(relativePath, markdown);
       res.json({ path: relativePath });
     } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
+      serverError(res, errorMessage(err));
     }
   },
 );
@@ -169,7 +210,7 @@ router.put(
 
 // presentSpreadsheet — validate, then save sheets to disk
 router.post(
-  "/present-spreadsheet",
+  API_ROUTES.plugins.presentSpreadsheet,
   wrapPluginExecute<SpreadsheetArgs, unknown>(async (req) => {
     const result = await executeSpreadsheet(req.body);
     if (!Array.isArray(result.data.sheets)) {
@@ -194,7 +235,7 @@ interface UpdateSpreadsheetError {
 }
 
 router.put(
-  "/spreadsheets/:filename",
+  API_ROUTES.plugins.updateSpreadsheet,
   async (
     req: Request<{ filename: string }, unknown, UpdateSpreadsheetBody>,
     res: Response<UpdateSpreadsheetResponse | UpdateSpreadsheetError>,
@@ -202,56 +243,50 @@ router.put(
     const relativePath = `spreadsheets/${req.params.filename}`;
     const { sheets } = req.body;
     if (!Array.isArray(sheets)) {
-      res.status(400).json({ error: "sheets must be an array" });
+      badRequest(res, "sheets must be an array");
       return;
     }
     if (!isSpreadsheetPath(relativePath)) {
-      res.status(400).json({ error: "invalid spreadsheet path" });
+      badRequest(res, "invalid spreadsheet path");
       return;
     }
     try {
       await overwriteSpreadsheet(relativePath, sheets);
       res.json({ path: relativePath });
     } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
+      serverError(res, errorMessage(err));
     }
   },
 );
 
 // createMindMap — uses package execute for node layout computation
 router.post(
-  "/mindmap",
+  API_ROUTES.plugins.mindmap,
   wrapPluginExecute((req) => executeMindMap(null as never, req.body)),
 );
 
 // putQuestions — quiz
 router.post(
-  "/quiz",
+  API_ROUTES.plugins.quiz,
   wrapPluginExecute((req) => executeQuiz(null as never, req.body)),
 );
 
 // presentForm — form
 router.post(
-  "/form",
+  API_ROUTES.plugins.form,
   wrapPluginExecute((req) => executeForm(null as never, req.body)),
 );
 
 // openCanvas — drawing canvas
 router.post(
-  "/canvas",
+  API_ROUTES.plugins.canvas,
   wrapPluginExecute(() => executeOpenCanvas()),
 );
 
 // present3d — 3D visualization
 router.post(
-  "/present3d",
+  API_ROUTES.plugins.present3d,
   wrapPluginExecute((req) => executePresent3D(null as never, req.body)),
-);
-
-// showMusic — sheet music display
-router.post(
-  "/music",
-  wrapPluginExecute((req) => showMusic(null as never, req.body)),
 );
 
 export default router;

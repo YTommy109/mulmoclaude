@@ -4,9 +4,16 @@
 // clients can subscribe to the same session channel and receive
 // identical events.
 
-import { appendFile } from "fs/promises";
+import { appendFile, readFile, writeFile } from "fs/promises";
+import path from "path";
 import type { IPubSub } from "../pub-sub/index.js";
+import {
+  PUBSUB_CHANNELS,
+  sessionChannel,
+} from "../../src/config/pubsubChannels.js";
 import { log } from "../logger/index.js";
+import { workspacePath } from "../workspace.js";
+import { EVENT_TYPES } from "../../src/types/events.js";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -63,6 +70,7 @@ export function getOrCreateSession(
     selectedImageData?: string;
     startedAt: string;
     updatedAt: string;
+    hasUnread?: boolean;
   },
 ): ServerSession {
   const existing = store.get(chatSessionId);
@@ -75,7 +83,7 @@ export function getOrCreateSession(
     chatSessionId,
     roleId: opts.roleId,
     isRunning: false,
-    hasUnread: false,
+    hasUnread: opts.hasUnread ?? false,
     statusMessage: "",
     toolCallHistory: [],
     resultsFilePath: opts.resultsFilePath,
@@ -117,7 +125,10 @@ export function endRun(chatSessionId: string): void {
   session.statusMessage = "";
   session.abortRun = undefined;
   session.updatedAt = new Date().toISOString();
-  publishToSessionChannel(chatSessionId, { type: "session_finished" });
+  persistHasUnread(chatSessionId, true);
+  publishToSessionChannel(chatSessionId, {
+    type: EVENT_TYPES.sessionFinished,
+  });
   notifySessionsChanged();
 }
 
@@ -132,9 +143,15 @@ export function cancelRun(chatSessionId: string): boolean {
 /** Clear the unread flag (called when a client views the session). */
 export function markRead(chatSessionId: string): boolean {
   const session = store.get(chatSessionId);
-  if (!session) return false;
+  if (!session) {
+    // No in-memory session — still persist to disk so the flag is
+    // cleared for the next server restart / session listing.
+    persistHasUnread(chatSessionId, false);
+    return false;
+  }
   if (!session.hasUnread) return true;
   session.hasUnread = false;
+  persistHasUnread(chatSessionId, false);
   notifySessionsChanged();
   return true;
 }
@@ -151,19 +168,19 @@ export function pushSessionEvent(
 
   const type = event.type as string;
 
-  if (type === "tool_call") {
+  if (type === EVENT_TYPES.toolCall) {
     session.toolCallHistory.push({
       toolUseId: event.toolUseId as string,
       toolName: event.toolName as string,
       args: event.args,
       timestamp: Date.now(),
     });
-  } else if (type === "tool_call_result") {
+  } else if (type === EVENT_TYPES.toolCallResult) {
     const entry = session.toolCallHistory.find(
       (e) => e.toolUseId === event.toolUseId,
     );
     if (entry) entry.result = event.content as string;
-  } else if (type === "status") {
+  } else if (type === EVENT_TYPES.status) {
     session.statusMessage = event.message as string;
     // No notifySessionsChanged() here — status updates are high-frequency
     // and flow to subscribed clients via the session.<id> channel directly.
@@ -186,9 +203,16 @@ export async function pushToolResult(
 
   await appendFile(
     session.resultsFilePath,
-    JSON.stringify({ source: "tool", type: "tool_result", result }) + "\n",
+    JSON.stringify({
+      source: "tool",
+      type: EVENT_TYPES.toolResult,
+      result,
+    }) + "\n",
   );
-  publishToSessionChannel(chatSessionId, { type: "tool_result", result });
+  publishToSessionChannel(chatSessionId, {
+    type: EVENT_TYPES.toolResult,
+    result,
+  });
   return { kind: "processed" };
 }
 
@@ -206,15 +230,62 @@ export function getActiveSessionIds(): Set<string> {
   return ids;
 }
 
+// ── In-process session event listeners ────────────────────────
+
+type SessionEventListener = (event: Record<string, unknown>) => void;
+const sessionListeners = new Map<string, Set<SessionEventListener>>();
+
+/**
+ * Subscribe to session events in-process (no WebSocket needed).
+ * Returns an unsubscribe function.
+ */
+export function onSessionEvent(
+  chatSessionId: string,
+  listener: SessionEventListener,
+): () => void {
+  let listeners = sessionListeners.get(chatSessionId);
+  if (!listeners) {
+    listeners = new Set();
+    sessionListeners.set(chatSessionId, listeners);
+  }
+  listeners.add(listener);
+  return () => {
+    listeners!.delete(listener);
+    if (listeners!.size === 0) sessionListeners.delete(chatSessionId);
+  };
+}
+
 // ── Internal helpers ───────────────────────────────────────────
 
+function persistHasUnread(chatSessionId: string, hasUnread: boolean): void {
+  const metaFilePath = path.join(
+    workspacePath,
+    "chat",
+    `${chatSessionId}.json`,
+  );
+  readFile(metaFilePath, "utf-8")
+    .then((raw) => {
+      const meta = JSON.parse(raw);
+      return writeFile(metaFilePath, JSON.stringify({ ...meta, hasUnread }));
+    })
+    .catch(() => {
+      // Meta file missing or malformed — nothing to persist into.
+    });
+}
+
 function publishToSessionChannel(chatSessionId: string, data: unknown): void {
-  pubsub?.publish(`session.${chatSessionId}`, data);
+  pubsub?.publish(sessionChannel(chatSessionId), data);
+  const listeners = sessionListeners.get(chatSessionId);
+  if (listeners) {
+    for (const listener of listeners) {
+      listener(data as Record<string, unknown>);
+    }
+  }
 }
 
 /** Notify all clients that session state has changed — refetch via REST. */
 function notifySessionsChanged(): void {
-  pubsub?.publish("sessions", {});
+  pubsub?.publish(PUBSUB_CHANNELS.sessions, {});
 }
 
 function evictIdleSessions(): void {

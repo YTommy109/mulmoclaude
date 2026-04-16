@@ -1,9 +1,11 @@
 import { Router, Request, Response } from "express";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
-import { workspacePath } from "../workspace.js";
+import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../workspace-paths.js";
 import { slugify } from "../utils/slug.js";
 import { errorMessage } from "../utils/errors.js";
+import { badRequest, serverError } from "../utils/httpError.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 
@@ -27,25 +29,25 @@ type PresentHtmlResponse =
   | PresentHtmlErrorResponse;
 
 router.post(
-  "/present-html",
+  API_ROUTES.html.present,
   async (
     req: Request<object, unknown, PresentHtmlBody>,
     res: Response<PresentHtmlResponse>,
   ) => {
     const { html, title } = req.body;
     if (!html) {
-      res.status(400).json({ error: "html is required" });
+      badRequest(res, "html is required");
       return;
     }
 
     try {
       const slug = title ? slugify(title) : "page";
       const fname = `${slug}-${Date.now()}.html`;
-      const htmlDir = path.join(workspacePath, "HTMLs");
+      const htmlDir = WORKSPACE_PATHS.htmls;
       await mkdir(htmlDir, { recursive: true });
       await writeFile(path.join(htmlDir, fname), html, "utf-8");
 
-      const filePath = `HTMLs/${fname}`;
+      const filePath = `${WORKSPACE_DIRS.htmls}/${fname}`;
       res.json({
         message: `Saved HTML to ${filePath}`,
         instructions:
@@ -53,7 +55,7 @@ router.post(
         data: { html, title, filePath },
       });
     } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
+      serverError(res, errorMessage(err));
     }
   },
 );

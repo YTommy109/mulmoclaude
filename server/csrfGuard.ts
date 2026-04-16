@@ -14,10 +14,11 @@
 // they're trustable only because the server binds to 127.0.0.1
 // (#148) so remote traffic can't reach us at all.
 //
-// Full design + threat model: plans/fix-server-csrf-origin-check.md
+// Full design + threat model: plans/done/fix-server-csrf-origin-check.md
 
 import type { Request, Response, NextFunction } from "express";
 import { log } from "./logger/index.js";
+import { forbidden } from "./utils/httpError.js";
 
 const SAFE_METHODS: ReadonlySet<string> = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -129,5 +130,5 @@ export function requireSameOrigin(
     method: req.method,
     path: req.path,
   });
-  res.status(403).json({ error: "Forbidden: cross-origin request rejected" });
+  forbidden(res, "Forbidden: cross-origin request rejected");
 }

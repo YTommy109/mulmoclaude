@@ -3,15 +3,21 @@ import fs from "fs";
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
 import { workspacePath } from "../workspace.js";
+import { WORKSPACE_PATHS } from "../workspace-paths.js";
 import { readManifest } from "../chat-index/indexer.js";
 import { resolveWithinRoot } from "../utils/fs.js";
 import type { ChatIndexEntry } from "../chat-index/types.js";
 import { markRead, getSession } from "../session-store/index.js";
+import { notFound } from "../utils/httpError.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
+import { EVENT_TYPES } from "../../src/types/events.js";
+import { env } from "../env.js";
 
 interface SessionMeta {
   roleId: string;
   startedAt: string;
   firstUserMessage?: string;
+  hasUnread?: boolean;
 }
 
 async function readSessionMeta(
@@ -67,13 +73,12 @@ const router = Router();
 
 // Sessions older than this are excluded from the listing. Set
 // SESSIONS_LIST_WINDOW_DAYS to override (0 = no cutoff).
-const WINDOW_MS =
-  (Number(process.env.SESSIONS_LIST_WINDOW_DAYS) || 90) * 86_400_000;
+const WINDOW_MS = env.sessionsListWindowDays * 86_400_000;
 
 router.get(
-  "/sessions",
+  API_ROUTES.sessions.list,
   async (_req: Request, res: Response<SessionSummary[]>) => {
-    const chatDir = path.join(workspacePath, "chat");
+    const chatDir = WORKSPACE_PATHS.chat;
     const manifest = await readManifest(workspacePath);
     const indexById = new Map<string, ChatIndexEntry>(
       manifest.entries.map((e) => [e.id, e]),
@@ -103,24 +108,23 @@ router.get(
               const preview = indexEntry?.title ?? meta.firstUserMessage ?? "";
 
               const live = getSession(id);
-              return {
+              const summary: SessionSummary = {
                 id,
                 roleId: meta.roleId,
                 startedAt: meta.startedAt,
                 updatedAt: new Date(fileStat.mtimeMs).toISOString(),
                 preview,
-                ...(indexEntry?.summary !== undefined && {
-                  summary: indexEntry.summary,
-                }),
-                ...(indexEntry?.keywords !== undefined && {
-                  keywords: indexEntry.keywords,
-                }),
-                ...(live && {
-                  isRunning: live.isRunning,
-                  hasUnread: live.hasUnread,
-                  statusMessage: live.statusMessage,
-                }),
+                hasUnread: live?.hasUnread ?? meta.hasUnread ?? false,
               };
+              if (indexEntry?.summary !== undefined)
+                summary.summary = indexEntry.summary;
+              if (indexEntry?.keywords !== undefined)
+                summary.keywords = indexEntry.keywords;
+              if (live) {
+                summary.isRunning = live.isRunning;
+                summary.statusMessage = live.statusMessage;
+              }
+              return summary;
             } catch {
               return null;
             }
@@ -152,13 +156,13 @@ interface SessionErrorResponse {
 }
 
 router.get(
-  "/sessions/:id",
+  API_ROUTES.sessions.detail,
   async (
     req: Request<SessionIdParams>,
     res: Response<unknown[] | SessionErrorResponse>,
   ) => {
     const { id } = req.params;
-    const chatDir = path.join(workspacePath, "chat");
+    const chatDir = WORKSPACE_PATHS.chat;
     const filePath = path.join(chatDir, `${id}.jsonl`);
     try {
       const meta = await readSessionMeta(chatDir, id);
@@ -173,14 +177,14 @@ router.get(
                 const entry = JSON.parse(line);
                 // Skip legacy metadata entries now stored in .json
                 if (
-                  entry.type === "session_meta" ||
-                  entry.type === "claude_session_id"
+                  entry.type === EVENT_TYPES.sessionMeta ||
+                  entry.type === EVENT_TYPES.claudeSessionId
                 )
                   return null;
                 // For presentMulmoScript results, re-read the script from disk
                 if (
                   entry.source === "tool" &&
-                  entry.type === "tool_result" &&
+                  entry.type === EVENT_TYPES.toolResult &&
                   entry.result?.toolName === "presentMulmoScript" &&
                   entry.result?.data?.filePath
                 ) {
@@ -190,7 +194,7 @@ router.get(
                     // Resolve the stories dir's realpath so the
                     // boundary check works even when stories/ itself
                     // is a legitimate symlink to another disk.
-                    const storiesDir = path.resolve(workspacePath, "stories");
+                    const storiesDir = path.resolve(WORKSPACE_PATHS.stories);
                     let storiesReal: string;
                     try {
                       storiesReal = fs.realpathSync(storiesDir);
@@ -233,18 +237,18 @@ router.get(
       ).filter(Boolean);
       // Prepend metadata as session_meta entry for the frontend
       const result = meta
-        ? [{ type: "session_meta", ...meta }, ...entries]
+        ? [{ type: EVENT_TYPES.sessionMeta, ...meta }, ...entries]
         : entries;
       res.json(result);
     } catch {
-      res.status(404).json({ error: "Session not found" });
+      notFound(res, "Session not found");
     }
   },
 );
 
 // Mark a session as read (clears the hasUnread flag in the session store).
 router.post(
-  "/sessions/:id/mark-read",
+  API_ROUTES.sessions.markRead,
   (req: Request<SessionIdParams>, res: Response<{ ok: boolean }>) => {
     const ok = markRead(req.params.id);
     res.json({ ok });

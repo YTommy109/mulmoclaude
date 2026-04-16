@@ -12,6 +12,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { summariesRoot, STATE_FILE } from "./paths.js";
 import { log } from "../logger/index.js";
+import { writeJsonAtomic } from "../utils/file.js";
 
 // Bump this when the schema changes in a backwards-incompatible way.
 // Older state files are treated as corrupted and replaced with a
@@ -152,11 +153,7 @@ export async function writeState(
   workspaceRoot: string,
   state: JournalState,
 ): Promise<void> {
-  const p = statePathFor(workspaceRoot);
-  await fsp.mkdir(path.dirname(p), { recursive: true });
-  const tmp = `${p}.tmp`;
-  await fsp.writeFile(tmp, JSON.stringify(state, null, 2), "utf-8");
-  await fsp.rename(tmp, p);
+  await writeJsonAtomic(statePathFor(workspaceRoot), state);
 }
 
 // Tiny helper so callers don't need to import `fs` directly just to

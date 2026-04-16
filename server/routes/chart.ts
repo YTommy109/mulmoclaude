@@ -1,13 +1,15 @@
 import { Router, Request, Response } from "express";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
-import { workspacePath } from "../workspace.js";
+import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../workspace-paths.js";
 import { slugify } from "../utils/slug.js";
 import { errorMessage } from "../utils/errors.js";
+import { badRequest, serverError } from "../utils/httpError.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 
-// See plans/feat-chart-plugin.md for the full design. The LLM sends an
+// See plans/done/feat-chart-plugin.md for the full design. The LLM sends an
 // ECharts option object per chart; we persist the whole document to
 // <workspace>/charts/<slug>-<timestamp>.chart.json so it can be
 // browsed in the files explorer and (eventually) wikified.
@@ -71,7 +73,7 @@ function isValidChartEntry(value: unknown): value is ChartEntry {
 }
 
 router.post(
-  "/present-chart",
+  API_ROUTES.chart.present,
   async (
     req: Request<object, unknown, PresentChartBody>,
     res: Response<PresentChartResponse>,
@@ -79,15 +81,15 @@ router.post(
     const { document, title } = req.body;
 
     if (!isValidChartDocument(document)) {
-      res.status(400).json({
-        error:
-          "document must be { charts: [{ option: {...}, title?, type? }, ...] } with at least one entry",
-      });
+      badRequest(
+        res,
+        "document must be { charts: [{ option: {...}, title?, type? }, ...] } with at least one entry",
+      );
       return;
     }
 
     if (title !== undefined && typeof title !== "string") {
-      res.status(400).json({ error: "title must be a string when provided" });
+      badRequest(res, "title must be a string when provided");
       return;
     }
 
@@ -95,7 +97,7 @@ router.post(
       const baseLabel = title ?? document.title ?? "chart";
       const slug = slugify(baseLabel) || "chart";
       const fname = `${slug}-${Date.now()}.chart.json`;
-      const chartsDir = path.join(workspacePath, "charts");
+      const chartsDir = WORKSPACE_PATHS.charts;
       await mkdir(chartsDir, { recursive: true });
       await writeFile(
         path.join(chartsDir, fname),
@@ -103,7 +105,7 @@ router.post(
         "utf-8",
       );
 
-      const filePath = `charts/${fname}`;
+      const filePath = `${WORKSPACE_DIRS.charts}/${fname}`;
       res.json({
         message: `Saved chart document to ${filePath}`,
         instructions:
@@ -112,7 +114,7 @@ router.post(
         data: { document, title, filePath },
       });
     } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
+      serverError(res, errorMessage(err));
     }
   },
 );

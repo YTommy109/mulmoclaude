@@ -2,15 +2,18 @@ import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { workspacePath } from "../workspace.js";
-
-const MARKDOWNS_DIR = path.join(workspacePath, "markdowns");
+import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../workspace-paths.js";
 
 /** Save markdown content as a file. Returns the workspace-relative path. */
 export async function saveMarkdown(content: string): Promise<string> {
   const id = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
   const filename = `${id}.md`;
-  await fs.writeFile(path.join(MARKDOWNS_DIR, filename), content, "utf-8");
-  return `markdowns/${filename}`;
+  await fs.writeFile(
+    path.join(WORKSPACE_PATHS.markdowns, filename),
+    content,
+    "utf-8",
+  );
+  return `${WORKSPACE_DIRS.markdowns}/${filename}`;
 }
 
 /** Read a markdown file and return its content. */
@@ -30,5 +33,7 @@ export async function overwriteMarkdown(
 
 /** Check if a string is a markdown file path (not inline content). */
 export function isMarkdownPath(value: string): boolean {
-  return value.startsWith("markdowns/") && value.endsWith(".md");
+  return (
+    value.startsWith(`${WORKSPACE_DIRS.markdowns}/`) && value.endsWith(".md")
+  );
 }

@@ -2,12 +2,14 @@ import { Router, Request, Response } from "express";
 import fs from "fs";
 import fsp from "node:fs/promises";
 import path from "path";
-import { workspacePath } from "../workspace.js";
+import { WORKSPACE_PATHS } from "../workspace-paths.js";
 import { getPageIndex } from "./wiki/pageIndex.js";
+import { badRequest } from "../utils/httpError.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 
-const wikiDir = () => path.join(workspacePath, "wiki");
+const wikiDir = () => WORKSPACE_PATHS.wiki;
 const pagesDir = () => path.join(wikiDir(), "pages");
 const indexFile = () => path.join(wikiDir(), "index.md");
 const logFile = () => path.join(wikiDir(), "log.md");
@@ -37,7 +39,12 @@ export function wikiSlugify(text: string): string {
 }
 
 const TABLE_SEPARATOR_PATTERN = /^\|[\s|:-]+\|$/;
-const BULLET_LINK_PATTERN = /^[-*]\s+\[([^\]]+)\]\([^)]*\)(?:\s*[—–-]\s*(.*))?/;
+// Capture the href (group 2) alongside the title (group 1) so we can
+// derive the slug from the file name instead of re-slugifying the
+// title. This matters for non-ASCII titles like "さくらインターネット"
+// where `wikiSlugify` returns "" and the slug would otherwise be lost.
+const BULLET_LINK_PATTERN =
+  /^[-*]\s+\[([^\]]+)\]\(([^)]*)\)(?:\s*[—–-]\s*(.*))?/;
 const BULLET_WIKI_LINK_PATTERN = /^[-*]\s+\[\[([^\]]+)\]\](?:\s*[—–-]\s*(.*))?/;
 
 // Each parser returns the entry it produced (if any). The parent
@@ -55,12 +62,32 @@ function parseTableRow(trimmed: string): WikiPageEntry | null {
   return { title, slug, description: desc };
 }
 
+// Extract the slug segment from a bullet link's href. Accepts the
+// canonical `pages/<slug>.md`, a bare `<slug>.md`, or just `<slug>`
+// — the three forms produced by different historical writers of
+// index.md. Returns "" for hrefs that don't look like a wiki page
+// reference (e.g. `https://example.com`) so the caller can fall
+// back to title-based slugification.
+export function extractSlugFromBulletHref(rawHref: string): string {
+  const href = rawHref.trim();
+  if (!href) return "";
+  if (/^[a-z]+:\/\//i.test(href)) return "";
+  const lastSegment = href.split("/").pop() ?? href;
+  return lastSegment.replace(/\.md$/i, "");
+}
+
 function parseBulletLinkRow(trimmed: string): WikiPageEntry | null {
   const m = BULLET_LINK_PATTERN.exec(trimmed);
   if (!m) return null;
   const title = m[1].trim();
-  const desc = m[2]?.trim() ?? "";
-  return { title, slug: wikiSlugify(title), description: desc };
+  const href = m[2] ?? "";
+  const desc = m[3]?.trim() ?? "";
+  // Prefer the slug embedded in the href so non-ASCII titles keep
+  // a navigable slug. Fall back to slugifying the title only when
+  // the href has no recognisable slug (rare — usually means the
+  // author put an external URL here).
+  const slug = extractSlugFromBulletHref(href) || wikiSlugify(title);
+  return { title, slug, description: desc };
 }
 
 function parseBulletWikiLinkRow(trimmed: string): WikiPageEntry | null {
@@ -127,7 +154,7 @@ async function resolvePagePath(pageName: string): Promise<string | null> {
 }
 
 router.get(
-  "/wiki",
+  API_ROUTES.wiki.base,
   async (req: Request, res: Response<WikiResponse | ErrorResponse>) => {
     const slug =
       typeof req.query.slug === "string" ? req.query.slug : undefined;
@@ -352,7 +379,7 @@ async function buildLintReportResponse(action: string): Promise<WikiResponse> {
 }
 
 router.post(
-  "/wiki",
+  API_ROUTES.wiki.base,
   async (
     req: Request<object, unknown, WikiBody>,
     res: Response<WikiResponse | ErrorResponse>,
@@ -364,7 +391,7 @@ router.post(
         return;
       case "page":
         if (!pageName) {
-          res.status(400).json({ error: "pageName required for page action" });
+          badRequest(res, "pageName required for page action");
           return;
         }
         res.json(await buildPageResponse(action, pageName));
@@ -376,7 +403,7 @@ router.post(
         res.json(await buildLintReportResponse(action));
         return;
       default:
-        res.status(400).json({ error: `Unknown action: ${action}` });
+        badRequest(res, `Unknown action: ${action}`);
     }
   },
 );

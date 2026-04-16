@@ -92,9 +92,13 @@ before(async () => {
   fs.mkdirSync(path.join(tmpRoot, "mulmoclaude"), { recursive: true });
   configMod = await import("../../server/config.js");
   routeMod = await import("../../server/routes/config.js");
-  getHandler = extractRouteHandler(routeMod, "/config", "get");
-  putSettingsHandler = extractRouteHandler(routeMod, "/config/settings", "put");
-  putConfigHandler = extractRouteHandler(routeMod, "/config", "put");
+  getHandler = extractRouteHandler(routeMod, "/api/config", "get");
+  putSettingsHandler = extractRouteHandler(
+    routeMod,
+    "/api/config/settings",
+    "put",
+  );
+  putConfigHandler = extractRouteHandler(routeMod, "/api/config", "put");
 });
 
 after(async () => {

@@ -23,6 +23,15 @@ See `plan/mulmo_claude.md` for the full design plan.
 
 **IMPORTANT**: Always write error handling for all `fetch` calls. Handle both network errors (try/catch) and HTTP errors (`!response.ok`). Surface errors to the user in the UI where appropriate.
 
+## GitHub posts (gh pr comment / gh issue comment / PR body)
+
+**NEVER escape backticks with backslash** when writing the body for `gh pr comment`, `gh issue comment`, `gh pr create --body`, `gh issue create --body`, or any other GitHub-rendering surface.
+
+- ✅ Correct: write ` ``` ` for fenced code blocks and `` ` `` for inline code, literally. Inside a bash heredoc (`<<'EOF'` with single quotes), backticks pass through unchanged.
+- ❌ Wrong: `\`\`\`` or `\``. These render as literal `\`\`\`` / `\`` on GitHub — backslash is visible, and markdown treats it as escaped so there's no code block at all.
+
+This happens repeatedly. If you're tempted to write `\`` inside a gh body, stop and check: the single-quoted heredoc (`<<'EOF' ... EOF`) doesn't interpret backticks, so they need zero escaping. Only escape if the heredoc is unquoted (`<<EOF`) — and the right fix there is to quote the heredoc, not add backslashes.
+
 ## Architecture
 
 ### LLM Core
@@ -89,6 +98,7 @@ URL-based navigation via `vue-router` (history mode — clean paths, no `#`). Th
 | `server/utils/` | Shared helpers: `fs.ts`, `errors.ts` |
 | `server/logger/` | Structured logger (console + rotating file + telemetry stub) |
 | `server/csrfGuard.ts` | CSRF origin-check middleware |
+| `src/config/apiRoutes.ts` | Central `/api/*` endpoint path constants (shared by server + frontend) |
 | `src/config/roles.ts` | Role definitions |
 | `src/tools/index.ts` | Plugin registry |
 | `src/router/index.ts` | Vue-router setup (history mode, route definitions) |
@@ -109,11 +119,11 @@ Import the canonical `TOOL_DEFINITION` directly — **do not copy or re-type the
 3. `src/config/roles.ts` — add to relevant role's `availablePlugins`
 4. `server/agent.ts` — add to `MCP_PLUGINS`
 
-Route handler goes in `server/routes/plugins.ts`.
+Route handler goes in `server/routes/plugins.ts`. Add the endpoint path to `src/config/apiRoutes.ts`.
 
 ### Adding a local plugin (`src/plugins/<name>/`)
 
-Local plugins import Vue components, so `toolDefinition` must be in a **separate file** (`definition.ts`) to allow server-side imports without pulling in Vue. Update **7 places**: `definition.ts`, `index.ts`, `server/routes/<name>.ts`, `server/mcp-server.ts`, `src/tools/index.ts`, `src/config/roles.ts`, `server/agent.ts`.
+Local plugins import Vue components, so `toolDefinition` must be in a **separate file** (`definition.ts`) to allow server-side imports without pulling in Vue. Update **8 places**: `definition.ts`, `index.ts`, `server/routes/<name>.ts`, `server/mcp-server.ts`, `src/tools/index.ts`, `src/config/roles.ts`, `server/agent.ts`, `src/config/apiRoutes.ts`.
 
 > If a plugin is in `availablePlugins` but absent from `MCP_PLUGINS` or `ALL_TOOLS`, it will be silently dropped.
 
@@ -133,6 +143,46 @@ router.post("/items/:id", (req: Request, res: Response) => { const x = req.body 
 
 - NEVER cast `req.query` — use `typeof req.query.x === "string" ? req.query.x : undefined`
 - Use type annotation (`const data: MyType = JSON.parse(raw)`) instead of `as` cast
+
+## Centralized Constants
+
+String literals that form cross-module contracts (endpoint paths, event types, tool names, role IDs, pub-sub channels, workspace directory names) MUST be defined once in a shared `as const` module and referenced everywhere else. NEVER introduce a new raw string literal for something that already has a constant.
+
+| What | Source of truth | Pattern |
+|---|---|---|
+| API endpoint paths | `src/config/apiRoutes.ts` → `API_ROUTES` | `router.post(API_ROUTES.todos.items, ...)` / `fetch(API_ROUTES.todos.items)` |
+| SSE / event types | `src/types/events.ts` → `EVENT_TYPES` / `EventType` | `{ type: EVENT_TYPES.toolResult, ... }` — also used in `AgentEvent` union |
+| Workspace directories | `server/workspace-paths.ts` → `WORKSPACE_PATHS` | `path.join(WORKSPACE_PATHS.wiki, "pages")` |
+| Tool names | `src/config/toolNames.ts` → `TOOL_NAMES` / `ToolName` | `availablePlugins: [TOOL_NAMES.manageTodoList, ...]` |
+| Built-in role IDs | `src/config/roles.ts` → `BUILTIN_ROLE_IDS` | `if (roleId === BUILTIN_ROLE_IDS.general)` |
+| Pub-sub channels | `src/config/pubsubChannels.ts` → `sessionChannel()` | `pubsub.publish(sessionChannel(id), event)` |
+| SSE event types | `src/types/events.ts` → `EVENT_TYPES` / `EventType` | `event.type === EVENT_TYPES.toolCall` |
+
+**Adding a new endpoint**: add the path to `src/config/apiRoutes.ts` first, then reference `API_ROUTES.<group>.<name>` from both the router file and the frontend `fetch()` call. Routers register the full `/api/...` path directly (no mount prefix in `server/index.ts`).
+
+## Cross-platform considerations
+
+CI runs the matrix `{ubuntu, windows, macOS} × {Node 22, Node 24}` (see `docs/developer.md`). Server / shared code MUST run on all three. Patches that build hardcoded POSIX paths or rely on `/tmp` semantics break Windows CI immediately and are the most common cause of red builds.
+
+### Paths
+
+- MUST build paths with `node:path` (`path.join`, `path.resolve`, `path.dirname`) — NEVER concatenate with literal `/` or `\\`.
+- In **tests**, expected values MUST also go through `path.join()`. Do NOT hardcode `"/tmp/ws/.claude/skills"`-style strings — Windows produces `"\\tmp\\ws\\..."` and the assertion fails. Compose roots with `path.join(path.sep, "tmp", "ws")` or `os.tmpdir()`.
+- For URL ↔ path conversions, use `node:url`'s `fileURLToPath` / `pathToFileURL`. NEVER manipulate `file://` strings directly.
+- Workspace-relative path **comparisons** (e.g. checking that a resolved path stays under a root) MUST use `path.relative()` or `path.resolve()` then a separator-aware `startsWith` — string-prefix checks like `p.startsWith(root + "/")` are wrong on Windows.
+
+### Filesystem semantics
+
+- **Atomic writes**: place the tmp file alongside the final destination (`${finalPath}.${randomUUID()}.tmp`), not in `os.tmpdir()`. `os.tmpdir()` may live on a different filesystem (Docker volumes, separate `/tmp` mounts), and `rename()` across filesystems fails with `EXDEV`. The same-directory pattern is the only reliable atomic-rename idiom in Node.
+- **Case sensitivity**: macOS / Windows are case-insensitive by default; Linux is case-sensitive. Treat `Foo.md` and `foo.md` as the same file when matching, never as distinct entries.
+- **Symlinks**: behavior differs across platforms (Windows requires admin for some symlink types). Don't depend on symlink presence in tests; if you must test it, gate with `if (process.platform === "win32") test.skip(...)`.
+- **Permissions**: `chmod(0o000)` is a no-op on Windows. Tests that simulate "unreadable file" need `if (process.platform === "win32") return;` early-return guards.
+- **Line endings**: writes that round-trip through git on a Windows checkout may pick up CRLF — use `"\n"` explicitly when comparing string output, and parse with `replace(/\r\n/g, "\n")` if reading user-edited files.
+- **Shell scripts in npm scripts**: NEVER use shell-specific syntax (`rm -rf`, `cp`, glob expansions in single quotes). Use `rimraf`, `shx`, or a Node script. Globs in package.json scripts should be unquoted (`prettier --write src/**/*.ts`, not `'src/**/*.ts'`).
+
+### Why this section keeps mattering
+
+Cross-platform path bugs land disproportionately often (multiple PRs in the last few weeks: `#224`, `#234`). The pattern is always the same: code works locally on macOS, ships, then Windows CI explodes on `\` vs `/`. Read this section once before writing any new fs / path code and the regressions go away.
 
 ## Code Organization
 
@@ -162,6 +212,13 @@ Key shared helpers in this repo:
 
 | Helper | Location |
 |---|---|
+| `API_ROUTES` | `src/config/apiRoutes.ts` |
+| `EVENT_TYPES` / `EventType` | `src/types/events.ts` |
+| `WORKSPACE_PATHS` / `WORKSPACE_DIRS` | `server/workspace-paths.ts` |
+| `TOOL_NAMES` / `ToolName` | `src/config/toolNames.ts` |
+| `BUILTIN_ROLE_IDS` / `BuiltInRoleId` | `src/config/roles.ts` |
+| `PUBSUB_CHANNELS` / `sessionChannel()` | `src/config/pubsubChannels.ts` |
+| `EVENT_TYPES` / `EventType` | `src/types/events.ts` |
 | `resolveWithinRoot(root, relPath)` | `server/utils/fs.ts` |
 | `errorMessage(err)` | `server/utils/errors.ts` |
 | `statSafe` / `readDirSafe` | `server/utils/fs.ts` |
@@ -230,9 +287,22 @@ e2e/
 ### Writing tests
 
 1. Call `await mockAllApis(page)` before `page.goto()` — it intercepts all API routes
-2. Use `data-testid` attributes for element selection (change-resistant)
+2. Use `data-testid` attributes for element selection (change-resistant) — see "Selector stability" below
 3. Use URL assertions for router behaviour (`expect(page.url()).toContain(...)`)
 4. Override specific API responses per test by adding a `page.route()` AFTER `mockAllApis` (Playwright checks last-registered first)
+
+### Selector stability — avoid layout-dependent tests
+
+E2E tests MUST survive **layout** changes (moving an element from sidebar to canvas, regrouping buttons, etc.) without being rewritten. Tests break the moment they walk the DOM structure instead of addressing elements by role.
+
+**Rules:**
+
+1. **Every element that an E2E test touches MUST carry a `data-testid`.** Source of truth is the Vue template — add the testid when you add the element, not when a test needs it. Missing testid = add it in the same PR.
+2. **Name testids by function, not position.** `chat-input`, `send-btn`, `role-selector-btn`, `plugin-toolbar-todos` — not `left-sidebar-input`, `top-bar-right-button`. The whole point is that layout can change without renaming.
+3. **Never use raw tag / structural CSS locators** (`page.locator("textarea")`, `page.locator('button:has(span.material-icons:text("send"))')`, `page.locator("div > div:nth-child(2)")`). These break on any layout tweak.
+4. **Layout-shift PRs (moving an element) MUST NOT rename testids.** Move the DOM node; the testid travels with it. If a rename is genuinely needed, do it in a separate PR so the layout diff stays minimal.
+5. **Reusable interactions go in `e2e/fixtures/chat.ts`** (and sibling fixture files). Tests call `sendChatMessage(page, "hi")`, `switchRole(page, "general")` etc. — when a layout change breaks the underlying testid hunt, only the helper needs updating, not every test. Drop to `page.getByTestId(...)` inline only when the interaction is one-off and no helper fits.
+6. **Content-based locators** (`page.locator("text=Hello")`, `img[alt='chart']`) are fine for asserting rendered output, but NOT for navigation. Prefer testid for clicks / fills; content selectors for `toBeVisible` / `toHaveText` assertions.
 
 ### When to add E2E coverage
 
