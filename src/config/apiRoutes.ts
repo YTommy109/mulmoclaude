@@ -142,6 +142,7 @@ export const API_ROUTES = {
     list: "/api/skills",
     detail: "/api/skills/:name",
     create: "/api/skills",
+    update: "/api/skills/:name",
     remove: "/api/skills/:name",
   },
 

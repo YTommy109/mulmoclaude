@@ -3,8 +3,12 @@
 
 export { discoverSkills, collectSkillsFromDir } from "./discovery.js";
 export { parseSkillFrontmatter } from "./parser.js";
-export { saveProjectSkill, deleteProjectSkill } from "./writer.js";
-export type { SaveResult, DeleteResult } from "./writer.js";
+export {
+  saveProjectSkill,
+  updateProjectSkill,
+  deleteProjectSkill,
+} from "./writer.js";
+export type { SaveResult, UpdateResult, DeleteResult } from "./writer.js";
 export {
   isValidSlug,
   projectSkillsDir,

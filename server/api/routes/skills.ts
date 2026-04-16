@@ -3,18 +3,21 @@
 //   GET    /api/skills        → { skills: SkillSummary[] }                phase 0
 //   GET    /api/skills/:name  → { skill: Skill } | 404                    phase 0
 //   POST   /api/skills        → { saved: true, path } | 400/409          phase 1
+//   PUT    /api/skills/:name  → { updated: true, path } | 400/403/404    phase 2
 //   DELETE /api/skills/:name  → { deleted: true } | 400/403/404          phase 1
 //
 // Discovery reads both ~/.claude/skills/ (user) and
 // <workspace>/.claude/skills/ (project); project wins on name
 // collision. Writes are confined to the project scope —
-// `saveProjectSkill` / `deleteProjectSkill` enforce that.
+// `saveProjectSkill` / `updateProjectSkill` / `deleteProjectSkill`
+// enforce that.
 
 import { Router, Request, Response } from "express";
 import {
   deleteProjectSkill,
   discoverSkills,
   saveProjectSkill,
+  updateProjectSkill,
 } from "../../workspace/skills/index.js";
 import type { Skill, SkillSummary } from "../../workspace/skills/index.js";
 import { workspacePath } from "../../workspace/workspace.js";
@@ -133,6 +136,64 @@ router.post(
         res,
         `skill already exists: ${result.name}. Choose a different name or delete the existing one first.`,
       );
+    }
+  },
+);
+
+interface UpdateSkillBody {
+  description?: unknown;
+  body?: unknown;
+}
+
+interface UpdateSkillResponse {
+  updated: true;
+  path: string;
+}
+
+router.put(
+  API_ROUTES.skills.update,
+  async (
+    req: Request<{ name: string }, unknown, UpdateSkillBody>,
+    res: Response<UpdateSkillResponse | ErrorResponse>,
+  ) => {
+    const { name } = req.params;
+    const { description, body } = req.body ?? {};
+    if (typeof description !== "string") {
+      badRequest(res, "description must be a string");
+      return;
+    }
+    if (typeof body !== "string") {
+      badRequest(res, "body must be a string");
+      return;
+    }
+    const result = await updateProjectSkill({
+      workspaceRoot: workspacePath,
+      name,
+      description,
+      body,
+    });
+    if (result.kind === "updated") {
+      log.info("skills", "updated", { name });
+      res.json({ updated: true, path: result.path });
+      return;
+    }
+    if (result.kind === "invalid-slug") {
+      badRequest(res, `invalid slug: "${result.slug}"`);
+      return;
+    }
+    if (result.kind === "missing-field") {
+      badRequest(res, `${result.field} must be a non-empty string`);
+      return;
+    }
+    if (result.kind === "user-scope") {
+      forbidden(
+        res,
+        `cannot update user-scope skill "${result.name}" — only project-scope skills are writable.`,
+      );
+      return;
+    }
+    if (result.kind === "not-found") {
+      notFound(res, `skill not found: ${result.name}`);
     }
   },
 );

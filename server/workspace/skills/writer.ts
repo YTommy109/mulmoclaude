@@ -76,6 +76,48 @@ export async function saveProjectSkill(
   return { kind: "saved", path: finalPath };
 }
 
+export type UpdateResult =
+  | { kind: "updated"; path: string }
+  | { kind: "invalid-slug"; slug: string }
+  | { kind: "missing-field"; field: "description" | "body" }
+  | { kind: "not-found"; name: string }
+  | { kind: "user-scope"; name: string };
+
+/**
+ * Overwrite an existing project-scope SKILL.md. Refuses to touch
+ * user-scope skills and rejects names that don't exist.
+ */
+export async function updateProjectSkill(
+  input: SaveSkillInput,
+): Promise<UpdateResult> {
+  const { workspaceRoot, name, description, body } = input;
+
+  if (!isValidSlug(name)) return { kind: "invalid-slug", slug: name };
+  if (typeof description !== "string" || description.trim().length === 0) {
+    return { kind: "missing-field", field: "description" };
+  }
+  if (typeof body !== "string") {
+    return { kind: "missing-field", field: "body" };
+  }
+
+  const existing = await discoverSkills({ workspaceRoot });
+  const skill = existing.find((s) => s.name === name);
+  if (!skill) return { kind: "not-found", name };
+  if (skill.source === "user") return { kind: "user-scope", name };
+
+  const finalPath = projectSkillPath(workspaceRoot, name);
+  const contents = formatSkillFile(description, body);
+
+  try {
+    await writeFileAtomic(finalPath, contents, { uniqueTmp: true });
+  } catch (err) {
+    log.error("skills", "update failed", { name, error: String(err) });
+    throw err;
+  }
+
+  return { kind: "updated", path: finalPath };
+}
+
 export interface DeleteSkillInput {
   workspaceRoot: string;
   name: string;
