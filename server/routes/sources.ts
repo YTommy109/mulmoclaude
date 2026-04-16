@@ -46,6 +46,7 @@ import {
   sendError,
   serverError,
 } from "../utils/httpError.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 
@@ -66,7 +67,7 @@ interface ErrorResponse {
 }
 
 router.get(
-  "/sources",
+  API_ROUTES.sources.list,
   async (_req: Request, res: Response<ListSourcesResponse | ErrorResponse>) => {
     try {
       const sources = await listSources(workspacePath);
@@ -102,7 +103,7 @@ interface RegisterSourceResponse {
 }
 
 router.post(
-  "/sources",
+  API_ROUTES.sources.create,
   async (
     req: Request<object, unknown, RegisterSourceBody>,
     res: Response<RegisterSourceResponse | ErrorResponse>,
@@ -162,7 +163,7 @@ interface DeleteSourceResponse {
 }
 
 router.delete(
-  "/sources/:slug",
+  API_ROUTES.sources.remove,
   async (
     req: Request<DeleteSourceParams>,
     res: Response<DeleteSourceResponse | ErrorResponse>,
@@ -188,7 +189,7 @@ interface RebuildBody {
 }
 
 router.post(
-  "/sources/rebuild",
+  API_ROUTES.sources.rebuild,
   async (
     req: Request<object, unknown, RebuildBody>,
     res: Response<ErrorResponse | Record<string, unknown>>,
@@ -277,7 +278,7 @@ interface ManageSourceSuccess {
 const MANAGE_ACTIONS = new Set(["list", "register", "remove", "rebuild"]);
 
 router.post(
-  "/sources/manage",
+  API_ROUTES.sources.manage,
   async (
     req: Request<object, unknown, ManageSourceBody>,
     res: Response<ManageSourceSuccess | ErrorResponse>,

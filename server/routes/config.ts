@@ -12,6 +12,7 @@ import {
   type McpServerEntry,
 } from "../config.js";
 import { badRequest, serverError } from "../utils/httpError.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 // Public surface of /api/config. GET returns the full config tree so
 // the client can render every section in one request. PUT surfaces are
@@ -79,9 +80,12 @@ function runSaveOrFail(
 
 const router = Router();
 
-router.get("/config", (_req: Request, res: Response<ConfigResponse>) => {
-  res.json(buildFullResponse());
-});
+router.get(
+  API_ROUTES.config.base,
+  (_req: Request, res: Response<ConfigResponse>) => {
+    res.json(buildFullResponse());
+  },
+);
 
 // Atomic save for both settings and MCP. Validates both payloads first
 // (no writes happen until every input is known-good), then writes
@@ -100,7 +104,7 @@ function isPutConfigBody(value: unknown): value is PutConfigBody {
 }
 
 router.put(
-  "/config",
+  API_ROUTES.config.base,
   (req: Request<unknown, unknown, PutConfigBody>, res: ConfigRes) => {
     const body = req.body;
     if (!isPutConfigBody(body)) {
@@ -140,7 +144,7 @@ router.put(
 );
 
 router.put(
-  "/config/settings",
+  API_ROUTES.config.settings,
   (req: Request<unknown, unknown, AppSettings>, res: ConfigRes) => {
     const body = req.body;
     if (!isAppSettings(body)) {
@@ -155,7 +159,7 @@ router.put(
 );
 
 router.put(
-  "/config/mcp",
+  API_ROUTES.config.mcp,
   (
     req: Request<unknown, unknown, { servers: McpServerEntry[] }>,
     res: ConfigRes,

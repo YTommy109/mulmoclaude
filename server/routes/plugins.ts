@@ -27,6 +27,7 @@ import {
   overwriteSpreadsheet,
   isSpreadsheetPath,
 } from "../utils/spreadsheet-store.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 
@@ -147,7 +148,7 @@ interface PresentDocumentResponse {
 }
 
 router.post(
-  "/present-document",
+  API_ROUTES.plugins.presentDocument,
   async (
     req: Request<object, unknown, PresentDocumentBody>,
     res: Response<PresentDocumentResponse>,
@@ -177,7 +178,7 @@ interface UpdateMarkdownError {
 }
 
 router.put(
-  "/markdowns/:filename",
+  API_ROUTES.plugins.updateMarkdown,
   async (
     req: Request<{ filename: string }, unknown, UpdateMarkdownBody>,
     res: Response<UpdateMarkdownResponse | UpdateMarkdownError>,
@@ -210,7 +211,7 @@ router.put(
 
 // presentSpreadsheet — validate, then save sheets to disk
 router.post(
-  "/present-spreadsheet",
+  API_ROUTES.plugins.presentSpreadsheet,
   wrapPluginExecute<SpreadsheetArgs, unknown>(async (req) => {
     const result = await executeSpreadsheet(req.body);
     if (!Array.isArray(result.data.sheets)) {
@@ -235,7 +236,7 @@ interface UpdateSpreadsheetError {
 }
 
 router.put(
-  "/spreadsheets/:filename",
+  API_ROUTES.plugins.updateSpreadsheet,
   async (
     req: Request<{ filename: string }, unknown, UpdateSpreadsheetBody>,
     res: Response<UpdateSpreadsheetResponse | UpdateSpreadsheetError>,
@@ -261,37 +262,37 @@ router.put(
 
 // createMindMap — uses package execute for node layout computation
 router.post(
-  "/mindmap",
+  API_ROUTES.plugins.mindmap,
   wrapPluginExecute((req) => executeMindMap(null as never, req.body)),
 );
 
 // putQuestions — quiz
 router.post(
-  "/quiz",
+  API_ROUTES.plugins.quiz,
   wrapPluginExecute((req) => executeQuiz(null as never, req.body)),
 );
 
 // presentForm — form
 router.post(
-  "/form",
+  API_ROUTES.plugins.form,
   wrapPluginExecute((req) => executeForm(null as never, req.body)),
 );
 
 // openCanvas — drawing canvas
 router.post(
-  "/canvas",
+  API_ROUTES.plugins.canvas,
   wrapPluginExecute(() => executeOpenCanvas()),
 );
 
 // present3d — 3D visualization
 router.post(
-  "/present3d",
+  API_ROUTES.plugins.present3d,
   wrapPluginExecute((req) => executePresent3D(null as never, req.body)),
 );
 
 // showMusic — sheet music display
 router.post(
-  "/music",
+  API_ROUTES.plugins.music,
   wrapPluginExecute((req) => showMusic(null as never, req.body)),
 );
 

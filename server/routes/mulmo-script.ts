@@ -30,6 +30,7 @@ import {
   validateUpdateBeatBody,
   validateUpdateScriptBody,
 } from "./mulmoScriptValidate.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 const storiesDir = path.resolve(workspacePath, "stories");
@@ -84,7 +85,7 @@ interface FilePathQuery {
 }
 
 router.post(
-  "/mulmo-script",
+  API_ROUTES.mulmoScript.save,
   (req: Request<object, object, SaveMulmoScriptBody>, res: Response) => {
     const { script, filename } = req.body;
 
@@ -111,7 +112,7 @@ router.post(
 );
 
 router.post(
-  "/mulmo-script/update-beat",
+  API_ROUTES.mulmoScript.updateBeat,
   (req: Request<object, object, unknown>, res: Response) => {
     const validation = validateUpdateBeatBody(req.body);
     if (!validation.ok) {
@@ -140,7 +141,7 @@ router.post(
 );
 
 router.post(
-  "/mulmo-script/update-script",
+  API_ROUTES.mulmoScript.updateScript,
   (req: Request<object, object, unknown>, res: Response) => {
     const validation = validateUpdateScriptBody(req.body);
     if (!validation.ok) {
@@ -158,7 +159,7 @@ router.post(
 );
 
 router.get(
-  "/mulmo-script/beat-image",
+  API_ROUTES.mulmoScript.beatImage,
   async (
     req: Request<object, BeatImageResponse, object, BeatQuery>,
     res: Response<BeatImageResponse>,
@@ -184,7 +185,7 @@ router.get(
 );
 
 router.get(
-  "/mulmo-script/movie-status",
+  API_ROUTES.mulmoScript.movieStatus,
   async (
     req: Request<object, MovieStatusResponse, object, FilePathQuery>,
     res: Response<MovieStatusResponse>,
@@ -378,7 +379,7 @@ export async function withStoryContext(
 }
 
 router.get(
-  "/mulmo-script/beat-audio",
+  API_ROUTES.mulmoScript.beatAudio,
   async (
     req: Request<object, BeatAudioResponse, object, BeatQuery>,
     res: Response<BeatAudioResponse>,
@@ -422,7 +423,7 @@ router.get(
 );
 
 router.post(
-  "/mulmo-script/generate-beat-audio",
+  API_ROUTES.mulmoScript.generateBeatAudio,
   async (
     req: Request<
       object,
@@ -481,7 +482,7 @@ router.post(
 );
 
 router.post(
-  "/mulmo-script/render-beat",
+  API_ROUTES.mulmoScript.renderBeat,
   async (req: Request<object, object, RenderBeatBody>, res: Response) => {
     const { filePath, beatIndex, force } = req.body;
 
@@ -508,7 +509,7 @@ router.post(
 );
 
 router.post(
-  "/mulmo-script/generate-movie",
+  API_ROUTES.mulmoScript.generateMovie,
   async (req: Request<object, object, { filePath: string }>, res: Response) => {
     const { filePath } = req.body;
 
@@ -606,7 +607,7 @@ interface UploadCharacterImageBody {
 type CharacterImageResponse = { image: string | null } | ErrorResponse;
 
 router.get(
-  "/mulmo-script/character-image",
+  API_ROUTES.mulmoScript.characterImage,
   async (
     req: Request<object, CharacterImageResponse, object, CharacterImageQuery>,
     res: Response<CharacterImageResponse>,
@@ -630,7 +631,7 @@ router.get(
 );
 
 router.post(
-  "/mulmo-script/upload-beat-image",
+  API_ROUTES.mulmoScript.uploadBeatImage,
   async (
     req: Request<object, BeatImageResponse, UploadBeatImageBody>,
     res: Response<BeatImageResponse>,
@@ -655,7 +656,7 @@ router.post(
 );
 
 router.post(
-  "/mulmo-script/render-character",
+  API_ROUTES.mulmoScript.renderCharacter,
   async (
     req: Request<object, CharacterImageResponse, RenderCharacterBody>,
     res: Response<CharacterImageResponse>,
@@ -696,7 +697,7 @@ router.post(
 );
 
 router.post(
-  "/mulmo-script/upload-character-image",
+  API_ROUTES.mulmoScript.uploadCharacterImage,
   async (
     req: Request<object, CharacterImageResponse, UploadCharacterImageBody>,
     res: Response<CharacterImageResponse>,
@@ -720,19 +721,22 @@ router.post(
   },
 );
 
-router.get("/mulmo-script/download-movie", (req: Request, res: Response) => {
-  const moviePath =
-    typeof req.query.moviePath === "string" ? req.query.moviePath : undefined;
+router.get(
+  API_ROUTES.mulmoScript.downloadMovie,
+  (req: Request, res: Response) => {
+    const moviePath =
+      typeof req.query.moviePath === "string" ? req.query.moviePath : undefined;
 
-  if (!moviePath) {
-    badRequest(res, "moviePath is required");
-    return;
-  }
+    if (!moviePath) {
+      badRequest(res, "moviePath is required");
+      return;
+    }
 
-  const absolutePath = resolveStoryPath(moviePath, res);
-  if (!absolutePath) return;
+    const absolutePath = resolveStoryPath(moviePath, res);
+    if (!absolutePath) return;
 
-  res.download(absolutePath);
-});
+    res.download(absolutePath);
+  },
+);
 
 export default router;

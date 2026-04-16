@@ -1,0 +1,87 @@
+<template>
+  <div
+    class="flex border border-gray-300 rounded overflow-hidden text-xs"
+    data-testid="plugin-launcher"
+  >
+    <button
+      v-for="target in TARGETS"
+      :key="target.key"
+      class="px-2.5 py-1 flex items-center gap-1 bg-white text-gray-600 hover:bg-gray-50 border-r border-gray-200 last:border-r-0"
+      :title="target.title"
+      :data-testid="`plugin-launcher-${target.key}`"
+      @click="emit('navigate', target)"
+    >
+      <span class="material-icons text-sm">{{ target.icon }}</span>
+      <span>{{ target.label }}</span>
+    </button>
+  </div>
+</template>
+
+<script setup lang="ts">
+// Quick-access toolbar sitting above the canvas. Each button either
+// invokes a plugin locally (no LLM round-trip) and surfaces its
+// native View, or — for "files" — switches the canvas to the
+// workspace file tree.
+//
+// First slice of issue #253. The list of targets is declared here so
+// the launcher can be swapped for a customisable per-role palette
+// later without touching the App.vue wiring.
+
+export type PluginLauncherKind =
+  | "invoke" // Call the matching plugin's client endpoint and push the ToolResult into the current session
+  | "files"; // Switch the canvas to files view (no plugin call)
+
+export interface PluginLauncherTarget {
+  /** Stable key for testid + dispatch in App.vue. */
+  key: "todos" | "scheduler" | "skills" | "wiki" | "files";
+  kind: PluginLauncherKind;
+  /** Material-icons glyph. */
+  icon: string;
+  /** Visible label next to the icon. */
+  label: string;
+  /** Tooltip on hover. */
+  title: string;
+}
+
+const TARGETS: PluginLauncherTarget[] = [
+  {
+    key: "todos",
+    kind: "invoke",
+    icon: "checklist",
+    label: "Todos",
+    title: "Open todos",
+  },
+  {
+    key: "scheduler",
+    kind: "invoke",
+    icon: "event",
+    label: "Schedule",
+    title: "Open schedule",
+  },
+  {
+    key: "skills",
+    kind: "invoke",
+    icon: "psychology",
+    label: "Skills",
+    title: "Open skills",
+  },
+  {
+    key: "wiki",
+    kind: "invoke",
+    icon: "menu_book",
+    label: "Wiki",
+    title: "Open wiki",
+  },
+  {
+    key: "files",
+    kind: "files",
+    icon: "folder",
+    label: "Files",
+    title: "Open workspace files",
+  },
+];
+
+const emit = defineEmits<{
+  navigate: [target: PluginLauncherTarget];
+}>();
+</script>

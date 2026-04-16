@@ -15,6 +15,7 @@ import {
   sendError,
   serverError,
 } from "../utils/httpError.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 
@@ -433,7 +434,7 @@ export async function listDirShallow(
 }
 
 router.get(
-  "/files/tree",
+  API_ROUTES.files.tree,
   async (
     _req: Request<object, unknown, unknown, object>,
     res: Response<TreeNode | ErrorResponse>,
@@ -453,7 +454,7 @@ router.get(
 // (no recursion) so the client can render the tree incrementally.
 // `path` is optional; empty / missing = workspace root.
 router.get(
-  "/files/dir",
+  API_ROUTES.files.dir,
   async (
     req: Request<object, unknown, unknown, PathQuery>,
     res: Response<TreeNode | ErrorResponse>,
@@ -550,7 +551,7 @@ function resolveAndStatFile<T>(
 }
 
 router.get(
-  "/files/content",
+  API_ROUTES.files.content,
   (
     req: Request<object, unknown, unknown, PathQuery>,
     res: Response<FileContentResponse | ErrorResponse>,
@@ -617,7 +618,7 @@ router.get(
 );
 
 router.get(
-  "/files/raw",
+  API_ROUTES.files.raw,
   (
     req: Request<object, unknown, unknown, PathQuery>,
     res: Response<ErrorResponse>,

@@ -13,6 +13,7 @@ import {
   stripDataUri,
   isImagePath,
 } from "../utils/image-store.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 
@@ -92,7 +93,7 @@ interface GenerateImageBody {
 }
 
 router.post(
-  "/generate-image",
+  API_ROUTES.image.generate,
   async (
     req: Request<object, unknown, GenerateImageBody>,
     res: Response<ImageResponse>,
@@ -119,7 +120,7 @@ interface EditImageBody {
 }
 
 router.post(
-  "/edit-image",
+  API_ROUTES.image.edit,
   async (
     req: Request<object, unknown, EditImageBody>,
     res: Response<ImageResponse>,
@@ -165,7 +166,7 @@ router.post(
 // Canvas image persistence — POST creates a new file, PUT overwrites.
 
 router.post(
-  "/images",
+  API_ROUTES.image.upload,
   async (
     req: Request<object, unknown, CanvasImageBody>,
     res: Response<CanvasImageResponse | CanvasImageError>,
@@ -181,7 +182,7 @@ router.post(
 );
 
 router.put(
-  "/images/:filename",
+  API_ROUTES.image.update,
   async (
     req: Request<{ filename: string }, unknown, CanvasImageBody>,
     res: Response<CanvasImageResponse | CanvasImageError>,

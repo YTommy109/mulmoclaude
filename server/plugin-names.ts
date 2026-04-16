@@ -23,28 +23,29 @@ import CanvasDef from "../src/plugins/canvas/definition.js";
 import EditImageDef from "../src/plugins/editImage/definition.js";
 import { TOOL_DEFINITION as Present3DDef } from "@gui-chat-plugin/present3d";
 import { TOOL_DEFINITION as MusicDef } from "@gui-chat-plugin/music";
+import { API_ROUTES } from "../src/config/apiRoutes.js";
 
 /** Maps plugin tool name → REST API endpoint. */
 export const TOOL_ENDPOINTS: Record<string, string> = {
-  [TodoDef.name]: "/api/todos",
-  [SchedulerDef.name]: "/api/scheduler",
-  [MarkdownDef.name]: "/api/present-document",
-  [SpreadsheetDef.name]: "/api/present-spreadsheet",
-  [MindMapDef.name]: "/api/mindmap",
-  [GenerateImageDef.name]: "/api/generate-image",
-  [QuizDef.name]: "/api/quiz",
-  [FormDef.name]: "/api/form",
-  [CanvasDef.name]: "/api/canvas",
-  [PresentHtmlDef.name]: "/api/present-html",
-  [PresentChartDef.name]: "/api/present-chart",
-  [EditImageDef.name]: "/api/edit-image",
-  [Present3DDef.name]: "/api/present3d",
-  [MusicDef.name]: "/api/music",
-  [ManageRolesDef.name]: "/api/roles/manage",
-  [ManageSkillsDef.name]: "/api/skills",
-  [ManageSourceDef.name]: "/api/sources/manage",
-  [PresentMulmoScriptDef.name]: "/api/mulmo-script",
-  [WikiDef.name]: "/api/wiki",
+  [TodoDef.name]: API_ROUTES.todos.dispatch,
+  [SchedulerDef.name]: API_ROUTES.scheduler.base,
+  [MarkdownDef.name]: API_ROUTES.plugins.presentDocument,
+  [SpreadsheetDef.name]: API_ROUTES.plugins.presentSpreadsheet,
+  [MindMapDef.name]: API_ROUTES.plugins.mindmap,
+  [GenerateImageDef.name]: API_ROUTES.image.generate,
+  [QuizDef.name]: API_ROUTES.plugins.quiz,
+  [FormDef.name]: API_ROUTES.plugins.form,
+  [CanvasDef.name]: API_ROUTES.plugins.canvas,
+  [PresentHtmlDef.name]: API_ROUTES.html.present,
+  [PresentChartDef.name]: API_ROUTES.chart.present,
+  [EditImageDef.name]: API_ROUTES.image.edit,
+  [Present3DDef.name]: API_ROUTES.plugins.present3d,
+  [MusicDef.name]: API_ROUTES.plugins.music,
+  [ManageRolesDef.name]: API_ROUTES.roles.manage,
+  [ManageSkillsDef.name]: API_ROUTES.skills.create,
+  [ManageSourceDef.name]: API_ROUTES.sources.manage,
+  [PresentMulmoScriptDef.name]: API_ROUTES.mulmoScript.save,
+  [WikiDef.name]: API_ROUTES.wiki.base,
 };
 
 /** All ToolDefinition objects for package and local plugins. */

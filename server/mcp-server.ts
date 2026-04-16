@@ -8,6 +8,7 @@ import type { ToolDefinition } from "gui-chat-protocol";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
 import { TOOL_ENDPOINTS, PLUGIN_DEFS } from "./plugin-names.js";
 import { errorMessage } from "./utils/errors.js";
+import { API_ROUTES } from "../src/config/apiRoutes.js";
 import { env } from "./env.js";
 
 type JsonRpcId = string | number | null;
@@ -176,7 +177,7 @@ async function fetchSkillsList(): Promise<{ name: string }[]> {
 
 async function pushSkillsListResult(message: string): Promise<void> {
   const skills = await fetchSkillsList();
-  await postJson("/api/internal/tool-result", {
+  await postJson(API_ROUTES.agent.internal.toolResult, {
     toolName: "manageSkills",
     uuid: crypto.randomUUID(),
     title: "Skills",
@@ -188,7 +189,7 @@ async function pushSkillsListResult(message: string): Promise<void> {
 async function handleManageSkillsList(): Promise<string> {
   const skills = await fetchSkillsList();
   const suffix = skills.length === 1 ? "" : "s";
-  await postJson("/api/internal/tool-result", {
+  await postJson(API_ROUTES.agent.internal.toolResult, {
     toolName: "manageSkills",
     uuid: crypto.randomUUID(),
     title: "Skills",
@@ -205,7 +206,7 @@ async function handleManageSkillsSave(
   // interpolate an accidental object / number into `/${name}`.
   const name = String(args.name ?? "");
   const res = await postJson(
-    "/api/skills",
+    API_ROUTES.skills.create,
     {
       name,
       description: args.description,
@@ -249,17 +250,19 @@ async function handleToolCall(
   args: Record<string, unknown>,
 ): Promise<string> {
   if (name === "switchRole") {
-    await postJson("/api/internal/switch-role", { roleId: args.roleId });
+    await postJson(API_ROUTES.agent.internal.switchRole, {
+      roleId: args.roleId,
+    });
     return `Switching to ${args.roleId} role`;
   }
 
   if (name === "manageRoles") {
-    const res = await postJson("/api/roles/manage", args);
+    const res = await postJson(API_ROUTES.roles.manage, args);
     const result = await res.json();
 
     // For the list action, push a visual canvas result so the viewer renders
     if (args.action === "list" && result.success) {
-      await postJson("/api/internal/tool-result", {
+      await postJson(API_ROUTES.agent.internal.toolResult, {
         toolName: "manageRoles",
         uuid: crypto.randomUUID(),
         ...result,
@@ -293,7 +296,7 @@ async function handleToolCall(
   const result = await res.json();
 
   // Push visual ToolResult to the frontend via the session
-  await postJson("/api/internal/tool-result", {
+  await postJson(API_ROUTES.agent.internal.toolResult, {
     toolName: name,
     uuid: crypto.randomUUID(),
     ...result,

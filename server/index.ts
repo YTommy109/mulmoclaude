@@ -44,6 +44,7 @@ import { initSessionStore } from "./session-store/index.js";
 import { requireSameOrigin } from "./csrfGuard.js";
 import { log } from "./logger/index.js";
 import { startChat } from "./routes/agent.js";
+import { API_ROUTES } from "../src/config/apiRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -77,7 +78,7 @@ app.use(express.json({ limit: "50mb" }));
 // too. See plans/done/fix-server-csrf-origin-check.md.
 app.use(requireSameOrigin);
 
-app.get("/api/health", (_req: Request, res: Response) => {
+app.get(API_ROUTES.health, (_req: Request, res: Response) => {
   res.json({
     status: "OK",
     geminiAvailable: isGeminiAvailable(),
@@ -85,25 +86,29 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-app.use("/api", agentRoutes);
-app.use("/api", todosRoutes);
-app.use("/api", schedulerRoutes);
-app.use("/api", sessionsRoutes);
-app.use("/api", chatIndexRoutes);
-app.use("/api", sourcesRoutes);
-app.use("/api", pluginsRoutes);
-app.use("/api", imageRoutes);
-app.use("/api", presentHtmlRoutes);
-app.use("/api", chartRoutes);
-app.use("/api", rolesRoutes);
-app.use("/api", mulmoScriptRoutes);
-app.use("/api", wikiRoutes);
-app.use("/api", pdfRoutes);
-app.use("/api", filesRoutes);
-app.use("/api", configRoutes);
-app.use("/api", skillsRoutes);
-app.use("/api", chatServiceRoutes);
-app.use("/api/mcp-tools", mcpToolsRouter);
+// Routers register FULL `/api/...` paths internally (see
+// `src/config/apiRoutes.ts`), so they mount at root. The previous
+// `app.use("/api", ...)` prefix was dropped when #289 part 1 moved
+// the `/api` literal into each `router.post(API_ROUTES.…)` call.
+app.use(agentRoutes);
+app.use(todosRoutes);
+app.use(schedulerRoutes);
+app.use(sessionsRoutes);
+app.use(chatIndexRoutes);
+app.use(sourcesRoutes);
+app.use(pluginsRoutes);
+app.use(imageRoutes);
+app.use(presentHtmlRoutes);
+app.use(chartRoutes);
+app.use(rolesRoutes);
+app.use(mulmoScriptRoutes);
+app.use(wikiRoutes);
+app.use(pdfRoutes);
+app.use(filesRoutes);
+app.use(configRoutes);
+app.use(skillsRoutes);
+app.use(chatServiceRoutes);
+app.use(mcpToolsRouter);
 
 if (env.isProduction) {
   app.use(express.static(path.join(__dirname, "../client")));

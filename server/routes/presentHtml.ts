@@ -5,6 +5,7 @@ import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../workspace-paths.js";
 import { slugify } from "../utils/slug.js";
 import { errorMessage } from "../utils/errors.js";
 import { badRequest, serverError } from "../utils/httpError.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 
@@ -28,7 +29,7 @@ type PresentHtmlResponse =
   | PresentHtmlErrorResponse;
 
 router.post(
-  "/present-html",
+  API_ROUTES.html.present,
   async (
     req: Request<object, unknown, PresentHtmlBody>,
     res: Response<PresentHtmlResponse>,

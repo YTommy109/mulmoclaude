@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { readXPost, searchX } from "./x.js";
 import { errorMessage } from "../utils/errors.js";
 import { notFound, sendError, serverError } from "../utils/httpError.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 export interface McpTool {
   definition: {
@@ -30,8 +31,8 @@ interface McpToolParams {
   tool: string;
 }
 
-// GET / — returns { name, enabled, requiredEnv } for each tool (used by the role builder UI)
-mcpToolsRouter.get("/", (_req: Request, res: Response) => {
+// GET /api/mcp-tools — returns { name, enabled, requiredEnv } for each tool (used by the role builder UI)
+mcpToolsRouter.get(API_ROUTES.mcpTools.list, (_req: Request, res: Response) => {
   res.json(
     mcpTools.map((t) => ({
       name: t.definition.name,
@@ -42,9 +43,9 @@ mcpToolsRouter.get("/", (_req: Request, res: Response) => {
   );
 });
 
-// POST /:tool — dispatches to the right handler
+// POST /api/mcp-tools/:tool — dispatches to the right handler
 mcpToolsRouter.post(
-  "/:tool",
+  API_ROUTES.mcpTools.invoke,
   async (
     req: Request<McpToolParams, unknown, Record<string, unknown>>,
     res: Response,

@@ -13,6 +13,8 @@ import {
 } from "./chat-state.js";
 import { handleCommand } from "./commands.js";
 import { badRequest, notFound } from "../utils/httpError.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
+import { EVENT_TYPES } from "../../src/types/events.js";
 
 const router = Router();
 
@@ -41,7 +43,7 @@ interface ConnectRequestParams {
 // The main endpoint bridges call. Send text, get a reply.
 
 router.post(
-  "/chat/:transportId/:externalChatId",
+  API_ROUTES.chatService.message,
   async (
     req: Request<ChatRequestParams, unknown, ChatRequestBody>,
     res: Response,
@@ -130,7 +132,7 @@ router.post(
 // Reassign the active session pointer for a transport chat.
 
 router.post(
-  "/chat/:transportId/:externalChatId/connect",
+  API_ROUTES.chatService.connect,
   async (
     req: Request<ConnectRequestParams, unknown, ConnectRequestBody>,
     res: Response,
@@ -179,17 +181,17 @@ function collectAgentReply(chatSessionId: string): Promise<string> {
     const unsubscribe = onSessionEvent(chatSessionId, (event) => {
       const type = event.type as string;
 
-      if (type === "text") {
+      if (type === EVENT_TYPES.text) {
         textChunks.push(event.message as string);
       }
 
-      if (type === "error") {
+      if (type === EVENT_TYPES.error) {
         clearTimeout(timer);
         unsubscribe();
         resolve(`Error: ${event.message as string}`);
       }
 
-      if (type === "session_finished") {
+      if (type === EVENT_TYPES.sessionFinished) {
         clearTimeout(timer);
         unsubscribe();
         resolve(

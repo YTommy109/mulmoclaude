@@ -28,6 +28,8 @@ import {
   type DispatchErrorResponse,
 } from "./dispatchResponse.js";
 
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
+
 const router = Router();
 
 export type TodoPriority = "low" | "medium" | "high" | "urgent";
@@ -87,9 +89,12 @@ interface TodosListResponse {
   data: { items: TodoItem[]; columns: StatusColumn[] };
 }
 
-router.get("/todos", (_req: Request, res: Response<TodosListResponse>) => {
-  res.json({ data: { items: loadTodos(), columns: loadColumns() } });
-});
+router.get(
+  API_ROUTES.todos.list,
+  (_req: Request, res: Response<TodosListResponse>) => {
+    res.json({ data: { items: loadTodos(), columns: loadColumns() } });
+  },
+);
 
 // ── POST /api/todos (legacy MCP action route) ────────────────────
 //
@@ -110,7 +115,7 @@ interface TodoBody extends TodosActionInput {
 const READ_ONLY_ACTIONS = new Set(["show", "list_labels"]);
 
 router.post(
-  "/todos",
+  API_ROUTES.todos.dispatch,
   (
     req: Request<object, unknown, TodoBody>,
     res: Response<DispatchSuccessResponse<TodoItem> | DispatchErrorResponse>,
@@ -147,7 +152,7 @@ interface ColumnIdParams {
 
 // POST /api/todos/items — create a new todo
 router.post(
-  "/todos/items",
+  API_ROUTES.todos.items,
   (
     req: Request<object, unknown, CreateInput>,
     res: Response<ItemResponse | DispatchErrorResponse>,
@@ -169,7 +174,7 @@ router.post(
 
 // PATCH /api/todos/items/:id — partial update
 router.patch(
-  "/todos/items/:id",
+  API_ROUTES.todos.item,
   (
     req: Request<ItemIdParams, unknown, PatchInput>,
     res: Response<ItemResponse | DispatchErrorResponse>,
@@ -191,7 +196,7 @@ router.patch(
 
 // POST /api/todos/items/:id/move — drag & drop persistence
 router.post(
-  "/todos/items/:id/move",
+  API_ROUTES.todos.itemMove,
   (
     req: Request<ItemIdParams, unknown, MoveInput>,
     res: Response<ItemResponse | DispatchErrorResponse>,
@@ -213,7 +218,7 @@ router.post(
 
 // DELETE /api/todos/items/:id
 router.delete(
-  "/todos/items/:id",
+  API_ROUTES.todos.item,
   (
     req: Request<ItemIdParams>,
     res: Response<ItemResponse | DispatchErrorResponse>,
@@ -251,14 +256,14 @@ interface ReorderColumnsBody {
 }
 
 router.get(
-  "/todos/columns",
+  API_ROUTES.todos.columns,
   (_req: Request, res: Response<ColumnsResponse>) => {
     res.json({ data: { items: loadTodos(), columns: loadColumns() } });
   },
 );
 
 router.post(
-  "/todos/columns",
+  API_ROUTES.todos.columns,
   (
     req: Request<object, unknown, AddColumnBody>,
     res: Response<ColumnsResponse | DispatchErrorResponse>,
@@ -276,7 +281,7 @@ router.post(
 );
 
 router.patch(
-  "/todos/columns/:id",
+  API_ROUTES.todos.column,
   (
     req: Request<ColumnIdParams, unknown, PatchColumnBody>,
     res: Response<ColumnsResponse | DispatchErrorResponse>,
@@ -299,7 +304,7 @@ router.patch(
 );
 
 router.delete(
-  "/todos/columns/:id",
+  API_ROUTES.todos.column,
   (
     req: Request<ColumnIdParams>,
     res: Response<ColumnsResponse | DispatchErrorResponse>,
@@ -317,7 +322,7 @@ router.delete(
 );
 
 router.put(
-  "/todos/columns/order",
+  API_ROUTES.todos.columnsOrder,
   (
     req: Request<object, unknown, ReorderColumnsBody>,
     res: Response<ColumnsResponse | DispatchErrorResponse>,

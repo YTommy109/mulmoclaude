@@ -5,6 +5,7 @@ import path from "path";
 import { WORKSPACE_PATHS } from "../workspace-paths.js";
 import { getPageIndex } from "./wiki/pageIndex.js";
 import { badRequest } from "../utils/httpError.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 
@@ -153,7 +154,7 @@ async function resolvePagePath(pageName: string): Promise<string | null> {
 }
 
 router.get(
-  "/wiki",
+  API_ROUTES.wiki.base,
   async (req: Request, res: Response<WikiResponse | ErrorResponse>) => {
     const slug =
       typeof req.query.slug === "string" ? req.query.slug : undefined;
@@ -378,7 +379,7 @@ async function buildLintReportResponse(action: string): Promise<WikiResponse> {
 }
 
 router.post(
-  "/wiki",
+  API_ROUTES.wiki.base,
   async (
     req: Request<object, unknown, WikiBody>,
     res: Response<WikiResponse | ErrorResponse>,

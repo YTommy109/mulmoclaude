@@ -11,6 +11,7 @@ import {
   type DispatchSuccessResponse,
   type DispatchErrorResponse,
 } from "./dispatchResponse.js";
+import { API_ROUTES } from "../../src/config/apiRoutes.js";
 
 const router = Router();
 
@@ -32,7 +33,7 @@ function saveItems(items: ScheduledItem[]): void {
 }
 
 router.get(
-  "/scheduler",
+  API_ROUTES.scheduler.base,
   (_req: Request, res: Response<{ data: { items: ScheduledItem[] } }>) => {
     res.json({ data: { items: loadItems() } });
   },
@@ -43,7 +44,7 @@ interface SchedulerBody extends SchedulerActionInput {
 }
 
 router.post(
-  "/scheduler",
+  API_ROUTES.scheduler.base,
   (
     req: Request<object, unknown, SchedulerBody>,
     res: Response<
