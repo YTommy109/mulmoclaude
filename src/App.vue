@@ -248,8 +248,9 @@
       class="flex-1 flex flex-col bg-white text-gray-900 min-w-0 overflow-hidden"
     >
       <div
-        class="flex items-center justify-end px-3 py-2 border-b border-gray-100 shrink-0"
+        class="flex items-center justify-between px-3 py-2 border-b border-gray-100 shrink-0 gap-2"
       >
+        <PluginLauncher @navigate="onPluginNavigate" />
         <CanvasViewToggle
           :model-value="canvasViewMode"
           @update:model-value="setCanvasViewMode"
@@ -332,6 +333,9 @@ import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
 import LockStatusPopup from "./components/LockStatusPopup.vue";
 import ToolResultsPanel from "./components/ToolResultsPanel.vue";
 import CanvasViewToggle from "./components/CanvasViewToggle.vue";
+import PluginLauncher, {
+  type PluginLauncherTarget,
+} from "./components/PluginLauncher.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
 import SettingsModal from "./components/SettingsModal.vue";
@@ -726,6 +730,137 @@ const {
   handleViewModeShortcut,
 } = useCanvasViewMode({ isRunning });
 const rightSidebarRef = ref<InstanceType<typeof RightSidebar> | null>(null);
+
+// Default HTTP call (endpoint + body + resulting toolName) for each
+// "invoke" launcher target. Mirrors what each plugin's `execute()`
+// does — duplicated here intentionally so the launcher doesn't drag
+// the Vue components into this synchronous code path.
+//
+// Most endpoints already return a `{ data: ... }` envelope that the
+// plugin View expects. Skills is the odd one out — its REST surface
+// returns `{ skills: [...] }` flat, so `wrapData` lifts the payload
+// under `data` before the ToolResult reaches the View.
+const LAUNCHER_INVOKE_SPECS: Record<
+  "todos" | "scheduler" | "skills" | "wiki",
+  {
+    endpoint: string;
+    method: "GET" | "POST";
+    body?: unknown;
+    toolName: string;
+    defaultTitle: string;
+    /** Optional response-shape transform: when set, the ToolResult
+     *  gets `data = wrapData(json)` overlaid on top of the spread. */
+    wrapData?: (json: Record<string, unknown>) => unknown;
+  }
+> = {
+  todos: {
+    endpoint: "/api/todos",
+    method: "POST",
+    body: { action: "show" },
+    toolName: "manageTodoList",
+    defaultTitle: "Todos",
+  },
+  scheduler: {
+    endpoint: "/api/scheduler",
+    method: "POST",
+    body: { action: "show" },
+    toolName: "manageScheduler",
+    defaultTitle: "Schedule",
+  },
+  skills: {
+    endpoint: "/api/skills",
+    method: "GET",
+    toolName: "manageSkills",
+    defaultTitle: "Skills",
+    wrapData: (json) => ({ skills: json.skills ?? [] }),
+  },
+  wiki: {
+    endpoint: "/api/wiki",
+    method: "POST",
+    body: { action: "index" },
+    toolName: "manageWiki",
+    defaultTitle: "Wiki",
+  },
+};
+
+type LauncherInvokeKey = keyof typeof LAUNCHER_INVOKE_SPECS;
+
+function isLauncherInvokeKey(key: string): key is LauncherInvokeKey {
+  return key in LAUNCHER_INVOKE_SPECS;
+}
+
+// Call a plugin's REST endpoint locally and shape the response into
+// a ToolResultComplete so the canvas renders it through the plugin's
+// own View component. Throws on HTTP / network failure; caller is
+// responsible for surfacing the error to the user.
+async function invokePluginForLauncher(
+  key: LauncherInvokeKey,
+): Promise<ToolResultComplete> {
+  const spec = LAUNCHER_INVOKE_SPECS[key];
+  const res = await fetch(spec.endpoint, {
+    method: spec.method,
+    headers:
+      spec.method === "POST" ? { "Content-Type": "application/json" } : {},
+    body: spec.method === "POST" ? JSON.stringify(spec.body ?? {}) : undefined,
+  });
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    const detail =
+      typeof json.error === "string" ? json.error : `HTTP ${res.status}`;
+    throw new Error(`${spec.toolName} failed: ${detail}`);
+  }
+  const data = spec.wrapData ? spec.wrapData(json) : json.data;
+  return {
+    ...json,
+    data,
+    toolName: spec.toolName,
+    uuid: typeof json.uuid === "string" ? json.uuid : crypto.randomUUID(),
+    title: typeof json.title === "string" ? json.title : spec.defaultTitle,
+    message:
+      typeof json.message === "string"
+        ? json.message
+        : `Opened ${spec.defaultTitle}`,
+  } as ToolResultComplete;
+}
+
+// Plugin-launcher click:
+// - "files" target → switch canvas to files view (no plugin call).
+// - "invoke" target → call the plugin locally, push the result into
+//   the current session, select it, switch canvas to single view so
+//   the plugin's View component takes the stage.
+async function onPluginNavigate(target: PluginLauncherTarget): Promise<void> {
+  if (target.kind === "files") {
+    setCanvasViewMode("files");
+    const base = buildViewQuery();
+    const query: Record<string, string> = {};
+    for (const [k, v] of Object.entries(base)) {
+      if (typeof v === "string") query[k] = v;
+    }
+    delete query.path;
+    router.replace({ query }).catch((err: unknown) => {
+      if (!isNavigationFailure(err)) {
+        // eslint-disable-next-line no-console
+        console.error("[plugin-launcher] navigation failed:", err);
+      }
+    });
+    return;
+  }
+
+  const session = sessionMap.get(currentSessionId.value);
+  if (!session) return;
+  if (!isLauncherInvokeKey(target.key)) return;
+
+  try {
+    const result = await invokePluginForLauncher(target.key);
+    session.toolResults.push(result);
+    session.selectedResultUuid = result.uuid;
+    // Single view so the plugin's View takes the full canvas —
+    // stack view would bury the fresh result below older entries.
+    setCanvasViewMode("single");
+  } catch (err) {
+    pushErrorMessage(session, err instanceof Error ? err.message : String(err));
+  }
+}
 
 const { availableTools, toolDescriptions, fetchMcpToolsStatus } = useMcpTools({
   currentRole,
