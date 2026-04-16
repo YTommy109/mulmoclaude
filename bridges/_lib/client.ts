@@ -13,6 +13,7 @@
 // minimal non-Node equivalent.
 
 import { io, type Socket } from "socket.io-client";
+import { CHAT_SOCKET_EVENTS } from "../../server/chat-service/socket.js";
 import { readBridgeToken, TOKEN_FILE_PATH } from "./token.js";
 
 // 6 min > the server's REPLY_TIMEOUT_MS (5 min) so the server's
@@ -92,7 +93,7 @@ export function createBridgeClient(opts: BridgeClientOptions): BridgeClient {
   return {
     send: (externalChatId, text) => sendMessage(socket, externalChatId, text),
     onPush: (handler) => {
-      socket.on("push", handler);
+      socket.on(CHAT_SOCKET_EVENTS.push, handler);
     },
     onConnect: (handler) => {
       socket.on("connect", handler);
@@ -116,7 +117,7 @@ function sendMessage(
     socket
       .timeout(REPLY_TIMEOUT_MS)
       .emit(
-        "message",
+        CHAT_SOCKET_EVENTS.message,
         { externalChatId, text },
         (err: Error | null, ack: MessageAck | undefined) => {
           if (err) {
