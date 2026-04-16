@@ -19,8 +19,8 @@ interface EnvSnapshot {
     chatIndexForceRunOnStartup: boolean;
     mcpSessionId: string;
     mcpHost: string;
-    mcpPluginNames: string[];
-    mcpRoleIds: string[];
+    mcpPluginNames: readonly string[];
+    mcpRoleIds: readonly string[];
   }>;
   isGeminiAvailable: () => boolean;
 }
@@ -164,9 +164,61 @@ describe("isGeminiAvailable", () => {
   });
 });
 
+describe("asInt edge cases", () => {
+  it("falls back when PORT is a decimal", async () => {
+    process.env.PORT = "3001.5";
+    const { env } = await loadEnvFresh();
+    assert.equal(env.port, 3001);
+  });
+
+  it("falls back when PORT is negative", async () => {
+    process.env.PORT = "-1";
+    const { env } = await loadEnvFresh();
+    assert.equal(env.port, 3001);
+  });
+
+  it("falls back when PORT exceeds 65535", async () => {
+    process.env.PORT = "70000";
+    const { env } = await loadEnvFresh();
+    assert.equal(env.port, 3001);
+  });
+
+  it("falls back when SESSIONS_LIST_WINDOW_DAYS is negative", async () => {
+    process.env.SESSIONS_LIST_WINDOW_DAYS = "-7";
+    const { env } = await loadEnvFresh();
+    assert.equal(env.sessionsListWindowDays, 90);
+  });
+});
+
+describe("asCsv edge cases", () => {
+  it("trims surrounding whitespace from entries", async () => {
+    process.env.PLUGIN_NAMES = "a, b , c";
+    const { env } = await loadEnvFresh();
+    assert.deepEqual(env.mcpPluginNames, ["a", "b", "c"]);
+  });
+
+  it("trims whitespace-only entries to empty and drops them", async () => {
+    process.env.ROLE_IDS = " , a , , b , ";
+    const { env } = await loadEnvFresh();
+    assert.deepEqual(env.mcpRoleIds, ["a", "b"]);
+  });
+});
+
 describe("env immutability", () => {
   it("env is frozen", async () => {
     const { env } = await loadEnvFresh();
     assert.equal(Object.isFrozen(env), true);
+  });
+
+  it("mcpPluginNames array is frozen", async () => {
+    process.env.PLUGIN_NAMES = "a,b";
+    const { env } = await loadEnvFresh();
+    assert.equal(Object.isFrozen(env.mcpPluginNames), true);
+  });
+
+  it("mcpRoleIds array is frozen", async () => {
+    process.env.ROLE_IDS = "x,y";
+    const { env } = await loadEnvFresh();
+    assert.equal(Object.isFrozen(env.mcpRoleIds), true);
   });
 });

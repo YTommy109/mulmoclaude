@@ -17,10 +17,17 @@
 
 // ── Type coercion helpers ───────────────────────────────────────────
 
-function asInt(value: string | undefined, fallback: number): number {
+function asInt(
+  value: string | undefined,
+  fallback: number,
+  opts: { min?: number; max?: number } = {},
+): number {
   if (value === undefined || value === "") return fallback;
   const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
+  if (!Number.isInteger(n)) return fallback;
+  if (opts.min !== undefined && n < opts.min) return fallback;
+  if (opts.max !== undefined && n > opts.max) return fallback;
+  return n;
 }
 
 function asFlag(value: string | undefined): boolean {
@@ -30,8 +37,13 @@ function asFlag(value: string | undefined): boolean {
   return value === "1";
 }
 
-function asCsv(value: string | undefined): string[] {
-  return (value ?? "").split(",").filter(Boolean);
+function asCsv(value: string | undefined): readonly string[] {
+  return Object.freeze(
+    (value ?? "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean),
+  );
 }
 
 // ── Snapshot ────────────────────────────────────────────────────────
@@ -44,7 +56,7 @@ function asCsv(value: string | undefined): string[] {
  */
 export const env = Object.freeze({
   // HTTP server
-  port: asInt(process.env.PORT, 3001),
+  port: asInt(process.env.PORT, 3001, { min: 0, max: 65_535 }),
   nodeEnv: process.env.NODE_ENV ?? "development",
   isProduction: process.env.NODE_ENV === "production",
 
@@ -56,7 +68,9 @@ export const env = Object.freeze({
   xBearerToken: process.env.X_BEARER_TOKEN,
 
   // Sessions index API
-  sessionsListWindowDays: asInt(process.env.SESSIONS_LIST_WINDOW_DAYS, 90),
+  sessionsListWindowDays: asInt(process.env.SESSIONS_LIST_WINDOW_DAYS, 90, {
+    min: 0,
+  }),
 
   // Debug-only force-run flags. Off by default; `=1` triggers an
   // immediate run on startup instead of waiting for the scheduled
