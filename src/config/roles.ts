@@ -52,6 +52,7 @@ export const ROLES: Role[] = [
     queries: [
       "Tell me about this app, MulmoClaude.",
       "What is wiki in this app and how to use it?",
+      "How do I use the Telegram bridge to talk to MulmoClaude from my phone?",
       "Show my wiki index",
       "Lint my wiki",
       "Show my todo list",
