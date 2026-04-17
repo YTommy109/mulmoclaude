@@ -103,10 +103,9 @@ export async function readTopicFile(
     return await fsp.readFile(topicPathFor(root(r), slug), "utf-8");
   } catch (err) {
     if (isEnoent(err)) return null;
-    log.error("journal-io", `readTopicFile(${slug}) failed`, {
-      error: String(err),
-    });
-    return null;
+    // EACCES/EPERM must propagate — swallowing them would cause
+    // appendOrCreateTopic to clobber an unreadable file.
+    throw err;
   }
 }
 

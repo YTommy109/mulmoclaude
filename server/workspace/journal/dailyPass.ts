@@ -12,7 +12,12 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { workspacePath as defaultWorkspacePath } from "../workspace.js";
 import { WORKSPACE_DIRS } from "../paths.js";
-import { writeFileAtomic } from "../../utils/files/atomic.js";
+import {
+  writeDailySummary,
+  readTopicFile,
+  writeTopicFile,
+  appendOrCreateTopic,
+} from "../../utils/files/journal-io.js";
 import {
   type Summarize,
   type SessionExcerpt,
@@ -273,7 +278,7 @@ async function writeDailySummaryForDate(
     `${dayPart}.md`,
   );
   const content = rewriteWorkspaceLinks(dailyFileWsPath, rawMarkdown);
-  await writeDailySummary(workspaceRoot, date, content);
+  await writeDailySummary(date, content, workspaceRoot);
 }
 
 // Apply every topic update the archivist asked for, keeping the
@@ -760,64 +765,15 @@ async function readAllTopics(
   return out;
 }
 
-async function writeDailySummary(
-  workspaceRoot: string,
-  date: string,
-  content: string,
-): Promise<void> {
-  const p = dailyPathFor(workspaceRoot, date);
-  await writeFileAtomic(p, content);
-}
-
-// If the file doesn't exist, write `content` fresh; otherwise append
-// it after a blank line. Returns "created" or "updated" so the caller
-// can report which action was taken.
-//
-// Distinguishes a true missing file (ENOENT) from other read errors
-// (permission denied, I/O failure) — without this, a transient EACCES
-// on an existing topic would silently overwrite it.
-//
-// Exported for unit testing in test/journal/test_appendOrCreate.ts.
-export async function appendOrCreate(
-  filePath: string,
-  content: string,
-): Promise<"created" | "updated"> {
-  let existing: string;
-  try {
-    existing = await fsp.readFile(filePath, "utf-8");
-  } catch (err) {
-    if (
-      typeof err === "object" &&
-      err !== null &&
-      "code" in err &&
-      err.code === "ENOENT"
-    ) {
-      await writeFileAtomic(filePath, content);
-      return "created";
-    }
-    throw err;
-  }
-  await writeFileAtomic(filePath, `${existing.trimEnd()}\n\n${content}\n`);
-  return "updated";
-}
-
 async function applyTopicUpdate(
   workspaceRoot: string,
   update: TopicUpdate,
 ): Promise<"created" | "updated"> {
-  const p = topicPathFor(workspaceRoot, update.slug);
-  await fsp.mkdir(path.dirname(p), { recursive: true });
-
-  if (update.action === "create") {
-    // If the file already exists (e.g. the LLM mis-classified), treat
-    // it as an append so we don't clobber prior content.
-    return appendOrCreate(p, update.content);
+  if (update.action === "create" || update.action === "append") {
+    return appendOrCreateTopic(update.slug, update.content, workspaceRoot);
   }
-  if (update.action === "rewrite") {
-    const existed = (await readTextOrNull(p)) !== null;
-    await writeFileAtomic(p, update.content);
-    return existed ? "updated" : "created";
-  }
-  // append
-  return appendOrCreate(p, update.content);
+  // rewrite
+  const existed = (await readTopicFile(update.slug, workspaceRoot)) !== null;
+  await writeTopicFile(update.slug, update.content, workspaceRoot);
+  return existed ? "updated" : "created";
 }
