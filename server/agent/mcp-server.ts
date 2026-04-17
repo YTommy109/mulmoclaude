@@ -4,7 +4,6 @@
  * back to the active frontend SSE stream via the session registry.
  */
 
-import fs from "node:fs";
 import type { ToolDefinition } from "gui-chat-protocol";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
 import { TOOL_ENDPOINTS, PLUGIN_DEFS } from "./plugin-names.js";
@@ -12,6 +11,7 @@ import { errorMessage } from "../utils/errors.js";
 import { API_ROUTES } from "../../src/config/apiRoutes.js";
 import { env } from "../system/env.js";
 import { extractFetchError } from "../utils/fetch.js";
+import { readTextSafeSync } from "../utils/files/safe.js";
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
 
 type JsonRpcId = string | number | null;
@@ -45,11 +45,7 @@ const BASE_URL = `http://${MCP_HOST}:${PORT}`;
 function readSessionToken(): string {
   const fromEnv = process.env.MULMOCLAUDE_AUTH_TOKEN;
   if (typeof fromEnv === "string" && fromEnv.length > 0) return fromEnv;
-  try {
-    return fs.readFileSync(WORKSPACE_PATHS.sessionToken, "utf-8").trim();
-  } catch {
-    return "";
-  }
+  return readTextSafeSync(WORKSPACE_PATHS.sessionToken)?.trim() ?? "";
 }
 const SESSION_TOKEN = readSessionToken();
 const AUTH_HEADER: Record<string, string> = SESSION_TOKEN

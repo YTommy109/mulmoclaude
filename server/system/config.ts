@@ -14,6 +14,7 @@ import path from "path";
 import { log } from "./logger/index.js";
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
 import { writeFileAtomicSync } from "../utils/files/atomic.js";
+import { readTextSafeSync } from "../utils/files/safe.js";
 
 export interface AppSettings {
   // Extra tool names appended to BASE_ALLOWED_TOOLS in
@@ -59,12 +60,8 @@ export function isAppSettings(value: unknown): value is AppSettings {
 
 export function loadSettings(): AppSettings {
   const file = settingsPath();
-  let raw: string;
-  try {
-    raw = fs.readFileSync(file, "utf-8");
-  } catch {
-    return { ...DEFAULT_SETTINGS };
-  }
+  const raw = readTextSafeSync(file);
+  if (raw === null) return { ...DEFAULT_SETTINGS };
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -218,12 +215,8 @@ export function isMcpConfigFile(value: unknown): value is McpConfigFile {
 
 export function loadMcpConfig(): McpConfigFile {
   const file = mcpConfigPath();
-  let raw: string;
-  try {
-    raw = fs.readFileSync(file, "utf-8");
-  } catch {
-    return { mcpServers: { ...DEFAULT_MCP.mcpServers } };
-  }
+  const raw = readTextSafeSync(file);
+  if (raw === null) return { mcpServers: { ...DEFAULT_MCP.mcpServers } };
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);

@@ -6,28 +6,14 @@
 
 import { WORKSPACE_FILES } from "../../workspace/paths.js";
 import { workspacePath } from "../../workspace/paths.js";
-import { resolvePath, isEnoent } from "./workspace-io.js";
+import { resolvePath } from "./workspace-io.js";
+import { loadJsonFile } from "./json.js";
 import { writeFileAtomicSync } from "./atomic.js";
-import { log } from "../../system/logger/index.js";
-import fs from "fs";
 
 const root = (r?: string) => r ?? workspacePath;
 
-function readJsonOrFallback<T>(absPath: string, fallback: T): T {
-  try {
-    return JSON.parse(fs.readFileSync(absPath, "utf-8")) as T;
-  } catch (err) {
-    if (isEnoent(err)) return fallback;
-    log.error("todos-io", "failed to read JSON, using fallback", {
-      path: absPath,
-      error: String(err),
-    });
-    return fallback;
-  }
-}
-
 export function loadTodos<T>(fallback: T, r?: string): T {
-  return readJsonOrFallback(
+  return loadJsonFile(
     resolvePath(root(r), WORKSPACE_FILES.todosItems),
     fallback,
   );
@@ -41,7 +27,7 @@ export function saveTodos(items: unknown, r?: string): void {
 }
 
 export function loadColumns<T>(fallback: T, r?: string): T {
-  return readJsonOrFallback(
+  return loadJsonFile(
     resolvePath(root(r), WORKSPACE_FILES.todosColumns),
     fallback,
   );

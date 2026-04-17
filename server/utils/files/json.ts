@@ -6,15 +6,36 @@
 import fs from "fs";
 import path from "path";
 import { writeFileAtomic } from "./atomic.js";
+import { isEnoent } from "./workspace-io.js";
+import { log } from "../../system/logger/index.js";
 
-// ── Sync (legacy callers — todos, scheduler, columns) ───────────
+// ── Sync helpers ────────────────────────────────────────────────
 
+/**
+ * Read and parse a JSON file synchronously. Returns `defaultValue`
+ * on ENOENT (file not yet created) or JSON corruption (logs the
+ * error but doesn't crash — user data files must not take down the
+ * server). Rethrows unexpected errors (EACCES, EPERM).
+ */
 export function loadJsonFile<T>(filePath: string, defaultValue: T): T {
+  let raw: string;
   try {
-    if (!fs.existsSync(filePath)) return defaultValue;
-    const parsed: T = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-    return parsed;
-  } catch {
+    raw = fs.readFileSync(filePath, "utf-8");
+  } catch (err) {
+    if (isEnoent(err)) return defaultValue;
+    log.error("json", "loadJsonFile read failed", {
+      path: filePath,
+      error: String(err),
+    });
+    throw err;
+  }
+  try {
+    return JSON.parse(raw) as T;
+  } catch (err) {
+    log.error("json", "loadJsonFile parse failed, using default", {
+      path: filePath,
+      error: String(err),
+    });
     return defaultValue;
   }
 }

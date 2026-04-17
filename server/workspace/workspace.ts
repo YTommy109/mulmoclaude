@@ -5,9 +5,14 @@ import { fileURLToPath } from "url";
 import { log } from "../system/logger/index.js";
 import {
   EAGER_WORKSPACE_DIRS,
+  WORKSPACE_FILES,
   WORKSPACE_PATHS,
   workspacePath,
 } from "./paths.js";
+import {
+  existsInWorkspace,
+  writeWorkspaceTextSync,
+} from "../utils/files/workspace-io.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(__dirname, "helps");
@@ -82,9 +87,9 @@ export function initWorkspace(): string {
   }
 
   // Create memory.md if it doesn't exist
-  if (!fs.existsSync(WORKSPACE_PATHS.memory)) {
-    fs.writeFileSync(
-      WORKSPACE_PATHS.memory,
+  if (!existsInWorkspace(WORKSPACE_FILES.memory)) {
+    writeWorkspaceTextSync(
+      WORKSPACE_FILES.memory,
       "# Memory\n\nDistilled facts about you and your work.\n",
     );
   }
