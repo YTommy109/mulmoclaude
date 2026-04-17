@@ -303,6 +303,47 @@ Key shared helpers in this repo:
 
 Periodically audit for duplication (`sonarjs/no-duplicate-string` warnings, `jscpd`). Batch low-risk extractions into a single refactor PR (as #145 did).
 
+### File I/O — domain I/O modules (#366)
+
+**NEVER use raw `fs.readFile` / `fs.writeFile` / `path.join` in route handlers or business logic.** All workspace file I/O MUST go through domain-specific I/O modules under `server/utils/files/`. This prevents path bugs when directories are renamed (like #284).
+
+**Where to put what:**
+
+| Layer | Location | Example |
+|---|---|---|
+| **Domain I/O** (highest) | `server/utils/files/<domain>-io.ts` | `readSessionMeta(id)`, `saveTodos(items)`, `writeDailySummary(date, content)` |
+| **Generic workspace I/O** | `server/utils/files/workspace-io.ts` | `readWorkspaceText(relPath)`, `writeWorkspaceJson(relPath, data)` |
+| **Atomic primitives** | `server/utils/files/atomic.ts` | `writeFileAtomic(absPath, content)` |
+| **Safe wrappers** | `server/utils/files/safe.ts` | `resolveWithinRoot(root, relPath)`, `readTextSafeSync(absPath)` |
+| **Path constants** | `server/workspace/paths.ts` | `WORKSPACE_DIRS.chat`, `WORKSPACE_FILES.todosItems` |
+
+**Adding a new domain I/O module:**
+
+1. Create `server/utils/files/<domain>-io.ts`
+2. Functions take **IDs and data** as arguments, never paths — e.g. `readSessionMeta(id)` not `readFile(path.join(WORKSPACE_PATHS.chat, id + ".json"))`
+3. All functions take optional `root?: string` parameter for test DI (defaults to `workspacePath`)
+4. Reads return `null` / fallback on ENOENT; log + return fallback on JSON corruption (never crash)
+5. Writes go through `writeFileAtomic` (atomic safety)
+6. Export from `server/utils/files/index.ts` barrel
+
+**Existing domain I/O modules:**
+
+| Module | Functions |
+|---|---|
+| `session-io.ts` | `readSessionMeta`, `createSessionMeta`, `backfillFirstUserMessage`, `setClaudeSessionId`, `clearClaudeSessionId`, `updateHasUnread`, `readSessionJsonl`, `appendSessionLine`, `ensureChatDir` |
+| `todos-io.ts` | `loadTodos`, `saveTodos`, `loadColumns`, `saveColumns` |
+| `scheduler-io.ts` | `loadSchedulerItems`, `saveSchedulerItems` |
+| `html-io.ts` | `readCurrentHtml`, `writeCurrentHtml` |
+| `journal-io.ts` | `readDailySummary`, `writeDailySummary`, `readTopicFile`, `writeTopicFile`, `appendOrCreateTopic`, `readJournalState`, `writeJournalState`, `writeJournalIndex`, `listTopicSlugs`, `archiveTopic`, `listDailyFiles`, `countArchivedTopics` |
+
+### Network I/O — centralized API helpers
+
+**Frontend → Server**: All HTTP calls from Vue MUST go through `src/utils/api.ts` (`apiGet`, `apiPost`, `apiPut`, `apiPatch`, `apiDelete`, `apiCall`). These attach the #272 bearer token automatically. NEVER use raw `fetch("/api/...")` in `.vue` or composable files.
+
+**MCP Server → Server**: The MCP subprocess uses `postJson()` in `server/agent/mcp-server.ts` which attaches `AUTH_HEADER`. NEVER add a raw `fetch` call in mcp-server.ts without the auth header.
+
+**Server → External APIs**: Use `AbortController` for timeouts. Handle both network errors (try/catch) and HTTP errors (`!response.ok`). Surface errors to the user in the UI where appropriate.
+
 ### Files: one concept per file
 
 - Name files for the concept they contain — **not** generic `utils.ts` / `helpers.ts` / `common.ts` (conflict magnets).
