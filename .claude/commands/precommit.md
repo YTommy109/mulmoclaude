@@ -113,3 +113,11 @@ Run `git diff --stat` and `git diff` first, then check every item below against 
 
 - [ ] **No `eslint-disable-line` or `eslint-disable-next-line`.** If the lint rule fires, fix the code — don't suppress. The only exception is `@typescript-eslint/no-explicit-any` in test mocks where the mock intentionally returns `as any` to satisfy a type constraint that doesn't matter for the test.
 - [ ] No `@ts-ignore` or `@ts-expect-error`.
+
+## 14. Dependencies
+
+- [ ] **No unnecessary npm packages.** If the functionality can be implemented in <50 lines of pure code, do that instead of adding a dependency.
+- [ ] Prefer **mature, mainstream packages** with large user bases, stable APIs, and infrequent breaking changes (e.g., `express`, `marked`, `zod`, `uuid`).
+- [ ] Avoid trendy / fast-moving / hype-cycle packages that are likely to become obsolete, change APIs frequently, or introduce supply-chain risk.
+- [ ] Before adding a package, check: last publish date, weekly downloads, open issues count, bus factor (single maintainer?), and whether a simpler alternative already exists in the repo.
+- [ ] No duplicate-purpose packages — if the repo already has a library that covers the use case (even partially), extend it rather than adding a second one.
