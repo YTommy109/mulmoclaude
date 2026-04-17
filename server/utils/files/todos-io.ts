@@ -4,7 +4,7 @@
 //
 // Sync API. Optional `root` for test DI.
 
-import { WORKSPACE_DIRS, WORKSPACE_FILES } from "../../workspace/paths.js";
+import { WORKSPACE_FILES } from "../../workspace/paths.js";
 import { workspacePath } from "../../workspace/paths.js";
 import { resolvePath, isEnoent } from "./workspace-io.js";
 import { writeFileAtomicSync } from "./atomic.js";
@@ -34,8 +34,6 @@ export function loadTodos<T>(fallback: T, r?: string): T {
 }
 
 export function saveTodos(items: unknown, r?: string): void {
-  const dir = resolvePath(root(r), WORKSPACE_DIRS.todos);
-  fs.mkdirSync(dir, { recursive: true });
   writeFileAtomicSync(
     resolvePath(root(r), WORKSPACE_FILES.todosItems),
     JSON.stringify(items, null, 2),
@@ -50,8 +48,6 @@ export function loadColumns<T>(fallback: T, r?: string): T {
 }
 
 export function saveColumns(columns: unknown, r?: string): void {
-  const dir = resolvePath(root(r), WORKSPACE_DIRS.todos);
-  fs.mkdirSync(dir, { recursive: true });
   writeFileAtomicSync(
     resolvePath(root(r), WORKSPACE_FILES.todosColumns),
     JSON.stringify(columns, null, 2),
