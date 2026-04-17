@@ -20,5 +20,5 @@ This logic activates **only when all three are true**:
 
 ### Implementation
 
-- **`server/credentials.ts`** — new module with a `refreshCredentials()` function that extracts the OAuth token from macOS Keychain and writes it to `~/.claude/.credentials.json`. Returns `true` on success, `false` on failure.
-- **`server/agent.ts`** — after detecting a 401 error on first attempt, call `refreshCredentials()`, and if successful, retry `runAgent` once. If the retry also fails, yield the error as before.
+- **`server/system/credentials.ts`** — new module with a `refreshCredentials()` function that extracts the OAuth token from macOS Keychain and writes it to `~/.claude/.credentials.json`. Returns `true` on success, `false` on failure.
+- **`server/agent/index.ts`** — after detecting a 401 error on first attempt, call `refreshCredentials()`, and if successful, retry `runAgent` once. If the retry also fails, yield the error as before.

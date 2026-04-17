@@ -8,7 +8,7 @@ import {
   createArgsCache,
   recordToolEvent,
   type RecordToolEventDeps,
-} from "../../server/tool-trace/index.js";
+} from "../../server/workspace/tool-trace/index.js";
 
 const FIXED_NOW = new Date("2026-04-13T05:18:47.123Z");
 const SID = "a821d112";
@@ -38,7 +38,7 @@ async function makeHarness(workspaceRoot: string): Promise<Harness> {
         workspaceRoot: inputs.workspaceRoot,
         query: inputs.query,
       });
-      return `searches/2026-04-13/${inputs.query.replace(/\s+/g, "-")}-test0001.md`;
+      return `conversations/searches/2026-04-13/${inputs.query.replace(/\s+/g, "-")}-test0001.md`;
     },
   };
 
@@ -120,7 +120,9 @@ describe("recordToolEvent", () => {
     const resultLine = lines.find((l) => l.type === "tool_call_result");
     assert.ok(resultLine);
     assert.ok(
-      String(resultLine?.contentRef).startsWith("searches/2026-04-13/"),
+      String(resultLine?.contentRef).startsWith(
+        "conversations/searches/2026-04-13/",
+      ),
     );
     assert.equal(resultLine?.content, undefined);
     assert.equal(h.savedSearches.length, 1);

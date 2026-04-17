@@ -2,7 +2,7 @@
 
 ## Motivation
 
-`server/routes/wiki.ts` has two sync-I/O hotspots on the wiki read path:
+`server/api/routes/wiki.ts` has two sync-I/O hotspots on the wiki read path:
 
 1. **`resolvePagePath`** (`:104-122`) — every `GET /api/wiki?slug=foo` that doesn't hit an exact-match runs `fs.readdirSync(pagesDir)` + linear `find()` over the filenames. Called on every `manageWiki` tool invocation.
 2. **`collectLintIssues`** (`:301-322`) — same `fs.readdirSync` + a sync `readFileOrEmpty` per page for the broken-link scan.
@@ -13,7 +13,7 @@ Per the expanded scope in [#201](https://github.com/receptron/mulmoclaude/issues
 
 ## Design
 
-### `server/routes/wiki/pageIndex.ts` (new)
+### `server/api/routes/wiki/pageIndex.ts` (new)
 
 Module-level cache. Key insight: `pagesDir` mtime advances whenever a file is added / removed / renamed inside it (on macOS, Linux, and Windows ext/NTFS), so one `fs.promises.stat` call per request is enough to decide cache freshness.
 

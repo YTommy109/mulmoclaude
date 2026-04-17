@@ -1,7 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatJson, formatText } from "../../server/logger/formatters.js";
-import type { LogRecord } from "../../server/logger/types.js";
+import {
+  formatJson,
+  formatText,
+} from "../../server/system/logger/formatters.js";
+import type { LogRecord } from "../../server/system/logger/types.js";
 
 function record(overrides: Partial<LogRecord> = {}): LogRecord {
   return {

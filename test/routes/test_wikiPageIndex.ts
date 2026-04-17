@@ -6,7 +6,7 @@ import path from "node:path";
 import {
   __resetPageIndexCache,
   getPageIndex,
-} from "../../server/routes/wiki/pageIndex.js";
+} from "../../server/api/routes/wiki/pageIndex.js";
 
 // Bump a directory's mtime to the given ms epoch so tests can force
 // the cache-invalidation path without waiting on real mtime

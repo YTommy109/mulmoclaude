@@ -122,7 +122,7 @@ Add a compact wiki hint to all role system prompts so Claude proactively consult
 
 **Why not inject index.md?** A mature wiki can reach 100+ pages (5–10 KB of table text). Injecting that into every role's system prompt — including Game, Artist, Musician — wastes tokens, slows responses, and provides no value to roles that never need it.
 
-**Approach**: `server/agent.ts` appends a wiki context block to every role's system prompt when the wiki exists:
+**Approach**: `server/agent/index.ts` appends a wiki context block to every role's system prompt when the wiki exists:
 
 1. **Read hint** (always, if `wiki/index.md` exists): one sentence describing the layout so Claude can navigate to `wiki/pages/<slug>.md` correctly.
 

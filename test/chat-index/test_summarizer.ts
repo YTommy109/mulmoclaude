@@ -6,7 +6,7 @@ import {
   parseClaudeJsonResult,
   validateSummaryResult,
   formatSpawnError,
-} from "../../server/chat-index/summarizer.js";
+} from "../../server/workspace/chat-index/summarizer.js";
 
 describe("extractText", () => {
   it("keeps user and assistant text turns", () => {

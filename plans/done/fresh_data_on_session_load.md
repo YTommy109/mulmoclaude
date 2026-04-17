@@ -40,10 +40,10 @@ Each plugin already has a POST endpoint for mutations. Add a simple GET that ret
 
 | Route file | New endpoint | Returns |
 |-----------|-------------|---------|
-| `server/routes/todos.ts` | `GET /api/todos` | `{ data: { items } }` |
-| `server/routes/scheduler.ts` | `GET /api/scheduler` | `{ data: { items } }` |
-| `server/routes/wiki.ts` | `GET /api/wiki?action=index` | `{ data: { pageEntries } }` |
-| `server/routes/roles.ts` | `GET /api/roles` | `{ data: { customRoles } }` |
+| `server/api/routes/todos.ts` | `GET /api/todos` | `{ data: { items } }` |
+| `server/api/routes/scheduler.ts` | `GET /api/scheduler` | `{ data: { items } }` |
+| `server/api/routes/wiki.ts` | `GET /api/wiki?action=index` | `{ data: { pageEntries } }` |
+| `server/api/routes/roles.ts` | `GET /api/roles` | `{ data: { customRoles } }` |
 
 The GET response shape should match the POST response `data` field so the same component code can consume both.
 
@@ -127,10 +127,10 @@ ManageRoles has a `GET /api/roles` endpoint already (check if it exists). If not
 
 | File | Change |
 |------|--------|
-| `server/routes/todos.ts` | Add `GET /api/todos` |
-| `server/routes/scheduler.ts` | Add `GET /api/scheduler` |
-| `server/routes/wiki.ts` | Add `GET /api/wiki` (if not present) |
-| `server/routes/roles.ts` | Add `GET /api/roles` (if not present) |
+| `server/api/routes/todos.ts` | Add `GET /api/todos` |
+| `server/api/routes/scheduler.ts` | Add `GET /api/scheduler` |
+| `server/api/routes/wiki.ts` | Add `GET /api/wiki` (if not present) |
+| `server/api/routes/roles.ts` | Add `GET /api/roles` (if not present) |
 | `src/plugins/todo/View.vue` | Fetch on mount, use local ref |
 | `src/plugins/todo/Preview.vue` | Fetch on mount, use local ref |
 | `src/plugins/scheduler/View.vue` | Fetch on mount, use local ref |
@@ -142,5 +142,5 @@ ManageRoles has a `GET /api/roles` endpoint already (check if it exists). If not
 
 ## Out of Scope
 
-- Removing the `presentMulmoScript` re-read logic from `server/routes/sessions.ts` — can be done as a follow-up to keep this change focused
+- Removing the `presentMulmoScript` re-read logic from `server/api/routes/sessions.ts` — can be done as a follow-up to keep this change focused
 - Real-time sync across multiple open tabs/sessions — out of scope for now

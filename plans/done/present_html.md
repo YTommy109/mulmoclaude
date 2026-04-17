@@ -42,7 +42,7 @@ Result stored as a `ToolResult<PresentHtmlData>`.
 - `@gui-chat-plugin/edit-html`
 
 ### Server
-- `server/routes/html.ts` — entire file (contains both `/generate-html` and `/edit-html` routes)
+- `server/api/routes/html.ts` — entire file (contains both `/generate-html` and `/edit-html` routes)
 
 ---
 
@@ -51,9 +51,9 @@ Result stored as a `ToolResult<PresentHtmlData>`.
 | File | What to remove |
 |---|---|
 | `server/index.ts` | `import htmlRoutes` and `app.use("/api", htmlRoutes)` |
-| `server/mcp-server.ts` | `GenerateHtmlDef` and `EditHtmlDef` imports; their entries in `TOOL_ENDPOINTS` and `ALL_TOOLS` |
+| `server/agent/mcp-server.ts` | `GenerateHtmlDef` and `EditHtmlDef` imports; their entries in `TOOL_ENDPOINTS` and `ALL_TOOLS` |
 | `src/tools/index.ts` | `GenerateHtmlPlugin` and `EditHtmlPlugin` imports; `generateHtml` and `editHtml` entries in plugins map |
-| `server/agent.ts` | `"generateHtml"` and `"editHtml"` from `MCP_PLUGINS` |
+| `server/agent/index.ts` | `"generateHtml"` and `"editHtml"` from `MCP_PLUGINS` |
 | `src/App.vue` | `"generateHtml"` and `"editHtml"` from `GEMINI_PLUGINS` set |
 
 ---
@@ -66,21 +66,21 @@ Result stored as a `ToolResult<PresentHtmlData>`.
 | `src/plugins/presentHtml/index.ts` | `ToolPlugin`: imports definition + `execute()` + Vue components |
 | `src/plugins/presentHtml/View.vue` | Canvas view: renders HTML in a sandboxed `<iframe>` |
 | `src/plugins/presentHtml/Preview.vue` | Sidebar thumbnail: shows title or first line of HTML |
-| `server/routes/presentHtml.ts` | `POST /api/present-html` — thin pass-through route |
+| `server/api/routes/presentHtml.ts` | `POST /api/present-html` — thin pass-through route |
 
 ## Wiring to Add
 
 | File | Change |
 |---|---|
 | `server/index.ts` | Import and mount `presentHtmlRoutes` at `/api` |
-| `server/mcp-server.ts` | Import definition, add to `TOOL_ENDPOINTS` and `ALL_TOOLS` |
+| `server/agent/mcp-server.ts` | Import definition, add to `TOOL_ENDPOINTS` and `ALL_TOOLS` |
 | `src/tools/index.ts` | Register `presentHtml` plugin |
 | `src/config/roles.ts` | Add `"presentHtml"` to relevant roles |
-| `server/agent.ts` | Add `"presentHtml"` to `MCP_PLUGINS` |
+| `server/agent/index.ts` | Add `"presentHtml"` to `MCP_PLUGINS` |
 
 ---
 
-## Backend Logic (`server/routes/presentHtml.ts`)
+## Backend Logic (`server/api/routes/presentHtml.ts`)
 
 ```
 POST /api/present-html

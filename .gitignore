@@ -4,5 +4,7 @@ dist
 .DS_Store
 *~*.tgz
 *~
+server/system/logs/
 server/logs/
+.claude/
 playwright-report/

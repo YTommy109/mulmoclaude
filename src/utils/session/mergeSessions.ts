@@ -84,3 +84,29 @@ export function mergeSessionLists(
   const serverOnly = serverSessions.filter((s) => !liveIds.has(s.id));
   return [...liveSummaries, ...serverOnly].sort(compareSessionsByRecency);
 }
+
+// Apply a server-sent diff to the client's cached session list
+// (see issue #205). `diff` holds rows the server says have changed
+// since the client's last cursor — each replaces any existing row
+// with the same id, or is prepended if new. `deletedIds` removes
+// rows the server has forgotten; always empty today (no
+// session-delete code path exists) but the shape is plumbed through
+// so populating it becomes a server-only change later.
+//
+// Pure; returns a new array sorted by the same recency rule
+// `mergeSessionLists` uses, so the two are interchangeable at call
+// sites that don't care which they got.
+export function applySessionDiff(
+  cache: readonly SessionSummary[],
+  diff: readonly SessionSummary[],
+  deletedIds: readonly string[],
+): SessionSummary[] {
+  const deleted = new Set(deletedIds);
+  const diffById = new Map<string, SessionSummary>(diff.map((s) => [s.id, s]));
+  const kept = cache
+    .filter((s) => !deleted.has(s.id))
+    .map((s) => diffById.get(s.id) ?? s);
+  const existingIds = new Set(kept.map((s) => s.id));
+  const added = diff.filter((s) => !existingIds.has(s.id));
+  return [...kept, ...added].sort(compareSessionsByRecency);
+}

@@ -13,8 +13,8 @@ import {
   handleShow,
   handleUncheck,
   handleUpdate,
-} from "../../server/routes/todosHandlers.js";
-import type { TodoItem } from "../../server/routes/todos.js";
+} from "../../server/api/routes/todosHandlers.js";
+import type { TodoItem } from "../../server/api/routes/todos.js";
 
 function makeTodo(overrides: Partial<TodoItem> = {}): TodoItem {
   return {

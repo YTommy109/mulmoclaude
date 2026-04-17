@@ -323,6 +323,7 @@
       :mcp-tools-error="mcpToolsError"
       @update:open="showSettings = $event"
     />
+    <NotificationToast />
   </div>
 </template>
 
@@ -342,6 +343,7 @@ import PluginLauncher, {
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
 import SettingsModal from "./components/SettingsModal.vue";
+import NotificationToast from "./components/NotificationToast.vue";
 import type { SseEvent } from "./types/sse";
 import {
   type SessionSummary,
@@ -741,22 +743,22 @@ function isLauncherInvokeKey(key: string): key is LauncherInvokeKey {
 // a ToolResultComplete so the canvas renders it through the plugin's
 // own View component. Throws on HTTP / network failure; caller is
 // responsible for surfacing the error to the user.
+//
+// Uses apiGet/apiPost so the module-level bearer token (#272) is
+// attached automatically — a raw `fetch()` here would skip the auth
+// header and 401 on every launcher click.
 async function invokePluginForLauncher(
   key: LauncherInvokeKey,
 ): Promise<ToolResultComplete> {
   const spec = LAUNCHER_INVOKE_SPECS[key];
-  const res = await fetch(spec.endpoint, {
-    method: spec.method,
-    headers:
-      spec.method === "POST" ? { "Content-Type": "application/json" } : {},
-    body: spec.method === "POST" ? JSON.stringify(spec.body ?? {}) : undefined,
-  });
-  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) {
-    const detail =
-      typeof json.error === "string" ? json.error : `HTTP ${res.status}`;
-    throw new Error(`${spec.toolName} failed: ${detail}`);
+  const result =
+    spec.method === "POST"
+      ? await apiPost<unknown>(spec.endpoint, spec.body ?? {})
+      : await apiGet<unknown>(spec.endpoint);
+  if (!result.ok) {
+    throw new Error(`${spec.toolName} failed: ${result.error}`);
   }
+  const json = (result.data ?? {}) as Record<string, unknown>;
   const data = spec.wrapData ? spec.wrapData(json) : json.data;
   return {
     ...json,

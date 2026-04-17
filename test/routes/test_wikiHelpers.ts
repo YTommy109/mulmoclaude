@@ -9,7 +9,7 @@ import {
   parseIndexEntries,
   wikiSlugify,
   type WikiPageEntry,
-} from "../../server/routes/wiki.js";
+} from "../../server/api/routes/wiki.js";
 
 describe("wikiSlugify", () => {
   it("lowercases input", () => {

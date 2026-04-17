@@ -71,9 +71,9 @@ Rules:
 
 ### New: `~/mulmoclaude/roles/` directory
 
-Created by `server/workspace.ts` alongside existing subdirs (`chat`, `todos`, etc.).
+Created by `server/workspace/workspace.ts` alongside existing subdirs (`chat`, `todos`, etc.).
 
-### New: `server/routes/roles.ts`
+### New: `server/api/routes/roles.ts`
 
 ```
 GET  /api/roles           → returns merged array of built-in + custom roles
@@ -83,7 +83,7 @@ DELETE /api/roles/:id     → used by manageRoles tool (delete)
 
 The GET endpoint reads `~/mulmoclaude/roles/*.json` at request time (no caching needed — filesystem is fast). It merges custom roles after built-in ones. Custom roles with a clashing ID override built-ins.
 
-### Modified: `server/roles.ts` (new shared loader)
+### Modified: `server/workspace/roles.ts` (new shared loader)
 
 Extract role loading logic here so both the HTTP routes and the agent can use it:
 
@@ -95,15 +95,15 @@ export function loadAllRoles(): Role[] {
 }
 ```
 
-### Modified: `server/routes/agent.ts`
+### Modified: `server/api/routes/agent.ts`
 
 Replace `import { getRole } from '../../src/config/roles.js'` with a call to `loadAllRoles()` so the agent picks up custom roles.
 
-### Modified: `server/agent.ts`
+### Modified: `server/agent/index.ts`
 
 Replace `ROLES.map(r => r.id)` with `loadAllRoles().map(r => r.id)` so the `switchRole` enum in the MCP server includes custom role IDs.
 
-### Modified: `server/mcp-server.ts`
+### Modified: `server/agent/mcp-server.ts`
 
 No structural change needed — it already reads `ROLE_IDS` from the env var, which the agent sets dynamically.
 
@@ -143,7 +143,7 @@ A local plugin (`src/plugins/manageRoles/`) that Claude calls to create/update/d
 }
 ```
 
-**Execute logic** (`server/routes/roles.ts`):
+**Execute logic** (`server/api/routes/roles.ts`):
 1. Validate `availablePlugins` against `getAllPluginNames()`
 2. Ensure `id` does not clash with built-in role IDs (block overriding built-ins via this tool)
 3. Write/delete the JSON file
@@ -182,19 +182,19 @@ case "roles_updated":
 
 ## Implementation Steps
 
-1. **`server/workspace.ts`** — add `roles` to `SUBDIRS`
+1. **`server/workspace/workspace.ts`** — add `roles` to `SUBDIRS`
 2. **`src/config/roles.ts`** — export `BUILTIN_ROLES` alias
-3. **`server/roles.ts`** (new) — `loadAllRoles()` and `loadCustomRoles()` functions
-4. **`server/routes/roles.ts`** (new) — REST endpoints + `manageRoles` execute handler
+3. **`server/workspace/roles.ts`** (new) — `loadAllRoles()` and `loadCustomRoles()` functions
+4. **`server/api/routes/roles.ts`** (new) — REST endpoints + `manageRoles` execute handler
 5. **`src/plugins/manageRoles/definition.ts`** (new) — tool definition
 6. **`src/plugins/manageRoles/index.ts`** (new) — registers as text-response plugin (no custom view)
-7. **`server/mcp-server.ts`** — add `manageRoles` to `ALL_TOOLS` and `TOOL_ENDPOINTS`
+7. **`server/agent/mcp-server.ts`** — add `manageRoles` to `ALL_TOOLS` and `TOOL_ENDPOINTS`
 8. **`src/tools/index.ts`** — register `manageRoles` plugin
-9. **`server/routes/agent.ts`** — use `loadAllRoles()` for `getRole()`
-10. **`server/agent.ts`** — use `loadAllRoles()` for `ROLE_IDS`
+9. **`server/api/routes/agent.ts`** — use `loadAllRoles()` for `getRole()`
+10. **`server/agent/index.ts`** — use `loadAllRoles()` for `ROLE_IDS`
 11. **`src/App.vue`** — fetch roles from `/api/roles`, handle `roles_updated` event
 12. **`src/config/roles.ts`** — add `manageRoles` to the `general` role's `availablePlugins`
-13. **`server/agent.ts`** — add `manageRoles` to `MCP_PLUGINS`
+13. **`server/agent/index.ts`** — add `manageRoles` to `MCP_PLUGINS`
 
 ---
 

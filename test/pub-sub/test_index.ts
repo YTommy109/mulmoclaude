@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { AddressInfo } from "node:net";
 import { io as connect, type Socket } from "socket.io-client";
-import { createPubSub, type IPubSub } from "../../server/pub-sub/index.js";
+import {
+  createPubSub,
+  type IPubSub,
+} from "../../server/events/pub-sub/index.js";
 
 // Round-trip test for the socket.io-backed pub/sub transport.
 // Boots a real HTTP server on an ephemeral port, attaches the

@@ -37,8 +37,8 @@ Behavior preservation is non-negotiable. When in doubt, prefer a smaller-step ex
 
 | # | Function | Current | Target | Strategy | Tests |
 |---|---|---:|---:|---|---|
-| 5 | `runAgent` (`server/agent.ts`) | 24 | ~16 | Extract `buildSpawnArgs()` / `buildSpawnEnv()` / `buildMcpConfig()` | Builders as pure |
-| 6 | `walkDailyFiles` (`server/journal/index.ts`) | 21 | ~14 | Flatten nested readdir loops, extract `parseDailyFilename()` pure | Filename parser |
+| 5 | `runAgent` (`server/agent/index.ts`) | 24 | ~16 | Extract `buildSpawnArgs()` / `buildSpawnEnv()` / `buildMcpConfig()` | Builders as pure |
+| 6 | `walkDailyFiles` (`server/workspace/journal/index.ts`) | 21 | ~14 | Flatten nested readdir loops, extract `parseDailyFilename()` pure | Filename parser |
 | 7 | `runOptimizationPass` | 18 | ~12 | Extract `applyMerges()` / `applyArchives()` as pure (state, ops) → state | Each transform |
 | 8 | `router.post("/wiki")` | 21 | ~13 | Extract `lint_report` case as separate function inside the file | None (kept behind I/O) |
 

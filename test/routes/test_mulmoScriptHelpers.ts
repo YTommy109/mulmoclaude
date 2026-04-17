@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { Response } from "express";
-import { withStoryContext } from "../../server/routes/mulmo-script.js";
+import { withStoryContext } from "../../server/api/routes/mulmo-script.js";
 
 interface RecordedResponse {
   statusCode: number;

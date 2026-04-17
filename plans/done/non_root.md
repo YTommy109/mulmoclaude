@@ -4,13 +4,13 @@
 
 `Dockerfile.sandbox` has no `USER` directive. `node:22-slim` defaults to root, so `claude` runs as UID 0 inside the container.
 
-The root dependency is structural: `server/agent.ts` mounts `~/.claude` to `/root/.claude`. If the container user were non-root, that path would not exist and Claude Code would fail to authenticate.
+The root dependency is structural: `server/agent/index.ts` mounts `~/.claude` to `/root/.claude`. If the container user were non-root, that path would not exist and Claude Code would fail to authenticate.
 
 ```
 -v ~/.claude:/root/.claude     ← only works for UID 0
 ```
 
-**Workspace path inconsistency**: The workspace is hardcoded to `~/mulmoclaude` (`server/workspace.ts`), but inside the container it is mounted as `/workspace`. Claude therefore sees a different path depending on whether the sandbox is active or not — the system prompt reflects this (`server/agent/prompt.ts:107`). This creates inconsistency in tool calls, file references, and session continuity across sandboxed and non-sandboxed runs.
+**Workspace path inconsistency**: The workspace is hardcoded to `~/mulmoclaude` (`server/workspace/workspace.ts`), but inside the container it is mounted as `/workspace`. Claude therefore sees a different path depending on whether the sandbox is active or not — the system prompt reflects this (`server/agent/prompt.ts:107`). This creates inconsistency in tool calls, file references, and session continuity across sandboxed and non-sandboxed runs.
 
 ---
 
@@ -118,7 +118,7 @@ Must change `/root/.claude` → `/home/node/.claude` (or wherever the non-root h
    WORKDIR /home/node/mulmoclaude
    ```
 
-2. **`server/agent.ts`** — four changes:
+2. **`server/agent/index.ts`** — four changes:
    - Mount the workspace at `/home/node/mulmoclaude` instead of `/workspace`:
      ```ts
      `${toDockerPath(workspacePath)}:/home/node/mulmoclaude`,
@@ -140,7 +140,7 @@ Must change `/root/.claude` → `/home/node/.claude` (or wherever the non-root h
 
    Note: `process.getuid()` is not available on Windows; guard accordingly.
 
-3. **`server/agent.ts`** — add `--cap-drop ALL` to further harden:
+3. **`server/agent/index.ts`** — add `--cap-drop ALL` to further harden:
    ```ts
    "--cap-drop", "ALL",
    ```
@@ -155,7 +155,7 @@ Must change `/root/.claude` → `/home/node/.claude` (or wherever the non-root h
 | `/home/node/mulmoclaude` | `workspacePath` | rw |
 | `/home/node/.claude` | `~/.claude` | ro |
 
-4. **Automatic image rebuild** — `ensureSandboxImage()` in `server/docker.ts` detects stale images automatically. At build time it embeds a SHA-256 hash of `Dockerfile.sandbox` as an image label (`mulmoclaude.dockerfile.sha256`). On every server start it compares the label against the current file hash and rebuilds if they differ, streaming `docker build` output to the server console in real time. Users never need to run `docker rmi` manually.
+4. **Automatic image rebuild** — `ensureSandboxImage()` in `server/system/docker.ts` detects stale images automatically. At build time it embeds a SHA-256 hash of `Dockerfile.sandbox` as an image label (`mulmoclaude.dockerfile.sha256`). On every server start it compares the label against the current file hash and rebuilds if they differ, streaming `docker build` output to the server console in real time. Users never need to run `docker rmi` manually.
 
 ### macOS Note
 

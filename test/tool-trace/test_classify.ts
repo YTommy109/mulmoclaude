@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   MAX_INLINE_CONTENT_CHARS,
   classifyToolResult,
-} from "../../server/tool-trace/classify.js";
+} from "../../server/workspace/tool-trace/classify.js";
 
 describe("classifyToolResult — WebSearch", () => {
   it("returns a pointer when searchContentRef is provided", () => {
@@ -11,11 +11,11 @@ describe("classifyToolResult — WebSearch", () => {
       toolName: "WebSearch",
       args: { query: "foo" },
       content: "irrelevant",
-      searchContentRef: "searches/2026-04-13/foo-abc.md",
+      searchContentRef: "conversations/searches/2026-04-13/foo-abc.md",
     });
     assert.deepEqual(c, {
       kind: "pointer",
-      contentRef: "searches/2026-04-13/foo-abc.md",
+      contentRef: "conversations/searches/2026-04-13/foo-abc.md",
     });
   });
 

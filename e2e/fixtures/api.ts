@@ -73,7 +73,13 @@ export async function mockAllApis(
 
   await page.route(urlEndsWith("/api/sessions"), (route) => {
     if (route.request().method() === "GET") {
-      return route.fulfill({ json: sessions });
+      // Envelope shape from #205. Any test that wants to simulate
+      // a diff can override this route with its own handler — the
+      // catch-all always returns the full list and an empty
+      // deletedIds, which is the first-call / cold-start answer.
+      return route.fulfill({
+        json: { sessions, cursor: "v1:0", deletedIds: [] },
+      });
     }
     return route.fallback();
   });

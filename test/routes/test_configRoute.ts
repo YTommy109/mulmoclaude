@@ -1,6 +1,6 @@
 // Route-level checks for /api/config.
 //
-// The route logic itself is a thin wrapper around server/config.ts —
+// The route logic itself is a thin wrapper around server/system/config.ts —
 // load/save/validate. These tests cover:
 //   - GET returns the current settings wrapped in { settings }
 //   - PUT /config/settings validates shape + persists + returns the
@@ -19,8 +19,8 @@ import os from "os";
 import path from "path";
 import type { Request, Response } from "express";
 
-type ConfigModule = typeof import("../../server/config.js");
-type RouteModule = typeof import("../../server/routes/config.js");
+type ConfigModule = typeof import("../../server/system/config.js");
+type RouteModule = typeof import("../../server/api/routes/config.js");
 
 let tmpRoot: string;
 let originalHome: string | undefined;
@@ -90,8 +90,8 @@ before(async () => {
   process.env.HOME = tmpRoot;
   process.env.USERPROFILE = tmpRoot;
   fs.mkdirSync(path.join(tmpRoot, "mulmoclaude"), { recursive: true });
-  configMod = await import("../../server/config.js");
-  routeMod = await import("../../server/routes/config.js");
+  configMod = await import("../../server/system/config.js");
+  routeMod = await import("../../server/api/routes/config.js");
   getHandler = extractRouteHandler(routeMod, "/api/config", "get");
   putSettingsHandler = extractRouteHandler(
     routeMod,

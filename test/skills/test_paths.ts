@@ -6,7 +6,7 @@ import {
   projectSkillsDir,
   projectSkillPath,
   projectSkillDir,
-} from "../../server/skills/paths.js";
+} from "../../server/workspace/skills/paths.js";
 
 describe("isValidSlug", () => {
   it("accepts ordinary kebab-case slugs", () => {

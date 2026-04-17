@@ -8,17 +8,20 @@ import {
   ArxivFetcherError,
   ARXIV_CURSOR_KEY,
   ARXIV_API_BASE,
-} from "../../server/sources/fetchers/arxiv.js";
-import type { Source, SourceState } from "../../server/sources/types.js";
-import type { FetcherDeps } from "../../server/sources/fetchers/index.js";
+} from "../../server/workspace/sources/fetchers/arxiv.js";
+import type {
+  Source,
+  SourceState,
+} from "../../server/workspace/sources/types.js";
+import type { FetcherDeps } from "../../server/workspace/sources/fetchers/index.js";
 import {
   HostRateLimiter,
   type RateLimiterDeps,
-} from "../../server/sources/rateLimiter.js";
+} from "../../server/workspace/sources/rateLimiter.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   type HttpFetcherDeps,
-} from "../../server/sources/httpFetcher.js";
+} from "../../server/workspace/sources/httpFetcher.js";
 
 // --- helpers -------------------------------------------------------------
 
@@ -404,7 +407,7 @@ describe("arxivFetcher.fetch", () => {
 
   it("registers itself as the `arxiv` fetcher on import", async () => {
     const { getFetcher } =
-      await import("../../server/sources/fetchers/index.js");
+      await import("../../server/workspace/sources/fetchers/index.js");
     const fetcher = getFetcher("arxiv");
     assert.ok(fetcher);
     assert.equal(fetcher!.kind, "arxiv");

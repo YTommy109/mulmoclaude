@@ -3,56 +3,58 @@ import express, { Request, Response, NextFunction } from "express";
 import net from "net";
 import path from "path";
 import { fileURLToPath } from "url";
-import agentRoutes from "./routes/agent.js";
-import todosRoutes from "./routes/todos.js";
-import schedulerRoutes from "./routes/scheduler.js";
-import sessionsRoutes from "./routes/sessions.js";
-import chatIndexRoutes from "./routes/chat-index.js";
-import sourcesRoutes from "./routes/sources.js";
-import pluginsRoutes from "./routes/plugins.js";
-import imageRoutes from "./routes/image.js";
-import presentHtmlRoutes from "./routes/presentHtml.js";
-import chartRoutes from "./routes/chart.js";
-import rolesRoutes from "./routes/roles.js";
+import agentRoutes from "./api/routes/agent.js";
+import todosRoutes from "./api/routes/todos.js";
+import schedulerRoutes from "./api/routes/scheduler.js";
+import sessionsRoutes from "./api/routes/sessions.js";
+import chatIndexRoutes from "./api/routes/chat-index.js";
+import sourcesRoutes from "./api/routes/sources.js";
+import pluginsRoutes from "./api/routes/plugins.js";
+import imageRoutes from "./api/routes/image.js";
+import presentHtmlRoutes from "./api/routes/presentHtml.js";
+import chartRoutes from "./api/routes/chart.js";
+import rolesRoutes from "./api/routes/roles.js";
 import { DEFAULT_ROLE_ID } from "../src/config/roles.js";
-import mulmoScriptRoutes from "./routes/mulmo-script.js";
-import wikiRoutes from "./routes/wiki.js";
-import pdfRoutes from "./routes/pdf.js";
-import filesRoutes from "./routes/files.js";
-import configRoutes from "./routes/config.js";
-import skillsRoutes from "./routes/skills.js";
-import { createChatService } from "./chat-service/index.js";
-import { onSessionEvent } from "./session-store/index.js";
-import { getRole, loadAllRoles } from "./roles.js";
-import { WORKSPACE_PATHS } from "./workspace-paths.js";
+import mulmoScriptRoutes from "./api/routes/mulmo-script.js";
+import wikiRoutes from "./api/routes/wiki.js";
+import pdfRoutes from "./api/routes/pdf.js";
+import filesRoutes from "./api/routes/files.js";
+import configRoutes from "./api/routes/config.js";
+import skillsRoutes from "./api/routes/skills.js";
+import { createNotificationsRouter } from "./api/routes/notifications.js";
+import type { NotificationDeps } from "./events/notifications.js";
+import { createChatService } from "./api/chat-service/index.js";
+import { onSessionEvent } from "./events/session-store/index.js";
+import { getRole, loadAllRoles } from "./workspace/roles.js";
+import { WORKSPACE_PATHS } from "./workspace/paths.js";
 import { serverError } from "./utils/httpError.js";
 import {
   mcpToolsRouter,
   mcpTools,
   isMcpToolEnabled,
-} from "./mcp-tools/index.js";
-import { initWorkspace } from "./workspace.js";
-import { env, isGeminiAvailable } from "./env.js";
+} from "./agent/mcp-tools/index.js";
+import { initWorkspace } from "./workspace/workspace.js";
+import { env, isGeminiAvailable } from "./system/env.js";
 import fs from "fs";
 import os from "os";
-import { isDockerAvailable, ensureSandboxImage } from "./docker.js";
-import { maybeRunJournal } from "./journal/index.js";
-import { backfillAllSessions } from "./chat-index/index.js";
-import { createPubSub } from "./pub-sub/index.js";
+import { isDockerAvailable, ensureSandboxImage } from "./system/docker.js";
+import { maybeRunJournal } from "./workspace/journal/index.js";
+import { backfillAllSessions } from "./workspace/chat-index/index.js";
+import { createPubSub } from "./events/pub-sub/index.js";
 import { PUBSUB_CHANNELS } from "../src/config/pubsubChannels.js";
-import { createTaskManager } from "./task-manager/index.js";
-import type { ITaskManager } from "./task-manager/index.js";
-import type { IPubSub } from "./pub-sub/index.js";
-import { initSessionStore } from "./session-store/index.js";
-import { requireSameOrigin } from "./csrfGuard.js";
-import { bearerAuth } from "./auth/bearerAuth.js";
+import { createTaskManager } from "./events/task-manager/index.js";
+import type { ITaskManager } from "./events/task-manager/index.js";
+import type { IPubSub } from "./events/pub-sub/index.js";
+import { initSessionStore } from "./events/session-store/index.js";
+import { requireSameOrigin } from "./api/csrfGuard.js";
+import { bearerAuth } from "./api/auth/bearerAuth.js";
 import {
   deleteTokenFile,
   generateAndWriteToken,
   getCurrentToken,
-} from "./auth/token.js";
-import { log } from "./logger/index.js";
-import { startChat } from "./routes/agent.js";
+} from "./api/auth/token.js";
+import { log } from "./system/logger/index.js";
+import { startChat } from "./api/routes/agent.js";
 import { API_ROUTES } from "../src/config/apiRoutes.js";
 
 const HTML_TOKEN_PLACEHOLDER = "__MULMOCLAUDE_AUTH_TOKEN__";
@@ -126,17 +128,35 @@ app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
 app.use(skillsRoutes);
-app.use(
-  createChatService({
-    startChat,
-    onSessionEvent,
-    loadAllRoles,
-    getRole,
-    defaultRoleId: DEFAULT_ROLE_ID,
-    transportsDir: WORKSPACE_PATHS.transports,
-    logger: log,
-  }),
-);
+const chatService = createChatService({
+  startChat,
+  onSessionEvent,
+  loadAllRoles,
+  getRole,
+  defaultRoleId: DEFAULT_ROLE_ID,
+  transportsDir: WORKSPACE_PATHS.transports,
+  logger: log,
+  // Socket.io handshake (see #268 Phase A) needs to validate the
+  // same bearer token the HTTP middleware enforces.
+  tokenProvider: getCurrentToken,
+});
+app.use(chatService.router);
+
+// Notifications router. The route file needs the pub-sub publisher
+// (only created inside `startRuntimeServices` after `app.listen`) and
+// the chat-service push handle (available at module scope). We mount
+// the router now so it sits behind the same bearer middleware as
+// every other /api route, and back-fill the pub-sub dep once
+// `startRuntimeServices` has it. Calls that arrive before fill-in
+// (impossible in practice — the HTTP server isn't listening yet)
+// would no-op on publish but still queue the bridge push.
+const notificationDeps: NotificationDeps = {
+  publish: () => {
+    /* replaced by startRuntimeServices */
+  },
+  pushToBridge: chatService.pushToBridge,
+};
+app.use(createNotificationsRouter(notificationDeps));
 app.use(mcpToolsRouter);
 
 if (env.isProduction) {
@@ -193,7 +213,7 @@ async function ensureCredentialsAvailable(): Promise<void> {
   if (fs.existsSync(credentialsPath)) return;
 
   if (process.platform === "darwin") {
-    const { refreshCredentials } = await import("./credentials.js");
+    const { refreshCredentials } = await import("./system/credentials.js");
     const ok = await refreshCredentials();
     if (ok) return;
     log.error(
@@ -294,6 +314,13 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
 
   // --- Pub/Sub ---
   const pubsub = createPubSub(httpServer);
+  // Back-fill the notifications router with the live publisher (see
+  // module-scope placeholder above).
+  notificationDeps.publish = (channel, payload) =>
+    pubsub.publish(channel, payload);
+
+  // --- Chat socket transport (Phase A of #268) ---
+  chatService.attachSocket(httpServer);
 
   // --- Session Store ---
   initSessionStore(pubsub);
@@ -346,9 +373,12 @@ process.on("SIGTERM", () => {
   // Generate the bearer token before `app.listen` so the first
   // request cannot race an uninitialised `getCurrentToken()`. The
   // middleware defensively handles the null case anyway (401).
-  await generateAndWriteToken();
+  // `env.authTokenOverride` (#316) pins the token across restarts
+  // when set; otherwise a fresh random one is written.
+  await generateAndWriteToken(undefined, env.authTokenOverride);
   log.info("auth", "bearer token written", {
     path: WORKSPACE_PATHS.sessionToken,
+    source: env.authTokenOverride ? "env" : "random",
   });
 
   sandboxEnabled = await setupSandbox();

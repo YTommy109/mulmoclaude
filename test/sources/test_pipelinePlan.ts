@@ -1,11 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { planEligibleSources } from "../../server/sources/pipeline/plan.js";
+import { planEligibleSources } from "../../server/workspace/sources/pipeline/plan.js";
 import type {
   Source,
   SourceSchedule,
   SourceState,
-} from "../../server/sources/types.js";
+} from "../../server/workspace/sources/types.js";
 
 function makeSource(over: Partial<Source> = {}): Source {
   return {

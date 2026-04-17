@@ -49,7 +49,10 @@ All env vars are **optional unless flagged "required"**. The server reads them a
 | Variable | Used by | Notes |
 |---|---|---|
 | `GEMINI_API_KEY` | `server/utils/gemini.ts` | Enables Gemini image generation / editing. Without it, image plugins surface a UI warning. The `geminiAvailable` flag in `GET /api/health` mirrors this. |
-| `X_BEARER_TOKEN` | `server/mcp-tools/x.ts` | **Required** to enable `readXPost` / `searchX` MCP tools. Tools are silently disabled if absent. |
+| `X_BEARER_TOKEN` | `server/agent/mcp-tools/x.ts` | **Required** to enable `readXPost` / `searchX` MCP tools. Tools are silently disabled if absent. |
+| `TELEGRAM_BOT_TOKEN` | `bridges/telegram/` | **Required** for the Telegram bridge. BotFather token. Treat like a password. See [`message_apps/telegram/`](message_apps/telegram/). |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | `bridges/telegram/` | CSV of integer Telegram chat IDs allowed to message the bot. Empty / unset → deny everyone. A non-integer entry halts startup. |
+| `TELEGRAM_POLL_TIMEOUT_SEC` | `bridges/telegram/` | Long-polling timeout in seconds. Defaults `25` (Telegram's recommended max). |
 
 ### Runtime
 
@@ -57,8 +60,10 @@ All env vars are **optional unless flagged "required"**. The server reads them a
 |---|---|---|
 | `PORT` | `3001` | Express listen port (`server/index.ts:47`). |
 | `NODE_ENV` | unset / `production` | When `production`, Express serves the built client from `dist/client` and falls back to `index.html` for SPA history-mode routing. Auto-set by tooling — you rarely set this manually. |
-| `DISABLE_SANDBOX` | unset | Set to `1` to bypass the Docker sandbox even when Docker is available. The agent runs `claude` directly on the host. Useful for debugging without container rebuild overhead (`server/docker.ts:49`, `server/index.ts:147`). |
-| `SESSIONS_LIST_WINDOW_DAYS` | `90` | Caps how far back the sidebar looks when listing chat sessions (`server/routes/sessions.ts`). Set to `0` to disable the cutoff entirely. Introduced in PR #203 to keep `GET /api/sessions` cheap on long-lived workspaces; anything older is still on disk, just hidden from the list. |
+| `DISABLE_SANDBOX` | unset | Set to `1` to bypass the Docker sandbox even when Docker is available. The agent runs `claude` directly on the host. Useful for debugging without container rebuild overhead (`server/system/docker.ts:49`, `server/index.ts:147`). |
+| `SANDBOX_SSH_AGENT_FORWARD` | unset | Set to `1` to forward the host's `$SSH_AUTH_SOCK` into the sandbox. Private keys stay on the host; the agent signs on the container's behalf. Full contract: [docs/sandbox-credentials.md](sandbox-credentials.md). |
+| `SANDBOX_MOUNT_CONFIGS` | unset | CSV of allowlisted config mounts (currently `gh`, `gitconfig`). Each entry resolves to a fixed host→container path pair defined in `server/agent/sandboxMounts.ts`; unknown names are logged and ignored. |
+| `SESSIONS_LIST_WINDOW_DAYS` | `90` | Caps how far back the sidebar looks when listing chat sessions (`server/api/routes/sessions.ts`). Set to `0` to disable the cutoff entirely. Introduced in PR #203 to keep `GET /api/sessions` cheap on long-lived workspaces; anything older is still on disk, just hidden from the list. |
 
 ### Debug startup hooks
 
@@ -71,7 +76,7 @@ Both gate idempotent backfills that normally run on a schedule. Set to `1` to fo
 
 ### Logger (`LOG_*`)
 
-The structured logger (`server/logger/`) reads its config fresh at process start. Full reference in [`docs/logging.md`](logging.md). Quick map:
+The structured logger (`server/system/logger/`) reads its config fresh at process start. Full reference in [`docs/logging.md`](logging.md). Quick map:
 
 | Variable | Default | Values |
 |---|---|---|
@@ -79,13 +84,13 @@ The structured logger (`server/logger/`) reads its config fresh at process start
 | `LOG_CONSOLE_LEVEL` / `LOG_FILE_LEVEL` | `info` / `debug` | Per-sink override. |
 | `LOG_CONSOLE_FORMAT` / `LOG_FILE_FORMAT` | `text` / `json` | `text` (human) or `json` (JSONL). |
 | `LOG_CONSOLE_ENABLED` / `LOG_FILE_ENABLED` | `true` / `true` | Boolean. |
-| `LOG_FILE_DIR` | `server/logs` | Where rotating daily files land. |
+| `LOG_FILE_DIR` | `server/system/logs` | Where rotating daily files land. |
 | `LOG_FILE_MAX_FILES` | `14` | Retention count. |
 | `LOG_TELEMETRY_*` | — | Telemetry sink stub for a future remote shipper. No-op today. |
 
 ### Container-only env (auto-set)
 
-You never set these by hand; the server constructs them when spawning Claude inside the Docker sandbox (`server/agent/config.ts` and `server/mcp-server.ts`). They're listed here so log lines / failures involving them are decodable.
+You never set these by hand; the server constructs them when spawning Claude inside the Docker sandbox (`server/agent/config.ts` and `server/agent/mcp-server.ts`). They're listed here so log lines / failures involving them are decodable.
 
 | Variable | Set by | Purpose |
 |---|---|---|
@@ -98,7 +103,7 @@ You never set these by hand; the server constructs them when spawning Claude ins
 | `HOME` | container only | `/home/node` so Claude CLI finds its credentials at `~/.claude`. |
 | Sentinel `X_BEARER_TOKEN=1` etc. | container only | `isMcpToolEnabled()` re-evaluates inside the container; the actual API call still happens on the host, so we only signal "enabled" with `1`. |
 
-> **There is no `WORKSPACE_PATH` env var.** The workspace path is hard-coded to `~/mulmoclaude` in `server/workspace.ts:11`. To experiment with multiple workspaces you currently need a code change or a symlink swap.
+> **There is no `WORKSPACE_PATH` env var.** The workspace path is hard-coded to `~/mulmoclaude` in `server/workspace/workspace.ts:11`. To experiment with multiple workspaces you currently need a code change or a symlink swap.
 
 ---
 
@@ -113,6 +118,8 @@ You never set these by hand; the server constructs them when spawning Claude ins
 | `yarn dev:client` | Vite client only — useful when you've already started the server elsewhere. |
 | `yarn dev:server` / `yarn server` | Express server only. |
 | `yarn server:debug` | Server with `--debug` flag. |
+| `yarn cli` | CLI bridge — REPL in your terminal that talks to the running server (see [`bridge-protocol.md`](bridge-protocol.md)). |
+| `yarn telegram` | Telegram bridge — operator guide at [`message_apps/telegram/`](message_apps/telegram/) (JP: [`README.ja.md`](message_apps/telegram/README.ja.md) / EN: [`README.md`](message_apps/telegram/README.md)). |
 
 ### Static checks
 
@@ -151,42 +158,62 @@ Three independent Node processes cooperate at runtime:
 
 1. **Express server** (`server/index.ts`) — listens on `localhost:3001`. Hosts every `/api/*` endpoint, the SSE stream for `POST /api/agent`, the pub-sub bus, and the cron-like [task manager](task-manager.md). Spawns the Claude CLI per agent invocation.
 2. **Vite dev client** — listens on `localhost:5173`, proxies `/api/*` to `:3001`. Production builds skip Vite and let Express serve the static `dist/client`.
-3. **MCP stdio bridge** (`server/mcp-server.ts`) — spawned by the Claude CLI subprocess via `--mcp-config`. No HTTP listener: speaks JSON-RPC over stdin/stdout, forwards Claude's tool calls back to the Express server (`MCP_HOST:PORT/api/*`).
+3. **MCP stdio bridge** (`server/agent/mcp-server.ts`) — spawned by the Claude CLI subprocess via `--mcp-config`. No HTTP listener: speaks JSON-RPC over stdin/stdout, forwards Claude's tool calls back to the Express server (`MCP_HOST:PORT/api/*`).
 
 ---
 
 ## Workspace layout (`~/mulmoclaude/`)
 
-`initWorkspace()` creates / refreshes this on every server start (`server/workspace.ts`). Everything is plain files tracked in a private git repo:
+`initWorkspace()` creates / refreshes this on every server start (`server/workspace/workspace.ts`). Everything is plain files tracked in a private git repo, grouped into four top-level buckets by purpose (issue #284):
 
 ```text
 ~/mulmoclaude/
-  chat/               session ToolResults (.jsonl per session)
-  chat/index/         per-session title/summary cache
-  todos/              todos.json + columns.json
-  calendar/           calendar events
-  contacts/           contact records
-  scheduler/          scheduled tasks
-  roles/              user-defined role overrides
-  stories/            mulmo scripts
-  images/             generated / edited images
-  markdowns/          markdown documents
-  spreadsheets/       .xlsx files
-  configs/            settings.json, mcp.json (web Settings UI)
-  helps/              synced from server/helps/ at every boot
-  memory.md           always-loaded agent context
+  config/             # app configuration
+    settings.json     (web Settings UI — extraAllowedTools)
+    mcp.json          (Claude CLI --mcp-config compatible)
+    roles/            user-defined role overrides
+    helps/            synced from server/workspace/helps/ at every boot
+  conversations/      # chat + distilled context
+    chat/             session ToolResults (one .jsonl per session)
+    chat/index/       per-session title/summary cache
+    memory.md         always-loaded agent context
+    summaries/        journal output (daily/, topics/, archive/)
+  data/               # user-managed content (the app treats these as authoritative)
+    wiki/             personal knowledge wiki (index.md, pages/, sources/, log.md)
+    todos/            todos.json + columns.json
+    calendar/         calendar events
+    contacts/         contact records
+    scheduler/        scheduled tasks (items.json)
+    sources/          information-source registry + state
+    transports/       per-chat messaging bridge state (future)
+  artifacts/          # LLM-generated output, mostly regenerable
+    charts/
+    documents/        (was markdowns/ pre-#284)
+    html/             persistent saved HTML (was HTMLs/ pre-#284)
+    html-scratch/     transient generate-and-preview buffer (was html/ pre-#284)
+    images/           generated / edited images
+    news/             daily news briefs
+    spreadsheets/     .xlsx files
+    stories/          mulmo scripts
   .session-token      bearer auth token (mode 0600, see Auth below)
   .git/               auto-init'd repo
   .mulmoclaude/       internal: per-session MCP config files
 ```
 
-The `configs/` dir is the home for the [web Settings UI](../README.md#configuring-additional-tools-web-settings) — `settings.json` carries `extraAllowedTools`, `mcp.json` follows Claude CLI's `--mcp-config` format so you can copy it between machines.
+Existing workspaces from before #284 need to run the one-shot migration script once before the server will start:
+
+```bash
+yarn tsx scripts/migrate-workspace-284.ts --dry-run   # preview
+yarn tsx scripts/migrate-workspace-284.ts --execute   # commit (backs up via rsync first)
+```
+
+The `config/` dir is the home for the [web Settings UI](../README.md#configuring-additional-tools-web-settings) — `settings.json` carries `extraAllowedTools`, `mcp.json` follows Claude CLI's `--mcp-config` format so you can copy it between machines.
 
 ---
 
 ## Auth (bearer token on `/api/*`)
 
-Every HTTP call to `/api/*` requires `Authorization: Bearer <token>`. Layered on top of the CSRF origin check (`server/csrfGuard.ts`): **both** must pass. The origin check stops cross-origin browser attacks; the bearer check stops sibling processes on the same machine that bypass browser CORS entirely.
+Every HTTP call to `/api/*` requires `Authorization: Bearer <token>`. Layered on top of the CSRF origin check (`server/api/csrfGuard.ts`): **both** must pass. The origin check stops cross-origin browser attacks; the bearer check stops sibling processes on the same machine that bypass browser CORS entirely.
 
 **Token lifecycle**
 
@@ -201,14 +228,68 @@ Every HTTP call to `/api/*` requires `Authorization: Bearer <token>`. Layered on
 
 **Dev-mode escape hatch**: setting `MULMOCLAUDE_AUTH_TOKEN=…` before `yarn dev:client` makes the Vite plugin use that value instead of reading the file. Used by `e2e/playwright.config.ts` to inject a predictable token in E2E; also handy for debugging without a running server. Production (Express serving built HTML) never reads env — the in-memory token from `generateAndWriteToken()` is the sole source.
 
+**Server-side pinning (#316)**: setting `MULMOCLAUDE_AUTH_TOKEN=…` before `yarn dev` (or any process that starts Express) makes `generateAndWriteToken()` use that value verbatim instead of generating a fresh random token. The same var is already honoured by the Vite dev plugin and the CLI bridge, so pinning it once in a shared shell / `.env` / docker-compose file keeps the token consistent across a server restart — long-running bridges no longer need a relaunch every time the dev server bounces. A warning logs if the override is shorter than 32 chars; no other validation. Use random-per-startup (the default) for casual dev and the env override only when the restart pain outweighs the leak surface (CI, docker, multi-bridge setups).
+
 **Current scope** (#272 Phase 1+2): Vue client, Express middleware, and the CLI bridge (`yarn cli`). The bridge reads the same `.session-token` file (or `MULMOCLAUDE_AUTH_TOKEN` env var) on startup and attaches the header to its `fetch` calls.
 
 **Files**
-- `server/auth/token.ts` — generate / write / unlink
-- `server/auth/bearerAuth.ts` — Express middleware
+- `server/api/auth/token.ts` — generate / write / unlink
+- `server/api/auth/bearerAuth.ts` — Express middleware
 - `src/utils/api.ts` — `setAuthToken()` + header injection (no call site changes needed; `apiFetch` auto-attaches)
 - `vite.config.ts` — `mulmoclaudeAuthTokenPlugin` for dev HTML substitution
-- `bridges/cli/token.ts` — bridge-side resolver (env var → file)
+- `bridges/_lib/token.ts` — bridge-side resolver (env var → file)
+- `bridges/_lib/client.ts` — shared socket.io setup for every bridge (see `docs/bridge-protocol.md`)
+
+---
+
+## Notifications (PoC scaffold)
+
+A one-shot, delayed **push fan-out** that lands on every open Web tab *and* every connected bridge simultaneously. Scaffolding for the in-app notification center (#144) and external-channel notifications (#142) — the endpoint and fan-out are stable, the UI / persistence layers land in those issues.
+
+### Trigger
+
+```bash
+curl -X POST http://localhost:3001/api/notifications/test \
+  -H "Authorization: Bearer $(cat ~/mulmoclaude/.session-token)" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"hello from curl","delaySeconds":5}'
+# → 202 { "firesAt": "2026-04-16T15:37:42.123Z", "delaySeconds": 5 }
+```
+
+Body fields (all optional):
+
+| Field | Default | Effect |
+|---|---|---|
+| `message` | `"Test notification"` | Text delivered to both targets. |
+| `delaySeconds` | `60`, capped at `3600` | Timer length. Non-numeric / NaN falls back to the default; negative clamps to `0`; fractional floors. |
+| `transportId` | `"cli"` | Bridge target for `chatService.pushToBridge`. |
+| `chatId` | `"notifications"` | Bridge chat slot. |
+
+### Fan-out at fire time
+
+```text
+setTimeout elapses
+  ├─ pubsub.publish(PUBSUB_CHANNELS.notifications, { message, firedAt })  → Web
+  └─ chatService.pushToBridge(transportId, chatId, message)               → Bridge (offline-queued)
+```
+
+Web subscribers listen on `PUBSUB_CHANNELS.notifications` (`src/config/pubsubChannels.ts`). The `useNotifications` composable wraps the subscription; `NotificationToast.vue` renders the latest inbound item as a top-right toast that auto-dismisses after 5 s. Bridges receive via the Phase B push socket (`yarn cli` prints `[push] notifications: hello …`).
+
+### Observing the PoC end-to-end
+
+1. `yarn dev` (server + Vite)
+2. In a second terminal: `yarn cli`
+3. In a third terminal: fire the curl above with `delaySeconds: 5`
+4. After 5 s: a toast slides in top-right of the open browser tab ("hello from curl"), and the CLI terminal prints `[push] notifications: hello from curl`
+
+### Scope caveats
+
+- **Single toast**, no stack / notification-center bell / bell badge — those land with the real notification center (#144). The toast is intentionally a thin wrapper to confirm the pipeline delivers.
+- **No persistence**: `setTimeout` is in-memory; a server restart before the delay elapses drops the push.
+- **One bridge per call**: `pushToBridge` targets a single `transportId`. Fan-out to every connected bridge is deferred until a caller needs it.
+- **One-shot only**: no repeat / snooze / dedup. Production triggers should go through the notification center once #144 lands.
+
+Full motivation + file plan: `plans/feat-notification-push-scaffold.md`. Implementation: `server/events/notifications.ts` (scheduler) + `server/api/routes/notifications.ts` (HTTP wrapper) + `src/composables/useNotifications.ts` + `src/components/NotificationToast.vue`.
 
 ---
 
@@ -220,7 +301,7 @@ Cross-module string literals (endpoint paths, tool names, role IDs, etc.) are de
 |---|---|---|
 | `API_ROUTES` | `src/config/apiRoutes.ts` | Server route files (`router.post(API_ROUTES.todos.items, ...)`), frontend fetch calls (`fetch(API_ROUTES.todos.items)`), MCP bridge `postJson` calls |
 | `EVENT_TYPES` / `EventType` | `src/types/events.ts` | SSE stream emitters, pub-sub session events, chat jsonl parsers, `AgentEvent` union discriminators |
-| `WORKSPACE_PATHS` / `WORKSPACE_DIRS` | `server/workspace-paths.ts` | Every server module that reads or writes workspace files |
+| `WORKSPACE_PATHS` / `WORKSPACE_DIRS` | `server/workspace/paths.ts` | Every server module that reads or writes workspace files |
 | `TOOL_NAMES` / `ToolName` | `src/config/toolNames.ts` | Role definitions (`availablePlugins`), plugin registry, session-store tool matching |
 | `BUILTIN_ROLE_IDS` / `BuiltInRoleId` | `src/config/roles.ts` | Anywhere a built-in role ID appears outside the role definition itself |
 | `PUBSUB_CHANNELS` / `sessionChannel()` | `src/config/pubsubChannels.ts` | Pub-sub publish/subscribe sites in session-store and task-manager |
@@ -255,7 +336,7 @@ Minimal image: `node:22-slim` + `@anthropic-ai/claude-code` + `tsx`. Built lazil
 
 Full reference: [`docs/logging.md`](logging.md). Two rules to keep in mind when contributing:
 
-1. **Never call `console.*` outside `server/logger/`.** Import and use `log.{error,warn,info,debug}(prefix, msg, data?)` instead. The structured payload powers JSON file shipping and grep-friendly text output. The only sanctioned `console.error` is the file-sink fallback inside the logger itself.
+1. **Never call `console.*` outside `server/system/logger/`.** Import and use `log.{error,warn,info,debug}(prefix, msg, data?)` instead. The structured payload powers JSON file shipping and grep-friendly text output. The only sanctioned `console.error` is the file-sink fallback inside the logger itself.
 2. **Prefix is lowercase, hyphenated, no brackets.** The text formatter wraps it in `[ ]`. Keep payload values scalar; nested objects are JSON-stringified.
 
 Existing prefixes in use: `agent`, `agent-stderr`, `server`, `workspace`, `sandbox`, `mcp`, `task-manager`, `journal`, `chat-index`, `pdf`, `config`.
@@ -264,7 +345,7 @@ Existing prefixes in use: `agent`, `agent-stderr`, `server`, `workspace`, `sandb
 
 ## Test layout
 
-`test/` mirrors `server/` and `src/` 1:1; e.g. `server/journal/dailyPass.ts` → `test/journal/test_dailyPass.ts`. The pattern: extract pure helpers from route handlers / Vue composables, then unit-test them without an HTTP harness. The test glob in `package.json` walks 1–3 directory levels — keep new tests at the right depth or extend the glob.
+`test/` mirrors `server/` and `src/` 1:1; e.g. `server/workspace/journal/dailyPass.ts` → `test/journal/test_dailyPass.ts`. The pattern: extract pure helpers from route handlers / Vue composables, then unit-test them without an HTTP harness. The test glob in `package.json` walks 1–3 directory levels — keep new tests at the right depth or extend the glob.
 
 E2E tests live in `e2e/tests/*.spec.ts`. **No backend runs**; `await mockAllApis(page)` from `e2e/fixtures/api.ts` intercepts every `/api/*` call. Per-test mocks registered AFTER `mockAllApis` win because Playwright walks routes last-registered-first.
 
@@ -286,7 +367,7 @@ Cross-platform compatibility is a hard requirement — use `node:path` joins, `n
 ## Common gotchas
 
 - **Vite `reuseExistingServer: true`** in `e2e/playwright.config.ts` — if a stale `vite` process is already serving `:5173` (e.g. from a different working tree), Playwright happily talks to *that* one. Symptom: tests fail because UI changes "haven't landed". Kill the stray process: `lsof -i :5173 | grep LISTEN`.
-- **CSRF guard is strict.** `requireSameOrigin` (`server/csrfGuard.ts`) rejects state-changing requests from non-localhost origins. Requests with no `Origin` header (CLI tools, server-to-server) are allowed because the listener is bound to `127.0.0.1`. If you ever expose the listener publicly, tighten this middleware first.
+- **CSRF guard is strict.** `requireSameOrigin` (`server/api/csrfGuard.ts`) rejects state-changing requests from non-localhost origins. Requests with no `Origin` header (CLI tools, server-to-server) are allowed because the listener is bound to `127.0.0.1`. If you ever expose the listener publicly, tighten this middleware first.
 - **Workspace is git-init'd.** The first server start creates `~/mulmoclaude/.git`. Don't be surprised when journal / wiki edits show up in `git log`.
 - **`.vue` cognitive-complexity is warn-only.** A few legacy components exceed 15. The override demotes the rule to warn so CI isn't blocked. Each fix should re-raise to error in `eslint.config.mjs`.
 - **MCP plugin registration touches 4–7 places.** See the "Plugin Development" section in [CLAUDE.md](../CLAUDE.md). Forgetting one location silently drops the plugin (no error, just missing tool).
@@ -298,7 +379,7 @@ Cross-platform compatibility is a hard requirement — use `node:path` joins, `n
 
 | Problem area | File / dir |
 |---|---|
-| Adding a new `/api/*` route | `server/routes/<name>.ts`, wire in `server/index.ts` |
+| Adding a new `/api/*` route | `server/api/routes/<name>.ts`, wire in `server/index.ts` |
 | Adding a shared server helper | `server/utils/<concept>.ts` (one concept per file) |
 | Adding a Vue composable | `src/composables/use<Name>.ts` |
 | Adding a plugin | `src/plugins/<name>/{definition,index,View,Preview}.ts/vue` — see CLAUDE.md |

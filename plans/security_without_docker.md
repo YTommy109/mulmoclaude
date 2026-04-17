@@ -35,7 +35,7 @@ The `.env` file contains live credentials. `.env` is in `.gitignore`, so these h
 
 ### CRITICAL-2: Path Traversal via `chatSessionId`
 
-**File:** `server/routes/agent.ts:93-94`
+**File:** `server/api/routes/agent.ts:93-94`
 
 ```typescript
 const resultsFilePath = path.join(chatDir, `${chatSessionId}.jsonl`);
@@ -165,7 +165,7 @@ Add `express-rate-limit` middleware for `/api/agent`.
 
 ### HIGH-4: Symlink Escape in `resolveStoryPath`
 
-**File:** `server/routes/mulmo-script.ts:228-238`
+**File:** `server/api/routes/mulmo-script.ts:228-238`
 
 ```typescript
 function resolveStoryPath(filePath: string, res: Response): string | null {
@@ -224,7 +224,7 @@ This tells any caller whether a Gemini API key is configured, which is reconnais
 
 ### MEDIUM-2: `pluginPrompts` Content Is Not Validated
 
-**File:** `server/agent/prompt.ts:54-73`, `server/routes/agent.ts:72`
+**File:** `server/agent/prompt.ts:54-73`, `server/api/routes/agent.ts:72`
 
 `pluginPrompts` is a `Record<string, string>` sent from the frontend and embedded into the system prompt:
 
@@ -240,7 +240,7 @@ While `allowedPlugins` filters which plugin names are included, the **values** (
 
 ### MEDIUM-3: `internal/tool-result` Endpoint Is Unauthenticated
 
-**File:** `server/routes/agent.ts:21-31`
+**File:** `server/api/routes/agent.ts:21-31`
 
 ```typescript
 router.post(
@@ -266,7 +266,7 @@ This internal endpoint — used by the MCP server to inject `tool_result` events
 
 ### MEDIUM-4: Race Condition in Session File Creation
 
-**File:** `server/routes/agent.ts:96-104`
+**File:** `server/api/routes/agent.ts:96-104`
 
 ```typescript
 try {
@@ -292,7 +292,7 @@ try {
 
 ### LOW-1: Error Messages Leak File System Paths
 
-**File:** `server/routes/mulmo-script.ts:223-225`
+**File:** `server/api/routes/mulmo-script.ts:223-225`
 
 ```typescript
 function errorMessage(err: unknown): string {
@@ -338,17 +338,17 @@ The entire API is unauthenticated. Anyone who can reach the server port can issu
 | # | Severity | Title | File |
 |---|----------|-------|------|
 | C-1 | CRITICAL | API keys on disk in `.env` | `.env` |
-| C-2 | CRITICAL | Path traversal via `chatSessionId` | `server/routes/agent.ts:93` |
+| C-2 | CRITICAL | Path traversal via `chatSessionId` | `server/api/routes/agent.ts:93` |
 | C-3 | CRITICAL | Prompt injection via `memory.md` / `wiki/summary.md` | `server/agent/prompt.ts:6` |
 | H-1 | HIGH | Unrestricted CORS | `server/index.ts:29` |
 | H-2 | HIGH | Claude runs with unrestricted Bash + WebFetch | `server/agent/config.ts:6` |
 | H-3 | HIGH | 50 MB JSON limit; no message size cap; no rate limiting | `server/index.ts:30` |
-| H-4 | HIGH | Symlink escape in `resolveStoryPath` | `server/routes/mulmo-script.ts:228` |
+| H-4 | HIGH | Symlink escape in `resolveStoryPath` | `server/api/routes/mulmo-script.ts:228` |
 | M-1 | MEDIUM | Health endpoint leaks capability info | `server/index.ts:33` |
 | M-2 | MEDIUM | `pluginPrompts` values embedded unsanitized in system prompt | `server/agent/prompt.ts:69` |
-| M-3 | MEDIUM | `internal/tool-result` endpoint is unauthenticated | `server/routes/agent.ts:21` |
-| M-4 | MEDIUM | TOCTOU race in session file creation | `server/routes/agent.ts:96` |
-| L-1 | LOW | Error messages leak filesystem paths | `server/routes/mulmo-script.ts:223` |
+| M-3 | MEDIUM | `internal/tool-result` endpoint is unauthenticated | `server/api/routes/agent.ts:21` |
+| M-4 | MEDIUM | TOCTOU race in session file creation | `server/api/routes/agent.ts:96` |
+| L-1 | LOW | Error messages leak filesystem paths | `server/api/routes/mulmo-script.ts:223` |
 | I-1 | INFO | Server binds to `0.0.0.0` | `server/index.ts:61` |
 | I-2 | INFO | No authentication layer | all routes |
 

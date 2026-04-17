@@ -15,7 +15,7 @@ Actual: Each new presentation overwrites the previous one; only the last is visi
 
 ## Root Cause
 
-**Deterministic UUID generation in `server/mcp-server.ts`.**
+**Deterministic UUID generation in `server/agent/mcp-server.ts`.**
 
 UUIDs for tool results are generated as `${SESSION_ID}-${toolName}` (line 171). When the same tool (e.g. `presentHtml`) is called multiple times within one agent run, every result gets the **identical** UUID.
 
@@ -44,7 +44,7 @@ The findIndex/replace logic is intentional — some tools legitimately update th
 
 ## Fix
 
-### `server/mcp-server.ts`
+### `server/agent/mcp-server.ts`
 
 Replace deterministic UUIDs with unique ones using `crypto.randomUUID()` (available natively in Node.js 19+):
 
@@ -82,8 +82,8 @@ The client-side dedup logic in `src/App.vue` is correct as-is. With unique UUIDs
 
 | File | Change |
 |---|---|
-| `server/mcp-server.ts:171` | `uuid: crypto.randomUUID()` |
-| `server/mcp-server.ts:130` | `uuid: crypto.randomUUID()` |
+| `server/agent/mcp-server.ts:171` | `uuid: crypto.randomUUID()` |
+| `server/agent/mcp-server.ts:130` | `uuid: crypto.randomUUID()` |
 
 ---
 

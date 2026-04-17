@@ -1,9 +1,10 @@
 import { join } from "path";
 import { homedir, tmpdir } from "os";
 import type { Role } from "../../src/config/roles.js";
-import { mcpTools, isMcpToolEnabled } from "../mcp-tools/index.js";
-import { MCP_PLUGIN_NAMES } from "../plugin-names.js";
-import type { McpServerSpec } from "../config.js";
+import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
+import { MCP_PLUGIN_NAMES } from "./plugin-names.js";
+import type { McpServerSpec } from "../system/config.js";
+import { getCurrentToken } from "../api/auth/token.js";
 
 export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
@@ -36,7 +37,7 @@ export interface McpConfigParams {
   activePlugins: string[];
   roleIds: string[];
   useDocker?: boolean;
-  // User-defined MCP servers from <workspace>/configs/mcp.json.
+  // User-defined MCP servers from <workspace>/config/mcp.json.
   // Keys become the server id in the generated --mcp-config file;
   // values are the standard Claude CLI server spec (HTTP or stdio).
   userServers?: Record<string, McpServerSpec>;
@@ -135,8 +136,8 @@ function buildMulmoclaudeServer(params: {
     ? "tsx"
     : join(projectRoot, "node_modules/.bin/tsx");
   const mcpServerPath = useDocker
-    ? "/app/server/mcp-server.ts"
-    : join(projectRoot, "server/mcp-server.ts");
+    ? "/app/server/agent/mcp-server.ts"
+    : join(projectRoot, "server/agent/mcp-server.ts");
 
   const dockerEnv = useDocker
     ? {
@@ -146,6 +147,13 @@ function buildMulmoclaudeServer(params: {
       }
     : {};
 
+  // Bearer token for MCP subprocess to call /api/* back to this server
+  // (#272). The MCP bridge also has a file-read fallback from
+  // <workspace>/.session-token, but env is faster and works in Docker
+  // where the token file may not be bind-mounted.
+  const token = getCurrentToken();
+  const authEnv = token ? { MULMOCLAUDE_AUTH_TOKEN: token } : {};
+
   return {
     command,
     args: [mcpServerPath],
@@ -154,6 +162,7 @@ function buildMulmoclaudeServer(params: {
       PORT: String(port),
       PLUGIN_NAMES: activePlugins.join(","),
       ROLE_IDS: roleIds.join(","),
+      ...authEnv,
       ...dockerEnv,
     },
   };
@@ -333,6 +342,9 @@ export interface DockerSpawnArgsParams {
   platform: Platform;
   projectRoot?: string;
   homeDir?: string;
+  /** Extra `-v` / `-e` tokens for opt-in host credentials (#259).
+   *  Built by `resolveSandboxAuth` in `sandboxMounts.ts`. Default []. */
+  sandboxAuthArgs?: readonly string[];
 }
 
 // Pure helper that returns the full `docker run ... claude <args>`
@@ -347,6 +359,7 @@ export function buildDockerSpawnArgs(params: DockerSpawnArgsParams): string[] {
     platform,
     projectRoot = process.cwd(),
     homeDir = homedir(),
+    sandboxAuthArgs = [],
   } = params;
   const toDockerPath = (p: string): string => p.replace(/\\/g, "/");
   const extraHosts: string[] =
@@ -379,6 +392,7 @@ export function buildDockerSpawnArgs(params: DockerSpawnArgsParams): string[] {
     `${toDockerPath(homeDir)}/.claude:/home/node/.claude`,
     "-v",
     `${toDockerPath(homeDir)}/.claude.json:/home/node/.claude.json`,
+    ...sandboxAuthArgs,
     ...extraHosts,
     "mulmoclaude-sandbox",
     "claude",

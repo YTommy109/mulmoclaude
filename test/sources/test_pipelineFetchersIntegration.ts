@@ -24,23 +24,23 @@ import { join } from "node:path";
 // NB: we intentionally do NOT import registerAll here. The pipeline
 // module itself is responsible for importing it, so these tests
 // verify that too — if someone removes the bootstrap import from
-// `server/sources/pipeline/index.ts`, this file fails before any of
+// `server/workspace/sources/pipeline/index.ts`, this file fails before any of
 // the realistic HTTP routing even runs.
-import { runSourcesPipeline } from "../../server/sources/pipeline/index.js";
-import { writeSource } from "../../server/sources/registry.js";
+import { runSourcesPipeline } from "../../server/workspace/sources/pipeline/index.js";
+import { writeSource } from "../../server/workspace/sources/registry.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   type HttpFetcherDeps,
-} from "../../server/sources/httpFetcher.js";
+} from "../../server/workspace/sources/httpFetcher.js";
 import {
   HostRateLimiter,
   type RateLimiterDeps,
-} from "../../server/sources/rateLimiter.js";
+} from "../../server/workspace/sources/rateLimiter.js";
 import type {
   FetcherKind,
   Source,
   SourceItem,
-} from "../../server/sources/types.js";
+} from "../../server/workspace/sources/types.js";
 
 let workspace: string;
 
@@ -54,7 +54,7 @@ afterEach(() => {
 // Test-only summarizer: just lists every item title as a bullet.
 // Extracted so the sonarjs/no-nested-template-literals rule stays
 // happy (inline template-literal + .map().join() → nested).
-async function stubSummarize(items: SourceItem[]): Promise<string> {
+async function stubSummarize(items: readonly SourceItem[]): Promise<string> {
   const lines = items.map((i) => `- ${i.title}`).join("\n");
   return `# brief\n\n${lines}\n`;
 }
@@ -72,7 +72,6 @@ function controllableClock(): RateLimiterDeps {
 
 function makeSource(over: Partial<Source> & Pick<Source, "slug">): Source {
   return {
-    slug: over.slug,
     title: "",
     url: "",
     fetcherKind: "rss",

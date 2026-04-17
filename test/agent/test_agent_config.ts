@@ -14,7 +14,7 @@ import {
   rewriteLocalhostForDocker,
   userServerAllowedToolNames,
 } from "../../server/agent/config.js";
-import type { McpServerSpec } from "../../server/config.js";
+import type { McpServerSpec } from "../../server/system/config.js";
 
 describe("buildMcpConfig", () => {
   it("returns correct structure", () => {
@@ -271,6 +271,23 @@ describe("buildDockerSpawnArgs", () => {
     const args = buildDockerSpawnArgs(baseParams());
     assert.ok(args.includes("mulmoclaude-sandbox"));
   });
+
+  it("splices sandboxAuthArgs in before the image name (#259)", () => {
+    const args = buildDockerSpawnArgs({
+      ...baseParams(),
+      sandboxAuthArgs: ["-v", "/host/.config/gh:/home/node/.config/gh:ro"],
+    });
+    const authIdx = args.indexOf("/host/.config/gh:/home/node/.config/gh:ro");
+    const imageIdx = args.indexOf("mulmoclaude-sandbox");
+    assert.ok(authIdx >= 0, "expected sandboxAuthArgs to be present");
+    assert.ok(authIdx < imageIdx, "auth mounts must land before image name");
+  });
+
+  it("defaults to no sandbox auth args when omitted", () => {
+    const args = buildDockerSpawnArgs(baseParams());
+    assert.ok(!args.some((a) => a.includes(".config/gh")));
+    assert.ok(!args.some((a) => a.includes("SSH_AUTH_SOCK")));
+  });
 });
 
 describe("rewriteLocalhostForDocker", () => {
@@ -421,7 +438,7 @@ describe("userServerAllowedToolNames", () => {
 describe("buildMcpConfig — user servers", () => {
   it("merges user-defined servers alongside mulmoclaude", () => {
     const cfg = buildMcpConfig({
-      sessionId: "s1",
+      chatSessionId: "s1",
       port: 3001,
       activePlugins: ["manageTodoList"],
       roleIds: ["assistant"],
@@ -439,7 +456,7 @@ describe("buildMcpConfig — user servers", () => {
 
   it("refuses to let a user server override the reserved 'mulmoclaude' id", () => {
     const cfg = buildMcpConfig({
-      sessionId: "s1",
+      chatSessionId: "s1",
       port: 3001,
       activePlugins: ["manageTodoList"],
       roleIds: ["assistant"],

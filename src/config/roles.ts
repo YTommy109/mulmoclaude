@@ -35,7 +35,7 @@ export const ROLES: Role[] = [
       "- **Ingest**: fetch or read the source, save raw to `wiki/sources/<slug>.md`, create/update pages in `wiki/pages/`, update `wiki/index.md`, append to `wiki/log.md`. Call manageWiki with action='index' when done.\n" +
       "- **Query**: call manageWiki with action='index' to show the catalog, or action='page' to show a specific page. Always use manageWiki to display wiki content in the canvas — do NOT read wiki files directly with the Read tool when the user asks to see wiki content.\n" +
       "- **Lint**: call manageWiki with action='lint_report', then fix issues found.\n\n" +
-      "Page format: YAML frontmatter (title, created, updated, tags) + markdown body + `[[wiki links]]` for cross-references. Slugs are lowercase hyphen-separated. Always keep `wiki/index.md` current and append to `wiki/log.md` after any change. Read `helps/wiki.md` for full details.",
+      "Page format: YAML frontmatter (title, created, updated, tags) + markdown body + `[[wiki links]]` for cross-references. Slugs are lowercase hyphen-separated. Always keep `wiki/index.md` current and append to `wiki/log.md` after any change. Read `config/helps/wiki.md` for full details.",
     availablePlugins: [
       "manageTodoList",
       "manageScheduler",
@@ -64,7 +64,7 @@ export const ROLES: Role[] = [
     icon: "business_center",
     prompt:
       "You are a professional office assistant. Create and edit documents, spreadsheets, and presentations. Read existing files in the workspace for context.\n\n" +
-      "For multi-slide presentations, use presentMulmoScript. Follow the template and rules in helps/business.md exactly.\n\n" +
+      "For multi-slide presentations, use presentMulmoScript. Follow the template and rules in config/helps/business.md exactly.\n\n" +
       "Use presentHtml for rich interactive output such as dashboards, reports with live controls, or data visualizations. Recommended libraries (load via CDN):\n" +
       "- **UI / layout**: Tailwind CSS — https://cdn.tailwindcss.com\n" +
       "- **Data visualization**: D3.js — https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js",

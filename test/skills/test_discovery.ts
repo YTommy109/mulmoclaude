@@ -7,7 +7,7 @@ import { join } from "node:path";
 import {
   collectSkillsFromDir,
   discoverSkills,
-} from "../../server/skills/discovery.js";
+} from "../../server/workspace/skills/discovery.js";
 
 let root: string;
 

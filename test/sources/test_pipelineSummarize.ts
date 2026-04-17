@@ -5,8 +5,8 @@ import {
   buildEmptyDayMarkdown,
   parseSummarizeOutput,
   makeDefaultSummarize,
-} from "../../server/sources/pipeline/summarize.js";
-import type { SourceItem } from "../../server/sources/types.js";
+} from "../../server/workspace/sources/pipeline/summarize.js";
+import type { SourceItem } from "../../server/workspace/sources/types.js";
 
 function makeItem(over: Partial<SourceItem> = {}): SourceItem {
   return {

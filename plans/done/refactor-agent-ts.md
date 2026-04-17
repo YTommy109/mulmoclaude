@@ -1,12 +1,12 @@
-# Refactor server/agent.ts — Extract Pure Functions & Add Unit Tests
+# Refactor server/agent/index.ts — Extract Pure Functions & Add Unit Tests
 
 ## Goal
 
-Split `server/agent.ts` into testable pure functions and the orchestration layer. The pure functions handle prompt construction, MCP config generation, CLI argument building, and stream event parsing. Each gets unit tests.
+Split `server/agent/index.ts` into testable pure functions and the orchestration layer. The pure functions handle prompt construction, MCP config generation, CLI argument building, and stream event parsing. Each gets unit tests.
 
 ## Current State
 
-`server/agent.ts` contains one large `runAgent` async generator (~170 lines) that mixes:
+`server/agent/index.ts` contains one large `runAgent` async generator (~170 lines) that mixes:
 1. System prompt construction (memory, wiki, plugin prompts)
 2. Active plugin filtering
 3. MCP config JSON generation
@@ -80,7 +80,7 @@ parseStreamEvent(event: ClaudeStreamEvent): AgentEvent[]
   - Pure function, no I/O
 ```
 
-### `server/agent.ts` — Orchestration (remains)
+### `server/agent/index.ts` — Orchestration (remains)
 
 `runAgent` becomes a thin orchestrator:
 1. Call `buildSystemPrompt()`
@@ -138,7 +138,7 @@ parseStreamEvent(event: ClaudeStreamEvent): AgentEvent[]
 4. Create `test/agent/test_agent_config.ts` — test it
 5. Create `server/agent-prompt.ts` — prompt builders (reads files, needs temp dir in tests)
 6. Create `test/agent/test_agent_prompt.ts` — test with temp workspace dirs
-7. Refactor `server/agent.ts` — import and call extracted functions
+7. Refactor `server/agent/index.ts` — import and call extracted functions
 8. Run full test suite + typecheck + lint
 
 ## Files Changed
@@ -148,7 +148,7 @@ parseStreamEvent(event: ClaudeStreamEvent): AgentEvent[]
 | `server/agent-stream.ts` | New — stream event parsing |
 | `server/agent-config.ts` | New — MCP config and CLI args |
 | `server/agent-prompt.ts` | New — prompt construction |
-| `server/agent.ts` | Slim down to orchestration only |
+| `server/agent/index.ts` | Slim down to orchestration only |
 | `test/agent/test_agent_stream.ts` | New — stream parsing tests |
 | `test/agent/test_agent_config.ts` | New — config/args tests |
 | `test/agent/test_agent_prompt.ts` | New — prompt construction tests |

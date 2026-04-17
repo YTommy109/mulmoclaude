@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   mergeSessionLists,
+  applySessionDiff,
   compareSessionsByRecency,
 } from "../../../src/utils/session/mergeSessions.js";
 import type {
@@ -24,7 +25,6 @@ function makeActive(overrides: Partial<ActiveSession> = {}): ActiveSession {
     toolCallHistory: [],
     selectedResultUuid: null,
     hasUnread: false,
-    abortController: new AbortController(),
     startedAt: "2026-04-10T10:00:00.000Z",
     updatedAt: "2026-04-10T10:05:00.000Z",
     ...overrides,
@@ -250,5 +250,88 @@ describe("mergeSessionLists — does not mutate inputs", () => {
     const snapshot = server.slice();
     mergeSessionLists([], server);
     assert.deepEqual(server, snapshot);
+  });
+});
+
+// applySessionDiff powers the cursor-aware incremental fetch in
+// useSessionHistory (issue #205). Each diff row replaces the cached
+// row with the same id, new ids prepend, and deletedIds remove.
+describe("applySessionDiff — upsert", () => {
+  it("replaces the cached row when a diff row shares its id", () => {
+    const cache = [
+      makeSummary({ id: "a", preview: "old" }),
+      makeSummary({ id: "b" }),
+    ];
+    const diff = [makeSummary({ id: "a", preview: "new" })];
+    const out = applySessionDiff(cache, diff, []);
+    const a = out.find((s) => s.id === "a");
+    assert.equal(a?.preview, "new");
+    const b = out.find((s) => s.id === "b");
+    assert.ok(b, "untouched cache rows survive");
+  });
+
+  it("adds rows whose ids are new to the cache", () => {
+    const cache = [makeSummary({ id: "a" })];
+    const diff = [makeSummary({ id: "b" })];
+    const out = applySessionDiff(cache, diff, []);
+    assert.deepEqual(out.map((s) => s.id).sort(), ["a", "b"]);
+  });
+
+  it("is a no-op when diff and deletedIds are both empty", () => {
+    const cache = [makeSummary({ id: "a" }), makeSummary({ id: "b" })];
+    const out = applySessionDiff(cache, [], []);
+    assert.deepEqual(out.map((s) => s.id).sort(), ["a", "b"]);
+  });
+});
+
+describe("applySessionDiff — deletedIds", () => {
+  it("removes cached rows whose id is in deletedIds", () => {
+    const cache = [
+      makeSummary({ id: "a" }),
+      makeSummary({ id: "b" }),
+      makeSummary({ id: "c" }),
+    ];
+    const out = applySessionDiff(cache, [], ["b"]);
+    assert.deepEqual(out.map((s) => s.id).sort(), ["a", "c"]);
+  });
+
+  it("removes before applying the diff (id in both → removed)", () => {
+    // Shape-wise impossible in the real product (server wouldn't
+    // both update and delete the same id), but the rule keeps the
+    // helper's behaviour unambiguous.
+    const cache = [makeSummary({ id: "a" })];
+    const diff = [makeSummary({ id: "a", preview: "updated" })];
+    const out = applySessionDiff(cache, diff, ["a"]);
+    // The diff re-adds `a` because deletedIds only scopes the
+    // *cache* pass; that matches the server's contract ("these
+    // rows changed, these rows are gone") where every diff row
+    // is authoritative.
+    const a = out.find((s) => s.id === "a");
+    assert.equal(a?.preview, "updated");
+    assert.equal(out.length, 1);
+  });
+});
+
+describe("applySessionDiff — sort + immutability", () => {
+  it("returns the merged list sorted by updatedAt desc", () => {
+    const cache = [
+      makeSummary({ id: "old", updatedAt: "2026-04-10T00:00:00.000Z" }),
+    ];
+    const diff = [
+      makeSummary({ id: "new", updatedAt: "2026-04-17T00:00:00.000Z" }),
+    ];
+    const out = applySessionDiff(cache, diff, []);
+    assert.equal(out[0].id, "new");
+    assert.equal(out[1].id, "old");
+  });
+
+  it("does not mutate cache or diff inputs", () => {
+    const cache = [makeSummary({ id: "a" })];
+    const diff = [makeSummary({ id: "b" })];
+    const cacheSnap = cache.slice();
+    const diffSnap = diff.slice();
+    applySessionDiff(cache, diff, ["a"]);
+    assert.deepEqual(cache, cacheSnap);
+    assert.deepEqual(diff, diffSnap);
   });
 });

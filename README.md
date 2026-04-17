@@ -74,7 +74,7 @@ If Docker is not installed, the app shows a warning banner and continues to work
 ## Logging
 
 The server writes readable text to the console and full-fidelity JSON
-to rotating daily files under `server/logs/`. Everything is
+to rotating daily files under `server/system/logs/`. Everything is
 configurable via `LOG_LEVEL`, `LOG_*_FORMAT`, `LOG_FILE_DIR`, etc.
 
 See [docs/logging.md](docs/logging.md) for the full reference, format
@@ -202,7 +202,7 @@ The **General** role has wiki support built in. Try:
 The wiki lives entirely as plain markdown files in your workspace:
 
 ```
-workspace/wiki/
+<workspace>/data/wiki/
   index.md          ← catalog of all pages (title, description, last updated)
   log.md            ← append-only activity log
   pages/<slug>.md   ← one page per entity, concept, or theme
@@ -227,10 +227,10 @@ Show a sankey of energy flow: coal/gas/solar → electricity → home/industry/t
 
 ### Storage
 
-Each `presentChart` call writes one file under `<workspace>/charts/`:
+Each `presentChart` call writes one file under `<workspace>/artifacts/charts/`:
 
 ```text
-<workspace>/charts/
+<workspace>/artifacts/charts/
   sales-overview-1776135210389.chart.json
   apple-stock-1776135300000.chart.json
 ```
@@ -325,10 +325,10 @@ Add external MCP servers without hand-editing JSON. Two types are supported:
 - **HTTP** — remote servers (e.g. `https://example.com/mcp`). Works in every mode; in Docker, `localhost` / `127.0.0.1` URLs are rewritten to `host.docker.internal` automatically.
 - **Stdio** — local subprocess, restricted to `npx` / `node` / `tsx` for safety. When Docker sandboxing is enabled, script paths must live under the workspace so they resolve inside the container.
 
-Configuration lives under `<workspace>/configs/`:
+Configuration lives under `<workspace>/config/`:
 
 ```text
-<workspace>/configs/
+<workspace>/config/
   settings.json    ← extra allowed tool names
   mcp.json         ← Claude CLI --mcp-config compatible
 ```
@@ -391,20 +391,23 @@ You don't need to list `mcp__<id>` entries for servers defined in `mcp.json` —
 
 ## Workspace
 
-All data is stored as plain files in the workspace directory:
+All data is stored as plain files in the workspace directory, grouped into four semantic buckets (#284):
 
 ```
 ~/mulmoclaude/
-  chat/        ← conversation history (one .jsonl per session)
-  todos/        ← todo items (todos.json) and kanban columns (columns.json)
-  memory.md     ← persistent facts Claude always has in context
-  wiki/         ← personal knowledge base (see above)
-  ...
+  config/              ← settings.json, mcp.json, roles/, helps/
+  conversations/       ← chat/, memory.md, summaries/, searches/
+  data/                ← wiki/, todos/, calendar/, contacts/, scheduler/,
+                         sources/, transports/
+  artifacts/           ← charts/, documents/, html/, html-scratch/,
+                         images/, news/, spreadsheets/, stories/
 ```
+
+See [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) for the full reference. Pre-#284 workspaces must run the one-shot migration (`yarn tsx scripts/migrate-workspace-284.ts --dry-run` → `--execute`) once before the server will start.
 
 ### Todo explorer
 
-Selecting `todos/todos.json` in the file explorer opens a full **Todo
+Selecting `data/todos/todos.json` in the file explorer opens a full **Todo
 Explorer** with three view modes:
 
 - **Kanban** — GitHub Projects-style columns. Drag cards between
@@ -414,7 +417,7 @@ Explorer** with three view modes:
   date / created columns. Click a row to inline-edit.
 - **List** — flat checklist with the same inline editor.
 
-Status columns are stored in `todos/columns.json` and default to
+Status columns are stored in `data/todos/columns.json` and default to
 `Backlog / Todo / In Progress / Done`. Each todo carries optional
 `status`, `priority` (low / medium / high / urgent), and `dueDate`
 fields in addition to the original text / note / labels / completed

@@ -385,7 +385,7 @@ workspace/
 
 Follow the standard local plugin registration path (see CLAUDE.md "Adding a local plugin").
 
-The `tasks` subdirectory needs to be added to `SUBDIRS` in `server/workspace.ts`.
+The `tasks` subdirectory needs to be added to `SUBDIRS` in `server/workspace/workspace.ts`.
 
 ---
 

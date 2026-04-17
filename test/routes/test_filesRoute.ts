@@ -1,4 +1,4 @@
-// Unit tests for the pure helpers in `server/routes/files.ts`.
+// Unit tests for the pure helpers in `server/api/routes/files.ts`.
 //
 // This file accumulates tests across several security-hardening
 // PRs:
@@ -28,7 +28,7 @@ import {
   classify,
   isSensitivePath,
   RAW_SECURITY_HEADERS,
-} from "../../server/routes/files.js";
+} from "../../server/api/routes/files.js";
 
 describe("parseRange — happy path", () => {
   it("parses a basic start-end range", () => {
@@ -365,7 +365,7 @@ describe("isSensitivePath — does not over-block", () => {
   it("allows ordinary source and document files", () => {
     assert.equal(isSensitivePath("README.md"), false);
     assert.equal(isSensitivePath("notes.txt"), false);
-    assert.equal(isSensitivePath("server/routes/files.ts"), false);
+    assert.equal(isSensitivePath("server/api/routes/files.ts"), false);
     assert.equal(isSensitivePath("wiki/pages/sakura.md"), false);
   });
 

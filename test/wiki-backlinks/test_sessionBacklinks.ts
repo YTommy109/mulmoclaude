@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   BACKLINKS_MARKER,
   updateSessionBacklinks,
-} from "../../server/wiki-backlinks/sessionBacklinks.js";
+} from "../../server/workspace/wiki-backlinks/sessionBacklinks.js";
 
 const SID_A = "3e0382cb-f02f-4f5b-a9a3-a71e50d7ad0c";
 const SID_B = "4d7f5377-1bac-460c-8ec5-ea054fa0492d";

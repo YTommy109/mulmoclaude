@@ -75,13 +75,13 @@ The `prompt` field tells Claude when to call each action:
 ### Server — writer module + paths
 
 ```text
-server/skills/
+server/workspace/skills/
   paths.ts           ← projectSkillsDir(), projectSkillPath(workspaceRoot, slug), isValidSlug()
   writer.ts          ← saveProjectSkill() / deleteProjectSkill()
   discovery.ts       ← phase 0, unchanged (still scans both scopes)
 ```
 
-- `isValidSlug`: identical rule to `server/sources/paths.ts` (already in repo, copy the regex)
+- `isValidSlug`: identical rule to `server/workspace/sources/paths.ts` (already in repo, copy the regex)
 - `saveProjectSkill`: atomic write to a tmp file then rename. Fail if `<slug>/SKILL.md` already exists — never overwrite.
 - `deleteProjectSkill`: refuse if the skill was discovered under the user scope (guard against accidental user-dir delete even if someone passes the wrong slug)
 
@@ -97,7 +97,7 @@ ${body.trimEnd()}
 
 ### REST routes
 
-Extend `server/routes/skills.ts`:
+Extend `server/api/routes/skills.ts`:
 
 | Route                  | Action                                                                  |
 | ---------------------- | ----------------------------------------------------------------------- |
@@ -113,7 +113,7 @@ Responses:
 - 403: `{ error: "cannot modify user-scope skill: <name>" }` (delete)
 - 404: `{ error: "skill not found: <name>" }` (delete)
 
-### MCP bridge (`server/mcp-server.ts`)
+### MCP bridge (`server/agent/mcp-server.ts`)
 
 Extend `handleManageSkills` so it switches on `action`:
 

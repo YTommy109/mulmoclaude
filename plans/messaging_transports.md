@@ -170,7 +170,7 @@ The server manages all chat state. One JSON file per external chat, stored in th
 ```
 
 ```ts
-// server/chat-service/chat-state.ts
+// server/api/chat-service/chat-state.ts
 
 export interface TransportChatState {
   /** External platform's chat/channel/DM ID */
@@ -531,9 +531,9 @@ bridges/
 ## 8) Implementation Phases
 
 ### Phase 0: Chat Service API + CLI Bridge
-1. Create `server/chat-service/chat-state.ts` — state store with `resolveWithinRoot()`
-2. Create `server/chat-service/commands.ts` — server-side `/reset`, `/help`, `/roles`, `/role`, `/status`
-3. Create `server/chat-service/index.ts` — `POST /api/transports/:transportId/chats/:externalChatId`, `POST /api/transports/:transportId/chats/:externalChatId/connect`, `GET /api/transports`
+1. Create `server/api/chat-service/chat-state.ts` — state store with `resolveWithinRoot()`
+2. Create `server/api/chat-service/commands.ts` — server-side `/reset`, `/help`, `/roles`, `/role`, `/status`
+3. Create `server/api/chat-service/index.ts` — `POST /api/transports/:transportId/chats/:externalChatId`, `POST /api/transports/:transportId/chats/:externalChatId/connect`, `GET /api/transports`
 4. Create `bridges/cli/index.ts` — reference implementation (~20 lines)
 5. Wire into `server/index.ts` — mount chat-service routes
 6. Unit tests: `test/chat-service/test_chat-state.ts`, `test/chat-service/test_commands.ts`

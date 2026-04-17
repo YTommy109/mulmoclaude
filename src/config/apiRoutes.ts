@@ -81,6 +81,12 @@ export const API_ROUTES = {
     invoke: "/api/mcp-tools/:tool",
   },
 
+  notifications: {
+    // PoC endpoint for scheduled push fan-out (Web pub-sub + bridge).
+    // Scaffolding for #144 / #142 — see plans/feat-notification-push-scaffold.md.
+    test: "/api/notifications/test",
+  },
+
   mulmoScript: {
     save: "/api/mulmo-script",
     updateBeat: "/api/mulmo-script/update-beat",
@@ -136,6 +142,7 @@ export const API_ROUTES = {
     list: "/api/skills",
     detail: "/api/skills/:name",
     create: "/api/skills",
+    update: "/api/skills/:name",
     remove: "/api/skills/:name",
   },
 

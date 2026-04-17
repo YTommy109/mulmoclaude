@@ -9,7 +9,7 @@ import {
   dailyNewsPath,
   archivePath,
   isValidSlug,
-} from "../../server/sources/paths.js";
+} from "../../server/workspace/sources/paths.js";
 
 const root = path.join("/tmp", "ws");
 

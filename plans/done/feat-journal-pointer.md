@@ -20,14 +20,14 @@ Critically: without bloating the system prompt, without loading summaries wholes
 
 The pointer is prepended to the **user prompt** of the **first turn** of a session. Specifically:
 
-1. `server/routes/agent.ts` receives `POST /api/agent` with `{ message, chatSessionId, ... }`
+1. `server/api/routes/agent.ts` receives `POST /api/agent` with `{ message, chatSessionId, ... }`
 2. The original `message` is appended to `workspace/chat/<chatSessionId>.jsonl` unchanged (so the chat log stays clean)
 3. `claudeSessionId` is resolved (from in-memory map or `readClaudeSessionId`)
 4. If `claudeSessionId` is **absent** (first turn of this session), a helper decorates the message with the pointer
 5. The decorated message is passed to `runAgent`, which ultimately reaches `claude -p <decoratedMessage>`
 
 ```ts
-// server/routes/agent.ts sketch
+// server/api/routes/agent.ts sketch
 const claudeSessionId =
   claudeSessionMap.get(chatSessionId) ??
   (await readClaudeSessionId(metaFilePath, resultsFilePath));
@@ -124,7 +124,7 @@ Answer: the pointer is a **path**, not data. The `Read` tool always returns the 
    - Pure function, ~20 lines
    - Same file as `buildMemoryContext` / `buildWikiContext` for style consistency
 
-2. **Wire it into `server/routes/agent.ts`**
+2. **Wire it into `server/api/routes/agent.ts`**
    - Import the helper
    - Resolve `claudeSessionId` (already done)
    - Branch: decorate on first turn, pass-through on resume

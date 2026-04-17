@@ -33,6 +33,13 @@ export const PUBSUB_CHANNELS = {
    *  demo counter. Useful for sanity-checking that the WS pipe is
    *  alive end-to-end. */
   debugBeat: "debug.beat",
+  /** Broadcast push notifications to every open Web tab (scaffold for
+   *  the in-app notification center #144). The test endpoint
+   *  `POST /api/notifications/test` publishes here; the production
+   *  triggers (scheduler / todo reminders / journal) will follow
+   *  the same channel. Subscriber list starts empty — the UI lands
+   *  in a separate PR. Payload: `{ message: string, firedAt: ISO8601 }`. */
+  notifications: "notifications",
 } as const;
 
 export type StaticPubSubChannel =
