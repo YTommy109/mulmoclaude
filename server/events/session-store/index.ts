@@ -50,10 +50,12 @@ const EVICTION_CHECK_INTERVAL_MS = 5 * 60 * 1000; // check every 5 min
 
 const store = new Map<string, ServerSession>();
 let pubsub: IPubSub | null = null;
+let evictionTimer: ReturnType<typeof setInterval> | null = null;
 
 export function initSessionStore(ps: IPubSub): void {
   pubsub = ps;
-  setInterval(evictIdleSessions, EVICTION_CHECK_INTERVAL_MS);
+  if (evictionTimer) clearInterval(evictionTimer);
+  evictionTimer = setInterval(evictIdleSessions, EVICTION_CHECK_INTERVAL_MS);
 }
 
 // ── Session lifecycle ──────────────────────────────────────────
@@ -299,5 +301,18 @@ function evictIdleSessions(): void {
       });
       removeSession(id);
     }
+  }
+}
+
+/**
+ * Test-only: clear all in-memory state so a test suite can start
+ * fresh without reloading the module.
+ */
+export function __resetForTests(): void {
+  store.clear();
+  pubsub = null;
+  if (evictionTimer) {
+    clearInterval(evictionTimer);
+    evictionTimer = null;
   }
 }
