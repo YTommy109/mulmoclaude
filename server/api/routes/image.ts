@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { getOptionalStringQuery } from "../../utils/request.js";
 import { getSessionImageData } from "../../events/session-store/index.js";
 import {
   generateGeminiImageContent,
@@ -126,8 +127,7 @@ router.post(
     res: Response<ImageResponse>,
   ) => {
     const { prompt } = req.body;
-    const session =
-      typeof req.query.session === "string" ? req.query.session : undefined;
+    const session = getOptionalStringQuery(req, "session");
     if (!prompt) {
       res.status(400).json({ success: false, message: "prompt is required" });
       return;

@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { getSessionQuery } from "../../utils/request.js";
 import { loadCustomRoles } from "../../workspace/roles.js";
 import { BUILTIN_ROLES, type Role } from "../../../src/config/roles.js";
 import { pushSessionEvent } from "../../events/session-store/index.js";
@@ -21,7 +22,7 @@ router.get(API_ROUTES.roles.list, (_req: Request, res: Response<Role[]>) => {
 router.post(
   API_ROUTES.roles.manage,
   async (req: Request, res: Response<Record<string, unknown>>) => {
-    const session = String(req.query.session ?? "");
+    const session = getSessionQuery(req);
     const result = await executeManageRoles(req.body, session);
     res.json(result);
   },

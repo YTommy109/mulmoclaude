@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { getSessionQuery } from "../../utils/request.js";
 import {
   createSessionMeta,
   backfillFirstUserMessage as backfillMeta,
@@ -75,7 +76,7 @@ router.post(
     req: Request<object, unknown, Record<string, unknown>>,
     res: Response<OkResponse>,
   ) => {
-    const chatSessionId = String(req.query.session ?? "");
+    const chatSessionId = getSessionQuery(req);
     const outcome = await pushToolResult(chatSessionId, req.body);
     res.json({ ok: outcome.kind === "processed" });
   },
@@ -92,7 +93,7 @@ router.post(
     req: Request<object, unknown, SwitchRoleBody>,
     res: Response<OkResponse>,
   ) => {
-    const chatSessionId = String(req.query.session ?? "");
+    const chatSessionId = getSessionQuery(req);
     pushSessionEvent(chatSessionId, {
       type: EVENT_TYPES.switchRole,
       roleId: req.body.roleId,
