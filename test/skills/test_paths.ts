@@ -2,11 +2,11 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import {
-  isValidSlug,
   projectSkillsDir,
   projectSkillPath,
   projectSkillDir,
 } from "../../server/workspace/skills/paths.js";
+import { isValidSlug } from "../../server/utils/slug.js";
 
 describe("isValidSlug", () => {
   it("accepts ordinary kebab-case slugs", () => {

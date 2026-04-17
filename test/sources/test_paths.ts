@@ -8,8 +8,8 @@ import {
   robotsCachePath,
   dailyNewsPath,
   archivePath,
-  isValidSlug,
 } from "../../server/workspace/sources/paths.js";
+import { isValidSlug } from "../../server/utils/slug.js";
 
 const root = path.join("/tmp", "ws");
 
