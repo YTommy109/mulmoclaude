@@ -6,6 +6,7 @@ import { MCP_PLUGIN_NAMES } from "./plugin-names.js";
 import type { McpServerSpec } from "../system/config.js";
 import { getCurrentToken } from "../api/auth/token.js";
 import type { Attachment } from "../api/chat-service/types.js";
+import { isImageMime } from "../../bridges/_lib/mime.js";
 
 export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
@@ -294,9 +295,23 @@ export function buildUserMessageLine(
   message: string,
   attachments?: Attachment[],
 ): string {
-  const imageAttachments = (attachments ?? []).filter((a) =>
-    a.mimeType.startsWith("image/"),
-  );
+  const all = attachments ?? [];
+  const imageAttachments = all.filter((a) => isImageMime(a.mimeType));
+  const skipped = all.length - imageAttachments.length;
+  if (skipped > 0) {
+    // Non-image attachments (PDF, docx, etc.) are not yet supported
+    // by the vision content-block path. Log so operators can see
+    // "I attached a PDF and nothing happened" in the file log.
+    const skippedTypes = all
+      .filter((a) => !isImageMime(a.mimeType))
+      .map((a) => a.mimeType);
+    // Using console.error as a lightweight debug hint — the
+    // structured logger isn't imported here (config.ts is import-
+    // light by design). The relay layer logs the full summary.
+    console.error(
+      `[agent] skipping ${skipped} non-image attachment(s): ${skippedTypes.join(", ")}`,
+    );
+  }
   const content =
     imageAttachments.length > 0
       ? buildContentBlocks(message, imageAttachments)

@@ -1,3 +1,5 @@
+import { mimeFromExtension, buildDataUrl } from "../_lib/mime.js";
+
 // Raw `fetch` wrapper for the Telegram Bot API. Only the two methods
 // the bridge actually uses (`getUpdates`, `sendMessage`) are exposed.
 //
@@ -151,16 +153,9 @@ export function createTelegramApi(opts: TelegramApiOptions): TelegramApi {
       }
       const buffer = await fileRes.arrayBuffer();
       const b64 = Buffer.from(buffer).toString("base64");
-      const ext = getFileBody.result.file_path.split(".").pop()?.toLowerCase();
-      const mediaType =
-        ext === "jpg" || ext === "jpeg"
-          ? "image/jpeg"
-          : ext === "png"
-            ? "image/png"
-            : ext === "webp"
-              ? "image/webp"
-              : "image/jpeg";
-      return `data:${mediaType};base64,${b64}`;
+      const ext = getFileBody.result.file_path.split(".").pop() ?? "";
+      const mediaType = mimeFromExtension(ext, "image/jpeg");
+      return buildDataUrl(mediaType, b64);
     },
   };
 }

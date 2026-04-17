@@ -33,6 +33,7 @@ import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
 import { env } from "../../system/env.js";
 import type { Attachment } from "../chat-service/types.js";
+import { parseDataUrl } from "../../../bridges/_lib/mime.js";
 
 const router = Router();
 const PORT = env.port;
@@ -270,9 +271,9 @@ function mergeAttachments(
 ): Attachment[] | undefined {
   const result: Attachment[] = [];
   if (selectedImageData) {
-    const match = selectedImageData.match(/^data:([^;]+);base64,(.+)$/);
-    if (match) {
-      result.push({ mimeType: match[1], data: match[2] });
+    const parsed = parseDataUrl(selectedImageData);
+    if (parsed) {
+      result.push({ mimeType: parsed.mimeType, data: parsed.data });
     }
   }
   if (explicit) {
@@ -283,6 +284,10 @@ function mergeAttachments(
 
 // ── HTTP route ──────────────────────────────────────────────────────
 
+// HTTP route body — used by the Vue UI only. `selectedImageData` is
+// the legacy data-URL path; new bridge clients send `attachments`
+// via the socket relay instead. mergeAttachments() unifies both
+// paths inside startChat(). See #382 for the rationale.
 interface AgentBody {
   message: string;
   roleId: string;

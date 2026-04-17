@@ -35,13 +35,10 @@ export interface PushEvent {
   message: string;
 }
 
-/** Generic attachment — images, PDFs, documents, etc. The server
- *  decides what to do with each based on mimeType. */
-export interface Attachment {
-  mimeType: string;
-  data: string; // base64
-  filename?: string;
-}
+// Attachment type is defined in server/api/chat-service/types.ts.
+// Consumers import it directly from there — no re-export here
+// (CLAUDE.md rule). See also bridges/_lib/mime.ts for MIME helpers.
+import type { Attachment } from "../../server/api/chat-service/types.js";
 
 export interface BridgeClientOptions {
   /** Required. Identifier for this bridge in the handshake.
