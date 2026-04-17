@@ -203,37 +203,43 @@ export interface DailyFileEntry {
 
 export async function listDailyFiles(r?: string): Promise<DailyFileEntry[]> {
   const dailyRoot = path.join(summariesRoot(root(r)), DAILY_DIR);
+  const years = await safeReaddir(dailyRoot);
   const out: DailyFileEntry[] = [];
-  let years: string[];
-  try {
-    years = await fsp.readdir(dailyRoot);
-  } catch {
-    return out;
+  for (const y of years.filter(isYearDir)) {
+    const entries = await listDaysForYear(dailyRoot, y);
+    out.push(...entries);
   }
-  for (const y of years) {
-    if (!/^\d{4}$/.test(y)) continue;
-    let months: string[];
-    try {
-      months = await fsp.readdir(path.join(dailyRoot, y));
-    } catch {
-      continue;
-    }
-    for (const m of months) {
-      if (!/^\d{2}$/.test(m)) continue;
-      let dayFiles: string[];
-      try {
-        dayFiles = await fsp.readdir(path.join(dailyRoot, y, m));
-      } catch {
-        continue;
-      }
-      for (const d of dayFiles) {
-        if (d.endsWith(".md")) {
-          out.push({ year: y, month: m, day: d.replace(/\.md$/, "") });
-        }
+  return out;
+}
+
+const YEAR_RE = /^\d{4}$/;
+const MONTH_RE = /^\d{2}$/;
+const isYearDir = (name: string) => YEAR_RE.test(name);
+const isMonthDir = (name: string) => MONTH_RE.test(name);
+
+async function listDaysForYear(
+  dailyRoot: string,
+  year: string,
+): Promise<DailyFileEntry[]> {
+  const months = await safeReaddir(path.join(dailyRoot, year));
+  const out: DailyFileEntry[] = [];
+  for (const m of months.filter(isMonthDir)) {
+    const dayFiles = await safeReaddir(path.join(dailyRoot, year, m));
+    for (const d of dayFiles) {
+      if (d.endsWith(".md")) {
+        out.push({ year, month: m, day: d.replace(/\.md$/, "") });
       }
     }
   }
   return out;
+}
+
+async function safeReaddir(dir: string): Promise<string[]> {
+  try {
+    return await fsp.readdir(dir);
+  } catch {
+    return [];
+  }
 }
 
 // ── Archived topic count ────────────────────────────────────────
