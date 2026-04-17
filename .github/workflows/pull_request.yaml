@@ -42,7 +42,7 @@ jobs:
         cache: 'yarn'
     - run: yarn install
     - name: Install Playwright browsers
-      run: npx playwright install chromium --with-deps
+      run: npx playwright install chromium webkit --with-deps
     - name: Run E2E tests
       run: yarn test:e2e
     - name: Upload test results on failure
