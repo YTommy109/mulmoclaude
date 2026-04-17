@@ -100,9 +100,11 @@ describe("buildMemoryContext", () => {
 });
 
 describe("buildWikiContext", () => {
-  it("returns null when wiki/index.md does not exist", () => {
+  it("returns path hint when wiki/index.md does not exist", () => {
     const result = buildWikiContext(workspace);
-    assert.equal(result, null);
+    assert.ok(result !== null);
+    assert.ok(result.includes("data/wiki/"));
+    assert.ok(result.includes("No wiki exists yet"));
   });
 
   it("returns layout description when index exists but no summary", () => {
@@ -209,14 +211,15 @@ describe("buildSystemPrompt", () => {
     assert.ok(result.includes("data/wiki/index.md"));
   });
 
-  it("omits wiki context when wiki does not exist", () => {
+  it("includes wiki path hint even when wiki does not exist", () => {
     const role = makeRole();
     const result = buildSystemPrompt({
       role,
       workspacePath: workspace,
       useDocker: false,
     });
-    assert.ok(!result.includes("wiki/index.md"));
+    assert.ok(result.includes("No wiki exists yet"));
+    assert.ok(result.includes("data/wiki/"));
   });
 
   it("includes plugin prompt sections from ToolDefinition.prompt", () => {
