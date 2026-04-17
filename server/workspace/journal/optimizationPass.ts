@@ -3,10 +3,12 @@
 // two can evolve independently and so the optimizer stays opt-in
 // from the top-level runner.
 
-import fsp from "node:fs/promises";
-import path from "node:path";
 import { workspacePath as defaultWorkspacePath } from "../workspace.js";
-import { writeFileAtomic } from "../../utils/files/atomic.js";
+import {
+  writeTopicFile,
+  readAllTopicFiles,
+  archiveTopic,
+} from "../../utils/files/journal-io.js";
 import {
   type Summarize,
   type OptimizationTopicSnapshot,
@@ -16,13 +18,7 @@ import {
   isOptimizationOutput,
   ClaudeCliNotFoundError,
 } from "./archivist.js";
-import {
-  summariesRoot,
-  topicPathFor,
-  archivedTopicPathFor,
-  slugify,
-  TOPICS_DIR,
-} from "./paths.js";
+import { slugify } from "./paths.js";
 import type { JournalState } from "./state.js";
 import { log } from "../../system/logger/index.js";
 
@@ -88,10 +84,7 @@ async function executeMergePlans(
   mergedSlugs: string[],
 ): Promise<void> {
   for (const plan of plans) {
-    await writeFileAtomic(
-      topicPathFor(workspaceRoot, plan.intoSlug),
-      plan.newContent,
-    );
+    await writeTopicFile(plan.intoSlug, plan.newContent, workspaceRoot);
     for (const src of plan.fromSlugs) {
       // Only record the merge as successful if the source file
       // actually moved. If moveToArchive fails (missing file, IO
@@ -187,49 +180,20 @@ export async function runOptimizationPass(
 async function loadTopicHeads(
   workspaceRoot: string,
 ): Promise<OptimizationTopicSnapshot[]> {
-  const dir = path.join(summariesRoot(workspaceRoot), TOPICS_DIR);
-  let entries: string[];
-  try {
-    entries = await fsp.readdir(dir);
-  } catch {
-    return [];
-  }
+  const topicMap = await readAllTopicFiles(workspaceRoot);
   const out: OptimizationTopicSnapshot[] = [];
-  for (const name of entries) {
-    if (!name.endsWith(".md")) continue;
-    const slug = name.replace(/\.md$/, "");
-    try {
-      const full = await fsp.readFile(path.join(dir, name), "utf-8");
-      out.push({
-        slug,
-        headContent: full.slice(0, OPTIMIZER_HEAD_CHARS),
-      });
-    } catch {
-      // ignore
-    }
+  for (const [slug, content] of topicMap) {
+    out.push({
+      slug,
+      headContent: content.slice(0, OPTIMIZER_HEAD_CHARS),
+    });
   }
   return out;
 }
 
-// Move a topic file into archive/topics/. Returns true on success,
-// false if the source didn't exist or rename failed — the caller
-// uses the boolean to decide whether to update state for this slug.
 async function moveToArchive(
   workspaceRoot: string,
   slug: string,
 ): Promise<boolean> {
-  const src = topicPathFor(workspaceRoot, slug);
-  const dst = archivedTopicPathFor(workspaceRoot, slug);
-  try {
-    await fsp.mkdir(path.dirname(dst), { recursive: true });
-    await fsp.rename(src, dst);
-    return true;
-  } catch (err) {
-    // Source may not exist (e.g. the LLM named a slug that was
-    // never a real file) or the rename hit an unexpected IO error.
-    // Log and return false — the caller leaves state untouched for
-    // this slug so the in-memory knownTopics stays accurate.
-    log.warn("journal", "could not archive", { slug, error: String(err) });
-    return false;
-  }
+  return archiveTopic(slug, workspaceRoot);
 }
