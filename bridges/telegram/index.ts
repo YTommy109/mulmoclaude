@@ -11,6 +11,7 @@
 //   MULMOCLAUDE_AUTH_TOKEN      — optional override
 //   TELEGRAM_POLL_TIMEOUT_SEC   — optional, default 25
 
+import "dotenv/config";
 import { createBridgeClient } from "../_lib/client.js";
 import { createTelegramApi, type TelegramApi } from "./api.js";
 import { parseAllowlist, type Allowlist } from "./allowlist.js";

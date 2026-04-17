@@ -1,3 +1,4 @@
+import "dotenv/config";
 import * as readline from "readline";
 import { createBridgeClient } from "../_lib/client.js";
 

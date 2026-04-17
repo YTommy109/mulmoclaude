@@ -91,7 +91,13 @@ To let another person use your MulmoClaude:
 
 4. When they message the bot again, it works.
 
-To avoid re-exporting every time, put `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_CHAT_IDS` in a `.env` file or your shell rc.
+To avoid re-exporting every time, put `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_CHAT_IDS` in a `.env` file at the repo root. The bridge auto-loads `.env` on startup via `dotenv/config`, so the vars take effect just by restarting `yarn telegram` — no shell `export` needed.
+
+```dotenv
+# .env (repo root)
+TELEGRAM_BOT_TOKEN=1234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw
+TELEGRAM_ALLOWED_CHAT_IDS=987654321,123456789
+```
 
 ## Bot Commands
 
