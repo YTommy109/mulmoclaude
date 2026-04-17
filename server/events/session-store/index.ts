@@ -4,16 +4,14 @@
 // clients can subscribe to the same session channel and receive
 // identical events.
 
+import { appendFile } from "fs/promises";
 import type { IPubSub } from "../pub-sub/index.js";
 import {
   PUBSUB_CHANNELS,
   sessionChannel,
 } from "../../../src/config/pubsubChannels.js";
 import { log } from "../../system/logger/index.js";
-import {
-  updateHasUnread,
-  appendSessionLine,
-} from "../../utils/files/session-io.js";
+import { updateHasUnread } from "../../utils/files/session-io.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -206,13 +204,13 @@ export async function pushToolResult(
   const session = store.get(chatSessionId);
   if (!session) return { kind: "skipped", reason: "unknown session" };
 
-  await appendSessionLine(
-    chatSessionId,
+  await appendFile(
+    session.resultsFilePath,
     JSON.stringify({
       source: "tool",
       type: EVENT_TYPES.toolResult,
       result,
-    }),
+    }) + "\n",
   );
   publishToSessionChannel(chatSessionId, {
     type: EVENT_TYPES.toolResult,
