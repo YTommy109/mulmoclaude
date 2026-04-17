@@ -350,8 +350,10 @@ src/
 test/             ← mirrors source layout 1:1
 e2e/              ← Playwright E2E tests + fixtures
 plans/            ← one file per feature/refactor/fix
+plans/done/       ← completed plans (moved here when the PR lands)
 ```
 
+- **Plan files lifecycle**: create under `plans/` before implementation; move to `plans/done/` in the PR that completes the work. Never delete — `plans/done/` is the archive.
 - Group by *what files are about*, not file kind. `src/plugins/wiki/` keeps def/index/View/Preview together.
 - Mirror source layout in `test/`. `server/workspace/journal/dailyPass.ts` → `test/journal/test_dailyPass.ts`.
 - Prefer a new named directory over dropping files into the closest pre-existing bucket.
