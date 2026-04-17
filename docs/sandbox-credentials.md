@@ -52,13 +52,13 @@ On macOS, Docker Desktop's built-in magic socket (`/run/host-services/ssh-auth.s
 SANDBOX_SSH_ALLOWED_HOSTS=github.com,gitlab.com,bitbucket.org
 ```
 
-The entrypoint generates a restrictive `~/.ssh/config` inside the container:
+The entrypoint generates a restrictive `~/.ssh/config` inside the container (SSH is first-match-wins, so whitelisted hosts come first):
 ```
-Host *
-  IdentityAgent none          # default: agent blocked
-
 Host github.com
   IdentityAgent /ssh-agent    # exception: agent allowed
+
+Host *
+  IdentityAgent none          # catch-all: agent blocked
 ```
 
 **Prerequisites on the host:**

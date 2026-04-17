@@ -38,7 +38,7 @@ fi
 #     node:node (1000:1000). When running as a different UID (e.g. 501
 #     on macOS), Claude CLI and git/ssh can't create config files
 #     there (.ssh/, .gitconfig, etc.) without this chown.
-chown "$TARGET_UID:$TARGET_GID" /home/node 2>/dev/null || true
+chown -R "$TARGET_UID:$TARGET_GID" /home/node 2>/dev/null || true
 
 # 2. Make the SSH agent socket accessible to the target user.
 #    Docker Desktop for Mac's magic socket (/run/host-services/
