@@ -20,6 +20,7 @@
 
 export const API_ROUTES = {
   health: "/api/health",
+  sandbox: "/api/sandbox",
 
   agent: {
     run: "/api/agent",

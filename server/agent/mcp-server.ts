@@ -62,10 +62,21 @@ interface ToolDef {
   endpoint?: string; // absent for tools handled specially (e.g. switchRole)
 }
 
+// Combine `description` (one-liner) and `prompt` (detailed usage
+// instructions) into the MCP tool description so Claude CLI sees
+// both. The MCP protocol only has `description` — there's no
+// `prompt` field — so the prompt content must ride along in the
+// description string. The gui-chat-protocol ToolDefinition carries
+// `prompt` separately because the Vue client uses it for different
+// purposes, but the CLI needs it in-band.
 function fromPackage(def: ToolDefinition, endpoint: string): ToolDef {
+  const parts = [def.description];
+  if (typeof def.prompt === "string" && def.prompt.length > 0) {
+    parts.push(def.prompt);
+  }
   return {
     name: def.name,
-    description: def.description,
+    description: parts.join("\n\n"),
     inputSchema: def.parameters ?? {},
     endpoint,
   };
@@ -175,6 +186,7 @@ async function handleManageSkills(
 ): Promise<string> {
   const action = typeof args.action === "string" ? args.action : "list";
   if (action === "save") return handleManageSkillsSave(args);
+  if (action === "update") return handleManageSkillsUpdate(args);
   if (action === "delete") return handleManageSkillsDelete(args);
   return handleManageSkillsList();
 }
@@ -241,6 +253,35 @@ async function handleManageSkillsSave(
   }
   await pushSkillsListResult(`Saved skill "${name}".`);
   return `Saved skill ${name}. Run with /${name}.`;
+}
+
+async function handleManageSkillsUpdate(
+  args: Record<string, unknown>,
+): Promise<string> {
+  const name = String(args.name ?? "");
+  const url = `${BASE_URL}/api/skills/${encodeURIComponent(name)}?session=${encodeURIComponent(SESSION_ID)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "PUT",
+      headers: { ...AUTH_HEADER, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        description: args.description,
+        body: args.body,
+      }),
+    });
+  } catch (err) {
+    throw new Error(
+      `Network error calling PUT /api/skills/${name}: ${errorMessage(err)}`,
+    );
+  }
+  if (!res.ok) {
+    const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+    const detail = errBody.error ?? "HTTP " + res.status;
+    return "Error: " + detail;
+  }
+  await pushSkillsListResult(`Updated skill "${name}".`);
+  return `Updated skill ${name}. The changes take effect in new sessions.`;
 }
 
 async function handleManageSkillsDelete(

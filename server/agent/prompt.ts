@@ -27,6 +27,7 @@ All data lives in the workspace directory as plain files:
 - \`data/scheduler/\` — scheduled tasks
 - \`artifacts/documents/\`, \`artifacts/images/\`, \`artifacts/html/\`, \`artifacts/charts/\`, \`artifacts/spreadsheets/\`, \`artifacts/stories/\` — LLM-generated output
 - \`config/\` — settings.json, mcp.json, roles/, helps/
+- \`github/\` — git-cloned repositories. Clone here, not /tmp/. If the dir already exists with the same remote, \`git pull\` to update. If a different remote, ask the user for a new dir name.
 
 ## Memory Management
 
@@ -113,9 +114,16 @@ export function buildWikiContext(workspacePath: string): string | null {
   const indexPath = join(workspacePath, WORKSPACE_FILES.wikiIndex);
   const schemaPath = join(workspacePath, WORKSPACE_FILES.wikiSchema);
 
-  if (!existsSync(indexPath)) return null;
-
   const parts: string[] = [];
+
+  if (!existsSync(indexPath)) {
+    // Wiki not yet created — emit a minimal path hint so the agent
+    // creates files at the correct post-#284 location.
+    parts.push(
+      "No wiki exists yet. When the user asks to create one, use `data/wiki/` as the root: create `data/wiki/index.md`, `data/wiki/log.md`, and pages under `data/wiki/pages/`. Read `config/helps/wiki.md` for full conventions.",
+    );
+    return parts.join("\n\n");
+  }
 
   const summary = existsSync(summaryPath)
     ? readFileSync(summaryPath, "utf-8").trim()
@@ -230,7 +238,7 @@ const SANDBOX_TOOLS_HINT = `## Sandbox Tools
 
 The bash tool runs inside a Docker sandbox. The following tools are guaranteed preinstalled — prefer them over reinventing or searching the filesystem:
 
-- **Core CLI**: \`git\`, \`curl\`, \`jq\`, \`make\`, \`sqlite3\`, \`zip\`, \`unzip\`, \`ripgrep\` (\`rg\`)
+- **Core CLI**: \`git\`, \`gh\` (GitHub CLI), \`curl\`, \`jq\`, \`make\`, \`sqlite3\`, \`zip\`, \`unzip\`, \`ripgrep\` (\`rg\`)
 - **Data / plotting**: \`python3\` with \`pandas\`, \`numpy\`, \`matplotlib\`, \`requests\` preinstalled; \`graphviz\` (\`dot\`); \`imagemagick\` (\`convert\`)
 - **Docs / media**: \`pandoc\`, \`ffmpeg\`, \`poppler-utils\` (\`pdftotext\`, \`pdftoppm\`)
 - **Misc**: \`tree\`, \`bc\`, \`less\`

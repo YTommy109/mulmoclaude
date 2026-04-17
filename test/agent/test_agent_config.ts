@@ -1,7 +1,12 @@
-import { describe, it } from "node:test";
+import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import {
+  __resetForTests as resetTokenState,
+  generateAndWriteToken,
+} from "../../server/api/auth/token.js";
 import {
   buildCliArgs,
   buildDockerSpawnArgs,
@@ -214,10 +219,27 @@ describe("buildDockerSpawnArgs", () => {
     assert.equal(args[idx + 1], "ALL");
   });
 
-  it("passes uid:gid via --user", () => {
+  it("uses --user when SSH agent forward is off (default)", () => {
     const args = buildDockerSpawnArgs({ ...baseParams(), uid: 501, gid: 20 });
     const idx = args.indexOf("--user");
+    assert.ok(idx >= 0);
     assert.equal(args[idx + 1], "501:20");
+    assert.ok(!args.includes("HOST_UID=501"));
+    assert.ok(!args.includes("CHOWN"));
+  });
+
+  it("uses HOST_UID/HOST_GID + cap-adds when SSH agent forward is on", () => {
+    const args = buildDockerSpawnArgs({
+      ...baseParams(),
+      uid: 501,
+      gid: 20,
+      sshAgentForward: true,
+    });
+    assert.equal(args.indexOf("--user"), -1);
+    assert.ok(args.includes("HOST_UID=501"));
+    assert.ok(args.includes("HOST_GID=20"));
+    assert.ok(args.includes("CHOWN"));
+    assert.ok(args.includes("SETUID"));
   });
 
   it("mounts the workspace at the container path", () => {
@@ -517,5 +539,51 @@ describe("buildCliArgs — extraAllowedTools", () => {
     const list = args[idx + 1];
     assert.ok(list.includes("mcp__claude_ai_Gmail"));
     assert.ok(list.includes("mcp__claude_ai_Google_Calendar"));
+  });
+});
+
+// ── Bearer token propagation to MCP subprocess (#325) ─────────
+
+describe("buildMcpConfig — bearer token env (#325)", () => {
+  let tmpTokenPath: string;
+
+  afterEach(() => {
+    resetTokenState();
+    try {
+      unlinkSync(tmpTokenPath);
+    } catch {
+      /* cleanup */
+    }
+  });
+
+  it("passes MULMOCLAUDE_AUTH_TOKEN to the MCP server env when a token exists", async () => {
+    tmpTokenPath = join(tmpdir(), `mulmo-tok-test-${Date.now()}`);
+    const token = await generateAndWriteToken(tmpTokenPath);
+    const config = buildMcpConfig({
+      chatSessionId: "s1",
+      port: 3001,
+      activePlugins: [],
+      roleIds: [],
+    }) as Record<string, unknown>;
+
+    const servers = config.mcpServers as Record<string, unknown>;
+    const server = servers.mulmoclaude as Record<string, unknown>;
+    const env = server.env as Record<string, string>;
+    assert.equal(env.MULMOCLAUDE_AUTH_TOKEN, token);
+  });
+
+  it("omits MULMOCLAUDE_AUTH_TOKEN when no token is configured", () => {
+    // resetTokenState ensures getCurrentToken() returns null
+    const config = buildMcpConfig({
+      chatSessionId: "s1",
+      port: 3001,
+      activePlugins: [],
+      roleIds: [],
+    }) as Record<string, unknown>;
+
+    const servers = config.mcpServers as Record<string, unknown>;
+    const server = servers.mulmoclaude as Record<string, unknown>;
+    const env = server.env as Record<string, string>;
+    assert.equal(env.MULMOCLAUDE_AUTH_TOKEN, undefined);
   });
 });

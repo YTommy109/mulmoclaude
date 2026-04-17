@@ -46,7 +46,7 @@ interface RouterInternals {
 function extractRouteHandler(
   mod: RouteModule,
   routePath: string,
-  method: "get",
+  method: string,
 ): Handler {
   const router = mod.default as unknown as RouterInternals;
   for (const frame of router.stack) {
@@ -91,6 +91,7 @@ let manifestDir: string;
 let originalHome: string | undefined;
 let originalUserProfile: string | undefined;
 let getHandler: Handler;
+let markReadHandler: Handler;
 
 async function writeSession(
   id: string,
@@ -167,6 +168,11 @@ before(async () => {
   fs.mkdirSync(manifestDir, { recursive: true });
   const routeMod = await import("../../server/api/routes/sessions.js");
   getHandler = extractRouteHandler(routeMod, "/api/sessions", "get");
+  markReadHandler = extractRouteHandler(
+    routeMod,
+    "/api/sessions/:id/mark-read",
+    "post",
+  );
 });
 
 after(async () => {
@@ -289,5 +295,61 @@ describe("GET /api/sessions?since=<cursor> — incremental fetch", () => {
       second.res,
     );
     assert.deepEqual(second.state.body!.sessions, []);
+  });
+});
+
+// ── POST /api/sessions/:id/mark-read ──────────────────────────
+
+function mockMarkReadRes() {
+  const state: { status: number; body: { ok: boolean } | undefined } = {
+    status: 200,
+    body: undefined,
+  };
+  const res = {
+    status(code: number) {
+      state.status = code;
+      return res;
+    },
+    json(payload: { ok: boolean }) {
+      state.body = payload;
+      return res;
+    },
+  };
+  return { state, res: res as unknown as Response };
+}
+
+describe("POST /api/sessions/:id/mark-read", () => {
+  it("returns { ok: true } for a session that exists on disk", async () => {
+    await writeSession("s1", { mtimeMs: BASE_MS });
+    const { state, res } = mockMarkReadRes();
+    await markReadHandler({ params: { id: "s1" } } as unknown as Request, res);
+    assert.equal(state.status, 200);
+    assert.deepEqual(state.body, { ok: true });
+  });
+
+  it("succeeds even when no session file exists (graceful no-op)", async () => {
+    const { state, res } = mockMarkReadRes();
+    await markReadHandler(
+      { params: { id: "nonexistent" } } as unknown as Request,
+      res,
+    );
+    assert.equal(state.status, 200);
+    assert.deepEqual(state.body, { ok: true });
+  });
+
+  it("persists hasUnread=false to the meta .json file", async () => {
+    // Write a meta with hasUnread=true
+    const metaPath = path.join(chatDir, "s1.json");
+    await writeFile(
+      metaPath,
+      JSON.stringify({ roleId: "general", hasUnread: true }),
+    );
+    await writeFile(path.join(chatDir, "s1.jsonl"), "");
+
+    const { res } = mockMarkReadRes();
+    await markReadHandler({ params: { id: "s1" } } as unknown as Request, res);
+
+    const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+    assert.equal(meta.hasUnread, false);
   });
 });

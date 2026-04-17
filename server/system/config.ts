@@ -13,6 +13,7 @@ import fs from "fs";
 import path from "path";
 import { log } from "./logger/index.js";
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
+import { writeFileAtomicSync } from "../utils/files/atomic.js";
 
 export interface AppSettings {
   // Extra tool names appended to BASE_ALLOWED_TOOLS in
@@ -87,16 +88,6 @@ export function loadSettings(): AppSettings {
   return { extraAllowedTools: [...parsed.extraAllowedTools] };
 }
 
-// Atomic write: serialize, write to a sibling tmp file, then rename.
-// rename(2) is atomic on POSIX; on Windows Node's implementation
-// falls back to a copy+unlink which is still safer than truncating
-// the target in place.
-function atomicWrite(file: string, content: string): void {
-  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmp, content, { encoding: "utf-8", mode: 0o600 });
-  fs.renameSync(tmp, file);
-}
-
 export function saveSettings(settings: AppSettings): void {
   if (!isAppSettings(settings)) {
     throw new Error("saveSettings: invalid AppSettings shape");
@@ -107,7 +98,7 @@ export function saveSettings(settings: AppSettings): void {
     null,
     2,
   );
-  atomicWrite(settingsPath(), `${serialised}\n`);
+  writeFileAtomicSync(settingsPath(), `${serialised}\n`, { mode: 0o600 });
 }
 
 // ── MCP user-defined servers ────────────────────────────────────
@@ -260,7 +251,7 @@ export function saveMcpConfig(cfg: McpConfigFile): void {
   }
   ensureConfigsDir();
   const serialised = JSON.stringify(cfg, null, 2);
-  atomicWrite(mcpConfigPath(), `${serialised}\n`);
+  writeFileAtomicSync(mcpConfigPath(), `${serialised}\n`, { mode: 0o600 });
 }
 
 // Flatten storage form to UI-friendly array.
