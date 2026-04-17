@@ -248,7 +248,7 @@ Each warn-level rule is a follow-up target — when all violations in `.vue` are
 
 ### DRY: eliminate duplication aggressively
 
-When the same 3+ line pattern appears in two or more files, extract a shared helper immediately — don't wait for a third copy. Place helpers in named files under the right directory (`server/utils/fs.ts`, not inlined in the first consumer). Before writing new boilerplate, grep the codebase — it probably already exists in `server/utils/` or `src/utils/`.
+When the same 3+ line pattern appears in two or more files, extract a shared helper immediately — don't wait for a third copy. Place helpers in named files under the right directory (`server/utils/files/`, not inlined in the first consumer). Before writing new boilerplate, grep the codebase — it probably already exists in `server/utils/` or `src/utils/`.
 
 Key shared helpers in this repo:
 
@@ -261,9 +261,13 @@ Key shared helpers in this repo:
 | `BUILTIN_ROLE_IDS` / `BuiltInRoleId` | `src/config/roles.ts` |
 | `PUBSUB_CHANNELS` / `sessionChannel()` | `src/config/pubsubChannels.ts` |
 | `EVENT_TYPES` / `EventType` | `src/types/events.ts` |
-| `resolveWithinRoot(root, relPath)` | `server/utils/fs.ts` |
+| `writeFileAtomic` / `writeFileAtomicSync` | `server/utils/files/atomic.ts` |
+| `readWorkspaceText` / `writeWorkspaceText` | `server/utils/files/workspace-io.ts` |
+| `readWorkspaceJson` / `writeWorkspaceJson` | `server/utils/files/workspace-io.ts` |
+| `resolveWithinRoot(root, relPath)` | `server/utils/files/safe.ts` |
+| `statSafe` / `readDirSafe` | `server/utils/files/safe.ts` |
+| `loadJsonFile` / `saveJsonFile` | `server/utils/files/json.ts` |
 | `errorMessage(err)` | `server/utils/errors.ts` |
-| `statSafe` / `readDirSafe` | `server/utils/fs.ts` |
 | `dispatchResponse(res, result)` | `server/api/routes/dispatchResponse.ts` |
 | `useFreshPluginData(opts)` | `src/composables/useFreshPluginData.ts` |
 | `useCanvasViewMode(opts)` | `src/composables/useCanvasViewMode.ts` |

@@ -1,3 +1,4 @@
+import path from "path";
 import { Router, Request, Response } from "express";
 import { executeMindMap } from "@gui-chat-plugin/mindmap";
 import {
@@ -15,17 +16,17 @@ import {
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, serverError } from "../../utils/httpError.js";
 import { log } from "../../system/logger/index.js";
-import { saveImage } from "../../utils/image-store.js";
+import { saveImage } from "../../utils/files/image-store.js";
 import {
   saveMarkdown,
   overwriteMarkdown,
   isMarkdownPath,
-} from "../../utils/markdown-store.js";
+} from "../../utils/files/markdown-store.js";
 import {
   saveSpreadsheet,
   overwriteSpreadsheet,
   isSpreadsheetPath,
-} from "../../utils/spreadsheet-store.js";
+} from "../../utils/files/spreadsheet-store.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { WORKSPACE_DIRS } from "../../workspace/paths.js";
 
@@ -128,7 +129,13 @@ async function fillImagePlaceholders(markdown: string): Promise<string> {
     // GEMINI_API_KEY is set.
     filled = filled.replace(
       full,
-      url ? `![${prompt}](../${url})` : `*🖼️ Image: ${prompt}*`,
+      // `url` is workspace-relative (e.g. "artifacts/images/xxx.png").
+      // The document lives at "artifacts/documents/yyy.md". Compute a
+      // relative path from the document's directory so the markdown
+      // image reference resolves correctly.
+      url
+        ? `![${prompt}](${path.posix.relative(WORKSPACE_DIRS.markdowns, url)})`
+        : `*🖼️ Image: ${prompt}*`,
     );
   }
   return filled;

@@ -98,7 +98,14 @@ app.use(requireSameOrigin);
 // browser attacks (origin check) and local sibling processes that
 // bypass browser CORS (bearer check). See #272 and
 // plans/feat-bearer-token-auth.md.
-app.use("/api", bearerAuth);
+//
+// /api/files/* is exempt because <img src="/api/files/raw?path=...">
+// tags in rendered markdown can't attach Authorization headers.
+// The CSRF origin check + loopback-only binding still apply.
+app.use("/api", (req, res, next) => {
+  if (req.path.startsWith("/files/")) return next();
+  bearerAuth(req, res, next);
+});
 
 app.get(API_ROUTES.health, (_req: Request, res: Response) => {
   res.json({
