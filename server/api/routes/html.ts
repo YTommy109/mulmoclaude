@@ -1,7 +1,8 @@
 import { Router, Request, Response } from "express";
-import { readFile, writeFile, mkdir } from "fs/promises";
+import { readFile, mkdir } from "fs/promises";
 import path from "path";
 import { WORKSPACE_PATHS } from "../../workspace/paths.js";
+import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { getGeminiClient, isGeminiAvailable } from "../../utils/gemini.js";
 import { errorMessage } from "../../utils/errors.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
@@ -62,7 +63,7 @@ router.post(
       const html = await callGemini(fullPrompt);
       const htmlDir = WORKSPACE_PATHS.html;
       await mkdir(htmlDir, { recursive: true });
-      await writeFile(HTML_FILE(), html, "utf-8");
+      await writeFileAtomic(HTML_FILE(), html);
       res.json({
         message: "HTML generation succeeded",
         instructions:
@@ -104,7 +105,7 @@ router.post(
     try {
       const fullPrompt = `Modify the following HTML page based on this instruction: ${prompt}\n\nExisting HTML:\n${existingHtml}\n\nRequirements:\n- Return only the complete modified HTML, no explanation`;
       const html = await callGemini(fullPrompt);
-      await writeFile(HTML_FILE(), html, "utf-8");
+      await writeFileAtomic(HTML_FILE(), html);
       res.json({
         message: "HTML editing succeeded",
         instructions:

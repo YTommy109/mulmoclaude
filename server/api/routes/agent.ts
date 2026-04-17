@@ -1,4 +1,5 @@
-import { access, appendFile, mkdir, readFile, writeFile } from "fs/promises";
+import { access, appendFile, mkdir, readFile } from "fs/promises";
+import { writeFileAtomic } from "../../utils/files/atomic.js";
 import path from "path";
 import { Router, Request, Response } from "express";
 import { getRole } from "../../workspace/roles.js";
@@ -193,7 +194,7 @@ export async function startChat(
   // title cache; the append follows so the jsonl is always a
   // superset of what metadata advertised.
   if (isFirstTurn) {
-    await writeFile(
+    await writeFileAtomic(
       metaFilePath,
       JSON.stringify({
         roleId,
@@ -518,7 +519,7 @@ async function backfillFirstUserMessage(
   try {
     const meta = JSON.parse(await readFile(metaFilePath, "utf-8"));
     if (!meta.firstUserMessage) {
-      await writeFile(
+      await writeFileAtomic(
         metaFilePath,
         JSON.stringify({ ...meta, firstUserMessage: message }),
       );
@@ -534,7 +535,10 @@ async function updateClaudeSessionId(
 ): Promise<void> {
   try {
     const meta = JSON.parse(await readFile(metaFilePath, "utf-8"));
-    await writeFile(metaFilePath, JSON.stringify({ ...meta, claudeSessionId }));
+    await writeFileAtomic(
+      metaFilePath,
+      JSON.stringify({ ...meta, claudeSessionId }),
+    );
   } catch {
     // ignore if meta file is missing
   }
@@ -549,7 +553,7 @@ async function clearClaudeSessionId(metaFilePath: string): Promise<void> {
   try {
     const meta = JSON.parse(await readFile(metaFilePath, "utf-8"));
     delete meta.claudeSessionId;
-    await writeFile(metaFilePath, JSON.stringify(meta));
+    await writeFileAtomic(metaFilePath, JSON.stringify(meta));
   } catch {
     // ignore if meta file is missing or unreadable
   }

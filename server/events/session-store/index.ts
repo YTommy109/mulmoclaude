@@ -4,7 +4,8 @@
 // clients can subscribe to the same session channel and receive
 // identical events.
 
-import { appendFile, readFile, writeFile } from "fs/promises";
+import { appendFile, readFile } from "fs/promises";
+import { writeFileAtomic } from "../../utils/files/atomic.js";
 import path from "path";
 import type { IPubSub } from "../pub-sub/index.js";
 import {
@@ -269,7 +270,7 @@ async function persistHasUnread(
   try {
     const raw = await readFile(metaFilePath, "utf-8");
     const meta = JSON.parse(raw);
-    await writeFile(metaFilePath, JSON.stringify({ ...meta, hasUnread }));
+    await writeFileAtomic(metaFilePath, JSON.stringify({ ...meta, hasUnread }));
   } catch {
     // Meta file missing or malformed — nothing to persist into.
   }

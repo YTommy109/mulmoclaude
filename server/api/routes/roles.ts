@@ -7,6 +7,7 @@ import { pushSessionEvent } from "../../events/session-store/index.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
 import { WORKSPACE_PATHS } from "../../workspace/paths.js";
+import { writeFileAtomicSync } from "../../utils/files/atomic.js";
 
 const rolesDir = WORKSPACE_PATHS.roles;
 const BUILTIN_IDS = new Set(BUILTIN_ROLES.map((r) => r.id));
@@ -104,7 +105,7 @@ export async function executeManageRoles(
   };
 
   fs.mkdirSync(rolesDir, { recursive: true });
-  fs.writeFileSync(
+  writeFileAtomicSync(
     path.join(rolesDir, `${roleId2}.json`),
     JSON.stringify(roleToSave, null, 2),
   );
