@@ -18,7 +18,8 @@ const toolDefinition: ToolDefinition = {
     `  5. Call ${TOOL_NAME} with \`{action: "save", name, description, body}\`. Saves go to <workspace>/.claude/skills/<slug>/SKILL.md.\n` +
     `  6. If the response says the name already exists, ask the user for a different one.\n` +
     `- **update**: when the user asks to modify an existing skill (e.g. "〇〇のスキルを更新して" / "change the description of X"), call \`{action: "update", name, description, body}\`. Only project-scope skills can be updated; user-scope skills are read-only. You must provide both description and body (read the current skill first via list or the Read tool if you only need to change part of it).\n` +
-    `- **delete**: when the user asks to remove a named skill, call \`{action: "delete", name}\`. Only project-scope skills can be deleted; user-scope skills are protected.`,
+    `- **delete**: when the user asks to remove a named skill, call \`{action: "delete", name}\`. Only project-scope skills can be deleted; user-scope skills are protected.\n\n` +
+    `**IMPORTANT**: NEVER edit SKILL.md files directly with the Edit or Write tools. Always use this ${TOOL_NAME} tool with the appropriate action. Direct file edits bypass validation and won't refresh the skills UI.`,
   parameters: {
     type: "object",
     properties: {
