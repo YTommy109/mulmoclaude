@@ -16,6 +16,10 @@ import {
   serverError,
 } from "../../utils/httpError.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import {
+  createRootFilter,
+  type GitignoreFilter,
+} from "../../utils/gitignore.js";
 
 const router = Router();
 
@@ -317,6 +321,7 @@ function pipeWithErrorHandling(
 export async function buildTreeAsync(
   absPath: string,
   relPath: string,
+  gitFilter?: GitignoreFilter,
 ): Promise<TreeNode> {
   const stat = await statSafeAsync(absPath);
   if (!stat) {
@@ -339,19 +344,28 @@ export async function buildTreeAsync(
     };
   }
   const entries = await readDirSafeAsync(absPath);
+  // Pick up any .gitignore in this directory so its rules apply to
+  // children. The filter chains: parent rules + local .gitignore.
+  const localFilter = gitFilter ? gitFilter.childForDir(absPath) : undefined;
   // Build every surviving child concurrently. Filter:
-  // skip hidden dirs, sensitive files, symlinks,
+  // skip hidden dirs, sensitive files, symlinks, .gitignore matches,
   // and entries that fail to stat.
   const childPromises: Promise<TreeNode | null>[] = entries.map(
     async (entry): Promise<TreeNode | null> => {
       if (HIDDEN_DIRS.has(entry.name)) return null;
       if (!entry.isDirectory() && isSensitivePath(entry.name)) return null;
       if (entry.isSymbolicLink()) return null;
-      const childAbs = path.join(absPath, entry.name);
       const childRel = relPath ? path.join(relPath, entry.name) : entry.name;
+      // .gitignore check: for directories, append trailing / so
+      // directory-only patterns (e.g. "node_modules/") match.
+      if (localFilter) {
+        const testPath = entry.isDirectory() ? `${childRel}/` : childRel;
+        if (localFilter.ignores(testPath)) return null;
+      }
+      const childAbs = path.join(absPath, entry.name);
       const childStat = await statSafeAsync(childAbs);
       if (!childStat) return null;
-      return buildTreeAsync(childAbs, childRel);
+      return buildTreeAsync(childAbs, childRel, localFilter);
     },
   );
   const resolved = await Promise.all(childPromises);
@@ -379,6 +393,7 @@ export async function buildTreeAsync(
 export async function listDirShallow(
   absPath: string,
   relPath: string,
+  gitFilter?: GitignoreFilter,
 ): Promise<TreeNode> {
   const stat = await statSafeAsync(absPath);
   if (!stat || !stat.isDirectory()) {
@@ -390,13 +405,18 @@ export async function listDirShallow(
     };
   }
   const entries = await readDirSafeAsync(absPath);
+  const localFilter = gitFilter ? gitFilter.childForDir(absPath) : undefined;
   const childPromises: Promise<TreeNode | null>[] = entries.map(
     async (entry): Promise<TreeNode | null> => {
       if (HIDDEN_DIRS.has(entry.name)) return null;
       if (!entry.isDirectory() && isSensitivePath(entry.name)) return null;
       if (entry.isSymbolicLink()) return null;
-      const childAbs = path.join(absPath, entry.name);
       const childRel = relPath ? path.join(relPath, entry.name) : entry.name;
+      if (localFilter) {
+        const testPath = entry.isDirectory() ? `${childRel}/` : childRel;
+        if (localFilter.ignores(testPath)) return null;
+      }
+      const childAbs = path.join(absPath, entry.name);
       const childStat = await statSafeAsync(childAbs);
       if (!childStat) return null;
       if (childStat.isDirectory()) {
@@ -440,7 +460,8 @@ router.get(
     res: Response<TreeNode | ErrorResponse>,
   ) => {
     try {
-      const tree = await buildTreeAsync(workspaceReal, "");
+      const rootFilter = createRootFilter(workspaceReal);
+      const tree = await buildTreeAsync(workspaceReal, "", rootFilter);
       res.json(tree);
     } catch (err) {
       res
@@ -477,9 +498,23 @@ router.get(
       return;
     }
     try {
+      // Build the gitignore filter chain from workspace root down to
+      // the target directory so parent .gitignore rules are inherited.
+      const rootFilter = createRootFilter(workspaceReal);
+      let filter: GitignoreFilter = rootFilter;
+      const segments = path
+        .relative(workspaceReal, absPath)
+        .split(path.sep)
+        .filter(Boolean);
+      let walkAbs = workspaceReal;
+      for (const seg of segments) {
+        walkAbs = path.join(walkAbs, seg);
+        filter = filter.childForDir(walkAbs);
+      }
       const listing = await listDirShallow(
         absPath,
         path.relative(workspaceReal, absPath),
+        filter,
       );
       res.json(listing);
     } catch (err) {
