@@ -1,7 +1,15 @@
-import { access, appendFile, mkdir, readFile } from "fs/promises";
-import { writeFileAtomic } from "../../utils/files/atomic.js";
-import path from "path";
 import { Router, Request, Response } from "express";
+import {
+  createSessionMeta,
+  backfillFirstUserMessage as backfillMeta,
+  readSessionMeta,
+  setClaudeSessionId as setClaudeId,
+  clearClaudeSessionId as clearClaudeId,
+  appendSessionLine,
+  readSessionJsonl,
+  sessionJsonlAbsPath,
+  ensureChatDir,
+} from "../../utils/files/session-io.js";
 import { getRole } from "../../workspace/roles.js";
 import { runAgent } from "../../agent/index.js";
 import { prependJournalPointer } from "../../agent/prompt.js";
@@ -19,7 +27,6 @@ import {
   getActiveSessionIds,
 } from "../../events/session-store/index.js";
 import { workspacePath } from "../../workspace/workspace.js";
-import { WORKSPACE_PATHS } from "../../workspace/paths.js";
 import { maybeRunJournal } from "../../workspace/journal/index.js";
 import { maybeIndexSession } from "../../workspace/chat-index/index.js";
 import { maybeAppendWikiBacklinks } from "../../workspace/wiki-backlinks/index.js";
@@ -138,35 +145,16 @@ export async function startChat(
     };
   }
 
-  const chatDir = WORKSPACE_PATHS.chat;
-  await mkdir(chatDir, { recursive: true });
-  const resultsFilePath = path.join(chatDir, `${chatSessionId}.jsonl`);
-  const metaFilePath = path.join(chatDir, `${chatSessionId}.json`);
+  ensureChatDir();
+  const resultsFilePath = sessionJsonlAbsPath(chatSessionId);
 
-  // Check whether this is a brand-new session up front so we can both
-  // (a) decide whether to read persisted hasUnread (skipped for first
-  // turn — nothing on disk yet) and (b) pick meta-write vs backfill
-  // after beginRun succeeds.
-  let isFirstTurn = false;
-  try {
-    await access(metaFilePath);
-  } catch {
-    isFirstTurn = true;
-  }
-
-  // Read persisted hasUnread so the in-memory store starts with the
-  // correct value (survives server restarts). Must happen before
-  // getOrCreateSession; for the first turn the meta file doesn't
-  // exist yet so the value stays undefined.
-  let persistedHasUnread: boolean | undefined;
-  if (!isFirstTurn) {
-    try {
-      const meta = JSON.parse(await readFile(metaFilePath, "utf-8"));
-      persistedHasUnread = meta.hasUnread === true;
-    } catch {
-      // ignore — meta file may be missing or malformed
-    }
-  }
+  // Check whether this is a brand-new session and read persisted
+  // hasUnread in one read. readSessionMeta returns null if the meta
+  // file doesn't exist yet (= first turn).
+  const existingMeta = await readSessionMeta(chatSessionId);
+  const isFirstTurn = existingMeta === null;
+  const persistedHasUnread =
+    existingMeta?.hasUnread === true ? true : undefined;
 
   const now = new Date().toISOString();
   getOrCreateSession(chatSessionId, {
@@ -194,22 +182,15 @@ export async function startChat(
   // title cache; the append follows so the jsonl is always a
   // superset of what metadata advertised.
   if (isFirstTurn) {
-    await writeFileAtomic(
-      metaFilePath,
-      JSON.stringify({
-        roleId,
-        startedAt: new Date().toISOString(),
-        firstUserMessage: message,
-      }),
-    );
+    await createSessionMeta(chatSessionId, roleId, message);
   } else {
-    await backfillFirstUserMessage(metaFilePath, message);
+    await backfillMeta(chatSessionId, message);
   }
 
   // Append user message for this turn
-  await appendFile(
-    resultsFilePath,
-    JSON.stringify({ source: "user", type: EVENT_TYPES.text, message }) + "\n",
+  await appendSessionLine(
+    chatSessionId,
+    JSON.stringify({ source: "user", type: EVENT_TYPES.text, message }),
   );
 
   // Broadcast the user message so other tabs viewing this session
@@ -222,10 +203,7 @@ export async function startChat(
   });
 
   const role = getRole(roleId);
-  const claudeSessionId = await readClaudeSessionId(
-    metaFilePath,
-    resultsFilePath,
-  );
+  const claudeSessionId = await readClaudeSessionIdFromSession(chatSessionId);
 
   const requestStartedAt = Date.now();
   log.info("agent", "request received", {
@@ -246,7 +224,6 @@ export async function startChat(
     claudeSessionId,
     abortSignal: abortController.signal,
     resultsFilePath,
-    metaFilePath,
     requestStartedAt,
     toolArgsCache: createArgsCache(),
     imageDataUrl: selectedImageData,
@@ -297,7 +274,6 @@ interface BackgroundRunParams {
   claudeSessionId: string | undefined;
   abortSignal: AbortSignal;
   resultsFilePath: string;
-  metaFilePath: string;
   requestStartedAt: number;
   toolArgsCache: ReturnType<typeof createArgsCache>;
   imageDataUrl: string | undefined;
@@ -307,7 +283,6 @@ interface BackgroundRunParams {
 interface EventContext {
   chatSessionId: string;
   resultsFilePath: string;
-  metaFilePath: string;
   toolArgsCache: ReturnType<typeof createArgsCache>;
 }
 
@@ -323,19 +298,19 @@ async function handleAgentEvent(
   ctx: EventContext,
 ): Promise<void> {
   if (event.type === EVENT_TYPES.claudeSessionId) {
-    await updateClaudeSessionId(ctx.metaFilePath, event.id);
+    await setClaudeId(ctx.chatSessionId, event.id);
     return;
   }
   pushSessionEvent(ctx.chatSessionId, event as Record<string, unknown>);
 
   if (event.type === EVENT_TYPES.text) {
-    await appendFile(
-      ctx.resultsFilePath,
+    await appendSessionLine(
+      ctx.chatSessionId,
       JSON.stringify({
         source: "assistant",
         type: EVENT_TYPES.text,
         message: event.message,
-      }) + "\n",
+      }),
     );
     return;
   }
@@ -379,7 +354,6 @@ async function runAgentInBackground(
     claudeSessionId,
     abortSignal,
     resultsFilePath,
-    metaFilePath,
     requestStartedAt,
     toolArgsCache,
     imageDataUrl,
@@ -388,7 +362,6 @@ async function runAgentInBackground(
   const eventCtx: EventContext = {
     chatSessionId,
     resultsFilePath,
-    metaFilePath,
     toolArgsCache,
   };
 
@@ -440,8 +413,8 @@ async function runAgentInBackground(
       log.warn("agent", "stale claude session id — retrying without --resume", {
         chatSessionId,
       });
-      await clearClaudeSessionId(metaFilePath);
-      const preamble = await readTranscriptPreamble(resultsFilePath);
+      await clearClaudeId(chatSessionId);
+      const preamble = await readTranscriptPreamble(chatSessionId);
       currentMessage = preamble
         ? `${preamble}${decoratedMessage}`
         : decoratedMessage;
@@ -486,96 +459,34 @@ async function runAgentInBackground(
   }
 }
 
-async function readClaudeSessionId(
-  metaFilePath: string,
-  jsonlFilePath: string,
+// Read claudeSessionId from meta (primary) or jsonl (legacy fallback).
+async function readClaudeSessionIdFromSession(
+  chatSessionId: string,
 ): Promise<string | undefined> {
-  try {
-    const meta = JSON.parse(await readFile(metaFilePath, "utf-8"));
-    if (meta.claudeSessionId) return meta.claudeSessionId;
-  } catch {
-    // fall through to legacy scan
-  }
-  try {
-    const lines = (await readFile(jsonlFilePath, "utf-8"))
-      .split("\n")
-      .filter(Boolean);
-    for (let i = lines.length - 1; i >= 0; i--) {
-      try {
-        const entry = JSON.parse(lines[i]);
-        if (entry.type === EVENT_TYPES.claudeSessionId && entry.id)
-          return entry.id;
-      } catch {
-        // skip malformed lines
-      }
+  const meta = await readSessionMeta(chatSessionId);
+  if (meta?.claudeSessionId) return meta.claudeSessionId as string;
+  // Legacy scan: search jsonl lines backwards for a claudeSessionId event
+  const jsonl = await readSessionJsonl(chatSessionId);
+  if (!jsonl) return undefined;
+  const lines = jsonl.split("\n").filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      const entry = JSON.parse(lines[i]);
+      if (entry.type === EVENT_TYPES.claudeSessionId && entry.id)
+        return entry.id;
+    } catch {
+      // skip malformed lines
     }
-  } catch {
-    // file doesn't exist yet
   }
   return undefined;
 }
 
-/** Add firstUserMessage to an existing meta file if it's missing (migration). */
-async function backfillFirstUserMessage(
-  metaFilePath: string,
-  message: string,
-): Promise<void> {
-  try {
-    const meta = JSON.parse(await readFile(metaFilePath, "utf-8"));
-    if (!meta.firstUserMessage) {
-      await writeFileAtomic(
-        metaFilePath,
-        JSON.stringify({ ...meta, firstUserMessage: message }),
-      );
-    }
-  } catch {
-    // ignore — meta file may not exist
-  }
-}
-
-async function updateClaudeSessionId(
-  metaFilePath: string,
-  claudeSessionId: string,
-): Promise<void> {
-  try {
-    const meta = JSON.parse(await readFile(metaFilePath, "utf-8"));
-    await writeFileAtomic(
-      metaFilePath,
-      JSON.stringify({ ...meta, claudeSessionId }),
-    );
-  } catch {
-    // ignore if meta file is missing
-  }
-}
-
-// Drop the (now-stale) `claudeSessionId` key from meta after a
-// `--resume` fail-over. Leaves every other field (roleId, startedAt,
-// firstUserMessage, hasUnread) intact. The new id gets written back
-// by `updateClaudeSessionId` on the retried run's first
-// `claudeSessionId` event.
-async function clearClaudeSessionId(metaFilePath: string): Promise<void> {
-  try {
-    const meta = JSON.parse(await readFile(metaFilePath, "utf-8"));
-    delete meta.claudeSessionId;
-    await writeFileAtomic(metaFilePath, JSON.stringify(meta));
-  } catch {
-    // ignore if meta file is missing or unreadable
-  }
-}
-
 // Read the session jsonl and render the transcript preamble used on
-// `--resume` fail-over. Returns "" on any read / parse failure —
-// the retry then runs without a preamble, which is still an
-// improvement over the user seeing the original error.
-async function readTranscriptPreamble(
-  resultsFilePath: string,
-): Promise<string> {
-  try {
-    const jsonl = await readFile(resultsFilePath, "utf-8");
-    return buildTranscriptPreamble(jsonl);
-  } catch {
-    return "";
-  }
+// `--resume` fail-over.
+async function readTranscriptPreamble(chatSessionId: string): Promise<string> {
+  const jsonl = await readSessionJsonl(chatSessionId);
+  if (!jsonl) return "";
+  return buildTranscriptPreamble(jsonl);
 }
 
 export default router;

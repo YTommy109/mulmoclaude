@@ -8,10 +8,20 @@ import { appendFile } from "fs/promises";
 import path from "node:path";
 import { WORKSPACE_DIRS } from "../../workspace/paths.js";
 import { workspacePath } from "../../workspace/paths.js";
-import { readTextUnder, writeTextUnder, resolvePath } from "./workspace-io.js";
+import {
+  readTextUnder,
+  writeTextUnder,
+  resolvePath,
+  ensureWorkspaceDir,
+} from "./workspace-io.js";
 
 const CHAT = WORKSPACE_DIRS.chat;
 const root = (r?: string) => r ?? workspacePath;
+
+/** Ensure the chat directory exists. Called once at session start. */
+export function ensureChatDir(): void {
+  ensureWorkspaceDir(CHAT);
+}
 
 function metaRel(id: string): string {
   return path.posix.join(CHAT, `${id}.json`);
