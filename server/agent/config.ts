@@ -7,7 +7,8 @@ import type { McpServerSpec } from "../system/config.js";
 import { getCurrentToken } from "../api/auth/token.js";
 import type { Attachment } from "@mulmobridge/protocol";
 import { isImageMime, isNativeAttachmentMime } from "@mulmobridge/client";
-import { convertAttachment, isConvertibleMime } from "./attachmentConverter.js";
+import { convertAttachment } from "./attachmentConverter.js";
+import { log } from "../system/logger/index.js";
 
 export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
@@ -314,7 +315,7 @@ export async function buildUserMessageLine(
   }
 
   const blocks: Array<Record<string, unknown>> = [];
-  const skippedTypes: string[] = [];
+  const skippedReasons: string[] = [];
 
   for (const att of all) {
     // Native types: image and PDF go directly as content blocks
@@ -323,20 +324,19 @@ export async function buildUserMessageLine(
       continue;
     }
     // Convertible types: text, docx, xlsx, pptx
-    if (isConvertibleMime(att.mimeType)) {
-      const converted = await convertAttachment(att);
-      if (converted) {
-        blocks.push(...converted);
-        continue;
-      }
+    const result = await convertAttachment(att);
+    if (result.kind === "converted") {
+      blocks.push(...result.blocks);
+    } else {
+      skippedReasons.push(result.reason);
     }
-    skippedTypes.push(att.mimeType);
   }
 
-  if (skippedTypes.length > 0) {
-    console.error(
-      `[agent] skipping ${skippedTypes.length} unsupported attachment(s): ${skippedTypes.join(", ")}`,
-    );
+  if (skippedReasons.length > 0) {
+    log.warn("agent", "skipping unsupported attachment(s)", {
+      count: skippedReasons.length,
+      reasons: skippedReasons,
+    });
   }
 
   blocks.push({ type: "text", text: message });

@@ -14,10 +14,13 @@
 
 import mammoth from "mammoth";
 import * as XLSX from "xlsx";
-import { execFileSync } from "child_process";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "fs";
+import { execFile } from "child_process";
+import { mkdtemp, readFile, writeFile, rm } from "fs/promises";
 import path from "path";
 import os from "os";
+import { promisify } from "util";
+
+const execFileAsync = promisify(execFile);
 import type { Attachment } from "@mulmobridge/protocol";
 
 export interface ContentBlock {
@@ -86,102 +89,129 @@ function convertXlsx(data: string): string {
 const PPTX_MIME =
   "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 
-function isLibreOfficeAvailable(): boolean {
+async function isLibreOfficeAvailable(): Promise<boolean> {
   try {
-    execFileSync("libreoffice", ["--version"], {
-      stdio: "ignore",
-      timeout: 5000,
-    });
+    await execFileAsync("libreoffice", ["--version"], { timeout: 5000 });
     return true;
   } catch {
     return false;
   }
 }
 
-function convertPptxToPdf(data: string): Buffer | null {
-  if (!isLibreOfficeAvailable()) return null;
+async function convertPptxToPdf(data: string): Promise<Buffer | null> {
+  if (!(await isLibreOfficeAvailable())) return null;
 
-  const tmpDir = mkdtempSync(path.join(os.tmpdir(), "pptx-"));
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "pptx-"));
   const inputPath = path.join(tmpDir, "input.pptx");
   const outputPath = path.join(tmpDir, "input.pdf");
 
   try {
-    writeFileSync(inputPath, Buffer.from(data, "base64"));
-    execFileSync(
+    await writeFile(inputPath, Buffer.from(data, "base64"));
+    await execFileAsync(
       "libreoffice",
       ["--headless", "--convert-to", "pdf", "--outdir", tmpDir, inputPath],
-      { stdio: "ignore", timeout: 60_000 },
+      { timeout: 60_000 },
     );
-    return readFileSync(outputPath);
+    return await readFile(outputPath);
   } catch {
     return null;
   } finally {
-    rmSync(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, { recursive: true, force: true });
   }
 }
 
 // ── Public API ────────────────────────────────────────────────
 
-function textBlock(att: Attachment, content: string): ContentBlock[] {
+export type ConversionResult =
+  | { kind: "converted"; blocks: ContentBlock[] }
+  | { kind: "skipped"; reason: string };
+
+function textBlocks(att: Attachment, content: string): ContentBlock[] {
   const label = att.filename ? `[File: ${att.filename}]\n\n` : "";
   return [{ type: "text", text: `${label}${content}` }];
 }
 
-async function tryConvertDocx(att: Attachment): Promise<ContentBlock[] | null> {
+async function tryConvertDocx(att: Attachment): Promise<ConversionResult> {
   try {
-    return textBlock(att, await convertDocx(att.data));
-  } catch {
-    return null;
+    return {
+      kind: "converted",
+      blocks: textBlocks(att, await convertDocx(att.data)),
+    };
+  } catch (err) {
+    return {
+      kind: "skipped",
+      reason: `DOCX conversion failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
 }
 
-function tryConvertXlsx(att: Attachment): ContentBlock[] | null {
+function tryConvertXlsx(att: Attachment): ConversionResult {
   try {
-    return textBlock(att, convertXlsx(att.data));
-  } catch {
-    return null;
+    return {
+      kind: "converted",
+      blocks: textBlocks(att, convertXlsx(att.data)),
+    };
+  } catch (err) {
+    return {
+      kind: "skipped",
+      reason: `XLSX conversion failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
 }
 
-function tryConvertPptx(att: Attachment): ContentBlock[] {
-  const pdfBuf = convertPptxToPdf(att.data);
+async function tryConvertPptx(att: Attachment): Promise<ConversionResult> {
+  const pdfBuf = await convertPptxToPdf(att.data);
   if (!pdfBuf) {
     const name = att.filename ?? "presentation.pptx";
-    return [
-      {
-        type: "text",
-        text: `[PPTX file "${name}" attached but cannot be converted — LibreOffice is not available. Run in Docker sandbox mode for PPTX support.]`,
-      },
-    ];
+    return {
+      kind: "converted",
+      blocks: [
+        {
+          type: "text",
+          text: `[PPTX file "${name}" attached but cannot be converted — LibreOffice is not available. Run in Docker sandbox mode for PPTX support.]`,
+        },
+      ],
+    };
   }
-  return [
-    {
-      type: "document",
-      source: {
-        type: "base64",
-        media_type: "application/pdf",
-        data: pdfBuf.toString("base64"),
+  return {
+    kind: "converted",
+    blocks: [
+      {
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: pdfBuf.toString("base64"),
+        },
       },
-    },
-  ];
+    ],
+  };
 }
 
 /**
  * Convert an attachment into content blocks Claude can consume.
- * Returns null if the MIME type is not convertible (caller skips).
+ * Returns `{ kind: "converted", blocks }` on success, or
+ * `{ kind: "skipped", reason }` when conversion fails or the
+ * MIME type is not convertible — so the caller can distinguish
+ * "unsupported type" from "conversion error" in logs.
  */
 export async function convertAttachment(
   att: Attachment,
-): Promise<ContentBlock[] | null> {
-  if (isTextMime(att.mimeType))
-    return textBlock(att, decodeBase64Text(att.data));
+): Promise<ConversionResult> {
+  if (isTextMime(att.mimeType)) {
+    return {
+      kind: "converted",
+      blocks: textBlocks(att, decodeBase64Text(att.data)),
+    };
+  }
   if (att.mimeType === DOCX_MIME) return tryConvertDocx(att);
   if (att.mimeType === XLSX_MIME) return tryConvertXlsx(att);
   if (att.mimeType === PPTX_MIME) return tryConvertPptx(att);
-  return null;
+  return { kind: "skipped", reason: `unsupported MIME type: ${att.mimeType}` };
 }
 
-/** MIME types that can be converted (for UI accept list). */
+/** MIME types that can be converted (for UI accept list).
+ *  Must stay aligned with isTextMime() + the office constants. */
 export const CONVERTIBLE_MIME_TYPES = [
   // Text
   "text/plain",
@@ -190,8 +220,10 @@ export const CONVERTIBLE_MIME_TYPES = [
   "text/xml",
   "text/markdown",
   "text/yaml",
+  "text/x-yaml",
   "application/json",
   "application/xml",
+  "application/x-yaml",
   "application/toml",
   // Office
   DOCX_MIME,

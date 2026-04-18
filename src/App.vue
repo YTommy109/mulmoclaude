@@ -726,19 +726,27 @@ const MAX_ATTACH_BYTES = 30 * 1024 * 1024; // 30 MB
 
 // MIME types accepted by the chat input paste/drop handler. Covers
 // native Claude types (image, PDF) plus server-side convertible
-// types (text, office documents). See attachmentConverter.ts.
-const ACCEPTED_MIME_PREFIXES = [
-  "image/",
+// types (text, office documents). Must stay aligned with the server's
+// attachmentConverter.ts — don't use a broad prefix like
+// "application/vnd.openxmlformats-officedocument.*" because the
+// server only handles the exact docx/xlsx/pptx variants.
+const ACCEPTED_MIME_PREFIXES = ["image/", "text/"];
+const ACCEPTED_MIME_EXACT = new Set([
   "application/pdf",
-  "text/",
   "application/json",
   "application/xml",
+  "application/x-yaml",
   "application/toml",
-  "application/vnd.openxmlformats-officedocument.",
-];
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+]);
 
 function isAcceptedType(mime: string): boolean {
-  return ACCEPTED_MIME_PREFIXES.some((p) => mime.startsWith(p));
+  return (
+    ACCEPTED_MIME_PREFIXES.some((p) => mime.startsWith(p)) ||
+    ACCEPTED_MIME_EXACT.has(mime)
+  );
 }
 
 function readAttachmentFile(file: File): void {
