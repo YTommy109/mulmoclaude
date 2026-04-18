@@ -120,48 +120,53 @@ export function createMessageRouter(deps: RouterDeps): MessageRouter {
     }
   }
 
+  // Download all media from a message. Telegram messages are usually
+  // exclusive (photo OR document), but forwarded messages or future
+  // API changes could carry both. We collect all available attachments
+  // rather than picking one.
   async function tryDownloadAttachments(
     msg: TelegramMessage,
   ): Promise<AttachmentResult> {
-    const hasPhoto = Array.isArray(msg.photo) && msg.photo.length > 0;
-    const hasDocument = msg.document !== undefined;
-    if (!hasPhoto && !hasDocument) return { attachments: [], failed: false };
+    const attachments: Attachment[] = [];
+    let anyFailed = false;
 
-    try {
-      if (hasPhoto) {
-        // Photos: Telegram sends multiple sizes; pick the largest.
-        const largest = msg.photo![msg.photo!.length - 1];
+    if (Array.isArray(msg.photo) && msg.photo.length > 0) {
+      const largest = msg.photo[msg.photo.length - 1];
+      try {
         const dataUrl = await api.downloadFile(largest.file_id, "image/jpeg");
         const parsed = parseDataUrl(dataUrl);
         if (parsed) {
-          return {
-            attachments: [{ mimeType: parsed.mimeType, data: parsed.data }],
-            failed: false,
-          };
+          attachments.push({ mimeType: parsed.mimeType, data: parsed.data });
         }
-      } else if (hasDocument) {
-        // Documents: PDF, DOCX, XLSX, PPTX, text files, etc.
-        const doc = msg.document!;
-        const fallbackMime = doc.mime_type ?? "application/octet-stream";
+      } catch (err) {
+        log.error(`[telegram] photo download failed: ${String(err)}`);
+        anyFailed = true;
+      }
+    }
+
+    if (msg.document) {
+      const doc = msg.document;
+      const fallbackMime = doc.mime_type ?? "application/octet-stream";
+      try {
         const dataUrl = await api.downloadFile(doc.file_id, fallbackMime);
         const parsed = parseDataUrl(dataUrl);
         if (parsed) {
-          return {
-            attachments: [
-              {
-                mimeType: parsed.mimeType,
-                data: parsed.data,
-                filename: doc.file_name,
-              },
-            ],
-            failed: false,
-          };
+          attachments.push({
+            mimeType: parsed.mimeType,
+            data: parsed.data,
+            filename: doc.file_name,
+          });
         }
+      } catch (err) {
+        log.error(`[telegram] document download failed: ${String(err)}`);
+        anyFailed = true;
       }
-    } catch (err) {
-      log.error(`[telegram] attachment download failed: ${String(err)}`);
     }
-    return { attachments: [], failed: true };
+
+    if (attachments.length === 0 && anyFailed) {
+      return { attachments: [], failed: true };
+    }
+    return { attachments, failed: false };
   }
 
   async function sendReply(chatId: number, ack: MessageAck): Promise<void> {
