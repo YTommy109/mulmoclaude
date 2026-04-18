@@ -239,6 +239,7 @@ import TextResponseView from "../plugins/textResponse/View.vue";
 import { rewriteMarkdownImageRefs } from "../utils/image/rewriteMarkdownImageRefs";
 import { apiGet } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
+import { WORKSPACE_FILES } from "../config/workspacePaths";
 import { wrapHtmlWithPreviewCsp } from "../utils/html/previewCsp";
 import SchedulerView from "../plugins/scheduler/View.vue";
 import TodoExplorer from "./TodoExplorer.vue";
@@ -386,13 +387,13 @@ function isScheduledItemArray(x: unknown): x is ScheduledItem[] {
   return Array.isArray(x) && x.every(isScheduledItem);
 }
 
-// When the user opens scheduler/items.json, render it with the
+// When the user opens the scheduler items file, render it with the
 // scheduler plugin's calendar view instead of as a JSON blob. We
 // synthesize a fake ToolResultComplete<SchedulerData> so the View
 // component receives the same shape it normally gets in chat mode.
 const schedulerResult = computed(
   (): ToolResultComplete<SchedulerData> | null => {
-    if (selectedPath.value !== "scheduler/items.json") return null;
+    if (selectedPath.value !== WORKSPACE_FILES.schedulerItems) return null;
     if (!content.value || content.value.kind !== "text") return null;
     let parsed: unknown;
     try {
@@ -404,14 +405,14 @@ const schedulerResult = computed(
     return {
       uuid: "files-scheduler-preview",
       toolName: "manageScheduler",
-      message: "scheduler/items.json",
+      message: WORKSPACE_FILES.schedulerItems,
       title: "Scheduler",
       data: { items: parsed },
     };
   },
 );
 
-// Same idea as schedulerResult: when the user opens todos/todos.json
+// Same idea as schedulerResult: when the user opens the todos file
 // we render it as a full TodoExplorer (kanban / table / list) instead
 // of a raw JSON blob. The TodoExplorer fetches its own state from
 // /api/todos so the data we synthesize here is just a starter — the
@@ -431,7 +432,7 @@ function isTodoItemArray(x: unknown): x is TodoItem[] {
 }
 
 const todoExplorerResult = computed((): ToolResultComplete<TodoData> | null => {
-  if (selectedPath.value !== "todos/todos.json") return null;
+  if (selectedPath.value !== WORKSPACE_FILES.todosItems) return null;
   if (!content.value || content.value.kind !== "text") return null;
   let parsed: unknown;
   try {
@@ -444,7 +445,7 @@ const todoExplorerResult = computed((): ToolResultComplete<TodoData> | null => {
   return {
     uuid: "files-todo-preview",
     toolName: "manageTodoList",
-    message: "todos/todos.json",
+    message: WORKSPACE_FILES.todosItems,
     title: "Todo",
     data: { items, columns },
   };

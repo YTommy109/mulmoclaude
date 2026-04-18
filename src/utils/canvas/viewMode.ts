@@ -1,13 +1,20 @@
-// Pure helpers for the canvas view mode (single / stack / files).
+// Pure helpers for the canvas view mode.
 // The type also lives here, so test files and composables can
 // import it without pulling in a .vue file.
 
 export type CanvasViewMode = "single" | "stack" | "files";
 
+/** All valid view mode values — single source of truth for guards and parsers. */
+export const VALID_VIEW_MODES: ReadonlySet<string> = new Set<CanvasViewMode>([
+  "single",
+  "stack",
+  "files",
+]);
+
 export const VIEW_MODE_STORAGE_KEY = "canvas_view_mode";
 
 // Parse a value pulled out of localStorage. Anything other than the
-// three known modes — including null — falls back to "single".
+// known modes — including null — falls back to "single".
 export function parseStoredViewMode(stored: string | null): CanvasViewMode {
   if (stored === "single" || stored === "stack" || stored === "files") {
     return stored;
