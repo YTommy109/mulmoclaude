@@ -21,6 +21,19 @@ async function main(): Promise<void> {
     console.log(`\n[push] ${ev.chatId}: ${ev.message}\n`);
   });
 
+  // Streaming text chunks (Phase C of #268). Each chunk is a
+  // fragment of the assistant's response, printed in real time
+  // so the user sees a typing effect instead of waiting for the
+  // full response.
+  let streamingActive = false;
+  client.onTextChunk((chunk) => {
+    if (!streamingActive) {
+      process.stdout.write("\nAssistant: ");
+      streamingActive = true;
+    }
+    process.stdout.write(chunk);
+  });
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -32,8 +45,13 @@ async function main(): Promise<void> {
     const line = (await askOnce()).trim();
     if (!line) continue;
 
+    streamingActive = false;
     const ack = await client.send(CHAT_ID, line);
-    if (ack.ok) {
+    if (streamingActive) {
+      // Text was streamed chunk-by-chunk; just add a trailing newline.
+      process.stdout.write("\n\n");
+    } else if (ack.ok) {
+      // No chunks arrived (e.g. short response) — print the full ack.
       console.log(`\nAssistant: ${ack.reply ?? ""}\n`);
     } else {
       const statusSuffix = ack.status ? ` (${ack.status})` : "";

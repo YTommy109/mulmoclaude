@@ -17,7 +17,7 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "lib": ["ES2022", "DOM"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node"],
     // Tests import Vue composables that touch `.vue` files
     // transitively — skipping lib check is enough to let those

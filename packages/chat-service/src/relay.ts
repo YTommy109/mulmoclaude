@@ -25,6 +25,10 @@ export interface RelayParams {
   externalChatId: string;
   text: string;
   attachments?: Attachment[];
+  /** Called for each text chunk as the agent generates it. Used by
+   *  the socket transport to stream text to the bridge in real time
+   *  (Phase C of #268). */
+  onChunk?: (text: string) => void;
 }
 
 export type RelayResult =
@@ -130,6 +134,7 @@ export function createRelay(deps: RelayDeps): RelayFn {
       const reply = await collectAgentReply(
         onSessionEvent,
         chatState.sessionId,
+        params.onChunk,
       );
       await store.setChatState(transportId, {
         ...chatState,
@@ -158,6 +163,7 @@ export function createRelay(deps: RelayDeps): RelayFn {
 function collectAgentReply(
   onSessionEvent: OnSessionEventFn,
   chatSessionId: string,
+  onChunk?: (text: string) => void,
 ): Promise<string> {
   return new Promise((resolve) => {
     const textChunks: string[] = [];
@@ -174,7 +180,9 @@ function collectAgentReply(
       const type = event.type as string;
 
       if (type === EVENT_TYPES.text) {
-        textChunks.push(event.message as string);
+        const chunk = event.message as string;
+        textChunks.push(chunk);
+        onChunk?.(chunk);
       }
 
       if (type === EVENT_TYPES.error) {
