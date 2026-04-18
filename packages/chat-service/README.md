@@ -67,11 +67,11 @@ chatService.attachSocket(httpServer);
 
 | Package | Description |
 |---|---|
-| @mulmobridge/protocol | Wire protocol types and constants |
+| [@mulmobridge/protocol](https://www.npmjs.com/package/@mulmobridge/protocol) | Wire protocol types and constants |
 | **@mulmobridge/chat-service** | Server-side chat service (this package) |
-| @mulmobridge/client | Bridge client library (coming soon) |
-| @mulmobridge/cli | CLI bridge (coming soon) |
-| @mulmobridge/telegram | Telegram bridge (coming soon) |
+| [@mulmobridge/client](https://www.npmjs.com/package/@mulmobridge/client) | Bridge client library |
+| [@mulmobridge/cli](https://www.npmjs.com/package/@mulmobridge/cli) | CLI bridge |
+| [@mulmobridge/telegram](https://www.npmjs.com/package/@mulmobridge/telegram) | Telegram bridge |
 
 ## License
 

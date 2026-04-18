@@ -53,10 +53,10 @@ const attachment: Attachment = {
 | Package | Description |
 |---|---|
 | **@mulmobridge/protocol** | Wire protocol types and constants (this package) |
-| @mulmobridge/chat-service | Server-side chat service (coming soon) |
-| @mulmobridge/client | Bridge client library (coming soon) |
-| @mulmobridge/cli | CLI bridge (coming soon) |
-| @mulmobridge/telegram | Telegram bridge (coming soon) |
+| [@mulmobridge/chat-service](https://www.npmjs.com/package/@mulmobridge/chat-service) | Server-side chat service |
+| [@mulmobridge/client](https://www.npmjs.com/package/@mulmobridge/client) | Bridge client library |
+| [@mulmobridge/cli](https://www.npmjs.com/package/@mulmobridge/cli) | CLI bridge |
+| [@mulmobridge/telegram](https://www.npmjs.com/package/@mulmobridge/telegram) | Telegram bridge |
 
 ## License
 
