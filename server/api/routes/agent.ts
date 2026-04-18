@@ -340,6 +340,7 @@ async function handleAgentEvent(
   ctx: EventContext,
 ): Promise<void> {
   if (event.type === EVENT_TYPES.claudeSessionId) {
+    await flushTextAccumulator(ctx);
     await setClaudeId(ctx.chatSessionId, event.id);
     return;
   }
@@ -347,11 +348,15 @@ async function handleAgentEvent(
 
   if (event.type === EVENT_TYPES.text) {
     // Accumulate text chunks instead of writing each one to jsonl.
-    // The consolidated text is flushed by `flushTextAccumulator`
-    // when a non-text event arrives or the run ends.
+    // Flushed when a non-text event arrives (preserving jsonl order
+    // relative to tool events) or when the run ends.
     ctx.textAccumulator.push(event.message);
     return;
   }
+  // Any non-text event marks the end of a text burst — flush so
+  // jsonl order matches the live stream and crashes mid-run don't
+  // lose already-streamed text.
+  await flushTextAccumulator(ctx);
   if (event.type === EVENT_TYPES.toolCall) {
     log.info("agent-tool", "call", {
       chatSessionId: ctx.chatSessionId,

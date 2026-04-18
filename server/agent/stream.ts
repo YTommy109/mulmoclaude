@@ -88,10 +88,6 @@ export function blockToEvent(block: ClaudeContentBlock): AgentEvent | null {
   return null;
 }
 
-// Stateful parser that tracks whether text was already emitted via
-// assistant content blocks. When it has, the `result` event's text
-// is a duplicate and must be suppressed to avoid showing the
-// response twice.
 // Extract a text delta from a stream_event, or null if the event
 // isn't a text delta. Keeps the main parse function under the
 // cognitive-complexity cap.
@@ -109,27 +105,49 @@ function extractTextDelta(event: RawStreamEvent): string | null {
   return inner.delta.text;
 }
 
+// Filter assistant block events: when deltas already streamed the
+// text, remove text-type events to prevent duplication.
+function filterAssistantBlocks(
+  blockEvents: AgentEvent[],
+  deltaStreamed: boolean,
+): AgentEvent[] {
+  return deltaStreamed
+    ? blockEvents.filter((e) => e.type !== EVENT_TYPES.text)
+    : blockEvents;
+}
+
+// Stateful parser that deduplicates text across the three stages
+// Claude CLI emits: stream_event deltas → assistant content blocks
+// → result full text. Uses two flags:
+//
+//   textStreamedFromDeltas — true once text_delta chunks have been
+//     emitted from stream_event. Controls whether the full-text
+//     `assistant` block is filtered as a duplicate of those chunks.
+//
+//   textEmitted — true once ANY text (delta or assistant block) has
+//     been emitted, so the `result` event can suppress its duplicate
+//     full-text copy. Prevents text loss when `assistant` arrives
+//     without preceding `stream_event` deltas (short replies, CLI
+//     version without `--include-partial-messages`, etc.).
 export function createStreamParser(): {
   parse: (event: RawStreamEvent) => AgentEvent[];
 } {
-  let textStreamedFromBlocks = false;
+  let textStreamedFromDeltas = false;
+  let textEmitted = false;
 
   function parse(event: RawStreamEvent): AgentEvent[] {
     // Handle streaming text deltas from --include-partial-messages.
     const delta = extractTextDelta(event);
     if (delta !== null) {
-      textStreamedFromBlocks = true;
+      textStreamedFromDeltas = true;
+      textEmitted = true;
       return [{ type: EVENT_TYPES.text, message: delta }];
     }
     if (event.type === "stream_event") return [];
 
     if (event.type === "result") {
       const events: AgentEvent[] = [];
-      // Only emit the result text if no text was already streamed
-      // via assistant content blocks. This prevents duplication:
-      // Claude CLI emits the same text in both `assistant` blocks
-      // (incremental) and the final `result` (complete).
-      if (!textStreamedFromBlocks && event.result) {
+      if (!textEmitted && event.result) {
         events.push({ type: EVENT_TYPES.text, message: event.result });
       }
       if (event.session_id) {
@@ -138,8 +156,8 @@ export function createStreamParser(): {
           id: event.session_id,
         });
       }
-      // Reset for the next turn in a resumed session.
-      textStreamedFromBlocks = false;
+      textStreamedFromDeltas = false;
+      textEmitted = false;
       return events;
     }
 
@@ -152,19 +170,14 @@ export function createStreamParser(): {
       ? content.map(blockToEvent).filter((e): e is AgentEvent => e !== null)
       : [];
 
-    // Track whether any text block was emitted so we can suppress
-    // the duplicate in the `result` event.
-    if (blockEvents.some((e) => e.type === EVENT_TYPES.text)) {
-      textStreamedFromBlocks = true;
-    }
-
     if (event.type === "assistant") {
-      // When text was already streamed via deltas, the `assistant`
-      // event's text blocks are duplicates — filter them out so the
-      // UI doesn't double-render or create a second card.
-      const filtered = textStreamedFromBlocks
-        ? blockEvents.filter((e) => e.type !== EVENT_TYPES.text)
-        : blockEvents;
+      const filtered = filterAssistantBlocks(
+        blockEvents,
+        textStreamedFromDeltas,
+      );
+      if (filtered.some((e) => e.type === EVENT_TYPES.text)) {
+        textEmitted = true;
+      }
       return [
         { type: EVENT_TYPES.status, message: "Thinking..." },
         ...filtered,
