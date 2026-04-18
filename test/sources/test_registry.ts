@@ -17,9 +17,9 @@ import {
   listSources,
   deleteSource,
   DEFAULT_MAX_ITEMS_PER_FETCH,
-} from "../../server/sources/registry.js";
-import { sourceFilePath } from "../../server/sources/paths.js";
-import type { Source } from "../../server/sources/types.js";
+} from "../../server/workspace/sources/registry.js";
+import { sourceFilePath } from "../../server/workspace/sources/paths.js";
+import type { Source } from "../../server/workspace/sources/types.js";
 
 // --- pure-parser tests --------------------------------------------------
 
@@ -407,7 +407,8 @@ describe("writeSource + readSource — filesystem round trip", () => {
   it("does not leave a .tmp file behind after a successful write", async () => {
     await writeSource(workspace, makeSource());
     const { readdir } = await import("node:fs/promises");
-    const { sourcesRoot } = await import("../../server/sources/paths.js");
+    const { sourcesRoot } =
+      await import("../../server/workspace/sources/paths.js");
     const entries = await readdir(sourcesRoot(workspace));
     assert.equal(
       entries.some((name) => name.endsWith(".tmp")),
@@ -439,7 +440,8 @@ describe("listSources", () => {
     await writeSource(workspace, makeSource());
     // Meta file written alongside by a hypothetical index generator.
     const { writeFile } = await import("node:fs/promises");
-    const { sourcesRoot } = await import("../../server/sources/paths.js");
+    const { sourcesRoot } =
+      await import("../../server/workspace/sources/paths.js");
     await writeFile(join(sourcesRoot(workspace), "_index.md"), "# Index\n");
     const listed = await listSources(workspace);
     assert.equal(listed.length, 1);
@@ -449,7 +451,8 @@ describe("listSources", () => {
   it("skips non-.md files", async () => {
     await writeSource(workspace, makeSource());
     const { writeFile } = await import("node:fs/promises");
-    const { sourcesRoot } = await import("../../server/sources/paths.js");
+    const { sourcesRoot } =
+      await import("../../server/workspace/sources/paths.js");
     await writeFile(
       join(sourcesRoot(workspace), "hn.json"),
       JSON.stringify({ something: "else" }),
@@ -461,7 +464,8 @@ describe("listSources", () => {
   it("logs + skips malformed source files without crashing", async () => {
     await writeSource(workspace, makeSource());
     const { writeFile } = await import("node:fs/promises");
-    const { sourcesRoot } = await import("../../server/sources/paths.js");
+    const { sourcesRoot } =
+      await import("../../server/workspace/sources/paths.js");
     await writeFile(
       join(sourcesRoot(workspace), "broken.md"),
       "no frontmatter here",

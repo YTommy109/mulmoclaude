@@ -1,7 +1,12 @@
-import { describe, it } from "node:test";
+import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import {
+  __resetForTests as resetTokenState,
+  generateAndWriteToken,
+} from "../../server/api/auth/token.js";
 import {
   buildCliArgs,
   buildDockerSpawnArgs,
@@ -14,10 +19,10 @@ import {
   rewriteLocalhostForDocker,
   userServerAllowedToolNames,
 } from "../../server/agent/config.js";
-import type { McpServerSpec } from "../../server/config.js";
+import type { McpServerSpec } from "../../server/system/config.js";
 
 describe("buildMcpConfig", () => {
-  it("returns correct structure", () => {
+  it("returns correct structure", async () => {
     const config = buildMcpConfig({
       chatSessionId: "s1",
       port: 3001,
@@ -40,7 +45,7 @@ describe("buildMcpConfig", () => {
     assert.equal(env.ROLE_IDS, "assistant,cook");
   });
 
-  it("handles empty plugins and roles", () => {
+  it("handles empty plugins and roles", async () => {
     const config = buildMcpConfig({
       chatSessionId: "s2",
       port: 4000,
@@ -57,7 +62,7 @@ describe("buildMcpConfig", () => {
 });
 
 describe("buildCliArgs", () => {
-  it("includes required flags", () => {
+  it("includes required flags", async () => {
     const args = buildCliArgs({
       systemPrompt: "You are helpful",
       activePlugins: [],
@@ -78,7 +83,7 @@ describe("buildCliArgs", () => {
     assert.ok(args.includes("--allowedTools"));
   });
 
-  it("does NOT pass the user message as a CLI argument", () => {
+  it("does NOT pass the user message as a CLI argument", async () => {
     // Regression: the message must arrive via stdin in stream-json
     // input mode. Passing it as `-p <text>` (the old mode) bypasses
     // slash-command resolution for Claude Code skills.
@@ -93,7 +98,7 @@ describe("buildCliArgs", () => {
     assert.ok(afterP === undefined || afterP.startsWith("--"));
   });
 
-  it("includes MCP tool names in allowedTools", () => {
+  it("includes MCP tool names in allowedTools", async () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: ["manageTodoList"],
@@ -107,7 +112,7 @@ describe("buildCliArgs", () => {
     assert.ok(allowedStr.includes("Bash"));
   });
 
-  it("includes --resume when claudeSessionId provided", () => {
+  it("includes --resume when claudeSessionId provided", async () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: [],
@@ -119,7 +124,7 @@ describe("buildCliArgs", () => {
     assert.equal(args[resumeIdx + 1], "sess_123");
   });
 
-  it("omits --resume when no claudeSessionId", () => {
+  it("omits --resume when no claudeSessionId", async () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: [],
@@ -128,7 +133,7 @@ describe("buildCliArgs", () => {
     assert.ok(!args.includes("--resume"));
   });
 
-  it("includes --mcp-config when path provided", () => {
+  it("includes --mcp-config when path provided", async () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: ["foo"],
@@ -140,7 +145,7 @@ describe("buildCliArgs", () => {
     assert.equal(args[mcpIdx + 1], "/tmp/mcp.json");
   });
 
-  it("omits --mcp-config when no path", () => {
+  it("omits --mcp-config when no path", async () => {
     const args = buildCliArgs({
       systemPrompt: "test",
       activePlugins: [],
@@ -151,7 +156,7 @@ describe("buildCliArgs", () => {
 });
 
 describe("resolveMcpConfigPaths", () => {
-  it("uses tmpdir for native runs (no docker)", () => {
+  it("uses tmpdir for native runs (no docker)", async () => {
     const paths = resolveMcpConfigPaths({
       workspacePath: "/ws",
       sessionId: "abc",
@@ -161,7 +166,7 @@ describe("resolveMcpConfigPaths", () => {
     assert.equal(paths.argPath, paths.hostPath);
   });
 
-  it("uses workspace .mulmoclaude dir for docker runs", () => {
+  it("uses workspace .mulmoclaude dir for docker runs", async () => {
     const paths = resolveMcpConfigPaths({
       workspacePath: "/ws",
       sessionId: "abc",
@@ -174,7 +179,7 @@ describe("resolveMcpConfigPaths", () => {
     );
   });
 
-  it("docker hostPath and argPath differ", () => {
+  it("docker hostPath and argPath differ", async () => {
     const paths = resolveMcpConfigPaths({
       workspacePath: "/ws",
       sessionId: "s",
@@ -197,7 +202,7 @@ describe("buildDockerSpawnArgs", () => {
     };
   }
 
-  it("starts with `run --rm` and ends with `claude` plus the cli args", () => {
+  it("starts with `run --rm` and ends with `claude` plus the cli args", async () => {
     const args = buildDockerSpawnArgs(baseParams());
     assert.equal(args[0], "run");
     assert.equal(args[1], "--rm");
@@ -207,38 +212,55 @@ describe("buildDockerSpawnArgs", () => {
     assert.equal(args[claudeIdx + 2], "hi");
   });
 
-  it("drops all capabilities", () => {
+  it("drops all capabilities", async () => {
     const args = buildDockerSpawnArgs(baseParams());
     const idx = args.indexOf("--cap-drop");
     assert.ok(idx >= 0);
     assert.equal(args[idx + 1], "ALL");
   });
 
-  it("passes uid:gid via --user", () => {
+  it("uses --user when SSH agent forward is off (default)", async () => {
     const args = buildDockerSpawnArgs({ ...baseParams(), uid: 501, gid: 20 });
     const idx = args.indexOf("--user");
+    assert.ok(idx >= 0);
     assert.equal(args[idx + 1], "501:20");
+    assert.ok(!args.includes("HOST_UID=501"));
+    assert.ok(!args.includes("CHOWN"));
   });
 
-  it("mounts the workspace at the container path", () => {
+  it("uses HOST_UID/HOST_GID + cap-adds when SSH agent forward is on", async () => {
+    const args = buildDockerSpawnArgs({
+      ...baseParams(),
+      uid: 501,
+      gid: 20,
+      sshAgentForward: true,
+    });
+    assert.equal(args.indexOf("--user"), -1);
+    assert.ok(args.includes("HOST_UID=501"));
+    assert.ok(args.includes("HOST_GID=20"));
+    assert.ok(args.includes("CHOWN"));
+    assert.ok(args.includes("SETUID"));
+  });
+
+  it("mounts the workspace at the container path", async () => {
     const args = buildDockerSpawnArgs(baseParams());
     assert.ok(args.includes(`/ws:${CONTAINER_WORKSPACE_PATH}`));
   });
 
-  it("mounts node_modules / server / src read-only from the project root", () => {
+  it("mounts node_modules / server / src read-only from the project root", async () => {
     const args = buildDockerSpawnArgs(baseParams());
     assert.ok(args.includes("/proj/node_modules:/app/node_modules:ro"));
     assert.ok(args.includes("/proj/server:/app/server:ro"));
     assert.ok(args.includes("/proj/src:/app/src:ro"));
   });
 
-  it("mounts the .claude credentials from the home dir", () => {
+  it("mounts the .claude credentials from the home dir", async () => {
     const args = buildDockerSpawnArgs(baseParams());
     assert.ok(args.includes("/home/user/.claude:/home/node/.claude"));
     assert.ok(args.includes("/home/user/.claude.json:/home/node/.claude.json"));
   });
 
-  it("adds host.docker.internal mapping on linux", () => {
+  it("adds host.docker.internal mapping on linux", async () => {
     const args = buildDockerSpawnArgs({
       ...baseParams(),
       platform: "linux" as Platform,
@@ -248,7 +270,7 @@ describe("buildDockerSpawnArgs", () => {
     assert.equal(args[idx + 1], "host.docker.internal:host-gateway");
   });
 
-  it("does not add host mapping on darwin", () => {
+  it("does not add host mapping on darwin", async () => {
     const args = buildDockerSpawnArgs({
       ...baseParams(),
       platform: "darwin" as Platform,
@@ -256,7 +278,7 @@ describe("buildDockerSpawnArgs", () => {
     assert.ok(!args.includes("--add-host"));
   });
 
-  it("normalizes Windows backslash paths to forward slashes", () => {
+  it("normalizes Windows backslash paths to forward slashes", async () => {
     const args = buildDockerSpawnArgs({
       ...baseParams(),
       workspacePath: "C:\\Users\\me\\ws",
@@ -267,21 +289,38 @@ describe("buildDockerSpawnArgs", () => {
     );
   });
 
-  it("targets the mulmoclaude-sandbox image", () => {
+  it("targets the mulmoclaude-sandbox image", async () => {
     const args = buildDockerSpawnArgs(baseParams());
     assert.ok(args.includes("mulmoclaude-sandbox"));
+  });
+
+  it("splices sandboxAuthArgs in before the image name (#259)", async () => {
+    const args = buildDockerSpawnArgs({
+      ...baseParams(),
+      sandboxAuthArgs: ["-v", "/host/.config/gh:/home/node/.config/gh:ro"],
+    });
+    const authIdx = args.indexOf("/host/.config/gh:/home/node/.config/gh:ro");
+    const imageIdx = args.indexOf("mulmoclaude-sandbox");
+    assert.ok(authIdx >= 0, "expected sandboxAuthArgs to be present");
+    assert.ok(authIdx < imageIdx, "auth mounts must land before image name");
+  });
+
+  it("defaults to no sandbox auth args when omitted", async () => {
+    const args = buildDockerSpawnArgs(baseParams());
+    assert.ok(!args.some((a) => a.includes(".config/gh")));
+    assert.ok(!args.some((a) => a.includes("SSH_AUTH_SOCK")));
   });
 });
 
 describe("rewriteLocalhostForDocker", () => {
-  it("leaves urls untouched when docker mode is off", () => {
+  it("leaves urls untouched when docker mode is off", async () => {
     assert.equal(
       rewriteLocalhostForDocker("http://localhost:9000/foo", false),
       "http://localhost:9000/foo",
     );
   });
 
-  it("rewrites localhost and 127.0.0.1 under docker", () => {
+  it("rewrites localhost and 127.0.0.1 under docker", async () => {
     assert.equal(
       rewriteLocalhostForDocker("http://localhost:9000", true),
       "http://host.docker.internal:9000",
@@ -292,14 +331,14 @@ describe("rewriteLocalhostForDocker", () => {
     );
   });
 
-  it("leaves non-loopback urls alone", () => {
+  it("leaves non-loopback urls alone", async () => {
     assert.equal(
       rewriteLocalhostForDocker("https://example.com/mcp", true),
       "https://example.com/mcp",
     );
   });
 
-  it("does not match mid-url substrings", () => {
+  it("does not match mid-url substrings", async () => {
     // `localhost.example.com` must not trigger; the boundary check is
     // critical so we don't break legitimate domains.
     assert.equal(
@@ -312,7 +351,7 @@ describe("rewriteLocalhostForDocker", () => {
 describe("prepareUserServers", () => {
   const hostWs = "/Users/me/ws";
 
-  it("drops disabled entries", () => {
+  it("drops disabled entries", async () => {
     const servers: Record<string, McpServerSpec> = {
       on: { type: "http", url: "https://a.example/mcp" },
       off: {
@@ -325,7 +364,7 @@ describe("prepareUserServers", () => {
     assert.deepEqual(Object.keys(out), ["on"]);
   });
 
-  it("rewrites localhost for http servers in docker mode", () => {
+  it("rewrites localhost for http servers in docker mode", async () => {
     const servers: Record<string, McpServerSpec> = {
       api: { type: "http", url: "http://localhost:8080/mcp" },
     };
@@ -335,7 +374,7 @@ describe("prepareUserServers", () => {
     assert.equal(api.url, "http://host.docker.internal:8080/mcp");
   });
 
-  it("rewrites workspace-scoped args for stdio servers in docker mode", () => {
+  it("rewrites workspace-scoped args for stdio servers in docker mode", async () => {
     const servers: Record<string, McpServerSpec> = {
       fs: {
         type: "stdio",
@@ -357,7 +396,7 @@ describe("prepareUserServers", () => {
     ]);
   });
 
-  it("leaves non-workspace stdio args untouched (caller warns in UI)", () => {
+  it("leaves non-workspace stdio args untouched (caller warns in UI)", async () => {
     const servers: Record<string, McpServerSpec> = {
       bad: {
         type: "stdio",
@@ -375,7 +414,7 @@ describe("prepareUserServers", () => {
 describe("userServerAllowedToolNames", () => {
   const hostWs = "/Users/me/ws";
 
-  it("emits mcp__<id> wildcards for enabled http servers", () => {
+  it("emits mcp__<id> wildcards for enabled http servers", async () => {
     const servers: Record<string, McpServerSpec> = {
       gmail: { type: "http", url: "https://gmail.mcp.claude.com/mcp" },
       disabled: {
@@ -390,7 +429,7 @@ describe("userServerAllowedToolNames", () => {
     ]);
   });
 
-  it("emits mcp__<id> for stdio servers when not in docker mode", () => {
+  it("emits mcp__<id> for stdio servers when not in docker mode", async () => {
     const servers: Record<string, McpServerSpec> = {
       fs: {
         type: "stdio",
@@ -402,7 +441,7 @@ describe("userServerAllowedToolNames", () => {
     assert.deepEqual(userServerAllowedToolNames(prepared, false), ["mcp__fs"]);
   });
 
-  it("drops stdio servers in docker mode (sandbox image is minimal)", () => {
+  it("drops stdio servers in docker mode (sandbox image is minimal)", async () => {
     const servers: Record<string, McpServerSpec> = {
       gmail: { type: "http", url: "https://gmail.mcp.claude.com/mcp" },
       fs: {
@@ -419,9 +458,9 @@ describe("userServerAllowedToolNames", () => {
 });
 
 describe("buildMcpConfig — user servers", () => {
-  it("merges user-defined servers alongside mulmoclaude", () => {
+  it("merges user-defined servers alongside mulmoclaude", async () => {
     const cfg = buildMcpConfig({
-      sessionId: "s1",
+      chatSessionId: "s1",
       port: 3001,
       activePlugins: ["manageTodoList"],
       roleIds: ["assistant"],
@@ -437,9 +476,9 @@ describe("buildMcpConfig — user servers", () => {
     assert.ok(servers.gmail);
   });
 
-  it("refuses to let a user server override the reserved 'mulmoclaude' id", () => {
+  it("refuses to let a user server override the reserved 'mulmoclaude' id", async () => {
     const cfg = buildMcpConfig({
-      sessionId: "s1",
+      chatSessionId: "s1",
       port: 3001,
       activePlugins: ["manageTodoList"],
       roleIds: ["assistant"],
@@ -460,8 +499,8 @@ describe("buildMcpConfig — user servers", () => {
 });
 
 describe("buildUserMessageLine", () => {
-  it("produces a newline-terminated JSON object with role user", () => {
-    const line = buildUserMessageLine("hello");
+  it("produces a newline-terminated JSON object with role user", async () => {
+    const line = await buildUserMessageLine("hello");
     assert.ok(line.endsWith("\n"));
     const parsed = JSON.parse(line.trimEnd());
     assert.deepEqual(parsed, {
@@ -470,24 +509,106 @@ describe("buildUserMessageLine", () => {
     });
   });
 
-  it("escapes special characters in the message content", () => {
-    const line = buildUserMessageLine('line1\n"quoted"\tX');
+  it("escapes special characters in the message content", async () => {
+    const line = await buildUserMessageLine('line1\n"quoted"\tX');
     const parsed = JSON.parse(line.trimEnd());
     assert.equal(parsed.message.content, 'line1\n"quoted"\tX');
   });
 
-  it("preserves slash-command invocations verbatim", () => {
+  it("preserves slash-command invocations verbatim", async () => {
     // This is why the whole stream-json input path exists — slash
     // commands must reach Claude untouched so they resolve against
     // ~/.claude/skills/<name>/SKILL.md.
-    const line = buildUserMessageLine("/shiritori");
+    const line = await buildUserMessageLine("/shiritori");
     const parsed = JSON.parse(line.trimEnd());
     assert.equal(parsed.message.content, "/shiritori");
+  });
+
+  it("sends plain string content when no attachments", async () => {
+    const line = await buildUserMessageLine("describe this");
+    const parsed = JSON.parse(line.trimEnd());
+    assert.equal(typeof parsed.message.content, "string");
+  });
+
+  it("sends content blocks when image attachments are provided", async () => {
+    const line = await buildUserMessageLine("what is this?", [
+      { mimeType: "image/png", data: "iVBORw0KGgo=" },
+    ]);
+    const parsed = JSON.parse(line.trimEnd());
+    assert.ok(Array.isArray(parsed.message.content));
+    const blocks = parsed.message.content;
+    assert.equal(blocks.length, 2);
+    assert.equal(blocks[0].type, "image");
+    assert.equal(blocks[0].source.type, "base64");
+    assert.equal(blocks[0].source.media_type, "image/png");
+    assert.equal(blocks[0].source.data, "iVBORw0KGgo=");
+    assert.equal(blocks[1].type, "text");
+    assert.equal(blocks[1].text, "what is this?");
+  });
+
+  it("supports multiple image attachments", async () => {
+    const line = await buildUserMessageLine("compare these", [
+      { mimeType: "image/png", data: "AAA" },
+      { mimeType: "image/jpeg", data: "BBB" },
+    ]);
+    const parsed = JSON.parse(line.trimEnd());
+    const blocks = parsed.message.content;
+    assert.equal(blocks.length, 3);
+    assert.equal(blocks[0].source.media_type, "image/png");
+    assert.equal(blocks[1].source.media_type, "image/jpeg");
+    assert.equal(blocks[2].type, "text");
+  });
+
+  it("falls back to plain string for empty attachments array", async () => {
+    const line = await buildUserMessageLine("hello", []);
+    const parsed = JSON.parse(line.trimEnd());
+    assert.equal(typeof parsed.message.content, "string");
+  });
+
+  it("falls back to plain string when attachments is undefined", async () => {
+    const line = await buildUserMessageLine("hello", undefined);
+    const parsed = JSON.parse(line.trimEnd());
+    assert.equal(typeof parsed.message.content, "string");
+  });
+
+  it("sends PDF as a document content block", async () => {
+    const line = await buildUserMessageLine("read this", [
+      { mimeType: "application/pdf", data: "JVBERi0x" },
+    ]);
+    const parsed = JSON.parse(line.trimEnd());
+    const blocks = parsed.message.content;
+    assert.equal(blocks.length, 2);
+    assert.equal(blocks[0].type, "document");
+    assert.equal(blocks[0].source.media_type, "application/pdf");
+    assert.equal(blocks[0].source.data, "JVBERi0x");
+    assert.equal(blocks[1].type, "text");
+    assert.equal(blocks[1].text, "read this");
+  });
+
+  it("includes image and PDF attachments, skips unsupported types", async () => {
+    const line = await buildUserMessageLine("analyze", [
+      { mimeType: "image/jpeg", data: "/9j/4AAQ" },
+      { mimeType: "application/pdf", data: "JVBERi0x" },
+      {
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        data: "UEs=",
+      },
+    ]);
+    const parsed = JSON.parse(line.trimEnd());
+    const blocks = parsed.message.content;
+    // image + document (PDF) + text; docx skipped
+    assert.equal(blocks.length, 3);
+    assert.equal(blocks[0].type, "image");
+    assert.equal(blocks[0].source.media_type, "image/jpeg");
+    assert.equal(blocks[1].type, "document");
+    assert.equal(blocks[1].source.media_type, "application/pdf");
+    assert.equal(blocks[2].type, "text");
   });
 });
 
 describe("buildCliArgs — extraAllowedTools", () => {
-  it("merges extraAllowedTools into --allowedTools", () => {
+  it("merges extraAllowedTools into --allowedTools", async () => {
     const args = buildCliArgs({
       systemPrompt: "s",
       activePlugins: [],
@@ -500,5 +621,51 @@ describe("buildCliArgs — extraAllowedTools", () => {
     const list = args[idx + 1];
     assert.ok(list.includes("mcp__claude_ai_Gmail"));
     assert.ok(list.includes("mcp__claude_ai_Google_Calendar"));
+  });
+});
+
+// ── Bearer token propagation to MCP subprocess (#325) ─────────
+
+describe("buildMcpConfig — bearer token env (#325)", () => {
+  let tmpTokenPath: string;
+
+  afterEach(() => {
+    resetTokenState();
+    try {
+      unlinkSync(tmpTokenPath);
+    } catch {
+      /* cleanup */
+    }
+  });
+
+  it("passes MULMOCLAUDE_AUTH_TOKEN to the MCP server env when a token exists", async () => {
+    tmpTokenPath = join(tmpdir(), `mulmo-tok-test-${Date.now()}`);
+    const token = await generateAndWriteToken(tmpTokenPath);
+    const config = buildMcpConfig({
+      chatSessionId: "s1",
+      port: 3001,
+      activePlugins: [],
+      roleIds: [],
+    }) as Record<string, unknown>;
+
+    const servers = config.mcpServers as Record<string, unknown>;
+    const server = servers.mulmoclaude as Record<string, unknown>;
+    const env = server.env as Record<string, string>;
+    assert.equal(env.MULMOCLAUDE_AUTH_TOKEN, token);
+  });
+
+  it("omits MULMOCLAUDE_AUTH_TOKEN when no token is configured", async () => {
+    // resetTokenState ensures getCurrentToken() returns null
+    const config = buildMcpConfig({
+      chatSessionId: "s1",
+      port: 3001,
+      activePlugins: [],
+      roleIds: [],
+    }) as Record<string, unknown>;
+
+    const servers = config.mcpServers as Record<string, unknown>;
+    const server = servers.mulmoclaude as Record<string, unknown>;
+    const env = server.env as Record<string, string>;
+    assert.equal(env.MULMOCLAUDE_AUTH_TOKEN, undefined);
   });
 });

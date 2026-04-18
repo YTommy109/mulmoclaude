@@ -16,7 +16,7 @@ Design decision (per #194): **persist to session jsonl, but store pointers to re
 ### Module layout
 
 ```
-server/tool-trace/
+server/workspace/tool-trace/
   classify.ts       — pure: (toolName, args, content) → { kind, contentRef, content, truncated }
   writeSearch.ts    — pure slug/path + thin I/O wrapper for saving searches/
   index.ts          — recordToolEvent(sessionId, event) driver; called from routes/agent.ts
@@ -109,7 +109,7 @@ export async function recordToolEvent(
 - `tool_call_result` → look up the cached call (for the `toolName` + `args`), classify, potentially call `writeSearchResult` first, then append a jsonl record with either `contentRef` or `content` + `truncated`.
 - All failures are caught and `log.warn("tool-trace", ...)` — driver never throws back into the agent loop.
 
-### Wire-up in `server/routes/agent.ts`
+### Wire-up in `server/api/routes/agent.ts`
 
 In the `for await (event of runAgent(...))` loop, after `send(event)`:
 
@@ -137,9 +137,9 @@ if (event.type === "tool_call" || event.type === "tool_call_result") {
 {"source":"tool","type":"tool_call_result","toolUseId":"<id>","content":"first-4k-chars","truncated":true,"ts":"..."}
 ```
 
-Existing `source: "user" / "assistant" / "tool"` semantics preserved; only new record types `tool_call` and `tool_call_result` are introduced. Any other server code that reads jsonl continues to see them as unknown types and skip (`server/routes/sessions.ts` already filters unknown entry types gracefully — verify & extend passthrough if needed).
+Existing `source: "user" / "assistant" / "tool"` semantics preserved; only new record types `tool_call` and `tool_call_result` are introduced. Any other server code that reads jsonl continues to see them as unknown types and skip (`server/api/routes/sessions.ts` already filters unknown entry types gracefully — verify & extend passthrough if needed).
 
-### Session loader (`server/routes/sessions.ts`)
+### Session loader (`server/api/routes/sessions.ts`)
 
 Minimal change: pass tool_call and tool_call_result entries through unchanged. Optionally, if we're feeling fancy, annotate pointer entries with a `refExists: boolean` flag so the frontend can grey-out dead pointers. Defer that polish to a follow-up.
 

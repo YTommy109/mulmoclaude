@@ -60,26 +60,56 @@
               </p>
             </div>
             <div class="flex items-center gap-2 shrink-0">
-              <button
-                v-if="detail && detail.source === 'project'"
-                class="px-3 py-1.5 text-sm rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-40 flex items-center gap-1"
-                :disabled="detailLoading || deleting"
-                data-testid="skill-delete-btn"
-                @click="deleteSkill"
-                title="Delete this project-scope skill"
-              >
-                <span class="material-icons text-base">delete</span>
-                Delete
-              </button>
-              <button
-                class="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 flex items-center gap-1"
-                :disabled="detailLoading || !detail"
-                data-testid="skill-run-btn"
-                @click="runSkill"
-              >
-                <span class="material-icons text-base">play_arrow</span>
-                Run
-              </button>
+              <template v-if="editing">
+                <button
+                  class="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50 flex items-center gap-1"
+                  data-testid="skill-cancel-btn"
+                  @click="cancelEdit"
+                >
+                  Cancel
+                </button>
+                <button
+                  class="px-3 py-1.5 text-sm rounded bg-green-600 hover:bg-green-700 text-white disabled:opacity-40 flex items-center gap-1"
+                  :disabled="saving"
+                  data-testid="skill-save-btn"
+                  @click="saveEdit"
+                >
+                  <span class="material-icons text-base">save</span>
+                  Save
+                </button>
+              </template>
+              <template v-else>
+                <button
+                  v-if="detail && detail.source === 'project'"
+                  class="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1"
+                  :disabled="detailLoading"
+                  data-testid="skill-edit-btn"
+                  @click="startEdit"
+                >
+                  <span class="material-icons text-base">edit</span>
+                  Edit
+                </button>
+                <button
+                  v-if="detail && detail.source === 'project'"
+                  class="px-3 py-1.5 text-sm rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-40 flex items-center gap-1"
+                  :disabled="detailLoading || deleting"
+                  data-testid="skill-delete-btn"
+                  @click="deleteSkill"
+                  title="Delete this project-scope skill"
+                >
+                  <span class="material-icons text-base">delete</span>
+                  Delete
+                </button>
+                <button
+                  class="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 flex items-center gap-1"
+                  :disabled="detailLoading || !detail"
+                  data-testid="skill-run-btn"
+                  @click="runSkill"
+                >
+                  <span class="material-icons text-base">play_arrow</span>
+                  Run
+                </button>
+              </template>
             </div>
           </div>
           <div v-if="detailLoading" class="text-sm text-gray-400 italic">
@@ -88,11 +118,40 @@
           <div v-else-if="detailError" class="text-sm text-red-600">
             {{ detailError }}
           </div>
-          <pre
-            v-else-if="detail"
-            class="text-xs text-gray-700 whitespace-pre-wrap font-mono bg-gray-50 p-4 rounded border border-gray-200"
-            >{{ detail.body || "(empty body)" }}</pre
-          >
+          <!-- Edit mode -->
+          <div v-else-if="editing && detail" class="space-y-4">
+            <div>
+              <label class="block text-xs font-medium text-gray-500 mb-1">
+                Description
+              </label>
+              <input
+                v-model="editDescription"
+                data-testid="skill-edit-description"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-800"
+              />
+            </div>
+            <div class="flex-1">
+              <label class="block text-xs font-medium text-gray-500 mb-1">
+                Body (Markdown)
+              </label>
+              <textarea
+                v-model="editBody"
+                data-testid="skill-edit-body"
+                class="w-full h-96 px-3 py-2 text-sm font-mono border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-800 resize-y"
+              ></textarea>
+            </div>
+          </div>
+          <!-- View mode -->
+          <!-- eslint-disable-next-line vue/no-v-html -- sanitized via DOMPurify -->
+          <div
+            v-else-if="detail && renderedBody"
+            class="markdown-content text-gray-700"
+            data-testid="skill-body-rendered"
+            v-html="renderedBody"
+          ></div>
+          <p v-else-if="detail" class="text-sm text-gray-400 italic">
+            (empty body)
+          </p>
         </div>
       </div>
     </div>
@@ -101,10 +160,13 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { ManageSkillsData, SkillSummary } from "./index";
 import { useAppApi } from "../../composables/useAppApi";
-import { apiGet, apiDelete } from "../../utils/api";
+import { apiGet, apiPut, apiDelete } from "../../utils/api";
+import { API_ROUTES } from "../../config/apiRoutes";
 
 interface SkillDetail {
   name: string;
@@ -127,10 +189,20 @@ const detail = ref<SkillDetail | null>(null);
 const detailLoading = ref(false);
 const detailError = ref<string | null>(null);
 const deleting = ref(false);
+const editing = ref(false);
+const saving = ref(false);
+const editDescription = ref("");
+const editBody = ref("");
 
 const selected = computed(
   () => skills.value.find((s) => s.name === selectedName.value) ?? null,
 );
+
+const renderedBody = computed(() => {
+  const body = detail.value?.body;
+  if (!body) return "";
+  return DOMPurify.sanitize(marked(body) as string);
+});
 
 // Reset the selection when the tool result is replaced (e.g. the
 // user opens a newer `manageSkills` invocation from the sidebar).
@@ -153,12 +225,14 @@ watch(
   async (name) => {
     if (!name) {
       detail.value = null;
+      editing.value = false;
       return;
     }
+    editing.value = false;
     detailLoading.value = true;
     detailError.value = null;
     const response = await apiGet<{ skill: SkillDetail }>(
-      `/api/skills/${encodeURIComponent(name)}`,
+      API_ROUTES.skills.detail.replace(":name", encodeURIComponent(name)),
     );
     if (selectedName.value !== name) {
       // Selection changed while this request was in flight — drop it.
@@ -174,6 +248,47 @@ watch(
   },
   { immediate: true },
 );
+
+function startEdit(): void {
+  if (!detail.value) return;
+  editDescription.value = detail.value.description;
+  editBody.value = detail.value.body;
+  editing.value = true;
+}
+
+function cancelEdit(): void {
+  editing.value = false;
+}
+
+async function saveEdit(): Promise<void> {
+  if (!detail.value) return;
+  const name = detail.value.name;
+  saving.value = true;
+  detailError.value = null;
+  const result = await apiPut<{ updated: boolean; path: string }>(
+    API_ROUTES.skills.update.replace(":name", encodeURIComponent(name)),
+    { description: editDescription.value, body: editBody.value },
+  );
+  saving.value = false;
+  if (!result.ok) {
+    detailError.value = `Save failed: ${result.error}`;
+    return;
+  }
+  detail.value = {
+    ...detail.value,
+    description: editDescription.value,
+    body: editBody.value,
+  };
+  // Update the sidebar summary too.
+  const idx = skills.value.findIndex((s) => s.name === name);
+  if (idx >= 0) {
+    skills.value[idx] = {
+      ...skills.value[idx],
+      description: editDescription.value,
+    };
+  }
+  editing.value = false;
+}
 
 // Run = send the skill invocation as a Claude Code slash command.
 // Claude CLI already knows about every ~/.claude/skills/<name>/SKILL.md
@@ -202,7 +317,7 @@ async function deleteSkill(): Promise<void> {
   }
   deleting.value = true;
   const result = await apiDelete<unknown>(
-    `/api/skills/${encodeURIComponent(name)}`,
+    API_ROUTES.skills.remove.replace(":name", encodeURIComponent(name)),
   );
   deleting.value = false;
   if (!result.ok) {

@@ -7,8 +7,8 @@ import { join } from "node:path";
 import {
   saveProjectSkill,
   deleteProjectSkill,
-} from "../../server/skills/writer.js";
-import { projectSkillPath } from "../../server/skills/paths.js";
+} from "../../server/workspace/skills/writer.js";
+import { projectSkillPath } from "../../server/workspace/skills/paths.js";
 
 let workspace: string;
 let userDir: string;

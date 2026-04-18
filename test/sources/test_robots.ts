@@ -5,7 +5,7 @@ import {
   selectGroup,
   isAllowedByRobots,
   matchesPattern,
-} from "../../server/sources/robots.js";
+} from "../../server/workspace/sources/robots.js";
 
 // --- parseRobots -----------------------------------------------------------
 

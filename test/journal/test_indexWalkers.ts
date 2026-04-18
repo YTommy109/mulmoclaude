@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseDailyFilename } from "../../server/journal/index.js";
+import { parseDailyFilename } from "../../server/workspace/journal/index.js";
 
 // `extractFirstH1` lives at src/utils/markdown/extractFirstH1.ts —
 // its tests are in test/utils/markdown/test_extractFirstH1.ts.

@@ -8,18 +8,21 @@ import {
   processReleasesResponse,
   firstParagraph,
   RELEASES_CURSOR_KEY,
-} from "../../server/sources/fetchers/githubReleases.js";
-import { GithubFetcherError } from "../../server/sources/fetchers/github.js";
-import type { Source, SourceState } from "../../server/sources/types.js";
-import type { FetcherDeps } from "../../server/sources/fetchers/index.js";
+} from "../../server/workspace/sources/fetchers/githubReleases.js";
+import { GithubFetcherError } from "../../server/workspace/sources/fetchers/github.js";
+import type {
+  Source,
+  SourceState,
+} from "../../server/workspace/sources/types.js";
+import type { FetcherDeps } from "../../server/workspace/sources/fetchers/index.js";
 import {
   HostRateLimiter,
   type RateLimiterDeps,
-} from "../../server/sources/rateLimiter.js";
+} from "../../server/workspace/sources/rateLimiter.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   type HttpFetcherDeps,
-} from "../../server/sources/httpFetcher.js";
+} from "../../server/workspace/sources/httpFetcher.js";
 
 // --- helpers -------------------------------------------------------------
 
@@ -465,7 +468,7 @@ describe("githubReleasesFetcher.fetch", () => {
 
   it("registers itself as the `github-releases` fetcher on import", async () => {
     const { getFetcher } =
-      await import("../../server/sources/fetchers/index.js");
+      await import("../../server/workspace/sources/fetchers/index.js");
     const fetcher = getFetcher("github-releases");
     assert.ok(fetcher);
     assert.equal(fetcher!.kind, "github-releases");

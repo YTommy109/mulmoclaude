@@ -73,7 +73,13 @@ test.describe("history panel (useSessionHistory)", () => {
       if (route.request().method() === "GET") {
         sessionFetchCount++;
       }
-      return route.fulfill({ json: [SESSION_A, SESSION_B] });
+      return route.fulfill({
+        json: {
+          sessions: [SESSION_A, SESSION_B],
+          cursor: "v1:0",
+          deletedIds: [],
+        },
+      });
     });
 
     await page.goto("/chat");

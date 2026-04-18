@@ -92,17 +92,29 @@ the Claude CLI + MCP + real file system side effects needs an actual
   MCP tool palette loads (check `claude mcp list` output)
 - **Journal daily pass**: run with `JOURNAL_FORCE_RUN_ON_STARTUP=1` and
   verify `workspace/summaries/daily/YYYY/MM/DD.md` gets written
+- **Stale `claude --resume` fail-over (#211)**: open an existing session,
+  edit `~/mulmoclaude/chat/<id>.json` to set `claudeSessionId` to a
+  random UUID the CLI has never seen. Send a message and verify:
+  (a) a status event "Previous session unavailable — continuing with
+  local transcript." surfaces in the UI, (b) the assistant reply
+  arrives and makes sense given the transcript, (c) after the turn
+  `chat/<id>.json` carries a fresh `claudeSessionId` (the new one
+  issued by the retried run), and (d) a follow-up turn resumes
+  cleanly on the new id. E2E is skipped here because faking the
+  Claude CLI's stderr across a real subprocess is brittle; the stale
+  detection + preamble construction are unit-tested in
+  `test/agent/test_resumeFailover.ts`.
 
 ## 5. Log output (not asserted by E2E)
 
-**Why manual**: the file-sink log goes to `server/logs/` and is not
+**Why manual**: the file-sink log goes to `server/system/logs/` and is not
 wired into the test assertions. Spot-checking is usually enough.
 
 ### What to check after logger changes
 
 - **Startup**: `yarn dev` → console shows `[workspace] / [sandbox] /
   [mcp] / [server] / [task-manager]` info lines at normal ISO timestamps
-- **Agent path**: `server/logs/server-YYYY-MM-DD.log` contains `[agent]`
+- **Agent path**: `server/system/logs/server-YYYY-MM-DD.log` contains `[agent]`
   request received / completed / CLI stderr line-by-line entries
 - **Tool-trace**: `[tool-trace] web_search starting` + `web_search saved`
   pair for a WebSearch turn; debug-level entries visible only under

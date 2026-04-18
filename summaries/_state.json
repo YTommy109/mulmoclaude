@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "lastDailyRunAt": "2026-04-16T02:25:23.185Z",
+  "lastOptimizationRunAt": "2026-04-12T13:55:46.468Z",
+  "dailyIntervalHours": 1,
+  "optimizationIntervalDays": 7,
+  "processedSessions": {
+    "5e155722-4f57-4bd5-b58a-fc4646cb4221": {
+      "lastMtimeMs": 1776026169470.063
+    },
+    "0d928773-9952-4978-85bb-a13e74578b8a": {
+      "lastMtimeMs": 1776227716150.725
+    },
+    "09d329f6-28e7-4e26-a7ec-0e45e0fc008d": {
+      "lastMtimeMs": 1776306322668.537
+    }
+  },
+  "knownTopics": [
+    "english-tts",
+    "kokukohi-master",
+    "logic-pro-podcast"
+  ]
+}

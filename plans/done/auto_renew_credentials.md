@@ -2,7 +2,7 @@
 
 ## Problem
 
-The existing `refreshCredentials()` in `server/credentials.ts` copies the OAuth token from macOS Keychain to `~/.claude/.credentials.json` for the Docker sandbox. However, when the **access token stored in the Keychain itself is expired**, copying it to the file just copies an expired token — the 401 error persists.
+The existing `refreshCredentials()` in `server/system/credentials.ts` copies the OAuth token from macOS Keychain to `~/.claude/.credentials.json` for the Docker sandbox. However, when the **access token stored in the Keychain itself is expired**, copying it to the file just copies an expired token — the 401 error persists.
 
 The host Claude CLI normally refreshes expired tokens automatically when it runs, but our code never triggers that refresh.
 
@@ -24,7 +24,7 @@ yarn add node-pty
 
 `node-pty` is a native module — it compiles on install. It works on macOS, Linux, and Windows. Since this credential renewal is macOS-only (`process.platform === "darwin"`), the PTY spawn only runs on macOS.
 
-### 2. Update `server/credentials.ts`
+### 2. Update `server/system/credentials.ts`
 
 #### New helper: `isTokenExpired(credentialsJson: string): boolean`
 
@@ -90,13 +90,13 @@ function renewTokenViaPty(): Promise<boolean> {
    e. Return true/false based on success
 ```
 
-### 3. No changes needed in `server/agent.ts`
+### 3. No changes needed in `server/agent/index.ts`
 
 The call site (`agent.ts:127-128`) already calls `refreshCredentials()` before each agent run. The new expiry check and PTY renewal are internal to `refreshCredentials()`.
 
 ### 4. Server console logging
 
-Every step of the renewal flow must be visible in the server console via the structured logger (`log.*` from `server/logger/`). Use prefix `"credentials"`.
+Every step of the renewal flow must be visible in the server console via the structured logger (`log.*` from `server/system/logger/`). Use prefix `"credentials"`.
 
 | Situation | Level | Example message |
 |---|---|---|

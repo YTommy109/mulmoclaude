@@ -9,11 +9,11 @@ import {
   MAX_REDIRECTS,
   type HttpFetcherDeps,
   type RobotsProvider,
-} from "../../server/sources/httpFetcher.js";
+} from "../../server/workspace/sources/httpFetcher.js";
 import {
   HostRateLimiter,
   type RateLimiterDeps,
-} from "../../server/sources/rateLimiter.js";
+} from "../../server/workspace/sources/rateLimiter.js";
 
 // Controllable clock for the rate limiter.
 function controllableClock(start = 0): {

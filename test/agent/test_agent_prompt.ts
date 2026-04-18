@@ -10,7 +10,18 @@ import {
   headingSection,
   prependJournalPointer,
 } from "../../server/agent/prompt.js";
+import { WORKSPACE_FILES } from "../../server/workspace/paths.js";
+import { dirname } from "path";
 import type { Role } from "../../src/config/roles.js";
+
+function ensureDir(p: string): void {
+  mkdirSync(p, { recursive: true });
+}
+function writeFileAt(workspace: string, rel: string, content: string): void {
+  const abs = join(workspace, rel);
+  ensureDir(dirname(abs));
+  writeFileSync(abs, content);
+}
 
 function makeRole(overrides?: Partial<Role>): Role {
   return {
@@ -66,7 +77,7 @@ describe("headingSection", () => {
 
 describe("buildMemoryContext", () => {
   it("includes memory.md content when file exists", () => {
-    writeFileSync(join(workspace, "memory.md"), "User prefers dark mode");
+    writeFileAt(workspace, WORKSPACE_FILES.memory, "User prefers dark mode");
     const result = buildMemoryContext(workspace);
     assert.ok(result.includes("User prefers dark mode"));
     assert.ok(result.includes("## Memory"));
@@ -80,7 +91,7 @@ describe("buildMemoryContext", () => {
   });
 
   it("skips empty memory.md", () => {
-    writeFileSync(join(workspace, "memory.md"), "   \n  ");
+    writeFileAt(workspace, WORKSPACE_FILES.memory, "   \n  ");
     const result = buildMemoryContext(workspace);
     assert.ok(result.includes("helps/index.md"));
     // The empty content is trimmed, so it won't appear
@@ -89,25 +100,26 @@ describe("buildMemoryContext", () => {
 });
 
 describe("buildWikiContext", () => {
-  it("returns null when wiki/index.md does not exist", () => {
+  it("returns path hint when wiki/index.md does not exist", () => {
     const result = buildWikiContext(workspace);
-    assert.equal(result, null);
+    assert.ok(result !== null);
+    assert.ok(result.includes("data/wiki/"));
+    assert.ok(result.includes("No wiki exists yet"));
   });
 
   it("returns layout description when index exists but no summary", () => {
-    mkdirSync(join(workspace, "wiki"), { recursive: true });
-    writeFileSync(join(workspace, "wiki", "index.md"), "# Index\n- page1");
+    writeFileAt(workspace, WORKSPACE_FILES.wikiIndex, "# Index\n- page1");
     const result = buildWikiContext(workspace);
     assert.ok(result !== null);
-    assert.ok(result.includes("wiki/index.md"));
-    assert.ok(result.includes("wiki/pages/"));
+    assert.ok(result.includes("data/wiki/index.md"));
+    assert.ok(result.includes("data/wiki/pages/"));
   });
 
   it("includes summary when summary.md exists", () => {
-    mkdirSync(join(workspace, "wiki"), { recursive: true });
-    writeFileSync(join(workspace, "wiki", "index.md"), "# Index");
-    writeFileSync(
-      join(workspace, "wiki", "summary.md"),
+    writeFileAt(workspace, WORKSPACE_FILES.wikiIndex, "# Index");
+    writeFileAt(
+      workspace,
+      WORKSPACE_FILES.wikiSummary,
       "Key topics: AI, cooking",
     );
     const result = buildWikiContext(workspace);
@@ -117,23 +129,21 @@ describe("buildWikiContext", () => {
   });
 
   it("includes schema hint when SCHEMA.md exists", () => {
-    mkdirSync(join(workspace, "wiki"), { recursive: true });
-    writeFileSync(join(workspace, "wiki", "index.md"), "# Index");
-    writeFileSync(join(workspace, "wiki", "SCHEMA.md"), "# Schema");
+    writeFileAt(workspace, WORKSPACE_FILES.wikiIndex, "# Index");
+    writeFileAt(workspace, WORKSPACE_FILES.wikiSchema, "# Schema");
     const result = buildWikiContext(workspace);
     assert.ok(result !== null);
-    assert.ok(result.includes("wiki/SCHEMA.md"));
+    assert.ok(result.includes("data/wiki/SCHEMA.md"));
   });
 
   it("falls back to layout hint when summary.md is empty", () => {
-    mkdirSync(join(workspace, "wiki"), { recursive: true });
-    writeFileSync(join(workspace, "wiki", "index.md"), "# Index");
-    writeFileSync(join(workspace, "wiki", "summary.md"), "  ");
+    writeFileAt(workspace, WORKSPACE_FILES.wikiIndex, "# Index");
+    writeFileAt(workspace, WORKSPACE_FILES.wikiSummary, "  ");
     const result = buildWikiContext(workspace);
     assert.ok(result !== null);
     assert.ok(!result.includes('<reference type="wiki-summary">'));
-    assert.ok(result.includes("wiki/index.md"));
-    assert.ok(result.includes("wiki/pages/"));
+    assert.ok(result.includes("data/wiki/index.md"));
+    assert.ok(result.includes("data/wiki/pages/"));
   });
 });
 
@@ -180,7 +190,7 @@ describe("buildSystemPrompt", () => {
   });
 
   it("contains memory context", () => {
-    writeFileSync(join(workspace, "memory.md"), "Remember this");
+    writeFileAt(workspace, WORKSPACE_FILES.memory, "Remember this");
     const role = makeRole();
     const result = buildSystemPrompt({
       role,
@@ -191,25 +201,25 @@ describe("buildSystemPrompt", () => {
   });
 
   it("includes wiki context when wiki exists", () => {
-    mkdirSync(join(workspace, "wiki"), { recursive: true });
-    writeFileSync(join(workspace, "wiki", "index.md"), "# Index");
+    writeFileAt(workspace, WORKSPACE_FILES.wikiIndex, "# Index");
     const role = makeRole();
     const result = buildSystemPrompt({
       role,
       workspacePath: workspace,
       useDocker: false,
     });
-    assert.ok(result.includes("wiki/index.md"));
+    assert.ok(result.includes("data/wiki/index.md"));
   });
 
-  it("omits wiki context when wiki does not exist", () => {
+  it("includes wiki path hint even when wiki does not exist", () => {
     const role = makeRole();
     const result = buildSystemPrompt({
       role,
       workspacePath: workspace,
       useDocker: false,
     });
-    assert.ok(!result.includes("wiki/index.md"));
+    assert.ok(result.includes("No wiki exists yet"));
+    assert.ok(result.includes("data/wiki/"));
   });
 
   it("includes plugin prompt sections from ToolDefinition.prompt", () => {
@@ -263,9 +273,9 @@ describe("buildSystemPrompt", () => {
 
 describe("prependJournalPointer", () => {
   function writeJournalIndex(): void {
-    mkdirSync(join(workspace, "summaries"), { recursive: true });
-    writeFileSync(
-      join(workspace, "summaries", "_index.md"),
+    writeFileAt(
+      workspace,
+      WORKSPACE_FILES.summariesIndex,
       "# Workspace Journal\n\n- refactoring\n- video-generation\n",
     );
   }

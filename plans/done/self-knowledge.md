@@ -4,20 +4,20 @@
 
 When a user asks "What is MulmoClaude?" in the general role for the first time, the LLM cannot answer — its system prompt contains only the role persona, workspace path, today's date, and wiki context. There is no description of MulmoClaude itself.
 
-CLAUDE.md describes `workspace/memory.md` as "distilled facts always loaded as context," but `server/agent.ts` never reads or injects it. This is an unimplemented feature that also solves the self-knowledge problem.
+CLAUDE.md describes `workspace/memory.md` as "distilled facts always loaded as context," but `server/agent/index.ts` never reads or injects it. This is an unimplemented feature that also solves the self-knowledge problem.
 
 ## Solution
 
 Two coordinated changes:
 
-1. **Implement `memory.md` injection in `server/agent.ts`** — read `{workspacePath}/memory.md` if it exists and append it to the system prompt.
+1. **Implement `memory.md` injection in `server/agent/index.ts`** — read `{workspacePath}/memory.md` if it exists and append it to the system prompt.
 2. **Seed the workspace with a default `memory.md`** — ship a `workspace/memory.md` template that describes what MulmoClaude is, its roles, and its capabilities. This file is already listed in `.gitignore` exclusions if it is user-editable, so check first; otherwise ship it as a committed default.
 
 ---
 
 ## Implementation Steps
 
-### Step 1 — Load `memory.md` in `server/agent.ts`
+### Step 1 — Load `memory.md` in `server/agent/index.ts`
 
 In `buildWikiContext`'s pattern, add a `buildMemoryContext` function:
 
@@ -136,6 +136,6 @@ The `memory.md` approach is more aligned with the project's "workspace as databa
 
 | File | Change |
 |---|---|
-| `server/agent.ts` | Add `buildMemoryContext()`, inject into `systemPrompt` |
+| `server/agent/index.ts` | Add `buildMemoryContext()`, inject into `systemPrompt` |
 | `workspace/about.md` | New — full self-description of MulmoClaude |
 | `workspace/memory.md` | New — empty default (link to `about.md` is injected by agent.ts, not stored here) |

@@ -37,7 +37,7 @@
 
 ## データモデル
 
-### 現状 (`server/routes/todos.ts:9-16`, `src/plugins/todo/index.ts:6-13`)
+### 現状 (`server/api/routes/todos.ts:9-16`, `src/plugins/todo/index.ts:6-13`)
 
 ```ts
 interface TodoItem {
@@ -166,7 +166,7 @@ REST 風に items とカラムを別リソースとして扱う。Express の `R
 
 ### ハンドラ実装方針
 
-- `server/routes/todos.ts` を router 単位で分割し、items / columns 用の純粋ハンドラを `server/routes/todosItemsHandlers.ts` / `server/routes/todosColumnsHandlers.ts` (新規) に切り出す。`todosHandlers.ts` (既存 MCP action 用) はそのまま温存。
+- `server/api/routes/todos.ts` を router 単位で分割し、items / columns 用の純粋ハンドラを `server/api/routes/todosItemsHandlers.ts` / `server/api/routes/todosColumnsHandlers.ts` (新規) に切り出す。`todosHandlers.ts` (既存 MCP action 用) はそのまま温存。
 - すべてのハンドラは `(state, input) => result` の純粋関数として書き、route handler は I/O だけ担当する（既存 `dispatchTodos` パターンを踏襲）。
 - I/O は引き続き `server/utils/file.ts` の `loadJsonFile` / `saveJsonFile` を使う。
 
@@ -271,15 +271,15 @@ Scheduler パターンを踏襲。`todos/todos.json` を選択した時に、`to
 
 ### Phase 1 — データモデル & REST API
 
-1. `TodoItem` に `status` / `priority` / `dueDate` / `order` を追加（`server/routes/todos.ts` と `src/plugins/todo/index.ts` の両方）
-2. `workspace/todos/columns.json` の load / save と `DEFAULT_COLUMNS` 定数を `server/routes/todosColumnsHandlers.ts` (新規) に実装
+1. `TodoItem` に `status` / `priority` / `dueDate` / `order` を追加（`server/api/routes/todos.ts` と `src/plugins/todo/index.ts` の両方）
+2. `workspace/todos/columns.json` の load / save と `DEFAULT_COLUMNS` 定数を `server/api/routes/todosColumnsHandlers.ts` (新規) に実装
 3. マイグレーションロジック（loadTodos 時に既存 item に status / order を補完）— 既存 MCP 経路の挙動が壊れないことを既存テストで担保
 4. 新 REST ルートの実装:
-   - `server/routes/todosItemsHandlers.ts` — items 用純粋ハンドラ
-   - `server/routes/todosColumnsHandlers.ts` — columns 用純粋ハンドラ
-   - `server/routes/todos.ts` に `PATCH /items/:id` / `POST /items/:id/move` / `DELETE /items/:id` / `POST /items` / `GET|POST|PATCH|DELETE /columns(/:id)` / `PUT /columns/order` を追加
+   - `server/api/routes/todosItemsHandlers.ts` — items 用純粋ハンドラ
+   - `server/api/routes/todosColumnsHandlers.ts` — columns 用純粋ハンドラ
+   - `server/api/routes/todos.ts` に `PATCH /items/:id` / `POST /items/:id/move` / `DELETE /items/:id` / `POST /items` / `GET|POST|PATCH|DELETE /columns(/:id)` / `PUT /columns/order` を追加
 5. `GET /api/todos` のレスポンスに `columns` を含める
-6. `manageTodoList` MCP の既存ハンドラ (`server/routes/todosHandlers.ts`) は触らないが、**新フィールド保持**のための regression test を追加（`update` を呼んでも `status` / `priority` / `dueDate` が消えないこと）
+6. `manageTodoList` MCP の既存ハンドラ (`server/api/routes/todosHandlers.ts`) は触らないが、**新フィールド保持**のための regression test を追加（`update` を呼んでも `status` / `priority` / `dueDate` が消えないこと）
 7. **テスト**:
    - `test/test_todos_items_handlers.ts` (新規) — 新 REST ハンドラのハッピーパス + バリデーション + マイグレーション
    - `test/test_todos_columns_handlers.ts` (新規) — 列追加 / 削除（done 列維持ルール含む）/ リネーム / 並び替え
@@ -321,15 +321,15 @@ Scheduler パターンを踏襲。`todos/todos.json` を選択した時に、`to
 - `src/components/todo/TodoListView.vue`
 - `src/plugins/todo/composables/useTodos.ts`
 - `src/plugins/todo/priority.ts`
-- `server/routes/todosItemsHandlers.ts`
-- `server/routes/todosColumnsHandlers.ts`
+- `server/api/routes/todosItemsHandlers.ts`
+- `server/api/routes/todosColumnsHandlers.ts`
 - `test/test_todos_items_handlers.ts`
 - `test/test_todos_columns_handlers.ts`
 
 ### 編集
 
-- `server/routes/todos.ts` — 新 REST ルート追加・`GET` レスポンスに columns 同梱
-- `server/routes/todosHandlers.ts` — マイグレーション後の新フィールドを保持するよう既存 `update` ハンドラを微調整 + regression test
+- `server/api/routes/todos.ts` — 新 REST ルート追加・`GET` レスポンスに columns 同梱
+- `server/api/routes/todosHandlers.ts` — マイグレーション後の新フィールドを保持するよう既存 `update` ハンドラを微調整 + regression test
 - `src/plugins/todo/index.ts` — TodoItem 拡張（`status` / `priority` / `dueDate` / `order`）
 - `src/plugins/todo/Preview.vue` — status / priority / dueDate の小バッジ追加（オプション）
 - `src/components/FilesView.vue` — TodoExplorer 統合
@@ -340,7 +340,7 @@ Scheduler パターンを踏襲。`todos/todos.json` を選択した時に、`to
 
 - `src/plugins/todo/definition.ts` — **MCP ツール定義は無変更**
 - `src/plugins/todo/View.vue` — 既存チャット内 view は無変更（必要なら Phase 4 で refactor）
-- `server/agent.ts` (`MCP_PLUGINS` には既に `manageTodoList` がいる前提)
+- `server/agent/index.ts` (`MCP_PLUGINS` には既に `manageTodoList` がいる前提)
 - `src/tools/index.ts` (todo plugin 登録済み)
 - `src/config/roles.ts` (既存ロールに含まれている前提 — 要確認)
 
@@ -359,7 +359,7 @@ Scheduler パターンを踏襲。`todos/todos.json` を選択した時に、`to
 
 - **`completed` フィールドとの二重管理**: 後方互換のため残すが、`isDone` 列との同期を間違えると view が壊れる。Phase 1 のテストで全パターンを golden test する。
 - **drag & drop の競合**: 楽観的更新後にサーバが reject した場合の rollback。`useTodos.applyMove` で前状態を保持して失敗時に戻す。
-- **既存 MCP ハンドラとの併存**: マイグレーションで追加された `status` / `order` を、既存 `update` ハンドラ (`server/routes/todosHandlers.ts:132-161`) が上書きで消してしまう罠がある。`...target` のスプレッドが効いていることを regression test で確認する。
+- **既存 MCP ハンドラとの併存**: マイグレーションで追加された `status` / `order` を、既存 `update` ハンドラ (`server/api/routes/todosHandlers.ts:132-161`) が上書きで消してしまう罠がある。`...target` のスプレッドが効いていることを regression test で確認する。
 - **既存 chat view (`src/plugins/todo/View.vue`) との回帰**: 触らない方針だが、`GET /api/todos` のレスポンス形 `{ data: { items, columns } }` に変わるため、フロントが `data.items` を読んでいる箇所が壊れないかを実機で確認する（既存実装は `result.data?.items` を読んでいるので問題ないはず）。
 
 ---
@@ -369,8 +369,8 @@ Scheduler パターンを踏襲。`todos/todos.json` を選択した時に、`to
 - `src/plugins/todo/View.vue` — 既存リスト + YAML editor
 - `src/plugins/todo/labels.ts` — 既存ラベルロジック (色 / フィルタ / 集計)
 - `src/plugins/todo/Preview.vue` — sidebar preview
-- `server/routes/todos.ts:9-16` — TodoItem
-- `server/routes/todosHandlers.ts:302-316` — HANDLERS map（新 action 追加先）
+- `server/api/routes/todos.ts:9-16` — TodoItem
+- `server/api/routes/todosHandlers.ts:302-316` — HANDLERS map（新 action 追加先）
 - `src/components/FilesView.vue:58-60` / `src/components/FilesView.vue:298-317` — Scheduler の特殊ケース統合パターン
 - `src/plugins/scheduler/View.vue` — full-canvas plugin view の参考実装
 - `plans/feat-todo-labels.md` — labels 機能の前 PR の設計（流儀の参考）

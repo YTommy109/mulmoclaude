@@ -18,8 +18,11 @@
 // constant from the router file. Keep the nesting shallow and the
 // key names matched to the last URL segment where possible.
 
+import { CHAT_SERVICE_ROUTES } from "@mulmobridge/protocol";
+
 export const API_ROUTES = {
   health: "/api/health",
+  sandbox: "/api/sandbox",
 
   agent: {
     run: "/api/agent",
@@ -38,12 +41,8 @@ export const API_ROUTES = {
     rebuild: "/api/chat-index/rebuild",
   },
 
-  chatService: {
-    // POST /api/chat/:transportId/:externalChatId           — send a message
-    // POST /api/chat/:transportId/:externalChatId/connect   — set active session
-    message: "/api/chat/:transportId/:externalChatId",
-    connect: "/api/chat/:transportId/:externalChatId/connect",
-  },
+  // Single source of truth: @mulmobridge/protocol. See plans/messaging_transports.md.
+  chatService: CHAT_SERVICE_ROUTES,
 
   config: {
     base: "/api/config",
@@ -74,6 +73,12 @@ export const API_ROUTES = {
   mcpTools: {
     list: "/api/mcp-tools",
     invoke: "/api/mcp-tools/:tool",
+  },
+
+  notifications: {
+    // PoC endpoint for scheduled push fan-out (Web pub-sub + bridge).
+    // Scaffolding for #144 / #142 — see plans/feat-notification-push-scaffold.md.
+    test: "/api/notifications/test",
   },
 
   mulmoScript: {
@@ -131,6 +136,7 @@ export const API_ROUTES = {
     list: "/api/skills",
     detail: "/api/skills/:name",
     create: "/api/skills",
+    update: "/api/skills/:name",
     remove: "/api/skills/:name",
   },
 

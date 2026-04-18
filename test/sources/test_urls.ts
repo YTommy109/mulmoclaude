@@ -1,6 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeUrl, stableItemId } from "../../server/sources/urls.js";
+import {
+  normalizeUrl,
+  stableItemId,
+} from "../../server/workspace/sources/urls.js";
 
 describe("normalizeUrl — happy path", () => {
   it("returns a canonical form for a plain URL", () => {

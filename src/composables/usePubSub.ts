@@ -1,3 +1,5 @@
+import { io, type Socket } from "socket.io-client";
+
 interface PubSubMessage {
   channel: string;
   data: unknown;
@@ -6,75 +8,66 @@ interface PubSubMessage {
 type Callback = (data: unknown) => void;
 type Unsubscribe = () => void;
 
-let ws: WebSocket | null = null;
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let reconnectDelay = 1000;
-const MAX_RECONNECT_DELAY = 30000;
+// Socket.IO replaces the raw WebSocket + hand-rolled reconnect
+// state machine. One multiplexed connection; channels map to
+// socket.io rooms via `subscribe` / `unsubscribe` events.
+//
+// Reconnect / backoff / heartbeat are all handled by socket.io,
+// so there's no reconnectTimer / reconnectDelay here anymore. On
+// reconnect, `connect` fires again and we re-send every
+// subscription the client still cares about.
+
+let socket: Socket | null = null;
 
 const listeners = new Map<string, Set<Callback>>();
 
-function getWsUrl(): string {
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${location.host}/ws/pubsub`;
-}
-
-function sendSubscriptions() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+function resendSubscriptions(s: Socket): void {
   for (const channel of listeners.keys()) {
-    ws.send(JSON.stringify({ action: "subscribe", channel }));
+    s.emit("subscribe", channel);
   }
 }
 
-function connect() {
-  if (ws) return;
+function connect(): Socket {
+  if (socket) return socket;
 
-  const socket = new WebSocket(getWsUrl());
+  const s = io({
+    path: "/ws/pubsub",
+    // Match the server. Long-polling is fine as a fallback but
+    // the server refuses it, so don't negotiate it here either —
+    // fail fast if the WS upgrade doesn't go through.
+    transports: ["websocket"],
+  });
 
-  socket.onopen = () => {
-    reconnectDelay = 1000;
-    sendSubscriptions();
-  };
+  s.on("connect", () => resendSubscriptions(s));
 
-  socket.onmessage = (event) => {
-    try {
-      const msg: PubSubMessage = JSON.parse(String(event.data));
-      const cbs = listeners.get(msg.channel);
-      if (cbs) {
-        for (const cb of cbs) {
-          cb(msg.data);
-        }
-      }
-    } catch {
-      // Ignore malformed messages
+  s.on("data", (msg: PubSubMessage) => {
+    const cbs = listeners.get(msg.channel);
+    if (cbs) {
+      for (const cb of cbs) cb(msg.data);
     }
-  };
+  });
 
-  socket.onclose = () => {
-    ws = null;
-    if (listeners.size > 0) {
-      reconnectTimer = setTimeout(() => {
-        reconnectTimer = null;
-        connect();
-      }, reconnectDelay);
-      reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
-    }
-  };
+  socket = s;
+  return s;
+}
 
-  socket.onerror = () => {
-    socket.close();
-  };
-
-  ws = socket;
+function maybeDisconnect(): void {
+  if (listeners.size > 0) return;
+  if (!socket) return;
+  socket.disconnect();
+  socket = null;
 }
 
 export function usePubSub() {
   function subscribe(channel: string, callback: Callback): Unsubscribe {
     if (!listeners.has(channel)) listeners.set(channel, new Set());
     listeners.get(channel)!.add(callback);
-    connect();
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ action: "subscribe", channel }));
-    }
+
+    const s = connect();
+    if (s.connected) s.emit("subscribe", channel);
+    // If not yet connected, the "connect" handler replays every
+    // listener's subscription, so newly-added channels are
+    // covered without extra bookkeeping.
 
     return () => {
       const cbs = listeners.get(channel);
@@ -82,22 +75,9 @@ export function usePubSub() {
       cbs.delete(callback);
       if (cbs.size === 0) {
         listeners.delete(channel);
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ action: "unsubscribe", channel }));
-        }
+        if (socket?.connected) socket.emit("unsubscribe", channel);
       }
-
-      // Close connection if no listeners remain
-      if (listeners.size === 0) {
-        if (reconnectTimer) {
-          clearTimeout(reconnectTimer);
-          reconnectTimer = null;
-        }
-        if (ws) {
-          ws.close();
-          ws = null;
-        }
-      }
+      maybeDisconnect();
     };
   }
 

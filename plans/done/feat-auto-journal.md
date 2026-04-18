@@ -75,7 +75,7 @@ interface JournalState {
 
 ## Trigger model
 
-**Piggyback on existing session-end events** — the agent loop in `server/routes/agent.ts` already has a `finally { removeSession(); res.end(); }` block. Add a fire-and-forget call to `maybeRunJournal()` there.
+**Piggyback on existing session-end events** — the agent loop in `server/api/routes/agent.ts` already has a `finally { removeSession(); res.end(); }` block. Add a fire-and-forget call to `maybeRunJournal()` there.
 
 `maybeRunJournal()`:
 1. Read `_state.json` (create with defaults if absent)
@@ -244,7 +244,7 @@ server/
 ```
 
 Hooked from:
-- `server/routes/agent.ts` — `finally` block calls `maybeRunJournal()` (fire-and-forget)
+- `server/api/routes/agent.ts` — `finally` block calls `maybeRunJournal()` (fire-and-forget)
 
 ## Testability
 
@@ -283,16 +283,16 @@ At minimum each file covers: happy path, empty case, boundary case (interval exa
 
 **All in this PR** — Phase 1 (daily + topic) and Phase 2 (optimization) ship together:
 
-1. `server/journal/paths.ts` + tests
-2. `server/journal/state.ts` + tests (including atomic write)
-3. `server/journal/diff.ts` + tests
-4. `server/journal/indexFile.ts` + tests
-5. `server/journal/archivist.ts` — `claude` CLI subprocess wrapper with injectable `summarize`
-6. `server/journal/dailyPass.ts` — ties the above together for daily + topic updates, checkpointing `_state.json` after every day
-7. `server/journal/optimizationPass.ts` + tests for classification logic
-8. `server/journal/linkRewrite.ts` + tests — `/wiki/foo.md` → `../../wiki/foo.md` post-processor
-9. `server/journal/index.ts` — `maybeRunJournal()` entry with lock, chains daily then optimization, supports `{ force: true }` for debug
-10. `server/routes/agent.ts` — call `maybeRunJournal()` in `finally` block (fire-and-forget)
+1. `server/workspace/journal/paths.ts` + tests
+2. `server/workspace/journal/state.ts` + tests (including atomic write)
+3. `server/workspace/journal/diff.ts` + tests
+4. `server/workspace/journal/indexFile.ts` + tests
+5. `server/workspace/journal/archivist.ts` — `claude` CLI subprocess wrapper with injectable `summarize`
+6. `server/workspace/journal/dailyPass.ts` — ties the above together for daily + topic updates, checkpointing `_state.json` after every day
+7. `server/workspace/journal/optimizationPass.ts` + tests for classification logic
+8. `server/workspace/journal/linkRewrite.ts` + tests — `/wiki/foo.md` → `../../wiki/foo.md` post-processor
+9. `server/workspace/journal/index.ts` — `maybeRunJournal()` entry with lock, chains daily then optimization, supports `{ force: true }` for debug
+10. `server/api/routes/agent.ts` — call `maybeRunJournal()` in `finally` block (fire-and-forget)
 11. `server/index.ts` — honour `JOURNAL_FORCE_RUN_ON_STARTUP=1` for debug startup run
 12. `src/utils/path/relativeLink.ts` + tests — `isExternalHref`, `resolveWorkspaceLink`, `extractSessionIdFromPath`
 13. `src/components/FilesView.vue` — markdown link click handler, emits `loadSession` for chat jsonl targets

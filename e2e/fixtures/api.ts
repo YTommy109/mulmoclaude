@@ -67,13 +67,27 @@ export async function mockAllApis(
     route.fulfill({ json: DEFAULT_HEALTH }),
   );
 
+  // `/api/sandbox` mirrors the real server's empty-object contract
+  // when the sandbox is off (#329). Tests that need the enabled
+  // branch override this route BEFORE calling mockAllApis —
+  // Playwright checks last-registered-first.
+  await page.route(urlEndsWith("/api/sandbox"), (route) =>
+    route.fulfill({ json: {} }),
+  );
+
   await page.route(urlEndsWith("/api/roles"), (route) =>
     route.fulfill({ json: DEFAULT_ROLES }),
   );
 
   await page.route(urlEndsWith("/api/sessions"), (route) => {
     if (route.request().method() === "GET") {
-      return route.fulfill({ json: sessions });
+      // Envelope shape from #205. Any test that wants to simulate
+      // a diff can override this route with its own handler — the
+      // catch-all always returns the full list and an empty
+      // deletedIds, which is the first-call / cold-start answer.
+      return route.fulfill({
+        json: { sessions, cursor: "v1:0", deletedIds: [] },
+      });
     }
     return route.fallback();
   });

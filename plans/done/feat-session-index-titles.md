@@ -13,7 +13,7 @@ You: 次のステップを教えて
 You: さっきの話の続きだけど
 ```
 
-The workspace journal (`server/journal/`) produces topic / daily summaries, but it does **not** look at the sidebar session list — sessions are still keyed by raw first message.
+The workspace journal (`server/workspace/journal/`) produces topic / daily summaries, but it does **not** look at the sidebar session list — sessions are still keyed by raw first message.
 
 ## Solution
 
@@ -29,18 +29,18 @@ PR #94 shipped three phases:
 |---|---|---|
 | **1** | Background indexer + summarizer + `setInterval` scheduler, writing `chat/index/<id>.json` + `manifest.json` | **Reused** — keep summarizer + per-session file + manifest. **Drop** the 6-hour `setInterval` scheduler; fire from the agent `finally` hook instead. |
 | **2** | `/api/sessions` reads the manifest and `src/App.vue` renders `session.summary` as a second line | **Reused** verbatim (both files need small changes relative to the current main) |
-| **3** | `searchChatHistory` MCP tool with scoring (keyword +5 / title +3 / summary +1), `src/plugins/searchChatHistory/`, `server/routes/chat-history.ts`, `server/chat-index/search.ts`, `agent/prompt.ts` hint, every role opted-in | **Dropped entirely** — the journal's `summaries/_index.md` + topic files already cover past-conversation lookup, and #117 wires a journal pointer into the agent's first-turn context. |
+| **3** | `searchChatHistory` MCP tool with scoring (keyword +5 / title +3 / summary +1), `src/plugins/searchChatHistory/`, `server/api/routes/chat-history.ts`, `server/workspace/chat-index/search.ts`, `agent/prompt.ts` hint, every role opted-in | **Dropped entirely** — the journal's `summaries/_index.md` + topic files already cover past-conversation lookup, and #117 wires a journal pointer into the agent's first-turn context. |
 
 **Why drop Phase 3:** Topic summaries are already distilled knowledge; session summaries are noisier and lower information-density. Giving Claude a scoring-based full-text search across session summaries duplicates what the topic files do better. Claude can still read individual session jsonls via `read` if it genuinely needs transcript detail — that's rare enough not to warrant a dedicated tool.
 
 ## Trigger: fire from agent finally, not setInterval
 
-PR #94's `server/chat-index/scheduler.ts` set up a `setInterval` in `server/index.ts` that refreshed stale sessions every 6 hours. That works but duplicates the "am I due to run?" machinery the journal already has.
+PR #94's `server/workspace/chat-index/scheduler.ts` set up a `setInterval` in `server/index.ts` that refreshed stale sessions every 6 hours. That works but duplicates the "am I due to run?" machinery the journal already has.
 
 The new design mirrors `maybeRunJournal`:
 
 ```ts
-// server/routes/agent.ts (finally block)
+// server/api/routes/agent.ts (finally block)
 removeSession(sessionId);
 res.end();
 maybeRunJournal({ activeSessionIds: getActiveSessionIds() }).catch(...);
@@ -80,13 +80,13 @@ curl -X POST http://localhost:3000/api/chat-index/rebuild
 ## File layout (proposed)
 
 ```
-server/chat-index/
+server/workspace/chat-index/
   types.ts        ChatIndexEntry, ChatIndexManifest, SummaryResult
   summarizer.ts   extractText, truncate, summarizeJsonl, parseClaudeJsonResult, validateSummaryResult
   indexer.ts      readManifest, writeManifest, indexSession, isFresh
   index.ts        maybeIndexSession (public entry, fire-and-forget, lock + sentinel)
 
-test/server/chat-index/
+test/server/workspace/chat-index/
   test_summarizer.ts   extractText / truncate / parseClaudeJsonResult / validateSummaryResult — no claude CLI
   test_indexer.ts      indexSession with summarize stub: happy path, freshness skip, manifest upsert + sort, write failure tolerance
   test_index.ts        maybeIndexSession with lock + activeSessionIds guard
@@ -94,8 +94,8 @@ test/server/chat-index/
 
 Existing files to edit:
 
-- `server/routes/agent.ts` — add the `maybeIndexSession(...)` call in `finally`
-- `server/routes/sessions.ts` — load manifest once per `/api/sessions` request, join by id, prefer `indexEntry.title` for `preview`, spread `summary` / `keywords` when defined
+- `server/api/routes/agent.ts` — add the `maybeIndexSession(...)` call in `finally`
+- `server/api/routes/sessions.ts` — load manifest once per `/api/sessions` request, join by id, prefer `indexEntry.title` for `preview`, spread `summary` / `keywords` when defined
 - `src/App.vue` — render `session.summary` as a second line in the history popup
 - `src/types/session.ts` — already has optional `summary` / `keywords` fields marked "populated by the chat indexer (PR #94) when present" (see `src/types/session.ts:22-23`). Update the comment to reference this PR after it lands.
 
@@ -106,8 +106,8 @@ Existing files to edit:
 Three reviewable commits, analogous to `feat/use-fresh-plugin-data`:
 
 1. **docs**: this plan file
-2. **feat(chat-index)**: `server/chat-index/*` + unit tests (no wiring yet — server/client untouched so tests can land green on their own)
-3. **feat(sessions)**: wire the indexer into the agent `finally` hook, update `server/routes/sessions.ts` to join the manifest, update `src/App.vue` to render the second line, update the comment in `src/types/session.ts`
+2. **feat(chat-index)**: `server/workspace/chat-index/*` + unit tests (no wiring yet — server/client untouched so tests can land green on their own)
+3. **feat(sessions)**: wire the indexer into the agent `finally` hook, update `server/api/routes/sessions.ts` to join the manifest, update `src/App.vue` to render the second line, update the comment in `src/types/session.ts`
 
 ## Summarizer specifics (cherry-picked from PR #94)
 

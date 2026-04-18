@@ -27,16 +27,18 @@
             @click="toggleHistory"
           >
             <span class="material-icons">history</span>
-            <!-- Active sessions badge -->
+            <!-- Active sessions badge (yellow, left) -->
             <span
               v-if="activeSessionCount > 0"
-              class="absolute -top-1.5 -left-1.5 min-w-[1rem] h-4 px-0.5 bg-yellow-400 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none"
+              class="absolute -top-1.5 -left-1.5 min-w-[1rem] h-4 px-0.5 bg-yellow-400 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none cursor-help"
+              :title="`${activeSessionCount} active session${activeSessionCount > 1 ? 's' : ''} (agent running)`"
               >{{ activeSessionCount }}</span
             >
-            <!-- Unread replies badge -->
+            <!-- Unread replies badge (red, right) -->
             <span
               v-if="unreadCount > 0"
-              class="absolute -top-1.5 -right-1.5 min-w-[1rem] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none"
+              class="absolute -top-1.5 -right-1.5 min-w-[1rem] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none cursor-help"
+              :title="`${unreadCount} unread repl${unreadCount > 1 ? 'ies' : 'y'}`"
               >{{ unreadCount }}</span
             >
           </button>
@@ -74,6 +76,7 @@
         :current-session-id="currentSessionId"
         :roles="roles"
         :top-offset="headerRef?.offsetHeight"
+        :error-message="historyError"
         @load-session="loadSession"
       />
 
@@ -217,29 +220,117 @@
       </div>
 
       <!-- Text input -->
-      <div class="p-4 border-t border-gray-200">
-        <div class="flex gap-2">
+      <div
+        class="p-4 border-t border-gray-200"
+        @dragover.prevent
+        @drop="onDropFile"
+      >
+        <div
+          v-if="fileError"
+          class="mb-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-1.5"
+          data-testid="file-error"
+        >
+          {{ fileError }}
+        </div>
+        <ChatAttachmentPreview
+          v-if="pastedFile"
+          :data-url="pastedFile.dataUrl"
+          :filename="pastedFile.name"
+          :mime="pastedFile.mime"
+          @remove="pastedFile = null"
+        />
+        <div class="flex gap-2" :class="{ 'mt-2': pastedFile }">
           <textarea
             ref="textareaRef"
             v-model="userInput"
             data-testid="user-input"
             placeholder="Type a task..."
-            rows="2"
-            class="flex-1 bg-white border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
+            :rows="inputFocused ? 8 : 2"
+            class="flex-1 bg-white border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed resize-none transition-all duration-200"
+            :class="inputFocused ? 'ring-2 ring-blue-300' : ''"
             :disabled="isRunning"
-            @compositionstart="onCompositionStart"
-            @compositionend="onCompositionEnd"
-            @keydown="onTextareaKeydown"
-            @blur="onTextareaBlur"
+            @focus="inputFocused = true"
+            @compositionstart="imeEnter.onCompositionStart"
+            @compositionend="imeEnter.onCompositionEnd"
+            @keydown="imeEnter.onKeydown"
+            @blur="onInputBlur"
+            @paste="onPasteFile"
           />
-          <button
-            data-testid="send-btn"
-            class="bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            :disabled="isRunning"
-            @click="sendMessage()"
+          <div class="flex flex-col gap-1">
+            <button
+              data-testid="send-btn"
+              class="bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="isRunning"
+              @click="sendMessage()"
+            >
+              <span class="material-icons text-base">send</span>
+            </button>
+            <button
+              data-testid="expand-input-btn"
+              class="text-gray-400 hover:text-gray-600 rounded px-3 py-1 text-sm"
+              title="Expand editor"
+              @click="openExpandedEditor"
+            >
+              <span class="material-icons text-base">open_in_full</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Expanded editor modal -->
+        <div
+          v-if="expandedEditorOpen"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          @click.self="closeExpandedEditor"
+        >
+          <div
+            class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 flex flex-col"
+            style="max-height: 80vh"
           >
-            <span class="material-icons text-base">send</span>
-          </button>
+            <div
+              class="flex items-center justify-between px-4 py-3 border-b border-gray-200"
+            >
+              <h3 class="text-sm font-semibold text-gray-700">
+                Compose message
+              </h3>
+              <button
+                class="text-gray-400 hover:text-gray-600"
+                @click="closeExpandedEditor"
+              >
+                <span class="material-icons text-base">close</span>
+              </button>
+            </div>
+            <textarea
+              ref="expandedTextareaRef"
+              v-model="userInput"
+              data-testid="expanded-input"
+              placeholder="Type a task..."
+              class="flex-1 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 resize-none focus:outline-none"
+              style="min-height: 300px"
+              @keydown.meta.enter="sendFromExpanded"
+              @keydown.ctrl.enter="sendFromExpanded"
+            ></textarea>
+            <div
+              class="flex items-center justify-between px-4 py-3 border-t border-gray-200"
+            >
+              <p class="text-xs text-gray-400">Cmd+Enter to send</p>
+              <div class="flex gap-2">
+                <button
+                  class="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+                  @click="closeExpandedEditor"
+                >
+                  Cancel
+                </button>
+                <button
+                  class="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
+                  :disabled="isRunning"
+                  data-testid="expanded-send-btn"
+                  @click="sendFromExpanded"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -251,7 +342,11 @@
       <div
         class="flex items-center justify-between px-3 py-2 border-b border-gray-100 shrink-0 gap-2"
       >
-        <PluginLauncher @navigate="onPluginNavigate" />
+        <PluginLauncher
+          :active-tool-name="selectedResult?.toolName ?? null"
+          :active-view-mode="canvasViewMode"
+          @navigate="onPluginNavigate"
+        />
         <CanvasViewToggle
           :model-value="canvasViewMode"
           @update:model-value="setCanvasViewMode"
@@ -319,8 +414,10 @@
     <SettingsModal
       :open="showSettings"
       :docker-mode="sandboxEnabled"
+      :mcp-tools-error="mcpToolsError"
       @update:open="showSettings = $event"
     />
+    <NotificationToast />
   </div>
 </template>
 
@@ -340,6 +437,8 @@ import PluginLauncher, {
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
 import SettingsModal from "./components/SettingsModal.vue";
+import NotificationToast from "./components/NotificationToast.vue";
+import ChatAttachmentPreview from "./components/ChatAttachmentPreview.vue";
 import type { SseEvent } from "./types/sse";
 import {
   type SessionSummary,
@@ -377,9 +476,11 @@ import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
 import { useQueriesPanel } from "./composables/useQueriesPanel";
 import { useEventListeners } from "./composables/useEventListeners";
+import { useImeAwareEnter } from "./composables/useImeAwareEnter";
 import { provideAppApi } from "./composables/useAppApi";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 import { apiGet, apiPost, apiFetchRaw } from "./utils/api";
+import { API_ROUTES } from "./config/apiRoutes";
 
 // --- Debug beat (pub/sub) ---
 const debugBeatColor = ref<string | null>(null);
@@ -424,7 +525,7 @@ async function refreshSessionStates(): Promise<void> {
 
 async function markSessionRead(id: string): Promise<void> {
   const result = await apiPost<{ ok: boolean }>(
-    `/api/sessions/${encodeURIComponent(id)}/mark-read`,
+    API_ROUTES.sessions.markRead.replace(":id", encodeURIComponent(id)),
   );
   // The server returns `{ ok: boolean }` — a 200 with `ok: false`
   // means the endpoint was reached but the flag wasn't actually
@@ -615,48 +716,84 @@ const unreadCount = computed(
 const { roles, currentRoleId, currentRole, refreshRoles } = useRoles();
 
 const userInput = ref("");
+const pastedFile = ref<{ dataUrl: string; name: string; mime: string } | null>(
+  null,
+);
+const fileError = ref<string | null>(null);
 const activePane = ref<"sidebar" | "main">("sidebar");
 
-// IME composition tracking. Safari fires `compositionend` BEFORE the
-// confirming Enter's `keydown`, so `event.isComposing` is already
-// false on that keydown — the inline `!isComposing` guard let the
-// message send on IME confirmation. Chrome / Firefox fire
-// `compositionend` AFTER the keydown and keep `isComposing` true,
-// so they handle confirmation correctly on their own.
-//
-// We use a tight time window after `compositionend` (30ms) to suppress
-// only the immediately-following keydown — short enough that Safari's
-// synchronous race fits, long enough that human reaction time on a
-// follow-up Enter (>=100ms) never falls inside.
-let isImeComposing = false;
-let lastCompositionEndAt = 0;
-const SAFARI_IME_RACE_WINDOW_MS = 30;
-function onCompositionStart() {
-  isImeComposing = true;
-}
-function onCompositionEnd() {
-  isImeComposing = false;
-  lastCompositionEndAt = performance.now();
-}
-function onTextareaBlur() {
-  isImeComposing = false;
-  lastCompositionEndAt = 0;
-}
-function onTextareaKeydown(event: KeyboardEvent) {
-  if (event.key !== "Enter" || event.shiftKey) return;
-  if (event.isComposing || isImeComposing) {
-    event.preventDefault();
-    return;
-  }
-  if (performance.now() - lastCompositionEndAt < SAFARI_IME_RACE_WINDOW_MS) {
-    event.preventDefault();
-    return;
-  }
-  event.preventDefault();
-  sendMessage();
+const MAX_ATTACH_BYTES = 30 * 1024 * 1024; // 30 MB
+
+// MIME types accepted by the chat input paste/drop handler. Covers
+// native Claude types (image, PDF) plus server-side convertible
+// types (text, office documents). Must stay aligned with the server's
+// attachmentConverter.ts — don't use a broad prefix like
+// "application/vnd.openxmlformats-officedocument.*" because the
+// server only handles the exact docx/xlsx/pptx variants.
+const ACCEPTED_MIME_PREFIXES = ["image/", "text/"];
+const ACCEPTED_MIME_EXACT = new Set([
+  "application/pdf",
+  "application/json",
+  "application/xml",
+  "application/x-yaml",
+  "application/toml",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+]);
+
+function isAcceptedType(mime: string): boolean {
+  return (
+    ACCEPTED_MIME_PREFIXES.some((p) => mime.startsWith(p)) ||
+    ACCEPTED_MIME_EXACT.has(mime)
+  );
 }
 
-const { sessions, showHistory, fetchSessions, toggleHistory } =
+function readAttachmentFile(file: File): void {
+  fileError.value = null;
+  if (!isAcceptedType(file.type)) return;
+  if (file.size > MAX_ATTACH_BYTES) {
+    const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+    fileError.value = `File too large (${sizeMB} MB). Maximum is 30 MB.`;
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (typeof reader.result === "string") {
+      pastedFile.value = {
+        dataUrl: reader.result,
+        name: file.name,
+        mime: file.type,
+      };
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function onPasteFile(e: ClipboardEvent): void {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (isAcceptedType(item.type)) {
+      const file = item.getAsFile();
+      if (file) {
+        e.preventDefault();
+        readAttachmentFile(file);
+        return;
+      }
+    }
+  }
+}
+
+function onDropFile(e: DragEvent): void {
+  e.preventDefault();
+  const file = e.dataTransfer?.files[0];
+  if (file) readAttachmentFile(file);
+}
+
+const imeEnter = useImeAwareEnter(() => sendMessage());
+
+const { sessions, showHistory, historyError, fetchSessions, toggleHistory } =
   useSessionHistory();
 const { geminiAvailable, sandboxEnabled, fetchHealth } = useHealth();
 const showLockPopup = ref(false);
@@ -665,6 +802,32 @@ const toolResultsPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const chatListRef = computed(() => toolResultsPanelRef.value?.root ?? null);
 const canvasRef = ref<HTMLDivElement | null>(null);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const expandedTextareaRef = ref<HTMLTextAreaElement | null>(null);
+const inputFocused = ref(false);
+const expandedEditorOpen = ref(false);
+
+function onInputBlur(): void {
+  imeEnter.onBlur();
+  // Delay collapsing so a click on send/expand buttons registers first
+  setTimeout(() => {
+    inputFocused.value = false;
+  }, 150);
+}
+
+function openExpandedEditor(): void {
+  expandedEditorOpen.value = true;
+  nextTick(() => expandedTextareaRef.value?.focus());
+}
+
+function closeExpandedEditor(): void {
+  expandedEditorOpen.value = false;
+  nextTick(() => textareaRef.value?.focus());
+}
+
+function sendFromExpanded(): void {
+  closeExpandedEditor();
+  sendMessage();
+}
 const historyButtonRef = ref<HTMLButtonElement | null>(null);
 // Exposed `root` from SessionHistoryPanel — the click-outside guard
 // needs the actual popup DOM element (not the component instance).
@@ -722,7 +885,7 @@ const rightSidebarRef = ref<InstanceType<typeof RightSidebar> | null>(null);
 // returns `{ skills: [...] }` flat, so `wrapData` lifts the payload
 // under `data` before the ToolResult reaches the View.
 const LAUNCHER_INVOKE_SPECS: Record<
-  "todos" | "scheduler" | "skills" | "wiki",
+  "todos" | "scheduler" | "skills" | "wiki" | "roles",
   {
     endpoint: string;
     method: "GET" | "POST";
@@ -735,32 +898,39 @@ const LAUNCHER_INVOKE_SPECS: Record<
   }
 > = {
   todos: {
-    endpoint: "/api/todos",
+    endpoint: API_ROUTES.todos.dispatch,
     method: "POST",
     body: { action: "show" },
     toolName: "manageTodoList",
     defaultTitle: "Todos",
   },
   scheduler: {
-    endpoint: "/api/scheduler",
+    endpoint: API_ROUTES.scheduler.base,
     method: "POST",
     body: { action: "show" },
     toolName: "manageScheduler",
     defaultTitle: "Schedule",
   },
   skills: {
-    endpoint: "/api/skills",
+    endpoint: API_ROUTES.skills.list,
     method: "GET",
     toolName: "manageSkills",
     defaultTitle: "Skills",
     wrapData: (json) => ({ skills: json.skills ?? [] }),
   },
   wiki: {
-    endpoint: "/api/wiki",
+    endpoint: API_ROUTES.wiki.base,
     method: "POST",
     body: { action: "index" },
     toolName: "manageWiki",
     defaultTitle: "Wiki",
+  },
+  roles: {
+    endpoint: API_ROUTES.roles.manage,
+    method: "POST",
+    body: { action: "list" },
+    toolName: "manageRoles",
+    defaultTitle: "Roles",
   },
 };
 
@@ -774,22 +944,22 @@ function isLauncherInvokeKey(key: string): key is LauncherInvokeKey {
 // a ToolResultComplete so the canvas renders it through the plugin's
 // own View component. Throws on HTTP / network failure; caller is
 // responsible for surfacing the error to the user.
+//
+// Uses apiGet/apiPost so the module-level bearer token (#272) is
+// attached automatically — a raw `fetch()` here would skip the auth
+// header and 401 on every launcher click.
 async function invokePluginForLauncher(
   key: LauncherInvokeKey,
 ): Promise<ToolResultComplete> {
   const spec = LAUNCHER_INVOKE_SPECS[key];
-  const res = await fetch(spec.endpoint, {
-    method: spec.method,
-    headers:
-      spec.method === "POST" ? { "Content-Type": "application/json" } : {},
-    body: spec.method === "POST" ? JSON.stringify(spec.body ?? {}) : undefined,
-  });
-  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) {
-    const detail =
-      typeof json.error === "string" ? json.error : `HTTP ${res.status}`;
-    throw new Error(`${spec.toolName} failed: ${detail}`);
+  const result =
+    spec.method === "POST"
+      ? await apiPost<unknown>(spec.endpoint, spec.body ?? {})
+      : await apiGet<unknown>(spec.endpoint);
+  if (!result.ok) {
+    throw new Error(`${spec.toolName} failed: ${result.error}`);
   }
+  const json = (result.data ?? {}) as Record<string, unknown>;
   const data = spec.wrapData ? spec.wrapData(json) : json.data;
   return {
     ...json,
@@ -843,10 +1013,11 @@ async function onPluginNavigate(target: PluginLauncherTarget): Promise<void> {
   }
 }
 
-const { availableTools, toolDescriptions, fetchMcpToolsStatus } = useMcpTools({
-  currentRole,
-  getDefinition: (name) => getPlugin(name)?.toolDefinition ?? null,
-});
+const { availableTools, toolDescriptions, mcpToolsError, fetchMcpToolsStatus } =
+  useMcpTools({
+    currentRole,
+    getDefinition: (name) => getPlugin(name)?.toolDefinition ?? null,
+  });
 
 const { pendingCalls, teardown: teardownPendingCalls } = usePendingCalls({
   isRunning,
@@ -1108,7 +1279,9 @@ function onRoleChange() {
 // replace / augment it in the normal way.
 async function maybeSeedRoleDefault(session: ActiveSession): Promise<void> {
   if (session.roleId !== BUILTIN_ROLE_IDS.sourceManager) return;
-  const response = await apiGet<{ sources?: unknown[] }>("/api/sources");
+  const response = await apiGet<{ sources?: unknown[] }>(
+    API_ROUTES.sources.list,
+  );
   if (!response.ok) {
     // Non-fatal: the Add / Rebuild buttons remain reachable via
     // chat as soon as the user sends any message. Still surface
@@ -1160,7 +1333,9 @@ async function loadSession(id: string) {
   }
 
   // Load from server
-  const response = await apiGet<SessionEntry[]>(`/api/sessions/${id}`);
+  const response = await apiGet<SessionEntry[]>(
+    API_ROUTES.sessions.detail.replace(":id", encodeURIComponent(id)),
+  );
   if (!response.ok) return;
   const entries = response.data;
 
@@ -1203,6 +1378,26 @@ async function loadSession(id: string) {
   navigateToSession(id, replaced);
   currentRoleId.value = roleId;
   showHistory.value = false;
+}
+
+// Re-fetch the transcript from the server and patch any entries the
+// client missed (e.g. due to a pub-sub disconnect during a long
+// Docker build). Called on session_finished so the user sees the
+// full response even if mid-run events were lost. See issue #350.
+async function refreshSessionTranscript(sessionId: string): Promise<void> {
+  const session = sessionMap.get(sessionId);
+  if (!session) return;
+  const response = await apiGet<SessionEntry[]>(
+    API_ROUTES.sessions.detail.replace(":id", encodeURIComponent(sessionId)),
+  );
+  if (!response.ok) return;
+  const serverResults = parseSessionEntries(response.data);
+  // Only patch if the server knows more than we do — avoids
+  // replacing a richer in-flight state with a stale snapshot when
+  // session_finished races with the last few events.
+  if (serverResults.length > session.toolResults.length) {
+    session.toolResults = serverResults;
+  }
 }
 
 // Seed the session state for a fresh user turn. Not pure (mutates
@@ -1254,6 +1449,11 @@ function ensureSessionSubscription(
     // unsubscribe sessions the user is NOT currently viewing — the
     // watch(currentSessionId) handler cleans up when switching away.
     if (event.type === EVENT_TYPES.sessionFinished) {
+      // Recover any events lost due to pub-sub disconnects during
+      // long runs (e.g. Docker builds). Fire-and-forget; if the
+      // re-fetch fails the user still has whatever events arrived
+      // via the live stream + can reload manually. See #350.
+      refreshSessionTranscript(session.id);
       if (currentSessionId.value === session.id) {
         markSessionRead(session.id);
       } else {
@@ -1291,6 +1491,25 @@ interface AgentEventContext {
   scrollSidebarToBottom: () => void;
 }
 
+// Try to append a text chunk to the last assistant text-response
+// result in the session. Returns true if appended, false if a new
+// result should be created instead. Extracted to keep
+// applyAgentEvent under the cognitive-complexity threshold.
+function appendToLastAssistantText(
+  session: ActiveSession,
+  text: string,
+): boolean {
+  const last = session.toolResults[session.toolResults.length - 1];
+  const lastData = last?.data as { role?: string; text?: string } | undefined;
+  if (last?.toolName !== "text-response" || lastData?.role !== "assistant") {
+    return false;
+  }
+  lastData.text = (lastData.text ?? "") + text;
+  last.message = (last.message ?? "") + text;
+  return true;
+}
+
+// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing 15; streaming append adds 1
 async function applyAgentEvent(
   event: SseEvent,
   ctx: AgentEventContext,
@@ -1346,6 +1565,9 @@ async function applyAgentEvent(
         session.toolResults.push(makeTextResult(event.message, "user"));
         return;
       }
+      // Streaming: append to the last assistant text-response if one
+      // exists, rather than creating a new card per chunk.
+      if (appendToLastAssistantText(session, event.message)) return;
       const textResult = makeTextResult(event.message, "assistant");
       session.toolResults.push(textResult);
       if (shouldSelectAssistantText(session.toolResults, runStartIndex)) {
@@ -1380,6 +1602,8 @@ async function sendMessage(text?: string) {
   const message = typeof text === "string" ? text : userInput.value.trim();
   if (!message || isRunning.value) return;
   userInput.value = "";
+  const fileSnapshot = pastedFile.value;
+  pastedFile.value = null;
 
   const session = sessionMap.get(currentSessionId.value);
   if (!session) return;
@@ -1397,14 +1621,15 @@ async function sendMessage(text?: string) {
   ensureSessionSubscription(session, runStartIndex);
 
   try {
-    const response = await apiFetchRaw("/api/agent", {
+    const response = await apiFetchRaw(API_ROUTES.agent.run, {
       method: "POST",
       body: JSON.stringify(
         buildAgentRequestBody({
           message,
           role: sessionRole,
           chatSessionId: session.id,
-          selectedImageData: extractImageData(selectedRes),
+          selectedImageData:
+            fileSnapshot?.dataUrl ?? extractImageData(selectedRes),
         }),
       ),
       headers: { "Content-Type": "application/json" },
