@@ -11,7 +11,7 @@ Most AI chat applications are monolithic: the UI, the agent logic, and the messa
 ```text
 ┌───────────────────────────────────────────────────────┐
 │  Messaging Platforms                                  │
-��  (Telegram, LINE, Slack, Discord, CLI, Web, ...)      │
+|  (Telegram, LINE, Slack, Discord, CLI, Web, ...)      │
 └───────────────┬───────────────────────────────────────┘
                 │  socket.io  /ws/chat
 ┌───────────────▼───────────────────────────────────────┐
