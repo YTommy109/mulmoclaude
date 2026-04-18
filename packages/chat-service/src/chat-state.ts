@@ -7,8 +7,8 @@
 // factory, never through a direct `../workspace-paths.js` import.
 
 import { mkdir, readFile } from "fs/promises";
-import { writeFileAtomic } from "../../utils/files/atomic.js";
 import path from "path";
+import { writeFileAtomic } from "./atomic-write.js";
 import type { Logger } from "./types.js";
 
 // ── Types ────────────────────────────────────────────────────

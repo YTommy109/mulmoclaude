@@ -204,3 +204,5 @@ export type {
   StartChatFn,
   OnSessionEventFn,
 } from "./types.js";
+
+export { writeFileAtomic } from "./atomic-write.js";
