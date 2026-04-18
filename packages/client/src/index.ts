@@ -16,6 +16,7 @@ export {
   isImageMime,
   isPdfMime,
   isSupportedAttachmentMime,
+  isNativeAttachmentMime,
   parseDataUrl,
   buildDataUrl,
   type ParsedDataUrl,

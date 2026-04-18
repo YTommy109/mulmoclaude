@@ -10,8 +10,10 @@
       class="max-h-20 max-w-40 object-contain"
     />
     <div v-else class="flex items-center gap-1.5 text-xs text-gray-700">
-      <span class="material-icons text-red-500 text-base">picture_as_pdf</span>
-      <span class="max-w-40 truncate">{{ filename || "document.pdf" }}</span>
+      <span class="material-icons text-base" :class="iconColor">{{
+        icon
+      }}</span>
+      <span class="max-w-40 truncate">{{ filename || "attachment" }}</span>
     </div>
     <button
       data-testid="chat-attachment-remove"
@@ -34,4 +36,20 @@ const props = defineProps<{
 const emit = defineEmits<{ remove: [] }>();
 
 const isImage = computed(() => props.mime.startsWith("image/"));
+
+const icon = computed(() => {
+  if (props.mime === "application/pdf") return "picture_as_pdf";
+  if (props.mime.includes("wordprocessingml")) return "description";
+  if (props.mime.includes("spreadsheetml")) return "table_chart";
+  if (props.mime.includes("presentationml")) return "slideshow";
+  return "insert_drive_file";
+});
+
+const iconColor = computed(() => {
+  if (props.mime === "application/pdf") return "text-red-500";
+  if (props.mime.includes("wordprocessingml")) return "text-blue-500";
+  if (props.mime.includes("spreadsheetml")) return "text-green-600";
+  if (props.mime.includes("presentationml")) return "text-orange-500";
+  return "text-gray-500";
+});
 </script>

@@ -722,13 +722,23 @@ const pastedFile = ref<{ dataUrl: string; name: string; mime: string } | null>(
 const fileError = ref<string | null>(null);
 const activePane = ref<"sidebar" | "main">("sidebar");
 
-const MAX_ATTACH_BYTES = 30 * 1024 * 1024; // 30 MB (PDF can be larger than images)
-const ACCEPTED_MIME_PREFIXES = ["image/", "application/pdf"];
+const MAX_ATTACH_BYTES = 30 * 1024 * 1024; // 30 MB
+
+// MIME types accepted by the chat input paste/drop handler. Covers
+// native Claude types (image, PDF) plus server-side convertible
+// types (text, office documents). See attachmentConverter.ts.
+const ACCEPTED_MIME_PREFIXES = [
+  "image/",
+  "application/pdf",
+  "text/",
+  "application/json",
+  "application/xml",
+  "application/toml",
+  "application/vnd.openxmlformats-officedocument.",
+];
 
 function isAcceptedType(mime: string): boolean {
-  return ACCEPTED_MIME_PREFIXES.some(
-    (p) => mime === p || mime.startsWith(p.endsWith("/") ? p : p + "/"),
-  );
+  return ACCEPTED_MIME_PREFIXES.some((p) => mime.startsWith(p));
 }
 
 function readAttachmentFile(file: File): void {

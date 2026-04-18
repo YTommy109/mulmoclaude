@@ -70,10 +70,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       requests
 
 # Layer 3: document + media conversion
+# LibreOffice core + Impress + Writer enable server-side PPTX→PDF and
+# DOCX→PDF conversion for the attachment pipeline (#386). Only the
+# headless renderer is used (`--headless --convert-to pdf`).
 RUN apt-get update && apt-get install -y --no-install-recommends \
       pandoc \
       ffmpeg \
       poppler-utils \
+      libreoffice-core \
+      libreoffice-impress \
+      libreoffice-writer \
     && rm -rf /var/lib/apt/lists/*
 
 # Layer 4: small extras

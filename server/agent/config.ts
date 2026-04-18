@@ -6,11 +6,8 @@ import { MCP_PLUGIN_NAMES } from "./plugin-names.js";
 import type { McpServerSpec } from "../system/config.js";
 import { getCurrentToken } from "../api/auth/token.js";
 import type { Attachment } from "@mulmobridge/protocol";
-import {
-  isImageMime,
-  isPdfMime,
-  isSupportedAttachmentMime,
-} from "@mulmobridge/client";
+import { isImageMime, isNativeAttachmentMime } from "@mulmobridge/client";
+import { convertAttachment, isConvertibleMime } from "./attachmentConverter.js";
 
 export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
@@ -294,64 +291,73 @@ export function buildCliArgs(params: CliArgsParams): string[] {
  *  Supported attachment types:
  *  - `image/*` → vision content blocks (`type: "image"`)
  *  - `application/pdf` → document content blocks (`type: "document"`)
- *  - Other MIME types (docx, pptx, video, …) → skipped with a
- *    console hint. A future phase can add conversion pipelines.
+ *  - `text/*`, JSON, XML, YAML, CSV → decoded UTF-8 → text block
+ *  - DOCX → mammoth text extraction → text block
+ *  - XLSX → xlsx CSV extraction → text block
+ *  - PPTX → libreoffice PDF conversion → document block (Docker only)
+ *  - Other MIME types → skipped with a console hint.
  *
  *  Without attachments, content is a plain string (smaller,
  *  backward-compatible). */
-export function buildUserMessageLine(
+export async function buildUserMessageLine(
   message: string,
   attachments?: Attachment[],
-): string {
+): Promise<string> {
   const all = attachments ?? [];
-  const supported = all.filter((a) => isSupportedAttachmentMime(a.mimeType));
-  const skipped = all.length - supported.length;
-  if (skipped > 0) {
-    const skippedTypes = all
-      .filter((a) => !isSupportedAttachmentMime(a.mimeType))
-      .map((a) => a.mimeType);
-    console.error(
-      `[agent] skipping ${skipped} unsupported attachment(s): ${skippedTypes.join(", ")}`,
+  if (all.length === 0) {
+    return (
+      JSON.stringify({
+        type: "user",
+        message: { role: "user", content: message },
+      }) + "\n"
     );
   }
-  const content =
-    supported.length > 0 ? buildContentBlocks(message, supported) : message;
+
+  const blocks: Array<Record<string, unknown>> = [];
+  const skippedTypes: string[] = [];
+
+  for (const att of all) {
+    // Native types: image and PDF go directly as content blocks
+    if (isNativeAttachmentMime(att.mimeType)) {
+      blocks.push(buildNativeBlock(att));
+      continue;
+    }
+    // Convertible types: text, docx, xlsx, pptx
+    if (isConvertibleMime(att.mimeType)) {
+      const converted = await convertAttachment(att);
+      if (converted) {
+        blocks.push(...converted);
+        continue;
+      }
+    }
+    skippedTypes.push(att.mimeType);
+  }
+
+  if (skippedTypes.length > 0) {
+    console.error(
+      `[agent] skipping ${skippedTypes.length} unsupported attachment(s): ${skippedTypes.join(", ")}`,
+    );
+  }
+
+  blocks.push({ type: "text", text: message });
   return (
     JSON.stringify({
       type: "user",
-      message: { role: "user", content },
+      message: { role: "user", content: blocks },
     }) + "\n"
   );
 }
 
-function buildContentBlocks(
-  message: string,
-  attachments: Attachment[],
-): Array<Record<string, unknown>> {
-  const blocks: Array<Record<string, unknown>> = [];
-  for (const att of attachments) {
-    if (isImageMime(att.mimeType)) {
-      blocks.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: att.mimeType,
-          data: att.data,
-        },
-      });
-    } else if (isPdfMime(att.mimeType)) {
-      blocks.push({
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: att.mimeType,
-          data: att.data,
-        },
-      });
-    }
-  }
-  blocks.push({ type: "text", text: message });
-  return blocks;
+function buildNativeBlock(att: Attachment): Record<string, unknown> {
+  const blockType = isImageMime(att.mimeType) ? "image" : "document";
+  return {
+    type: blockType,
+    source: {
+      type: "base64",
+      media_type: att.mimeType,
+      data: att.data,
+    },
+  };
 }
 
 export interface McpConfigPaths {
