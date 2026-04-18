@@ -50,6 +50,8 @@ export const CHAT_SOCKET_EVENTS = {
   /** server → bridge async push (Phase B of #268); body:
    *  `{ chatId, message }`. */
   push: "push",
+  /** server → bridge streaming text chunk (Phase C of #268). */
+  textChunk: "textChunk",
 } as const;
 export type ChatSocketEvent =
   (typeof CHAT_SOCKET_EVENTS)[keyof typeof CHAT_SOCKET_EVENTS];
@@ -192,6 +194,12 @@ export function attachChatSocket(
           externalChatId: parsed.externalChatId,
           text: parsed.text,
           attachments: parsed.attachments,
+          // Stream text chunks to this bridge socket in real time
+          // (Phase C of #268). The ack still returns the full text
+          // for backward compatibility.
+          onChunk: (text) => {
+            socket.emit(CHAT_SOCKET_EVENTS.textChunk, { text });
+          },
         });
 
         if (result.kind === "ok") {

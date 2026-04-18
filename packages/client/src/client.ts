@@ -55,6 +55,11 @@ export interface BridgeClient {
   ): Promise<MessageAck>;
   /** Subscribe to server → bridge async pushes (Phase B of #268). */
   onPush(handler: (event: PushEvent) => void): void;
+  /** Subscribe to streaming text chunks during a relay (Phase C of
+   *  #268). Each chunk is a fragment of the assistant's response,
+   *  emitted in real time as the agent generates text. The final
+   *  ack from `send()` still carries the full response. */
+  onTextChunk(handler: (chunk: string) => void): void;
   /** Called each time the socket (re-)establishes a connection. */
   onConnect(handler: () => void): void;
   /** Called when the socket disconnects. */
@@ -102,6 +107,11 @@ export function createBridgeClient(opts: BridgeClientOptions): BridgeClient {
       sendMessage(socket, externalChatId, text, attachments),
     onPush: (handler) => {
       socket.on(CHAT_SOCKET_EVENTS.push, handler);
+    },
+    onTextChunk: (handler) => {
+      socket.on(CHAT_SOCKET_EVENTS.textChunk, (event: { text: string }) => {
+        handler(event.text);
+      });
     },
     onConnect: (handler) => {
       socket.on("connect", handler);
