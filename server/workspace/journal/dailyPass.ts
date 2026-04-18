@@ -49,6 +49,7 @@ import { rewriteWorkspaceLinks } from "./linkRewrite.js";
 import { writeState, type JournalState } from "./state.js";
 import { log } from "../../system/logger/index.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
+import { extractAndAppendMemory } from "./memoryExtractor.js";
 
 // --- Constants ------------------------------------------------------
 
@@ -168,6 +169,35 @@ export async function runDailyPass(
     nextState = advanceJournalState(nextState, justCompleted, newTopicsSeen);
 
     await persistStateAfterDay(workspaceRoot, nextState, date);
+  }
+
+  // --- Phase 4: memory extraction ------------------------------------
+  // After all days are processed, scan the excerpts for durable user
+  // facts and append any new ones to memory.md. Fire-and-forget: if
+  // extraction fails the daily summaries are already written, so the
+  // pass is still useful.
+  if (perSessionExcerpts.size > 0) {
+    const excerptLines: string[] = [];
+    for (const [, byDate] of perSessionExcerpts) {
+      for (const [, excerpt] of byDate) {
+        const lines = excerpt.events.map(
+          (e: SessionEventExcerpt) => `[${e.source}] ${e.content}`,
+        );
+        excerptLines.push(lines.join("\n"));
+      }
+    }
+    const allExcerpts = excerptLines.join("\n---\n");
+    try {
+      await extractAndAppendMemory({
+        workspaceRoot,
+        excerpts: allExcerpts,
+        summarize: deps.summarize,
+      });
+    } catch (err) {
+      log.warn("daily-pass", "memory extraction failed (non-fatal)", {
+        error: String(err),
+      });
+    }
   }
 
   return { nextState, result };
