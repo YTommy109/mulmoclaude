@@ -9,3 +9,23 @@ server/logs/
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 playwright-report/
+test-results/
+
+# workspace data (user data — backed up separately as daily gzip)
+calendar/
+charts/
+chat/
+configs/
+contacts/
+helps/
+images/
+markdowns/
+memory.md
+roles/
+scheduler/
+spreadsheets/
+stories/
+summaries/
+todo/
+todos/
+wiki/
