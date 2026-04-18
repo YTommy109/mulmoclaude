@@ -24,10 +24,10 @@ The `data.imageData` field in ToolResult changes from a data URI to this relativ
 
 | Flow | Where base64 is created | Change |
 |---|---|---|
-| **generateImage** | `server/routes/image.ts` `/generate-image` | Write PNG to disk, return path |
-| **editImage** | `server/routes/image.ts` `/edit-image` | Write PNG to disk, return path |
+| **generateImage** | `server/api/routes/image.ts` `/generate-image` | Write PNG to disk, return path |
+| **editImage** | `server/api/routes/image.ts` `/edit-image` | Write PNG to disk, return path |
 | **openCanvas** (drawing) | `src/plugins/canvas/View.vue` `saveDrawingState()` | POST base64 to new endpoint, get back path |
-| **editImage** (input) | `server/routes/image.ts` reads `selectedImageData` from session | Resolve path → read file from disk |
+| **editImage** (input) | `server/api/routes/image.ts` reads `selectedImageData` from session | Resolve path → read file from disk |
 
 ### Storage layout
 
@@ -43,7 +43,7 @@ The `data.imageData` field in ToolResult changes from a data URI to this relativ
 
 ### Step 1: Add `images/` to workspace
 
-**File: `server/workspace.ts`**
+**File: `server/workspace/workspace.ts`**
 
 - Add `"images"` to the `SUBDIRS` array so `initWorkspace()` creates it.
 
@@ -88,7 +88,7 @@ export function isImagePath(value: string): boolean {
 
 ### Step 3: Update server image routes
 
-**File: `server/routes/image.ts`**
+**File: `server/api/routes/image.ts`**
 
 **`/generate-image`:**
 - After receiving `imageData` (raw base64) from Gemini, call `saveImage(imageData)`.
@@ -126,7 +126,7 @@ All places that bind `:src="result.data?.imageData"` need to use `resolveImageSr
 
 The canvas calls `saveDrawingState()` on every stroke end, undo, redo, clear, and brush change. It must **not** create a new image file each time — it must overwrite the same file.
 
-**File: `server/routes/image.ts`** (or `server/routes/plugins.ts`)
+**File: `server/api/routes/image.ts`** (or `server/api/routes/plugins.ts`)
 
 Add a new endpoint:
 
@@ -152,7 +152,7 @@ Note: `viewState.drawingState.strokes` remains in the ToolResult (it's small and
 
 ### Step 7: Update session `selectedImageData` handling
 
-**File: `server/sessions.ts`** and **`server/routes/agent.ts`**
+**File: `server/sessions.ts`** and **`server/api/routes/agent.ts`**
 
 When the frontend sends `selectedImageData` for an edit session, it may now be a file path instead of a data URI. The `getSessionImageData()` function and its consumers must handle both formats.
 
@@ -172,9 +172,9 @@ No change needed if the server routes already store paths before pushing ToolRes
 
 | File | Action |
 |---|---|
-| `server/workspace.ts` | Add `"images"` to SUBDIRS |
+| `server/workspace/workspace.ts` | Add `"images"` to SUBDIRS |
 | `server/utils/image-store.ts` | **New** — save/load/utility functions |
-| `server/routes/image.ts` | Save to disk instead of returning base64 |
+| `server/api/routes/image.ts` | Save to disk instead of returning base64 |
 | `src/utils/image/resolve.ts` | **New** — resolve image path to URL |
 | `src/plugins/generateImage/View.vue` | Use `resolveImageSrc()` |
 | `src/plugins/generateImage/Preview.vue` | Use `resolveImageSrc()` |

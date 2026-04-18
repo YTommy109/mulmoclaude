@@ -3,52 +3,74 @@ import express, { Request, Response, NextFunction } from "express";
 import net from "net";
 import path from "path";
 import { fileURLToPath } from "url";
-import agentRoutes from "./routes/agent.js";
-import todosRoutes from "./routes/todos.js";
-import schedulerRoutes from "./routes/scheduler.js";
-import sessionsRoutes from "./routes/sessions.js";
-import chatIndexRoutes from "./routes/chat-index.js";
-import sourcesRoutes from "./routes/sources.js";
-import pluginsRoutes from "./routes/plugins.js";
-import imageRoutes from "./routes/image.js";
-import presentHtmlRoutes from "./routes/presentHtml.js";
-import chartRoutes from "./routes/chart.js";
-import rolesRoutes from "./routes/roles.js";
+import agentRoutes from "./api/routes/agent.js";
+import todosRoutes from "./api/routes/todos.js";
+import schedulerRoutes from "./api/routes/scheduler.js";
+import sessionsRoutes from "./api/routes/sessions.js";
+import chatIndexRoutes from "./api/routes/chat-index.js";
+import sourcesRoutes from "./api/routes/sources.js";
+import pluginsRoutes from "./api/routes/plugins.js";
+import imageRoutes from "./api/routes/image.js";
+import presentHtmlRoutes from "./api/routes/presentHtml.js";
+import chartRoutes from "./api/routes/chart.js";
+import rolesRoutes from "./api/routes/roles.js";
 import { DEFAULT_ROLE_ID } from "../src/config/roles.js";
-import mulmoScriptRoutes from "./routes/mulmo-script.js";
-import wikiRoutes from "./routes/wiki.js";
-import pdfRoutes from "./routes/pdf.js";
-import filesRoutes from "./routes/files.js";
-import configRoutes from "./routes/config.js";
-import skillsRoutes from "./routes/skills.js";
-import chatServiceRoutes from "./chat-service/index.js";
+import mulmoScriptRoutes from "./api/routes/mulmo-script.js";
+import wikiRoutes from "./api/routes/wiki.js";
+import pdfRoutes from "./api/routes/pdf.js";
+import filesRoutes from "./api/routes/files.js";
+import configRoutes from "./api/routes/config.js";
+import skillsRoutes from "./api/routes/skills.js";
+import { createNotificationsRouter } from "./api/routes/notifications.js";
+import type { NotificationDeps } from "./events/notifications.js";
+import { createChatService } from "@mulmobridge/chat-service";
+import { onSessionEvent } from "./events/session-store/index.js";
+import { getRole, loadAllRoles } from "./workspace/roles.js";
+import { WORKSPACE_PATHS } from "./workspace/paths.js";
 import { serverError } from "./utils/httpError.js";
 import {
   mcpToolsRouter,
   mcpTools,
   isMcpToolEnabled,
-} from "./mcp-tools/index.js";
-import { initWorkspace } from "./workspace.js";
-import { env, isGeminiAvailable } from "./env.js";
+} from "./agent/mcp-tools/index.js";
+import { initWorkspace, workspacePath } from "./workspace/workspace.js";
+import { env, isGeminiAvailable } from "./system/env.js";
+import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import fs from "fs";
 import os from "os";
 import {
   isDockerAvailable,
   ensureSandboxImage,
   getDockerBridgeIp,
-} from "./docker.js";
-import { maybeRunJournal } from "./journal/index.js";
-import { backfillAllSessions } from "./chat-index/index.js";
-import { createPubSub } from "./pub-sub/index.js";
+} from "./system/docker.js";
+import { maybeRunJournal } from "./workspace/journal/index.js";
+import { backfillAllSessions } from "./workspace/chat-index/index.js";
+import { createPubSub } from "./events/pub-sub/index.js";
 import { PUBSUB_CHANNELS } from "../src/config/pubsubChannels.js";
-import { createTaskManager } from "./task-manager/index.js";
-import type { ITaskManager } from "./task-manager/index.js";
-import type { IPubSub } from "./pub-sub/index.js";
-import { initSessionStore } from "./session-store/index.js";
-import { requireSameOrigin } from "./csrfGuard.js";
-import { log } from "./logger/index.js";
-import { startChat } from "./routes/agent.js";
+import { createTaskManager } from "./events/task-manager/index.js";
+import type { ITaskManager } from "./events/task-manager/index.js";
+import {
+  initScheduler,
+  type SystemTaskDef,
+} from "./events/scheduler-adapter.js";
+import schedulerTasksRoutes from "./api/routes/schedulerTasks.js";
+import type { IPubSub } from "./events/pub-sub/index.js";
+import { initSessionStore } from "./events/session-store/index.js";
+import { requireSameOrigin } from "./api/csrfGuard.js";
+import { bearerAuth } from "./api/auth/bearerAuth.js";
+import {
+  deleteTokenFile,
+  generateAndWriteToken,
+  getCurrentToken,
+} from "./api/auth/token.js";
+import { log } from "./system/logger/index.js";
+import { startChat } from "./api/routes/agent.js";
+import { registerScheduledSkills } from "./workspace/skills/scheduler.js";
 import { API_ROUTES } from "../src/config/apiRoutes.js";
+import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS } from "./utils/time.js";
+import { SCHEDULE_TYPES, MISSED_RUN_POLICIES } from "@receptron/task-scheduler";
+
+const HTML_TOKEN_PLACEHOLDER = "__MULMOCLAUDE_AUTH_TOKEN__";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -82,12 +104,42 @@ app.use(express.json({ limit: "50mb" }));
 // too. See plans/done/fix-server-csrf-origin-check.md.
 app.use(requireSameOrigin);
 
+// Bearer token auth: every `/api/*` request must carry
+// `Authorization: Bearer <token>` matching the per-startup token.
+// Layered *on top of* CSRF guard so we catch both cross-origin
+// browser attacks (origin check) and local sibling processes that
+// bypass browser CORS (bearer check). See #272 and
+// plans/feat-bearer-token-auth.md.
+//
+// /api/files/* is exempt because <img src="/api/files/raw?path=...">
+// tags in rendered markdown can't attach Authorization headers.
+// The CSRF origin check + loopback-only binding still apply.
+app.use("/api", (req, res, next) => {
+  if (req.path.startsWith("/files/")) return next();
+  bearerAuth(req, res, next);
+});
+
 app.get(API_ROUTES.health, (_req: Request, res: Response) => {
   res.json({
     status: "OK",
     geminiAvailable: isGeminiAvailable(),
     sandboxEnabled,
   });
+});
+
+// Sandbox credential-forwarding state (#329). Returns `{}` when the
+// sandbox is disabled — the popup already renders a distinct
+// "No sandbox" branch in that case and extra fields would be noise.
+// When enabled, returns `{ sshAgent, mounts }`; full debug detail
+// (host paths, skip reasons, unknown names) stays in the server log.
+app.get(API_ROUTES.sandbox, (_req: Request, res: Response) => {
+  const status = buildSandboxStatus({
+    sandboxEnabled,
+    sshAgentForward: env.sandboxSshAgentForward,
+    configMountNames: env.sandboxMountConfigs,
+    sshAuthSock: process.env.SSH_AUTH_SOCK,
+  });
+  res.json(status ?? {});
 });
 
 // Routers register FULL `/api/...` paths internally (see
@@ -111,13 +163,58 @@ app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
 app.use(skillsRoutes);
-app.use(chatServiceRoutes);
+const chatService = createChatService({
+  startChat,
+  onSessionEvent,
+  loadAllRoles,
+  getRole,
+  defaultRoleId: DEFAULT_ROLE_ID,
+  transportsDir: WORKSPACE_PATHS.transports,
+  logger: log,
+  // Socket.io handshake (see #268 Phase A) needs to validate the
+  // same bearer token the HTTP middleware enforces.
+  tokenProvider: getCurrentToken,
+});
+app.use(chatService.router);
+
+// Notifications router. The route file needs the pub-sub publisher
+// (only created inside `startRuntimeServices` after `app.listen`) and
+// the chat-service push handle (available at module scope). We mount
+// the router now so it sits behind the same bearer middleware as
+// every other /api route, and back-fill the pub-sub dep once
+// `startRuntimeServices` has it. Calls that arrive before fill-in
+// (impossible in practice — the HTTP server isn't listening yet)
+// would no-op on publish but still queue the bridge push.
+const notificationDeps: NotificationDeps = {
+  publish: () => {
+    /* replaced by startRuntimeServices */
+  },
+  pushToBridge: chatService.pushToBridge,
+};
+app.use(createNotificationsRouter(notificationDeps));
 app.use(mcpToolsRouter);
+app.use(schedulerTasksRoutes);
 
 if (env.isProduction) {
-  app.use(express.static(path.join(__dirname, "../client")));
+  // `{ index: false }` so express.static doesn't intercept `GET /`
+  // with the built index.html. We need our own handler that reads
+  // the file and substitutes the bearer token placeholder on each
+  // request — see the `app.get("*")` fallback below.
+  app.use(express.static(path.join(__dirname, "../client"), { index: false }));
+  const indexHtmlPath = path.join(__dirname, "../client/index.html");
   app.get("*", (_req: Request, res: Response) => {
-    res.sendFile(path.join(__dirname, "../client/index.html"));
+    let html: string;
+    try {
+      html = fs.readFileSync(indexHtmlPath, "utf-8");
+    } catch (err) {
+      log.error("server", "failed to read index.html", { error: String(err) });
+      serverError(res, "Internal Server Error");
+      return;
+    }
+    const token = getCurrentToken() ?? "";
+    html = html.replace(HTML_TOKEN_PLACEHOLDER, token);
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
   });
 }
 
@@ -152,7 +249,7 @@ async function ensureCredentialsAvailable(): Promise<void> {
   if (fs.existsSync(credentialsPath)) return;
 
   if (process.platform === "darwin") {
-    const { refreshCredentials } = await import("./credentials.js");
+    const { refreshCredentials } = await import("./system/credentials.js");
     const ok = await refreshCredentials();
     if (ok) return;
     log.error(
@@ -253,24 +350,98 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
 
   // --- Pub/Sub ---
   const pubsub = createPubSub(httpServer);
+  // Back-fill the notifications router with the live publisher (see
+  // module-scope placeholder above).
+  notificationDeps.publish = (channel, payload) =>
+    pubsub.publish(channel, payload);
+
+  // --- Chat socket transport (Phase A of #268) ---
+  chatService.attachSocket(httpServer);
 
   // --- Session Store ---
   initSessionStore(pubsub);
 
   // --- Task Manager ---
   const taskManager = createTaskManager({
-    tickMs: debugMode ? 1_000 : 60_000,
+    tickMs: debugMode ? ONE_SECOND_MS : ONE_MINUTE_MS,
   });
 
   if (debugMode) {
     registerDebugTasks(taskManager, pubsub);
   }
 
+  // --- Scheduler (Phase 1 of #357) ---
+  // Register system tasks with persistence + catch-up. The journal
+  // and chat-index also fire from the agent finally-hook for
+  // responsiveness; the scheduler ensures catch-up after gaps.
+  const systemTasks: SystemTaskDef[] = [
+    {
+      id: "system:journal",
+      name: "Journal daily pass",
+      description: "Summarize recent chat sessions into daily + topic files",
+      schedule: { type: SCHEDULE_TYPES.interval, intervalMs: ONE_HOUR_MS },
+      missedRunPolicy: MISSED_RUN_POLICIES.runOnce,
+      run: () => maybeRunJournal({}),
+    },
+    {
+      id: "system:chat-index",
+      name: "Chat index backfill",
+      description: "Generate AI titles + summaries for un-indexed sessions",
+      schedule: { type: SCHEDULE_TYPES.interval, intervalMs: ONE_HOUR_MS },
+      missedRunPolicy: MISSED_RUN_POLICIES.runOnce,
+      run: () => backfillAllSessions().then(() => {}),
+    },
+  ];
+  initScheduler(taskManager, systemTasks).catch((err) => {
+    log.error("scheduler", "init failed (non-fatal)", {
+      error: String(err),
+    });
+  });
+
+  // Register skills with schedule: frontmatter as scheduled tasks.
+  // Fire-and-forget — skill scan errors are logged but don't block
+  // server startup.
+  registerScheduledSkills({
+    taskManager,
+    workspaceRoot: workspacePath,
+    startChat,
+  })
+    .then((count) => {
+      if (count > 0) {
+        log.info("skills", "scheduled skills registered", { count });
+      }
+    })
+    .catch((err) => {
+      log.warn("skills", "failed to register scheduled skills", {
+        error: String(err),
+      });
+    });
+
   taskManager.start();
 
   maybeForceJournalRun();
   maybeForceChatIndexBackfill();
 }
+
+// Graceful shutdown: best-effort cleanup of the auth token file so
+// other readers (Vite plugin, future bridges) don't latch onto a
+// dead token. Crashes that skip this are harmless — see
+// plans/feat-bearer-token-auth.md; the next startup overwrites and
+// the stale file's token no longer matches the live in-memory one.
+let isShuttingDown = false;
+async function gracefulShutdown(signal: string): Promise<void> {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  log.info("server", "shutting down", { signal });
+  await deleteTokenFile();
+  process.exit(0);
+}
+process.on("SIGINT", () => {
+  gracefulShutdown("SIGINT").catch(() => process.exit(1));
+});
+process.on("SIGTERM", () => {
+  gracefulShutdown("SIGTERM").catch(() => process.exit(1));
+});
 
 (async () => {
   const portFree = await isPortFree(PORT);
@@ -281,6 +452,17 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
     );
     process.exit(1);
   }
+
+  // Generate the bearer token before `app.listen` so the first
+  // request cannot race an uninitialised `getCurrentToken()`. The
+  // middleware defensively handles the null case anyway (401).
+  // `env.authTokenOverride` (#316) pins the token across restarts
+  // when set; otherwise a fresh random one is written.
+  await generateAndWriteToken(undefined, env.authTokenOverride);
+  log.info("auth", "bearer token written", {
+    path: WORKSPACE_PATHS.sessionToken,
+    source: env.authTokenOverride ? "env" : "random",
+  });
 
   sandboxEnabled = await setupSandbox();
   logMcpStatus();
@@ -321,7 +503,7 @@ function registerDebugTasks(taskManager: ITaskManager, pubsub: IPubSub) {
     id: "debug.auto-chat",
     description:
       "Debug — toggles title color 10 times then starts a General-mode chat, then self-removes",
-    schedule: { type: "interval", intervalMs: 1_000 },
+    schedule: { type: SCHEDULE_TYPES.interval, intervalMs: ONE_SECOND_MS },
     run: async () => {
       tick++;
       const last = tick === 10;

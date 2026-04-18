@@ -21,7 +21,7 @@ Non-invasive, fire-and-forget, same pattern as `maybeRunJournal` / `maybeIndexSe
 ### Module layout
 
 ```
-server/wiki-backlinks/
+server/workspace/wiki-backlinks/
   sessionBacklinks.ts   — pure function (dedupe + append)
   index.ts              — mtime-scan driver, fire-and-forget entry point
 ```
@@ -66,7 +66,7 @@ export async function maybeAppendWikiBacklinks(opts: {
 ### Wiring
 
 ```ts
-// server/routes/agent.ts finally{}
+// server/api/routes/agent.ts finally{}
 maybeAppendWikiBacklinks({
   chatSessionId,
   turnStartedAt: requestStartedAt,

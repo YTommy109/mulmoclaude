@@ -8,10 +8,10 @@ import {
   maybeIndexSession,
   backfillAllSessions,
   __resetForTests,
-} from "../../server/chat-index/index.js";
-import { indexEntryPathFor } from "../../server/chat-index/paths.js";
-import { ClaudeCliNotFoundError } from "../../server/journal/archivist.js";
-import type { SummaryResult } from "../../server/chat-index/types.js";
+} from "../../server/workspace/chat-index/index.js";
+import { indexEntryPathFor } from "../../server/workspace/chat-index/paths.js";
+import { ClaudeCliNotFoundError } from "../../server/workspace/journal/archivist.js";
+import type { SummaryResult } from "../../server/workspace/chat-index/types.js";
 
 let workspace: string;
 
@@ -100,7 +100,10 @@ describe("maybeIndexSession — active session guard", () => {
 describe("maybeIndexSession — per-session lock", () => {
   it("double-fire for the same session is a no-op while the first is in flight", async () => {
     seedSession("slow-sess");
-    let release: (() => void) | null = null;
+    // Use the executor's synchronous assignment pattern — TS would
+    // otherwise narrow `release` to `null` after the callback, since
+    // it can't prove the executor runs inline.
+    let release!: () => void;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
@@ -130,7 +133,7 @@ describe("maybeIndexSession — per-session lock", () => {
 
     // Let the first finish and await it to avoid leaking the
     // promise into the next test.
-    release?.();
+    release();
     await first;
   });
 

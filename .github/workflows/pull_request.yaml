@@ -26,8 +26,9 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'yarn'
     - run: yarn install
+    - name: Build internal packages (required before typecheck)
+      run: yarn build:packages
     - run: yarn run typecheck
-    - run: yarn run typecheck:server
     - run: yarn run lint
     - run: yarn run build
     - run: yarn run test:coverage
@@ -42,8 +43,10 @@ jobs:
         node-version: 22.x
         cache: 'yarn'
     - run: yarn install
+    - name: Build internal packages
+      run: yarn build:packages
     - name: Install Playwright browsers
-      run: npx playwright install chromium --with-deps
+      run: npx playwright install chromium webkit --with-deps
     - name: Run E2E tests
       run: yarn test:e2e
     - name: Upload test results on failure

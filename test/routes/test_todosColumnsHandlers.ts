@@ -10,8 +10,8 @@ import {
   handleReorderColumns,
   normalizeColumns,
   type StatusColumn,
-} from "../../server/routes/todosColumnsHandlers.js";
-import type { TodoItem } from "../../server/routes/todos.js";
+} from "../../server/api/routes/todosColumnsHandlers.js";
+import type { TodoItem } from "../../server/api/routes/todos.js";
 
 function cols(): StatusColumn[] {
   // Fresh copy each call so mutations in one test don't bleed.

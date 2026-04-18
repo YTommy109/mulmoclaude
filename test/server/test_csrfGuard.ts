@@ -12,7 +12,7 @@ import type { Request, Response, NextFunction } from "express";
 import {
   isLocalhostOrigin,
   requireSameOrigin,
-} from "../../server/csrfGuard.js";
+} from "../../server/api/csrfGuard.js";
 
 // --- isLocalhostOrigin: the pure check --------------------------
 

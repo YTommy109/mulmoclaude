@@ -7,7 +7,7 @@ import {
   dailyFileName,
   enforceMaxFiles,
   listLogFiles,
-} from "../../server/logger/rotation.js";
+} from "../../server/system/logger/rotation.js";
 
 describe("dailyFileName", () => {
   it("formats a UTC date into server-YYYY-MM-DD.log", () => {

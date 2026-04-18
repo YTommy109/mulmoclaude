@@ -25,6 +25,9 @@ import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
 import { setupMutableTodoMocks } from "../fixtures/todos-mutable";
 import type { TodoFixture } from "../fixtures/todos";
+import { WORKSPACE_FILES } from "../../src/config/workspacePaths";
+
+const TODOS_URL = `/chat?view=files&path=${WORKSPACE_FILES.todosItems}`;
 
 let itemIdCounter = 0;
 function nextItemId(): string {
@@ -116,7 +119,7 @@ async function openTodoExplorer(page: Page): Promise<void> {
   // selected — matches the URL pattern the rest of the todo-e2e
   // suite uses (#108 router). Faster + less flaky than clicking
   // through the tree.
-  await page.goto("/chat?view=files&path=todos/todos.json");
+  await page.goto(TODOS_URL);
   await expect(page.getByTestId("todo-add-btn")).toBeVisible();
 }
 

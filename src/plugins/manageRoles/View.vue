@@ -32,7 +32,12 @@
         >
           <span class="material-icons text-gray-500">{{ role.icon }}</span>
           <div class="flex-1 min-w-0">
-            <div class="font-medium text-sm text-gray-800">{{ role.name }}</div>
+            <div class="font-medium text-sm text-gray-800">
+              {{ role.name }}
+              <span class="ml-1 text-xs font-mono text-gray-400"
+                >({{ role.id }})</span
+              >
+            </div>
             <div class="text-xs text-gray-400 truncate">
               {{ role.availablePlugins.join(", ") }}
             </div>
@@ -186,6 +191,7 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { CustomRole, ManageRolesData } from "./index";
 import { getAllPluginNames } from "../../tools/index";
 import { apiGet, apiPost } from "../../utils/api";
+import { API_ROUTES } from "../../config/apiRoutes";
 
 interface PluginEntry {
   name: string;
@@ -202,7 +208,7 @@ const guiPlugins: PluginEntry[] = getAllPluginNames()
 const availablePlugins = ref<PluginEntry[]>(guiPlugins);
 
 onMounted(async () => {
-  const result = await apiGet<PluginEntry[]>("/api/mcp-tools");
+  const result = await apiGet<PluginEntry[]>(API_ROUTES.mcpTools.list);
   if (result.ok) {
     availablePlugins.value = [...guiPlugins, ...result.data];
   }
@@ -210,32 +216,28 @@ onMounted(async () => {
 });
 
 const props = defineProps<{
-  selectedResult: ToolResultComplete<ManageRolesData>;
+  selectedResult?: ToolResultComplete<ManageRolesData>;
 }>();
 const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 
 const appApi = useAppApi();
 
 const customRoles = ref<CustomRole[]>(
-  props.selectedResult.data?.customRoles ?? [],
+  props.selectedResult?.data?.customRoles ?? [],
 );
 
 const { refresh: refreshCustomRoles } = useFreshPluginData<CustomRole[]>({
-  endpoint: () => "/api/roles",
+  endpoint: () => API_ROUTES.roles.list,
   extract: (json) => (Array.isArray(json) ? (json as CustomRole[]) : null),
   apply: (data) => {
     customRoles.value = data;
   },
 });
 
-// Sync with parent prop changes when the tool result is swapped
-// (e.g. moving between sessions). Previously this component was
-// missing a watch entirely, so it never picked up prop changes
-// after mount — closing CodeRabbit V1 #2/#4/#7's coverage gap.
 watch(
-  () => props.selectedResult.uuid,
+  () => props.selectedResult?.uuid,
   () => {
-    customRoles.value = props.selectedResult.data?.customRoles ?? [];
+    customRoles.value = props.selectedResult?.data?.customRoles ?? [];
     void refreshCustomRoles();
   },
 );
@@ -289,7 +291,7 @@ interface ManageResult {
 async function callManage(
   body: Record<string, unknown>,
 ): Promise<ManageResult> {
-  const result = await apiPost<ManageResult>("/api/roles/manage", body);
+  const result = await apiPost<ManageResult>(API_ROUTES.roles.manage, body);
   if (!result.ok) {
     // Prefer the backend's error message (e.g. validation failure
     // details). Fall back to a status code only when the server didn't
@@ -310,11 +312,13 @@ async function refreshList() {
   if (result.success) {
     const data = result as { data?: { customRoles?: CustomRole[] } };
     customRoles.value = data.data?.customRoles ?? [];
-    emit("updateResult", {
-      ...props.selectedResult,
-      ...result,
-      uuid: props.selectedResult.uuid,
-    });
+    if (props.selectedResult) {
+      emit("updateResult", {
+        ...props.selectedResult,
+        ...result,
+        uuid: props.selectedResult.uuid,
+      });
+    }
     // Let App.vue know the dropdown needs to refresh.
     await Promise.resolve(appApi.refreshRoles());
   }

@@ -6,19 +6,22 @@ import {
   updateCursor,
   RSS_CURSOR_KEY,
   RssFetcherError,
-} from "../../server/sources/fetchers/rss.js";
-import type { Source, SourceState } from "../../server/sources/types.js";
-import type { FetcherDeps } from "../../server/sources/fetchers/index.js";
+} from "../../server/workspace/sources/fetchers/rss.js";
+import type {
+  Source,
+  SourceState,
+} from "../../server/workspace/sources/types.js";
+import type { FetcherDeps } from "../../server/workspace/sources/fetchers/index.js";
 import {
   HostRateLimiter,
   type RateLimiterDeps,
-} from "../../server/sources/rateLimiter.js";
+} from "../../server/workspace/sources/rateLimiter.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   type HttpFetcherDeps,
   type RobotsProvider,
-} from "../../server/sources/httpFetcher.js";
-import type { ParsedFeed } from "../../server/sources/fetchers/rssParser.js";
+} from "../../server/workspace/sources/httpFetcher.js";
+import type { ParsedFeed } from "../../server/workspace/sources/fetchers/rssParser.js";
 
 // --- helpers -------------------------------------------------------------
 
@@ -418,7 +421,7 @@ describe("rssFetcher.fetch", () => {
 
   it("registers itself as the `rss` fetcher on import", async () => {
     const { getFetcher } =
-      await import("../../server/sources/fetchers/index.js");
+      await import("../../server/workspace/sources/fetchers/index.js");
     const fetcher = getFetcher("rss");
     assert.ok(fetcher);
     assert.equal(fetcher!.kind, "rss");

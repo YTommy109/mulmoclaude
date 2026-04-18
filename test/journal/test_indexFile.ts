@@ -7,7 +7,7 @@ import {
   renderRecentDaysSection,
   renderTopicsSection,
   type IndexInputs,
-} from "../../server/journal/indexFile.js";
+} from "../../server/workspace/journal/indexFile.js";
 
 function baseInput(over: Partial<IndexInputs> = {}): IndexInputs {
   return {

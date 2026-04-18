@@ -5,25 +5,25 @@ import {
   computeNextState,
   backoffDelayMs,
   BACKOFF_MAX_MS,
-} from "../../server/sources/pipeline/fetch.js";
+} from "../../server/workspace/sources/pipeline/fetch.js";
 import type {
   FetcherDeps,
   FetchResult,
   SourceFetcher,
-} from "../../server/sources/fetchers/index.js";
+} from "../../server/workspace/sources/fetchers/index.js";
 import type {
   FetcherKind,
   Source,
   SourceState,
-} from "../../server/sources/types.js";
+} from "../../server/workspace/sources/types.js";
 import {
   HostRateLimiter,
   type RateLimiterDeps,
-} from "../../server/sources/rateLimiter.js";
+} from "../../server/workspace/sources/rateLimiter.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   type HttpFetcherDeps,
-} from "../../server/sources/httpFetcher.js";
+} from "../../server/workspace/sources/httpFetcher.js";
 
 // --- helpers -------------------------------------------------------------
 
@@ -147,9 +147,12 @@ describe("runFetchPhase — success path", () => {
   });
 
   it("supplies a default state when none is present", async () => {
-    let sawState: SourceState | null = null;
+    // See test_classifier.ts — array capture avoids the TS narrowing
+    // bug where a `let` reassigned inside an async callback becomes
+    // `never` at the outer scope.
+    const captured: SourceState[] = [];
     const fetcher = fakeFetcher("rss", async (_source, state) => {
-      sawState = state;
+      captured.push(state);
       return { items: [], cursor: {} };
     });
     await runFetchPhase({
@@ -158,10 +161,10 @@ describe("runFetchPhase — success path", () => {
       deps: makeDeps(),
       getFetcher: makeGetFetcher([fetcher]),
     });
-    assert.ok(sawState);
-    assert.equal(sawState!.slug, "fresh");
-    assert.deepEqual(sawState!.cursor, {});
-    assert.equal(sawState!.consecutiveFailures, 0);
+    assert.equal(captured.length, 1);
+    assert.equal(captured[0].slug, "fresh");
+    assert.deepEqual(captured[0].cursor, {});
+    assert.equal(captured[0].consecutiveFailures, 0);
   });
 });
 

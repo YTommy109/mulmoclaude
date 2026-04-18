@@ -4,7 +4,7 @@ import {
   findDirtySessions,
   applyProcessed,
   type SessionFileMeta,
-} from "../../server/journal/diff.js";
+} from "../../server/workspace/journal/diff.js";
 
 describe("findDirtySessions", () => {
   it("treats every session as dirty when processed state is empty", () => {

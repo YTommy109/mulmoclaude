@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseFeed } from "../../server/sources/fetchers/rssParser.js";
+import { parseFeed } from "../../server/workspace/sources/fetchers/rssParser.js";
 
 // --- RSS 2.0 ------------------------------------------------------------
 

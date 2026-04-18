@@ -9,8 +9,10 @@
 // action route is intentionally NOT used by the explorer.
 
 import { ref, type Ref } from "vue";
+import { API_ROUTES } from "../../../config/apiRoutes";
 import { useFreshPluginData } from "../../../composables/useFreshPluginData";
 import { errorMessage } from "../../../utils/errors";
+import { apiCall } from "../../../utils/api";
 import type { StatusColumn, TodoItem } from "../index";
 
 interface TodosResponse {
@@ -35,26 +37,20 @@ function extractColumns(json: unknown): StatusColumn[] | null {
   return isStatusColumnArray(cols) ? cols : null;
 }
 
-// Apply server response (always { data: { items, columns } } for the
-// new REST routes) into the local refs. Centralised so every helper
-// uses the same parser and error guard. Returns false on a non-OK
-// status, malformed JSON, or a payload missing the items array.
-async function applyResponse(
-  response: Awaited<ReturnType<typeof fetch>>,
+// Apply parsed JSON payload (always { data: { items, columns } } for
+// the new REST routes) into the local refs. Centralised so every
+// helper uses the same parser and error guard. Returns false on a
+// payload missing the items array.
+function applyPayload(
+  json: unknown,
   items: Ref<TodoItem[]>,
   columns: Ref<StatusColumn[]>,
-): Promise<boolean> {
-  if (!response.ok) return false;
-  try {
-    const json: unknown = await response.json();
-    const nextItems = extractItems(json);
-    const nextColumns = extractColumns(json);
-    if (nextItems) items.value = nextItems;
-    if (nextColumns) columns.value = nextColumns;
-    return nextItems !== null;
-  } catch {
-    return false;
-  }
+): boolean {
+  const nextItems = extractItems(json);
+  const nextColumns = extractColumns(json);
+  if (nextItems) items.value = nextItems;
+  if (nextColumns) columns.value = nextColumns;
+  return nextItems !== null;
 }
 
 export interface UseTodosHandle {
@@ -123,7 +119,7 @@ export function useTodos(
     items: TodoItem[];
     columns: StatusColumn[];
   }>({
-    endpoint: () => "/api/todos",
+    endpoint: () => API_ROUTES.todos.list,
     extract: (json) => {
       const i = extractItems(json);
       const c = extractColumns(json);
@@ -147,47 +143,32 @@ export function useTodos(
     return ok;
   }
 
-  // Use Parameters<typeof fetch> rather than the global RequestInit
-  // type so this file doesn't depend on the DOM lib being in the
-  // ESLint globals (which it isn't outside src/composables/).
-  type FetchInit = Parameters<typeof fetch>[1];
-
-  async function call(url: string, init: FetchInit): Promise<boolean> {
+  // Thin wrapper around apiCall that applies the response payload
+  // into the local refs and surfaces errors through `error.value`.
+  // Using apiCall (not raw fetch) ensures the #272 bearer token is
+  // attached to every request.
+  async function call(
+    url: string,
+    method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+    body?: unknown,
+  ): Promise<boolean> {
     error.value = null;
     try {
-      const res = await fetch(url, init);
-      const ok = await applyResponse(res, items, columns);
-      if (!ok) {
-        // Try to surface a server error message if the body looks
-        // like one. Falls back to a generic message.
-        let message = `Request failed (${res.status})`;
-        try {
-          const body: unknown = await res.clone().json();
-          if (
-            typeof body === "object" &&
-            body !== null &&
-            typeof (body as { error?: unknown }).error === "string"
-          ) {
-            message = (body as { error: string }).error;
-          }
-        } catch {
-          // ignore — keep the generic message
-        }
-        error.value = message;
+      const result = await apiCall<unknown>(url, { method, body });
+      if (!result.ok) {
+        error.value = result.error;
+        return false;
       }
-      return ok;
+      const applied = applyPayload(result.data, items, columns);
+      if (!applied) {
+        error.value = `Request failed: unexpected payload shape`;
+        return false;
+      }
+      return true;
     } catch (err) {
       error.value = errorMessage(err);
       return false;
     }
-  }
-
-  function jsonInit(method: string, body: unknown): FetchInit {
-    return {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    };
   }
 
   return {
@@ -195,30 +176,37 @@ export function useTodos(
     columns,
     error,
     refresh,
-    createItem: (input) => call("/api/todos/items", jsonInit("POST", input)),
+    createItem: (input) => call(API_ROUTES.todos.items, "POST", input),
     patchItem: (id, input) =>
       call(
-        `/api/todos/items/${encodeURIComponent(id)}`,
-        jsonInit("PATCH", input),
+        API_ROUTES.todos.item.replace(":id", encodeURIComponent(id)),
+        "PATCH",
+        input,
       ),
     moveItem: (id, input) =>
       call(
-        `/api/todos/items/${encodeURIComponent(id)}/move`,
-        jsonInit("POST", input),
+        API_ROUTES.todos.itemMove.replace(":id", encodeURIComponent(id)),
+        "POST",
+        input,
       ),
     deleteItem: (id) =>
-      call(`/api/todos/items/${encodeURIComponent(id)}`, { method: "DELETE" }),
-    addColumn: (input) => call("/api/todos/columns", jsonInit("POST", input)),
+      call(
+        API_ROUTES.todos.item.replace(":id", encodeURIComponent(id)),
+        "DELETE",
+      ),
+    addColumn: (input) => call(API_ROUTES.todos.columns, "POST", input),
     patchColumn: (id, input) =>
       call(
-        `/api/todos/columns/${encodeURIComponent(id)}`,
-        jsonInit("PATCH", input),
+        API_ROUTES.todos.column.replace(":id", encodeURIComponent(id)),
+        "PATCH",
+        input,
       ),
     deleteColumn: (id) =>
-      call(`/api/todos/columns/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-      }),
+      call(
+        API_ROUTES.todos.column.replace(":id", encodeURIComponent(id)),
+        "DELETE",
+      ),
     reorderColumns: (ids) =>
-      call("/api/todos/columns/order", jsonInit("PUT", { ids })),
+      call(API_ROUTES.todos.columnsOrder, "PUT", { ids }),
   };
 }

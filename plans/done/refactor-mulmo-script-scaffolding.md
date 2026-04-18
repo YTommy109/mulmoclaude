@@ -12,7 +12,7 @@ Extract the repeated `resolveStoryPath → buildContext → try/catch/errorMessa
 
 ## Approach
 
-Add one helper in `server/routes/mulmo-script.ts` (or a sibling file) that wraps the common prologue + error-catch:
+Add one helper in `server/api/routes/mulmo-script.ts` (or a sibling file) that wraps the common prologue + error-catch:
 
 ```ts
 type StoryJsonResponse = { error: string } | Record<string, unknown>;

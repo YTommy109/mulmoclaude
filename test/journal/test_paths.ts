@@ -8,13 +8,16 @@ import {
   archivedTopicPathFor,
   toIsoDate,
   slugify,
-} from "../../server/journal/paths.js";
+} from "../../server/workspace/journal/paths.js";
 
 const WS = "/fake/workspace";
 
 describe("summariesRoot", () => {
   it("joins workspace root with the summaries dir", () => {
-    assert.equal(summariesRoot(WS), path.join(WS, "summaries"));
+    assert.equal(
+      summariesRoot(WS),
+      path.join(WS, "conversations", "summaries"),
+    );
   });
 });
 
@@ -22,14 +25,30 @@ describe("dailyPathFor", () => {
   it("builds summaries/daily/YYYY/MM/DD.md", () => {
     assert.equal(
       dailyPathFor(WS, "2026-04-11"),
-      path.join(WS, "summaries", "daily", "2026", "04", "11.md"),
+      path.join(
+        WS,
+        "conversations",
+        "summaries",
+        "daily",
+        "2026",
+        "04",
+        "11.md",
+      ),
     );
   });
 
   it("preserves leading zeros", () => {
     assert.equal(
       dailyPathFor(WS, "2026-01-03"),
-      path.join(WS, "summaries", "daily", "2026", "01", "03.md"),
+      path.join(
+        WS,
+        "conversations",
+        "summaries",
+        "daily",
+        "2026",
+        "01",
+        "03.md",
+      ),
     );
   });
 });
@@ -38,7 +57,7 @@ describe("topicPathFor", () => {
   it("builds summaries/topics/<slug>.md", () => {
     assert.equal(
       topicPathFor(WS, "refactoring"),
-      path.join(WS, "summaries", "topics", "refactoring.md"),
+      path.join(WS, "conversations", "summaries", "topics", "refactoring.md"),
     );
   });
 });
@@ -47,7 +66,14 @@ describe("archivedTopicPathFor", () => {
   it("builds summaries/archive/topics/<slug>.md", () => {
     assert.equal(
       archivedTopicPathFor(WS, "old-topic"),
-      path.join(WS, "summaries", "archive", "topics", "old-topic.md"),
+      path.join(
+        WS,
+        "conversations",
+        "summaries",
+        "archive",
+        "topics",
+        "old-topic.md",
+      ),
     );
   });
 });

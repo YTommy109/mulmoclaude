@@ -51,7 +51,7 @@ open issues in one pass:
   These live in their own follow-up PR ("PR B") — they're orthogonal
   to fetching and consolidating them with the composable would blow
   up the diff.
-- **Not** touching `server/routes/wiki.ts` (DRY refactor, separate PR).
+- **Not** touching `server/api/routes/wiki.ts` (DRY refactor, separate PR).
 - **Not** migrating tests away from existing component tests.
 - **Not** introducing a useSWR-style cache or anything more ambitious
   than "fetch on mount + on prop uuid change".
@@ -344,6 +344,6 @@ the PR description, not automated).
   - `yamlError` on applyItemEdit failure (both views)
   - scheduler `remove` result check
   - manageRoles `as` cast → type guard
-- **PR C**: `server/routes/wiki.ts` DRY refactor
+- **PR C**: `server/api/routes/wiki.ts` DRY refactor
 - **Preview lazy fetch** (IntersectionObserver + deferred mount): not
   required until real performance issues surface.

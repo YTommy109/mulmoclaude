@@ -14,7 +14,7 @@ Add a view-mode toggle to the central canvas in `src/App.vue` so the user is no 
 - Canvas (`src/App.vue:228-253`) renders **only `selectedResult`** via the plugin's `viewComponent`
 - The user must click each entry in the left sidebar (`src/App.vue:121-144`) to bring its content into the canvas
 - `toolResults` already contains every entry (plugin results + `text-response` user/assistant messages)
-- Workspace is `~/mulmoclaude` (`server/workspace.ts:10`) — already a git repo, with subdirs `chat`, `todos`, `calendar`, `contacts`, `scheduler`, `roles`, `stories`, plus `memory.md` and `helps/`
+- Workspace is `~/mulmoclaude` (`server/workspace/workspace.ts:10`) — already a git repo, with subdirs `chat`, `todos`, `calendar`, `contacts`, `scheduler`, `roles`, `stories`, plus `memory.md` and `helps/`
 - There is no existing endpoint that lists or serves arbitrary workspace files
 
 ## Design
@@ -141,7 +141,7 @@ Tree building also skips any symlinked directory entries entirely as defense-in-
 
 ### Phase 2 — files mode (server)
 
-1. **`server/routes/files.ts`** *(new)*
+1. **`server/api/routes/files.ts`** *(new)*
    - `GET /api/files/tree` → recursive directory listing as a nested tree, hides `.git`
    - `GET /api/files/content?path=<rel>` → returns file content with `Content-Type` based on extension; binary files return raw bytes; JSON metadata for "too large" or "unsupported" cases
    - Both endpoints validate the path is inside `workspacePath`
@@ -169,7 +169,7 @@ Tree building also skips any symlinked directory entries entirely as defense-in-
 | `src/components/StackView.vue` *(new)* | Vertical stack of all tool results |
 | `src/components/FilesView.vue` *(new)* | Two-pane file browser |
 | `src/components/FileTree.vue` *(new)* | Recursive directory tree |
-| `server/routes/files.ts` *(new)* | `/api/files/tree` and `/api/files/content` |
+| `server/api/routes/files.ts` *(new)* | `/api/files/tree` and `/api/files/content` |
 | `server/index.ts` | Register `filesRoutes` |
 
 ## Out of Scope

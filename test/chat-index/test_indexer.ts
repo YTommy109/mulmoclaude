@@ -9,12 +9,12 @@ import {
   readManifest,
   isFresh,
   MIN_INDEX_INTERVAL_MS,
-} from "../../server/chat-index/indexer.js";
+} from "../../server/workspace/chat-index/indexer.js";
 import {
   indexEntryPathFor,
   manifestPathFor,
-} from "../../server/chat-index/paths.js";
-import type { SummaryResult } from "../../server/chat-index/types.js";
+} from "../../server/workspace/chat-index/paths.js";
+import type { SummaryResult } from "../../server/workspace/chat-index/types.js";
 
 let workspace: string;
 

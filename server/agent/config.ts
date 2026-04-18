@@ -1,9 +1,14 @@
 import { join } from "path";
 import { homedir, tmpdir } from "os";
 import type { Role } from "../../src/config/roles.js";
-import { mcpTools, isMcpToolEnabled } from "../mcp-tools/index.js";
-import { MCP_PLUGIN_NAMES } from "../plugin-names.js";
-import type { McpServerSpec } from "../config.js";
+import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
+import { MCP_PLUGIN_NAMES } from "./plugin-names.js";
+import type { McpServerSpec } from "../system/config.js";
+import { getCurrentToken } from "../api/auth/token.js";
+import type { Attachment } from "@mulmobridge/protocol";
+import { isImageMime, isNativeAttachmentMime } from "@mulmobridge/client";
+import { convertAttachment } from "./attachmentConverter.js";
+import { log } from "../system/logger/index.js";
 
 export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
@@ -36,7 +41,7 @@ export interface McpConfigParams {
   activePlugins: string[];
   roleIds: string[];
   useDocker?: boolean;
-  // User-defined MCP servers from <workspace>/configs/mcp.json.
+  // User-defined MCP servers from <workspace>/config/mcp.json.
   // Keys become the server id in the generated --mcp-config file;
   // values are the standard Claude CLI server spec (HTTP or stdio).
   userServers?: Record<string, McpServerSpec>;
@@ -135,8 +140,8 @@ function buildMulmoclaudeServer(params: {
     ? "tsx"
     : join(projectRoot, "node_modules/.bin/tsx");
   const mcpServerPath = useDocker
-    ? "/app/server/mcp-server.ts"
-    : join(projectRoot, "server/mcp-server.ts");
+    ? "/app/server/agent/mcp-server.ts"
+    : join(projectRoot, "server/agent/mcp-server.ts");
 
   const dockerEnv = useDocker
     ? {
@@ -146,6 +151,13 @@ function buildMulmoclaudeServer(params: {
       }
     : {};
 
+  // Bearer token for MCP subprocess to call /api/* back to this server
+  // (#272). The MCP bridge also has a file-read fallback from
+  // <workspace>/.session-token, but env is faster and works in Docker
+  // where the token file may not be bind-mounted.
+  const token = getCurrentToken();
+  const authEnv = token ? { MULMOCLAUDE_AUTH_TOKEN: token } : {};
+
   return {
     command,
     args: [mcpServerPath],
@@ -154,6 +166,7 @@ function buildMulmoclaudeServer(params: {
       PORT: String(port),
       PLUGIN_NAMES: activePlugins.join(","),
       ROLE_IDS: roleIds.join(","),
+      ...authEnv,
       ...dockerEnv,
     },
   };
@@ -253,6 +266,7 @@ export function buildCliArgs(params: CliArgsParams): string[] {
     "stream-json",
     "--input-format",
     "stream-json",
+    "--include-partial-messages",
     "--verbose",
     "--system-prompt",
     systemPrompt,
@@ -273,14 +287,77 @@ export function buildCliArgs(params: CliArgsParams): string[] {
 }
 
 /** JSON line to write to the Claude CLI's stdin when running in
- *  stream-json input mode. One line per user turn. */
-export function buildUserMessageLine(message: string): string {
+ *  stream-json input mode. One line per user turn.
+ *
+ *  Supported attachment types:
+ *  - `image/*` → vision content blocks (`type: "image"`)
+ *  - `application/pdf` → document content blocks (`type: "document"`)
+ *  - `text/*`, JSON, XML, YAML, CSV → decoded UTF-8 → text block
+ *  - DOCX → mammoth text extraction → text block
+ *  - XLSX → xlsx CSV extraction → text block
+ *  - PPTX → libreoffice PDF conversion → document block (Docker only)
+ *  - Other MIME types → skipped with a console hint.
+ *
+ *  Without attachments, content is a plain string (smaller,
+ *  backward-compatible). */
+export async function buildUserMessageLine(
+  message: string,
+  attachments?: Attachment[],
+): Promise<string> {
+  const all = attachments ?? [];
+  if (all.length === 0) {
+    return (
+      JSON.stringify({
+        type: "user",
+        message: { role: "user", content: message },
+      }) + "\n"
+    );
+  }
+
+  const blocks: Array<Record<string, unknown>> = [];
+  const skippedReasons: string[] = [];
+
+  for (const att of all) {
+    // Native types: image and PDF go directly as content blocks
+    if (isNativeAttachmentMime(att.mimeType)) {
+      blocks.push(buildNativeBlock(att));
+      continue;
+    }
+    // Convertible types: text, docx, xlsx, pptx
+    const result = await convertAttachment(att);
+    if (result.kind === "converted") {
+      blocks.push(...result.blocks);
+    } else {
+      skippedReasons.push(result.reason);
+    }
+  }
+
+  if (skippedReasons.length > 0) {
+    log.warn("agent", "skipping unsupported attachment(s)", {
+      count: skippedReasons.length,
+      reasons: skippedReasons,
+    });
+  }
+
+  blocks.push({ type: "text", text: message });
   return (
     JSON.stringify({
       type: "user",
-      message: { role: "user", content: message },
+      message: { role: "user", content: blocks },
     }) + "\n"
   );
+}
+
+function buildNativeBlock(att: Attachment): Record<string, unknown> {
+  const blockType = isImageMime(att.mimeType) ? "image" : "document";
+  return {
+    type: blockType,
+    source: {
+      type: "base64",
+      media_type: att.mimeType,
+      data: att.data,
+    },
+  };
 }
 
 export interface McpConfigPaths {
@@ -333,6 +410,15 @@ export interface DockerSpawnArgsParams {
   platform: Platform;
   projectRoot?: string;
   homeDir?: string;
+  /** Extra `-v` / `-e` tokens for opt-in host credentials (#259).
+   *  Built by `resolveSandboxAuth` in `sandboxMounts.ts`. Default []. */
+  sandboxAuthArgs?: readonly string[];
+  /** Whether SSH agent forwarding is active. When true, the container
+   *  uses the entrypoint (root → setup → setpriv drop) instead of
+   *  `--user`, and adds the minimum capabilities the entrypoint needs.
+   *  When false (default), `--user uid:gid --cap-drop ALL` with zero
+   *  capabilities — identical to the pre-#259 security posture. */
+  sshAgentForward?: boolean;
 }
 
 // Pure helper that returns the full `docker run ... claude <args>`
@@ -347,6 +433,8 @@ export function buildDockerSpawnArgs(params: DockerSpawnArgsParams): string[] {
     platform,
     projectRoot = process.cwd(),
     homeDir = homedir(),
+    sandboxAuthArgs = [],
+    sshAgentForward = false,
   } = params;
   const toDockerPath = (p: string): string => p.replace(/\\/g, "/");
   const extraHosts: string[] =
@@ -363,8 +451,32 @@ export function buildDockerSpawnArgs(params: DockerSpawnArgsParams): string[] {
     "-i",
     "--cap-drop",
     "ALL",
-    "--user",
-    `${uid}:${gid}`,
+    // When SSH agent forwarding is active, the entrypoint needs root
+    // to fix /etc/passwd, chown /home/node, and chmod the socket.
+    // These 5 caps are the minimum set; setpriv --inh-caps=-all
+    // drops them on exec so Claude runs with zero capabilities.
+    //
+    // When SSH is OFF, use the simpler `--user uid:gid` which runs
+    // the entire container as the host user — zero caps from the
+    // start, identical to the pre-#259 security posture.
+    ...(sshAgentForward
+      ? [
+          "--cap-add",
+          "CHOWN",
+          "--cap-add",
+          "FOWNER",
+          "--cap-add",
+          "DAC_OVERRIDE",
+          "--cap-add",
+          "SETUID",
+          "--cap-add",
+          "SETGID",
+          "-e",
+          `HOST_UID=${uid}`,
+          "-e",
+          `HOST_GID=${gid}`,
+        ]
+      : ["--user", `${uid}:${gid}`]),
     "-e",
     "HOME=/home/node",
     "-v",
@@ -379,6 +491,7 @@ export function buildDockerSpawnArgs(params: DockerSpawnArgsParams): string[] {
     `${toDockerPath(homeDir)}/.claude:/home/node/.claude`,
     "-v",
     `${toDockerPath(homeDir)}/.claude.json:/home/node/.claude.json`,
+    ...sandboxAuthArgs,
     ...extraHosts,
     "mulmoclaude-sandbox",
     "claude",

@@ -9,7 +9,7 @@ import {
   computeSearchRelPath,
   formatSearchDateDir,
   writeSearchResult,
-} from "../../server/tool-trace/writeSearch.js";
+} from "../../server/workspace/tool-trace/writeSearch.js";
 
 const FIXED_TS = new Date("2026-04-13T05:18:47.123Z");
 const SID = "a821d112-539b-4f1b-9e19-adc6e9c6a411";
@@ -54,13 +54,13 @@ describe("computeSearchHash", () => {
 });
 
 describe("computeSearchRelPath", () => {
-  it("builds searches/YYYY-MM-DD/<slug>-<hash>.md", () => {
+  it("builds conversations/searches/YYYY-MM-DD/<slug>-<hash>.md", () => {
     const p = computeSearchRelPath({
       query: "熊本地震 2016",
       sessionId: SID,
       ts: FIXED_TS,
     });
-    assert.ok(p.startsWith("searches/2026-04-13/"));
+    assert.ok(p.startsWith("conversations/searches/2026-04-13/"));
     assert.ok(p.endsWith(".md"));
   });
 
@@ -142,7 +142,7 @@ describe("writeSearchResult (I/O)", () => {
     await rm(workspaceRoot, { recursive: true, force: true });
   });
 
-  it("writes a file under searches/YYYY-MM-DD/ and returns its rel path", async () => {
+  it("writes a file under conversations/searches/YYYY-MM-DD/ and returns its rel path", async () => {
     const rel = await writeSearchResult({
       workspaceRoot,
       query: "foo query",
@@ -150,7 +150,7 @@ describe("writeSearchResult (I/O)", () => {
       ts: FIXED_TS,
       resultBody: "top result",
     });
-    assert.ok(rel.startsWith("searches/2026-04-13/"));
+    assert.ok(rel.startsWith("conversations/searches/2026-04-13/"));
     const written = await readFile(path.join(workspaceRoot, rel), "utf-8");
     assert.ok(written.includes("top result"));
     assert.ok(written.includes("query: foo-query".replaceAll("-", " ")));
@@ -171,7 +171,12 @@ describe("writeSearchResult (I/O)", () => {
       ts: FIXED_TS,
       resultBody: "b",
     });
-    const dir = path.join(workspaceRoot, "searches", "2026-04-13");
+    const dir = path.join(
+      workspaceRoot,
+      "conversations",
+      "searches",
+      "2026-04-13",
+    );
     const files = (await readdir(dir)).filter((n) => n.endsWith(".md"));
     // At least two files (prior test in this block wrote one too).
     assert.ok(files.length >= 2);

@@ -140,7 +140,7 @@ Sidebar preview — shows:
 - Beat count
 - Small beat type breakdown (e.g. "3× markdown, 2× textSlide")
 
-### 5. `server/routes/mulmo-script.ts`
+### 5. `server/api/routes/mulmo-script.ts`
 
 `POST /api/mulmo-script`:
 - Reads `script` and optional `filename` from the request body
@@ -151,7 +151,7 @@ Sidebar preview — shows:
 
 ### 6. Wire-up (4 files)
 
-**`server/mcp-server.ts`**
+**`server/agent/mcp-server.ts`**
 - Import `toolDefinition` from `../src/plugins/presentMulmoScript/definition.js`
 - Add `presentMulmoScript` to `TOOL_ENDPOINTS` → `"/api/mulmo-script"`
 - Add `toolDefinition` to the `ALL_TOOLS` spread array
@@ -164,7 +164,7 @@ Sidebar preview — shows:
 - Add a new `storyteller` role (see below)
 - Optionally add `presentMulmoScript` to the `office` role
 
-**`server/agent.ts`**
+**`server/agent/index.ts`**
 - Add `"presentMulmoScript"` to `MCP_PLUGINS`
 
 ---
@@ -285,14 +285,14 @@ src/plugins/presentMulmoScript/
   index.ts               ← execute() + Vue component refs
   View.vue               ← storyboard canvas view
   Preview.vue            ← sidebar preview
-server/routes/mulmo-script.ts  ← POST /api/mulmo-script
+server/api/routes/mulmo-script.ts  ← POST /api/mulmo-script
 ```
 
 Edits to existing files:
-- `server/mcp-server.ts` — import def, add endpoint, add to ALL_TOOLS
+- `server/agent/mcp-server.ts` — import def, add endpoint, add to ALL_TOOLS
 - `src/tools/index.ts` — register plugin
 - `src/config/roles.ts` — add storyteller role (+ optionally office)
-- `server/agent.ts` — add to MCP_PLUGINS
+- `server/agent/index.ts` — add to MCP_PLUGINS
 - `server/index.ts` (or wherever routes are mounted) — mount the new route
 
 ---

@@ -6,7 +6,7 @@ UTC daily", "tick every 5 minutes". One `setInterval`, no cron
 library, no persistence — designed for development-workstation
 lifetimes, not 24/7 infrastructure.
 
-Canonical module: [`server/task-manager/index.ts`](../server/task-manager/index.ts).
+Canonical module: [`server/events/task-manager/index.ts`](../server/events/task-manager/index.ts).
 Design rationale: [`plans/done/task_manager.md`](../plans/done/task_manager.md).
 
 ---
@@ -158,7 +158,7 @@ a clock-tick boundary).
 The scheduler calls `onTick` every `tickMs`. On each tick it walks
 the registry and fires every enabled task whose schedule is "due".
 Due-checking is pure — see `isDue()` in
-[`server/task-manager/index.ts`](../server/task-manager/index.ts).
+[`server/events/task-manager/index.ts`](../server/events/task-manager/index.ts).
 
 - **`interval`**: due when `floor(msSinceMidnightUtc / tickMs) * tickMs`
   is a whole-number multiple of `intervalMs`. Practical effect:
@@ -174,6 +174,16 @@ so `interval` tasks all align on midnight. There's no "first run
 now" option — if you need immediate execution on boot, call the
 task body directly in `startRuntimeServices` and then `registerTask`
 it for subsequent ticks.
+
+---
+
+## Relationship to @receptron/task-scheduler
+
+The task-manager is the **tick loop** — it calls `setInterval`, walks registered tasks, and fires the ones that are due. It has no persistence: if the server restarts, it starts fresh.
+
+[`@receptron/task-scheduler`](https://www.npmjs.com/package/@receptron/task-scheduler) (in `packages/scheduler/`) adds **persistence and catch-up** on top. It tracks execution state in a JSON file, detects missed windows after a restart, and applies per-task catch-up policies (skip / run-once / run-all). The scheduler-adapter (`server/events/scheduler-adapter.ts`) wires the two together: it registers system tasks with the task-manager for ongoing ticks, and uses the scheduler library's `computeCatchUpPlan()` on startup.
+
+In short: task-manager = timer, @receptron/task-scheduler = state + catch-up.
 
 ---
 
@@ -209,7 +219,7 @@ Relevant code: `server/index.ts#registerDebugTasks`.
 Inject `now` and drive ticks manually — no real timer involved:
 
 ```ts
-import { createTaskManager } from "../../server/task-manager/index.js";
+import { createTaskManager } from "../../server/events/task-manager/index.js";
 
 const state = { t: new Date("2026-04-15T00:00:00Z") };
 const tm = createTaskManager({

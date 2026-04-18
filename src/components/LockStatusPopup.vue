@@ -22,7 +22,7 @@
     <div
       v-if="open"
       ref="popup"
-      class="absolute right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-3 text-xs"
+      class="absolute left-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-3 text-xs"
     >
       <p
         class="mb-2"
@@ -46,6 +46,52 @@
           to enable filesystem isolation.
         </template>
       </p>
+      <div
+        v-if="sandboxEnabled"
+        data-testid="sandbox-credentials-block"
+        class="mb-2 border-t border-gray-100 pt-2"
+      >
+        <p class="text-gray-400 mb-1">Host credentials attached:</p>
+        <p
+          v-if="sandboxStatus === null"
+          class="text-gray-400 italic"
+          data-testid="sandbox-credentials-loading"
+        >
+          loading…
+        </p>
+        <template v-else>
+          <p data-testid="sandbox-credentials-ssh">
+            <span class="mr-1">🔑</span>
+            <span class="text-gray-500">SSH agent:</span>
+            <span
+              :class="
+                sandboxStatus.sshAgent ? 'text-green-700' : 'text-gray-400'
+              "
+              class="ml-1"
+            >
+              {{ sandboxStatus.sshAgent ? "forwarded" : "not forwarded" }}
+            </span>
+          </p>
+          <p data-testid="sandbox-credentials-mounts">
+            <span class="mr-1">📁</span>
+            <span class="text-gray-500">Mounted configs:</span>
+            <span
+              :class="
+                sandboxStatus.mounts.length > 0
+                  ? 'text-green-700'
+                  : 'text-gray-400'
+              "
+              class="ml-1"
+            >
+              {{
+                sandboxStatus.mounts.length > 0
+                  ? sandboxStatus.mounts.join(", ")
+                  : "none"
+              }}
+            </span>
+          </p>
+        </template>
+      </div>
       <p class="text-gray-400 mb-1">Test sandbox isolation:</p>
       <div class="flex flex-col gap-1">
         <button
@@ -63,9 +109,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
+import { useSandboxStatus } from "../composables/useSandboxStatus";
 
-defineProps<{
+const props = defineProps<{
   sandboxEnabled: boolean;
   open: boolean;
 }>();
@@ -78,16 +125,34 @@ const emit = defineEmits<{
 // Canned queries that demonstrate what the sandbox does / doesn't
 // allow. Kept here (not passed as a prop) because they are specific
 // to this popup and nothing else in the app needs them.
+//
+// The last entry is intentionally broader than the others: after #327
+// shipped opt-in credential forwarding, users need a way to ask what's
+// actually attached to *their* container, not just read the generic
+// docs. Claude answers by reading config/helps/sandbox.md and
+// inspecting the live state via built-in tools.
 const SANDBOX_TEST_QUERIES = [
   "Run `whoami` and show the result",
   "Run `hostname` and show the result",
   "Try to list files in ~/Library",
-  "Read helps/sandbox.md and explain how the sandbox works",
+  "Read config/helps/sandbox.md and explain how the sandbox works",
+  "Explain my current sandbox and credential setup",
 ];
 
 const button = ref<HTMLButtonElement | null>(null);
 const popup = ref<HTMLDivElement | null>(null);
 defineExpose({ button, popup });
+
+// Lazy-load the sandbox credential state the first time the popup
+// opens (and only when the sandbox is actually enabled — /api/sandbox
+// returns `{}` otherwise and the UI block is hidden).
+const { status: sandboxStatus, ensureLoaded } = useSandboxStatus();
+watch(
+  () => props.open,
+  async (isOpen) => {
+    if (isOpen && props.sandboxEnabled) await ensureLoaded();
+  },
+);
 
 function onTestQuery(q: string): void {
   emit("update:open", false);

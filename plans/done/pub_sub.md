@@ -124,7 +124,7 @@ unsub();
 ## 6) Server Implementation
 
 ```ts
-// server/pub-sub/index.ts
+// server/events/pub-sub/index.ts
 
 import { WebSocketServer, WebSocket } from "ws";
 import http from "http";

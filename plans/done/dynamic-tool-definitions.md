@@ -2,7 +2,7 @@
 
 ## Problem
 
-`server/mcp-server.ts` hardcodes the full `inputSchema` and `description` for every plugin tool in `ALL_TOOLS`. When a package plugin is updated (new parameters, changed descriptions, fixed enums), `mcp-server.ts` silently drifts out of date. The `playOthello` `playerNames` bug was caused exactly by this.
+`server/agent/mcp-server.ts` hardcodes the full `inputSchema` and `description` for every plugin tool in `ALL_TOOLS`. When a package plugin is updated (new parameters, changed descriptions, fixed enums), `mcp-server.ts` silently drifts out of date. The `playOthello` `playerNames` bug was caused exactly by this.
 
 ---
 
@@ -77,7 +77,7 @@ Recommended: Option A for consistency. The definition files are trivial to extra
 The `@gui-chat-plugin/present3d` package exports `TOOL_NAME = "present3D"` (capital D).
 Current `ALL_TOOLS` key and `name` are both `"present3d"` (lowercase) — which means Claude calls the MCP tool as `present3D` but we look it up as `present3d`, missing it.
 
-Fix as part of this change: use the package's `TOOL_DEFINITION.name` as the key (which is `"present3D"`), and update `MCP_PLUGINS` in `server/agent.ts` and `availablePlugins` in `src/config/roles.ts` to match.
+Fix as part of this change: use the package's `TOOL_DEFINITION.name` as the key (which is `"present3D"`), and update `MCP_PLUGINS` in `server/agent/index.ts` and `availablePlugins` in `src/config/roles.ts` to match.
 
 ---
 
@@ -85,12 +85,12 @@ Fix as part of this change: use the package's `TOOL_DEFINITION.name` as the key 
 
 | File | Change |
 |---|---|
-| `server/mcp-server.ts` | Import `TOOL_DEFINITION` from packages; replace hardcoded schemas; keep only `TOOL_ENDPOINTS` + `switchRole` |
+| `server/agent/mcp-server.ts` | Import `TOOL_DEFINITION` from packages; replace hardcoded schemas; keep only `TOOL_ENDPOINTS` + `switchRole` |
 | `src/plugins/todo/definition.ts` | New file — extract `toolDefinition` from `index.ts` |
 | `src/plugins/scheduler/definition.ts` | New file — extract `toolDefinition` from `index.ts` |
 | `src/plugins/todo/index.ts` | Import `toolDefinition` from `./definition` |
 | `src/plugins/scheduler/index.ts` | Import `toolDefinition` from `./definition` |
-| `server/agent.ts` | Fix `"present3d"` → `"present3D"` in `MCP_PLUGINS` |
+| `server/agent/index.ts` | Fix `"present3d"` → `"present3D"` in `MCP_PLUGINS` |
 | `src/config/roles.ts` | Fix `"present3d"` → `"present3D"` in `availablePlugins` for affected roles |
 | `src/tools/index.ts` | Fix `present3d` key → `present3D` |
 

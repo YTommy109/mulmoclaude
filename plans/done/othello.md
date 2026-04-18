@@ -47,7 +47,7 @@ The MCP tool name (what Claude calls) is `"playOthello"`. The frontend uses `too
 
 ## Files to Change
 
-### 1. `server/routes/plugins.ts`
+### 1. `server/api/routes/plugins.ts`
 Add a route for `POST /api/othello` that calls `executeOthello` from the package:
 ```ts
 import { executeOthello } from "@gui-chat-plugin/othello";
@@ -71,7 +71,7 @@ othello: OthelloPlugin.plugin as unknown as ToolPlugin,
 playOthello: OthelloPlugin.plugin as unknown as ToolPlugin,
 ```
 
-### 3. `server/agent.ts`
+### 3. `server/agent/index.ts`
 Add `"playOthello"` to `MCP_PLUGINS`:
 ```ts
 const MCP_PLUGINS = new Set([
@@ -80,7 +80,7 @@ const MCP_PLUGINS = new Set([
 ]);
 ```
 
-### 4. `server/mcp-server.ts`
+### 4. `server/agent/mcp-server.ts`
 Add entry to `ALL_TOOLS` using the schema from the package types:
 ```ts
 playOthello: {
@@ -157,8 +157,8 @@ No new route file, no workspace storage, no new Vue components needed.
 
 ## Checklist
 
-- [ ] `server/routes/plugins.ts` — add `/api/othello` route
+- [ ] `server/api/routes/plugins.ts` — add `/api/othello` route
 - [ ] `src/tools/index.ts` — rename key `"othello"` → `"playOthello"`
-- [ ] `server/agent.ts` — add `"playOthello"` to `MCP_PLUGINS`
-- [ ] `server/mcp-server.ts` — add `playOthello` entry to `ALL_TOOLS`
+- [ ] `server/agent/index.ts` — add `"playOthello"` to `MCP_PLUGINS`
+- [ ] `server/agent/mcp-server.ts` — add `playOthello` entry to `ALL_TOOLS`
 - [ ] `src/config/roles.ts` — add Game role with `playOthello`

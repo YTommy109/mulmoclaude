@@ -2,7 +2,7 @@
 
 ## Motivation
 
-`GET /api/files/tree` (`server/routes/files.ts:335`) recursively walks the entire workspace with `fs.statSync` + `fs.readdirSync` and returns one monolithic `TreeNode` JSON. Sync I/O **blocks the event loop** during the walk — all in-flight `/api/*` requests stall. Workspaces grow unbounded under `chat/`, `searches/`, `images/`, etc., so this gets worse over time.
+`GET /api/files/tree` (`server/api/routes/files.ts:335`) recursively walks the entire workspace with `fs.statSync` + `fs.readdirSync` and returns one monolithic `TreeNode` JSON. Sync I/O **blocks the event loop** during the walk — all in-flight `/api/*` requests stall. Workspaces grow unbounded under `chat/`, `searches/`, `images/`, etc., so this gets worse over time.
 
 Issue #200's MVP: **(1) make it async** + **(2) add a lazy-expand endpoint** so the client can render top-level on load and fetch children on expand.
 

@@ -1,7 +1,7 @@
 import { GoogleGenAI, type GenerateContentParameters } from "@google/genai";
-import { env } from "../env.js";
+import { env } from "../system/env.js";
 
-export { isGeminiAvailable } from "../env.js";
+export { isGeminiAvailable } from "../system/env.js";
 
 export function getGeminiClient(): GoogleGenAI {
   const apiKey = env.geminiApiKey;

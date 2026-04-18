@@ -238,11 +238,13 @@ import { useExpandedDirs } from "../composables/useExpandedDirs";
 import TextResponseView from "../plugins/textResponse/View.vue";
 import { rewriteMarkdownImageRefs } from "../utils/image/rewriteMarkdownImageRefs";
 import { apiGet } from "../utils/api";
+import { API_ROUTES } from "../config/apiRoutes";
+import { WORKSPACE_FILES } from "../config/workspacePaths";
 import { wrapHtmlWithPreviewCsp } from "../utils/html/previewCsp";
 import SchedulerView from "../plugins/scheduler/View.vue";
 import TodoExplorer from "./TodoExplorer.vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-import type { TextResponseData } from "@gui-chat-plugin/text-response";
+import type { TextResponseData } from "../plugins/textResponse/types";
 import type { SchedulerData, ScheduledItem } from "../plugins/scheduler/index";
 import type { StatusColumn, TodoData, TodoItem } from "../plugins/todo/index";
 import {
@@ -385,13 +387,13 @@ function isScheduledItemArray(x: unknown): x is ScheduledItem[] {
   return Array.isArray(x) && x.every(isScheduledItem);
 }
 
-// When the user opens scheduler/items.json, render it with the
+// When the user opens the scheduler items file, render it with the
 // scheduler plugin's calendar view instead of as a JSON blob. We
 // synthesize a fake ToolResultComplete<SchedulerData> so the View
 // component receives the same shape it normally gets in chat mode.
 const schedulerResult = computed(
   (): ToolResultComplete<SchedulerData> | null => {
-    if (selectedPath.value !== "scheduler/items.json") return null;
+    if (selectedPath.value !== WORKSPACE_FILES.schedulerItems) return null;
     if (!content.value || content.value.kind !== "text") return null;
     let parsed: unknown;
     try {
@@ -403,14 +405,14 @@ const schedulerResult = computed(
     return {
       uuid: "files-scheduler-preview",
       toolName: "manageScheduler",
-      message: "scheduler/items.json",
+      message: WORKSPACE_FILES.schedulerItems,
       title: "Scheduler",
       data: { items: parsed },
     };
   },
 );
 
-// Same idea as schedulerResult: when the user opens todos/todos.json
+// Same idea as schedulerResult: when the user opens the todos file
 // we render it as a full TodoExplorer (kanban / table / list) instead
 // of a raw JSON blob. The TodoExplorer fetches its own state from
 // /api/todos so the data we synthesize here is just a starter — the
@@ -430,7 +432,7 @@ function isTodoItemArray(x: unknown): x is TodoItem[] {
 }
 
 const todoExplorerResult = computed((): ToolResultComplete<TodoData> | null => {
-  if (selectedPath.value !== "todos/todos.json") return null;
+  if (selectedPath.value !== WORKSPACE_FILES.todosItems) return null;
   if (!content.value || content.value.kind !== "text") return null;
   let parsed: unknown;
   try {
@@ -443,7 +445,7 @@ const todoExplorerResult = computed((): ToolResultComplete<TodoData> | null => {
   return {
     uuid: "files-todo-preview",
     toolName: "manageTodoList",
-    message: "todos/todos.json",
+    message: WORKSPACE_FILES.todosItems,
     title: "Todo",
     data: { items, columns },
   };
@@ -497,7 +499,7 @@ const recentPaths = computed(() => {
 });
 
 function rawUrl(filePath: string): string {
-  return `/api/files/raw?path=${encodeURIComponent(filePath)}`;
+  return `${API_ROUTES.files.raw}?path=${encodeURIComponent(filePath)}`;
 }
 
 function formatBytes(bytes: number): string {
@@ -529,7 +531,7 @@ async function loadDirChildren(path: string): Promise<void> {
   next.set(path, null);
   childrenByPath.value = next;
 
-  const result = await apiGet<TreeNode>("/api/files/dir", { path });
+  const result = await apiGet<TreeNode>(API_ROUTES.files.dir, { path });
   if (!result.ok) {
     // Drop the `null` marker so the user can retry (e.g. via the
     // refresh-token watcher). Keep the error visible too.
@@ -589,7 +591,7 @@ async function loadContent(filePath: string): Promise<void> {
   contentError.value = null;
   content.value = null;
   const result = await apiGet<FileContent>(
-    "/api/files/content",
+    API_ROUTES.files.content,
     { path: filePath },
     { signal: controller.signal },
   );

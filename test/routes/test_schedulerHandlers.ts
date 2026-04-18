@@ -8,8 +8,8 @@ import {
   handleShow,
   handleUpdate,
   sortItems,
-} from "../../server/routes/schedulerHandlers.js";
-import type { ScheduledItem } from "../../server/routes/scheduler.js";
+} from "../../server/api/routes/schedulerHandlers.js";
+import type { ScheduledItem } from "../../server/api/routes/scheduler.js";
 
 function makeItem(overrides: Partial<ScheduledItem> = {}): ScheduledItem {
   return {

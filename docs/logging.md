@@ -1,8 +1,8 @@
 # Server Logging
 
 The MulmoClaude server has a small, dependency-free structured logger at
-`server/logger/`. It writes to the console **and** to rotating files
-under `server/logs/` by default, with independent configuration for
+`server/system/logger/`. It writes to the console **and** to rotating files
+under `server/system/logs/` by default, with independent configuration for
 each sink.
 
 Format, level, destination, and retention are all configurable via
@@ -16,12 +16,12 @@ Out of the box:
 | Sink | Enabled | Level | Format | Destination |
 |---|---|---|---|---|
 | Console | yes | `info` | `text` | stdout (info/debug) + stderr (warn/error) |
-| File | yes | `debug` | `json` | `server/logs/server-YYYY-MM-DD.log` (14-day retention) |
+| File | yes | `debug` | `json` | `server/system/logs/server-YYYY-MM-DD.log` (14-day retention) |
 | Telemetry | no | `error` | `json` | *(stub, reserved for future)* |
 
 The console stays human-readable while the file captures every
 `debug`-level line as JSON Lines so you can `grep` / `jq` past
-incidents. `server/logs/` is git-ignored.
+incidents. `server/system/logs/` is git-ignored.
 
 ## Formats
 
@@ -99,7 +99,7 @@ The file sink uses **daily rotation** keyed on UTC date:
 LOG_CONSOLE_LEVEL=warn yarn dev
 ```
 
-Console shows only warnings/errors; the `server/logs/*.log` file still
+Console shows only warnings/errors; the `server/system/logs/*.log` file still
 captures every `debug` line.
 
 ### Console-only (no files)
@@ -134,7 +134,7 @@ LOG_LEVEL=debug yarn dev
 
 ## What is logged
 
-### Agent path (`server/agent.ts` + `server/routes/agent.ts`)
+### Agent path (`server/agent/index.ts` + `server/api/routes/agent.ts`)
 
 - **Request received** — sessionId, chatSessionId, roleId, messageLen, whether the session is being resumed
 - **Claude CLI spawn** — roleId, useDocker, hasMcp, resumed, sessionId
@@ -171,12 +171,12 @@ log.error("my-module", "operation failed", { error: String(err) });
   formatter adds `[ ]` itself.
 - `data` payload keys should be scalar when possible so the text
   format renders cleanly; nested objects are JSON-serialized.
-- Never call `console.*` directly outside `server/logger/`.
+- Never call `console.*` directly outside `server/system/logger/`.
 
 ### Adding a new sink
 
-Implement the `Sink` interface from `server/logger/types.ts`, then
-wire it into `createLogger` in `server/logger/index.ts`. A sink's
+Implement the `Sink` interface from `server/system/logger/types.ts`, then
+wire it into `createLogger` in `server/system/logger/index.ts`. A sink's
 `write` **must not throw** — errors should be caught and logged out
 of band (see `createFileSink`'s `onError` callback for the pattern).
 

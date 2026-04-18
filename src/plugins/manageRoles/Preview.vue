@@ -28,22 +28,33 @@ import { ref, watch } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { ManageRolesData, CustomRole } from "./index";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
+import { API_ROUTES } from "../../config/apiRoutes";
 
 const props = defineProps<{ result: ToolResultComplete<ManageRolesData> }>();
 const customRoles = ref<CustomRole[]>(props.result.data?.customRoles ?? []);
 
 const { refresh } = useFreshPluginData<CustomRole[]>({
-  endpoint: () => "/api/roles",
+  endpoint: () => API_ROUTES.roles.list,
   extract: (json) => (Array.isArray(json) ? (json as CustomRole[]) : null),
   apply: (data) => {
     customRoles.value = data;
   },
 });
 
+// Watch the data itself — not just uuid — because the View emits
+// updateResult with the same uuid after an in-place edit. A uuid-only
+// watch would miss those updates and the preview would go stale.
+watch(
+  () => props.result.data?.customRoles,
+  (next) => {
+    customRoles.value = next ?? [];
+  },
+  { deep: true },
+);
+
 watch(
   () => props.result.uuid,
   () => {
-    customRoles.value = props.result.data?.customRoles ?? [];
     void refresh();
   },
 );

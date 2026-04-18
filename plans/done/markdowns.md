@@ -49,7 +49,7 @@ The frontend detects whether `data.markdown` is a file path or inline content fo
 
 ### Step 1: Add `markdowns/` to workspace
 
-**File: `server/workspace.ts`**
+**File: `server/workspace/workspace.ts`**
 
 Add `"markdowns"` to the `SUBDIRS` array.
 
@@ -89,19 +89,19 @@ export function isMarkdownPath(value: string): boolean {
 
 ### Step 3: Update `fillImagePlaceholders` to save images as files
 
-**File: `server/routes/plugins.ts`**
+**File: `server/api/routes/plugins.ts`**
 
 Change `generateInlineImage()` to save the PNG to disk via `saveImage()` and return a workspace-relative path instead of a data URI. The markdown will contain `![prompt](images/abc123.png)` instead of base64.
 
 ### Step 4: Update `/api/present-document` to save markdown to disk
 
-**File: `server/routes/plugins.ts`**
+**File: `server/api/routes/plugins.ts`**
 
 After filling image placeholders, save the filled markdown to disk via `saveMarkdown()`. Return the path in `data.markdown` instead of the full content.
 
 ### Step 5: Add markdown update endpoint
 
-**File: `server/routes/plugins.ts`** (or new route)
+**File: `server/api/routes/plugins.ts`** (or new route)
 
 ```
 PUT /api/markdowns/:filename
@@ -140,8 +140,8 @@ When rendering markdown with `marked()`, image src attributes will be relative p
 
 | File | Action |
 |---|---|
-| `server/workspace.ts` | Add `"markdowns"` to SUBDIRS |
+| `server/workspace/workspace.ts` | Add `"markdowns"` to SUBDIRS |
 | `server/utils/markdown-store.ts` | **New** — save/load/overwrite markdown files |
-| `server/routes/plugins.ts` | Save images as files, save markdown as file, add PUT endpoint |
+| `server/api/routes/plugins.ts` | Save images as files, save markdown as file, add PUT endpoint |
 | `src/plugins/markdown/View.vue` | Fetch markdown from server, resolve image paths, save edits to server |
 | `src/plugins/markdown/Preview.vue` | Possibly no change |

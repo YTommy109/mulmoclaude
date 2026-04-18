@@ -14,7 +14,7 @@ Server's agent path is currently silent in the console — when the spawned `cla
 ### Module layout
 
 ```
-server/logger/
+server/system/logger/
   index.ts         — public API: log.{error,warn,info,debug}(prefix, msg, data?)
   types.ts         — LogLevel, LogRecord, Sink, Formatter
   config.ts        — typed config, defaults, env-var overrides
@@ -60,7 +60,7 @@ Each `log.*` call builds one record and fans it out to every enabled sink whose 
 {
   sinks: {
     console:   { level: "info",  format: "text", enabled: true },
-    file:      { level: "debug", format: "json", dir: "server/logs",
+    file:      { level: "debug", format: "json", dir: "server/system/logs",
                  rotation: { kind: "daily", maxFiles: 14 }, enabled: true },
     telemetry: { level: "error", format: "json", enabled: false },
   },
@@ -113,11 +113,11 @@ Kept dependency-free by using `fs.promises.appendFile` (fire-and-forget). Concur
 
 ### Wiring
 
-1. `server/routes/agent.ts` — log on: request received (sessionId, roleId, messageLen), streaming start, completion (duration ms, eventCount), error. Prefix `agent`.
-2. `server/agent.ts` — already streams `proc.stderr` via a buffer; additionally `log.error("agent-stderr", line)` per line. Log process exit code on close. Log session start (abs path, role, cwd). Prefix `agent`.
+1. `server/api/routes/agent.ts` — log on: request received (sessionId, roleId, messageLen), streaming start, completion (duration ms, eventCount), error. Prefix `agent`.
+2. `server/agent/index.ts` — already streams `proc.stderr` via a buffer; additionally `log.error("agent-stderr", line)` per line. Log process exit code on close. Log session start (abs path, role, cwd). Prefix `agent`.
 3. Migrate existing console lines:
    - `[sandbox]` / `[mcp]` / `[chatIndex]` / `[docker]` / `[csrf]` → `log.info(prefix, ...)` (or `.warn` / `.error` depending on semantics).
-4. `eslint-disable-next-line no-console` allowed **only** inside `server/logger/sinks.ts` (fallback error path). Rest of server disallowed via eslint override.
+4. `eslint-disable-next-line no-console` allowed **only** inside `server/system/logger/sinks.ts` (fallback error path). Rest of server disallowed via eslint override.
 
 ### Tests (node:test)
 
@@ -139,7 +139,7 @@ All tests use tmp dirs via `fs.mkdtempSync(os.tmpdir() + "/log-")` and clean up 
 - [x] daily rotation + maxFiles retention
 - [x] per-sink format (text vs json)
 - [x] telemetry sink interface exists, disabled by default
-- [x] `server/logs/` is git-ignored
+- [x] `server/system/logs/` is git-ignored
 
 ## Out of scope
 
@@ -151,7 +151,7 @@ All tests use tmp dirs via `fs.mkdtempSync(os.tmpdir() + "/log-")` and clean up 
 
 1. Branch `feat/server-logger` from `main` ✅
 2. Write this plan ✅
-3. Implement `server/logger/` + tests
+3. Implement `server/system/logger/` + tests
 4. Wire into agent paths
 5. Migrate existing console calls
 6. `yarn format && yarn lint && yarn typecheck && yarn build && yarn test && yarn test:e2e`

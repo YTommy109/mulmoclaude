@@ -7,8 +7,7 @@
 // doesn't push a history entry).
 
 import type { Router } from "vue-router";
-
-const VALID_VIEW_MODES = new Set(["single", "stack", "files"]);
+import { VALID_VIEW_MODES } from "../utils/canvas/viewMode";
 
 // Basic sanity check for a session ID. Real existence verification
 // happens in App.vue's onMounted / loadSession — we can't do async
@@ -55,6 +54,11 @@ export function installGuards(router: Router): void {
         const cleaned = { ...to.query };
         delete cleaned.path;
         return { ...to, query: cleaned, replace: true };
+      }
+
+      // ?path= without ?view=files → auto-add view=files so FilesView mounts.
+      if (view !== "files") {
+        return { ...to, query: { ...to.query, view: "files" }, replace: true };
       }
     }
   });
