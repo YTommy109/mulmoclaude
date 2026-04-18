@@ -24,6 +24,11 @@ yarn add @mulmobridge/client
 | `isSupportedAttachmentMime(mime)` | Check if MIME can be sent to Claude |
 | `parseDataUrl(url)` | Parse `data:mime;base64,data` strings |
 | `buildDataUrl(mime, b64)` | Build a data URL from components |
+| `MessageAck` | Acknowledgement returned by `client.send()` |
+| `PushEvent` | Server-push event delivered to `client.onPush()` |
+| `BridgeClientOptions` | Options accepted by `createBridgeClient()` |
+| `BridgeClient` | Client interface returned by `createBridgeClient()` |
+| `ParsedDataUrl` | Parsed data URL components |
 
 ## Usage
 
