@@ -5,8 +5,8 @@ import {
   queryLog,
   logFilePathFor,
   type LogDeps,
-} from "../../server/utils/scheduler/log.js";
-import type { TaskLogEntry } from "../../server/utils/scheduler/types.js";
+} from "../src/log.ts";
+import type { TaskLogEntry } from "../src/types.ts";
 
 function inMemoryLogDeps(): LogDeps & { store: Map<string, string> } {
   const store = new Map<string, string>();

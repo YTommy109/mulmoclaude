@@ -13,6 +13,7 @@ import { writeFileAtomic } from "../utils/files/atomic.js";
 import { log } from "../system/logger/index.js";
 import type { ITaskManager, TaskDefinition } from "./task-manager/index.js";
 import {
+  type TaskSchedule,
   type TaskExecutionState,
   type TaskLogEntry,
   type CatchUpTask,
@@ -26,7 +27,7 @@ import {
   type StateMap,
   type StateDeps,
   type LogDeps,
-} from "../utils/scheduler/index.js";
+} from "@mulmobridge/scheduler";
 
 // ── Paths ────────────────────────────────────────────────────────
 
@@ -123,7 +124,8 @@ export async function initScheduler(
       description: task.description,
       schedule: task.schedule,
       run: async () => {
-        await executeAndLog(task, new Date().toISOString(), "scheduled");
+        const windowIso = computeCurrentWindow(task);
+        await executeAndLog(task, windowIso, "scheduled");
       },
     });
   }
@@ -182,7 +184,9 @@ async function executeAndLog(
     });
   }
   const durationMs = Date.now() - startMs;
-  await persistResult(
+  // Persistence is best-effort — never let disk failures propagate
+  // to the tick loop or abort startup catch-up.
+  await safePersist(
     task,
     scheduledFor,
     startedAt,
@@ -192,9 +196,9 @@ async function executeAndLog(
   );
 }
 
-/** Persist state + log. Errors swallowed so disk failure doesn't
- *  crash the tick loop or abort startup catch-up. */
-async function persistResult(
+/** Best-effort persistence — state and log are independent. A failure
+ *  in one does not block the other, and neither propagates upward. */
+async function safePersist(
   task: SystemTaskDef,
   scheduledFor: string,
   startedAt: string,
@@ -267,15 +271,31 @@ async function safeUpdateState(
   }
 }
 
+/** Compute the window boundary that the current tick belongs to.
+ *  For scheduled runs, this is the epoch-aligned window — not the
+ *  wall-clock time of execution. This keeps lastRunAt consistent
+ *  with catch-up's window-based accounting. */
+function computeCurrentWindow(task: SystemTaskDef): string {
+  const coreSchedule = toCoreSchedule(task.schedule);
+  // The window that just fired is the latest one at or before now.
+  const nowMs = Date.now();
+  const windowMs = nextWindowAfter(
+    coreSchedule,
+    nowMs -
+      (coreSchedule.type === "interval" ? coreSchedule.intervalSec * 1000 : 0),
+  );
+  return windowMs !== null && windowMs <= nowMs
+    ? new Date(windowMs).toISOString()
+    : new Date(nowMs).toISOString();
+}
+
 function computeNextScheduled(task: SystemTaskDef): string | null {
   const coreSchedule = toCoreSchedule(task.schedule);
   const next = nextWindowAfter(coreSchedule, Date.now() + 1);
   return next !== null ? new Date(next).toISOString() : null;
 }
 
-function toCoreSchedule(
-  schedule: TaskDefinition["schedule"],
-): import("../utils/scheduler/types.js").TaskSchedule {
+function toCoreSchedule(schedule: TaskDefinition["schedule"]): TaskSchedule {
   if (schedule.type === "interval") {
     return {
       type: "interval",

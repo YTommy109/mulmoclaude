@@ -4,7 +4,7 @@
 // I/O is injected via deps so tests can use in-memory storage.
 
 import type { TaskLogEntry } from "./types.js";
-import { toUtcIsoDate } from "../date.js";
+import { toUtcIsoDate } from "./date.js";
 
 /** What the log layer needs from the host environment. */
 export interface LogDeps {

@@ -10,7 +10,7 @@ import {
   getSchedulerTasks,
   getSchedulerLogs,
 } from "../../events/scheduler-adapter.js";
-import type { TaskLogEntry } from "../../utils/scheduler/types.js";
+import type { TaskLogEntry } from "@mulmobridge/scheduler";
 
 const router = Router();
 
@@ -30,15 +30,20 @@ router.get(
     req: Request<object, unknown, object, LogQuery>,
     res: Response<{ logs: TaskLogEntry[] }>,
   ) => {
-    const limit =
+    const MAX_LIMIT = 500;
+    const rawLimit =
       typeof req.query.limit === "string"
         ? parseInt(req.query.limit, 10)
+        : undefined;
+    const limit =
+      Number.isFinite(rawLimit) && rawLimit! > 0
+        ? Math.min(rawLimit!, MAX_LIMIT)
         : undefined;
     const logs = await getSchedulerLogs({
       since: typeof req.query.since === "string" ? req.query.since : undefined,
       taskId:
         typeof req.query.taskId === "string" ? req.query.taskId : undefined,
-      limit: Number.isFinite(limit) ? limit : undefined,
+      limit,
     });
     res.json({ logs });
   },

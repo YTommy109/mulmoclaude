@@ -6,8 +6,8 @@ import {
   updateAndSave,
   type StateDeps,
   type StateMap,
-} from "../../server/utils/scheduler/state.js";
-import { emptyState } from "../../server/utils/scheduler/types.js";
+} from "../src/state.ts";
+import { emptyState } from "../src/types.ts";
 
 function inMemoryDeps(): StateDeps & { store: Map<string, string> } {
   const store = new Map<string, string>();

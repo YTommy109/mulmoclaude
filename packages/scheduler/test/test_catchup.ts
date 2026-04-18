@@ -1,13 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import {
-  computeCatchUpPlan,
-  type CatchUpTask,
-} from "../../server/utils/scheduler/catchup.js";
-import {
-  emptyState,
-  type TaskExecutionState,
-} from "../../server/utils/scheduler/types.js";
+import { computeCatchUpPlan, type CatchUpTask } from "../src/catchup.ts";
+import { emptyState, type TaskExecutionState } from "../src/types.ts";
 
 function makeTask(
   overrides: Partial<CatchUpTask> & { id: string },
