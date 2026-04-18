@@ -45,6 +45,11 @@ import { createPubSub } from "./events/pub-sub/index.js";
 import { PUBSUB_CHANNELS } from "../src/config/pubsubChannels.js";
 import { createTaskManager } from "./events/task-manager/index.js";
 import type { ITaskManager } from "./events/task-manager/index.js";
+import {
+  initScheduler,
+  type SystemTaskDef,
+} from "./events/scheduler-adapter.js";
+import schedulerTasksRoutes from "./api/routes/schedulerTasks.js";
 import type { IPubSub } from "./events/pub-sub/index.js";
 import { initSessionStore } from "./events/session-store/index.js";
 import { requireSameOrigin } from "./api/csrfGuard.js";
@@ -181,6 +186,7 @@ const notificationDeps: NotificationDeps = {
 };
 app.use(createNotificationsRouter(notificationDeps));
 app.use(mcpToolsRouter);
+app.use(schedulerTasksRoutes);
 
 if (env.isProduction) {
   // `{ index: false }` so express.static doesn't intercept `GET /`
@@ -356,6 +362,34 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
   if (debugMode) {
     registerDebugTasks(taskManager, pubsub);
   }
+
+  // --- Scheduler (Phase 1 of #357) ---
+  // Register system tasks with persistence + catch-up. The journal
+  // and chat-index also fire from the agent finally-hook for
+  // responsiveness; the scheduler ensures catch-up after gaps.
+  const systemTasks: SystemTaskDef[] = [
+    {
+      id: "system:journal",
+      name: "Journal daily pass",
+      description: "Summarize recent chat sessions into daily + topic files",
+      schedule: { type: "interval", intervalMs: 3_600_000 }, // 1h
+      missedRunPolicy: "run-once",
+      run: () => maybeRunJournal({}),
+    },
+    {
+      id: "system:chat-index",
+      name: "Chat index backfill",
+      description: "Generate AI titles + summaries for un-indexed sessions",
+      schedule: { type: "interval", intervalMs: 3_600_000 },
+      missedRunPolicy: "run-once",
+      run: () => backfillAllSessions().then(() => {}),
+    },
+  ];
+  initScheduler(taskManager, systemTasks).catch((err) => {
+    log.error("scheduler", "init failed (non-fatal)", {
+      error: String(err),
+    });
+  });
 
   taskManager.start();
 
