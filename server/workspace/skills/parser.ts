@@ -1,11 +1,11 @@
 // Pure SKILL.md parser. Given the raw file content, return the
-// `description` (from YAML frontmatter) + body. Kept dependency-free
-// so tests don't need a filesystem.
+// `description` (from YAML frontmatter) + body, plus optional
+// `schedule` and `roleId` for auto-scheduling (#357 Phase 2).
 //
-// Minimal YAML: we only care about one `description` key, so rather
-// than pulling in a YAML parser we do line-by-line extraction. This
-// mirrors the approach used by server/sources/registry.ts for source
-// frontmatter — no js-yaml, no ambiguity with multi-line scalars.
+// Minimal YAML: we only care about a few keys, so rather than
+// pulling in a YAML parser we do line-by-line extraction.
+
+import { TIME_UNIT_MS } from "../../utils/time.js";
 
 export interface SkillSchedule {
   /** "daily HH:MM" or "interval Ns/Nm/Nh" or "once YYYY-MM-DDTHH:MM" */
@@ -66,12 +66,9 @@ function parseScheduleValue(raw: string): SkillSchedule["parsed"] {
   if (intervalMatch) {
     const value = Number(intervalMatch[1]);
     const unit = intervalMatch[2];
-    const multipliers: Record<string, number> = {
-      s: 1_000,
-      m: 60_000,
-      h: 3_600_000,
-    };
-    return { type: "interval", intervalMs: value * multipliers[unit] };
+    const ms = TIME_UNIT_MS[unit];
+    if (!ms) return null;
+    return { type: "interval", intervalMs: value * ms };
   }
 
   return null;

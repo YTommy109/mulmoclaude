@@ -3,9 +3,9 @@
 // task-manager. Each scheduled skill fires `startChat()` with the
 // skill body as the message and the skill's `roleId` (or "general").
 //
-// Called once at server startup after the task-manager is created.
-// Re-scanning on skill file changes is deferred — restart is the
-// simplest refresh for now.
+// `refreshScheduledSkills()` can be called at any time to re-scan
+// and update registrations (e.g. after a skill is saved/deleted
+// via the API). It unregisters stale tasks and registers new ones.
 
 import { discoverSkills } from "./discovery.js";
 import type { Skill } from "./types.js";
@@ -17,6 +17,11 @@ import { parseSkillFrontmatter } from "./parser.js";
 import { log } from "../../system/logger/index.js";
 import { readFileSync } from "fs";
 
+interface SkillScheduleInfo {
+  schedule: TaskSchedule;
+  roleId: string;
+}
+
 export interface SkillSchedulerDeps {
   taskManager: ITaskManager;
   workspaceRoot: string;
@@ -27,19 +32,51 @@ export interface SkillSchedulerDeps {
   }) => Promise<{ kind: string }>;
 }
 
+const SKILL_TASK_PREFIX = "skill.";
+
+// Track registered skill task IDs so refresh can unregister stale ones.
+let registeredTaskIds = new Set<string>();
+let cachedDeps: SkillSchedulerDeps | null = null;
+
 export async function registerScheduledSkills(
   deps: SkillSchedulerDeps,
 ): Promise<number> {
+  cachedDeps = deps;
+  return doRegister(deps);
+}
+
+/**
+ * Re-scan skills and update task-manager registrations. Safe to call
+ * after a skill is saved, updated, or deleted — removes stale tasks
+ * and adds new ones without a server restart.
+ */
+export async function refreshScheduledSkills(): Promise<number> {
+  if (!cachedDeps) {
+    log.warn("skills", "refreshScheduledSkills called before initial register");
+    return 0;
+  }
+  return doRegister(cachedDeps);
+}
+
+async function doRegister(deps: SkillSchedulerDeps): Promise<number> {
   const { taskManager, workspaceRoot, startChat } = deps;
+
+  // Unregister all previously registered skill tasks
+  for (const taskId of registeredTaskIds) {
+    taskManager.removeTask(taskId);
+  }
+  const previousCount = registeredTaskIds.size;
+  registeredTaskIds = new Set<string>();
+
   const skills = await discoverSkills({ workspaceRoot });
   let registered = 0;
 
   for (const skill of skills) {
-    const schedule = readSkillSchedule(skill);
-    if (!schedule) continue;
+    const info = readSkillScheduleInfo(skill);
+    if (!info) continue;
 
-    const roleId = readSkillRoleId(skill) ?? "general";
-    const taskId = `skill.${skill.name}`;
+    const { schedule, roleId } = info;
+    const taskId = `${SKILL_TASK_PREFIX}${skill.name}`;
 
     taskManager.registerTask({
       id: taskId,
@@ -64,42 +101,32 @@ export async function registerScheduledSkills(
       },
     });
 
-    log.info("skills", "registered scheduled skill", {
-      name: skill.name,
-      taskId,
-      schedule: schedule.type,
-      roleId,
-    });
+    registeredTaskIds.add(taskId);
     registered++;
+  }
+
+  if (previousCount > 0 || registered > 0) {
+    log.info("skills", "skill schedules refreshed", {
+      previous: previousCount,
+      current: registered,
+    });
   }
 
   return registered;
 }
 
-function readSkillSchedule(skill: Skill): TaskSchedule | null {
+// Read schedule + roleId in one file read (avoid reading the same
+// SKILL.md twice). Returns null if no schedule is configured.
+function readSkillScheduleInfo(skill: Skill): SkillScheduleInfo | null {
   try {
     const raw = readFileSync(skill.path, "utf-8");
     const parsed = parseSkillFrontmatter(raw);
-    if (!parsed?.schedule?.parsed) return null;
-
-    const s = parsed.schedule.parsed;
-    if (s.type === "daily") {
-      return { type: "daily", time: s.time };
-    }
-    if (s.type === "interval") {
-      return { type: "interval", intervalMs: s.intervalMs };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function readSkillRoleId(skill: Skill): string | null {
-  try {
-    const raw = readFileSync(skill.path, "utf-8");
-    const parsed = parseSkillFrontmatter(raw);
-    return parsed?.roleId ?? null;
+    const s = parsed?.schedule?.parsed;
+    if (!s) return null;
+    return {
+      schedule: s,
+      roleId: parsed?.roleId ?? "general",
+    };
   } catch {
     return null;
   }

@@ -23,6 +23,8 @@ import type { Skill, SkillSummary } from "../../workspace/skills/index.js";
 import { workspacePath } from "../../workspace/workspace.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { log } from "../../system/logger/index.js";
+import { refreshScheduledSkills } from "../../workspace/skills/scheduler.js";
+import { logBackgroundError } from "../../utils/logBackgroundError.js";
 import {
   badRequest,
   conflict,
@@ -117,6 +119,7 @@ router.post(
     });
     if (result.kind === "saved") {
       log.info("skills", "saved", { name });
+      refreshScheduledSkills().catch(logBackgroundError("skills"));
       res.json({ saved: true, path: result.path });
       return;
     }
@@ -174,6 +177,7 @@ router.put(
     });
     if (result.kind === "updated") {
       log.info("skills", "updated", { name });
+      refreshScheduledSkills().catch(logBackgroundError("skills"));
       res.json({ updated: true, path: result.path });
       return;
     }
@@ -210,6 +214,7 @@ router.delete(
     });
     if (result.kind === "deleted") {
       log.info("skills", "deleted", { name: result.name });
+      refreshScheduledSkills().catch(logBackgroundError("skills"));
       res.json({ deleted: true, name: result.name });
       return;
     }
