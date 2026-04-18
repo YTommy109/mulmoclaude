@@ -191,8 +191,14 @@ export function createTelegramApi(opts: TelegramApiOptions): TelegramApi {
       }
       const buffer = await fileRes.arrayBuffer();
       const b64 = Buffer.from(buffer).toString("base64");
+      // Prefer the caller-supplied MIME (Telegram's doc.mime_type is
+      // authoritative). Fall back to extension-based inference only
+      // when the caller passed the generic default.
       const ext = getFileBody.result.file_path.split(".").pop() ?? "";
-      const mediaType = mimeFromExtension(ext, fallbackMime);
+      const mediaType =
+        fallbackMime !== "application/octet-stream"
+          ? fallbackMime
+          : mimeFromExtension(ext, fallbackMime);
       return buildDataUrl(mediaType, b64);
     },
   };
