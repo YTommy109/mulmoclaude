@@ -2,14 +2,6 @@
 
 Telegram bot bridge for MulmoBridge. Connect a Telegram bot to MulmoClaude.
 
-## Install
-
-```bash
-npm install -g @mulmobridge/telegram
-# or run directly
-npx @mulmobridge/telegram
-```
-
 ## Usage
 
 1. Create a bot via [@BotFather](https://t.me/BotFather)
@@ -17,7 +9,17 @@ npx @mulmobridge/telegram
 3. Run the Telegram bridge:
 
 ```bash
-TELEGRAM_BOT_TOKEN=your-token TELEGRAM_ALLOWED_CHAT_IDS=123,456 mulmobridge-telegram
+# npx (no install needed)
+TELEGRAM_BOT_TOKEN=your-token TELEGRAM_ALLOWED_CHAT_IDS=123,456 \
+  npx @mulmobridge/telegram@latest
+
+# or install globally
+npm install -g @mulmobridge/telegram
+TELEGRAM_BOT_TOKEN=your-token TELEGRAM_ALLOWED_CHAT_IDS=123,456 \
+  mulmobridge-telegram
+
+# or from the monorepo
+yarn telegram
 ```
 
 ## Environment Variables

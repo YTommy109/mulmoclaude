@@ -2,21 +2,21 @@
 
 Interactive CLI bridge for MulmoBridge. Talk to MulmoClaude from your terminal.
 
-## Install
-
-```bash
-npm install -g @mulmobridge/cli
-# or run directly
-npx @mulmobridge/cli
-```
-
 ## Usage
 
 1. Start the MulmoClaude server (`yarn dev` in the main repo)
 2. Run the CLI bridge:
 
 ```bash
+# npx (no install needed)
+npx @mulmobridge/cli@latest
+
+# or install globally
+npm install -g @mulmobridge/cli
 mulmobridge-cli
+
+# or from the monorepo
+yarn cli
 ```
 
 The bridge reads the bearer token from `~/mulmoclaude/.session-token` (written by the server at startup) or from the `MULMOCLAUDE_AUTH_TOKEN` environment variable.
