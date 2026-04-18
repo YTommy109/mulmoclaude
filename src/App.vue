@@ -394,10 +394,20 @@
         />
         <!-- Files mode -->
         <FilesView
-          v-else
+          v-else-if="canvasViewMode === 'files'"
           :refresh-token="filesRefreshToken"
           @load-session="onFilesViewLoadSession"
         />
+        <!-- Todos mode -->
+        <TodoExplorer v-else-if="canvasViewMode === 'todos'" />
+        <!-- Scheduler mode -->
+        <SchedulerView v-else-if="canvasViewMode === 'scheduler'" />
+        <!-- Wiki mode -->
+        <WikiView v-else-if="canvasViewMode === 'wiki'" />
+        <!-- Skills mode -->
+        <SkillsView v-else-if="canvasViewMode === 'skills'" />
+        <!-- Roles mode -->
+        <RolesView v-else-if="canvasViewMode === 'roles'" />
       </div>
     </div>
     <!-- Right sidebar: tool call history -->
@@ -436,6 +446,11 @@ import PluginLauncher, {
 } from "./components/PluginLauncher.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
+import TodoExplorer from "./components/TodoExplorer.vue";
+import SchedulerView from "./plugins/scheduler/View.vue";
+import WikiView from "./plugins/wiki/View.vue";
+import SkillsView from "./plugins/manageSkills/View.vue";
+import RolesView from "./plugins/manageRoles/View.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import NotificationToast from "./components/NotificationToast.vue";
 import ChatAttachmentPreview from "./components/ChatAttachmentPreview.vue";
@@ -466,6 +481,7 @@ import {
 import { usePendingCalls } from "./composables/usePendingCalls";
 import { useClickOutside } from "./composables/useClickOutside";
 import { useCanvasViewMode } from "./composables/useCanvasViewMode";
+import { isCanvasViewMode } from "./utils/canvas/viewMode";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
 import { BUILTIN_ROLE_IDS } from "./config/roles";
@@ -875,6 +891,9 @@ const {
 } = useCanvasViewMode({ isRunning });
 const rightSidebarRef = ref<InstanceType<typeof RightSidebar> | null>(null);
 
+// Kept for potential future "invoke" launcher targets. Currently all
+// launcher buttons use kind:"view", so this block is dormant.
+//
 // Default HTTP call (endpoint + body + resulting toolName) for each
 // "invoke" launcher target. Mirrors what each plugin's `execute()`
 // does — duplicated here intentionally so the launcher doesn't drag
@@ -975,25 +994,13 @@ async function invokePluginForLauncher(
 }
 
 // Plugin-launcher click:
-// - "files" target → switch canvas to files view (no plugin call).
+// - "view" target → switch canvas to the matching view mode (no plugin call).
 // - "invoke" target → call the plugin locally, push the result into
 //   the current session, select it, switch canvas to single view so
 //   the plugin's View component takes the stage.
 async function onPluginNavigate(target: PluginLauncherTarget): Promise<void> {
-  if (target.kind === "files") {
-    setCanvasViewMode("files");
-    const base = buildViewQuery();
-    const query: Record<string, string> = {};
-    for (const [k, v] of Object.entries(base)) {
-      if (typeof v === "string") query[k] = v;
-    }
-    delete query.path;
-    router.replace({ query }).catch((err: unknown) => {
-      if (!isNavigationFailure(err)) {
-        // eslint-disable-next-line no-console
-        console.error("[plugin-launcher] navigation failed:", err);
-      }
-    });
+  if (target.kind === "view" && isCanvasViewMode(target.key)) {
+    setCanvasViewMode(target.key);
     return;
   }
 

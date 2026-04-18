@@ -146,16 +146,16 @@ import { API_ROUTES } from "../../config/apiRoutes";
 import { errorMessage } from "../../utils/errors";
 
 const props = defineProps<{
-  selectedResult: ToolResultComplete<WikiData>;
+  selectedResult?: ToolResultComplete<WikiData>;
   sendTextMessage?: (text: string) => void;
 }>();
 const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 
-const action = ref(props.selectedResult.data?.action ?? "index");
-const title = ref(props.selectedResult.data?.title ?? "Wiki");
-const content = ref(props.selectedResult.data?.content ?? "");
+const action = ref(props.selectedResult?.data?.action ?? "index");
+const title = ref(props.selectedResult?.data?.title ?? "Wiki");
+const content = ref(props.selectedResult?.data?.content ?? "");
 const pageEntries = ref<WikiPageEntry[]>(
-  props.selectedResult.data?.pageEntries ?? [],
+  props.selectedResult?.data?.pageEntries ?? [],
 );
 
 const { refresh } = useFreshPluginData<WikiData>({
@@ -163,7 +163,9 @@ const { refresh } = useFreshPluginData<WikiData>({
   // fetch that page by slug; otherwise fetch the index.
   endpoint: () => {
     const slug =
-      action.value === "page" ? props.selectedResult.data?.pageName : undefined;
+      action.value === "page"
+        ? props.selectedResult?.data?.pageName
+        : undefined;
     return slug
       ? `${API_ROUTES.wiki.base}?slug=${encodeURIComponent(slug)}`
       : API_ROUTES.wiki.base;
@@ -178,9 +180,9 @@ const { refresh } = useFreshPluginData<WikiData>({
 });
 
 watch(
-  () => props.selectedResult.uuid,
+  () => props.selectedResult?.uuid,
   () => {
-    const d = props.selectedResult.data;
+    const d = props.selectedResult?.data;
     if (d) {
       action.value = d.action ?? "index";
       title.value = d.title ?? "Wiki";
@@ -229,12 +231,14 @@ async function callApi(body: Record<string, unknown>) {
   title.value = result.data?.title ?? "Wiki";
   content.value = result.data?.content ?? "";
   pageEntries.value = result.data?.pageEntries ?? [];
-  emit("updateResult", {
-    ...props.selectedResult,
-    ...result,
-    toolName: "manageWiki",
-    uuid: props.selectedResult.uuid,
-  });
+  if (props.selectedResult) {
+    emit("updateResult", {
+      ...props.selectedResult,
+      ...result,
+      toolName: "manageWiki",
+      uuid: props.selectedResult.uuid,
+    });
+  }
 }
 
 function navigate(newAction: string) {

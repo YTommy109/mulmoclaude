@@ -216,14 +216,14 @@ onMounted(async () => {
 });
 
 const props = defineProps<{
-  selectedResult: ToolResultComplete<ManageRolesData>;
+  selectedResult?: ToolResultComplete<ManageRolesData>;
 }>();
 const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 
 const appApi = useAppApi();
 
 const customRoles = ref<CustomRole[]>(
-  props.selectedResult.data?.customRoles ?? [],
+  props.selectedResult?.data?.customRoles ?? [],
 );
 
 const { refresh: refreshCustomRoles } = useFreshPluginData<CustomRole[]>({
@@ -234,14 +234,10 @@ const { refresh: refreshCustomRoles } = useFreshPluginData<CustomRole[]>({
   },
 });
 
-// Sync with parent prop changes when the tool result is swapped
-// (e.g. moving between sessions). Previously this component was
-// missing a watch entirely, so it never picked up prop changes
-// after mount — closing CodeRabbit V1 #2/#4/#7's coverage gap.
 watch(
-  () => props.selectedResult.uuid,
+  () => props.selectedResult?.uuid,
   () => {
-    customRoles.value = props.selectedResult.data?.customRoles ?? [];
+    customRoles.value = props.selectedResult?.data?.customRoles ?? [];
     void refreshCustomRoles();
   },
 );
@@ -316,11 +312,13 @@ async function refreshList() {
   if (result.success) {
     const data = result as { data?: { customRoles?: CustomRole[] } };
     customRoles.value = data.data?.customRoles ?? [];
-    emit("updateResult", {
-      ...props.selectedResult,
-      ...result,
-      uuid: props.selectedResult.uuid,
-    });
+    if (props.selectedResult) {
+      emit("updateResult", {
+        ...props.selectedResult,
+        ...result,
+        uuid: props.selectedResult.uuid,
+      });
+    }
     // Let App.vue know the dropdown needs to refresh.
     await Promise.resolve(appApi.refreshRoles());
   }

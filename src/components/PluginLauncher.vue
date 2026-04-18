@@ -31,10 +31,10 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from "vue";
 
-// Quick-access toolbar sitting above the canvas. Each button either
-// invokes a plugin locally (no LLM round-trip) and surfaces its
-// native View, or — for "files" — switches the canvas to the
-// workspace file tree.
+// Quick-access toolbar sitting above the canvas. Each button
+// switches the canvas to a dedicated view mode via URL
+// (?view=todos, ?view=wiki, etc.). The "invoke" kind is kept in
+// the union for future use but currently all targets use "view".
 //
 // First slice of issue #253. The list of targets is declared here so
 // the launcher can be swapped for a customisable per-role palette
@@ -51,7 +51,7 @@ const props = defineProps<{
 
 export type PluginLauncherKind =
   | "invoke" // Call the matching plugin's client endpoint and push the ToolResult into the current session
-  | "files"; // Switch the canvas to files view (no plugin call)
+  | "view"; // Switch the canvas to a dedicated view mode (files, todos, scheduler)
 
 export interface PluginLauncherTarget {
   /** Stable key for testid + dispatch in App.vue. */
@@ -69,46 +69,46 @@ const TARGETS: PluginLauncherTarget[] = [
   // ─── Data plugins ───
   {
     key: "todos",
-    kind: "invoke",
+    kind: "view",
     icon: "checklist",
     label: "Todos",
-    title: "Open todos",
+    title: "Open todos (⌘4)",
   },
   {
     key: "scheduler",
-    kind: "invoke",
+    kind: "view",
     icon: "event",
     label: "Schedule",
-    title: "Open schedule",
+    title: "Open schedule (⌘5)",
   },
   {
     key: "wiki",
-    kind: "invoke",
+    kind: "view",
     icon: "menu_book",
     label: "Wiki",
-    title: "Open wiki",
+    title: "Open wiki (⌘6)",
   },
   // ─── Management / navigation ───
   {
     key: "skills",
-    kind: "invoke",
+    kind: "view",
     icon: "psychology",
     label: "Skills",
-    title: "Open skills",
+    title: "Open skills (⌘7)",
   },
   {
     key: "roles",
-    kind: "invoke",
+    kind: "view",
     icon: "manage_accounts",
     label: "Roles",
-    title: "Open roles",
+    title: "Open roles (⌘8)",
   },
   {
     key: "files",
-    kind: "files",
+    kind: "view",
     icon: "folder",
     label: "Files",
-    title: "Open workspace files",
+    title: "Open workspace files (⌘3)",
   },
 ];
 
@@ -117,8 +117,8 @@ const TARGETS: PluginLauncherTarget[] = [
 const SEPARATOR_AFTER_INDEX = 3;
 
 // Map launcher key → the toolName the corresponding plugin
-// uses in its ToolResult. Used to match the active (selected)
-// result against the launcher buttons.
+// uses in its ToolResult. Kept for future "invoke" kind targets —
+// currently all targets use "view" so this map is unused.
 const KEY_TO_TOOL_NAME: Record<string, string> = {
   todos: "manageTodoList",
   scheduler: "manageScheduler",
@@ -128,8 +128,8 @@ const KEY_TO_TOOL_NAME: Record<string, string> = {
 };
 
 function isActive(target: PluginLauncherTarget): boolean {
-  if (target.kind === "files") {
-    return props.activeViewMode === "files";
+  if (target.kind === "view") {
+    return props.activeViewMode === target.key;
   }
   const toolName = KEY_TO_TOOL_NAME[target.key];
   return !!toolName && toolName === props.activeToolName;
