@@ -12,6 +12,7 @@ import path from "path";
 import { WORKSPACE_FILES } from "../paths.js";
 import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { log } from "../../system/logger/index.js";
+import { ClaudeCliNotFoundError } from "./archivist.js";
 
 const EXTRACTION_SYSTEM_PROMPT = `You are a personal-fact extractor. Given a batch of chat excerpts between a user and an AI assistant, extract ONLY durable facts about the USER — things that would still be true next week.
 
@@ -62,6 +63,7 @@ export async function extractAndAppendMemory(
   try {
     raw = await deps.summarize(EXTRACTION_SYSTEM_PROMPT, userPrompt);
   } catch (err) {
+    if (err instanceof ClaudeCliNotFoundError) throw err;
     log.warn("memory-extractor", "LLM call failed", {
       error: String(err),
     });
@@ -71,12 +73,15 @@ export async function extractAndAppendMemory(
   const newFacts = parseExtractedFacts(raw);
   if (newFacts.length === 0) return 0;
 
-  const updatedContent = appendFacts(existingMemory, newFacts);
+  const factsToAppend = filterNewFacts(existingMemory, newFacts);
+  if (factsToAppend.length === 0) return 0;
+
+  const updatedContent = appendFacts(existingMemory, factsToAppend);
   await writeFileAtomic(memoryPath, updatedContent);
   log.info("memory-extractor", "appended new facts", {
-    count: newFacts.length,
+    count: factsToAppend.length,
   });
-  return newFacts.length;
+  return factsToAppend.length;
 }
 
 /** Build the user prompt with existing memory + new excerpts. */
@@ -104,6 +109,26 @@ export function parseExtractedFacts(raw: string): string[] {
     .map((line) => line.trim())
     .filter((line) => line.startsWith("- "))
     .filter((line) => line.length > 3);
+}
+
+function normalizeFact(fact: string): string {
+  return fact.replace(/^- /, "").trim().toLowerCase();
+}
+
+/** Remove facts that already exist in the current memory content. */
+export function filterNewFacts(
+  existingMemory: string,
+  facts: readonly string[],
+): string[] {
+  const seen = new Set(parseExtractedFacts(existingMemory).map(normalizeFact));
+  const out: string[] = [];
+  for (const fact of facts) {
+    const key = normalizeFact(fact);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(fact);
+  }
+  return out;
 }
 
 /** Append facts to existing memory content. */

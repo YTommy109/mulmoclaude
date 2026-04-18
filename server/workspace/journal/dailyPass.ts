@@ -150,8 +150,8 @@ export async function runDailyPass(
       newTopicsSeen,
       nextState,
     });
-    if (dayResult.skipped) {
-      result.skipped.push({ date, reason: dayResult.skipped });
+    if (dayResult.kind === "skipped") {
+      result.skipped.push({ date, reason: dayResult.reason });
     } else {
       result.daysTouched.push(date);
       result.topicsCreated.push(...dayResult.topicsCreated);
@@ -183,13 +183,19 @@ interface ProcessDayInput {
   nextState: JournalState;
 }
 
-interface ProcessDayOutput {
-  skipped?: string;
-  topicsCreated: string[];
-  topicsUpdated: string[];
-  sessionsIngested: string[];
-  nextState: JournalState;
-}
+type ProcessDayOutput =
+  | {
+      kind: "skipped";
+      reason: string;
+      nextState: JournalState;
+    }
+  | {
+      kind: "processed";
+      topicsCreated: string[];
+      topicsUpdated: string[];
+      sessionsIngested: string[];
+      nextState: JournalState;
+    };
 
 async function processDayAndAdvance(
   input: ProcessDayInput,
@@ -204,10 +210,8 @@ async function processDayAndAdvance(
   );
   if (dayOutcome.kind === "skipped") {
     return {
-      skipped: dayOutcome.reason,
-      topicsCreated: [],
-      topicsUpdated: [],
-      sessionsIngested: [],
+      kind: "skipped",
+      reason: dayOutcome.reason,
       nextState: input.nextState,
     };
   }
@@ -231,6 +235,7 @@ async function processDayAndAdvance(
   await persistStateAfterDay(input.workspaceRoot, nextState, input.date);
 
   return {
+    kind: "processed",
     topicsCreated: dayOutcome.topicsCreated,
     topicsUpdated: dayOutcome.topicsUpdated,
     sessionsIngested,
@@ -252,10 +257,10 @@ async function maybeExtractMemory(
   const excerptLines: string[] = [];
   for (const [, byDate] of perSessionExcerpts) {
     for (const [, excerpt] of byDate) {
-      const lines = excerpt.events.map(
-        (e: SessionEventExcerpt) => `[${e.source}] ${e.content}`,
-      );
-      excerptLines.push(lines.join("\n"));
+      const userLines = excerpt.events
+        .filter((e: SessionEventExcerpt) => e.source === "user")
+        .map((e: SessionEventExcerpt) => `[user] ${e.content}`);
+      if (userLines.length > 0) excerptLines.push(userLines.join("\n"));
     }
   }
   try {

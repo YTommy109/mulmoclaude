@@ -4,6 +4,7 @@ import {
   buildUserPrompt,
   parseExtractedFacts,
   appendFacts,
+  filterNewFacts,
 } from "../../server/workspace/journal/memoryExtractor.js";
 
 describe("parseExtractedFacts", () => {
@@ -86,5 +87,30 @@ describe("appendFacts", () => {
       "- Fact C",
     ]);
     assert.ok(result.includes("- Fact A\n- Fact B\n- Fact C"));
+  });
+});
+
+describe("filterNewFacts", () => {
+  it("removes facts already in existing memory", () => {
+    const existing = "# Memory\n\n- Likes curry\n- Lives in Kochi\n";
+    const newFacts = ["- Likes curry", "- Plays piano", "- Lives in Kochi"];
+    assert.deepEqual(filterNewFacts(existing, newFacts), ["- Plays piano"]);
+  });
+
+  it("is case-insensitive", () => {
+    const existing = "- likes CURRY\n";
+    assert.deepEqual(filterNewFacts(existing, ["- Likes curry"]), []);
+  });
+
+  it("deduplicates within the new facts themselves", () => {
+    assert.deepEqual(filterNewFacts("", ["- Fact A", "- Fact A", "- Fact B"]), [
+      "- Fact A",
+      "- Fact B",
+    ]);
+  });
+
+  it("returns all facts when memory is empty", () => {
+    const facts = ["- Fact X", "- Fact Y"];
+    assert.deepEqual(filterNewFacts("", facts), facts);
   });
 });
