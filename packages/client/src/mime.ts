@@ -48,11 +48,14 @@ export function isPdfMime(mimeType: string): boolean {
   return mimeType === "application/pdf";
 }
 
-/** True when the attachment can be sent to Claude as a content block
- *  (image vision or PDF document). */
-export function isSupportedAttachmentMime(mimeType: string): boolean {
+/** True when the attachment can be sent to Claude directly as a
+ *  native content block (image or PDF) — no conversion needed. */
+export function isNativeAttachmentMime(mimeType: string): boolean {
   return isImageMime(mimeType) || isPdfMime(mimeType);
 }
+
+// Keep the old name as an alias for backward compatibility.
+export const isSupportedAttachmentMime = isNativeAttachmentMime;
 
 export interface ParsedDataUrl {
   mimeType: string;

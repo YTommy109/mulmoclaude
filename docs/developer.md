@@ -334,6 +334,25 @@ Minimal image: `node:22-slim` + `@anthropic-ai/claude-code` + `tsx`. Built lazil
 
 ---
 
+## Chat attachments (paste / drag-and-drop)
+
+Users can paste or drop files into the chat input. The server converts non-native types before forwarding to Claude.
+
+| Type | Conversion | Claude block | Dependency | Environment |
+|---|---|---|---|---|
+| image/* | None (native) | `type: "image"` | — | All |
+| PDF | None (native) | `type: "document"` | — | All |
+| text/* (.txt, .csv, .json, .md, .xml, .html, .yaml) | base64 → UTF-8 | `type: "text"` | — | All |
+| DOCX | mammoth → plain text | `type: "text"` | `mammoth` (npm) | All |
+| XLSX | xlsx → CSV per sheet | `type: "text"` | `xlsx` (npm) | All |
+| PPTX | libreoffice → PDF | `type: "document"` | LibreOffice | Docker sandbox or native install |
+
+**PPTX conversion path**: the server process runs on the host (macOS/Linux), but LibreOffice lives inside the Docker sandbox image. `convertPptxToPdf()` in `server/agent/attachmentConverter.ts` tries native `libreoffice` first; if not found, falls back to `docker run --rm -v tmpdir:/data mulmoclaude-sandbox libreoffice --headless --convert-to pdf`. Without either, the user sees a text hint suggesting PDF or image export.
+
+**Adding a new type**: add MIME handling in `server/agent/attachmentConverter.ts` (conversion logic), update `isConvertibleMime()` + `CONVERTIBLE_MIME_TYPES`, and add the MIME to `ACCEPTED_MIME_EXACT` in `src/App.vue`.
+
+---
+
 ## Logging conventions
 
 Full reference: [`docs/logging.md`](logging.md). Two rules to keep in mind when contributing:
