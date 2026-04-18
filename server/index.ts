@@ -33,7 +33,7 @@ import {
   mcpTools,
   isMcpToolEnabled,
 } from "./agent/mcp-tools/index.js";
-import { initWorkspace } from "./workspace/workspace.js";
+import { initWorkspace, workspacePath } from "./workspace/workspace.js";
 import { env, isGeminiAvailable } from "./system/env.js";
 import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import fs from "fs";
@@ -49,6 +49,11 @@ import { createPubSub } from "./events/pub-sub/index.js";
 import { PUBSUB_CHANNELS } from "../src/config/pubsubChannels.js";
 import { createTaskManager } from "./events/task-manager/index.js";
 import type { ITaskManager } from "./events/task-manager/index.js";
+import {
+  initScheduler,
+  type SystemTaskDef,
+} from "./events/scheduler-adapter.js";
+import schedulerTasksRoutes from "./api/routes/schedulerTasks.js";
 import type { IPubSub } from "./events/pub-sub/index.js";
 import { initSessionStore } from "./events/session-store/index.js";
 import { requireSameOrigin } from "./api/csrfGuard.js";
@@ -60,7 +65,10 @@ import {
 } from "./api/auth/token.js";
 import { log } from "./system/logger/index.js";
 import { startChat } from "./api/routes/agent.js";
+import { registerScheduledSkills } from "./workspace/skills/scheduler.js";
 import { API_ROUTES } from "../src/config/apiRoutes.js";
+import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS } from "./utils/time.js";
+import { SCHEDULE_TYPES, MISSED_RUN_POLICIES } from "@receptron/task-scheduler";
 
 const HTML_TOKEN_PLACEHOLDER = "__MULMOCLAUDE_AUTH_TOKEN__";
 
@@ -185,6 +193,7 @@ const notificationDeps: NotificationDeps = {
 };
 app.use(createNotificationsRouter(notificationDeps));
 app.use(mcpToolsRouter);
+app.use(schedulerTasksRoutes);
 
 if (env.isProduction) {
   // `{ index: false }` so express.static doesn't intercept `GET /`
@@ -354,12 +363,59 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
 
   // --- Task Manager ---
   const taskManager = createTaskManager({
-    tickMs: debugMode ? 1_000 : 60_000,
+    tickMs: debugMode ? ONE_SECOND_MS : ONE_MINUTE_MS,
   });
 
   if (debugMode) {
     registerDebugTasks(taskManager, pubsub);
   }
+
+  // --- Scheduler (Phase 1 of #357) ---
+  // Register system tasks with persistence + catch-up. The journal
+  // and chat-index also fire from the agent finally-hook for
+  // responsiveness; the scheduler ensures catch-up after gaps.
+  const systemTasks: SystemTaskDef[] = [
+    {
+      id: "system:journal",
+      name: "Journal daily pass",
+      description: "Summarize recent chat sessions into daily + topic files",
+      schedule: { type: SCHEDULE_TYPES.interval, intervalMs: ONE_HOUR_MS },
+      missedRunPolicy: MISSED_RUN_POLICIES.runOnce,
+      run: () => maybeRunJournal({}),
+    },
+    {
+      id: "system:chat-index",
+      name: "Chat index backfill",
+      description: "Generate AI titles + summaries for un-indexed sessions",
+      schedule: { type: SCHEDULE_TYPES.interval, intervalMs: ONE_HOUR_MS },
+      missedRunPolicy: MISSED_RUN_POLICIES.runOnce,
+      run: () => backfillAllSessions().then(() => {}),
+    },
+  ];
+  initScheduler(taskManager, systemTasks).catch((err) => {
+    log.error("scheduler", "init failed (non-fatal)", {
+      error: String(err),
+    });
+  });
+
+  // Register skills with schedule: frontmatter as scheduled tasks.
+  // Fire-and-forget — skill scan errors are logged but don't block
+  // server startup.
+  registerScheduledSkills({
+    taskManager,
+    workspaceRoot: workspacePath,
+    startChat,
+  })
+    .then((count) => {
+      if (count > 0) {
+        log.info("skills", "scheduled skills registered", { count });
+      }
+    })
+    .catch((err) => {
+      log.warn("skills", "failed to register scheduled skills", {
+        error: String(err),
+      });
+    });
 
   taskManager.start();
 
@@ -447,7 +503,7 @@ function registerDebugTasks(taskManager: ITaskManager, pubsub: IPubSub) {
     id: "debug.auto-chat",
     description:
       "Debug — toggles title color 10 times then starts a General-mode chat, then self-removes",
-    schedule: { type: "interval", intervalMs: 1_000 },
+    schedule: { type: SCHEDULE_TYPES.interval, intervalMs: ONE_SECOND_MS },
     run: async () => {
       tick++;
       const last = tick === 10;

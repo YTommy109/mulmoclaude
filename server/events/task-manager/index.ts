@@ -1,8 +1,10 @@
 import { log } from "../../system/logger/index.js";
+import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS } from "../../utils/time.js";
+import { SCHEDULE_TYPES } from "@receptron/task-scheduler";
 
 export type TaskSchedule =
-  | { type: "interval"; intervalMs: number }
-  | { type: "daily"; time: string }; // time: "HH:MM" in UTC
+  | { type: typeof SCHEDULE_TYPES.interval; intervalMs: number }
+  | { type: typeof SCHEDULE_TYPES.daily; time: string }; // time: "HH:MM" in UTC
 
 export interface TaskRunContext {
   taskId: string;
@@ -30,28 +32,28 @@ export interface ITaskManager {
 }
 
 export interface TaskManagerOptions {
-  tickMs?: number; // default: 60_000
+  tickMs?: number; // default: ONE_MINUTE_MS
   now?: () => Date; // default: () => new Date()
 }
 
 function isDue(now: Date, schedule: TaskSchedule, tickMs: number): boolean {
-  if (schedule.type === "interval") {
+  if (schedule.type === SCHEDULE_TYPES.interval) {
     const msSinceMidnight =
-      now.getUTCHours() * 3600000 +
-      now.getUTCMinutes() * 60000 +
-      now.getUTCSeconds() * 1000;
+      now.getUTCHours() * ONE_HOUR_MS +
+      now.getUTCMinutes() * ONE_MINUTE_MS +
+      now.getUTCSeconds() * ONE_SECOND_MS;
     // Round down to tick boundary, then check if it aligns with the interval
     const rounded = Math.floor(msSinceMidnight / tickMs) * tickMs;
     return rounded % schedule.intervalMs === 0;
   }
 
-  if (schedule.type === "daily") {
+  if (schedule.type === SCHEDULE_TYPES.daily) {
     const [hh, mm] = schedule.time.split(":").map(Number);
-    const targetMs = hh * 3600000 + mm * 60000;
+    const targetMs = hh * ONE_HOUR_MS + mm * ONE_MINUTE_MS;
     const msSinceMidnight =
-      now.getUTCHours() * 3600000 +
-      now.getUTCMinutes() * 60000 +
-      now.getUTCSeconds() * 1000;
+      now.getUTCHours() * ONE_HOUR_MS +
+      now.getUTCMinutes() * ONE_MINUTE_MS +
+      now.getUTCSeconds() * ONE_SECOND_MS;
     const rounded = Math.floor(msSinceMidnight / tickMs) * tickMs;
     return rounded === targetMs;
   }
@@ -60,7 +62,7 @@ function isDue(now: Date, schedule: TaskSchedule, tickMs: number): boolean {
 }
 
 export function createTaskManager(options?: TaskManagerOptions): ITaskManager {
-  const tickMs = options?.tickMs ?? 60_000;
+  const tickMs = options?.tickMs ?? ONE_MINUTE_MS;
   const now = options?.now ?? (() => new Date());
   const registry = new Map<string, TaskDefinition>();
   let timer: ReturnType<typeof setInterval> | null = null;

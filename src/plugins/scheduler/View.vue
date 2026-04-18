@@ -351,11 +351,11 @@ import { API_ROUTES } from "../../config/apiRoutes";
 type YamlScalar = string | number | boolean | null;
 
 const props = defineProps<{
-  selectedResult: ToolResultComplete<SchedulerData>;
+  selectedResult?: ToolResultComplete<SchedulerData>;
 }>();
 const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 
-const items = ref<ScheduledItem[]>(props.selectedResult.data?.items ?? []);
+const items = ref<ScheduledItem[]>(props.selectedResult?.data?.items ?? []);
 
 const { refresh } = useFreshPluginData<ScheduledItem[]>({
   endpoint: () => API_ROUTES.scheduler.base,
@@ -369,9 +369,9 @@ const { refresh } = useFreshPluginData<ScheduledItem[]>({
 });
 
 watch(
-  () => props.selectedResult.uuid,
+  () => props.selectedResult?.uuid,
   () => {
-    items.value = props.selectedResult.data?.items ?? [];
+    items.value = props.selectedResult?.data?.items ?? [];
     void refresh();
   },
 );
@@ -653,11 +653,13 @@ async function callApi(body: Record<string, unknown>): Promise<boolean> {
   apiError.value = null;
   const result = response.data;
   items.value = result.data?.items ?? [];
-  emit("updateResult", {
-    ...props.selectedResult,
-    ...result,
-    uuid: props.selectedResult.uuid,
-  });
+  if (props.selectedResult) {
+    emit("updateResult", {
+      ...props.selectedResult,
+      ...result,
+      uuid: props.selectedResult.uuid,
+    });
+  }
   return true;
 }
 

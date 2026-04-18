@@ -13,6 +13,14 @@
       </div>
     </div>
 
+    <!-- List load error (standalone mode) -->
+    <div
+      v-if="listError"
+      class="px-6 py-3 text-sm text-red-600 bg-red-50 border-b border-red-100"
+    >
+      {{ listError }}
+    </div>
+
     <div class="flex-1 min-h-0 flex overflow-hidden">
       <!-- Left: skill list -->
       <div
@@ -159,7 +167,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
@@ -177,13 +185,13 @@ interface SkillDetail {
 }
 
 const props = defineProps<{
-  selectedResult: ToolResultComplete<ManageSkillsData>;
+  selectedResult?: ToolResultComplete<ManageSkillsData>;
 }>();
 
 // Local mutable copy of the skill list so the Delete button can
 // remove rows without waiting for a fresh tool_result push.
 // Re-seeded whenever the underlying tool result changes.
-const skills = ref<SkillSummary[]>(props.selectedResult.data?.skills ?? []);
+const skills = ref<SkillSummary[]>(props.selectedResult?.data?.skills ?? []);
 const selectedName = ref<string | null>(skills.value[0]?.name ?? null);
 const detail = ref<SkillDetail | null>(null);
 const detailLoading = ref(false);
@@ -207,12 +215,31 @@ const renderedBody = computed(() => {
 // Reset the selection when the tool result is replaced (e.g. the
 // user opens a newer `manageSkills` invocation from the sidebar).
 watch(
-  () => props.selectedResult.uuid,
+  () => props.selectedResult?.uuid,
   () => {
-    skills.value = props.selectedResult.data?.skills ?? [];
+    skills.value = props.selectedResult?.data?.skills ?? [];
     selectedName.value = skills.value[0]?.name ?? null;
   },
 );
+
+const listError = ref<string | null>(null);
+
+// Standalone mode: if no selectedResult was passed, fetch the skill
+// list from the API on mount so the view is populated.
+onMounted(async () => {
+  if (props.selectedResult || skills.value.length > 0) return;
+  const response = await apiGet<{ skills: SkillSummary[] }>(
+    API_ROUTES.skills.list,
+  );
+  if (!response.ok) {
+    listError.value = `Failed to load skills: ${response.error}`;
+    return;
+  }
+  if (Array.isArray(response.data.skills)) {
+    skills.value = response.data.skills;
+    selectedName.value = skills.value[0]?.name ?? null;
+  }
+});
 
 // Fetch detail when the selection changes. Failures surface inline
 // so the Run button stays disabled and the user sees why. Each request

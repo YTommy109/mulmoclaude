@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
+import { WORKSPACE_FILES } from "../../src/config/workspacePaths";
 
 // Override the lazy-expand endpoint with a small fixture tree. Each
 // directory returns its immediate children only — recursion is
@@ -17,8 +18,8 @@ async function mockFileTree(page: Page) {
             path: "",
             type: "dir",
             children: [
+              { name: "data", path: "data", type: "dir" },
               { name: "wiki", path: "wiki", type: "dir" },
-              { name: "todos", path: "todos", type: "dir" },
             ],
           },
         });
@@ -40,16 +41,26 @@ async function mockFileTree(page: Page) {
           },
         });
       }
-      if (path === "todos") {
+      if (path === "data") {
+        return route.fulfill({
+          json: {
+            name: "data",
+            path: "data",
+            type: "dir",
+            children: [{ name: "todos", path: "data/todos", type: "dir" }],
+          },
+        });
+      }
+      if (path === "data/todos") {
         return route.fulfill({
           json: {
             name: "todos",
-            path: "todos",
+            path: "data/todos",
             type: "dir",
             children: [
               {
                 name: "todos.json",
-                path: "todos/todos.json",
+                path: WORKSPACE_FILES.todosItems,
                 type: "file",
                 size: 100,
               },
