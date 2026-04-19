@@ -13,7 +13,7 @@
 //
 // Usage: npx tsx --test test/agent/test_mcp_docker_smoke.ts
 
-import { describe, it, before } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { execSync, spawn } from "node:child_process";
 import path from "node:path";
@@ -50,18 +50,9 @@ interface JsonRpcResponse {
   };
 }
 
-describe("MCP server Docker smoke test", () => {
-  before(() => {
-    if (!isDockerAvailable()) {
-      console.log("  SKIP: Docker not available");
-      process.exit(0);
-    }
-    if (!isSandboxImageAvailable()) {
-      console.log("  SKIP: mulmoclaude-sandbox image not built");
-      process.exit(0);
-    }
-  });
+const canRunDocker = isDockerAvailable() && isSandboxImageAvailable();
 
+describe("MCP server Docker smoke test", { skip: !canRunDocker }, () => {
   it("responds to initialize + tools/list inside Docker container", async () => {
     const toDockerPath = (p: string): string => p.replace(/\\/g, "/");
 
