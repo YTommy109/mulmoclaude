@@ -1016,7 +1016,7 @@
   dependencies:
     "@types/node" ">=18"
 
-"@slack/socket-mode@^2.0.3":
+"@slack/socket-mode@^2.0.6":
   version "2.0.6"
   resolved "https://registry.yarnpkg.com/@slack/socket-mode/-/socket-mode-2.0.6.tgz#9fff31f180d9bab1f7051f4bf49b1889d9542e18"
   integrity sha512-Aj5RO3MoYVJ+b2tUjHUXuA3tiIaCUMOf1Ss5tPiz29XYVUi6qNac2A8ulcU1pUPERpXVHTmT1XW6HzQIO74daQ==
@@ -1033,7 +1033,7 @@
   resolved "https://registry.yarnpkg.com/@slack/types/-/types-2.20.1.tgz#2528592813eb088691a8665d55e21ec47ddc8217"
   integrity sha512-eWX2mdt1ktpn8+40iiMc404uGrih+2fxiky3zBcPjtXKj6HLRdYlmhrPkJi7JTJm8dpXR6BWVWEDBXtaWMKD6A==
 
-"@slack/web-api@^7.15.0", "@slack/web-api@^7.8.0":
+"@slack/web-api@^7.15.0", "@slack/web-api@^7.15.1":
   version "7.15.1"
   resolved "https://registry.yarnpkg.com/@slack/web-api/-/web-api-7.15.1.tgz#164b95ba3a9b4f1f0d5f30793e3d42e02afe8bb3"
   integrity sha512-y+TAF7TszcmFzbVtBkFqAdBwKSoD+8shkNxhp4WIfFwXmCKdFje9WD6evROApPa2FTy1v1uc9yBaJs3609PPgg==
@@ -1276,6 +1276,13 @@
   dependencies:
     "@types/ms" "*"
     "@types/node" "*"
+
+"@types/matrix-js-sdk@^11.1.0":
+  version "11.1.0"
+  resolved "https://registry.yarnpkg.com/@types/matrix-js-sdk/-/matrix-js-sdk-11.1.0.tgz#0383e7b64d4dd661651e50a1562d472953a6ce1b"
+  integrity sha512-uBiwPqe5luvSOI+1IuzHwm1VgnvpNXpPgWkSsKPOeMFBJNB73ySA4BVLsg94CvoouNDPEcnrQMluPRTOKx/vog==
+  dependencies:
+    matrix-js-sdk "*"
 
 "@types/ms@*":
   version "2.1.0"
@@ -2552,7 +2559,7 @@ discord-api-types@^0.38.1, discord-api-types@^0.38.33, discord-api-types@^0.38.4
   resolved "https://registry.yarnpkg.com/discord-api-types/-/discord-api-types-0.38.47.tgz#34f2dde6ff65d31fc8950b298426d61b46836901"
   integrity sha512-XgXQodHQBAE6kfD7kMvVo30863iHX1LHSqNq6MGUTDwIFCCvHva13+rwxyxVXDqudyApMNAd32PGjgVETi5rjA==
 
-discord.js@^14.18.0:
+discord.js@^14.26.3:
   version "14.26.3"
   resolved "https://registry.yarnpkg.com/discord.js/-/discord.js-14.26.3.tgz#51d0b781780058cce4a2d71caa5653bfcc152559"
   integrity sha512-XEKtYn28YFsiJ5l4fLRyikdbo6RD5oFyqfVHQlvXz2104JhH/E8slN28dbky05w3DCrJcNVWvhVvcJCTSl/KIg==
@@ -4702,7 +4709,7 @@ matrix-events-sdk@0.0.1:
   resolved "https://registry.yarnpkg.com/matrix-events-sdk/-/matrix-events-sdk-0.0.1.tgz#c8c38911e2cb29023b0bbac8d6f32e0de2c957dd"
   integrity sha512-1QEOsXO+bhyCroIe2/A5OwaxHvBm7EsSQ46DEDn8RBIfQwN5HWBpFvyWWR4QY0KHPPnnJdI99wgRiAl7Ad5qaA==
 
-matrix-js-sdk@^41.3.0:
+matrix-js-sdk@*, matrix-js-sdk@^41.3.0:
   version "41.3.0"
   resolved "https://registry.yarnpkg.com/matrix-js-sdk/-/matrix-js-sdk-41.3.0.tgz#7003a7a862232d06e015db90c5174d61ad673b2c"
   integrity sha512-QTNHpBQEKPH3WS4O92CBfFj6GxeyijT8osI/QxNvOrM3rE6CySXRtRRKnzR0ntFSdrk1CxrDGV6h2wmk7B3peQ==

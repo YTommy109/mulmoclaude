@@ -33,6 +33,15 @@ When creating a release (tagging a version, `gh release create`, npm publish):
 4. For npm package releases, list package names and versions in the entry
 5. MUST run `date` to get today's date — NEVER guess
 
+### Git tag conventions
+
+- **MulmoClaude (app)**: `v0.1.2` — semver with `v` prefix
+- **npm packages**: `@scope/name@version` — e.g. `@mulmobridge/protocol@0.1.2`, `@receptron/task-scheduler@0.1.0`
+- NEVER use the app tag (`v*`) for individual package releases — each package gets its own `@scope/name@version` tag
+- One `gh release create` per tag — title matches the tag name
+- Published packages with changes since last publish get a **patch bump**; new packages ship at `0.1.0`
+- Version bumps and publish changes MUST go through a feature branch + PR — NEVER push directly to main
+
 ## GitHub posts (gh pr comment / gh issue comment / PR body / issue body)
 
 > **🚨 CRITICAL — NEVER escape backticks with backslash (`\``) in ANY `gh` command output.**
