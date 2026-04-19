@@ -85,6 +85,8 @@ The verbose log includes everything we need to diagnose the issue:
 - Latency per message
 - Disconnect reasons
 
+**Before pasting:** the mock token is a placeholder (`mock-test-token`), but review the log for any real tokens, chat IDs, or message text you don't want public. Redact them with `[REDACTED]`. If the log contains sensitive content, use a [private security report](https://github.com/receptron/mulmoclaude/security/advisories/new) instead of a public issue.
+
 Paste the log into your [GitHub issue](https://github.com/receptron/mulmoclaude/issues/new).
 
 ## Switching to real MulmoClaude
@@ -92,15 +94,16 @@ Paste the log into your [GitHub issue](https://github.com/receptron/mulmoclaude/
 Once your bridge works with the mock, switch to the real server:
 
 ```bash
-# 1. Install and start MulmoClaude
+# 1. Stop the mock server first (Ctrl+C) — both use port 3001
+# 2. Install and start MulmoClaude
 git clone https://github.com/receptron/mulmoclaude.git
 cd mulmoclaude && yarn install && yarn dev
 
-# 2. Connect your bridge (token is auto-read from the workspace)
+# 3. Connect your bridge (token is auto-read from the workspace)
 npx @mulmobridge/telegram
 ```
 
-The bridge connects to `http://localhost:3001` by default — same port as the mock. Override with `MULMOCLAUDE_API_URL` if needed.
+> **Important:** Stop the mock server before starting MulmoClaude — both default to `http://localhost:3001`. If the mock is still running, the real server will fail to bind or your bridge will keep talking to the mock. Override with `MULMOCLAUDE_API_URL` if you need both running simultaneously.
 
 ## Supported bridge platforms
 

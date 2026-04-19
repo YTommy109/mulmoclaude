@@ -134,8 +134,11 @@ export function createMockServer(opts: MockServerOptions): void {
   process.on("SIGINT", () => {
     log.info("shutting down...");
     printReportHint(log);
-    server.close();
-    process.exit(0);
+    io.close();
+    server.close(() => process.exit(0));
+    // Safety net — if server.close() hangs (stuck connections),
+    // force exit after 3 seconds.
+    setTimeout(() => process.exit(0), 3000).unref();
   });
 }
 

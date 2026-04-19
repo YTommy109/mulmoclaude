@@ -7,6 +7,8 @@ export interface MockLogger {
 }
 
 export function createLogger(verbose: boolean, logFile?: string): MockLogger {
+  let warnedLogFileFailure = false;
+
   function timestamp(): string {
     return new Date().toISOString().slice(11, 23);
   }
@@ -15,8 +17,13 @@ export function createLogger(verbose: boolean, logFile?: string): MockLogger {
     if (!logFile) return;
     try {
       appendFileSync(logFile, line + "\n");
-    } catch {
-      // Best-effort — don't crash on log write failure
+    } catch (err) {
+      if (!warnedLogFileFailure) {
+        warnedLogFileFailure = true;
+        console.error(
+          `[mock] warning: cannot write to log file ${logFile}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     }
   }
 

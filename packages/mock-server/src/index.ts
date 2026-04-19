@@ -15,6 +15,28 @@
 
 import { createMockServer, type MockServerOptions } from "./server.js";
 
+function failUsage(message: string): never {
+  console.error(`Error: ${message}`);
+  printHelp();
+  process.exit(1);
+}
+
+function parsePort(raw: string): number {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n <= 0 || n > 65535) {
+    failUsage(`--port must be an integer between 1 and 65535, got "${raw}"`);
+  }
+  return n;
+}
+
+function parseSlowMs(raw: string): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) {
+    failUsage(`--slow must be a non-negative number, got "${raw}"`);
+  }
+  return n;
+}
+
 function parseArgs(argv: string[]): MockServerOptions {
   const opts: MockServerOptions = {
     port: 3001,
@@ -28,11 +50,11 @@ function parseArgs(argv: string[]): MockServerOptions {
   for (let i = 2; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--port" && argv[i + 1]) {
-      opts.port = Number(argv[++i]);
+      opts.port = parsePort(argv[++i]);
     } else if (arg === "--token" && argv[i + 1]) {
       opts.token = argv[++i];
     } else if (arg === "--slow" && argv[i + 1]) {
-      opts.slowMs = Number(argv[++i]);
+      opts.slowMs = parseSlowMs(argv[++i]);
     } else if (arg === "--error") {
       opts.alwaysError = true;
     } else if (arg === "--reject-auth") {
@@ -44,6 +66,8 @@ function parseArgs(argv: string[]): MockServerOptions {
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
+    } else if (arg.startsWith("-")) {
+      failUsage(`unknown option: ${arg}`);
     }
   }
   return opts;

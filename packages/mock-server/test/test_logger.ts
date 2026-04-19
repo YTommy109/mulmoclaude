@@ -6,6 +6,7 @@ import path from "path";
 import { createLogger } from "../src/logger.ts";
 
 describe("createLogger", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mock-log-test-"));
   let tmpFile: string | undefined;
 
   afterEach(() => {
@@ -15,8 +16,13 @@ describe("createLogger", () => {
     tmpFile = undefined;
   });
 
+  // Clean up the temp directory after all tests
+  process.on("exit", () => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it("info() writes to log file when logFile is set", () => {
-    tmpFile = path.join(os.tmpdir(), `mock-log-test-${Date.now()}.log`);
+    tmpFile = path.join(tmpDir, `info-${Date.now()}.log`);
     const log = createLogger(false, tmpFile);
     log.info("test message");
     const content = fs.readFileSync(tmpFile, "utf-8");
@@ -25,7 +31,7 @@ describe("createLogger", () => {
   });
 
   it("verbose() writes to log file even when verbose is false", () => {
-    tmpFile = path.join(os.tmpdir(), `mock-log-test-${Date.now()}.log`);
+    tmpFile = path.join(tmpDir, `verbose-${Date.now()}.log`);
     const log = createLogger(false, tmpFile);
     log.verbose("detail info");
     const content = fs.readFileSync(tmpFile, "utf-8");
@@ -33,7 +39,7 @@ describe("createLogger", () => {
   });
 
   it("raw() writes to log file", () => {
-    tmpFile = path.join(os.tmpdir(), `mock-log-test-${Date.now()}.log`);
+    tmpFile = path.join(tmpDir, `raw-${Date.now()}.log`);
     const log = createLogger(false, tmpFile);
     log.raw("banner line");
     const content = fs.readFileSync(tmpFile, "utf-8");
