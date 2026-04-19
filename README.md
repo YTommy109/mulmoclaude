@@ -6,7 +6,7 @@ Experience GUI-chat with Claude Code — and long-term memory! You chat with Cla
 
 ## Installation
 
-**Prerequisites**: Node.js 18+, [Claude Code CLI](https://claude.ai/code) installed and authenticated.
+**Prerequisites**: Node.js 20+ (24 recommended), [Claude Code CLI](https://claude.ai/code) installed and authenticated.
 
 ```bash
 # Clone the repository
