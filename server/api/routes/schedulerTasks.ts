@@ -30,9 +30,12 @@ const router = Router();
 // ── List all tasks ──────────────────────────────────────────────
 
 router.get(API_ROUTES.scheduler.tasks, (_req: Request, res: Response) => {
+  // getSchedulerTasks() returns system-only tasks (registered via
+  // initScheduler at startup — journal, chat-index, sources, etc.).
+  // origin: "system" is correct, not an overwrite — these tasks
+  // have no origin field of their own.
   const systemTasks = getSchedulerTasks();
   const userTasks = loadUserTasks();
-  // Merge: system/skill tasks from adapter + user tasks from file
   const all = [
     ...systemTasks.map((t) => ({ ...t, origin: "system" as const })),
     ...userTasks.map((t) => ({ ...t, origin: "user" as const })),
@@ -149,7 +152,7 @@ router.post(
       return;
     }
     // System tasks don't have a prompt to startChat with — return 400
-    badRequest(res, "manual run is only supported for user and skill tasks");
+    badRequest(res, "manual run is only supported for user tasks");
   },
 );
 
