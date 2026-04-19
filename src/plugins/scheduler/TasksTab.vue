@@ -111,7 +111,7 @@
               {{ task.state.lastRunResult }}
             </span>
             <span v-if="task.state?.nextScheduledAt">
-              Next: {{ formatTime(task.state.nextScheduledAt) }}
+              Next: {{ formatShortTime(task.state.nextScheduledAt) }}
             </span>
           </div>
 
@@ -132,6 +132,7 @@
 import { ref, onMounted } from "vue";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
+import { formatShortTime } from "../../utils/format/date";
 
 interface TaskSchedule {
   type: string;
@@ -202,17 +203,6 @@ function formatSchedule(schedule: TaskSchedule): string {
     return `Daily ${schedule.time} UTC`;
   }
   return JSON.stringify(schedule);
-}
-
-function formatTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
 }
 
 async function runTask(id: string): Promise<void> {

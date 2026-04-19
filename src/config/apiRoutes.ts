@@ -48,6 +48,7 @@ export const API_ROUTES = {
     base: "/api/config",
     settings: "/api/config/settings",
     mcp: "/api/config/mcp",
+    workspaceDirs: "/api/config/workspace-dirs",
   },
 
   files: {

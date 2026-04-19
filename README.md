@@ -29,7 +29,7 @@ yarn dev
 
 This starts both the frontend (Vite) and the backend (Express + Claude Code agent) concurrently. Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-### Messaging bridges (Telegram, CLI)
+### Messaging bridges
 
 MulmoClaude can be accessed from messaging apps via **bridge processes**. Bridges run as separate child processes and connect to the server over socket.io.
 
@@ -44,11 +44,21 @@ yarn telegram
 Bridges are also available as standalone npm packages:
 
 ```bash
-npx @mulmobridge/cli@latest      # CLI bridge
-npx @mulmobridge/telegram@latest # Telegram bridge
+npx @mulmobridge/cli@latest          # CLI bridge
+npx @mulmobridge/telegram@latest     # Telegram bridge
+npx @mulmobridge/slack@latest        # Slack bridge
+npx @mulmobridge/discord@latest      # Discord bridge
+npx @mulmobridge/line@latest         # LINE bridge
+npx @mulmobridge/whatsapp@latest     # WhatsApp bridge
+npx @mulmobridge/matrix@latest       # Matrix bridge
+npx @mulmobridge/irc@latest          # IRC bridge
+npx @mulmobridge/mattermost@latest   # Mattermost bridge
+npx @mulmobridge/zulip@latest        # Zulip bridge
+npx @mulmobridge/messenger@latest    # Facebook Messenger bridge
+npx @mulmobridge/google-chat@latest  # Google Chat bridge
 ```
 
-See [`docs/message_apps/telegram/README.md`](docs/message_apps/telegram/README.md) for Telegram bot setup (BotFather, chat ID allowlist, etc.).
+All bridges support **real-time text streaming** (typing updates as the agent writes). CLI and Telegram also support **file attachments** (images, PDFs, DOCX, XLSX, PPTX). See [`docs/mulmobridge-guide.md`](docs/mulmobridge-guide.md) for the full platform list and setup instructions.
 
 ### Why do you need a Gemini API key?
 
@@ -133,7 +143,7 @@ MulmoClaude can list and launch the **Claude Code skills** you already have. A s
 ### How to use
 
 1. Open MulmoClaude and stay in one of the skill-enabled roles: **General**, **Office**, or **Tutor**.
-2. Ask Claude to show your skills — e.g. *"show my skills"* or *"list skills"*.
+2. Ask Claude to show your skills — e.g. _"show my skills"_ or _"list skills"_.
 3. Claude invokes the `manageSkills` tool, and a split-pane **Skills** view opens in the canvas:
    - **Left**: every skill discovered on your machine, with its description and scope badge (`USER` / `PROJECT`).
    - **Right**: the full `SKILL.md` content of the selected skill.
@@ -143,10 +153,10 @@ No extra typing, no copy-pasting SKILL.md bodies — the Run button is a one-cli
 
 ### Skill discovery — two scopes
 
-| Scope       | Location                                | Semantics                                                                                 |
-| ----------- | --------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **User**    | `~/.claude/skills/<name>/SKILL.md`      | Personal skills, shared across every project you open with the Claude CLI.                |
-| **Project** | `~/mulmoclaude/.claude/skills/<name>/`  | MulmoClaude-workspace-scoped skills. Project scope **wins** if a name collides with user. |
+| Scope       | Location                               | Semantics                                                                                 |
+| ----------- | -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **User**    | `~/.claude/skills/<name>/SKILL.md`     | Personal skills, shared across every project you open with the Claude CLI.                |
+| **Project** | `~/mulmoclaude/.claude/skills/<name>/` | MulmoClaude-workspace-scoped skills. Project scope **wins** if a name collides with user. |
 
 Both scopes are read-only in phase 0 — edits happen on the file system. A future release will let MulmoClaude itself create / edit project-scope skills.
 
@@ -423,16 +433,33 @@ You don't need to list `mcp__<id>` entries for servers defined in `mcp.json` —
 
 Paste (Ctrl+V / Cmd+V) or drag-and-drop files into the chat input to send them to Claude alongside your message.
 
-| File type | What Claude sees | Dependency |
-|---|---|---|
-| Image (PNG, JPEG, GIF, WebP, …) | Vision content block (native) | None |
-| PDF | Document content block (native) | None |
-| Text (.txt, .csv, .json, .md, .xml, .html, .yaml) | Decoded UTF-8 text | None |
-| DOCX | Extracted plain text | `mammoth` (npm) |
-| XLSX | CSV per sheet | `xlsx` (npm) |
-| PPTX | Converted to PDF | LibreOffice (Docker sandbox) |
+| File type                                         | What Claude sees                | Dependency                   |
+| ------------------------------------------------- | ------------------------------- | ---------------------------- |
+| Image (PNG, JPEG, GIF, WebP, …)                   | Vision content block (native)   | None                         |
+| PDF                                               | Document content block (native) | None                         |
+| Text (.txt, .csv, .json, .md, .xml, .html, .yaml) | Decoded UTF-8 text              | None                         |
+| DOCX                                              | Extracted plain text            | `mammoth` (npm)              |
+| XLSX                                              | CSV per sheet                   | `xlsx` (npm)                 |
+| PPTX                                              | Converted to PDF                | LibreOffice (Docker sandbox) |
 
 PPTX conversion runs inside the Docker sandbox image (`libreoffice --headless`). Without Docker, a message suggests exporting to PDF or images instead. Maximum attachment size is 30 MB.
+
+## Canvas view modes
+
+The canvas (right panel) supports 8 view modes, switchable via the launcher toolbar, URL query param, or keyboard shortcut:
+
+| Shortcut     | View      | URL param         | Description                      |
+| ------------ | --------- | ----------------- | -------------------------------- |
+| `Cmd/Ctrl+1` | Single    | (default)         | Show the selected tool result    |
+| `Cmd/Ctrl+2` | Stack     | `?view=stack`     | All results stacked vertically   |
+| `Cmd/Ctrl+3` | Files     | `?view=files`     | Workspace file explorer          |
+| `Cmd/Ctrl+4` | Todos     | `?view=todos`     | Kanban / table / list todo board |
+| `Cmd/Ctrl+5` | Scheduler | `?view=scheduler` | Scheduled tasks calendar         |
+| `Cmd/Ctrl+6` | Wiki      | `?view=wiki`      | Wiki page index                  |
+| `Cmd/Ctrl+7` | Skills    | `?view=skills`    | Skills list and editor           |
+| `Cmd/Ctrl+8` | Roles     | `?view=roles`     | Role management                  |
+
+Every view mode is URL-driven: clicking a launcher button updates `?view=`, and landing on a URL with `?view=todos` (for example) restores the corresponding view. The view mode list is defined once in `src/utils/canvas/viewMode.ts` — adding a new mode is a single array append.
 
 ## Workspace
 
@@ -452,8 +479,7 @@ See [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) for th
 
 ### Todo explorer
 
-Selecting `data/todos/todos.json` in the file explorer opens a full **Todo
-Explorer** with three view modes:
+The Todo Explorer is accessible via `Cmd/Ctrl+4`, the Todos launcher button, or by selecting `data/todos/todos.json` in the file explorer. It provides three sub-view modes:
 
 - **Kanban** — GitHub Projects-style columns. Drag cards between
   columns to change status. Each column has a menu to rename, mark as
@@ -472,16 +498,47 @@ The chat-side `manageTodoList` MCP tool keeps its existing behaviour
 unchanged — it can read and edit text / note / labels / completed
 todos, and the explorer's extra fields are preserved across MCP edits.
 
+### Scheduler and skill scheduling
+
+The scheduler (`Cmd/Ctrl+5` or `?view=scheduler`) manages recurring tasks stored in `data/scheduler/items.json`. The scheduler core (`@receptron/task-scheduler`) handles catch-up logic for missed runs and supports `interval`, `daily`, and `cron` schedules.
+
+Skills can be scheduled to run automatically by adding a `schedule` field to the SKILL.md frontmatter:
+
+```yaml
+---
+description: Morning news digest
+schedule: daily 08:00
+---
+```
+
+Claude will register the skill with the scheduler, and it runs automatically on the specified schedule.
+
+### Memory extraction
+
+Claude automatically extracts durable user facts from chat conversations and appends them to `conversations/memory.md`. This runs as part of the journal daily pass — facts like food preferences, work habits, and tool preferences are distilled from recent chats without user intervention. The memory file is always loaded into the agent context so Claude can personalize responses.
+
 ## Monorepo Packages
 
 Shared code is extracted into publishable npm packages under `packages/`:
 
-| Package | Description |
-|---|---|
-| `@mulmobridge/protocol` | Shared types and constants (EVENT_TYPES, Attachment, socket events) |
-| `@mulmobridge/client` | Socket.io client library + bearer token reader + MIME utilities |
-| `@mulmobridge/chat-service` | Server-side chat service (socket.io + REST bridge, DI factory) |
-| `@mulmobridge/cli` | Interactive terminal bridge (`yarn cli` or `npx @mulmobridge/cli`) |
-| `@mulmobridge/telegram` | Telegram bot bridge (`yarn telegram` or `npx @mulmobridge/telegram`) |
+| Package | Description | Links |
+|---|---|---|
+| `@mulmobridge/protocol` | Shared types and constants (EVENT_TYPES, Attachment, socket events) | [source](packages/protocol/) |
+| `@mulmobridge/client` | Socket.io client library + bearer token reader + MIME utilities | [source](packages/client/) |
+| `@mulmobridge/chat-service` | Server-side chat service (socket.io + REST bridge, DI factory) | [source](packages/chat-service/) |
+| `@mulmobridge/cli` | Interactive terminal bridge | [npm](https://www.npmjs.com/package/@mulmobridge/cli) / [source](packages/cli/) |
+| `@mulmobridge/telegram` | Telegram bot bridge (photo support, allowlist) | [npm](https://www.npmjs.com/package/@mulmobridge/telegram) / [source](packages/telegram/) |
+| `@mulmobridge/slack` | Slack bot bridge (Socket Mode) | [source](packages/slack/) |
+| `@mulmobridge/discord` | Discord bot bridge | [source](packages/discord/) |
+| `@mulmobridge/line` | LINE bot bridge (webhook) | [source](packages/line/) |
+| `@mulmobridge/whatsapp` | WhatsApp Cloud API bridge (webhook) | [source](packages/whatsapp/) |
+| `@mulmobridge/matrix` | Matrix bridge (matrix-js-sdk) | [source](packages/matrix/) |
+| `@mulmobridge/irc` | IRC bridge (irc-framework) | [source](packages/irc/) |
+| `@mulmobridge/mattermost` | Mattermost bridge (WebSocket + REST) | [source](packages/mattermost/) |
+| `@mulmobridge/zulip` | Zulip bridge (long-polling events API) | [source](packages/zulip/) |
+| `@mulmobridge/messenger` | Facebook Messenger bridge (webhook + HMAC) | [source](packages/messenger/) |
+| `@mulmobridge/google-chat` | Google Chat bridge (webhook + JWT verification) | [source](packages/google-chat/) |
+| `@mulmobridge/mock-server` | Lightweight mock server for bridge testing | [source](packages/mock-server/) |
+| `@receptron/task-scheduler` | Persistent task scheduler with catch-up | [source](packages/scheduler/) |
 
 Anyone can write a bridge in any language — just speak the socket.io protocol documented in [`docs/bridge-protocol.md`](docs/bridge-protocol.md).

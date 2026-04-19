@@ -4,6 +4,10 @@ import type { Role } from "../../src/config/roles.js";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
 import { PLUGIN_DEFS } from "./plugin-names.js";
 import { WORKSPACE_DIRS, WORKSPACE_FILES } from "../workspace/paths.js";
+import {
+  getCachedCustomDirs,
+  buildCustomDirsPrompt,
+} from "../workspace/custom-dirs.js";
 
 export const SYSTEM_PROMPT = `You are MulmoClaude, a versatile assistant app with rich visual output.
 
@@ -301,6 +305,7 @@ export function buildSystemPrompt(params: SystemPromptParams): string {
     useDocker ? SANDBOX_TOOLS_HINT : null,
     buildWikiContext(workspacePath),
     buildSourcesContext(workspacePath),
+    buildCustomDirsPrompt(getCachedCustomDirs()),
     headingSection(
       "Reference Files",
       buildInlinedHelpFiles(role.prompt, workspacePath),

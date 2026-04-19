@@ -31,7 +31,7 @@
           >· {{ formatBytes(content.size) }}</span
         >
         <span v-if="content?.modifiedMs" class="text-gray-400 shrink-0"
-          >· {{ formatTime(content.modifiedMs) }}</span
+          >· {{ formatDateTime(content.modifiedMs) }}</span
         >
         <button
           v-if="isMarkdown"
@@ -251,6 +251,7 @@ import { rewriteMarkdownImageRefs } from "../utils/image/rewriteMarkdownImageRef
 import { apiGet } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
 import { WORKSPACE_FILES } from "../config/workspacePaths";
+import { formatDateTime } from "../utils/format/date";
 import { wrapHtmlWithPreviewCsp } from "../utils/html/previewCsp";
 import SchedulerView from "../plugins/scheduler/View.vue";
 import TodoExplorer from "./TodoExplorer.vue";
@@ -517,15 +518,6 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function formatTime(ms: number): string {
-  return new Date(ms).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 // Fetch the immediate children of one directory via the lazy-expand

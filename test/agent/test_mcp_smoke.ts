@@ -79,10 +79,18 @@ function sendAndReceive(
         })
         .filter((r): r is JsonRpcResponse => r !== null);
 
-      if (responses.length === 0 && code !== 0) {
+      if (code !== 0) {
         reject(
           new Error(
             `MCP server exited with code ${code}. stderr: ${stderr.slice(0, 500)}`,
+          ),
+        );
+        return;
+      }
+      if (responses.length === 0) {
+        reject(
+          new Error(
+            `MCP server produced no valid JSON-RPC responses. stdout: ${stdout.slice(0, 500)}`,
           ),
         );
         return;
