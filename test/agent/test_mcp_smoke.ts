@@ -14,8 +14,9 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 
 const PROJECT_ROOT = path.resolve(import.meta.dirname, "../..");
-const TSX = path.join(PROJECT_ROOT, "node_modules/.bin/tsx");
 const MCP_SERVER = path.join(PROJECT_ROOT, "server/agent/mcp-server.ts");
+// Use npx tsx so the shell resolves .cmd wrappers on Windows.
+const TSX = path.join(PROJECT_ROOT, "node_modules", ".bin", "tsx");
 
 interface JsonRpcResponse {
   jsonrpc: string;
@@ -34,10 +35,13 @@ function sendAndReceive(
   env: Record<string, string>,
 ): Promise<JsonRpcResponse[]> {
   return new Promise((resolve, reject) => {
-    const child = spawn(TSX, [MCP_SERVER], {
+    // shell: true so Windows resolves .cmd wrappers in node_modules/.bin/.
+    // Pass args as a single command string to avoid DEP0190 warning.
+    const child = spawn(`"${TSX}" "${MCP_SERVER}"`, {
       cwd: PROJECT_ROOT,
       env: { ...process.env, ...env },
       stdio: ["pipe", "pipe", "pipe"],
+      shell: true,
     });
 
     let stdout = "";
@@ -92,7 +96,7 @@ describe("MCP server subprocess smoke test", () => {
   it("responds to initialize + tools/list with registered tools", async () => {
     const env: Record<string, string> = {
       SESSION_ID: "test-smoke",
-      PORT: "9999",
+      PORT: "0",
       PLUGIN_NAMES: "manageTodoList,presentMulmoScript,manageWiki,switchRole",
       ROLE_IDS: "general",
     };
