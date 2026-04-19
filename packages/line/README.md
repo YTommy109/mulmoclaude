@@ -14,7 +14,11 @@ LINE bridge for [MulmoClaude](https://github.com/receptron/mulmoclaude). Uses we
 
 ### 2. Set up ngrok (for development)
 
+[ngrok](https://ngrok.com) is a tunneling tool that exposes a local port to the internet so LINE's webhooks can reach your machine.
+
 ```bash
+brew install ngrok
+ngrok config add-authtoken <your-token>  # from ngrok dashboard
 ngrok http 3002
 # Copy the https://xxxx.ngrok-free.app URL
 ```
@@ -22,9 +26,9 @@ ngrok http 3002
 ### 3. Configure the webhook
 
 In the LINE Developers Console → Messaging API tab:
-- **Webhook URL**: `https://xxxx.ngrok-free.app/webhook`
+- **Webhook URL**: `https://xxxx.ngrok-free.app/webhook` — the trailing `/webhook` is **required** (without it you get 404)
 - **Use webhook**: enabled
-- **Auto-reply messages**: disabled (so LINE's default replies don't interfere)
+- **Auto-reply messages**: disabled (LINE Official Account settings → Auto-reply messages → OFF, otherwise you get double replies)
 
 ### 4. Run the bridge
 
@@ -60,6 +64,13 @@ Scan the QR code in the LINE Developers Console → Messaging API tab. Send a me
 
 - LINE reply tokens expire in **1 minute**. Since Claude responses can take longer, the bridge uses **push messages** instead of reply messages. This requires your bot to be a verified/certified account for push to work with all users, OR the user must have added the bot as a friend first.
 - LINE limits messages to 5 per push call and ~5000 chars per message. Long replies are automatically chunked.
+
+## Detailed Setup Guide
+
+For step-by-step instructions with troubleshooting:
+
+- [English](https://github.com/receptron/mulmoclaude/blob/main/docs/message_apps/line/README.md)
+- [Japanese](https://github.com/receptron/mulmoclaude/blob/main/docs/message_apps/line/README.ja.md)
 
 ## License
 
