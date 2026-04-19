@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 import { workspacePath } from "./paths.js";
 import { log } from "../system/logger/index.js";
+import { writeFileAtomicSync } from "../utils/files/atomic.js";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -151,6 +152,49 @@ export function loadCustomDirs(root?: string): CustomDirEntry[] {
     });
     return [];
   }
+}
+
+// ── Save ────────────────────────────────────────────────────────
+
+export function saveCustomDirs(
+  entries: readonly CustomDirEntry[],
+  root?: string,
+): void {
+  const base = root ?? workspacePath;
+  const filePath = path.join(base, CONFIG_FILE);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  writeFileAtomicSync(filePath, JSON.stringify(entries, null, 2));
+}
+
+// ── Validate input array (for API) ─────────────────────────────
+
+export function validateCustomDirs(
+  raw: unknown,
+): { entries: CustomDirEntry[] } | { error: string } {
+  if (!Array.isArray(raw)) {
+    return { error: "expected an array" };
+  }
+  if (raw.length > MAX_ENTRIES) {
+    return { error: `too many entries (max ${MAX_ENTRIES})` };
+  }
+  const entries: CustomDirEntry[] = [];
+  const errors: string[] = [];
+  raw.forEach((item, i) => {
+    const entry = validateEntry(item);
+    if (entry) {
+      entries.push(entry);
+    } else {
+      const p =
+        typeof item === "object" && item !== null
+          ? String((item as Record<string, unknown>).path ?? "")
+          : "";
+      errors.push(`entry ${i}: invalid path "${p}"`);
+    }
+  });
+  if (errors.length > 0) {
+    return { error: errors.join("; ") };
+  }
+  return { entries };
 }
 
 // ── Create directories ──────────────────────────────────────────
