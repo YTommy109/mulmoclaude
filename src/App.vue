@@ -1434,8 +1434,13 @@ function ensureSessionSubscription(
 ): void {
   if (sessionSubscriptions.has(session.id)) return;
 
+  const sessionId = session.id;
   const ctx: AgentEventContext = {
-    session,
+    get session() {
+      // Always resolve from sessionMap so we track the latest
+      // reactive proxy — loadSession may replace the object.
+      return sessionMap.get(sessionId) ?? session;
+    },
     runStartIndex,
     setCurrentRoleId: (roleId) => {
       currentRoleId.value = roleId;
