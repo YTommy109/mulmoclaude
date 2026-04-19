@@ -2,7 +2,7 @@
 
 **Owner:** CMO (strategy), Engineering (demo assets), Community (day-of ops)
 **Target launch:** Tuesday, one week out — 12:01 AM PT kickoff
-**Positioning one-liner:** *Claude Code that produces real artifacts — and remembers everything.*
+**Positioning one-liner:** *Claude Code that produces docs, presentations, spreadsheets, videos, and remembers everything.*
 **Core thesis (the story behind the product):** This is the first visible surface of an AI-native operating system. Claude Code is the kernel; MulmoClaude is the shell, the compositor, and the filesystem users actually see.
 **Target early adopter (one audience, not four):** Claude Code power users who have already hit the limits of the terminal. Everyone else — productivity users, knowledge workers, AI enthusiasts — is phase 2 and will come via these users, not in parallel to them.
 
@@ -12,16 +12,18 @@
 
 ### Primary tagline (Product Hunt hero line)
 
-> **MulmoClaude — Claude Code that produces real artifacts and remembers everything.**
+> **MulmoClaude — Claude Code that produces docs, presentations, spreadsheets, videos, and remembers everything.**
 
-This one sentence is the whole product. Every surface — hero video, PH headline, tweet #1, gallery captions — must trace back to it. Everything else (parallel sessions, bridges, sandbox, roles, skills, charts) is *evidence*, not the message.
+This one sentence is the whole product. The concrete noun list (docs, presentations, spreadsheets, videos) does the work — a viewer knows in half a second what they're going to get back. "Remembers everything" is the moat. Every surface — hero video, PH headline, tweet #1, gallery captions — must trace back to it. Everything else (parallel sessions, bridges, sandbox, roles, skills, charts) is *evidence*, not the message.
+
+**Drafting rule:** whenever you're tempted to write "artifacts," write the concrete list instead. Abstractions lose upvotes.
 
 ### Supporting taglines (A/B candidates for social + hero imagery)
 
-1. *Real documents, real slide decks, real narrated videos — out of Claude Code. And it remembers.*
-2. *Claude Code with a canvas and a compounding memory.*
+1. *Docs. Presentations. Spreadsheets. Videos. Out of Claude Code. And it remembers.*
+2. *Claude Code that produces the things you actually ship — and gets smarter every chat.*
 3. *Turn any research paper into a document, a deck, and a narrated video — without opening anything else.*
-4. *Run five Claude Code agents in one browser tab. Get artifacts back, not text.*
+4. *Run five Claude Code agents in one browser tab. Get documents, decks, and videos back — not text.*
 
 ### Category pick
 
@@ -32,7 +34,7 @@ Dev Tools is where our one audience (Claude Code power users) lives. We skip Pro
 
 ## 2. The One-Sentence Pitch
 
-**MulmoClaude turns Claude Code into a system that produces real documents, runs multiple agents at once, and builds a personal knowledge base from everything you do.**
+**MulmoClaude turns Claude Code into a system that produces real documents, presentations, spreadsheets, and narrated videos, runs multiple agents at once, and builds a personal knowledge base from everything you do.**
 
 Three clauses, in the order a user asks them: *What does it make? How fast? Does it get smarter?* Everything else in this plan is supporting evidence.
 
@@ -63,10 +65,10 @@ A PH viewer skims for ~10 seconds and remembers one idea. So we drop to **five**
 
 ### The five (rank-ordered)
 
-1. **Artifacts, not text.** Claude Code answers with **real documents, spreadsheets, ECharts dashboards, narrated slide decks, and AI-generated videos** (MulmoScript / MulmoCast: Gemini image + Veo 3.1 video + audio narration). Not a chat bubble. This is what "multi-modal" actually means — powered by the open GUI Chat Protocol.
+1. **Docs, presentations, spreadsheets, videos — not text.** Claude Code answers with **real documents, narrated slide decks, spreadsheets, ECharts dashboards, and AI-generated videos** (MulmoScript / MulmoCast: Gemini image + Veo 3.1 video + audio narration). Not a chat bubble. This is what "multi-modal" actually means — powered by the open GUI Chat Protocol.
 2. **Parallel Claude Code, in one browser tab.** Run **many sessions at once** — one generates a video, another refactors code, a third drafts email. Claude Code is no longer single-threaded. *This is the category-defining shot for the hero video.*
 3. **It gets smarter every conversation.** A personal wiki grows from every chat — plain Markdown in your workspace, cross-linked and maintained by Claude itself. Karpathy's *LLM Knowledge Bases* idea, shipped. **This is the moat:** every other Claude client starts from zero; MulmoClaude compounds.
-4. **Your phone is a Claude Code client.** Bridges to Telegram, Slack, LINE, Discord, WhatsApp, Matrix — same agent, same workspace, same wiki. Fire a task from the subway, see the artifact on your laptop.
+4. **Your phone is a Claude Code client.** Bridges to Telegram, Slack, LINE, Discord, WhatsApp, Matrix — same agent, same workspace, same wiki. Fire a task from the subway, see the document (or the video) waiting on your laptop.
 5. **Sandboxed, so you can trust it.** Claude Code has filesystem access — that's the whole point and the whole risk. MulmoClaude auto-runs Claude in a **Docker container that only sees your workspace**. SSH keys, `.env` files, home directory: invisible. No configuration, no permissions dialogs. *Reframe AGPL + Docker as "serious enough to be safe," not "complicated."*
 
 ### Kept in reserve (don't lead with these — they're comment-thread fuel)
@@ -81,10 +83,10 @@ A PH viewer skims for ~10 seconds and remembers one idea. So we drop to **five**
 ## 5. Product Hunt Listing Copy
 
 ### Headline (60 char max)
-`MulmoClaude — Multi-modal, multi-session GUI for Claude Code`
+`MulmoClaude — Docs, decks, spreadsheets, videos from Claude Code`
 
 ### Tagline (60 char max)
-`Parallel sessions, narrated videos, phone bridges, sandboxed.`
+`Parallel sessions. Personal wiki. Phone bridges. Sandboxed.`
 
 ### First comment (the maker post — pinned)
 
@@ -106,7 +108,7 @@ Terminals were the OS shell of 1975. We can do better.
 MulmoClaude is my attempt at the **shell for that new kernel**. It
 does three things:
 
-**1. Claude replies with real artifacts, not text.**
+**1. Claude replies with real documents, decks, spreadsheets, and videos — not text.**
 Documents, spreadsheets, ECharts dashboards, forms, 3D scenes — and
 full narrated slide decks and AI-generated videos via the built-in
 MulmoScript / MulmoCast engine (Gemini image + Veo 3.1 video +
@@ -155,7 +157,7 @@ Cut from 9 to 6. Each one maps to one of the five key messages (plus the shock d
 
 1. **The shock demo** — "Drop in a research paper. Out comes a summary document, a slide deck, and a narrated video. No other tools opened." *(Leads the gallery because it's the ‘wait, it does THAT?' moment.)*
 2. **Parallel sessions (hero)** — "Three Claude Code sessions running at once, one browser tab. One renders a video, one builds a spreadsheet, one drafts email."
-3. **Artifacts, not text** — "Claude Code's answer isn't a chat bubble. It's an interactive document, spreadsheet, or chart you can edit and keep."
+3. **Docs, decks, spreadsheets, videos — not text** — "Claude Code's answer isn't a chat bubble. It's a document, a deck, a spreadsheet, a chart, or a narrated video you can edit and keep."
 4. **Compounding wiki** — "Every conversation adds to a personal wiki Claude builds and maintains itself. Cross-linked Markdown. Yours forever."
 5. **Phone as a client** — "Message Claude from Telegram, LINE, Slack, WhatsApp. Send a photo from the subway, get a document back on your laptop."
 6. **Sandboxed by default** — "Docker auto-detected. Claude only sees your workspace. SSH keys, .env files, home directory — invisible."
@@ -258,17 +260,17 @@ Three videos — each serves a different channel. **Always record silent first; 
 
 **Launch thread (7 tweets) — drafts. Order matches the five key messages + shock demo + CTA.**
 
-1. *MulmoClaude is live on Product Hunt today. It's Claude Code that produces real artifacts — and remembers everything. Not an API wrapper. It runs Claude Code directly — your auth, your tools, your files. 🧵*
+1. *MulmoClaude is live on Product Hunt today. It's Claude Code that produces docs, presentations, spreadsheets, videos — and remembers everything. Not an API wrapper. It runs Claude Code directly — your auth, your tools, your files. 🧵*
 2. **[Shock demo]** *Drop a research paper in. Out comes a summary document, a slide deck, and a narrated video. No other tools opened. [60s video]*
 3. **[Parallel sessions]** *Three Claude Code sessions, one browser tab. One renders a video, one refactors code, one drafts email. Claude Code is no longer single-threaded. [multi-session gif]*
 4. **[Compounding memory]** *Every conversation adds to a personal wiki Claude builds and maintains itself — plain Markdown, cross-linked, yours forever. Karpathy's LLM Knowledge Bases idea, shipped. Every other Claude client starts from zero. This one compounds. [wiki gif]*
-5. **[Phone as client]** *Message the same agent from Telegram, LINE, Slack, WhatsApp, Discord, Matrix. Fire a task from the subway, see the artifact on your laptop. [bridges gif]*
+5. **[Phone as client]** *Message the same agent from Telegram, LINE, Slack, WhatsApp, Discord, Matrix. Fire a task from the subway, see the document (or the narrated video) waiting on your laptop. [bridges gif]*
 6. **[Trust]** *Claude runs in a Docker sandbox — auto-detected, no configuration. It only sees your workspace. SSH keys, .env, home dir: invisible. This is the level of care a real shell needs. [sandbox screenshot]*
 7. *Try it in your browser right now: [hosted demo link]. Or `git clone` it — open source, AGPL. One upvote on PH costs you nothing and means everything today: [link]*
 
 ### Hacker News
 
-Title: **Show HN: MulmoClaude – Claude Code that produces real artifacts and remembers everything**
+Title: **Show HN: MulmoClaude – Claude Code that produces docs, decks, spreadsheets, videos, and remembers everything**
 
 Body (first comment): lead with the **AI-native OS thesis** and the Karpathy *LLM Knowledge Bases* reference. HN respects ideas over features — sell the idea, not the feature list. Explicitly state: *this runs the Claude Code CLI directly, not the API — that's why it can do what it does.*
 
@@ -359,7 +361,7 @@ This is the single biggest gap in the v1 plan. Reality check: even with `npx cre
 There are two things we have to land. Miss either and the launch is a 6 out of 10.
 
 **Bet 1 — The shot (earns the upvote).**
-The hero video's first 20 seconds: **a research paper dropped in, three Claude Code sessions producing artifacts in parallel, one of them a narrated MulmoCast video.** That single frame is the pitch: artifacts + parallel + MulmoCast, end of sentence. Nothing else on the market looks like it.
+The hero video's first 20 seconds: **a research paper dropped in, three Claude Code sessions producing a summary doc, a slide deck, and a narrated MulmoCast video in parallel.** That single frame is the pitch — concrete outputs + parallel sessions + MulmoCast, end of sentence. Nothing else on the market looks like it.
 
 **Bet 2 — The hosted demo (earns the try).**
 `demo.mulmoclaude.com` lets a PH skimmer click through the shock demo without installing anything. Without this, the upvote from Bet 1 doesn't convert into a GitHub star, a Twitter follow, or a build. Bet 1 gets you noticed; Bet 2 gets you remembered.
