@@ -16,10 +16,9 @@ import type { TaskLogEntry } from "@receptron/task-scheduler";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import {
   loadUserTasks,
-  saveUserTasks,
   validateAndCreate,
   applyUpdate,
-  refreshUserTasks,
+  withUserTaskLock,
 } from "../../workspace/skills/user-tasks.js";
 import { badRequest, notFound, serverError } from "../../utils/httpError.js";
 import { log } from "../../system/logger/index.js";
@@ -46,17 +45,17 @@ router.get(API_ROUTES.scheduler.tasks, (_req: Request, res: Response) => {
 // ── Create user task ────────────────────────────────────────────
 
 router.post(API_ROUTES.scheduler.tasks, async (req: Request, res: Response) => {
-  const result = validateAndCreate(req.body);
-  if (result.kind === "error") {
-    badRequest(res, result.error);
+  const validated = validateAndCreate(req.body);
+  if (validated.kind === "error") {
+    badRequest(res, validated.error);
     return;
   }
   try {
-    const tasks = loadUserTasks();
-    tasks.push(result.task);
-    await saveUserTasks(tasks);
-    await refreshUserTasks();
-    res.status(201).json({ task: result.task });
+    const task = await withUserTaskLock(async (tasks) => ({
+      tasks: [...tasks, validated.task],
+      result: validated.task,
+    }));
+    res.status(201).json({ task });
   } catch (err) {
     log.error("scheduler-tasks", "create failed", {
       error: String(err),
@@ -72,20 +71,22 @@ router.put(
   async (req: Request<{ id: string }>, res: Response) => {
     const { id } = req.params;
     try {
-      const tasks = loadUserTasks();
-      const result = applyUpdate(tasks, id, req.body);
-      if (result.kind === "error") {
-        notFound(res, result.error);
-        return;
-      }
-      await saveUserTasks(result.tasks);
-      await refreshUserTasks();
-      const updated = result.tasks.find((t) => t.id === id);
+      const updated = await withUserTaskLock(async (tasks) => {
+        const result = applyUpdate(tasks, id, req.body);
+        if (result.kind === "error") {
+          throw new Error(result.error);
+        }
+        const task = result.tasks.find((t) => t.id === id);
+        return { tasks: result.tasks, result: task };
+      });
       res.json({ task: updated });
     } catch (err) {
-      log.error("scheduler-tasks", "update failed", {
-        error: String(err),
-      });
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.startsWith("task not found") || msg.startsWith("request body")) {
+        notFound(res, msg);
+        return;
+      }
+      log.error("scheduler-tasks", "update failed", { error: msg });
       serverError(res, "Failed to update task");
     }
   },
@@ -98,20 +99,20 @@ router.delete(
   async (req: Request<{ id: string }>, res: Response) => {
     const { id } = req.params;
     try {
-      const tasks = loadUserTasks();
-      const idx = tasks.findIndex((t) => t.id === id);
-      if (idx === -1) {
-        notFound(res, `task not found: ${id}`);
-        return;
-      }
-      tasks.splice(idx, 1);
-      await saveUserTasks(tasks);
-      await refreshUserTasks();
+      await withUserTaskLock(async (tasks) => {
+        const idx = tasks.findIndex((t) => t.id === id);
+        if (idx === -1) throw new Error(`task not found: ${id}`);
+        const next = tasks.filter((t) => t.id !== id);
+        return { tasks: next, result: undefined };
+      });
       res.json({ deleted: id });
     } catch (err) {
-      log.error("scheduler-tasks", "delete failed", {
-        error: String(err),
-      });
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.startsWith("task not found")) {
+        notFound(res, msg);
+        return;
+      }
+      log.error("scheduler-tasks", "delete failed", { error: msg });
       serverError(res, "Failed to delete task");
     }
   },

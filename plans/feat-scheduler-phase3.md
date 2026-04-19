@@ -55,7 +55,7 @@ interface PersistedUserTask {
 POST   /api/scheduler/tasks           — create user task
 PUT    /api/scheduler/tasks/:id       — update user task
 DELETE /api/scheduler/tasks/:id       — delete user task (user-origin only)
-POST   /api/scheduler/tasks/:id/run   — manual trigger (any origin)
+POST   /api/scheduler/tasks/:id/run   — manual trigger (user tasks only)
 ```
 
 Existing read endpoints stay unchanged:

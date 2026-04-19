@@ -1,5 +1,14 @@
 <template>
   <div class="flex-1 overflow-y-auto min-h-0 p-4">
+    <!-- Mutation error banner -->
+    <div
+      v-if="mutationError"
+      class="mb-3 px-4 py-2 bg-red-50 text-red-700 rounded text-sm"
+      data-testid="scheduler-task-error"
+    >
+      {{ mutationError }}
+    </div>
+
     <!-- Loading -->
     <div
       v-if="loading"
@@ -29,6 +38,7 @@
         <div
           v-for="task in tasks"
           :key="task.id"
+          :data-testid="`scheduler-task-${task.id}`"
           class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50"
           :class="{ 'opacity-50': task.enabled === false }"
         >
@@ -51,6 +61,8 @@
                 v-if="task.origin === 'user'"
                 class="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
                 title="Run now"
+                aria-label="Run now"
+                data-testid="scheduler-task-run"
                 @click="runTask(task.id)"
               >
                 <span class="material-icons text-sm">play_arrow</span>
@@ -76,6 +88,8 @@
                 v-if="task.origin === 'user'"
                 class="px-2 py-1 text-xs text-red-500 hover:bg-red-50 rounded"
                 title="Delete"
+                aria-label="Delete"
+                data-testid="scheduler-task-delete"
                 @click="deleteTask(task.id)"
               >
                 <span class="material-icons text-sm">delete</span>
@@ -144,6 +158,7 @@ interface SchedulerTask {
 const tasks = ref<SchedulerTask[]>([]);
 const loading = ref(true);
 const error = ref("");
+const mutationError = ref("");
 
 async function fetchTasks(): Promise<void> {
   loading.value = true;
@@ -201,24 +216,36 @@ function formatTime(iso: string): string {
 }
 
 async function runTask(id: string): Promise<void> {
+  mutationError.value = "";
   const url = API_ROUTES.scheduler.taskRun.replace(":id", id);
-  await apiPost(url, {});
+  const result = await apiPost(url, {});
+  if (!result.ok) {
+    mutationError.value = `Run failed: ${result.error}`;
+    return;
+  }
+  await fetchTasks();
 }
 
 async function toggleEnabled(task: SchedulerTask): Promise<void> {
+  mutationError.value = "";
   const url = API_ROUTES.scheduler.task.replace(":id", task.id);
   const result = await apiPut(url, { enabled: task.enabled === false });
-  if (result.ok) {
-    await fetchTasks();
+  if (!result.ok) {
+    mutationError.value = `Toggle failed: ${result.error}`;
+    return;
   }
+  await fetchTasks();
 }
 
 async function deleteTask(id: string): Promise<void> {
+  mutationError.value = "";
   const url = API_ROUTES.scheduler.task.replace(":id", id);
   const result = await apiDelete(url);
-  if (result.ok) {
-    await fetchTasks();
+  if (!result.ok) {
+    mutationError.value = `Delete failed: ${result.error}`;
+    return;
   }
+  await fetchTasks();
 }
 
 onMounted(fetchTasks);

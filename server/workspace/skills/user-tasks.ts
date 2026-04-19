@@ -56,6 +56,10 @@ export async function saveUserTasks(
 
 // ── Validation ──────────────────────────────────────────────────
 
+function isValidDailyTime(value: string): boolean {
+  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(value);
+}
+
 function isValidSchedule(s: unknown): s is LocalTaskSchedule {
   if (typeof s !== "object" || s === null) return false;
   const obj = s as Record<string, unknown>;
@@ -63,7 +67,7 @@ function isValidSchedule(s: unknown): s is LocalTaskSchedule {
     return typeof obj.intervalMs === "number" && obj.intervalMs > 0;
   }
   if (obj.type === SCHEDULE_TYPES.daily) {
-    return typeof obj.time === "string" && /^\d{2}:\d{2}$/.test(obj.time);
+    return typeof obj.time === "string" && isValidDailyTime(obj.time);
   }
   return false;
 }
@@ -124,41 +128,75 @@ export type UpdateResult =
 export function applyUpdate(
   tasks: PersistedUserTask[],
   id: string,
-  patch: Record<string, unknown>,
+  patch: unknown,
 ): UpdateResult {
+  if (typeof patch !== "object" || patch === null) {
+    return { kind: "error", error: "request body required" };
+  }
   const idx = tasks.findIndex((t) => t.id === id);
   if (idx === -1) {
     return { kind: "error", error: `task not found: ${id}` };
   }
   const existing = tasks[idx];
   const updated: PersistedUserTask = { ...existing };
+  // patch is validated as non-null object above; spread into Record
+  const p: Record<string, unknown> = { ...patch };
 
-  if (typeof patch.name === "string" && patch.name.trim().length > 0) {
-    updated.name = patch.name.trim();
+  if (typeof p.name === "string" && p.name.trim().length > 0) {
+    updated.name = p.name.trim();
   }
-  if (typeof patch.description === "string") {
-    updated.description = patch.description.trim();
+  if (typeof p.description === "string") {
+    updated.description = p.description.trim();
   }
-  if (isValidSchedule(patch.schedule)) {
-    updated.schedule = patch.schedule;
+  if (isValidSchedule(p.schedule)) {
+    updated.schedule = p.schedule;
   }
-  if (isValidMissedRunPolicy(patch.missedRunPolicy)) {
-    updated.missedRunPolicy = patch.missedRunPolicy;
+  if (isValidMissedRunPolicy(p.missedRunPolicy)) {
+    updated.missedRunPolicy = p.missedRunPolicy;
   }
-  if (typeof patch.enabled === "boolean") {
-    updated.enabled = patch.enabled;
+  if (typeof p.enabled === "boolean") {
+    updated.enabled = p.enabled;
   }
-  if (typeof patch.roleId === "string") {
-    updated.roleId = patch.roleId;
+  if (typeof p.roleId === "string") {
+    updated.roleId = p.roleId;
   }
-  if (typeof patch.prompt === "string" && patch.prompt.trim().length > 0) {
-    updated.prompt = patch.prompt.trim();
+  if (typeof p.prompt === "string" && p.prompt.trim().length > 0) {
+    updated.prompt = p.prompt.trim();
   }
   updated.updatedAt = new Date().toISOString();
 
   const next = [...tasks];
   next[idx] = updated;
   return { kind: "ok", tasks: next };
+}
+
+// ── Mutexed CRUD ────────────────────────────────────────────────
+// Serialize read-modify-write sequences so concurrent API calls
+// don't clobber each other's changes.
+
+let crudMutex: Promise<void> = Promise.resolve();
+
+export async function withUserTaskLock<T>(
+  fn: (tasks: PersistedUserTask[]) => Promise<{
+    tasks: PersistedUserTask[];
+    result: T;
+  }>,
+): Promise<T> {
+  const prev = crudMutex;
+  let release: () => void = () => {};
+  crudMutex = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  try {
+    await prev;
+    const current = loadUserTasks();
+    const { tasks: next, result } = await fn(current);
+    await saveUserTasks(next);
+    await refreshUserTasks();
+    return result;
+  } finally {
+    release();
+  }
 }
 
 // ── Task registration ───────────────────────────────────────────
