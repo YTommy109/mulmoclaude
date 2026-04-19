@@ -486,6 +486,8 @@ export function buildDockerSpawnArgs(params: DockerSpawnArgsParams): string[] {
     "-v",
     `${toDockerPath(projectRoot)}/src:/app/src:ro`,
     "-v",
+    `${toDockerPath(projectRoot)}/packages:/app/packages:ro`,
+    "-v",
     `${toDockerPath(workspacePath)}:${CONTAINER_WORKSPACE_PATH}`,
     "-v",
     `${toDockerPath(homeDir)}/.claude:/home/node/.claude`,

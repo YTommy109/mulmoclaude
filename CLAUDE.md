@@ -257,6 +257,23 @@ CI runs the matrix `{ubuntu, windows, macOS} × {Node 22, Node 24}` (see `docs/d
 - **Line endings**: writes that round-trip through git on a Windows checkout may pick up CRLF — use `"\n"` explicitly when comparing string output, and parse with `replace(/\r\n/g, "\n")` if reading user-edited files.
 - **Shell scripts in npm scripts**: NEVER use shell-specific syntax (`rm -rf`, `cp`, glob expansions in single quotes). Use `rimraf`, `shx`, or a Node script. Globs in package.json scripts should be unquoted (`prettier --write src/**/*.ts`, not `'src/**/*.ts'`).
 
+### Workspace package exports (Docker sandbox)
+
+The MCP server subprocess runs inside a Docker container where `tsx` resolves modules in CJS mode. Every `packages/*/package.json` that has an `"exports"` field MUST include `"require"` and `"default"` conditions alongside `"import"` — otherwise `ERR_PACKAGE_PATH_NOT_EXPORTED` crashes the MCP server silently and all tools become inaccessible (see PR #427).
+
+```json
+"exports": {
+  ".": {
+    "types": "./dist/index.d.ts",
+    "import": "./dist/index.js",
+    "require": "./dist/index.js",
+    "default": "./dist/index.js"
+  }
+}
+```
+
+After changing package exports or Docker volume mounts, run the local Docker smoke test: `npx tsx --test test/agent/test_mcp_docker_smoke.ts`
+
 ### Why this section keeps mattering
 
 Cross-platform path bugs land disproportionately often (multiple PRs in the last few weeks: `#224`, `#234`). The pattern is always the same: code works locally on macOS, ships, then Windows CI explodes on `\` vs `/`. Read this section once before writing any new fs / path code and the regressions go away.
