@@ -6,7 +6,7 @@
 
 import fs from "fs";
 import path from "path";
-import { workspacePath } from "./paths.js";
+import { workspacePath, WORKSPACE_DIRS } from "./paths.js";
 import { log } from "../system/logger/index.js";
 import { writeFileAtomicSync } from "../utils/files/atomic.js";
 
@@ -34,23 +34,8 @@ const MAX_DESCRIPTION_LENGTH = 200;
 
 const ALLOWED_PREFIXES = ["data/", "artifacts/"];
 
-const RESERVED_DIRS = [
-  "data/wiki",
-  "data/todos",
-  "data/calendar",
-  "data/contacts",
-  "data/scheduler",
-  "data/sources",
-  "data/transports",
-  "artifacts/charts",
-  "artifacts/documents",
-  "artifacts/html",
-  "artifacts/html-scratch",
-  "artifacts/images",
-  "artifacts/spreadsheets",
-  "artifacts/stories",
-  "artifacts/news",
-];
+// Derived from WORKSPACE_DIRS so renames propagate automatically.
+const RESERVED_DIRS: readonly string[] = Object.values(WORKSPACE_DIRS);
 
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHAR_RE = /[\x00-\x1f]/;
@@ -164,6 +149,7 @@ export function saveCustomDirs(
   const filePath = path.join(base, CONFIG_FILE);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   writeFileAtomicSync(filePath, JSON.stringify(entries, null, 2));
+  invalidateCache();
 }
 
 // ── Validate input array (for API) ─────────────────────────────
@@ -195,6 +181,23 @@ export function validateCustomDirs(
     return { error: errors.join("; ") };
   }
   return { entries };
+}
+
+// ── Cached loader (for system prompt) ───────────────────────────
+// Avoids re-reading + parsing the JSON file on every prompt build.
+// Invalidated on save.
+
+let cachedEntries: CustomDirEntry[] | null = null;
+
+export function getCachedCustomDirs(): readonly CustomDirEntry[] {
+  if (cachedEntries === null) {
+    cachedEntries = loadCustomDirs();
+  }
+  return cachedEntries;
+}
+
+function invalidateCache(): void {
+  cachedEntries = null;
 }
 
 // ── Create directories ──────────────────────────────────────────
@@ -232,7 +235,7 @@ export function buildCustomDirsPrompt(
       e.structure === DIR_STRUCTURES.byName
         ? " (organize by name in subfolders)"
         : e.structure === DIR_STRUCTURES.byDate
-          ? " (organize by date: YYYY/MM/)"
+          ? " (organize by date: YYYY/MM/DD/)"
           : "";
     lines.push(`- \`${e.path}/\`${structureHint} — ${e.description}`);
   }

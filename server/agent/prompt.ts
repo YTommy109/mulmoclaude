@@ -5,7 +5,7 @@ import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
 import { PLUGIN_DEFS } from "./plugin-names.js";
 import { WORKSPACE_DIRS, WORKSPACE_FILES } from "../workspace/paths.js";
 import {
-  loadCustomDirs,
+  getCachedCustomDirs,
   buildCustomDirsPrompt,
 } from "../workspace/custom-dirs.js";
 
@@ -305,7 +305,7 @@ export function buildSystemPrompt(params: SystemPromptParams): string {
     useDocker ? SANDBOX_TOOLS_HINT : null,
     buildWikiContext(workspacePath),
     buildSourcesContext(workspacePath),
-    buildCustomDirsPrompt(loadCustomDirs()),
+    buildCustomDirsPrompt(getCachedCustomDirs()),
     headingSection(
       "Reference Files",
       buildInlinedHelpFiles(role.prompt, workspacePath),
