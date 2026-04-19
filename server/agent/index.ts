@@ -61,6 +61,32 @@ function spawnClaude(
   return spawn("docker", dockerArgs, { stdio: ["pipe", "pipe", "pipe"] });
 }
 
+// Track MCP tool usage to detect silent MCP server failures.
+// If ToolSearch was called but no mcp__* tool was ever invoked,
+// the MCP server likely crashed on startup (e.g. module resolution
+// failure inside Docker). See #430.
+function createMcpTracker() {
+  let toolSearchCalled = false;
+  let mcpToolCalled = false;
+  return {
+    track(event: AgentEvent) {
+      if (event.type !== EVENT_TYPES.toolCall) return;
+      if (event.toolName === "ToolSearch") toolSearchCalled = true;
+      if (event.toolName.startsWith("mcp__")) mcpToolCalled = true;
+    },
+    logIfSuspicious() {
+      if (toolSearchCalled && !mcpToolCalled) {
+        log.warn(
+          "agent",
+          "ToolSearch was used but no MCP tool was called — the MCP server may have crashed. " +
+            "Check Docker volume mounts and package.json exports. " +
+            "Run: npx tsx --test test/agent/test_mcp_docker_smoke.ts",
+        );
+      }
+    },
+  };
+}
+
 async function* readAgentEvents(proc: ClaudeProc): AsyncGenerator<AgentEvent> {
   let stderrOutput = "";
   let stderrBuffer = "";
@@ -80,6 +106,8 @@ async function* readAgentEvents(proc: ClaudeProc): AsyncGenerator<AgentEvent> {
   // text is suppressed. See createStreamParser() in stream.ts.
   const parser = createStreamParser();
 
+  const mcpTracker = createMcpTracker();
+
   let buffer = "";
   for await (const chunk of proc.stdout) {
     buffer += (chunk as Buffer).toString();
@@ -95,6 +123,7 @@ async function* readAgentEvents(proc: ClaudeProc): AsyncGenerator<AgentEvent> {
         continue;
       }
       for (const agentEvent of parser.parse(event)) {
+        mcpTracker.track(agentEvent);
         yield agentEvent;
       }
     }
@@ -106,6 +135,7 @@ async function* readAgentEvents(proc: ClaudeProc): AsyncGenerator<AgentEvent> {
 
   if (stderrBuffer.trim()) log.error("agent-stderr", stderrBuffer);
   log.info("agent", "claude exited", { exitCode });
+  mcpTracker.logIfSuspicious();
 
   if (exitCode !== 0) {
     yield {
