@@ -90,6 +90,10 @@ TELEGRAM_ALLOWED_CHAT_IDS=your-chat-id \
 | **WhatsApp** | [@mulmobridge/whatsapp](https://www.npmjs.com/package/@mulmobridge/whatsapp) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/whatsapp/README.md) |
 | **Matrix** | [@mulmobridge/matrix](https://www.npmjs.com/package/@mulmobridge/matrix) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/matrix/README.md) |
 | **IRC** | [@mulmobridge/irc](https://www.npmjs.com/package/@mulmobridge/irc) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/irc/README.md) |
+| **Mattermost** | [@mulmobridge/mattermost](https://www.npmjs.com/package/@mulmobridge/mattermost) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/mattermost/README.md) |
+| **Zulip** | [@mulmobridge/zulip](https://www.npmjs.com/package/@mulmobridge/zulip) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/zulip/README.md) |
+| **Facebook Messenger** | [@mulmobridge/messenger](https://www.npmjs.com/package/@mulmobridge/messenger) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/messenger/README.md) |
+| **Google Chat** | [@mulmobridge/google-chat](https://www.npmjs.com/package/@mulmobridge/google-chat) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/google-chat/README.md) |
 
 > **「実験的」とは？** テストが十分でなく、バグがある可能性があります。フィードバックをお待ちしています！
 
@@ -215,6 +219,10 @@ if (ack.ok) {
 | [@mulmobridge/whatsapp](https://www.npmjs.com/package/@mulmobridge/whatsapp) | WhatsApp ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/whatsapp) |
 | [@mulmobridge/matrix](https://www.npmjs.com/package/@mulmobridge/matrix) | Matrix ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/matrix) |
 | [@mulmobridge/irc](https://www.npmjs.com/package/@mulmobridge/irc) | IRC ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/irc) |
+| [@mulmobridge/mattermost](https://www.npmjs.com/package/@mulmobridge/mattermost) | Mattermost ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/mattermost) |
+| [@mulmobridge/zulip](https://www.npmjs.com/package/@mulmobridge/zulip) | Zulip ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/zulip) |
+| [@mulmobridge/messenger](https://www.npmjs.com/package/@mulmobridge/messenger) | Facebook Messenger ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/messenger) |
+| [@mulmobridge/google-chat](https://www.npmjs.com/package/@mulmobridge/google-chat) | Google Chat ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/google-chat) |
 
 ### 汎用ツール（@receptron スコープ）
 

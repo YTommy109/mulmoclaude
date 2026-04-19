@@ -398,8 +398,19 @@ MulmoClaude uses a yarn-workspaces monorepo. Shared code lives in `packages/`, p
 | `@mulmobridge/protocol`     | messaging | Wire protocol types and constants                |
 | `@mulmobridge/chat-service` | messaging | Server-side Express + socket.io chat service     |
 | `@mulmobridge/client`       | messaging | Bridge-side socket.io client library             |
+| `@mulmobridge/mock-server`  | messaging | Lightweight mock server for testing              |
 | `@mulmobridge/cli`          | messaging | Interactive terminal bridge                      |
 | `@mulmobridge/telegram`     | messaging | Telegram bot bridge                              |
+| `@mulmobridge/slack`        | messaging | Slack bot bridge (Socket Mode)                   |
+| `@mulmobridge/discord`      | messaging | Discord bot bridge                               |
+| `@mulmobridge/line`         | messaging | LINE bot bridge (webhook)                        |
+| `@mulmobridge/whatsapp`     | messaging | WhatsApp Cloud API bridge (webhook)              |
+| `@mulmobridge/matrix`       | messaging | Matrix bridge (matrix-js-sdk)                    |
+| `@mulmobridge/irc`          | messaging | IRC bridge (irc-framework)                       |
+| `@mulmobridge/mattermost`   | messaging | Mattermost bridge (WebSocket + REST)             |
+| `@mulmobridge/zulip`        | messaging | Zulip bridge (long-polling events API)           |
+| `@mulmobridge/messenger`    | messaging | Facebook Messenger bridge (webhook + HMAC)       |
+| `@mulmobridge/google-chat`  | messaging | Google Chat bridge (webhook + JWT)               |
 | `@receptron/task-scheduler` | general   | Persistent task scheduler with catch-up recovery |
 
 **Build order matters** — `build:packages` in root `package.json` runs them in dependency order. When adding a new package, insert it at the correct position in the chain.

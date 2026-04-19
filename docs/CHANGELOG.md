@@ -6,6 +6,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ---
 
+## [0.1.2] - 2026-04-19
+
+### Highlights
+
+- **12 messaging bridges** — MulmoBridge now supports Slack, Discord, LINE, WhatsApp, Matrix, IRC, Mattermost, Zulip, Facebook Messenger, and Google Chat in addition to CLI and Telegram
+- **Security hardening** — Google Chat JWT/OIDC verification, rate limiting + body size limits on webhook bridges, PII redaction in logs
+
+### Added
+
+- `@mulmobridge/slack` (v0.1.0) — Slack bot bridge (Socket Mode, no public URL needed)
+- `@mulmobridge/discord` (v0.1.0) — Discord bot bridge (Partials.Channel for DMs)
+- `@mulmobridge/line` (v0.1.0) — LINE bot bridge (webhook + HMAC signature)
+- `@mulmobridge/whatsapp` (v0.1.0) — WhatsApp Cloud API bridge (webhook + HMAC)
+- `@mulmobridge/matrix` (v0.1.0) — Matrix bridge (matrix-js-sdk, end-to-end encryption ready)
+- `@mulmobridge/irc` (v0.1.0) — IRC bridge (irc-framework, TLS, channel + DM)
+- `@mulmobridge/mattermost` (v0.1.0) — Mattermost bridge (WebSocket + REST, auto-reconnect)
+- `@mulmobridge/zulip` (v0.1.0) — Zulip bridge (long-polling events API)
+- `@mulmobridge/messenger` (v0.1.0) — Facebook Messenger bridge (webhook + x-hub-signature-256 HMAC)
+- `@mulmobridge/google-chat` (v0.1.0) — Google Chat bridge (webhook + JWT/OIDC verification)
+- `@mulmobridge/mock-server` (v0.1.0) — Lightweight mock server for bridge integration testing
+
+### Fixed
+
+- Google Chat webhook now verifies JWT tokens against Google's JWKS endpoint (iss/aud/exp claims)
+- Webhook bridges (Messenger, Google Chat) enforce 1MB body size limit and per-IP rate limiting
+- PII redaction in bridge logs — sender IDs are partially masked
+
+---
+
 ## [0.1.1] - 2026-04-18
 
 ### Highlights
@@ -106,5 +135,6 @@ First tagged release. GUI-chat with Claude Code — chat with Claude and get bac
 
 ---
 
+[0.1.2]: https://github.com/receptron/mulmoclaude/releases/tag/v0.1.2
 [0.1.1]: https://github.com/receptron/mulmoclaude/releases/tag/v0.1.1
 [0.1.0]: https://github.com/receptron/mulmoclaude/releases/tag/v0.1.0

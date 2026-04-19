@@ -29,7 +29,7 @@ yarn dev
 
 This starts both the frontend (Vite) and the backend (Express + Claude Code agent) concurrently. Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-### Messaging bridges (Telegram, CLI)
+### Messaging bridges
 
 MulmoClaude can be accessed from messaging apps via **bridge processes**. Bridges run as separate child processes and connect to the server over socket.io.
 
@@ -44,11 +44,21 @@ yarn telegram
 Bridges are also available as standalone npm packages:
 
 ```bash
-npx @mulmobridge/cli@latest      # CLI bridge
-npx @mulmobridge/telegram@latest # Telegram bridge
+npx @mulmobridge/cli@latest          # CLI bridge
+npx @mulmobridge/telegram@latest     # Telegram bridge
+npx @mulmobridge/slack@latest        # Slack bridge
+npx @mulmobridge/discord@latest      # Discord bridge
+npx @mulmobridge/line@latest         # LINE bridge
+npx @mulmobridge/whatsapp@latest     # WhatsApp bridge
+npx @mulmobridge/matrix@latest       # Matrix bridge
+npx @mulmobridge/irc@latest          # IRC bridge
+npx @mulmobridge/mattermost@latest   # Mattermost bridge
+npx @mulmobridge/zulip@latest        # Zulip bridge
+npx @mulmobridge/messenger@latest    # Facebook Messenger bridge
+npx @mulmobridge/google-chat@latest  # Google Chat bridge
 ```
 
-Both bridges support **real-time text streaming** (typing updates as the agent writes) and **file attachments** (images, PDFs, DOCX, XLSX, PPTX). See [`docs/message_apps/telegram/README.md`](docs/message_apps/telegram/README.md) for Telegram bot setup (BotFather, chat ID allowlist, etc.).
+All bridges support **real-time text streaming** (typing updates as the agent writes). CLI and Telegram also support **file attachments** (images, PDFs, DOCX, XLSX, PPTX). See [`docs/mulmobridge-guide.md`](docs/mulmobridge-guide.md) for the full platform list and setup instructions.
 
 ### Why do you need a Gemini API key?
 
@@ -511,14 +521,24 @@ Claude automatically extracts durable user facts from chat conversations and app
 
 Shared code is extracted into publishable npm packages under `packages/`:
 
-| Package                     | Description                                                                 | Links                                                                                     |
-| --------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `@mulmobridge/protocol`     | Shared types and constants (EVENT_TYPES, Attachment, socket events)         | [source](packages/protocol/)                                                              |
-| `@mulmobridge/client`       | Socket.io client library + bearer token reader + MIME utilities             | [source](packages/client/)                                                                |
-| `@mulmobridge/chat-service` | Server-side chat service (socket.io + REST bridge, DI factory)              | [source](packages/chat-service/)                                                          |
-| `@mulmobridge/cli`          | Interactive terminal bridge (`yarn cli` or `npx @mulmobridge/cli`)          | [npm](https://www.npmjs.com/package/@mulmobridge/cli) / [source](packages/cli/)           |
-| `@mulmobridge/telegram`     | Telegram bot bridge (`yarn telegram` or `npx @mulmobridge/telegram`)        | [npm](https://www.npmjs.com/package/@mulmobridge/telegram) / [source](packages/telegram/) |
-| `@receptron/task-scheduler` | Persistent task scheduler with catch-up — recurring tasks, restart recovery | [source](packages/scheduler/)                                                             |
-| `@mulmobridge/mock-server`  | Lightweight mock server for bridge integration testing                      | [source](packages/mock-server/)                                                           |
+| Package | Description | Links |
+|---|---|---|
+| `@mulmobridge/protocol` | Shared types and constants (EVENT_TYPES, Attachment, socket events) | [source](packages/protocol/) |
+| `@mulmobridge/client` | Socket.io client library + bearer token reader + MIME utilities | [source](packages/client/) |
+| `@mulmobridge/chat-service` | Server-side chat service (socket.io + REST bridge, DI factory) | [source](packages/chat-service/) |
+| `@mulmobridge/cli` | Interactive terminal bridge | [npm](https://www.npmjs.com/package/@mulmobridge/cli) / [source](packages/cli/) |
+| `@mulmobridge/telegram` | Telegram bot bridge (photo support, allowlist) | [npm](https://www.npmjs.com/package/@mulmobridge/telegram) / [source](packages/telegram/) |
+| `@mulmobridge/slack` | Slack bot bridge (Socket Mode) | [source](packages/slack/) |
+| `@mulmobridge/discord` | Discord bot bridge | [source](packages/discord/) |
+| `@mulmobridge/line` | LINE bot bridge (webhook) | [source](packages/line/) |
+| `@mulmobridge/whatsapp` | WhatsApp Cloud API bridge (webhook) | [source](packages/whatsapp/) |
+| `@mulmobridge/matrix` | Matrix bridge (matrix-js-sdk) | [source](packages/matrix/) |
+| `@mulmobridge/irc` | IRC bridge (irc-framework) | [source](packages/irc/) |
+| `@mulmobridge/mattermost` | Mattermost bridge (WebSocket + REST) | [source](packages/mattermost/) |
+| `@mulmobridge/zulip` | Zulip bridge (long-polling events API) | [source](packages/zulip/) |
+| `@mulmobridge/messenger` | Facebook Messenger bridge (webhook + HMAC) | [source](packages/messenger/) |
+| `@mulmobridge/google-chat` | Google Chat bridge (webhook + JWT verification) | [source](packages/google-chat/) |
+| `@mulmobridge/mock-server` | Lightweight mock server for bridge testing | [source](packages/mock-server/) |
+| `@receptron/task-scheduler` | Persistent task scheduler with catch-up | [source](packages/scheduler/) |
 
 Anyone can write a bridge in any language — just speak the socket.io protocol documented in [`docs/bridge-protocol.md`](docs/bridge-protocol.md).
