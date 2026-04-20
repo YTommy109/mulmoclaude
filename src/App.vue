@@ -294,6 +294,7 @@ import {
 import { usePendingCalls } from "./composables/usePendingCalls";
 import { useClickOutside } from "./composables/useClickOutside";
 import { useKeyNavigation } from "./composables/useKeyNavigation";
+import { useDebugBeat } from "./composables/useDebugBeat";
 import { useCanvasViewMode } from "./composables/useCanvasViewMode";
 import { isCanvasViewMode } from "./utils/canvas/viewMode";
 import { useMcpTools } from "./composables/useMcpTools";
@@ -328,20 +329,9 @@ const sessionSubscriptions = new Map<string, () => void>();
 const currentSessionId = ref("");
 
 // --- Debug beat (pub/sub) ---
-const debugBeatColor = ref<string | null>(null);
-const debugTitleStyle = computed(() =>
-  debugBeatColor.value ? { color: debugBeatColor.value } : {},
-);
+const { debugTitleStyle } = useDebugBeat();
 
 const { subscribe: pubsubSubscribe } = usePubSub();
-pubsubSubscribe(PUBSUB_CHANNELS.debugBeat, (data) => {
-  const msg = data as { count: number; last?: boolean };
-  if (msg.last) {
-    debugBeatColor.value = null;
-  } else {
-    debugBeatColor.value = msg.count % 2 === 0 ? "#3b82f6" : "#ef4444";
-  }
-});
 
 // --- Sessions channel (pub/sub) ---
 // Subscribe to the global `sessions` channel. The server publishes a
