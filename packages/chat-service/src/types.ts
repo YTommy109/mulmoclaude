@@ -43,7 +43,7 @@ export interface StartChatParams {
   chatSessionId: string;
   selectedImageData?: string;
   attachments?: Attachment[];
-  /** Session origin: "human", "scheduler", "skill", "bridge" */
+  /** Session origin — application-defined (e.g. "human", "bridge") */
   origin?: string;
 }
 

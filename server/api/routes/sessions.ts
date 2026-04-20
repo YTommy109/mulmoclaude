@@ -17,6 +17,7 @@ import { markRead, getSession } from "../../events/session-store/index.js";
 import { notFound } from "../../utils/httpError.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
+import type { SessionOrigin } from "../../../src/types/session.js";
 import { env } from "../../system/env.js";
 import { ONE_DAY_MS } from "../../utils/time.js";
 import {
@@ -30,7 +31,7 @@ interface SessionMeta {
   startedAt: string;
   firstUserMessage?: string;
   hasUnread?: boolean;
-  origin?: string;
+  origin?: SessionOrigin;
 }
 
 async function readSessionMeta(
@@ -73,7 +74,7 @@ interface SessionSummary {
   summary?: string;
   keywords?: string[];
   // Where this session originated (#486). Missing = "human".
-  origin?: string;
+  origin?: SessionOrigin;
   // Live state from the in-memory session store. Absent when the
   // session has no active entry in the store (i.e. idle / historical).
   isRunning?: boolean;

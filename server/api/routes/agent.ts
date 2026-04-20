@@ -131,7 +131,8 @@ export interface StartChatParams {
   chatSessionId: string;
   selectedImageData?: string;
   attachments?: Attachment[];
-  /** Where this session originates: human, scheduler, skill, bridge */
+  /** Where this session originates (#486). Accepts string for
+   *  cross-package compatibility (chat-service passes string). */
   origin?: string;
 }
 

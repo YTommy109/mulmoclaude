@@ -39,7 +39,7 @@ export interface SessionMeta {
   firstUserMessage?: string;
   claudeSessionId?: string;
   hasUnread?: boolean;
-  origin?: string;
+  origin?: "human" | "scheduler" | "skill" | "bridge";
   [key: string]: unknown;
 }
 
