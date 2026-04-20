@@ -92,13 +92,16 @@ export interface ChatServiceDeps {
    * Omit if session listing is not available (command will reply
    * "not available").
    */
-  listSessions?: () => Promise<SessionSummary[]>;
+  listSessions?: (opts: {
+    limit: number;
+    offset: number;
+  }) => Promise<{ sessions: SessionSummary[]; total: number }>;
   /**
    * Get recent messages from a session. Used by /history command.
    * Returns newest-first array of {source, text} pairs.
    */
   getSessionHistory?: (
     sessionId: string,
-    limit: number,
-  ) => Promise<Array<{ source: string; text: string }>>;
+    opts: { limit: number; offset: number },
+  ) => Promise<{ messages: Array<{ source: string; text: string }>; total: number }>;
 }

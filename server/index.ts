@@ -165,33 +165,32 @@ app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
 app.use(skillsRoutes);
-const MAX_BRIDGE_SESSIONS = 200;
-async function listSessionsForBridge() {
+async function listSessionsForBridge(opts: { limit: number; offset: number }) {
   const rows = await loadAllSessions();
-  return rows
-    .sort((a, b) => b.changeMs - a.changeMs)
-    .slice(0, MAX_BRIDGE_SESSIONS)
-    .map((r) => ({
-      id: r.summary.id,
-      roleId: r.summary.roleId,
-      preview: r.summary.preview,
-      updatedAt: r.summary.updatedAt,
-    }));
+  const sorted = rows.sort((a, b) => b.changeMs - a.changeMs);
+  const total = sorted.length;
+  const sessions = sorted.slice(opts.offset, opts.offset + opts.limit).map((r) => ({
+    id: r.summary.id,
+    roleId: r.summary.roleId,
+    preview: r.summary.preview,
+    updatedAt: r.summary.updatedAt,
+  }));
+  return { sessions, total };
 }
 async function getSessionHistoryForBridge(
   sessionId: string,
-  limit: number,
-): Promise<Array<{ source: string; text: string }>> {
+  opts: { limit: number; offset: number },
+) {
   const content = await readSessionJsonl(sessionId);
-  if (!content) return [];
-  const entries: Array<{ source: string; text: string }> = [];
+  if (!content) return { messages: [], total: 0 };
+  const allMessages: Array<{ source: string; text: string }> = [];
   const lines = content.split("\n").filter(Boolean);
-  // Walk backwards (newest first) and pick text events
-  for (let i = lines.length - 1; i >= 0 && entries.length < limit; i--) {
+  // Collect all text events newest-first
+  for (let i = lines.length - 1; i >= 0; i--) {
     try {
       const entry = JSON.parse(lines[i]);
       if (entry.type === "text" && typeof entry.content === "string") {
-        entries.push({
+        allMessages.push({
           source: entry.source ?? "unknown",
           text: entry.content,
         });
@@ -200,7 +199,9 @@ async function getSessionHistoryForBridge(
       // skip malformed lines
     }
   }
-  return entries;
+  const total = allMessages.length;
+  const messages = allMessages.slice(opts.offset, opts.offset + opts.limit);
+  return { messages, total };
 }
 const chatService = createChatService({
   startChat,

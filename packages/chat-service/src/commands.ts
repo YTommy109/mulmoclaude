@@ -45,11 +45,17 @@ export function createCommandHandler(opts: {
   getRole: (roleId: string) => Role;
   resetChatState: ChatStateStore["resetChatState"];
   connectSession: ChatStateStore["connectSession"];
-  listSessions?: () => Promise<SessionSummary[]>;
+  listSessions?: (opts: {
+    limit: number;
+    offset: number;
+  }) => Promise<{ sessions: SessionSummary[]; total: number }>;
   getSessionHistory?: (
     sessionId: string,
-    limit: number,
-  ) => Promise<Array<{ source: string; text: string }>>;
+    opts: { limit: number; offset: number },
+  ) => Promise<{
+    messages: Array<{ source: string; text: string }>;
+    total: number;
+  }>;
 }): CommandHandler {
   const {
     loadAllRoles,
@@ -61,10 +67,36 @@ export function createCommandHandler(opts: {
   } = opts;
 
   // Cache /sessions results per chat so /switch resolves to the correct list.
-  // Key: "transportId:externalChatId"
-  const sessionListCache = new Map<string, SessionSummary[]>();
+  // Key: "transportId:externalChatId". Bounded with max entries + TTL.
+  // See docs/bridge-session-design.md for multi-user scaling plan.
+  const MAX_CACHE_ENTRIES = 1000;
+  const CACHE_TTL_MS = 5 * ONE_MINUTE_MS;
+
+  interface CacheEntry {
+    sessions: SessionSummary[];
+    createdAt: number;
+  }
+  const sessionListCache = new Map<string, CacheEntry>();
   const cacheKey = (transportId: string, externalChatId: string) =>
     `${transportId}:${externalChatId}`;
+
+  function getCachedSessions(key: string): SessionSummary[] | null {
+    const entry = sessionListCache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.createdAt > CACHE_TTL_MS) {
+      sessionListCache.delete(key);
+      return null;
+    }
+    return entry.sessions;
+  }
+
+  function setCachedSessions(key: string, sessions: SessionSummary[]): void {
+    if (sessionListCache.size >= MAX_CACHE_ENTRIES) {
+      const oldest = sessionListCache.keys().next().value;
+      if (oldest !== undefined) sessionListCache.delete(oldest);
+    }
+    sessionListCache.set(key, { sessions, createdAt: Date.now() });
+  }
 
   const getRolesText = (): string =>
     [
@@ -136,7 +168,7 @@ export function createCommandHandler(opts: {
     };
   };
 
-  const PAGE_SIZE = 10;
+  const SESSIONS_PAGE_SIZE = 10;
 
   const handleSessions = async (
     transportId: string,
@@ -146,28 +178,36 @@ export function createCommandHandler(opts: {
     if (!listSessions) {
       return { reply: "Session listing is not available." };
     }
-    const sessions = await listSessions();
-    if (sessions.length === 0) {
+    const page = Math.max(1, parseInt(pageArg ?? "1", 10) || 1);
+    const offset = (page - 1) * SESSIONS_PAGE_SIZE;
+    const { sessions, total } = await listSessions({
+      limit: SESSIONS_PAGE_SIZE,
+      offset,
+    });
+    if (sessions.length === 0 && total === 0) {
       return { reply: "No sessions found." };
     }
-    sessionListCache.set(
-      cacheKey(transportId, chatState.externalChatId),
-      sessions,
-    );
-    const page = Math.max(1, parseInt(pageArg ?? "1", 10) || 1);
-    const start = (page - 1) * PAGE_SIZE;
-    const end = Math.min(start + PAGE_SIZE, sessions.length);
-    if (start >= sessions.length) {
-      return { reply: `No more sessions. Total: ${sessions.length}` };
+    if (sessions.length === 0) {
+      return { reply: `No more sessions. Total: ${total}` };
     }
-    const lines = sessions.slice(start, end).map((s, i) => {
-      const num = start + i + 1;
+    // Cache full page for /switch (keyed by offset so numbers are absolute)
+    const key = cacheKey(transportId, chatState.externalChatId);
+    const existing = getCachedSessions(key) ?? [];
+    // Merge into cache at correct positions
+    const merged = [...existing];
+    sessions.forEach((s, i) => {
+      merged[offset + i] = s;
+    });
+    setCachedSessions(key, merged);
+
+    const totalPages = Math.ceil(total / SESSIONS_PAGE_SIZE);
+    const lines = sessions.map((s, i) => {
+      const num = offset + i + 1;
       const preview =
         s.preview.length > 40 ? s.preview.slice(0, 40) + "..." : s.preview;
       return `  ${num}. [${s.roleId}] ${preview || "(no title)"} — ${formatRelativeTime(s.updatedAt)}`;
     });
-    const totalPages = Math.ceil(sessions.length / PAGE_SIZE);
-    const header = `Sessions (page ${page}/${totalPages}, total ${sessions.length}):`;
+    const header = `Sessions (page ${page}/${totalPages}, total ${total}):`;
     const parts = [header, ...lines];
     if (page < totalPages) {
       parts.push(`\n/sessions ${page + 1} for next page`);
@@ -190,7 +230,7 @@ export function createCommandHandler(opts: {
       return { reply: "Usage: /switch <number> (digits only)" };
     }
     const key = cacheKey(transportId, chatState.externalChatId);
-    const cached = sessionListCache.get(key) ?? [];
+    const cached = getCachedSessions(key) ?? [];
     const index = parseInt(arg, 10);
     if (index < 1 || index > cached.length) {
       return {
@@ -218,7 +258,6 @@ export function createCommandHandler(opts: {
   };
 
   const HISTORY_PAGE_SIZE = 5;
-  const MAX_HISTORY_ITEMS = 20;
   const MAX_MESSAGE_LENGTH = 200;
 
   const handleHistory = async (
@@ -228,22 +267,20 @@ export function createCommandHandler(opts: {
     if (!getSessionHistory) {
       return { reply: "History is not available." };
     }
-    const messages = await getSessionHistory(
+    const page = Math.max(1, parseInt(pageArg ?? "1", 10) || 1);
+    const offset = (page - 1) * HISTORY_PAGE_SIZE;
+    const { messages, total } = await getSessionHistory(
       chatState.sessionId,
-      MAX_HISTORY_ITEMS,
+      { limit: HISTORY_PAGE_SIZE, offset },
     );
-    if (messages.length === 0) {
+    if (messages.length === 0 && total === 0) {
       return { reply: "No messages in this session." };
     }
-    const page = Math.max(1, parseInt(pageArg ?? "1", 10) || 1);
-    const start = (page - 1) * HISTORY_PAGE_SIZE;
-    const end = Math.min(start + HISTORY_PAGE_SIZE, messages.length);
-    if (start >= messages.length) {
-      return { reply: `No more messages. Total: ${messages.length}` };
+    if (messages.length === 0) {
+      return { reply: `No more messages. Total: ${total}` };
     }
-    const totalPages = Math.ceil(messages.length / HISTORY_PAGE_SIZE);
-    const slice = messages.slice(start, end);
-    const lines = slice.map((m) => {
+    const totalPages = Math.ceil(total / HISTORY_PAGE_SIZE);
+    const lines = messages.map((m) => {
       const label = m.source === "user" ? "You" : "AI";
       const text =
         m.text.length > MAX_MESSAGE_LENGTH
