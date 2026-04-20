@@ -1,0 +1,248 @@
+// User-defined reference directories (#455).
+//
+// Loaded from `config/reference-dirs.json`. Users can specify external
+// directories that the agent can read (but not write to).
+//
+// Docker mode: mounted as `:ro` — filesystem-enforced read-only.
+// Non-Docker mode: prompt-based restriction only.
+
+import fs from "fs";
+import path from "path";
+import os from "os";
+import { workspacePath } from "./paths.js";
+import { log } from "../system/logger/index.js";
+import { writeFileAtomicSync } from "../utils/files/atomic.js";
+
+// ── Types ───────────────────────────────────────────────────────
+
+export interface ReferenceDirEntry {
+  /** Absolute host path to the directory. */
+  hostPath: string;
+  /** Short label shown in prompt and UI. */
+  label: string;
+}
+
+// ── Constants ───────────────────────────────────────────────────
+
+const CONFIG_FILE = "config/reference-dirs.json";
+const MAX_ENTRIES = 20;
+const MAX_LABEL_LENGTH = 100;
+const CONTAINER_MOUNT_ROOT = "/mnt/readonly";
+
+/** Directories that must never be mounted — credential/key stores. */
+const BLOCKED_PATHS = [
+  ".ssh",
+  ".aws",
+  ".gnupg",
+  ".config/gh",
+  ".kube",
+  ".docker",
+];
+
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHAR_RE_G = /[\x00-\x1f]/g;
+
+// ── Validation ──────────────────────────────────────────────────
+
+function expandHome(p: string): string {
+  if (p.startsWith("~/")) {
+    return path.join(os.homedir(), p.slice(2));
+  }
+  return p;
+}
+
+function isSensitivePath(absPath: string): boolean {
+  const home = os.homedir();
+  return BLOCKED_PATHS.some((bp) => {
+    const full = path.join(home, bp);
+    return absPath === full || absPath.startsWith(full + path.sep);
+  });
+}
+
+function sanitizeLabel(raw: string): string {
+  if (typeof raw !== "string") return "";
+  return raw.replace(CONTROL_CHAR_RE_G, " ").trim().slice(0, MAX_LABEL_LENGTH);
+}
+
+function validateEntry(raw: unknown): ReferenceDirEntry | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const obj = raw as Record<string, unknown>;
+
+  const rawPath = typeof obj.hostPath === "string" ? obj.hostPath : "";
+  if (!rawPath) return null;
+
+  const absPath = expandHome(rawPath);
+
+  // Must be absolute
+  if (!path.isAbsolute(absPath)) return null;
+
+  // No path traversal
+  if (absPath.includes("..")) return null;
+
+  // Block sensitive directories
+  if (isSensitivePath(absPath)) {
+    log.warn("reference-dirs", "blocked sensitive path", { path: absPath });
+    return null;
+  }
+
+  const label = sanitizeLabel(String(obj.label ?? path.basename(absPath)));
+
+  return { hostPath: absPath, label };
+}
+
+// ── Load ────────────────────────────────────────────────────────
+
+export function loadReferenceDirs(root?: string): ReferenceDirEntry[] {
+  const base = root ?? workspacePath;
+  const filePath = path.join(base, CONFIG_FILE);
+  try {
+    if (!fs.existsSync(filePath)) return [];
+    const raw = fs.readFileSync(filePath, "utf-8");
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      log.warn("reference-dirs", "reference-dirs.json is not an array");
+      return [];
+    }
+    const entries = parsed
+      .slice(0, MAX_ENTRIES)
+      .map(validateEntry)
+      .filter((e): e is ReferenceDirEntry => e !== null);
+
+    const skipped = parsed.length - entries.length;
+    if (skipped > 0) {
+      log.warn("reference-dirs", "skipped invalid entries", { skipped });
+    }
+    return entries;
+  } catch (err) {
+    log.warn("reference-dirs", "failed to load reference-dirs.json", {
+      error: String(err),
+    });
+    return [];
+  }
+}
+
+// ── Save ────────────────────────────────────────────────────────
+
+export function saveReferenceDirs(
+  entries: readonly ReferenceDirEntry[],
+  root?: string,
+): void {
+  const base = root ?? workspacePath;
+  const filePath = path.join(base, CONFIG_FILE);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  writeFileAtomicSync(filePath, JSON.stringify(entries, null, 2));
+  invalidateCache();
+}
+
+// ── Validate input array (for API) ─────────────────────────────
+
+export function validateReferenceDirs(
+  raw: unknown,
+): { entries: ReferenceDirEntry[] } | { error: string } {
+  if (!Array.isArray(raw)) {
+    return { error: "expected an array" };
+  }
+  if (raw.length > MAX_ENTRIES) {
+    return { error: `too many entries (max ${MAX_ENTRIES})` };
+  }
+  const entries: ReferenceDirEntry[] = [];
+  const errors: string[] = [];
+  raw.forEach((item, i) => {
+    const entry = validateEntry(item);
+    if (entry) {
+      entries.push(entry);
+    } else {
+      const p =
+        typeof item === "object" && item !== null
+          ? String((item as Record<string, unknown>).hostPath ?? "")
+          : "";
+      errors.push(`entry ${i}: invalid or blocked path "${p}"`);
+    }
+  });
+  if (errors.length > 0) {
+    return { error: errors.join("; ") };
+  }
+  return { entries };
+}
+
+// ── Cached loader (for system prompt + Docker mounts) ───────────
+
+let cachedEntries: ReferenceDirEntry[] | null = null;
+
+export function getCachedReferenceDirs(): readonly ReferenceDirEntry[] {
+  if (cachedEntries === null) {
+    cachedEntries = loadReferenceDirs();
+  }
+  return cachedEntries;
+}
+
+function invalidateCache(): void {
+  cachedEntries = null;
+}
+
+// ── Docker mount args ───────────────────────────────────────────
+
+/** Container path for a reference directory. */
+export function containerPath(entry: ReferenceDirEntry): string {
+  const basename = path.basename(entry.hostPath);
+  return path.posix.join(CONTAINER_MOUNT_ROOT, basename);
+}
+
+/**
+ * Return Docker `-v` args for read-only reference directory mounts.
+ * Skips entries whose host path doesn't exist.
+ */
+export function referenceDirMountArgs(
+  entries: readonly ReferenceDirEntry[],
+): string[] {
+  const args: string[] = [];
+  for (const entry of entries) {
+    try {
+      const stat = fs.statSync(entry.hostPath);
+      if (!stat.isDirectory()) continue;
+    } catch {
+      log.info("reference-dirs", "skipped (not found)", {
+        path: entry.hostPath,
+      });
+      continue;
+    }
+    const host = entry.hostPath.replace(/\\/g, "/");
+    args.push("-v", `${host}:${containerPath(entry)}:ro`);
+  }
+  return args;
+}
+
+// ── System prompt snippet ───────────────────────────────────────
+
+export function buildReferenceDirsPrompt(
+  entries: readonly ReferenceDirEntry[],
+  useDocker: boolean,
+): string {
+  if (entries.length === 0) return "";
+
+  const lines = [
+    "",
+    "## Reference Directories (Read-Only)",
+    "",
+    "The user has configured external directories for reference.",
+    "You may READ files in these directories but MUST NOT write, modify, or delete anything in them.",
+    "",
+  ];
+
+  for (const e of entries) {
+    const mountPath = useDocker ? containerPath(e) : e.hostPath;
+    lines.push(`- \`${mountPath}\` — ${e.label}`);
+  }
+
+  if (!useDocker) {
+    lines.push("");
+    lines.push(
+      "**Important**: These directories are outside the workspace. " +
+        "Do not create, edit, or delete files in them. " +
+        "Only use read operations (read, glob, grep).",
+    );
+  }
+
+  lines.push("");
+  return lines.join("\n");
+}

@@ -8,6 +8,10 @@ import {
   getCachedCustomDirs,
   buildCustomDirsPrompt,
 } from "../workspace/custom-dirs.js";
+import {
+  getCachedReferenceDirs,
+  buildReferenceDirsPrompt,
+} from "../workspace/reference-dirs.js";
 
 export const SYSTEM_PROMPT = `You are MulmoClaude, a versatile assistant app with rich visual output.
 
@@ -306,6 +310,7 @@ export function buildSystemPrompt(params: SystemPromptParams): string {
     buildWikiContext(workspacePath),
     buildSourcesContext(workspacePath),
     buildCustomDirsPrompt(getCachedCustomDirs()),
+    buildReferenceDirsPrompt(getCachedReferenceDirs(), useDocker),
     headingSection(
       "Reference Files",
       buildInlinedHelpFiles(role.prompt, workspacePath),
