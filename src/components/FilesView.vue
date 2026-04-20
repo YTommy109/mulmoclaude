@@ -19,6 +19,29 @@
         @select="selectFile"
         @load-children="loadDirChildren"
       />
+      <!-- Reference directories -->
+      <template v-if="refRoots.length > 0">
+        <div
+          class="mt-2 pt-2 border-t border-gray-200 px-1 mb-1 flex items-center gap-1"
+        >
+          <span class="text-[10px] font-semibold text-gray-400 uppercase"
+            >Reference</span
+          >
+          <span class="text-[9px] px-1 py-0.5 rounded bg-blue-100 text-blue-600"
+            >RO</span
+          >
+        </div>
+        <FileTree
+          v-for="refNode in refRoots"
+          :key="refNode.path"
+          :node="refNode"
+          :selected-path="selectedPath"
+          :recent-paths="emptySet"
+          :children-by-path="childrenByPath"
+          @select="selectFile"
+          @load-children="loadDirChildren"
+        />
+      </template>
     </div>
     <!-- Content pane -->
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -326,6 +349,8 @@ const { expand } = useExpandedDirs();
 // `childrenByPath` below so the lazy-expand cache has a single
 // home — see Phase-2 notes for #200.
 const rootNode = ref<TreeNode | null>(null);
+const refRoots = ref<TreeNode[]>([]);
+const emptySet = new Set<string>();
 // Lazy-expand cache: one entry per directory we've fetched via
 // `/api/files/dir`. `undefined` (= not in the map) means "not
 // loaded yet". `null` means "load in flight — show spinner".
@@ -709,6 +734,13 @@ watch(
 
 onMounted(async () => {
   await loadDirChildren("");
+
+  // Fetch reference directory roots (read-only external dirs)
+  const refResult = await apiGet<TreeNode[]>(API_ROUTES.files.refRoots);
+  if (refResult.ok && Array.isArray(refResult.data)) {
+    refRoots.value = refResult.data;
+  }
+
   // Deep-link: if the URL has a selected path, reveal its ancestors
   // by fetching each dir in sequence so the tree auto-expands to
   // the selection.

@@ -17,6 +17,7 @@ import {
 } from "../../utils/httpError.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { GitignoreFilter } from "../../utils/gitignore.js";
+import { getCachedReferenceDirs } from "../../workspace/reference-dirs.js";
 
 const router = Router();
 
@@ -225,6 +226,55 @@ function resolveSafe(relPath: string): string | null {
   // matches on the basename so it catches `.env`, `id_rsa`, and
   // friends regardless of which directory they sit in.
   if (isSensitivePath(resolved)) return null;
+  return resolved;
+}
+
+// ── Reference directory path resolution ──────────────────────────
+
+const REF_PREFIX = "@ref/";
+
+function isRefPath(relPath: string): boolean {
+  return relPath.startsWith(REF_PREFIX);
+}
+
+/**
+ * Resolve a `@ref/<label>/remainder` path against a registered
+ * reference directory. Returns the absolute host path or null if
+ * the label is unknown, the path escapes the ref root, or the
+ * resolved file is sensitive / hidden.
+ */
+function resolveRefPath(prefixedPath: string): string | null {
+  const afterPrefix = prefixedPath.slice(REF_PREFIX.length);
+  const slashIdx = afterPrefix.indexOf("/");
+  const label = slashIdx >= 0 ? afterPrefix.slice(0, slashIdx) : afterPrefix;
+  const remainder = slashIdx >= 0 ? afterPrefix.slice(slashIdx + 1) : "";
+
+  const entries = getCachedReferenceDirs();
+  const entry = entries.find((e) => e.label === label);
+  if (!entry) return null;
+
+  let rootReal: string;
+  try {
+    rootReal = fs.realpathSync(entry.hostPath);
+  } catch {
+    return null;
+  }
+
+  // For root of the reference dir (no remainder), return the dir itself
+  if (!remainder) return rootReal;
+
+  const resolved = resolveWithinRoot(rootReal, remainder);
+  if (!resolved) return null;
+
+  // Apply the same hidden-dir and sensitive-path filters
+  const relFromRoot = path.relative(rootReal, resolved);
+  if (relFromRoot) {
+    for (const seg of relFromRoot.split(path.sep)) {
+      if (HIDDEN_DIRS.has(seg)) return null;
+    }
+  }
+  if (isSensitivePath(resolved)) return null;
+
   return resolved;
 }
 
@@ -496,8 +546,25 @@ router.get(
     res: Response<TreeNode | ErrorResponse>,
   ) => {
     const relPath = typeof req.query.path === "string" ? req.query.path : "";
-    // Empty path = root. resolveSafe handles "" by returning the
-    // workspace root; any traversal / sensitive / missing path → null.
+
+    // Reference directory branch — resolve against the registered ref dir
+    if (isRefPath(relPath)) {
+      const absPath = resolveRefPath(relPath);
+      if (!absPath) {
+        notFound(res, "Not found");
+        return;
+      }
+      const stat = await statSafeAsync(absPath);
+      if (!stat || !stat.isDirectory()) {
+        notFound(res, "Not found");
+        return;
+      }
+      const node = await listDirShallow(absPath, relPath, undefined);
+      res.json(node);
+      return;
+    }
+
+    // Workspace path — existing logic
     const absPath = resolveSafe(relPath);
     if (!absPath) {
       notFound(res, "Not found");
@@ -568,6 +635,23 @@ function resolveAndStatFile<T>(
     badRequest(res, "path required");
     return null;
   }
+
+  // Reference directory branch
+  if (isRefPath(relPath)) {
+    const absPath = resolveRefPath(relPath);
+    if (!absPath) {
+      notFound(res, "Not found");
+      return null;
+    }
+    const stat = statSafe(absPath);
+    if (!stat || !stat.isFile()) {
+      notFound(res, "File not found");
+      return null;
+    }
+    return { relPath, absPath, stat };
+  }
+
+  // Workspace path — existing logic
   // Syntactic candidate (no symlink resolution yet).
   const candidate = path.resolve(workspaceReal, path.normalize(relPath));
   const stat = statSafe(candidate);
@@ -729,6 +813,31 @@ router.get(
 
     res.setHeader("Content-Length", String(stat.size));
     pipeWithErrorHandling(fs.createReadStream(absPath), res);
+  },
+);
+
+// ── Reference directory roots ───────────────────────────────────
+//
+// Returns configured reference directories as top-level TreeNode[]
+// for the file explorer. Each node's path uses the @ref/<label>
+// prefix so subsequent /dir and /content requests route correctly.
+
+router.get(
+  API_ROUTES.files.refRoots,
+  async (_req: Request, res: Response<TreeNode[]>) => {
+    const entries = getCachedReferenceDirs();
+    const nodes: TreeNode[] = [];
+    for (const entry of entries) {
+      const stat = await statSafeAsync(entry.hostPath);
+      if (!stat || !stat.isDirectory()) continue;
+      nodes.push({
+        name: entry.label,
+        path: `${REF_PREFIX}${entry.label}`,
+        type: "dir",
+        modifiedMs: stat.mtimeMs,
+      });
+    }
+    res.json(nodes);
   },
 );
 
