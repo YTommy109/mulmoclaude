@@ -27,6 +27,7 @@ import {
   initNotifications,
 } from "./events/notifications.js";
 import { createChatService } from "@mulmobridge/chat-service";
+import { loadAllSessions } from "./api/routes/sessions.js";
 import { onSessionEvent } from "./events/session-store/index.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";
 import { WORKSPACE_PATHS } from "./workspace/paths.js";
@@ -163,6 +164,19 @@ app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
 app.use(skillsRoutes);
+const MAX_BRIDGE_SESSIONS = 20;
+async function listSessionsForBridge() {
+  const rows = await loadAllSessions();
+  return rows
+    .sort((a, b) => b.changeMs - a.changeMs)
+    .slice(0, MAX_BRIDGE_SESSIONS)
+    .map((r) => ({
+      id: r.summary.id,
+      roleId: r.summary.roleId,
+      preview: r.summary.preview,
+      updatedAt: r.summary.updatedAt,
+    }));
+}
 const chatService = createChatService({
   startChat,
   onSessionEvent,
@@ -174,6 +188,7 @@ const chatService = createChatService({
   // Socket.io handshake (see #268 Phase A) needs to validate the
   // same bearer token the HTTP middleware enforces.
   tokenProvider: getCurrentToken,
+  listSessions: listSessionsForBridge,
 });
 app.use(chatService.router);
 

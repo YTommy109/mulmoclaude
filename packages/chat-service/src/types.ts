@@ -58,6 +58,14 @@ export type OnSessionEventFn = (
   listener: SessionEventListener,
 ) => () => void;
 
+/** Summary of a chat session — returned by listSessions. */
+export interface SessionSummary {
+  id: string;
+  roleId: string;
+  preview: string;
+  updatedAt: string;
+}
+
 export interface ChatServiceDeps {
   /** Relay a user turn into the agent loop. */
   startChat: StartChatFn;
@@ -79,4 +87,10 @@ export interface ChatServiceDeps {
    * `attachChatSocket` in ./socket.ts.
    */
   tokenProvider?: () => string | null;
+  /**
+   * List recent sessions from the server. Used by /sessions command.
+   * Omit if session listing is not available (command will reply
+   * "not available").
+   */
+  listSessions?: () => Promise<SessionSummary[]>;
 }
