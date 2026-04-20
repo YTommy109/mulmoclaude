@@ -295,6 +295,7 @@ import { usePendingCalls } from "./composables/usePendingCalls";
 import { useClickOutside } from "./composables/useClickOutside";
 import { useKeyNavigation } from "./composables/useKeyNavigation";
 import { useDebugBeat } from "./composables/useDebugBeat";
+import { useChatScroll } from "./composables/useChatScroll";
 import { useCanvasViewMode } from "./composables/useCanvasViewMode";
 import { isCanvasViewMode } from "./utils/canvas/viewMode";
 import { useMcpTools } from "./composables/useMcpTools";
@@ -581,21 +582,12 @@ const historyButtonRef = computed(
 // needs the actual popup DOM element (not the component instance).
 const historyPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const historyPopupRef = computed(() => historyPanelRef.value?.root ?? null);
-function scrollChatToBottom() {
-  nextTick(() => {
-    if (chatListRef.value) {
-      chatListRef.value.scrollTop = chatListRef.value.scrollHeight;
-    }
-  });
-}
-
-watch(() => toolResults.value.length, scrollChatToBottom);
-watch(isRunning, (running) => {
-  if (running) {
-    scrollChatToBottom();
-  } else {
-    nextTick(() => focusChatInput());
-  }
+const toolResultsLength = computed(() => toolResults.value.length);
+useChatScroll({
+  chatListRef,
+  toolResultsLength,
+  isRunning,
+  focusChatInput,
 });
 
 const { showRightSidebar, toggleRightSidebar } = useRightSidebar();
