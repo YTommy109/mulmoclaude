@@ -51,6 +51,7 @@ import { dedupAcrossSources, type DedupStats } from "./dedup.js";
 import { makeDefaultSummarize, type SummarizeFn } from "./summarize.js";
 import { writeDailyFile, appendItemsToArchives } from "./write.js";
 import { runNotifyPhase } from "./notify.js";
+import { discoverAndRegister } from "../arxivDiscovery.js";
 import { toLocalIsoDate } from "../../../utils/date.js";
 
 export interface RunPipelineInput {
@@ -123,6 +124,10 @@ export async function runSourcesPipeline(
   const isoDate = toLocalIsoDate(startMs);
   const fallbackMonth = toLocalYearMonth(startMs);
   const summarizeFn = input.summarizeFn ?? makeDefaultSummarize(isoDate);
+
+  // --- 0. Auto-discover arXiv sources from interests ------------------
+  onProgress("discover");
+  await discoverAndRegister(workspaceRoot);
 
   // --- 1. Load registry + state --------------------------------------
   onProgress("load");
