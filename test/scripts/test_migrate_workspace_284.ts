@@ -6,7 +6,7 @@ import {
   rewriteProseText,
   DIR_MIGRATIONS,
   PATH_REWRITE_PREFIXES,
-} from "../../scripts/migrate-workspace-284.js";
+} from "../../bin/migrate-workspace-284.js";
 
 describe("rewritePathValue", () => {
   it("rewrites a legacy markdowns/ prefix to artifacts/documents/", () => {

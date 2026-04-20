@@ -21,6 +21,7 @@ config/roles/
 config/helps/
 config/settings.json
 config/mcp.json
+config/scheduler/state.json
 .session-token
 .mulmoclaude/
 migration-284-manifest.json
