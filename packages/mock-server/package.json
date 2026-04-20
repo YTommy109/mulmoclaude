@@ -1,0 +1,35 @@
+{
+  "name": "@mulmobridge/mock-server",
+  "version": "0.1.0",
+  "description": "Mock MulmoClaude server for testing MulmoBridge bridges — no Claude API key needed",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "mulmobridge-mock-server": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepack": "yarn build",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/test_*.ts",
+    "lint": "eslint src test",
+    "start": "tsx src/index.ts"
+  },
+  "license": "MIT",
+  "author": "Receptron Team",
+  "dependencies": {
+    "@mulmobridge/protocol": "^0.1.1",
+    "express": "^5.1.0",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
+  }
+}

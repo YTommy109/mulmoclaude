@@ -13,7 +13,6 @@ import {
 import { log } from "../../system/logger/index.js";
 import { updateHasUnread } from "../../utils/files/session-io.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
-import { ONE_HOUR_MS, ONE_MINUTE_MS } from "../../utils/time.js";
 import { publishNotification } from "../notifications.js";
 import {
   NOTIFICATION_KINDS,

@@ -10,7 +10,12 @@
     "./client": "./dist/client.js",
     "./types": "./dist/types.js"
   },
-  "files": ["dist", "src", "wrangler.toml", "README.md"],
+  "files": [
+    "dist",
+    "src",
+    "wrangler.toml",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "wrangler dev",

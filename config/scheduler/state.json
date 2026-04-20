@@ -1,0 +1,22 @@
+{
+  "system:chat-index": {
+    "taskId": "system:chat-index",
+    "lastRunAt": "2026-04-20T02:00:00.000Z",
+    "lastRunResult": "success",
+    "lastRunDurationMs": 2,
+    "lastErrorMessage": null,
+    "consecutiveFailures": 0,
+    "totalRuns": 24,
+    "nextScheduledAt": "2026-04-20T03:00:00.000Z"
+  },
+  "system:journal": {
+    "taskId": "system:journal",
+    "lastRunAt": "2026-04-20T02:00:00.000Z",
+    "lastRunResult": "success",
+    "lastRunDurationMs": 18,
+    "lastErrorMessage": null,
+    "consecutiveFailures": 0,
+    "totalRuns": 24,
+    "nextScheduledAt": "2026-04-20T03:00:00.000Z"
+  }
+}

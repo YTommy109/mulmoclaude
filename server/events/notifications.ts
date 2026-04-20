@@ -20,7 +20,7 @@ import {
   type NotificationAction,
   type NotificationPriority,
 } from "../../src/types/notification.js";
-import { ONE_SECOND_MS, MAX_NOTIFICATION_DELAY_SEC } from "../utils/time.js";
+import { MAX_NOTIFICATION_DELAY_SEC } from "../utils/time.js";
 import { log } from "../system/logger/index.js";
 
 // ── Dependencies (injected at startup) ──────────────────────────
