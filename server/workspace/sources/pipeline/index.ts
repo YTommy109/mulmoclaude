@@ -50,6 +50,7 @@ import { runFetchPhase, computeNextState, type FetchOutcome } from "./fetch.js";
 import { dedupAcrossSources, type DedupStats } from "./dedup.js";
 import { makeDefaultSummarize, type SummarizeFn } from "./summarize.js";
 import { writeDailyFile, appendItemsToArchives } from "./write.js";
+import { runNotifyPhase } from "./notify.js";
 import { toLocalIsoDate } from "../../../utils/date.js";
 
 export interface RunPipelineInput {
@@ -184,11 +185,15 @@ export async function runSourcesPipeline(
   const rawItems = flattenItems(outcomes);
   const dedup = dedupAcrossSources(rawItems);
 
-  // --- 5. Summarize + write ----------------------------------------
+  // --- 5. Notify (user interest matching) ----------------------------
+  onProgress("notify");
+  runNotifyPhase(dedup.items, workspaceRoot);
+
+  // --- 6. Summarize + write ----------------------------------------
   onProgress("summarize");
   const markdown = await summarizeFn(dedup.items);
 
-  onProgress("write");
+  onProgress("write"); // step 7
   const dailyPath = await writeDailyFile(
     workspaceRoot,
     isoDate,
@@ -201,7 +206,7 @@ export async function runSourcesPipeline(
     fallbackMonth,
   );
 
-  // --- 6. Persist state ---------------------------------------------
+  // --- 8. Persist state ---------------------------------------------
   onProgress("persist");
   const nextStates = buildNextStates(eligible, statesBySlug, outcomes, nowMs());
   await writeManyStates(workspaceRoot, nextStates);

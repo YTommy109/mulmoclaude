@@ -194,6 +194,36 @@ export function buildSourcesContext(workspacePath: string): string | null {
   ].join("\n");
 }
 
+const NEWS_CONCIERGE_PROMPT = `## News Concierge
+
+When you detect the user's interest in a specific topic during conversation:
+1. Propose relevant news sources (RSS, arXiv, GitHub releases) — suggest 2-3 concrete feeds
+2. On agreement, register sources via the manageSource tool
+3. Add keywords and categories to \`config/interests.json\` using the Edit tool. Format:
+   \`\`\`json
+   {
+     "keywords": ["topic1", "topic2"],
+     "categories": ["ai", "security"],
+     "minRelevance": 0.5,
+     "maxNotificationsPerRun": 5
+   }
+   \`\`\`
+4. Confirm: "I'll check periodically and notify you when something interesting comes up"
+
+Read interest signals naturally from the conversation — do not wait for the user to say "notify me" or "track this". If the user mentions a field they want to follow, a technology they're exploring, or news they can't keep up with, that's a signal.
+
+Propose once per topic. Don't push if declined. Be a concierge, not a salesperson.`;
+
+export function buildNewsConciergeContext(
+  workspacePath: string,
+): string | null {
+  // Only emit the concierge prompt when sources are already set up.
+  // On fresh workspaces the feature isn't relevant yet.
+  const sourcesDir = join(workspacePath, WORKSPACE_DIRS.sources);
+  if (!existsSync(sourcesDir)) return null;
+  return NEWS_CONCIERGE_PROMPT;
+}
+
 export function buildPluginPromptSections(role: Role): string[] {
   // Widen to Set<string> so the `.has()` checks accept arbitrary
   // definition names (PLUGIN_DEFS entries and MCP tool names are
@@ -309,6 +339,7 @@ export function buildSystemPrompt(params: SystemPromptParams): string {
     useDocker ? SANDBOX_TOOLS_HINT : null,
     buildWikiContext(workspacePath),
     buildSourcesContext(workspacePath),
+    buildNewsConciergeContext(workspacePath),
     buildCustomDirsPrompt(getCachedCustomDirs()),
     buildReferenceDirsPrompt(getCachedReferenceDirs(), useDocker),
     headingSection(
