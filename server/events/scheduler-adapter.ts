@@ -152,15 +152,22 @@ export async function initScheduler(
 }
 
 /** Apply a schedule override to a running system task.
- *  Updates both the in-memory task definition and the task-manager. */
-export function applyScheduleOverride(
+ *  Updates the in-memory task definition, the task-manager, and
+ *  recalculates nextScheduledAt in persisted state. */
+export async function applyScheduleOverride(
   taskId: string,
   schedule: SystemTaskDef["schedule"],
-): boolean {
+): Promise<boolean> {
   const task = systemTasks.find((t) => t.id === taskId);
   if (!task || !taskManagerRef) return false;
   task.schedule = schedule;
-  return taskManagerRef.updateSchedule(taskId, schedule);
+  taskManagerRef.updateSchedule(taskId, schedule);
+
+  // Recalculate next window so the UI reflects the new schedule
+  const nextScheduledAt = computeNextScheduled(task);
+  await safeUpdateState(taskId, { nextScheduledAt });
+
+  return true;
 }
 
 /** Query execution logs — used by API routes. */

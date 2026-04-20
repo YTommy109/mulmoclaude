@@ -283,7 +283,7 @@ router.get(
 
 router.put(
   API_ROUTES.config.schedulerOverrides,
-  (
+  async (
     req: Request<unknown, unknown, { overrides: unknown }>,
     res: Response<{ overrides: ScheduleOverrides } | ConfigErrorResponse>,
   ) => {
@@ -304,7 +304,7 @@ router.put(
       // Apply to running task-manager immediately
       for (const [taskId, ovr] of Object.entries(overrides)) {
         if (typeof ovr.intervalMs === "number" && ovr.intervalMs > 0) {
-          applyScheduleOverride(taskId, {
+          await applyScheduleOverride(taskId, {
             type: SCHEDULE_TYPES.interval,
             intervalMs: ovr.intervalMs,
           });
@@ -312,7 +312,7 @@ router.put(
           typeof ovr.time === "string" &&
           /^\d{2}:\d{2}$/.test(ovr.time)
         ) {
-          applyScheduleOverride(taskId, {
+          await applyScheduleOverride(taskId, {
             type: SCHEDULE_TYPES.daily,
             time: ovr.time,
           });
