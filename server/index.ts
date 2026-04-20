@@ -55,6 +55,10 @@ import {
   type SystemTaskDef,
 } from "./events/scheduler-adapter.js";
 import schedulerTasksRoutes from "./api/routes/schedulerTasks.js";
+import {
+  loadSchedulerOverrides,
+  UTC_HH_MM_RE,
+} from "./utils/files/scheduler-overrides-io.js";
 import type { IPubSub } from "./events/pub-sub/index.js";
 import { initSessionStore } from "./events/session-store/index.js";
 import { requireSameOrigin } from "./api/csrfGuard.js";
@@ -447,6 +451,41 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
       run: () => backfillAllSessions().then(() => {}),
     },
   ];
+
+  // Apply user-configurable schedule overrides from
+  // config/scheduler/overrides.json. Missing file or unknown keys
+  // are silently ignored — the hardcoded defaults above remain.
+  const overrides = loadSchedulerOverrides();
+  for (const task of systemTasks) {
+    const ovr = overrides[task.id];
+    if (!ovr) continue;
+    if (
+      task.schedule.type === SCHEDULE_TYPES.interval &&
+      typeof ovr.intervalMs === "number" &&
+      ovr.intervalMs > 0
+    ) {
+      log.info("scheduler", "applying override", {
+        id: task.id,
+        intervalMs: ovr.intervalMs,
+      });
+      task.schedule = {
+        type: SCHEDULE_TYPES.interval,
+        intervalMs: ovr.intervalMs,
+      };
+    }
+    if (
+      task.schedule.type === SCHEDULE_TYPES.daily &&
+      typeof ovr.time === "string" &&
+      UTC_HH_MM_RE.test(ovr.time)
+    ) {
+      log.info("scheduler", "applying override", {
+        id: task.id,
+        time: ovr.time,
+      });
+      task.schedule = { type: SCHEDULE_TYPES.daily, time: ovr.time };
+    }
+  }
+
   initScheduler(taskManager, systemTasks).catch((err) => {
     log.error("scheduler", "init failed (non-fatal)", {
       error: String(err),
