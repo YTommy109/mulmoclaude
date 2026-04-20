@@ -92,6 +92,7 @@ export function createChatService(deps: ChatServiceDeps): ChatService {
     resetChatState: store.resetChatState,
     connectSession: store.connectSession,
     listSessions: deps.listSessions,
+    getSessionHistory: deps.getSessionHistory,
   });
   const relay = createRelay({
     store,

@@ -28,6 +28,7 @@ import {
 } from "./events/notifications.js";
 import { createChatService } from "@mulmobridge/chat-service";
 import { loadAllSessions } from "./api/routes/sessions.js";
+import { readSessionJsonl } from "./utils/files/session-io.js";
 import { onSessionEvent } from "./events/session-store/index.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";
 import { WORKSPACE_PATHS } from "./workspace/paths.js";
@@ -164,7 +165,7 @@ app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
 app.use(skillsRoutes);
-const MAX_BRIDGE_SESSIONS = 20;
+const MAX_BRIDGE_SESSIONS = 200;
 async function listSessionsForBridge() {
   const rows = await loadAllSessions();
   return rows
@@ -176,6 +177,30 @@ async function listSessionsForBridge() {
       preview: r.summary.preview,
       updatedAt: r.summary.updatedAt,
     }));
+}
+async function getSessionHistoryForBridge(
+  sessionId: string,
+  limit: number,
+): Promise<Array<{ source: string; text: string }>> {
+  const content = await readSessionJsonl(sessionId);
+  if (!content) return [];
+  const entries: Array<{ source: string; text: string }> = [];
+  const lines = content.split("\n").filter(Boolean);
+  // Walk backwards (newest first) and pick text events
+  for (let i = lines.length - 1; i >= 0 && entries.length < limit; i--) {
+    try {
+      const entry = JSON.parse(lines[i]);
+      if (entry.type === "text" && typeof entry.content === "string") {
+        entries.push({
+          source: entry.source ?? "unknown",
+          text: entry.content,
+        });
+      }
+    } catch {
+      // skip malformed lines
+    }
+  }
+  return entries;
 }
 const chatService = createChatService({
   startChat,
@@ -189,6 +214,7 @@ const chatService = createChatService({
   // same bearer token the HTTP middleware enforces.
   tokenProvider: getCurrentToken,
   listSessions: listSessionsForBridge,
+  getSessionHistory: getSessionHistoryForBridge,
 });
 app.use(chatService.router);
 

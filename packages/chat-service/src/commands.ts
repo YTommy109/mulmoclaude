@@ -46,6 +46,10 @@ export function createCommandHandler(opts: {
   resetChatState: ChatStateStore["resetChatState"];
   connectSession: ChatStateStore["connectSession"];
   listSessions?: () => Promise<SessionSummary[]>;
+  getSessionHistory?: (
+    sessionId: string,
+    limit: number,
+  ) => Promise<Array<{ source: string; text: string }>>;
 }): CommandHandler {
   const {
     loadAllRoles,
@@ -53,6 +57,7 @@ export function createCommandHandler(opts: {
     resetChatState,
     connectSession,
     listSessions,
+    getSessionHistory,
   } = opts;
 
   // Cache the last /sessions result so /switch <number> can reference it.
@@ -70,6 +75,7 @@ export function createCommandHandler(opts: {
       "  /reset  — Start a new session",
       "  /sessions [page] — List recent sessions (e.g. /sessions 2)",
       "  /switch <number> — Switch to a session from the list",
+      "  /history [count] — Show recent messages in current session",
       "  /help   — Show this help",
       "  /roles  — List available roles",
       "  /role <id> — Switch role",
@@ -202,6 +208,48 @@ export function createCommandHandler(opts: {
     };
   };
 
+  const HISTORY_PAGE_SIZE = 5;
+  const MAX_HISTORY_ITEMS = 20;
+  const MAX_MESSAGE_LENGTH = 200;
+
+  const handleHistory = async (
+    chatState: TransportChatState,
+    pageArg: string | undefined,
+  ): Promise<CommandResult> => {
+    if (!getSessionHistory) {
+      return { reply: "History is not available." };
+    }
+    const messages = await getSessionHistory(
+      chatState.sessionId,
+      MAX_HISTORY_ITEMS,
+    );
+    if (messages.length === 0) {
+      return { reply: "No messages in this session." };
+    }
+    const page = Math.max(1, parseInt(pageArg ?? "1", 10) || 1);
+    const start = (page - 1) * HISTORY_PAGE_SIZE;
+    const end = Math.min(start + HISTORY_PAGE_SIZE, messages.length);
+    if (start >= messages.length) {
+      return { reply: `No more messages. Total: ${messages.length}` };
+    }
+    const totalPages = Math.ceil(messages.length / HISTORY_PAGE_SIZE);
+    const slice = messages.slice(start, end);
+    const lines = slice.map((m) => {
+      const label = m.source === "user" ? "You" : "AI";
+      const text =
+        m.text.length > MAX_MESSAGE_LENGTH
+          ? m.text.slice(0, MAX_MESSAGE_LENGTH) + "..."
+          : m.text;
+      return `[${label}] ${text}`;
+    });
+    const header = `History (page ${page}/${totalPages}):`;
+    const parts = [header, "", ...lines];
+    if (page < totalPages) {
+      parts.push(`\n/history ${page + 1} for older messages`);
+    }
+    return { reply: parts.join("\n\n") };
+  };
+
   const handleCommand: CommandHandler = async (
     text,
     transportId,
@@ -217,6 +265,8 @@ export function createCommandHandler(opts: {
         return handleSessions(args[0]);
       case "/switch":
         return handleSwitch(transportId, chatState, args[0]);
+      case "/history":
+        return handleHistory(chatState, args[0]);
       case "/help":
         return { reply: getHelpText() };
       case "/roles":
