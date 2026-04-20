@@ -27,6 +27,8 @@ import {
   initNotifications,
 } from "./events/notifications.js";
 import { createChatService } from "@mulmobridge/chat-service";
+import { loadAllSessions } from "./api/routes/sessions.js";
+import { readSessionJsonl } from "./utils/files/session-io.js";
 import { onSessionEvent } from "./events/session-store/index.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";
 import { WORKSPACE_PATHS } from "./workspace/paths.js";
@@ -67,6 +69,7 @@ import { startChat } from "./api/routes/agent.js";
 import { registerScheduledSkills } from "./workspace/skills/scheduler.js";
 import { registerUserTasks } from "./workspace/skills/user-tasks.js";
 import { API_ROUTES } from "../src/config/apiRoutes.js";
+import { EVENT_TYPES } from "../src/types/events.js";
 import { SESSION_ORIGINS } from "../src/types/session.js";
 import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS } from "./utils/time.js";
 import { SCHEDULE_TYPES, MISSED_RUN_POLICIES } from "@receptron/task-scheduler";
@@ -164,6 +167,49 @@ app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
 app.use(skillsRoutes);
+async function listSessionsForBridge(opts: { limit: number; offset: number }) {
+  const rows = await loadAllSessions();
+  const sorted = rows.sort((a, b) => b.changeMs - a.changeMs);
+  const total = sorted.length;
+  const sessions = sorted
+    .slice(opts.offset, opts.offset + opts.limit)
+    .map((r) => ({
+      id: r.summary.id,
+      roleId: r.summary.roleId,
+      preview: r.summary.preview,
+      updatedAt: r.summary.updatedAt,
+    }));
+  return { sessions, total };
+}
+async function getSessionHistoryForBridge(
+  sessionId: string,
+  opts: { limit: number; offset: number },
+) {
+  const content = await readSessionJsonl(sessionId);
+  if (!content) return { messages: [], total: 0 };
+  const allMessages: Array<{ source: string; text: string }> = [];
+  const lines = content.split("\n").filter(Boolean);
+  // Collect all text events newest-first
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      const entry = JSON.parse(lines[i]);
+      if (
+        entry.type === EVENT_TYPES.text &&
+        typeof entry.message === "string"
+      ) {
+        allMessages.push({
+          source: entry.source ?? "unknown",
+          text: entry.message,
+        });
+      }
+    } catch {
+      // skip malformed lines
+    }
+  }
+  const total = allMessages.length;
+  const messages = allMessages.slice(opts.offset, opts.offset + opts.limit);
+  return { messages, total };
+}
 const chatService = createChatService({
   startChat,
   onSessionEvent,
@@ -175,6 +221,8 @@ const chatService = createChatService({
   // Socket.io handshake (see #268 Phase A) needs to validate the
   // same bearer token the HTTP middleware enforces.
   tokenProvider: getCurrentToken,
+  listSessions: listSessionsForBridge,
+  getSessionHistory: getSessionHistoryForBridge,
 });
 app.use(chatService.router);
 
