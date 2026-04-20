@@ -134,7 +134,7 @@ export interface PastedFile {
   mime: string;
 }
 
-defineProps<{
+const props = defineProps<{
   modelValue: string;
   pastedFile: PastedFile | null;
   isRunning: boolean;
@@ -235,6 +235,7 @@ function closeExpandedEditor(): void {
 }
 
 function sendFromExpanded(): void {
+  if (props.isRunning) return;
   closeExpandedEditor();
   emit("send");
 }
