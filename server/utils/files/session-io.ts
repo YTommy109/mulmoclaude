@@ -96,6 +96,18 @@ export async function createSessionMeta(
   await writeSessionMeta(id, meta, r);
 }
 
+export async function backfillOrigin(
+  id: string,
+  origin: string,
+  r?: string,
+): Promise<void> {
+  const meta = await readSessionMeta(id, r);
+  if (!meta || meta.origin) return; // already set
+  const updated = { ...meta };
+  updated.origin = origin as SessionMeta["origin"];
+  await writeSessionMeta(id, updated, r);
+}
+
 export async function backfillFirstUserMessage(
   id: string,
   message: string,

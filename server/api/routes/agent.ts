@@ -3,6 +3,7 @@ import { getSessionQuery } from "../../utils/request.js";
 import {
   createSessionMeta,
   backfillFirstUserMessage as backfillMeta,
+  backfillOrigin,
   readSessionMetaFull,
   readSessionMeta,
   setClaudeSessionId as setClaudeId,
@@ -205,6 +206,9 @@ export async function startChat(
     );
   } else {
     await backfillMeta(chatSessionId, message);
+    if (params.origin) {
+      await backfillOrigin(chatSessionId, params.origin);
+    }
   }
 
   // Append user message for this turn
