@@ -1,16 +1,6 @@
 <template>
-  <div :class="containerClass">
-    <div v-if="variant !== 'topbar'">
-      <h1
-        data-testid="app-title"
-        class="text-lg font-semibold"
-        :style="titleStyle"
-      >
-        MulmoClaude
-      </h1>
-    </div>
+  <div class="flex items-center gap-2">
     <h1
-      v-else
       data-testid="app-title"
       class="text-sm font-semibold text-gray-800 mr-1"
       :style="titleStyle"
@@ -64,18 +54,11 @@ import NotificationBell from "./NotificationBell.vue";
 import { useClickOutside } from "../composables/useClickOutside";
 import type { NotificationPayload } from "../types/notification";
 
-const props = defineProps<{
+defineProps<{
   sandboxEnabled: boolean;
   showRightSidebar: boolean;
   titleStyle?: CSSProperties;
-  variant?: "sidebar" | "topbar";
 }>();
-
-const containerClass = computed(() =>
-  props.variant === "topbar"
-    ? "flex items-center gap-2"
-    : "p-4 border-b border-gray-200 flex items-center justify-between",
-);
 
 const emit = defineEmits<{
   testQuery: [query: string];

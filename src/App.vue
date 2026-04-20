@@ -5,7 +5,6 @@
       <!-- Row 1: title + plugin launcher -->
       <div class="flex items-center gap-3 px-3 py-2 border-b border-gray-200">
         <SidebarHeader
-          variant="topbar"
           :sandbox-enabled="sandboxEnabled"
           :show-right-sidebar="showRightSidebar"
           :title-style="debugTitleStyle"
@@ -30,13 +29,11 @@
         />
         <RoleSelector
           v-model:current-role-id="currentRoleId"
-          variant="topbar"
           :roles="roles"
           @change="onRoleChange"
         />
         <SessionTabBar
           ref="sessionTabBarRef"
-          variant="topbar"
           :sessions="tabSessions"
           :current-session-id="displayedCurrentSessionId"
           :roles="roles"
