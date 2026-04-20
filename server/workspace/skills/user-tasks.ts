@@ -195,6 +195,7 @@ export interface UserTaskDeps {
     message: string;
     roleId: string;
     chatSessionId: string;
+    origin?: string;
   }) => Promise<{ kind: string; error?: string }>;
 }
 
@@ -250,6 +251,7 @@ async function doRegisterUserTasks(deps: UserTaskDeps): Promise<number> {
           message: task.prompt,
           roleId: task.roleId,
           chatSessionId,
+          origin: "scheduler",
         });
         if (result.kind === "error") {
           throw new Error(`user task failed: ${result.error ?? "unknown"}`);

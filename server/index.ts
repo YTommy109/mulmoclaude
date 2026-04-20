@@ -519,6 +519,7 @@ function registerDebugTasks(taskManager: ITaskManager, pubsub: IPubSub) {
         message: "Tell me about this app, MulmoClaude.",
         roleId: DEFAULT_ROLE_ID,
         chatSessionId,
+        origin: "scheduler",
       });
       log.info("debug", "auto-chat result", { kind: result.kind });
     },

@@ -30,6 +30,7 @@ interface SessionMeta {
   startedAt: string;
   firstUserMessage?: string;
   hasUnread?: boolean;
+  origin?: string;
 }
 
 async function readSessionMeta(
@@ -71,6 +72,8 @@ interface SessionSummary {
   // under the preview in the history popup. See #123.
   summary?: string;
   keywords?: string[];
+  // Where this session originated (#486). Missing = "human".
+  origin?: string;
   // Live state from the in-memory session store. Absent when the
   // session has no active entry in the store (i.e. idle / historical).
   isRunning?: boolean;
@@ -144,6 +147,7 @@ async function loadAllSessions(): Promise<
           preview,
           hasUnread: live?.hasUnread ?? meta.hasUnread ?? false,
         };
+        if (meta.origin) summary.origin = meta.origin;
         if (indexEntry?.summary !== undefined)
           summary.summary = indexEntry.summary;
         if (indexEntry?.keywords !== undefined)

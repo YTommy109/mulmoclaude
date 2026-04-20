@@ -36,6 +36,7 @@ export interface SkillSchedulerDeps {
     message: string;
     roleId: string;
     chatSessionId: string;
+    origin?: string;
   }) => Promise<StartChatResult>;
 }
 
@@ -113,6 +114,7 @@ async function doRegister(deps: SkillSchedulerDeps): Promise<number> {
           message: `/${skill.name}`,
           roleId,
           chatSessionId,
+          origin: "skill",
         });
         if (result.kind === "error") {
           throw new Error(

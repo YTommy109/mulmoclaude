@@ -157,6 +157,7 @@ async function handleTaskAction(
         message: task.prompt,
         roleId: task.roleId,
         chatSessionId,
+        origin: "scheduler",
       }).catch((err) => {
         log.error("scheduler", "manual run failed", {
           error: String(err),

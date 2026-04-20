@@ -137,6 +137,7 @@ router.post(
         message: userTask.prompt,
         roleId: userTask.roleId,
         chatSessionId,
+        origin: "scheduler",
       }).catch((err) => {
         log.error("scheduler-tasks", "manual run failed", {
           error: String(err),
