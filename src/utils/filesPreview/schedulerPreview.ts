@@ -10,15 +10,15 @@ import type {
 import { WORKSPACE_FILES } from "../../config/workspacePaths";
 import { isRecord } from "../types";
 
-function isScheduledItem(x: unknown): x is ScheduledItem {
-  if (!isRecord(x)) return false;
-  if (typeof x.id !== "string") return false;
-  if (typeof x.title !== "string") return false;
+function isScheduledItem(value: unknown): value is ScheduledItem {
+  if (!isRecord(value)) return false;
+  if (typeof value.id !== "string") return false;
+  if (typeof value.title !== "string") return false;
   return true;
 }
 
-function isScheduledItemArray(x: unknown): x is ScheduledItem[] {
-  return Array.isArray(x) && x.every(isScheduledItem);
+function isScheduledItemArray(value: unknown): value is ScheduledItem[] {
+  return Array.isArray(value) && value.every(isScheduledItem);
 }
 
 export function toSchedulerResult(

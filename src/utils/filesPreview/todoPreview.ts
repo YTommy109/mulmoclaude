@@ -11,17 +11,17 @@ import type {
 import { WORKSPACE_FILES } from "../../config/workspacePaths";
 import { isRecord } from "../types";
 
-function isTodoItem(x: unknown): x is TodoItem {
-  if (!isRecord(x)) return false;
-  if (typeof x["id"] !== "string" || typeof x["text"] !== "string")
+function isTodoItem(value: unknown): value is TodoItem {
+  if (!isRecord(value)) return false;
+  if (typeof value["id"] !== "string" || typeof value["text"] !== "string")
     return false;
-  if (typeof x["completed"] !== "boolean") return false;
-  if (typeof x["createdAt"] !== "number") return false;
+  if (typeof value["completed"] !== "boolean") return false;
+  if (typeof value["createdAt"] !== "number") return false;
   return true;
 }
 
-function isTodoItemArray(x: unknown): x is TodoItem[] {
-  return Array.isArray(x) && x.every(isTodoItem);
+function isTodoItemArray(value: unknown): value is TodoItem[] {
+  return Array.isArray(value) && value.every(isTodoItem);
 }
 
 export function toTodoExplorerResult(

@@ -26,10 +26,10 @@ export type FileContent = TextContent | MetaContent;
 
 /** Segment-wise traversal check: rejects `../` path components
  *  but allows legitimate filenames like `my..notes.txt`. */
-export function isValidFilePath(p: unknown): p is string {
-  if (typeof p !== "string" || p.length === 0) return false;
-  if (p.startsWith("/")) return false;
-  return !p.split("/").some((seg) => seg === "..");
+export function isValidFilePath(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0) return false;
+  if (value.startsWith("/")) return false;
+  return !value.split("/").some((seg) => seg === "..");
 }
 
 export function useFileSelection() {
