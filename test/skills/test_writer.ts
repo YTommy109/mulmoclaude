@@ -163,13 +163,13 @@ describe("deleteProjectSkill", () => {
     assert.deepEqual(result, { kind: "deleted", name: "removable" });
 
     // Re-saving the same slug should now succeed.
-    const re = await saveProjectSkill({
+    const reSave = await saveProjectSkill({
       workspaceRoot: workspace,
       name: "removable",
       description: "fresh",
       body: "fresh body",
     });
-    assert.equal(re.kind, "saved");
+    assert.equal(reSave.kind, "saved");
   });
 
   it("returns not-found when the skill does not exist", async () => {

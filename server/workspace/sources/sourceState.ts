@@ -47,13 +47,13 @@ export function validateSourceState(raw: unknown, slug: string): SourceState {
   if (!isRecord(raw)) {
     return defaultSourceState(slug);
   }
-  const o = raw as Record<string, unknown>;
-  const lastFetchedAt = typeof o.lastFetchedAt === "string" ? o.lastFetchedAt : null;
-  const nextAttemptAt = typeof o.nextAttemptAt === "string" ? o.nextAttemptAt : null;
-  const emptyBackoffUntil = typeof o.emptyBackoffUntil === "string" ? o.emptyBackoffUntil : null;
-  const consecutiveFailures = toNonNegativeInt(o.consecutiveFailures);
-  const consecutiveEmptyFetches = toNonNegativeInt(o.consecutiveEmptyFetches);
-  const cursor = validateCursor(o.cursor);
+  const record = raw as Record<string, unknown>;
+  const lastFetchedAt = typeof record.lastFetchedAt === "string" ? record.lastFetchedAt : null;
+  const nextAttemptAt = typeof record.nextAttemptAt === "string" ? record.nextAttemptAt : null;
+  const emptyBackoffUntil = typeof record.emptyBackoffUntil === "string" ? record.emptyBackoffUntil : null;
+  const consecutiveFailures = toNonNegativeInt(record.consecutiveFailures);
+  const consecutiveEmptyFetches = toNonNegativeInt(record.consecutiveEmptyFetches);
+  const cursor = validateCursor(record.cursor);
   return {
     slug,
     lastFetchedAt,
@@ -134,9 +134,9 @@ export async function deleteSourceState(workspaceRoot: string, slug: string): Pr
 // deterministic regardless of which fetcher finished first.
 // Used by reporting / logging code.
 export function sortBySlug<T extends { sourceSlug?: string; slug?: string }>(items: readonly T[]): T[] {
-  return [...items].sort((a, b) => {
-    const ak = a.sourceSlug ?? a.slug ?? "";
-    const bk = b.sourceSlug ?? b.slug ?? "";
-    return ak < bk ? -1 : ak > bk ? 1 : 0;
+  return [...items].sort((left, right) => {
+    const leftKey = left.sourceSlug ?? left.slug ?? "";
+    const rightKey = right.sourceSlug ?? right.slug ?? "";
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
   });
 }

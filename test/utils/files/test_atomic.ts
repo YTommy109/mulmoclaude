@@ -42,7 +42,7 @@ describe("writeFileAtomic", () => {
     await assert.rejects(() => writeFileAtomic(dir, "content"));
     // No .tmp file should be left behind
     const siblings = fs.readdirSync(path.dirname(dir));
-    const tmps = siblings.filter((f) => f.endsWith(".tmp"));
+    const tmps = siblings.filter((file) => file.endsWith(".tmp"));
     assert.equal(tmps.length, 0);
   });
 
@@ -81,6 +81,6 @@ describe("writeFileAtomicSync", () => {
     fs.mkdirSync(dir, { recursive: true });
     assert.throws(() => writeFileAtomicSync(dir, "content"));
     const siblings = fs.readdirSync(path.dirname(dir));
-    assert.equal(siblings.filter((f) => f.endsWith(".tmp")).length, 0);
+    assert.equal(siblings.filter((file) => file.endsWith(".tmp")).length, 0);
   });
 });

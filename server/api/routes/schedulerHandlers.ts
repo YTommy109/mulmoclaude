@@ -29,14 +29,14 @@ export type SchedulerActionResult =
     };
 
 export function sortItems(items: ScheduledItem[]): ScheduledItem[] {
-  return [...items].sort((a, b) => {
-    const aDate = typeof a.props.date === "string" ? a.props.date : null;
-    const bDate = typeof b.props.date === "string" ? b.props.date : null;
-    const aTime = typeof a.props.time === "string" ? a.props.time : "00:00";
-    const bTime = typeof b.props.time === "string" ? b.props.time : "00:00";
-    const aKey = aDate ? `0_${aDate}_${aTime}` : `1_${a.createdAt}`;
-    const bKey = bDate ? `0_${bDate}_${bTime}` : `1_${b.createdAt}`;
-    return aKey < bKey ? -1 : aKey > bKey ? 1 : 0;
+  return [...items].sort((left, right) => {
+    const leftDate = typeof left.props.date === "string" ? left.props.date : null;
+    const rightDate = typeof right.props.date === "string" ? right.props.date : null;
+    const leftTime = typeof left.props.time === "string" ? left.props.time : "00:00";
+    const rightTime = typeof right.props.time === "string" ? right.props.time : "00:00";
+    const leftKey = leftDate ? `0_${leftDate}_${leftTime}` : `1_${left.createdAt}`;
+    const rightKey = rightDate ? `0_${rightDate}_${rightTime}` : `1_${right.createdAt}`;
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
   });
 }
 
@@ -84,11 +84,11 @@ export function handleDelete(items: ScheduledItem[], input: SchedulerActionInput
 
 function applyPropPatch(current: ScheduledItem["props"], patch: Record<string, string | number | boolean | null>): ScheduledItem["props"] {
   const next: ScheduledItem["props"] = { ...current };
-  for (const [k, v] of Object.entries(patch)) {
-    if (v === null) {
-      delete next[k];
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) {
+      delete next[key];
     } else {
-      next[k] = v;
+      next[key] = value;
     }
   }
   return next;

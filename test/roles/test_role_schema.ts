@@ -137,7 +137,7 @@ describe("BUILTIN_ROLES", () => {
   });
 
   it("all built-in roles have unique ids", () => {
-    const ids = BUILTIN_ROLES.map((r) => r.id);
+    const ids = BUILTIN_ROLES.map((role) => role.id);
     const uniqueIds = new Set(ids);
     assert.strictEqual(ids.length, uniqueIds.size, "Role ids must be unique");
   });

@@ -118,9 +118,9 @@ describe("maybeAppendWikiBacklinks (driver)", () => {
     await writeFile(brokenPath, "# Broken\n", "utf-8");
 
     const deps: Partial<WikiBacklinksDeps> = {
-      readFile: async (p: string) => {
-        if (p.endsWith("broken.md")) throw new Error("simulated read failure");
-        return readFile(p, "utf-8");
+      readFile: async (filePath: string) => {
+        if (filePath.endsWith("broken.md")) throw new Error("simulated read failure");
+        return readFile(filePath, "utf-8");
       },
     };
 

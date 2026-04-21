@@ -51,8 +51,8 @@ describe("refreshOnce (core of useFreshPluginData)", () => {
     const opts: UseFreshPluginDataOptions<number[]> = {
       endpoint: () => "/api/todos",
       extract: (json) => {
-        const v = (json as { data?: { items?: number[] } }).data?.items;
-        return Array.isArray(v) ? v : null;
+        const val = (json as { data?: { items?: number[] } }).data?.items;
+        return Array.isArray(val) ? val : null;
       },
       apply: (data) => {
         appliedWith.push(data);
@@ -154,8 +154,8 @@ describe("refreshOnce (core of useFreshPluginData)", () => {
       {
         endpoint: () => "/api/todos",
         extract: (json) => {
-          const v = (json as { data?: { items?: number[] } }).data?.items;
-          return Array.isArray(v) ? v : null;
+          const val = (json as { data?: { items?: number[] } }).data?.items;
+          return Array.isArray(val) ? val : null;
         },
         apply: (data) => appliedWith.push(data),
       },
@@ -172,8 +172,8 @@ describe("refreshOnce (core of useFreshPluginData)", () => {
       {
         endpoint: () => "/api/todos",
         extract: (json) => {
-          const v = (json as { data?: { items?: Array<{ id: string }> } }).data?.items;
-          return Array.isArray(v) ? v : null;
+          const val = (json as { data?: { items?: Array<{ id: string }> } }).data?.items;
+          return Array.isArray(val) ? val : null;
         },
         apply: (data) => appliedWith.push(data),
       },

@@ -90,8 +90,8 @@ export function normalizeArxivFeed(feed: ParsedFeed, source: Source, cursor: Rec
 function parseCursorTs(cursor: Record<string, string>): number | null {
   const raw = cursor[ARXIV_CURSOR_KEY];
   if (!raw) return null;
-  const ts = Date.parse(raw);
-  return Number.isFinite(ts) ? ts : null;
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 // Decide whether one ParsedFeedItem produces a SourceItem given
@@ -104,8 +104,8 @@ function feedItemToSourceItem(entry: ParsedFeed["items"][number], source: Source
   const normalizedUrl = normalizeUrl(entry.link);
   if (!normalizedUrl) return null;
   if (entry.publishedAt && lastSeenTs !== null) {
-    const ts = Date.parse(entry.publishedAt);
-    if (Number.isFinite(ts) && ts <= lastSeenTs) return null;
+    const publishedMs = Date.parse(entry.publishedAt);
+    if (Number.isFinite(publishedMs) && publishedMs <= lastSeenTs) return null;
   }
   const publishedAt = entry.publishedAt ?? new Date().toISOString();
   return {
@@ -128,9 +128,9 @@ export function updateArxivCursor(current: Record<string, string>, feed: ParsedF
   let newest: number | null = null;
   for (const entry of feed.items) {
     if (!entry.publishedAt) continue;
-    const ts = Date.parse(entry.publishedAt);
-    if (!Number.isFinite(ts)) continue;
-    if (newest === null || ts > newest) newest = ts;
+    const publishedMs = Date.parse(entry.publishedAt);
+    if (!Number.isFinite(publishedMs)) continue;
+    if (newest === null || publishedMs > newest) newest = publishedMs;
   }
   if (newest === null) return current;
   const currentTs = current[ARXIV_CURSOR_KEY] ? Date.parse(current[ARXIV_CURSOR_KEY]) : -Infinity;

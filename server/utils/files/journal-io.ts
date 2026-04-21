@@ -51,9 +51,9 @@ export async function writeJournalState(state: unknown, rootOverride?: string): 
 
 // ── Index ───────────────────────────────────────────────────────
 
-export async function writeJournalIndex(md: string, rootOverride?: string): Promise<void> {
+export async function writeJournalIndex(markdown: string, rootOverride?: string): Promise<void> {
   const filePath = path.join(summariesRoot(root(rootOverride)), INDEX_FILE);
-  await writeFileAtomic(filePath, md);
+  await writeFileAtomic(filePath, markdown);
 }
 
 // ── Daily summaries ─────────────────────────────────────────────

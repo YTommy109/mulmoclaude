@@ -24,6 +24,8 @@ Open [http://localhost:5173](http://localhost:5173). That's it — start chattin
 
 > **Prerequisites**: Node.js 20+, [Claude Code CLI](https://claude.ai/code) installed and authenticated.
 
+> **UI language**: Defaults to English. Set `VITE_LOCALE=ja` in `.env` to use the Japanese dictionary (`src/lang/ja.ts`). Locale is picked at build/dev time; restart `yarn dev` after changing it. See [`docs/developer.md`](docs/developer.md#i18n-vue-i18n) for how to add strings.
+
 ## What can you do?
 
 | Ask Claude to... | What you get |

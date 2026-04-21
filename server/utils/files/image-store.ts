@@ -35,8 +35,8 @@ async function safeResolve(relativePath: string): Promise<string> {
 /** Save raw base64 (no data URI prefix) as a PNG file. Returns the workspace-relative path. */
 export async function saveImage(base64Data: string): Promise<string> {
   await ensureImagesDir();
-  const id = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
-  const filename = `${id}.png`;
+  const imageId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  const filename = `${imageId}.png`;
   const absPath = path.join(IMAGES_DIR, filename);
   await fs.writeFile(absPath, Buffer.from(base64Data, "base64"));
   return path.posix.join(WORKSPACE_DIRS.images, filename);

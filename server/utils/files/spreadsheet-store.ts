@@ -36,8 +36,8 @@ async function safeResolve(relativePath: string): Promise<string> {
 /** Save sheets array as a JSON file. Returns the workspace-relative path. */
 export async function saveSpreadsheet(sheets: unknown[]): Promise<string> {
   await ensureSpreadsheetsDir();
-  const id = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
-  const filename = `${id}.json`;
+  const sheetId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  const filename = `${sheetId}.json`;
   await fs.writeFile(path.join(SPREADSHEETS_DIR, filename), JSON.stringify(sheets), "utf-8");
   return path.posix.join(WORKSPACE_DIRS.spreadsheets, filename);
 }

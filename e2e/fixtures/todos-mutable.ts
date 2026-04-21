@@ -85,7 +85,7 @@ export function mockSlugifyColumnId(label: string): string {
 export async function setupMutableTodoMocks(page: Page, options: MutableTodoOptions = {}): Promise<MutableTodoState> {
   const state: MutableTodoState = {
     items: (options.items ?? TODO_ITEMS).map((i) => ({ ...i })),
-    columns: (options.columns ?? TODO_COLUMNS).map((c) => ({ ...c })),
+    columns: (options.columns ?? TODO_COLUMNS).map((col) => ({ ...col })),
   };
 
   const buildResponse = (extra?: Record<string, unknown>) => ({

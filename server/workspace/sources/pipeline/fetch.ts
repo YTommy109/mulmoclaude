@@ -97,8 +97,9 @@ export const BACKOFF_MAX_MS = ONE_DAY_MS;
 export function backoffDelayMs(consecutiveFailures: number): number {
   if (consecutiveFailures <= 0) return 0;
   // 1m, 2m, 4m, 8m, 16m, ..., capped at 24h.
-  const ms = ONE_MINUTE_MS * 2 ** Math.min(consecutiveFailures - 1, 20);
-  return Math.min(ms, BACKOFF_MAX_MS);
+  const base = ONE_MINUTE_MS;
+  const delayMs = base * 2 ** Math.min(consecutiveFailures - 1, 20);
+  return Math.min(delayMs, BACKOFF_MAX_MS);
 }
 
 // Number of consecutive empty fetches before adaptive backoff kicks in.

@@ -107,19 +107,19 @@ describe("rewriteMarkdownLinks", () => {
   });
 
   it("passes through plain bracketed text that is not a link", () => {
-    const out = rewriteMarkdownLinks("[not a link] followed by text", (h) => h);
+    const out = rewriteMarkdownLinks("[not a link] followed by text", (href) => href);
     assert.equal(out, "[not a link] followed by text");
   });
 
   it("handles an empty input", () => {
     assert.equal(
-      rewriteMarkdownLinks("", (h) => h),
+      rewriteMarkdownLinks("", (href) => href),
       "",
     );
   });
 
   it("handles input with no links at all", () => {
-    const out = rewriteMarkdownLinks("plain prose without links", (h) => h);
+    const out = rewriteMarkdownLinks("plain prose without links", (href) => href);
     assert.equal(out, "plain prose without links");
   });
 

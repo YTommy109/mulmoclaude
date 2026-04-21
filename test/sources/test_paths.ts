@@ -21,8 +21,8 @@ describe("path helpers", () => {
   it("robotsCachePath sanitizes colons in host:port", () => {
     // Hosts with explicit ports have colons that break on some
     // filesystems. Colon → underscore.
-    const p = robotsCachePath(root, "example.com:8080");
-    assert.equal(p, path.join(root, "sources", "_state", "robots", "example.com_8080.txt"));
+    const cachePath = robotsCachePath(root, "example.com:8080");
+    assert.equal(cachePath, path.join(root, "sources", "_state", "robots", "example.com_8080.txt"));
   });
 
   it("dailyNewsPath splits YYYY-MM-DD into year / month / day.md", () => {

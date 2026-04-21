@@ -89,7 +89,7 @@ export async function mockAllApis(page: Page, opts: MockApiOptions = {}): Promis
       // GET /api/sessions/:id
       if (method !== "GET") return route.fallback();
       const id = route.request().url().split("/api/sessions/").pop() ?? "";
-      const match = sessions.find((s) => s.id === id);
+      const match = sessions.find((session) => session.id === id);
       if (match) {
         return route.fulfill({ json: makeSessionEntries(match.id) });
       }

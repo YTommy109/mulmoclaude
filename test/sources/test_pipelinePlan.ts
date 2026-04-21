@@ -48,7 +48,7 @@ describe("planEligibleSources — schedule matching", () => {
       nowMs: 0,
     });
     assert.deepEqual(
-      eligible.map((s) => s.slug),
+      eligible.map((src) => src.slug),
       ["daily-1", "daily-2"],
     );
   });
@@ -98,7 +98,7 @@ describe("planEligibleSources — sort ordering", () => {
       nowMs: 0,
     });
     assert.deepEqual(
-      eligible.map((s) => s.slug),
+      eligible.map((src) => src.slug),
       ["alpha", "bravo", "charlie"],
     );
   });

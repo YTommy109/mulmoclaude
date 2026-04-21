@@ -5,6 +5,7 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
 
+import { ONE_SECOND_MS } from "../../server/utils/time.ts";
 function urlEndsWith(suffix: string): (url: URL) => boolean {
   return (url) => url.pathname === suffix;
 }
@@ -199,7 +200,7 @@ test.describe("manageSkills plugin", () => {
     // useAppApi() provide/inject contract (#227). The slash command
     // form (`/<name>`) is what Claude CLI resolves against
     // ~/.claude/skills/ natively, so we don't need to ship the body.
-    await expect.poll(() => agentPosts.length, { timeout: 5000 }).toBeGreaterThan(0);
+    await expect.poll(() => agentPosts.length, { timeout: 5 * ONE_SECOND_MS }).toBeGreaterThan(0);
     expect(agentPosts[0]?.message).toBe("/ci_enable");
   });
 });
@@ -326,7 +327,7 @@ test.describe("manageSkills plugin — delete (phase 1)", () => {
 
   test("clicking Delete fires DELETE /api/skills/:name and removes the row", async ({ page }) => {
     // Auto-accept the native confirm() dialog the View shows.
-    page.on("dialog", (d) => d.accept());
+    page.on("dialog", (dialog) => dialog.accept());
 
     let deletedName: string | null = null;
     await page.route(

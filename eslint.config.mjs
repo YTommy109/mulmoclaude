@@ -73,7 +73,11 @@ export default [
             "_",
             "i",
             "j",
+            "id",
             "ok",
+            "md",
+            "ms",
+            "it",
             "fs",
             "os"
           ],
@@ -150,10 +154,6 @@ export default [
       // `no-explicit-any` at `error` in production code; demote to
       // warn inside tests.
       "@typescript-eslint/no-explicit-any": "warn",
-      // Tests use lots of throwaway names (`a`, `b` in sort compare,
-      // `{ id: "a" }` in fixtures, `s` in session tests, etc.) that
-      // are fine in test context and would be noise to rename.
-      "id-length": "off",
     },
   },
   {

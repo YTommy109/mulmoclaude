@@ -288,7 +288,7 @@ describe("saveSettings", () => {
     mod.saveSettings({ extraAllowedTools: ["first"] });
     mod.saveSettings({ extraAllowedTools: ["second"] });
     const entries = fs.readdirSync(mod.configsDir());
-    const leftover = entries.filter((e) => e.endsWith(".tmp"));
+    const leftover = entries.filter((entry) => entry.endsWith(".tmp"));
     assert.deepEqual(leftover, []);
     assert.deepEqual(mod.loadSettings(), { extraAllowedTools: ["second"] });
   });

@@ -7,18 +7,18 @@ import { buildArxivQuery, keywordsToSlug, discoverAndRegister } from "../../serv
 
 describe("buildArxivQuery", () => {
   it("builds query for single keyword", () => {
-    const q = buildArxivQuery(["transformer"]);
-    assert.equal(q, 'ti:"transformer" OR abs:"transformer"');
+    const query = buildArxivQuery(["transformer"]);
+    assert.equal(query, 'ti:"transformer" OR abs:"transformer"');
   });
 
   it("builds query for multiple keywords", () => {
-    const q = buildArxivQuery(["transformer", "attention"]);
-    assert.equal(q, 'ti:"transformer" OR abs:"transformer" OR ti:"attention" OR abs:"attention"');
+    const query = buildArxivQuery(["transformer", "attention"]);
+    assert.equal(query, 'ti:"transformer" OR abs:"transformer" OR ti:"attention" OR abs:"attention"');
   });
 
   it("escapes quotes in keywords", () => {
-    const q = buildArxivQuery(['large "language" model']);
-    assert.equal(q, 'ti:"large language model" OR abs:"large language model"');
+    const query = buildArxivQuery(['large "language" model']);
+    assert.equal(query, 'ti:"large language model" OR abs:"large language model"');
   });
 
   it("handles empty array", () => {

@@ -15,18 +15,18 @@ import { chatInput, fillChatInput } from "../fixtures/chat";
 
 // Dispatch a composition event on the textarea.
 async function dispatchComposition(textarea: ReturnType<typeof chatInput>, type: "compositionstart" | "compositionend") {
-  await textarea.evaluate((el, t) => el.dispatchEvent(new CompositionEvent(t, { bubbles: true })), type);
+  await textarea.evaluate((elem, eventType) => elem.dispatchEvent(new CompositionEvent(eventType, { bubbles: true })), type);
 }
 
 // Dispatch a keydown Enter on the textarea.
 async function dispatchEnterKeydown(textarea: ReturnType<typeof chatInput>, opts: { isComposing?: boolean } = {}) {
   await textarea.evaluate(
-    (el, o) =>
-      el.dispatchEvent(
+    (elem, options) =>
+      elem.dispatchEvent(
         new KeyboardEvent("keydown", {
           key: "Enter",
           code: "Enter",
-          isComposing: o.isComposing ?? false,
+          isComposing: options.isComposing ?? false,
           bubbles: true,
           cancelable: true,
         }),
@@ -37,8 +37,8 @@ async function dispatchEnterKeydown(textarea: ReturnType<typeof chatInput>, opts
 
 // Dispatch a Shift+Enter keydown on the textarea.
 async function dispatchShiftEnterKeydown(textarea: ReturnType<typeof chatInput>) {
-  await textarea.evaluate((el) =>
-    el.dispatchEvent(
+  await textarea.evaluate((elem) =>
+    elem.dispatchEvent(
       new KeyboardEvent("keydown", {
         key: "Enter",
         code: "Enter",

@@ -297,7 +297,7 @@ describe("indexSession — manifest upsert and ordering", () => {
 
     const manifest = await readManifest(workspace);
     assert.deepEqual(
-      manifest.entries.map((e) => e.id),
+      manifest.entries.map((entry) => entry.id),
       ["newest", "middle", "oldest"],
     );
   });
