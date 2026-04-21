@@ -44,7 +44,7 @@ export function buildArtifactPathRandom(dir: string, prefix: string, ext: string
   // Pass fallbackSlug as slugify's default so it overrides slugify's
   // built-in "page" default when `prefix` sanitizes to empty.
   const slug = slugify(prefix, fallbackSlug);
-  const id = crypto.randomUUID().replace(/-/g, "").slice(0, RANDOM_SUFFIX_LEN);
-  const fname = `${slug}-${id}${ext}`;
+  const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, RANDOM_SUFFIX_LEN);
+  const fname = `${slug}-${suffix}${ext}`;
   return path.posix.join(dir, fname);
 }

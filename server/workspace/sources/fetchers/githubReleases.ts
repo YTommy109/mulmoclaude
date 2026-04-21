@@ -52,7 +52,7 @@ interface ParsedRelease {
 // hitting the network.
 export function parseGithubRelease(raw: unknown): ParsedRelease | null {
   if (!isRecord(raw)) return null;
-  const id = typeof raw.id === "number" && Number.isFinite(raw.id) ? raw.id : null;
+  const releaseId = typeof raw.id === "number" && Number.isFinite(raw.id) ? raw.id : null;
   const name = typeof raw.name === "string" ? raw.name : null;
   const tagName = typeof raw.tag_name === "string" ? raw.tag_name : null;
   const htmlUrl = typeof raw.html_url === "string" ? raw.html_url : null;
@@ -60,7 +60,7 @@ export function parseGithubRelease(raw: unknown): ParsedRelease | null {
   const publishedAt = typeof raw.published_at === "string" ? raw.published_at : null;
   const draft = raw.draft === true;
   const prerelease = raw.prerelease === true;
-  return { id, name, tagName, htmlUrl, body, publishedAt, draft, prerelease };
+  return { id: releaseId, name, tagName, htmlUrl, body, publishedAt, draft, prerelease };
 }
 
 // Build a SourceItem from a parsed release + the parent Source.
@@ -82,7 +82,7 @@ export function releaseToSourceItem(release: ParsedRelease, source: Source, last
 
   const normalizedUrl = normalizeUrl(release.htmlUrl);
   if (!normalizedUrl) return null;
-  const id = stableItemId(normalizedUrl);
+  const itemId = stableItemId(normalizedUrl);
 
   // Title resolution: prefer <name> (release display name), fall
   // back to <tag_name> (e.g. "v1.2.3"). Annotate pre-releases so
@@ -92,7 +92,7 @@ export function releaseToSourceItem(release: ParsedRelease, source: Source, last
   const summary = release.body ? firstParagraph(release.body) : null;
 
   return {
-    id,
+    id: itemId,
     title,
     url: normalizedUrl,
     publishedAt: new Date(publishedTs).toISOString(),
@@ -128,9 +128,9 @@ export function updateReleasesCursor(current: Record<string, string>, releases: 
   for (const release of releases) {
     if (release.draft) continue;
     if (!release.publishedAt) continue;
-    const ts = Date.parse(release.publishedAt);
-    if (!Number.isFinite(ts)) continue;
-    if (newest === null || ts > newest) newest = ts;
+    const publishedMs = Date.parse(release.publishedAt);
+    if (!Number.isFinite(publishedMs)) continue;
+    if (newest === null || publishedMs > newest) newest = publishedMs;
   }
   if (newest === null) return current;
   const currentTs = current[RELEASES_CURSOR_KEY] ? Date.parse(current[RELEASES_CURSOR_KEY]) : -Infinity;

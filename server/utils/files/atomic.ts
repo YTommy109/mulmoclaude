@@ -47,18 +47,18 @@ function isTransientRenameError(err: unknown): boolean {
   return err.code === "EPERM" || err.code === "EBUSY" || err.code === "EACCES";
 }
 
-async function renameWithWindowsRetry(from: string, to: string): Promise<void> {
+async function renameWithWindowsRetry(fromPath: string, toPath: string): Promise<void> {
   for (const delayMs of RENAME_RETRY_DELAYS_MS) {
     try {
-      await fs.promises.rename(from, to);
+      await fs.promises.rename(fromPath, toPath);
       return;
     } catch (err) {
       if (!isTransientRenameError(err)) throw err;
-      await new Promise((r) => setTimeout(r, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
   // Final attempt — let any error propagate.
-  await fs.promises.rename(from, to);
+  await fs.promises.rename(fromPath, toPath);
 }
 
 // Sync sleep that parks the thread instead of burning CPU. Only
@@ -66,21 +66,21 @@ async function renameWithWindowsRetry(from: string, to: string): Promise<void> {
 // case block is the sum of RENAME_RETRY_DELAYS_MS (~430ms) and only
 // triggers under AV/indexer contention.
 const SYNC_SLEEP_BUF = new Int32Array(new SharedArrayBuffer(4));
-function sleepSync(ms: number): void {
-  Atomics.wait(SYNC_SLEEP_BUF, 0, 0, ms);
+function sleepSync(millis: number): void {
+  Atomics.wait(SYNC_SLEEP_BUF, 0, 0, millis);
 }
 
-function renameSyncWithWindowsRetry(from: string, to: string): void {
+function renameSyncWithWindowsRetry(fromPath: string, toPath: string): void {
   for (const delayMs of RENAME_RETRY_DELAYS_MS) {
     try {
-      fs.renameSync(from, to);
+      fs.renameSync(fromPath, toPath);
       return;
     } catch (err) {
       if (!isTransientRenameError(err)) throw err;
       sleepSync(delayMs);
     }
   }
-  fs.renameSync(from, to);
+  fs.renameSync(fromPath, toPath);
 }
 
 /**

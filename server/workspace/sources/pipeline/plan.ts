@@ -31,8 +31,8 @@ export interface PlanInput {
 // Sort key: slug, ascending. Deterministic ordering keeps the
 // daily summary's item sequence stable across runs for the same
 // input, which makes markdown diffs readable.
-function bySlug(a: Source, b: Source): number {
-  return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0;
+function bySlug(left: Source, right: Source): number {
+  return left.slug < right.slug ? -1 : left.slug > right.slug ? 1 : 0;
 }
 
 // Returns the subset of sources eligible for this cycle. Pure.
@@ -60,7 +60,7 @@ export function planEligibleSources(input: PlanInput): Source[] {
 function isWithinBackoff(state: SourceState | undefined, nowMs: number): boolean {
   if (!state) return false;
   if (!state.nextAttemptAt) return false;
-  const ts = Date.parse(state.nextAttemptAt);
-  if (!Number.isFinite(ts)) return false;
-  return ts > nowMs;
+  const parsed = Date.parse(state.nextAttemptAt);
+  if (!Number.isFinite(parsed)) return false;
+  return parsed > nowMs;
 }

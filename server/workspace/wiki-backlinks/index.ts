@@ -30,16 +30,16 @@ const MTIME_TOLERANCE_MS = ONE_SECOND_MS;
 
 export interface WikiBacklinksDeps {
   readdir: (dir: string) => Promise<string[]>;
-  stat: (p: string) => Promise<{ mtimeMs: number }>;
-  readFile: (p: string) => Promise<string>;
-  writeFile: (p: string, content: string) => Promise<void>;
+  stat: (filePath: string) => Promise<{ mtimeMs: number }>;
+  readFile: (filePath: string) => Promise<string>;
+  writeFile: (filePath: string, content: string) => Promise<void>;
 }
 
 const defaultDeps: WikiBacklinksDeps = {
   readdir: (dir) => fsp.readdir(dir),
-  stat: (p) => fsp.stat(p),
-  readFile: (p) => fsp.readFile(p, "utf-8"),
-  writeFile: (p, content) => fsp.writeFile(p, content, "utf-8"),
+  stat: (filePath) => fsp.stat(filePath),
+  readFile: (filePath) => fsp.readFile(filePath, "utf-8"),
+  writeFile: (filePath, content) => fsp.writeFile(filePath, content, "utf-8"),
 };
 
 export interface MaybeAppendWikiBacklinksOptions {
@@ -78,8 +78,8 @@ async function listPageFiles(pagesDir: string, deps: WikiBacklinksDeps): Promise
 async function processOneFile(pagesDir: string, fileName: string, sessionId: string, mtimeThreshold: number, deps: WikiBacklinksDeps): Promise<void> {
   const fullPath = path.join(pagesDir, fileName);
   try {
-    const st = await deps.stat(fullPath);
-    if (st.mtimeMs < mtimeThreshold) return;
+    const stats = await deps.stat(fullPath);
+    if (stats.mtimeMs < mtimeThreshold) return;
 
     const content = await deps.readFile(fullPath);
     // Compute the relative path from the wiki page's directory to
