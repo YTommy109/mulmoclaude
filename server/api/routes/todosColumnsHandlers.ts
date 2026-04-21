@@ -72,18 +72,15 @@ function slugify(label: string): string {
 // slug first, then `_2`, `_3`, ... until something is free.
 function uniqueId(base: string, existingIds: ReadonlySet<string>): string {
   if (!existingIds.has(base)) return base;
-  let n = 2;
-  while (existingIds.has(`${base}_${n}`)) n++;
-  return `${base}_${n}`;
+  let suffix = 2;
+  while (existingIds.has(`${base}_${suffix}`)) suffix++;
+  return `${base}_${suffix}`;
 }
 
 // ── Validation helpers ────────────────────────────────────────────
 
-function findColumn(
-  columns: StatusColumn[],
-  id: string,
-): StatusColumn | undefined {
-  return columns.find((c) => c.id === id);
+function findColumn(columns: StatusColumn[], id: string): StatusColumn | undefined {
+  return columns.find((column) => column.id === id);
 }
 
 function ensureColumnsValid(columns: StatusColumn[]): StatusColumn[] {
@@ -92,29 +89,27 @@ function ensureColumnsValid(columns: StatusColumn[]): StatusColumn[] {
   // to DEFAULT_COLUMNS rather than try to repair partial state.
   if (columns.length === 0) return [...DEFAULT_COLUMNS];
   const seen = new Set<string>();
-  for (const c of columns) {
-    if (seen.has(c.id)) return [...DEFAULT_COLUMNS];
-    seen.add(c.id);
+  for (const column of columns) {
+    if (seen.has(column.id)) return [...DEFAULT_COLUMNS];
+    seen.add(column.id);
   }
-  const doneCount = columns.filter((c) => c.isDone).length;
+  const doneCount = columns.filter((column) => column.isDone).length;
   if (doneCount === 0) {
     // Promote the last column to done so the invariant holds.
-    const fixed = columns.map((c, i) =>
-      i === columns.length - 1 ? { ...c, isDone: true } : c,
-    );
+    const fixed = columns.map((column, i) => (i === columns.length - 1 ? { ...column, isDone: true } : column));
     return fixed;
   }
   if (doneCount > 1) {
     // Keep only the first done flag.
     let kept = false;
-    return columns.map((c) => {
-      if (!c.isDone) return c;
+    return columns.map((column) => {
+      if (!column.isDone) return column;
       if (kept) {
-        const next: StatusColumn = { id: c.id, label: c.label };
+        const next: StatusColumn = { id: column.id, label: column.label };
         return next;
       }
       kept = true;
-      return c;
+      return column;
     });
   }
   return columns;
@@ -127,10 +122,9 @@ export function normalizeColumns(raw: unknown): StatusColumn[] {
   const cleaned: StatusColumn[] = [];
   for (const entry of raw) {
     if (!isRecord(entry)) continue;
-    const e = entry;
-    if (typeof e["id"] !== "string" || typeof e["label"] !== "string") continue;
-    const col: StatusColumn = { id: e["id"], label: e["label"] };
-    if (e["isDone"] === true) col.isDone = true;
+    if (typeof entry["id"] !== "string" || typeof entry["label"] !== "string") continue;
+    const col: StatusColumn = { id: entry["id"], label: entry["label"] };
+    if (entry["isDone"] === true) col.isDone = true;
     cleaned.push(col);
   }
   return ensureColumnsValid(cleaned);
@@ -141,7 +135,7 @@ export function normalizeColumns(raw: unknown): StatusColumn[] {
 // id of the first column flagged isDone. Guaranteed to exist after
 // normalizeColumns.
 export function doneColumnId(columns: StatusColumn[]): string {
-  const done = columns.find((c) => c.isDone);
+  const done = columns.find((column) => column.isDone);
   return done ? done.id : columns[columns.length - 1]!.id;
 }
 
@@ -149,7 +143,7 @@ export function doneColumnId(columns: StatusColumn[]): string {
 // adding new items. Falls back to the done column if everything is
 // somehow flagged done.
 export function defaultStatusId(columns: StatusColumn[]): string {
-  const open = columns.find((c) => !c.isDone);
+  const open = columns.find((column) => !column.isDone);
   return open ? open.id : doneColumnId(columns);
 }
 
@@ -165,10 +159,7 @@ export function defaultStatusId(columns: StatusColumn[]): string {
 // more (so the legacy MCP `check` action's plain boolean flips keep
 // working). Column operations are explicit user intent so it's safe
 // to sync at that point.
-export function resyncDoneMembership(
-  items: TodoItem[],
-  newDoneId: string,
-): { items: TodoItem[]; changed: boolean } {
+export function resyncDoneMembership(items: TodoItem[], newDoneId: string): { items: TodoItem[]; changed: boolean } {
   let changed = false;
   const next = items.map((it): TodoItem => {
     const shouldBeDone = it.status === newDoneId;
@@ -185,15 +176,13 @@ export function resyncDoneMembership(
 // case) end up with unique, contiguous orders rather than colliding
 // 1000s from each side.
 function rebuildColumnOrder(items: TodoItem[], columnId: string): TodoItem[] {
-  const inColumn = items
-    .filter((it) => it.status === columnId)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const inColumn = items.filter((item) => item.status === columnId).sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
   const newOrders = new Map<string, number>();
-  inColumn.forEach((it, i) => newOrders.set(it.id, (i + 1) * ORDER_STEP));
-  return items.map((it): TodoItem => {
-    const o = newOrders.get(it.id);
-    if (o === undefined) return it;
-    return { ...it, order: o };
+  inColumn.forEach((item, i) => newOrders.set(item.id, (i + 1) * ORDER_STEP));
+  return items.map((item): TodoItem => {
+    const newOrder = newOrders.get(item.id);
+    if (newOrder === undefined) return item;
+    return { ...item, order: newOrder };
   });
 }
 
@@ -206,16 +195,12 @@ export interface AddColumnInput {
   isDone?: boolean;
 }
 
-export function handleAddColumn(
-  columns: StatusColumn[],
-  items: TodoItem[],
-  input: AddColumnInput,
-): ColumnsActionResult {
+export function handleAddColumn(columns: StatusColumn[], items: TodoItem[], input: AddColumnInput): ColumnsActionResult {
   if (!input.label || input.label.trim().length === 0) {
     return { kind: "error", status: 400, error: "label required" };
   }
   const baseId = slugify(input.label);
-  const id = uniqueId(baseId, new Set(columns.map((c) => c.id)));
+  const id = uniqueId(baseId, new Set(columns.map((column) => column.id)));
   const col: StatusColumn = { id, label: input.label.trim() };
   if (input.isDone === true) col.isDone = true;
   // If the new column is flagged done, demote any existing done
@@ -223,7 +208,7 @@ export function handleAddColumn(
   // old done column's items are no longer marked completed. The new
   // column itself is empty so there's nothing on its side to sync.
   if (input.isDone === true) {
-    const nextColumns = [...columns.map((c) => ({ ...c, isDone: false })), col];
+    const nextColumns = [...columns.map((column) => ({ ...column, isDone: false })), col];
     const { items: nextItems, changed } = resyncDoneMembership(items, id);
     return {
       kind: "success",
@@ -239,12 +224,7 @@ export interface PatchColumnInput {
   isDone?: boolean;
 }
 
-export function handlePatchColumn(
-  columns: StatusColumn[],
-  id: string,
-  input: PatchColumnInput,
-  items: TodoItem[],
-): ColumnsActionResult {
+export function handlePatchColumn(columns: StatusColumn[], id: string, input: PatchColumnInput, items: TodoItem[]): ColumnsActionResult {
   const target = findColumn(columns, id);
   if (!target) {
     return { kind: "error", status: 404, error: `column not found: ${id}` };
@@ -254,15 +234,13 @@ export function handlePatchColumn(
   if (typeof input.label === "string" && input.label.trim().length > 0) {
     patched.label = input.label.trim();
   }
-  let nextColumns = columns.map((c) => (c.id === id ? patched : c));
+  let nextColumns = columns.map((column) => (column.id === id ? patched : column));
   // Toggling done flag is non-trivial: only one column may be done.
   let itemsChanged = false;
   let nextItems = items;
   if (input.isDone === true && !target.isDone) {
     // Promote this column to done; demote everyone else.
-    nextColumns = nextColumns.map((c) =>
-      c.id === id ? { ...c, isDone: true } : { id: c.id, label: c.label },
-    );
+    nextColumns = nextColumns.map((column) => (column.id === id ? { ...column, isDone: true } : { id: column.id, label: column.label }));
     // Resync `completed` across all items: the new done column's
     // items become true, the old done column's items become false.
     // Doing this with the helper rather than a one-sided pass means
@@ -285,11 +263,7 @@ export function handlePatchColumn(
   };
 }
 
-export function handleDeleteColumn(
-  columns: StatusColumn[],
-  id: string,
-  items: TodoItem[],
-): ColumnsActionResult {
+export function handleDeleteColumn(columns: StatusColumn[], id: string, items: TodoItem[]): ColumnsActionResult {
   if (columns.length <= 1) {
     return {
       kind: "error",
@@ -301,13 +275,11 @@ export function handleDeleteColumn(
   if (!target) {
     return { kind: "error", status: 404, error: `column not found: ${id}` };
   }
-  const remaining = columns.filter((c) => c.id !== id);
+  const remaining = columns.filter((column) => column.id !== id);
   // If we just removed the done column, promote the new last column.
   let nextColumns = remaining;
   if (target.isDone) {
-    nextColumns = remaining.map((c, i) =>
-      i === remaining.length - 1 ? { ...c, isDone: true } : c,
-    );
+    nextColumns = remaining.map((column, i) => (i === remaining.length - 1 ? { ...column, isDone: true } : column));
   }
   const newDoneId = doneColumnId(nextColumns);
   // Reassign orphaned items to the (possibly new) done column if the
@@ -346,10 +318,7 @@ export function handleDeleteColumn(
   };
 }
 
-export function handleReorderColumns(
-  columns: StatusColumn[],
-  ids: string[],
-): ColumnsActionResult {
+export function handleReorderColumns(columns: StatusColumn[], ids: string[]): ColumnsActionResult {
   if (!Array.isArray(ids)) {
     return { kind: "error", status: 400, error: "ids array required" };
   }
@@ -360,7 +329,7 @@ export function handleReorderColumns(
       error: "ids must contain every existing column id exactly once",
     };
   }
-  const known = new Set(columns.map((c) => c.id));
+  const known = new Set(columns.map((column) => column.id));
   const seen = new Set<string>();
   for (const id of ids) {
     if (!known.has(id) || seen.has(id)) {
@@ -372,7 +341,7 @@ export function handleReorderColumns(
     }
     seen.add(id);
   }
-  const byId = new Map(columns.map((c) => [c.id, c]));
+  const byId = new Map(columns.map((column) => [column.id, column]));
   const next = ids.map((id) => byId.get(id)!);
   return { kind: "success", columns: next };
 }

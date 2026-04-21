@@ -3,28 +3,22 @@
 // plugin's calendar view. Extracted from FilesView.vue (#507 step 8).
 
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-import type {
-  SchedulerData,
-  ScheduledItem,
-} from "../../plugins/scheduler/index";
+import type { SchedulerData, ScheduledItem } from "../../plugins/scheduler/index";
 import { WORKSPACE_FILES } from "../../config/workspacePaths";
 import { isRecord } from "../types";
 
-function isScheduledItem(x: unknown): x is ScheduledItem {
-  if (!isRecord(x)) return false;
-  if (typeof x.id !== "string") return false;
-  if (typeof x.title !== "string") return false;
+function isScheduledItem(value: unknown): value is ScheduledItem {
+  if (!isRecord(value)) return false;
+  if (typeof value.id !== "string") return false;
+  if (typeof value.title !== "string") return false;
   return true;
 }
 
-function isScheduledItemArray(x: unknown): x is ScheduledItem[] {
-  return Array.isArray(x) && x.every(isScheduledItem);
+function isScheduledItemArray(value: unknown): value is ScheduledItem[] {
+  return Array.isArray(value) && value.every(isScheduledItem);
 }
 
-export function toSchedulerResult(
-  selectedPath: string | null,
-  rawText: string | null,
-): ToolResultComplete<SchedulerData> | null {
+export function toSchedulerResult(selectedPath: string | null, rawText: string | null): ToolResultComplete<SchedulerData> | null {
   if (selectedPath !== WORKSPACE_FILES.schedulerItems) return null;
   if (rawText === null) return null;
   let parsed: unknown;
