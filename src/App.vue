@@ -294,6 +294,9 @@ import {
 import { usePendingCalls } from "./composables/usePendingCalls";
 import { useClickOutside } from "./composables/useClickOutside";
 import { useKeyNavigation } from "./composables/useKeyNavigation";
+import { useDebugBeat } from "./composables/useDebugBeat";
+import { useChatScroll } from "./composables/useChatScroll";
+import { useViewLayout } from "./composables/useViewLayout";
 import { useCanvasViewMode } from "./composables/useCanvasViewMode";
 import { isCanvasViewMode } from "./utils/canvas/viewMode";
 import { useMcpTools } from "./composables/useMcpTools";
@@ -328,20 +331,9 @@ const sessionSubscriptions = new Map<string, () => void>();
 const currentSessionId = ref("");
 
 // --- Debug beat (pub/sub) ---
-const debugBeatColor = ref<string | null>(null);
-const debugTitleStyle = computed(() =>
-  debugBeatColor.value ? { color: debugBeatColor.value } : {},
-);
+const { debugTitleStyle } = useDebugBeat();
 
 const { subscribe: pubsubSubscribe } = usePubSub();
-pubsubSubscribe(PUBSUB_CHANNELS.debugBeat, (data) => {
-  const msg = data as { count: number; last?: boolean };
-  if (msg.last) {
-    debugBeatColor.value = null;
-  } else {
-    debugBeatColor.value = msg.count % 2 === 0 ? "#3b82f6" : "#ef4444";
-  }
-});
 
 // --- Sessions channel (pub/sub) ---
 // Subscribe to the global `sessions` channel. The server publishes a
@@ -591,21 +583,12 @@ const historyButtonRef = computed(
 // needs the actual popup DOM element (not the component instance).
 const historyPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const historyPopupRef = computed(() => historyPanelRef.value?.root ?? null);
-function scrollChatToBottom() {
-  nextTick(() => {
-    if (chatListRef.value) {
-      chatListRef.value.scrollTop = chatListRef.value.scrollHeight;
-    }
-  });
-}
-
-watch(() => toolResults.value.length, scrollChatToBottom);
-watch(isRunning, (running) => {
-  if (running) {
-    scrollChatToBottom();
-  } else {
-    nextTick(() => focusChatInput());
-  }
+const toolResultsLength = computed(() => toolResults.value.length);
+useChatScroll({
+  chatListRef,
+  toolResultsLength,
+  isRunning,
+  focusChatInput,
 });
 
 const { showRightSidebar, toggleRightSidebar } = useRightSidebar();
@@ -624,31 +607,13 @@ const {
 // plugin launcher button (Todos / Scheduler / Files / ...) swaps the
 // canvas content without collapsing the frame back to the sidebar
 // layout.
-const isStackLayout = computed(
-  () => canvasViewMode.value !== CANVAS_VIEW.single,
-);
-
-// Remember the last chat-oriented view (single or stack) so that
-// selecting a session from a plugin view (Todos / Files / ...) can
-// restore the user's preferred chat layout rather than leaving them
-// on the plugin view.
-const CHAT_VIEWS = [CANVAS_VIEW.single, CANVAS_VIEW.stack] as const;
-type ChatViewMode = (typeof CHAT_VIEWS)[number];
-const isChatView = (m: string): m is ChatViewMode =>
-  (CHAT_VIEWS as readonly string[]).includes(m);
-
-const lastChatViewMode = ref<ChatViewMode>(
-  isChatView(canvasViewMode.value) ? canvasViewMode.value : CANVAS_VIEW.stack,
-);
-watch(canvasViewMode, (mode) => {
-  if (isChatView(mode)) lastChatViewMode.value = mode;
-});
-
-function restoreChatViewForSession(): void {
-  if (!isChatView(canvasViewMode.value)) {
-    setCanvasViewMode(lastChatViewMode.value);
-  }
-}
+const { isStackLayout, restoreChatViewForSession, displayedCurrentSessionId } =
+  useViewLayout({
+    canvasViewMode,
+    setCanvasViewMode,
+    currentSessionId,
+    activePane,
+  });
 
 // User-initiated session switches: clicking a session tab, a history
 // row, or a chat link in FilesView. In plugin views (Todos / Files /
@@ -668,25 +633,6 @@ function handleNewSessionClick(): void {
 }
 
 // In plugin views (Todos / Files / ...) no chat is active, so the
-// session tabs should show no tab as "current". That way clicking
-// any tab — including the session the user was last on — counts as a
-// fresh selection and routes back to the chat view.
-const displayedCurrentSessionId = computed(() =>
-  isChatView(canvasViewMode.value) ? currentSessionId.value : "",
-);
-
-// Keep arrow-key navigation tied to the canvas when the sidebar list
-// doesn't exist (Stack layout has no ToolResultsPanel to navigate),
-// and restore sidebar focus when returning to Single. `immediate`
-// covers the case of an initial stack-style URL (?view=stack, …).
-watch(
-  isStackLayout,
-  (stack) => {
-    activePane.value = stack ? "main" : "sidebar";
-  },
-  { immediate: true },
-);
-
 // Measure the top bar's height whenever the history popup is about
 // to open. Defer to nextTick so the popup's v-if transition doesn't
 // race the measurement.
