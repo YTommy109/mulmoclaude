@@ -272,7 +272,6 @@ import {
 } from "./types/session";
 import { EVENT_TYPES } from "./types/events";
 import { extractImageData, makeTextResult } from "./utils/tools/result";
-import { deduplicateResults } from "./utils/tools/dedup";
 import { buildAgentRequestBody } from "./utils/agent/request";
 import {
   pushResult,
@@ -297,19 +296,21 @@ import { useKeyNavigation } from "./composables/useKeyNavigation";
 import { useDebugBeat } from "./composables/useDebugBeat";
 import { useChatScroll } from "./composables/useChatScroll";
 import { useViewLayout } from "./composables/useViewLayout";
+import { useSessionSync } from "./composables/useSessionSync";
+import { useSessionDerived } from "./composables/useSessionDerived";
 import { useCanvasViewMode } from "./composables/useCanvasViewMode";
 import { isCanvasViewMode } from "./utils/canvas/viewMode";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
 import { usePubSub } from "./composables/usePubSub";
-import { PUBSUB_CHANNELS, sessionChannel } from "./config/pubsubChannels";
+import { sessionChannel } from "./config/pubsubChannels";
 import { useHealth } from "./composables/useHealth";
 import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
 import { useEventListeners } from "./composables/useEventListeners";
 import { provideAppApi } from "./composables/useAppApi";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
-import { apiGet, apiPost, apiFetchRaw } from "./utils/api";
+import { apiGet, apiFetchRaw } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 
 // --- Per-session state ---
@@ -334,45 +335,6 @@ const currentSessionId = ref("");
 const { debugTitleStyle } = useDebugBeat();
 
 const { subscribe: pubsubSubscribe } = usePubSub();
-
-// --- Sessions channel (pub/sub) ---
-// Subscribe to the global `sessions` channel. The server publishes a
-// bare notification (no data) whenever any session's state changes.
-// The client refetches the session list via REST — the server is the
-// single source of truth for isRunning, hasUnread, etc.
-pubsubSubscribe(PUBSUB_CHANNELS.sessions, () => {
-  refreshSessionStates();
-});
-
-async function refreshSessionStates(): Promise<void> {
-  const summaries = await fetchSessions();
-  for (const s of summaries) {
-    const live = sessionMap.get(s.id);
-    if (!live) continue;
-    // Missing fields mean the server has no live entry — reset to defaults.
-    live.isRunning = s.isRunning ?? false;
-    live.statusMessage = s.statusMessage ?? "";
-    const unread = s.hasUnread ?? false;
-    // Don't mark the currently viewed session as unread
-    if (!(unread && s.id === currentSessionId.value)) {
-      live.hasUnread = unread;
-    }
-  }
-}
-
-async function markSessionRead(id: string): Promise<void> {
-  const result = await apiPost<{ ok: boolean }>(
-    API_ROUTES.sessions.markRead.replace(":id", encodeURIComponent(id)),
-  );
-  // The server returns `{ ok: boolean }` — a 200 with `ok: false`
-  // means the endpoint was reached but the flag wasn't actually
-  // cleared (e.g. session not found). Treat that the same as a
-  // transport failure and refetch so the sidebar doesn't go stale.
-  if (!result.ok || result.data.ok === false) {
-    // Server didn't clear the flag — refetch to restore truth.
-    await refreshSessionStates();
-  }
-}
 
 // --- Routing ---
 const route = useRoute();
@@ -462,54 +424,7 @@ watch(
   },
 );
 
-const activeSession = computed(() => sessionMap.get(currentSessionId.value));
-
-const toolResults = computed(() => activeSession.value?.toolResults ?? []);
-
 // Deduplicate consecutive tool results with the same toolName for the
-// sidebar preview list. Tools like manageScheduler / manageTodoList
-// return the full item list on every call, so 4 consecutive scheduler
-// calls produce 4 identical "22 upcoming" previews. We keep only the
-// last one in each consecutive run. text-response is excluded because
-// each user/assistant message is unique content.
-// Deduplicate consecutive tool results that represent "full-state
-// refreshes" of the same collection. Tools like manageScheduler /
-// manageTodoList / manageWiki return the full list on every call
-// and set `updating: true` on the response — that flag is the
-// signal that the previous result is superseded, not a new artifact.
-//
-// Tools that create individual artifacts (generateImage,
-// presentDocument, editImage) DO NOT set `updating`, so consecutive
-// calls stay visible as separate preview cards. This matches the
-// "tennis vs golf docs" case raised in review: two different
-// documents produced in a row must both be shown.
-//
-// text-response is never collapsed because each user/assistant
-// message is unique content.
-const sidebarResults = computed(() => {
-  return deduplicateResults(toolResults.value);
-});
-
-// Read running/status from the server session list (single source of
-// truth). Falls back to sessionMap for the brief window before the
-// first fetchSessions completes.
-const currentSummary = computed(() =>
-  sessions.value.find((s) => s.id === currentSessionId.value),
-);
-const isRunning = computed(
-  () =>
-    currentSummary.value?.isRunning ?? activeSession.value?.isRunning ?? false,
-);
-const statusMessage = computed(
-  () =>
-    currentSummary.value?.statusMessage ??
-    activeSession.value?.statusMessage ??
-    "",
-);
-const toolCallHistory = computed(
-  () => activeSession.value?.toolCallHistory ?? [],
-);
-
 const selectedResultUuid = computed({
   get: () => activeSession.value?.selectedResultUuid ?? null,
   set: (val: string | null) => {
@@ -525,13 +440,6 @@ const selectedResultUuid = computed({
   },
 });
 
-const activeSessionCount = computed(
-  () => sessions.value.filter((s) => s.isRunning).length,
-);
-const unreadCount = computed(
-  () => sessions.value.filter((s) => s.hasUnread).length,
-);
-
 // --- Global state ---
 const { roles, currentRoleId, currentRole, refreshRoles } = useRoles();
 
@@ -541,7 +449,24 @@ const activePane = ref<"sidebar" | "main">("sidebar");
 
 const { sessions, showHistory, historyError, fetchSessions, toggleHistory } =
   useSessionHistory();
+const { markSessionRead } = useSessionSync({
+  sessionMap,
+  currentSessionId,
+  fetchSessions,
+});
 const { geminiAvailable, sandboxEnabled, fetchHealth } = useHealth();
+
+const {
+  activeSession,
+  toolResults,
+  sidebarResults,
+  currentSummary,
+  isRunning,
+  statusMessage,
+  toolCallHistory,
+  activeSessionCount,
+  unreadCount,
+} = useSessionDerived({ sessionMap, currentSessionId, sessions });
 
 // ── Dynamic favicon (#470) ──────────────────────────────────
 const faviconState = computed<FaviconState>(() => {
