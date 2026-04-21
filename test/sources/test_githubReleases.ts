@@ -91,15 +91,15 @@ function makeRelease(over: Partial<Record<string, unknown>> = {}) {
 
 describe("parseGithubRelease", () => {
   it("extracts the fields we actually consume", () => {
-    const r = parseGithubRelease(makeRelease());
-    assert.ok(r);
-    assert.equal(r!.id, 12345);
-    assert.equal(r!.tagName, "v1.2.3");
-    assert.equal(r!.name, "1.2.3 — Spring release");
-    assert.equal(r!.htmlUrl, "https://github.com/anthropics/claude-code/releases/tag/v1.2.3");
-    assert.equal(r!.publishedAt, "2026-04-10T10:00:00Z");
-    assert.equal(r!.draft, false);
-    assert.equal(r!.prerelease, false);
+    const release = parseGithubRelease(makeRelease());
+    assert.ok(release);
+    assert.equal(release!.id, 12345);
+    assert.equal(release!.tagName, "v1.2.3");
+    assert.equal(release!.name, "1.2.3 — Spring release");
+    assert.equal(release!.htmlUrl, "https://github.com/anthropics/claude-code/releases/tag/v1.2.3");
+    assert.equal(release!.publishedAt, "2026-04-10T10:00:00Z");
+    assert.equal(release!.draft, false);
+    assert.equal(release!.prerelease, false);
   });
 
   it("returns null for non-objects", () => {
@@ -109,20 +109,20 @@ describe("parseGithubRelease", () => {
   });
 
   it("coerces missing fields to null without failing the whole parse", () => {
-    const r = parseGithubRelease({});
-    assert.ok(r);
-    assert.equal(r!.id, null);
-    assert.equal(r!.name, null);
-    assert.equal(r!.htmlUrl, null);
-    assert.equal(r!.publishedAt, null);
-    assert.equal(r!.draft, false);
-    assert.equal(r!.prerelease, false);
+    const release = parseGithubRelease({});
+    assert.ok(release);
+    assert.equal(release!.id, null);
+    assert.equal(release!.name, null);
+    assert.equal(release!.htmlUrl, null);
+    assert.equal(release!.publishedAt, null);
+    assert.equal(release!.draft, false);
+    assert.equal(release!.prerelease, false);
   });
 
   it("treats missing `draft` / `prerelease` as false (default)", () => {
-    const r = parseGithubRelease({ id: 1 });
-    assert.equal(r!.draft, false);
-    assert.equal(r!.prerelease, false);
+    const release = parseGithubRelease({ id: 1 });
+    assert.equal(release!.draft, false);
+    assert.equal(release!.prerelease, false);
   });
 });
 

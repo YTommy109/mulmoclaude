@@ -52,7 +52,7 @@ function extractRouteHandler(mod: RouteModule, routePath: string, method: "get" 
   // frame matching BOTH path and method rather than the first path hit.
   for (const frame of router.stack) {
     if (frame.route?.path !== routePath) continue;
-    const layer = frame.route.stack.find((s) => s.method === method);
+    const layer = frame.route.stack.find((stackLayer) => stackLayer.method === method);
     if (layer) return layer.handle;
   }
   throw new Error(`route ${method.toUpperCase()} ${routePath} not registered`);

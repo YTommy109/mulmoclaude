@@ -68,7 +68,7 @@ describe("buildCliArgs", () => {
     assert.ok(args.includes("--output-format"));
     assert.ok(args.includes("--input-format"));
     // stream-json is used for both input and output formats.
-    assert.equal(args.filter((a) => a === "stream-json").length, 2, "stream-json should appear twice (input + output format)");
+    assert.equal(args.filter((arg) => arg === "stream-json").length, 2, "stream-json should appear twice (input + output format)");
     assert.ok(args.includes("--verbose"));
     assert.ok(args.includes("--system-prompt"));
     assert.ok(args.includes("You are helpful"));
@@ -274,7 +274,7 @@ describe("buildDockerSpawnArgs", () => {
       workspacePath: "C:\\Users\\me\\ws",
     });
     assert.ok(
-      args.some((a) => a.startsWith("C:/Users/me/ws:")),
+      args.some((arg) => arg.startsWith("C:/Users/me/ws:")),
       "expected forward-slash conversion",
     );
   });
@@ -297,8 +297,8 @@ describe("buildDockerSpawnArgs", () => {
 
   it("defaults to no sandbox auth args when omitted", async () => {
     const args = buildDockerSpawnArgs(baseParams());
-    assert.ok(!args.some((a) => a.includes(".config/gh")));
-    assert.ok(!args.some((a) => a.includes("SSH_AUTH_SOCK")));
+    assert.ok(!args.some((arg) => arg.includes(".config/gh")));
+    assert.ok(!args.some((arg) => arg.includes("SSH_AUTH_SOCK")));
   });
 });
 

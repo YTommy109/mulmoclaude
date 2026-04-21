@@ -66,15 +66,15 @@ function sendAndReceive(lines: string[], env: Record<string, string>): Promise<J
       clearTimeout(timer);
       const responses: JsonRpcResponse[] = stdout
         .split("\n")
-        .filter((l) => l.trim())
-        .map((l) => {
+        .filter((line) => line.trim())
+        .map((line) => {
           try {
-            return JSON.parse(l) as JsonRpcResponse;
+            return JSON.parse(line) as JsonRpcResponse;
           } catch {
             return null;
           }
         })
-        .filter((r): r is JsonRpcResponse => r !== null);
+        .filter((resp): resp is JsonRpcResponse => resp !== null);
 
       if (code !== 0) {
         reject(new Error(`MCP server exited with code ${code}. stderr: ${stderr.slice(0, 500)}`));
@@ -124,19 +124,19 @@ describe("MCP server subprocess smoke test", () => {
     assert.ok(responses.length >= 2, `Expected >= 2 responses, got ${responses.length}: ${JSON.stringify(responses)}`);
 
     // Initialize response
-    const initResp = responses.find((r) => r.id === 1);
+    const initResp = responses.find((resp) => resp.id === 1);
     assert.ok(initResp, "Missing initialize response");
     assert.ok(initResp.result, "Initialize response has no result");
     assert.equal(initResp.result.serverInfo?.name, "mulmoclaude");
 
     // tools/list response
-    const toolsResp = responses.find((r) => r.id === 2);
+    const toolsResp = responses.find((resp) => resp.id === 2);
     assert.ok(toolsResp, "Missing tools/list response");
     assert.ok(toolsResp.result?.tools, "tools/list has no tools array");
     assert.ok(Array.isArray(toolsResp.result.tools), "tools is not an array");
 
     // The tools we requested via PLUGIN_NAMES should be present.
-    const toolNames = toolsResp.result.tools.map((t: { name: string }) => t.name);
+    const toolNames = toolsResp.result.tools.map((tool: { name: string }) => tool.name);
     assert.ok(toolNames.includes("manageTodoList"), `manageTodoList not in tools: ${toolNames.join(", ")}`);
     assert.ok(toolNames.includes("presentMulmoScript"), `presentMulmoScript not in tools: ${toolNames.join(", ")}`);
     assert.ok(toolNames.includes("manageWiki"), `manageWiki not in tools: ${toolNames.join(", ")}`);

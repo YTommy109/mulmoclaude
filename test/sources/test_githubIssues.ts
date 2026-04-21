@@ -101,9 +101,9 @@ function makePr(over: Partial<Record<string, unknown>> = {}) {
 
 describe("resolveIssuesParams", () => {
   it("defaults to state=open, includePrs=true", () => {
-    const p = resolveIssuesParams({});
-    assert.equal(p.state, "open");
-    assert.equal(p.includePrs, true);
+    const params = resolveIssuesParams({});
+    assert.equal(params.state, "open");
+    assert.equal(params.includePrs, true);
   });
 
   it("accepts state=closed and state=all", () => {
@@ -166,37 +166,37 @@ describe("issuesUrl", () => {
 
 describe("parseGithubIssue", () => {
   it("extracts the fields we consume", () => {
-    const p = parseGithubIssue(makeIssue());
-    assert.ok(p);
-    assert.equal(p!.id, 42);
-    assert.equal(p!.number, 7);
-    assert.equal(p!.title, "Bug: thing broken");
-    assert.equal(p!.htmlUrl, "https://github.com/receptron/mulmoclaude/issues/7");
-    assert.equal(p!.updatedAt, "2026-04-10T10:00:00Z");
-    assert.equal(p!.state, "open");
-    assert.equal(p!.isPr, false);
+    const parsed = parseGithubIssue(makeIssue());
+    assert.ok(parsed);
+    assert.equal(parsed!.id, 42);
+    assert.equal(parsed!.number, 7);
+    assert.equal(parsed!.title, "Bug: thing broken");
+    assert.equal(parsed!.htmlUrl, "https://github.com/receptron/mulmoclaude/issues/7");
+    assert.equal(parsed!.updatedAt, "2026-04-10T10:00:00Z");
+    assert.equal(parsed!.state, "open");
+    assert.equal(parsed!.isPr, false);
   });
 
   it("marks PRs via the pull_request field", () => {
-    const p = parseGithubIssue(makePr());
-    assert.ok(p);
-    assert.equal(p!.isPr, true);
+    const parsed = parseGithubIssue(makePr());
+    assert.ok(parsed);
+    assert.equal(parsed!.isPr, true);
   });
 
   it("treats a pull_request field with an empty object as PR", () => {
-    const p = parseGithubIssue({ ...makeIssue(), pull_request: {} });
-    assert.ok(p);
-    assert.equal(p!.isPr, true);
+    const parsed = parseGithubIssue({ ...makeIssue(), pull_request: {} });
+    assert.ok(parsed);
+    assert.equal(parsed!.isPr, true);
   });
 
   it("coerces missing fields to null, doesn't crash", () => {
-    const p = parseGithubIssue({});
-    assert.ok(p);
-    assert.equal(p!.id, null);
-    assert.equal(p!.number, null);
-    assert.equal(p!.title, null);
-    assert.equal(p!.htmlUrl, null);
-    assert.equal(p!.isPr, false);
+    const parsed = parseGithubIssue({});
+    assert.ok(parsed);
+    assert.equal(parsed!.id, null);
+    assert.equal(parsed!.number, null);
+    assert.equal(parsed!.title, null);
+    assert.equal(parsed!.htmlUrl, null);
+    assert.equal(parsed!.isPr, false);
   });
 
   it("returns null for non-objects", () => {
@@ -244,8 +244,8 @@ describe("issueToSourceItem — filtering", () => {
   const params = { state: "open" as const, includePrs: true };
 
   it("drops PRs when includePrs is false", () => {
-    const pr = parseGithubIssue(makePr())!;
-    const item = issueToSourceItem(pr, makeSource(), { state: "open", includePrs: false }, null);
+    const prIssue = parseGithubIssue(makePr())!;
+    const item = issueToSourceItem(prIssue, makeSource(), { state: "open", includePrs: false }, null);
     assert.equal(item, null);
   });
 

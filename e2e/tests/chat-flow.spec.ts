@@ -31,12 +31,12 @@ function urlEndsWith(suffix: string): (url: URL) => boolean {
 async function mockAgentWithPubSub(page: Page, events: readonly unknown[]): Promise<void> {
   await page.routeWebSocket(
     (url) => url.pathname.startsWith("/ws/pubsub"),
-    (ws) => {
+    (webSocket) => {
       // Send the engine.io OPEN packet immediately so the socket.io
       // client can transition from "connecting" to "connected" and
       // start emitting `subscribe` events. Values are placeholders —
       // the client only inspects `sid` and the timing fields.
-      ws.send(
+      webSocket.send(
         "0" +
           JSON.stringify({
             sid: "mock-sid",
@@ -47,15 +47,15 @@ async function mockAgentWithPubSub(page: Page, events: readonly unknown[]): Prom
           }),
       );
 
-      ws.onMessage((msg) => {
+      webSocket.onMessage((msg) => {
         const text = String(msg);
         if (text === "2") {
-          ws.send("3");
+          webSocket.send("3");
           return;
         }
         // Client CONNECT to default namespace.
         if (text === "40") {
-          ws.send("40" + JSON.stringify({ sid: "mock-socket-sid" }));
+          webSocket.send("40" + JSON.stringify({ sid: "mock-socket-sid" }));
           return;
         }
         // Event: `42["subscribe", "session.…"]`.
@@ -74,9 +74,9 @@ async function mockAgentWithPubSub(page: Page, events: readonly unknown[]): Prom
         const channel = arg;
         setTimeout(() => {
           for (const event of events) {
-            ws.send("42" + JSON.stringify(["data", { channel, data: event }]));
+            webSocket.send("42" + JSON.stringify(["data", { channel, data: event }]));
           }
-          ws.send("42" + JSON.stringify(["data", { channel, data: { type: "session_finished" } }]));
+          webSocket.send("42" + JSON.stringify(["data", { channel, data: { type: "session_finished" } }]));
         }, 50);
       });
     },

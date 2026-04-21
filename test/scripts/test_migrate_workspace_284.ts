@@ -171,16 +171,16 @@ describe("invariants", () => {
   it("all target paths are under one of the 4 grouping dirs", () => {
     const groupings = ["config/", "conversations/", "data/", "artifacts/"];
     for (const { to } of DIR_MIGRATIONS) {
-      const under = groupings.some((g) => to === g.slice(0, -1) || to.startsWith(g));
+      const under = groupings.some((grouping) => to === grouping.slice(0, -1) || to.startsWith(grouping));
       assert.ok(under, `target "${to}" does not fit any grouping`);
     }
   });
 
   it("no `from` is a prefix of another `from` (would cause ordering issues)", () => {
-    for (const a of DIR_MIGRATIONS) {
-      for (const b of DIR_MIGRATIONS) {
-        if (a === b) continue;
-        assert.ok(!b.from.startsWith(`${a.from}/`), `"${b.from}" is nested under "${a.from}" — migration order matters`);
+    for (const migA of DIR_MIGRATIONS) {
+      for (const migB of DIR_MIGRATIONS) {
+        if (migA === migB) continue;
+        assert.ok(!migB.from.startsWith(`${migA.from}/`), `"${migB.from}" is nested under "${migA.from}" — migration order matters`);
       }
     }
   });

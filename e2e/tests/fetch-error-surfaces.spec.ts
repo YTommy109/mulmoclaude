@@ -33,7 +33,9 @@ test.describe("fetch failure → inline error banner (#280)", () => {
 
     await page.goto("/chat");
     // Arrange: wait for the failing GET to land before asserting on UI.
-    const failedGet = page.waitForResponse((r) => r.url().includes("/api/config") && r.request().method() === "GET" && r.status() === 500);
+    const failedGet = page.waitForResponse(
+      (response) => response.url().includes("/api/config") && response.request().method() === "GET" && response.status() === 500,
+    );
     await page.locator('[data-testid="settings-btn"]').click();
     await failedGet;
 
@@ -68,7 +70,7 @@ test.describe("fetch failure → inline error banner (#280)", () => {
     await page.goto("/chat");
 
     // Open the history popup — this is what calls fetchSessions().
-    const failedGet = page.waitForResponse((r) => r.url().includes("/api/sessions") && r.request().method() === "GET" && r.status() === 500);
+    const failedGet = page.waitForResponse((resp) => resp.url().includes("/api/sessions") && resp.request().method() === "GET" && resp.status() === 500);
     await page.locator('[data-testid="history-btn"]').click();
     await failedGet;
 

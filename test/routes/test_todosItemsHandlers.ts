@@ -5,7 +5,7 @@ import { DEFAULT_COLUMNS } from "../../server/api/routes/todosColumnsHandlers.js
 import type { TodoItem } from "../../server/api/routes/todos.js";
 
 function cols() {
-  return DEFAULT_COLUMNS.map((c) => ({ ...c }));
+  return DEFAULT_COLUMNS.map((col) => ({ ...col }));
 }
 
 function makeItem(overrides: Partial<TodoItem> = {}): TodoItem {
@@ -37,14 +37,14 @@ describe("migrateItems", () => {
       },
     ];
     const result = migrateItems(legacy, cols());
-    const a = result.find((i) => i.id === "a");
-    const b = result.find((i) => i.id === "b");
-    assert.equal(a?.status, "done");
-    assert.equal(a?.completed, true);
-    assert.equal(b?.status, "backlog");
-    assert.equal(b?.completed, false);
-    assert.equal(typeof a?.order, "number");
-    assert.equal(typeof b?.order, "number");
+    const itemA = result.find((i) => i.id === "a");
+    const itemB = result.find((i) => i.id === "b");
+    assert.equal(itemA?.status, "done");
+    assert.equal(itemA?.completed, true);
+    assert.equal(itemB?.status, "backlog");
+    assert.equal(itemB?.completed, false);
+    assert.equal(typeof itemA?.order, "number");
+    assert.equal(typeof itemB?.order, "number");
   });
 
   it("reassigns items pointing at unknown columns", () => {
@@ -330,7 +330,7 @@ describe("handleMove", () => {
     });
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
-    const todoItems = result.items.filter((i) => i.status === "todo").sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
+    const todoItems = result.items.filter((i) => i.status === "todo").sort((itemX, itemY) => (itemX.order ?? 0) - (itemY.order ?? 0));
     assert.deepEqual(
       todoItems.map((i) => i.id),
       ["b", "c", "a"],
@@ -345,7 +345,7 @@ describe("handleMove", () => {
     });
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
-    const todoItems = result.items.filter((i) => i.status === "todo").sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
+    const todoItems = result.items.filter((i) => i.status === "todo").sort((itemX, itemY) => (itemX.order ?? 0) - (itemY.order ?? 0));
     assert.deepEqual(
       todoItems.map((i) => i.id),
       ["b", "a"],

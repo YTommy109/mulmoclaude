@@ -127,12 +127,12 @@ describe("deriveSourceSlug", () => {
   });
 
   it("is deterministic for the same input", () => {
-    const a = deriveSourceSlug("Cool feed");
-    const b = deriveSourceSlug("Cool feed");
-    assert.equal(a, b);
-    const h1 = deriveSourceSlug("日本語");
-    const h2 = deriveSourceSlug("日本語");
-    assert.equal(h1, h2);
+    const slugA = deriveSourceSlug("Cool feed");
+    const slugB = deriveSourceSlug("Cool feed");
+    assert.equal(slugA, slugB);
+    const hashA = deriveSourceSlug("日本語");
+    const hashB = deriveSourceSlug("日本語");
+    assert.equal(hashA, hashB);
   });
 });
 

@@ -147,9 +147,9 @@ describe("renderRecentDaysSection", () => {
       date: `2026-01-0${i + 1}`,
     }));
     const lines = renderRecentDaysSection(days, 3);
-    const rows = lines.filter((l) => l.startsWith("- ["));
+    const rows = lines.filter((line) => line.startsWith("- ["));
     assert.equal(rows.length, 3);
-    assert.ok(lines.some((l) => /…and 2 earlier days\./.test(l)));
+    assert.ok(lines.some((line) => /…and 2 earlier days\./.test(line)));
   });
 
   it("uses singular 'day' when exactly one is collapsed", () => {
@@ -157,13 +157,13 @@ describe("renderRecentDaysSection", () => {
       date: `2026-01-0${i + 1}`,
     }));
     const lines = renderRecentDaysSection(days, 3);
-    assert.ok(lines.some((l) => /…and 1 earlier day\./.test(l)));
+    assert.ok(lines.some((line) => /…and 1 earlier day\./.test(line)));
   });
 
   it("omits the collapsed-count footer when nothing is collapsed", () => {
     const days = [{ date: "2026-04-11" }];
     const lines = renderRecentDaysSection(days, 14);
-    assert.ok(!lines.some((l) => /earlier day/.test(l)));
+    assert.ok(!lines.some((line) => /earlier day/.test(line)));
   });
 });
 

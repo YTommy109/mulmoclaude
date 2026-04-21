@@ -33,7 +33,7 @@ function extractRouteHandler(mod: RouteModule, routePath: string, method: string
   const router = mod.default as unknown as RouterInternals;
   for (const frame of router.stack) {
     if (frame.route?.path !== routePath) continue;
-    const layer = frame.route.stack.find((s) => s.method === method);
+    const layer = frame.route.stack.find((stackLayer) => stackLayer.method === method);
     if (layer) return layer.handle;
   }
   throw new Error(`route ${method.toUpperCase()} ${routePath} not registered`);
@@ -79,8 +79,8 @@ before(async () => {
   originalUserProfile = process.env.USERPROFILE;
   process.env.HOME = tmpRoot;
   process.env.USERPROFILE = tmpRoot;
-  const { workspacePath: wp } = await import("../../server/workspace/workspace.js");
-  workspaceDir = wp;
+  const { workspacePath: workspacePth } = await import("../../server/workspace/workspace.js");
+  workspaceDir = workspacePth;
   fs.mkdirSync(workspaceDir, { recursive: true });
   const routeMod = await import("../../server/api/routes/files.js");
   putHandler = extractRouteHandler(routeMod, "/api/files/content", "put");

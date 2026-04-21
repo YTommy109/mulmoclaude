@@ -326,7 +326,7 @@ test.describe("manageSkills plugin — delete (phase 1)", () => {
 
   test("clicking Delete fires DELETE /api/skills/:name and removes the row", async ({ page }) => {
     // Auto-accept the native confirm() dialog the View shows.
-    page.on("dialog", (d) => d.accept());
+    page.on("dialog", (dialog) => dialog.accept());
 
     let deletedName: string | null = null;
     await page.route(
