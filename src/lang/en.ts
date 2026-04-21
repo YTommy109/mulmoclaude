@@ -29,6 +29,28 @@ const en = {
     send: "Send",
     fileTooLarge: "File too large ({sizeMB} MB). Maximum is 30 MB.",
   },
+  sessionHistoryPanel: {
+    filters: {
+      all: "All",
+      human: "Human",
+      scheduler: "Scheduler",
+      skill: "Skill",
+      bridge: "Bridge",
+    },
+    failedToRefresh: "⚠ Failed to refresh: {error}",
+    showingLastKnown: " — showing last known list.",
+    noSessions: "No sessions yet.",
+    noMatching: "No matching sessions.",
+    running: "Running",
+    unread: "Unread",
+    noMessages: "(no messages)",
+  },
+  notificationBell: {
+    notifications: "Notifications",
+    markAllRead: "Mark all read",
+    noNotifications: "No notifications",
+    dismiss: "Dismiss",
+  },
 };
 
 export default en;
