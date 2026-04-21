@@ -12,6 +12,7 @@ import { isNonEmptyString, isRecord } from "../utils/types.js";
 import { API_ROUTES } from "../../src/config/apiRoutes.js";
 import { env } from "../system/env.js";
 import { extractFetchError } from "../utils/fetch.js";
+import { safeResponseText } from "../utils/http.js";
 import { readTextSafeSync } from "../utils/files/safe.js";
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
 
@@ -166,8 +167,8 @@ async function postJson(
     throw new Error(`Network error calling ${path}: ${errorMessage(err)}`);
   }
   if (!opts.allowHttpError && !res.ok) {
-    const text = await res.text().catch(() => "");
-    const detail = text ? `: ${text.slice(0, 500)}` : "";
+    const errBody = await safeResponseText(res, 500);
+    const detail = errBody ? `: ${errBody}` : "";
     throw new Error(`HTTP ${res.status} calling ${path}${detail}`);
   }
   return res;
@@ -198,8 +199,8 @@ async function fetchSkillsList(): Promise<{ name: string }[]> {
     throw new Error(`Network error calling /api/skills: ${errorMessage(err)}`);
   }
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`HTTP ${res.status} calling /api/skills: ${text}`);
+    const body = await safeResponseText(res);
+    throw new Error(`HTTP ${res.status} calling /api/skills: ${body}`);
   }
   const body: { skills: { name: string }[] } = await res.json();
   return body.skills;
