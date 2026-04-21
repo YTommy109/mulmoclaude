@@ -79,14 +79,14 @@ async function sendMessage(chatId: string, text: string): Promise<void> {
         const parts = chatId.split(":");
         await zulipPost("/messages", {
           type: "stream",
-          ["to"]: parts[1],
+          to: parts[1],
           topic: parts[2] ?? "MulmoClaude",
           content: chunk,
         });
       } else {
         await zulipPost("/messages", {
           type: "private",
-          ["to"]: chatId.replace("private:", ""),
+          to: chatId.replace("private:", ""),
           content: chunk,
         });
       }

@@ -45,7 +45,7 @@ async function pushMessage(userId: string, text: string): Promise<void> {
   for (let i = 0; i < messages.length; i += 5) {
     try {
       const requestBody = {
-        ["to"]: userId,
+        to: userId,
         messages: messages.slice(i, i + 5),
       };
       const res = await fetch("https://api.line.me/v2/bot/message/push", {

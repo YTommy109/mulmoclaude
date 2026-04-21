@@ -40,7 +40,7 @@ const telegramPlugin: PlatformPlugin = {
 
     return [
       {
-        ["id"]: crypto.randomUUID(),
+        id: crypto.randomUUID(),
         platform: PLATFORMS.telegram,
         senderId: String(msg.from?.id ?? "unknown"),
         chatId: String(msg.chat.id),

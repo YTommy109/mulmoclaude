@@ -57,7 +57,11 @@ export default [
         "warn",
         {
           min: 3,
+          // Don't flag object property keys — external API payloads
+          // legitimately use short keys like `id`, `to`, `n`, `e`.
+          properties: "never",
           exceptions: [
+            "_",
             "i",
             "j",
             "fs",

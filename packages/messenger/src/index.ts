@@ -45,7 +45,7 @@ async function sendTextMessage(recipientId: string, text: string): Promise<void>
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          recipient: { ["id"]: recipientId },
+          recipient: { id: recipientId },
           message: { text: chunk },
         }),
         signal: AbortSignal.timeout(15_000),

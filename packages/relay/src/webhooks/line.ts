@@ -62,7 +62,7 @@ const linePlugin: PlatformPlugin = {
       const chatId = event.source?.groupId ?? event.source?.roomId ?? event.source?.userId ?? "unknown";
 
       messages.push({
-        ["id"]: crypto.randomUUID(),
+        id: crypto.randomUUID(),
         platform: PLATFORMS.line,
         senderId: event.source?.userId ?? "unknown",
         chatId,
@@ -85,7 +85,7 @@ const linePlugin: PlatformPlugin = {
       .slice(0, MAX_LINE_MESSAGES_PER_REQUEST)
       .map((messageText) => ({ type: "text", text: messageText }));
     const url = replyToken ? "https://api.line.me/v2/bot/message/reply" : "https://api.line.me/v2/bot/message/push";
-    const body = replyToken ? { replyToken, messages } : { ["to"]: chatId, messages };
+    const body = replyToken ? { replyToken, messages } : { to: chatId, messages };
 
     let response: Response;
     try {

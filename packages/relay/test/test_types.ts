@@ -26,7 +26,7 @@ describe("PLATFORMS", () => {
 describe("RelayMessage shape", () => {
   it("can construct a valid message", () => {
     const msg = {
-      ["id"]: "test-id",
+      id: "test-id",
       platform: PLATFORMS.line,
       senderId: "user-1",
       chatId: "chat-1",

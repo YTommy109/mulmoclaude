@@ -56,7 +56,7 @@ async function sendWhatsAppMessage(recipientId: string, text: string): Promise<v
   const chunks =
     text.length === 0
       ? ["(empty reply)"]
-      : Array.from({ length: Math.ceil(text.length / MAX) }, (__unused, chunkIndex) => text.slice(chunkIndex * MAX, (chunkIndex + 1) * MAX));
+      : Array.from({ length: Math.ceil(text.length / MAX) }, (_, chunkIndex) => text.slice(chunkIndex * MAX, (chunkIndex + 1) * MAX));
 
   for (const chunk of chunks) {
     try {
@@ -68,7 +68,7 @@ async function sendWhatsAppMessage(recipientId: string, text: string): Promise<v
         },
         body: JSON.stringify({
           messaging_product: "whatsapp",
-          ["to"]: recipientId,
+          to: recipientId,
           type: "text",
           text: { body: chunk },
         }),

@@ -125,8 +125,8 @@ function buildRsaPublicKey(modulus: string, exponent: string): crypto.KeyObject 
   return crypto.createPublicKey({
     key: {
       kty: "RSA",
-      ["n"]: modulusBuffer.toString("base64"),
-      ["e"]: exponentBuffer.toString("base64"),
+      n: modulusBuffer.toString("base64"),
+      e: exponentBuffer.toString("base64"),
     },
     format: "jwk",
   });
