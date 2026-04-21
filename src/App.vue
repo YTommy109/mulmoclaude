@@ -258,27 +258,22 @@ import {
   type NotificationAction,
 } from "./types/notification";
 import { CANVAS_VIEW } from "./utils/canvas/viewMode";
-import {
-  useDynamicFavicon,
-  FAVICON_STATES,
-  type FaviconState,
-} from "./composables/useDynamicFavicon";
-import { useNotifications } from "./composables/useNotifications";
 import type { SseEvent } from "./types/sse";
-import {
-  type SessionSummary,
-  type SessionEntry,
-  type ActiveSession,
-} from "./types/session";
+import { type SessionEntry, type ActiveSession } from "./types/session";
 import { EVENT_TYPES, generationKey } from "./types/events";
 import { extractImageData, makeTextResult } from "./utils/tools/result";
-import { findScrollableChild } from "./utils/dom/scrollable";
 import { buildAgentRequestBody } from "./utils/agent/request";
+import {
+  pushResult,
+  pushErrorMessage,
+  beginUserTurn,
+  appendToLastAssistantText,
+} from "./utils/session/sessionHelpers";
+import { maybeSeedRoleDefault } from "./utils/session/seedRoleDefault";
 import {
   findPendingToolCall,
   shouldSelectAssistantText,
 } from "./utils/agent/toolCalls";
-import { mergeSessionLists } from "./utils/session/mergeSessions";
 import {
   parseSessionEntries,
   resolveSelectedUuid,
@@ -286,13 +281,20 @@ import {
 } from "./utils/session/sessionEntries";
 import { usePendingCalls } from "./composables/usePendingCalls";
 import { useClickOutside } from "./composables/useClickOutside";
+import { useKeyNavigation } from "./composables/useKeyNavigation";
+import { useDebugBeat } from "./composables/useDebugBeat";
+import { useChatScroll } from "./composables/useChatScroll";
+import { useViewLayout } from "./composables/useViewLayout";
+import { useSessionSync } from "./composables/useSessionSync";
+import { useSessionDerived } from "./composables/useSessionDerived";
+import { useFaviconState } from "./composables/useFaviconState";
+import { useMergedSessions } from "./composables/useMergedSessions";
 import { useCanvasViewMode } from "./composables/useCanvasViewMode";
 import { isCanvasViewMode } from "./utils/canvas/viewMode";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
-import { BUILTIN_ROLE_IDS } from "./config/roles";
 import { usePubSub } from "./composables/usePubSub";
-import { PUBSUB_CHANNELS, sessionChannel } from "./config/pubsubChannels";
+import { sessionChannel } from "./config/pubsubChannels";
 import { useHealth } from "./composables/useHealth";
 import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
@@ -300,69 +302,12 @@ import { useEventListeners } from "./composables/useEventListeners";
 import { provideAppApi } from "./composables/useAppApi";
 import { provideActiveSession } from "./composables/useActiveSession";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
-import { apiGet, apiPost, apiFetchRaw } from "./utils/api";
+import { apiGet, apiFetchRaw } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 
-// --- Debug beat (pub/sub) ---
-const debugBeatColor = ref<string | null>(null);
-const debugTitleStyle = computed(() =>
-  debugBeatColor.value ? { color: debugBeatColor.value } : {},
-);
-
-const { subscribe: pubsubSubscribe } = usePubSub();
-pubsubSubscribe(PUBSUB_CHANNELS.debugBeat, (data) => {
-  const msg = data as { count: number; last?: boolean };
-  if (msg.last) {
-    debugBeatColor.value = null;
-  } else {
-    debugBeatColor.value = msg.count % 2 === 0 ? "#3b82f6" : "#ef4444";
-  }
-});
-
-// --- Sessions channel (pub/sub) ---
-// Subscribe to the global `sessions` channel. The server publishes a
-// bare notification (no data) whenever any session's state changes.
-// The client refetches the session list via REST — the server is the
-// single source of truth for isRunning, hasUnread, etc.
-pubsubSubscribe(PUBSUB_CHANNELS.sessions, () => {
-  refreshSessionStates();
-});
-
-async function refreshSessionStates(): Promise<void> {
-  const summaries = await fetchSessions();
-  for (const s of summaries) {
-    const live = sessionMap.get(s.id);
-    if (!live) continue;
-    // Missing fields mean the server has no live entry — reset to defaults.
-    live.isRunning = s.isRunning ?? false;
-    live.statusMessage = s.statusMessage ?? "";
-    const unread = s.hasUnread ?? false;
-    // Don't mark the currently viewed session as unread
-    if (!(unread && s.id === currentSessionId.value)) {
-      live.hasUnread = unread;
-    }
-  }
-}
-
-async function markSessionRead(id: string): Promise<void> {
-  const result = await apiPost<{ ok: boolean }>(
-    API_ROUTES.sessions.markRead.replace(":id", encodeURIComponent(id)),
-  );
-  // The server returns `{ ok: boolean }` — a 200 with `ok: false`
-  // means the endpoint was reached but the flag wasn't actually
-  // cleared (e.g. session not found). Treat that the same as a
-  // transport failure and refetch so the sidebar doesn't go stale.
-  if (!result.ok || result.data.ok === false) {
-    // Server didn't clear the flag — refetch to restore truth.
-    await refreshSessionStates();
-  }
-}
-
-// --- Routing ---
-const route = useRoute();
-const router = useRouter();
-
 // --- Per-session state ---
+// Declared early so that pub/sub callbacks and function declarations
+// below can reference them without forward-reference ambiguity.
 const sessionMap = reactive(new Map<string, ActiveSession>());
 
 // Tracks active pub/sub subscriptions per session. The unsubscribe
@@ -376,12 +321,16 @@ const sessionSubscriptions = new Map<string, () => void>();
 // might run) take effect immediately. The URL is kept in sync via
 // navigateToSession, and external URL changes (back button, typed
 // URL) feed back into the ref via the route watcher below.
-//
-// Earlier attempt used a computed derived from route.params, but
-// router.push is async — the route param doesn't update until the
-// next tick, so any code reading currentSessionId between the push
-// and the tick sees the stale value ("") and drops messages silently.
 const currentSessionId = ref("");
+
+// --- Debug beat (pub/sub) ---
+const { debugTitleStyle } = useDebugBeat();
+
+const { subscribe: pubsubSubscribe } = usePubSub();
+
+// --- Routing ---
+const route = useRoute();
+const router = useRouter();
 
 function navigateToSession(id: string, replace = false): void {
   currentSessionId.value = id;
@@ -467,74 +416,7 @@ watch(
   },
 );
 
-const activeSession = computed(() => sessionMap.get(currentSessionId.value));
-
-const toolResults = computed(() => activeSession.value?.toolResults ?? []);
-
 // Deduplicate consecutive tool results with the same toolName for the
-// sidebar preview list. Tools like manageScheduler / manageTodoList
-// return the full item list on every call, so 4 consecutive scheduler
-// calls produce 4 identical "22 upcoming" previews. We keep only the
-// last one in each consecutive run. text-response is excluded because
-// each user/assistant message is unique content.
-// Deduplicate consecutive tool results that represent "full-state
-// refreshes" of the same collection. Tools like manageScheduler /
-// manageTodoList / manageWiki return the full list on every call
-// and set `updating: true` on the response — that flag is the
-// signal that the previous result is superseded, not a new artifact.
-//
-// Tools that create individual artifacts (generateImage,
-// presentDocument, editImage) DO NOT set `updating`, so consecutive
-// calls stay visible as separate preview cards. This matches the
-// "tennis vs golf docs" case raised in review: two different
-// documents produced in a row must both be shown.
-//
-// text-response is never collapsed because each user/assistant
-// message is unique content.
-const sidebarResults = computed(() => {
-  const all = toolResults.value;
-  return all.filter((r, i) => {
-    if (r.toolName === "text-response") return true;
-    const next = all[i + 1];
-    if (!next) return true;
-    if (next.toolName !== r.toolName) return true;
-    // Same tool as the next item — only collapse when BOTH results
-    // are full-state refreshes (updating: true). Individual-artifact
-    // tools that don't set `updating` stay visible.
-    return !(r.updating === true && next.updating === true);
-  });
-});
-
-// Read running/status from the server session list (single source of
-// truth). Falls back to sessionMap for the brief window before the
-// first fetchSessions completes.
-const currentSummary = computed(() =>
-  sessions.value.find((s) => s.id === currentSessionId.value),
-);
-// The server-side summary already merges pendingGenerations into
-// `isRunning` (see server/api/routes/sessions.ts), but pub/sub events
-// for background generations arrive faster than the next sessions
-// refetch — fold the in-memory map in so ChatInput reflects the new
-// state immediately.
-const isRunning = computed(() => {
-  const active = activeSession.value;
-  const pending = active
-    ? Object.keys(active.pendingGenerations).length > 0
-    : false;
-  return (
-    currentSummary.value?.isRunning || active?.isRunning || pending || false
-  );
-});
-const statusMessage = computed(
-  () =>
-    currentSummary.value?.statusMessage ??
-    activeSession.value?.statusMessage ??
-    "",
-);
-const toolCallHistory = computed(
-  () => activeSession.value?.toolCallHistory ?? [],
-);
-
 const selectedResultUuid = computed({
   get: () => activeSession.value?.selectedResultUuid ?? null,
   set: (val: string | null) => {
@@ -550,13 +432,6 @@ const selectedResultUuid = computed({
   },
 });
 
-const activeSessionCount = computed(
-  () => sessions.value.filter((s) => s.isRunning).length,
-);
-const unreadCount = computed(
-  () => sessions.value.filter((s) => s.hasUnread).length,
-);
-
 // --- Global state ---
 const { roles, currentRoleId, currentRole, refreshRoles } = useRoles();
 
@@ -566,24 +441,27 @@ const activePane = ref<"sidebar" | "main">("sidebar");
 
 const { sessions, showHistory, historyError, fetchSessions, toggleHistory } =
   useSessionHistory();
+const { markSessionRead } = useSessionSync({
+  sessionMap,
+  currentSessionId,
+  fetchSessions,
+});
 const { geminiAvailable, sandboxEnabled, fetchHealth } = useHealth();
 
+const {
+  activeSession,
+  toolResults,
+  sidebarResults,
+  currentSummary,
+  isRunning,
+  statusMessage,
+  toolCallHistory,
+  activeSessionCount,
+  unreadCount,
+} = useSessionDerived({ sessionMap, currentSessionId, sessions });
+
 // ── Dynamic favicon (#470) ──────────────────────────────────
-const faviconState = computed<FaviconState>(() => {
-  if (isRunning.value) return FAVICON_STATES.running;
-  const hasUnread =
-    currentSummary.value?.hasUnread ?? activeSession.value?.hasUnread ?? false;
-  if (hasUnread) return FAVICON_STATES.done;
-  return FAVICON_STATES.idle;
-});
-
-const { unreadCount: notificationUnreadCount } = useNotifications();
-const hasNotificationBadge = computed(() => notificationUnreadCount.value > 0);
-
-useDynamicFavicon({
-  state: faviconState,
-  hasNotification: hasNotificationBadge,
-});
+useFaviconState({ isRunning, currentSummary, activeSession });
 
 const toolResultsPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const chatListRef = computed(() => toolResultsPanelRef.value?.root ?? null);
@@ -608,21 +486,12 @@ const historyButtonRef = computed(
 // needs the actual popup DOM element (not the component instance).
 const historyPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const historyPopupRef = computed(() => historyPanelRef.value?.root ?? null);
-function scrollChatToBottom() {
-  nextTick(() => {
-    if (chatListRef.value) {
-      chatListRef.value.scrollTop = chatListRef.value.scrollHeight;
-    }
-  });
-}
-
-watch(() => toolResults.value.length, scrollChatToBottom);
-watch(isRunning, (running) => {
-  if (running) {
-    scrollChatToBottom();
-  } else {
-    nextTick(() => focusChatInput());
-  }
+const toolResultsLength = computed(() => toolResults.value.length);
+useChatScroll({
+  chatListRef,
+  toolResultsLength,
+  isRunning,
+  focusChatInput,
 });
 
 const { showRightSidebar, toggleRightSidebar } = useRightSidebar();
@@ -641,31 +510,13 @@ const {
 // plugin launcher button (Todos / Scheduler / Files / ...) swaps the
 // canvas content without collapsing the frame back to the sidebar
 // layout.
-const isStackLayout = computed(
-  () => canvasViewMode.value !== CANVAS_VIEW.single,
-);
-
-// Remember the last chat-oriented view (single or stack) so that
-// selecting a session from a plugin view (Todos / Files / ...) can
-// restore the user's preferred chat layout rather than leaving them
-// on the plugin view.
-const CHAT_VIEWS = [CANVAS_VIEW.single, CANVAS_VIEW.stack] as const;
-type ChatViewMode = (typeof CHAT_VIEWS)[number];
-const isChatView = (m: string): m is ChatViewMode =>
-  (CHAT_VIEWS as readonly string[]).includes(m);
-
-const lastChatViewMode = ref<ChatViewMode>(
-  isChatView(canvasViewMode.value) ? canvasViewMode.value : CANVAS_VIEW.stack,
-);
-watch(canvasViewMode, (mode) => {
-  if (isChatView(mode)) lastChatViewMode.value = mode;
-});
-
-function restoreChatViewForSession(): void {
-  if (!isChatView(canvasViewMode.value)) {
-    setCanvasViewMode(lastChatViewMode.value);
-  }
-}
+const { isStackLayout, restoreChatViewForSession, displayedCurrentSessionId } =
+  useViewLayout({
+    canvasViewMode,
+    setCanvasViewMode,
+    currentSessionId,
+    activePane,
+  });
 
 // User-initiated session switches: clicking a session tab, a history
 // row, or a chat link in FilesView. In plugin views (Todos / Files /
@@ -685,25 +536,6 @@ function handleNewSessionClick(): void {
 }
 
 // In plugin views (Todos / Files / ...) no chat is active, so the
-// session tabs should show no tab as "current". That way clicking
-// any tab — including the session the user was last on — counts as a
-// fresh selection and routes back to the chat view.
-const displayedCurrentSessionId = computed(() =>
-  isChatView(canvasViewMode.value) ? currentSessionId.value : "",
-);
-
-// Keep arrow-key navigation tied to the canvas when the sidebar list
-// doesn't exist (Stack layout has no ToolResultsPanel to navigate),
-// and restore sidebar focus when returning to Single. `immediate`
-// covers the case of an initial stack-style URL (?view=stack, …).
-watch(
-  isStackLayout,
-  (stack) => {
-    activePane.value = stack ? "main" : "sidebar";
-  },
-  { immediate: true },
-);
-
 // Measure the top bar's height whenever the history popup is about
 // to open. Defer to nextTick so the popup's v-if transition doesn't
 // race the measurement.
@@ -744,22 +576,10 @@ const selectedResult = computed(
 // that haven't been persisted to disk yet.
 // Merged list for the history pane: live sessions in `sessionMap`
 // merged with server-only sessions, sorted newest-first by
-// `updatedAt` (most recently touched floats to the top). `updatedAt`
-// is bumped in `sendMessage` for live sessions and taken from the
-// jsonl file mtime for server-only sessions.
-//
-// When a session exists on the server side (the indexer has produced
-// a title / summary / keywords for it), we prefer those fields over
-// the live-session fallback: a live session that was loaded from a
-// pre-indexed jsonl should keep showing the AI-generated title in
-// the sidebar, not regress to the raw first user message. Without
-// this merge, opening an indexed session immediately clobbered its
-// sidebar row with the first-user-message preview.
-const mergedSessions = computed((): SessionSummary[] =>
-  mergeSessionLists([...sessionMap.values()], sessions.value),
-);
-
-const tabSessions = computed(() => mergedSessions.value.slice(0, 6));
+const { mergedSessions, tabSessions } = useMergedSessions({
+  sessionMap,
+  sessions,
+});
 
 // Centralised session-switch handler: subscribe to the current session's
 // pub/sub channel so we receive real-time events even if the session is
@@ -801,86 +621,18 @@ watch(currentSessionId, (id) => {
   }
 });
 
-const SCROLL_AMOUNT = 60;
-
-function handleCanvasKeydown(e: KeyboardEvent) {
-  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-  if (
-    e.target instanceof HTMLInputElement ||
-    e.target instanceof HTMLTextAreaElement
-  ) {
-    return;
-  }
-  if (!canvasRef.value) return;
-  const scrollable = findScrollableChild(canvasRef.value);
-  if (!scrollable) return;
-  e.preventDefault();
-  const delta = e.key === "ArrowDown" ? SCROLL_AMOUNT : -SCROLL_AMOUNT;
-  scrollable.scrollBy({ top: delta, behavior: "smooth" });
-}
-
-function handleKeyNavigation(e: KeyboardEvent) {
-  if (activePane.value !== "sidebar") return;
-  if (
-    e.target instanceof HTMLInputElement ||
-    e.target instanceof HTMLTextAreaElement
-  ) {
-    return;
-  }
-  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-  e.preventDefault();
-  // Navigate the deduplicated sidebar list so duplicates are skipped.
-  const results = sidebarResults.value;
-  if (results.length === 0) return;
-  const currentIndex = results.findIndex(
-    (r) => r.uuid === selectedResultUuid.value,
-  );
-  // If the currently selected UUID is filtered out of sidebarResults
-  // (e.g. an older duplicate that was hidden by dedup), jump to the
-  // edge instead of an arbitrary index. ArrowDown → first item;
-  // ArrowUp → last item.
-  if (currentIndex === -1) {
-    selectedResultUuid.value =
-      e.key === "ArrowDown"
-        ? results[0].uuid
-        : results[results.length - 1].uuid;
-    return;
-  }
-  const nextIndex =
-    e.key === "ArrowUp"
-      ? Math.max(0, currentIndex - 1)
-      : Math.min(results.length - 1, currentIndex + 1);
-  selectedResultUuid.value = results[nextIndex].uuid;
-}
+const { handleCanvasKeydown, handleKeyNavigation } = useKeyNavigation({
+  canvasRef,
+  activePane,
+  sidebarResults,
+  selectedResultUuid,
+});
 
 const suggestionsPanelRef = ref<{ collapse: () => void } | null>(null);
 
 function onQueryEdit(query: string): void {
   userInput.value = query;
   nextTick(() => focusChatInput());
-}
-
-/** Push a result and record its timestamp in one place. */
-function pushResult(session: ActiveSession, result: ToolResultComplete): void {
-  session.toolResults.push(result);
-  session.resultTimestamps.set(result.uuid, Date.now());
-}
-
-// Surface a server-side or transport-level error as a card in the
-// session's chat so the user actually sees it. The status-message
-// channel can't be used because `finally` clears it the moment the
-// run ends.
-function pushErrorMessage(session: ActiveSession, message: string): void {
-  const text = `[Error] ${message}`;
-  const errorResult: ToolResultComplete = {
-    uuid: uuidv4(),
-    toolName: "text-response",
-    message: text,
-    title: "Error",
-    data: { text, role: "assistant", transportKind: "text-rest" },
-  };
-  pushResult(session, errorResult);
-  session.selectedResultUuid = errorResult.uuid;
 }
 
 function handleUpdateResult(updatedResult: ToolResultComplete) {
@@ -954,45 +706,6 @@ function onRoleChange() {
   restoreChatViewForSession();
   const session = createNewSession(currentRoleId.value);
   maybeSeedRoleDefault(session);
-}
-
-// Some roles ship with a "default view" that's useful before any
-// chat exchange. Seed a synthetic tool_result so the canvas renders
-// the plugin immediately on role switch, without requiring the user
-// to first ask Claude to list anything. The result is client-only
-// (never persisted server-side) — any subsequent LLM tool call will
-// replace / augment it in the normal way.
-async function maybeSeedRoleDefault(session: ActiveSession): Promise<void> {
-  if (session.roleId !== BUILTIN_ROLE_IDS.sourceManager) return;
-  const response = await apiGet<{ sources?: unknown[] }>(
-    API_ROUTES.sources.list,
-  );
-  if (!response.ok) {
-    // Non-fatal: the Add / Rebuild buttons remain reachable via
-    // chat as soon as the user sends any message. Still surface
-    // a visible hint so the blank canvas isn't a mystery.
-    if (session.toolResults.length === 0) {
-      const detail =
-        response.status === 0 ? response.error : `HTTP ${response.status}`;
-      pushErrorMessage(
-        session,
-        `Could not preload sources (${detail}). Ask Claude to list them, or check the server log.`,
-      );
-    }
-    return;
-  }
-  const result: ToolResultComplete = {
-    uuid: uuidv4(),
-    toolName: "manageSource",
-    message: "Loaded source registry.",
-    title: "Information sources",
-    data: { sources: response.data.sources ?? [] },
-  };
-  // Skip if the user has already produced their own result in the
-  // meantime (fast typer + slow fetch race).
-  if (session.toolResults.length > 0) return;
-  pushResult(session, result);
-  session.selectedResultUuid = result.uuid;
 }
 
 async function loadSession(id: string) {
@@ -1097,22 +810,6 @@ async function refreshSessionTranscript(sessionId: string): Promise<void> {
   }
 }
 
-// Seed the session state for a fresh user turn. Not pure (mutates
-// session), but isolated so sendMessage doesn't have the init
-// pattern inline. Writes `runStartIndex` onto the session — the
-// index into toolResults at which this run's outputs start, used
-// later to decide whether a trailing text response becomes the
-// selected canvas result.
-function beginUserTurn(session: ActiveSession, message: string): void {
-  // Append the user's message so it renders immediately. State like
-  // isRunning / statusMessage is NOT set here — it comes from the
-  // server via the `sessions` channel notification → refetch cycle,
-  // keeping all clients (including the initiator) in sync.
-  session.updatedAt = new Date().toISOString();
-  pushResult(session, makeTextResult(message, "user"));
-  session.runStartIndex = session.toolResults.length;
-}
-
 // Subscribe to a session's pub/sub channel so events from the server
 // (tool_call, text, tool_result, session_finished, etc.) arrive via
 // WebSocket and are dispatched into the session's reactive state.
@@ -1198,20 +895,6 @@ interface AgentEventContext {
 // result in the session. Returns true if appended, false if a new
 // result should be created instead. Extracted to keep
 // applyAgentEvent under the cognitive-complexity threshold.
-function appendToLastAssistantText(
-  session: ActiveSession,
-  text: string,
-): boolean {
-  const last = session.toolResults[session.toolResults.length - 1];
-  const lastData = last?.data as { role?: string; text?: string } | undefined;
-  if (last?.toolName !== "text-response" || lastData?.role !== "assistant") {
-    return false;
-  }
-  lastData.text = (lastData.text ?? "") + text;
-  last.message = (last.message ?? "") + text;
-  return true;
-}
-
 // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing 15; streaming append adds 1
 async function applyAgentEvent(
   event: SseEvent,
