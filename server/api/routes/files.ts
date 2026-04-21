@@ -230,7 +230,7 @@ function resolveRefPath(prefixedPath: string): string | null {
   const remainder = slashIdx >= 0 ? afterPrefix.slice(slashIdx + 1) : "";
 
   const entries = getCachedReferenceDirs();
-  const entry = entries.find((e) => e.label === label);
+  const entry = entries.find((refEntry) => refEntry.label === label);
   if (!entry) return null;
 
   let rootReal: string;
@@ -393,10 +393,10 @@ export async function buildTreeAsync(absPath: string, relPath: string, gitFilter
     return buildTreeAsync(childAbs, childRel, localFilter);
   });
   const resolved = await Promise.all(childPromises);
-  const children = resolved.filter((c): c is TreeNode => c !== null);
-  children.sort((a, b) => {
-    if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
-    return a.name.localeCompare(b.name);
+  const children = resolved.filter((childNode): childNode is TreeNode => childNode !== null);
+  children.sort((leftChild, rightChild) => {
+    if (leftChild.type !== rightChild.type) return leftChild.type === "dir" ? -1 : 1;
+    return leftChild.name.localeCompare(rightChild.name);
   });
   return {
     name: relPath ? path.basename(relPath) : "",
@@ -460,10 +460,10 @@ export async function listDirShallow(absPath: string, relPath: string, gitFilter
     };
   });
   const resolved = await Promise.all(childPromises);
-  const children = resolved.filter((c): c is TreeNode => c !== null);
-  children.sort((a, b) => {
-    if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
-    return a.name.localeCompare(b.name);
+  const children = resolved.filter((childNode): childNode is TreeNode => childNode !== null);
+  children.sort((leftChild, rightChild) => {
+    if (leftChild.type !== rightChild.type) return leftChild.type === "dir" ? -1 : 1;
+    return leftChild.name.localeCompare(rightChild.name);
   });
   return {
     name: relPath ? path.basename(relPath) : "",

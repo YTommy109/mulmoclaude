@@ -14,10 +14,10 @@ export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
 const BASE_ALLOWED_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch"];
 
-const MCP_PLUGINS = new Set([...MCP_PLUGIN_NAMES, ...mcpTools.filter(isMcpToolEnabled).map((t) => t.definition.name)]);
+const MCP_PLUGINS = new Set([...MCP_PLUGIN_NAMES, ...mcpTools.filter(isMcpToolEnabled).map((toolDef) => toolDef.definition.name)]);
 
 export function getActivePlugins(role: Role): string[] {
-  return role.availablePlugins.filter((p) => MCP_PLUGINS.has(p));
+  return role.availablePlugins.filter((pluginName) => MCP_PLUGINS.has(pluginName));
 }
 
 export interface McpConfigParams {
@@ -71,12 +71,12 @@ function prepareUserStdioServer(spec: Extract<McpServerSpec, { type: "stdio" }>,
 
 export function prepareUserServers(userServers: Record<string, McpServerSpec>, useDocker: boolean, hostWorkspacePath: string): Record<string, McpServerSpec> {
   const out: Record<string, McpServerSpec> = {};
-  for (const [id, spec] of Object.entries(userServers)) {
+  for (const [serverId, spec] of Object.entries(userServers)) {
     if (spec.enabled === false) continue;
     if (spec.type === "http") {
-      out[id] = prepareUserHttpServer(spec, useDocker);
+      out[serverId] = prepareUserHttpServer(spec, useDocker);
     } else {
-      out[id] = prepareUserStdioServer(spec, useDocker, hostWorkspacePath);
+      out[serverId] = prepareUserStdioServer(spec, useDocker, hostWorkspacePath);
     }
   }
   return out;
@@ -137,9 +137,9 @@ function buildMulmoclaudeServer(params: { chatSessionId: string; port: number; a
 // defence-in-depth.
 function excludeReservedKeys(servers: Record<string, McpServerSpec>): Record<string, McpServerSpec> {
   const out: Record<string, McpServerSpec> = {};
-  for (const [id, spec] of Object.entries(servers)) {
-    if (id === "mulmoclaude") continue;
-    out[id] = spec;
+  for (const [serverId, spec] of Object.entries(servers)) {
+    if (serverId === "mulmoclaude") continue;
+    out[serverId] = spec;
   }
   return out;
 }
@@ -165,12 +165,12 @@ export function buildMcpConfig(params: McpConfigParams): object {
 // we're running natively (since the sandbox image is minimal in Docker).
 export function userServerAllowedToolNames(userServers: Record<string, McpServerSpec>, useDocker: boolean): string[] {
   const names: string[] = [];
-  for (const [id, spec] of Object.entries(userServers)) {
+  for (const [serverId, spec] of Object.entries(userServers)) {
     if (spec.enabled === false) continue;
     // Stdio servers are dropped under Docker because the sandbox
     // image is too minimal to run most of them (see #162).
     if (spec.type === "stdio" && useDocker) continue;
-    names.push(`mcp__${id}`);
+    names.push(`mcp__${serverId}`);
   }
   return names;
 }
@@ -188,7 +188,7 @@ export interface CliArgsParams {
 export function buildCliArgs(params: CliArgsParams): string[] {
   const { systemPrompt, activePlugins, claudeSessionId, mcpConfigPath, extraAllowedTools = [] } = params;
 
-  const mcpToolNames = activePlugins.map((p) => `mcp__mulmoclaude__${p}`);
+  const mcpToolNames = activePlugins.map((pluginName) => `mcp__mulmoclaude__${pluginName}`);
   const allowedTools = [...BASE_ALLOWED_TOOLS, ...extraAllowedTools, ...mcpToolNames];
 
   // stream-json input mode: the user message is streamed through
@@ -351,7 +351,7 @@ export function buildDockerSpawnArgs(params: DockerSpawnArgsParams): string[] {
     sandboxAuthArgs = [],
     sshAgentForward = false,
   } = params;
-  const toDockerPath = (p: string): string => p.replace(/\\/g, "/");
+  const toDockerPath = (hostPath: string): string => hostPath.replace(/\\/g, "/");
   const extraHosts: string[] = platform === "linux" ? ["--add-host", "host.docker.internal:host-gateway"] : [];
 
   return [

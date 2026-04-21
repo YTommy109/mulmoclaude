@@ -253,12 +253,17 @@ export function buildPluginPromptSections(role: Role): string[] {
   // Some package plugins use an older gui-chat-protocol without the `prompt`
   // field, so access it via `in` check to keep TypeScript happy.
   const defPrompts = Object.fromEntries(
-    PLUGIN_DEFS.filter((d) => "prompt" in d && d.prompt && allowedPlugins.has(d.name)).map((d) => [d.name, (d as unknown as { prompt: string }).prompt]),
+    PLUGIN_DEFS.filter((definition) => "prompt" in definition && definition.prompt && allowedPlugins.has(definition.name)).map((definition) => [
+      definition.name,
+      (definition as unknown as { prompt: string }).prompt,
+    ]),
   );
 
   // Collect prompts from MCP tools
   const mcpToolPrompts = Object.fromEntries(
-    mcpTools.filter((t) => t.prompt && allowedPlugins.has(t.definition.name) && isMcpToolEnabled(t)).map((t) => [t.definition.name, t.prompt as string]),
+    mcpTools
+      .filter((toolDef) => toolDef.prompt && allowedPlugins.has(toolDef.definition.name) && isMcpToolEnabled(toolDef))
+      .map((toolDef) => [toolDef.definition.name, toolDef.prompt as string]),
   );
 
   // MCP tool prompts override definition prompts if both exist
@@ -310,7 +315,7 @@ function buildInlinedHelpFiles(rolePrompt: string, workspacePath: string): strin
       // Read() the stale legacy location.
       return content ? `### ${WORKSPACE_DIRS.helps}/${name}\n\n${content}` : null;
     })
-    .filter((s): s is string => s !== null);
+    .filter((section): section is string => section !== null);
 }
 
 // Wrap a list of sub-entries under a single markdown heading, or
@@ -345,5 +350,5 @@ export function buildSystemPrompt(params: SystemPromptParams): string {
     headingSection("Plugin Instructions", buildPluginPromptSections(role)),
   ];
 
-  return sections.filter((s): s is string => s !== null).join("\n\n");
+  return sections.filter((section): section is string => section !== null).join("\n\n");
 }

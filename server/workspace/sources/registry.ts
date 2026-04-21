@@ -100,43 +100,43 @@ function parseValue(raw: string): string | string[] {
   if (arrayMatch) {
     return arrayMatch[1]
       .split(",")
-      .map((s) => unquote(s.trim()))
-      .filter((s) => s.length > 0);
+      .map((segment) => unquote(segment.trim()))
+      .filter((segment) => segment.length > 0);
   }
   return unquote(raw);
 }
 
-function unquote(s: string): string {
+function unquote(input: string): string {
   // Double-quoted strings: yamlScalar writes JSON-compatible escape
   // sequences (\\ for \, \" for "), so JSON.parse reverses them in
   // one shot. Fall back to a plain strip if the string is
   // double-quoted but somehow malformed.
-  if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
+  if (input.length >= 2 && input.startsWith('"') && input.endsWith('"')) {
     try {
-      return JSON.parse(s);
+      return JSON.parse(input);
     } catch {
-      return s.slice(1, -1);
+      return input.slice(1, -1);
     }
   }
   // Single-quoted scalars follow YAML's doubling convention: '' → '.
-  if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) {
-    return s.slice(1, -1).replace(/''/g, "'");
+  if (input.length >= 2 && input.startsWith("'") && input.endsWith("'")) {
+    return input.slice(1, -1).replace(/''/g, "'");
   }
-  return s;
+  return input;
 }
 
 // --- Source validation / construction -----------------------------------
 
 function stringField(fields: Map<string, string | string[]>, key: string): string | null {
-  const v = fields.get(key);
-  return isNonEmptyString(v) ? v : null;
+  const value = fields.get(key);
+  return isNonEmptyString(value) ? value : null;
 }
 
 function numberField(fields: Map<string, string | string[]>, key: string, defaultValue: number): number {
-  const v = fields.get(key);
-  if (typeof v !== "string") return defaultValue;
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : defaultValue;
+  const value = fields.get(key);
+  if (typeof value !== "string") return defaultValue;
+  const parsedNumber = Number(value);
+  return Number.isFinite(parsedNumber) && parsedNumber > 0 ? Math.floor(parsedNumber) : defaultValue;
 }
 
 // Default per-fetch cap. Fetchers treat it as a hint — if the
@@ -302,7 +302,7 @@ export async function listSources(workspaceRoot: string): Promise<Source[]> {
     }
   }
   // Deterministic sort by slug so callers can rely on stable order.
-  out.sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0));
+  out.sort((leftSource, rightSource) => (leftSource.slug < rightSource.slug ? -1 : leftSource.slug > rightSource.slug ? 1 : 0));
   return out;
 }
 

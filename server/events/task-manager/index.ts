@@ -52,8 +52,8 @@ function isDue(now: Date, schedule: TaskSchedule, tickMs: number): boolean {
   }
 
   if (schedule.type === SCHEDULE_TYPES.daily) {
-    const [hh, mm] = schedule.time.split(":").map(Number);
-    const targetMs = hh * ONE_HOUR_MS + mm * ONE_MINUTE_MS;
+    const [hours, minutes] = schedule.time.split(":").map(Number);
+    const targetMs = hours * ONE_HOUR_MS + minutes * ONE_MINUTE_MS;
     const msSinceMidnight = now.getUTCHours() * ONE_HOUR_MS + now.getUTCMinutes() * ONE_MINUTE_MS + now.getUTCSeconds() * ONE_SECOND_MS;
     const rounded = Math.floor(msSinceMidnight / tickMs) * tickMs;
     return rounded === targetMs;
@@ -92,7 +92,7 @@ export function createTaskManager(options?: TaskManagerOptions): ITaskManager {
       succeeded.add(def.id);
     } catch (err) {
       log.error("task-manager", "task failed", {
-        id: def.id,
+        ["id"]: def.id,
         error: String(err),
       });
     }
@@ -138,20 +138,20 @@ export function createTaskManager(options?: TaskManagerOptions): ITaskManager {
         throw new Error(`[task-manager] Task "${def.id}" is already registered`);
       }
       registry.set(def.id, def);
-      log.info("task-manager", "registered", { id: def.id });
+      log.info("task-manager", "registered", { ["id"]: def.id });
     },
 
     updateSchedule(taskId: string, schedule: TaskSchedule): boolean {
       const def = registry.get(taskId);
       if (!def) return false;
       def.schedule = schedule;
-      log.info("task-manager", "schedule updated", { id: taskId });
+      log.info("task-manager", "schedule updated", { ["id"]: taskId });
       return true;
     },
 
     removeTask(taskId: string) {
       if (registry.delete(taskId)) {
-        log.info("task-manager", "removed", { id: taskId });
+        log.info("task-manager", "removed", { ["id"]: taskId });
       }
     },
 
@@ -170,11 +170,11 @@ export function createTaskManager(options?: TaskManagerOptions): ITaskManager {
     },
 
     listTasks() {
-      return [...registry.values()].map((d) => ({
-        id: d.id,
-        description: d.description,
-        schedule: d.schedule,
-        dependsOn: d.dependsOn,
+      return [...registry.values()].map((taskDef) => ({
+        ["id"]: taskDef.id,
+        description: taskDef.description,
+        schedule: taskDef.schedule,
+        dependsOn: taskDef.dependsOn,
       }));
     },
   };
