@@ -32,6 +32,21 @@ import json, re, os
 root = '.'
 pkg = json.load(open(f'{root}/packages/mulmoclaude/package.json'))
 have = set(pkg.get('dependencies', {}).keys())
+
+# Extract the `from "..."` specifier from every top-level
+# import / export-from. Two passes:
+#   1. Single-line imports  — `import X from "pkg"` or
+#                              `export { a } from "pkg"`
+#   2. Multi-line imports   — `import {\n  a, b,\n} from "pkg"` etc.
+# Anything else (comments, Array.from, string literals) is ignored.
+SINGLE = re.compile(
+    r"^\s*(?:import|export)\b[^{\n]*\sfrom\s+['\"]([^./][^'\"]*)['\"]",
+    re.MULTILINE,
+)
+MULTI = re.compile(
+    r"^\s*(?:import|export)\s*\{[^}]*\}\s*from\s+['\"]([^./][^'\"]*)['\"]",
+    re.MULTILINE | re.DOTALL,
+)
 imports = set()
 for dirpath, _, files in os.walk(f'{root}/server'):
     if 'node_modules' in dirpath: continue
@@ -39,10 +54,11 @@ for dirpath, _, files in os.walk(f'{root}/server'):
         if not f.endswith('.ts'): continue
         with open(os.path.join(dirpath, f)) as fh:
             txt = fh.read()
-        # single- and multi-line imports both
-        for m in re.finditer(r"from\s+['\"]([^./][^'\"]*)['\"]", txt):
-            name = m.group(1)
-            imports.add('/'.join(name.split('/')[:2]) if name.startswith('@') else name.split('/')[0])
+        for rx in (SINGLE, MULTI):
+            for m in rx.finditer(txt):
+                name = m.group(1)
+                imports.add('/'.join(name.split('/')[:2]) if name.startswith('@') else name.split('/')[0])
+
 builtins = {'fs','path','os','http','url','util','stream','net','crypto','child_process','events','zlib','module'}
 missing = sorted(n for n in imports if n not in have and n not in builtins and not n.startswith('node:'))
 print('MISSING from mulmoclaude deps:', missing or 'none')
@@ -56,15 +72,32 @@ For each missing package, read the root `package.json` for the version and add i
 If local `packages/<name>/src/` has more exports than the already-published `dist/`, mulmoclaude will resolve the published (stale) build at runtime and fail. Check each workspace package mulmoclaude depends on:
 
 ```bash
+# Count only runtime (value) exports. TS `export type …` / `export
+# interface …` disappear at compile time, so counting them in src/
+# would always look "drifted" vs dist/.
+count_value_exports() {
+  # strips type-only lines, then counts remaining `^export` occurrences
+  grep -E '^export' "$1" 2>/dev/null \
+    | grep -Ev '^export (type|interface)\b' \
+    | grep -Ev '^export \{ *type\b' \
+    | wc -l | tr -d ' '
+}
+
 for pkg in protocol client chat-service; do
   local=$(jq -r .version packages/$pkg/package.json)
   remote=$(npm view @mulmobridge/$pkg version 2>/dev/null)
-  local_exports=$(grep -c '^export' packages/$pkg/src/index.ts)
-  # The published dist may not be in node_modules yet — install briefly if needed.
-  pub_exports=$(grep -c '^export' node_modules/@mulmobridge/$pkg/dist/index.js 2>/dev/null || echo '?')
-  echo "@mulmobridge/$pkg: ver local=$local registry=$remote, exports local=$local_exports pub=$pub_exports"
+  local_ex=$(count_value_exports "packages/$pkg/src/index.ts")
+  pub_ex=$(count_value_exports "node_modules/@mulmobridge/$pkg/dist/index.js")
+  # Flag a drift only when local source has MORE value exports than the
+  # currently-installed dist — that's the scenario where consumers will
+  # crash with "does not provide an export named X".
+  flag=""
+  [ -n "$local_ex" ] && [ -n "$pub_ex" ] && [ "$local_ex" -gt "$pub_ex" ] && flag=" ⚠ DRIFT"
+  echo "@mulmobridge/$pkg: ver local=$local registry=$remote, value-exports local=$local_ex pub=$pub_ex$flag"
 done
 ```
+
+The `⚠ DRIFT` flag is the signal that the package needs a bump + republish before mulmoclaude can be published. No flag = good to ship.
 
 For each drifted package (local exports > pub exports, OR versions match but source ≠ published):
 
