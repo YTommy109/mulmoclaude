@@ -12,9 +12,9 @@
     "packages/*"
   ],
   "scripts": {
-    "predev": "yarn build:packages",
+    "predev": "yarn build:packages:dev",
     "dev": "concurrently -n server,client -k \"npm run server\" \"sleep 2 && vite\"",
-    "predev:debug": "yarn build:packages",
+    "predev:debug": "yarn build:packages:dev",
     "dev:debug": "concurrently -n server,client -k \"npm run server:debug\" \"sleep 2 && vite\"",
     "dev:client": "vite",
     "dev:server": "tsx server/index.ts",
@@ -31,7 +31,8 @@
     "typecheck:test": "tsc -p test/tsconfig.json --noEmit",
     "typecheck:e2e": "tsc -p e2e/tsconfig.json --noEmit",
     "build:client": "vite build",
-    "build:packages": "yarn workspace @mulmobridge/protocol run build && yarn workspace @receptron/task-scheduler run build && yarn workspace @mulmobridge/client run build && yarn workspace @mulmobridge/chat-service run build && yarn workspace @mulmobridge/cli run build && yarn workspace @mulmobridge/telegram run build && yarn workspace @mulmobridge/mock-server run build && yarn workspace @mulmobridge/discord run build && yarn workspace @mulmobridge/slack run build && yarn workspace @mulmobridge/line run build && yarn workspace @mulmobridge/whatsapp run build && yarn workspace @mulmobridge/matrix run build && yarn workspace @mulmobridge/irc run build",
+    "build:packages:dev": "concurrently --kill-others-on-fail \"yarn workspace @mulmobridge/protocol run build\" \"yarn workspace @receptron/task-scheduler run build\" && concurrently --kill-others-on-fail \"yarn workspace @mulmobridge/client run build\" \"yarn workspace @mulmobridge/chat-service run build\"",
+    "build:packages": "concurrently --kill-others-on-fail \"yarn workspace @mulmobridge/protocol run build\" \"yarn workspace @receptron/task-scheduler run build\" && concurrently --kill-others-on-fail \"yarn workspace @mulmobridge/client run build\" \"yarn workspace @mulmobridge/chat-service run build\" \"yarn workspace @mulmobridge/mock-server run build\" && concurrently --kill-others-on-fail \"yarn workspace @mulmobridge/cli run build\" \"yarn workspace @mulmobridge/telegram run build\" \"yarn workspace @mulmobridge/discord run build\" \"yarn workspace @mulmobridge/slack run build\" \"yarn workspace @mulmobridge/line run build\" \"yarn workspace @mulmobridge/whatsapp run build\" \"yarn workspace @mulmobridge/matrix run build\" \"yarn workspace @mulmobridge/irc run build\"",
     "build": "yarn build:packages && vite build",
     "test": "tsx --test ./test/*/test_*.ts ./test/*/*/test_*.ts ./test/*/*/*/test_*.ts && yarn workspaces run test",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
