@@ -13,6 +13,22 @@ const en = {
     save: "Save",
     cancel: "Cancel",
   },
+  sessionTabBar: {
+    newSession: "New session",
+    sessionHistory: "Session history",
+    // vue-i18n pluralization: `t(key, count)` picks singular / plural
+    // based on the number. `{count}` is interpolated.
+    activeSessions: "{count} active session (agent running) | {count} active sessions (agent running)",
+    unreadReplies: "{count} unread reply | {count} unread replies",
+  },
+  chatInput: {
+    placeholder: "Type a task...",
+    expandEditor: "Expand editor",
+    composeMessage: "Compose message",
+    sendHint: "Cmd+Enter to send",
+    send: "Send",
+    fileTooLarge: "File too large ({sizeMB} MB). Maximum is 30 MB.",
+  },
 };
 
 export default en;
