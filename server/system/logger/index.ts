@@ -23,7 +23,7 @@ export function createLogger(config: LoggerConfig): Logger {
 
   function emit(level: LogLevel, prefix: string, message: string, data?: Record<string, unknown>): void {
     const record: LogRecord = {
-      ["ts"]: new Date().toISOString(),
+      time: new Date().toISOString(),
       level,
       prefix,
       message,

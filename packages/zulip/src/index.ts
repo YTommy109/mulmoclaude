@@ -26,8 +26,8 @@ const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });
 const apiBase = `${zulipUrl.replace(/\/$/, "")}/api/v1`;
 const authHeader = "Basic " + Buffer.from(`${email}:${apiKey}`).toString("base64");
 
-mulmo.onPush((ev) => {
-  sendMessage(ev.chatId, ev.message).catch((err) => console.error(`[zulip] push send failed: ${err}`));
+mulmo.onPush((pushEvent) => {
+  sendMessage(pushEvent.chatId, pushEvent.message).catch((err) => console.error(`[zulip] push send failed: ${err}`));
 });
 
 // ── Zulip API helpers ───────────────────────────────────────────
@@ -55,8 +55,8 @@ async function zulipPost(path: string, params: Record<string, string>): Promise<
 }
 
 async function zulipGet(path: string, params?: Record<string, string>): Promise<JsonRecord> {
-  const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
-  const res = await fetch(`${apiBase}${path}${qs}`, {
+  const queryString = params ? `?${new URLSearchParams(params).toString()}` : "";
+  const res = await fetch(`${apiBase}${path}${queryString}`, {
     headers: { Authorization: authHeader },
     signal: AbortSignal.timeout((POLL_TIMEOUT_SEC + 10) * 1000),
   });
@@ -98,8 +98,8 @@ async function sendMessage(chatId: string, text: string): Promise<void> {
 
 // ── Event polling ───────────────────────────────────────────────
 
-function isObj(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
+function isObj(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 async function registerQueue(): Promise<{
@@ -146,7 +146,7 @@ async function pollLoop(): Promise<void> {
         last_event_id = reg.last_event_id;
       } catch (regErr) {
         console.error(`[zulip] re-register failed: ${regErr}`);
-        await new Promise((r) => setTimeout(r, 5000));
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 5000));
       }
     }
   }

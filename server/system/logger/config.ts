@@ -54,28 +54,28 @@ export const DEFAULT_CONFIG: LoggerConfig = {
 
 function parseLevel(raw: string | undefined): LogLevel | undefined {
   if (!raw) return undefined;
-  const v = raw.toLowerCase();
-  return v in LEVEL_PRIORITY ? (v as LogLevel) : undefined;
+  const normalized = raw.toLowerCase();
+  return normalized in LEVEL_PRIORITY ? (normalized as LogLevel) : undefined;
 }
 
 function parseFormat(raw: string | undefined): LogFormat | undefined {
   if (!raw) return undefined;
-  const v = raw.toLowerCase();
-  return v === "text" || v === "json" ? v : undefined;
+  const normalized = raw.toLowerCase();
+  return normalized === "text" || normalized === "json" ? normalized : undefined;
 }
 
 function parseBool(raw: string | undefined): boolean | undefined {
   if (raw === undefined) return undefined;
-  const v = raw.toLowerCase();
-  if (v === "true" || v === "1" || v === "yes") return true;
-  if (v === "false" || v === "0" || v === "no") return false;
+  const normalized = raw.toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes") return true;
+  if (normalized === "false" || normalized === "0" || normalized === "no") return false;
   return undefined;
 }
 
 function parsePositiveInt(raw: string | undefined): number | undefined {
   if (raw === undefined) return undefined;
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : undefined;
+  const num = Number(raw);
+  return Number.isInteger(num) && num > 0 ? num : undefined;
 }
 
 export type Env = Partial<Record<string, string>>;

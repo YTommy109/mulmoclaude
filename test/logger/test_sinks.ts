@@ -8,7 +8,7 @@ import type { LogRecord } from "../../server/system/logger/types.js";
 
 function record(overrides: Partial<LogRecord> = {}): LogRecord {
   return {
-    ts: "2026-04-13T07:12:45.123Z",
+    time: "2026-04-13T07:12:45.123Z",
     level: "info",
     prefix: "agent",
     message: "hello",

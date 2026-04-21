@@ -29,8 +29,8 @@ if (!pageAccessToken || !verifyToken || !appSecret) {
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });
 
-mulmo.onPush((ev) => {
-  sendTextMessage(ev.chatId, ev.message).catch((err) => console.error(`[messenger] push send failed: ${err}`));
+mulmo.onPush((pushEvent) => {
+  sendTextMessage(pushEvent.chatId, pushEvent.message).catch((err) => console.error(`[messenger] push send failed: ${err}`));
 });
 
 // ── Messenger Send API ──────────────────────────────────────────
@@ -76,11 +76,11 @@ const RATE_WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 120;
 const requestCounts = new Map<string, { count: number; resetAt: number }>();
 
-function rateLimitCheck(ip: string): boolean {
+function rateLimitCheck(clientIp: string): boolean {
   const now = Date.now();
-  const entry = requestCounts.get(ip);
+  const entry = requestCounts.get(clientIp);
   if (!entry || now >= entry.resetAt) {
-    requestCounts.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    requestCounts.set(clientIp, { count: 1, resetAt: now + RATE_WINDOW_MS });
     return true;
   }
   entry.count += 1;
@@ -138,8 +138,8 @@ app.post("/webhook", async (req: Request, res: Response) => {
   await handleWebhookBody(rawBody);
 });
 
-function redactId(id: string): string {
-  return id.length > 6 ? `${id.slice(0, 3)}***${id.slice(-3)}` : "***";
+function redactId(resourceId: string): string {
+  return resourceId.length > 6 ? `${resourceId.slice(0, 3)}***${resourceId.slice(-3)}` : "***";
 }
 
 async function processOneMessage(msg: ExtractedMessage): Promise<void> {
@@ -164,8 +164,8 @@ interface ExtractedMessage {
   text: string;
 }
 
-function isObj(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
+function isObj(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function parseOneEvent(event: unknown): ExtractedMessage | null {

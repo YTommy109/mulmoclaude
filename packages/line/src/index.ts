@@ -30,30 +30,31 @@ if (!channelSecret || !channelAccessToken) {
 
 const client = createBridgeClient({ transportId: TRANSPORT_ID });
 
-client.onPush((ev) => {
-  pushMessage(ev.chatId, ev.message).catch((err) => console.error(`[line] push send failed: ${err}`));
+client.onPush((pushEvent) => {
+  pushMessage(pushEvent.chatId, pushEvent.message).catch((err) => console.error(`[line] push send failed: ${err}`));
 });
 
 // ── LINE API helpers ────────────────────────────────────────────
 
 async function pushMessage(userId: string, text: string): Promise<void> {
-  const messages = chunkText(text, 5000).map((t) => ({
+  const messages = chunkText(text, 5000).map((messageText) => ({
     type: "text",
-    text: t,
+    text: messageText,
   }));
   // LINE allows max 5 messages per push
   for (let i = 0; i < messages.length; i += 5) {
     try {
+      const requestBody = {
+        to: userId,
+        messages: messages.slice(i, i + 5),
+      };
       const res = await fetch("https://api.line.me/v2/bot/message/push", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${channelAccessToken}`,
         },
-        body: JSON.stringify({
-          to: userId,
-          messages: messages.slice(i, i + 5),
-        }),
+        body: JSON.stringify(requestBody),
         signal: AbortSignal.timeout(30_000),
       });
       if (!res.ok) {

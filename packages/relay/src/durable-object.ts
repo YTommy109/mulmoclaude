@@ -29,7 +29,7 @@ export class RelayDurableObject implements DurableObject {
    *  hibernation. Filters out CLOSING/CLOSED sockets and closes
    *  any extras from reconnect races. */
   private getSocket(): WebSocket | null {
-    const sockets = this.state.getWebSockets().filter((s) => s.readyState === WebSocket.READY_STATE_OPEN);
+    const sockets = this.state.getWebSockets().filter((socket) => socket.readyState === WebSocket.READY_STATE_OPEN);
     if (sockets.length === 0) return null;
     // Enforce single connection: close extras from reconnect races
     for (let i = 1; i < sockets.length; i++) {
@@ -101,8 +101,8 @@ export class RelayDurableObject implements DurableObject {
       await this.handleResponse(response);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      const ws = this.getSocket();
-      ws?.send(
+      const webSocket = this.getSocket();
+      webSocket?.send(
         JSON.stringify({
           type: "error",
           platform: response.platform,
@@ -127,10 +127,10 @@ export class RelayDurableObject implements DurableObject {
   private async handleEnqueue(request: Request): Promise<Response> {
     const msg: RelayMessage = await request.json();
 
-    const ws = this.getSocket();
-    if (ws) {
+    const webSocket = this.getSocket();
+    if (webSocket) {
       try {
-        ws.send(JSON.stringify(msg));
+        webSocket.send(JSON.stringify(msg));
         return new Response("forwarded", { status: 200 });
       } catch {
         // Socket broken — fall through to queue.
@@ -153,8 +153,8 @@ export class RelayDurableObject implements DurableObject {
   }
 
   private async flushQueue(): Promise<void> {
-    const ws = this.getSocket();
-    if (!ws) return;
+    const webSocket = this.getSocket();
+    if (!webSocket) return;
 
     const keys = await this.listQueueKeys();
     for (const key of keys) {
@@ -162,7 +162,7 @@ export class RelayDurableObject implements DurableObject {
       if (!raw) break;
 
       try {
-        ws.send(raw);
+        webSocket.send(raw);
         await this.state.storage.delete(key);
       } catch {
         break;
