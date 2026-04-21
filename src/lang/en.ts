@@ -12,6 +12,7 @@ const en = {
   common: {
     save: "Save",
     cancel: "Cancel",
+    loading: "Loading...",
   },
   sessionTabBar: {
     newSession: "New session",
@@ -50,6 +51,33 @@ const en = {
     markAllRead: "Mark all read",
     noNotifications: "No notifications",
     dismiss: "Dismiss",
+  },
+  sidebarHeader: {
+    toolCallHistory: "Tool call history",
+    settings: "Settings",
+  },
+  rightSidebar: {
+    toggleSystemPrompt: "Toggle system prompt",
+    systemPrompt: "System Prompt",
+    availableTools: "Available Tools",
+    toggleToolDescription: "Toggle tool description",
+    toolCallHistory: "Tool Call History",
+    noToolCalls: "No tool calls yet",
+    arguments: "Arguments",
+    error: "Error",
+    result: "Result",
+    running: "Running...",
+  },
+  fileTreePane: {
+    sort: "Sort:",
+    sortByName: "Sort by name",
+    name: "Name",
+    sortByRecent: "Sort by modified date (newest first)",
+    recent: "Recent",
+    reference: "Reference",
+    // "RO" = Read-Only. Kept short on purpose — rendered as a compact
+    // badge next to the Reference label.
+    readOnlyBadge: "RO",
   },
 };
 

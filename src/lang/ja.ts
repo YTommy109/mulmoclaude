@@ -5,6 +5,7 @@ const ja = {
   common: {
     save: "保存",
     cancel: "キャンセル",
+    loading: "読み込み中...",
   },
   sessionTabBar: {
     newSession: "新しいセッション",
@@ -43,6 +44,31 @@ const ja = {
     markAllRead: "すべて既読にする",
     noNotifications: "通知はありません",
     dismiss: "閉じる",
+  },
+  sidebarHeader: {
+    toolCallHistory: "ツール呼び出し履歴",
+    settings: "設定",
+  },
+  rightSidebar: {
+    toggleSystemPrompt: "システムプロンプトの表示切替",
+    systemPrompt: "システムプロンプト",
+    availableTools: "利用可能ツール",
+    toggleToolDescription: "ツール説明の表示切替",
+    toolCallHistory: "ツール呼び出し履歴",
+    noToolCalls: "ツール呼び出しはまだありません",
+    arguments: "引数",
+    error: "エラー",
+    result: "結果",
+    running: "実行中...",
+  },
+  fileTreePane: {
+    sort: "並び順:",
+    sortByName: "名前順",
+    name: "名前",
+    sortByRecent: "更新日順（新しい順）",
+    recent: "最近",
+    reference: "参照",
+    readOnlyBadge: "RO",
   },
 };
 
