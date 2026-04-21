@@ -50,8 +50,9 @@ export function validateSourceState(raw: unknown, slug: string): SourceState {
   const o = raw as Record<string, unknown>;
   const lastFetchedAt = typeof o.lastFetchedAt === "string" ? o.lastFetchedAt : null;
   const nextAttemptAt = typeof o.nextAttemptAt === "string" ? o.nextAttemptAt : null;
-  const consecutiveFailures =
-    typeof o.consecutiveFailures === "number" && Number.isFinite(o.consecutiveFailures) && o.consecutiveFailures >= 0 ? Math.floor(o.consecutiveFailures) : 0;
+  const emptyBackoffUntil = typeof o.emptyBackoffUntil === "string" ? o.emptyBackoffUntil : null;
+  const consecutiveFailures = toNonNegativeInt(o.consecutiveFailures);
+  const consecutiveEmptyFetches = toNonNegativeInt(o.consecutiveEmptyFetches);
   const cursor = validateCursor(o.cursor);
   return {
     slug,
@@ -59,7 +60,13 @@ export function validateSourceState(raw: unknown, slug: string): SourceState {
     cursor,
     consecutiveFailures,
     nextAttemptAt,
+    consecutiveEmptyFetches,
+    emptyBackoffUntil,
   };
+}
+
+function toNonNegativeInt(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
 }
 
 function validateCursor(raw: unknown): Record<string, string> {

@@ -294,6 +294,8 @@ describe("runSourcesPipeline — failure isolation (Q8)", () => {
       // local timezone, so the plan phase doesn't filter this
       // source out for still being in backoff.
       nextAttemptAt: "2026-04-12T00:00:00Z",
+      consecutiveEmptyFetches: 0,
+      emptyBackoffUntil: null,
     });
     const fetcher = fakeFetcher("rss", {
       hn: [makeItem({ id: "recovered" })],

@@ -32,6 +32,8 @@ function makeState(over: Partial<SourceState> = {}): SourceState {
     cursor: {},
     consecutiveFailures: 0,
     nextAttemptAt: null,
+    consecutiveEmptyFetches: 0,
+    emptyBackoffUntil: null,
     ...over,
   };
 }
