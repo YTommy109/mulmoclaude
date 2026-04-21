@@ -3,9 +3,9 @@
 // whenever any session's state changes. Also provides markSessionRead
 // for clearing the unread flag on the server.
 
+import { onScopeDispose } from "vue";
 import type { Ref } from "vue";
-import type { ActiveSession } from "../types/session";
-import type { SessionSummary } from "../types/session";
+import type { ActiveSession, SessionSummary } from "../types/session";
 import { usePubSub } from "./usePubSub";
 import { PUBSUB_CHANNELS } from "../config/pubsubChannels";
 import { apiPost } from "../utils/api";
@@ -20,7 +20,15 @@ export function useSessionSync(opts: {
   const { subscribe } = usePubSub();
 
   async function refreshSessionStates(): Promise<void> {
-    const summaries = await fetchSessions();
+    let summaries: SessionSummary[];
+    try {
+      summaries = await fetchSessions();
+    } catch (err) {
+      // Network / HTTP failure — log and bail so the pub/sub
+      // callback doesn't produce an unhandled rejection.
+      console.warn("[session-sync] failed to fetch sessions:", err);
+      return;
+    }
     for (const s of summaries) {
       const live = sessionMap.get(s.id);
       if (!live) continue;
@@ -42,9 +50,10 @@ export function useSessionSync(opts: {
     }
   }
 
-  subscribe(PUBSUB_CHANNELS.sessions, () => {
-    refreshSessionStates();
+  const unsub = subscribe(PUBSUB_CHANNELS.sessions, () => {
+    void refreshSessionStates();
   });
+  if (typeof unsub === "function") onScopeDispose(unsub);
 
   return { refreshSessionStates, markSessionRead };
 }
