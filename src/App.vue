@@ -258,18 +258,8 @@ import {
   type NotificationAction,
 } from "./types/notification";
 import { CANVAS_VIEW } from "./utils/canvas/viewMode";
-import {
-  useDynamicFavicon,
-  FAVICON_STATES,
-  type FaviconState,
-} from "./composables/useDynamicFavicon";
-import { useNotifications } from "./composables/useNotifications";
 import type { SseEvent } from "./types/sse";
-import {
-  type SessionSummary,
-  type SessionEntry,
-  type ActiveSession,
-} from "./types/session";
+import { type SessionEntry, type ActiveSession } from "./types/session";
 import { EVENT_TYPES } from "./types/events";
 import { extractImageData, makeTextResult } from "./utils/tools/result";
 import { buildAgentRequestBody } from "./utils/agent/request";
@@ -284,7 +274,6 @@ import {
   findPendingToolCall,
   shouldSelectAssistantText,
 } from "./utils/agent/toolCalls";
-import { mergeSessionLists } from "./utils/session/mergeSessions";
 import {
   parseSessionEntries,
   resolveSelectedUuid,
@@ -298,6 +287,8 @@ import { useChatScroll } from "./composables/useChatScroll";
 import { useViewLayout } from "./composables/useViewLayout";
 import { useSessionSync } from "./composables/useSessionSync";
 import { useSessionDerived } from "./composables/useSessionDerived";
+import { useFaviconState } from "./composables/useFaviconState";
+import { useMergedSessions } from "./composables/useMergedSessions";
 import { useCanvasViewMode } from "./composables/useCanvasViewMode";
 import { isCanvasViewMode } from "./utils/canvas/viewMode";
 import { useMcpTools } from "./composables/useMcpTools";
@@ -469,21 +460,7 @@ const {
 } = useSessionDerived({ sessionMap, currentSessionId, sessions });
 
 // ── Dynamic favicon (#470) ──────────────────────────────────
-const faviconState = computed<FaviconState>(() => {
-  if (isRunning.value) return FAVICON_STATES.running;
-  const hasUnread =
-    currentSummary.value?.hasUnread ?? activeSession.value?.hasUnread ?? false;
-  if (hasUnread) return FAVICON_STATES.done;
-  return FAVICON_STATES.idle;
-});
-
-const { unreadCount: notificationUnreadCount } = useNotifications();
-const hasNotificationBadge = computed(() => notificationUnreadCount.value > 0);
-
-useDynamicFavicon({
-  state: faviconState,
-  hasNotification: hasNotificationBadge,
-});
+useFaviconState({ isRunning, currentSummary, activeSession });
 
 const toolResultsPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const chatListRef = computed(() => toolResultsPanelRef.value?.root ?? null);
@@ -598,22 +575,10 @@ const selectedResult = computed(
 // that haven't been persisted to disk yet.
 // Merged list for the history pane: live sessions in `sessionMap`
 // merged with server-only sessions, sorted newest-first by
-// `updatedAt` (most recently touched floats to the top). `updatedAt`
-// is bumped in `sendMessage` for live sessions and taken from the
-// jsonl file mtime for server-only sessions.
-//
-// When a session exists on the server side (the indexer has produced
-// a title / summary / keywords for it), we prefer those fields over
-// the live-session fallback: a live session that was loaded from a
-// pre-indexed jsonl should keep showing the AI-generated title in
-// the sidebar, not regress to the raw first user message. Without
-// this merge, opening an indexed session immediately clobbered its
-// sidebar row with the first-user-message preview.
-const mergedSessions = computed((): SessionSummary[] =>
-  mergeSessionLists([...sessionMap.values()], sessions.value),
-);
-
-const tabSessions = computed(() => mergedSessions.value.slice(0, 6));
+const { mergedSessions, tabSessions } = useMergedSessions({
+  sessionMap,
+  sessions,
+});
 
 // Centralised session-switch handler: subscribe to the current session's
 // pub/sub channel so we receive real-time events even if the session is
