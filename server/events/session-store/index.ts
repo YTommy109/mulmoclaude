@@ -14,6 +14,7 @@ import { log } from "../../system/logger/index.js";
 import { updateHasUnread } from "../../utils/files/session-io.js";
 import {
   EVENT_TYPES,
+  GENERATION_KINDS,
   type GenerationKind,
   type PendingGeneration,
   generationKey,
@@ -243,10 +244,15 @@ function updateStorelessPending(
   type: string,
   event: Record<string, unknown>,
 ): GenerationDelta {
-  const kind = event.kind as GenerationKind;
-  const filePath = event.filePath as string;
-  const key = event.key as string;
-  const mapKey = generationKey(kind, filePath, key);
+  const payload = parseGenerationPayload(event);
+  if (!payload) {
+    log.warn("session-store", "malformed generation event", {
+      chatSessionId,
+      type,
+    });
+    return "same";
+  }
+  const mapKey = generationKey(payload.kind, payload.filePath, payload.key);
   const existing = storelessPending.get(chatSessionId);
   const wasEmpty = !existing || existing.size === 0;
 
@@ -276,6 +282,36 @@ function updateStorelessPending(
  * and whether to flip hasUnread on drain.
  */
 type GenerationDelta = "started" | "drained" | "same";
+
+/** Fields pulled off a validated generation event. */
+interface GenerationPayload {
+  kind: GenerationKind;
+  filePath: string;
+  key: string;
+}
+
+const GENERATION_KIND_VALUES: ReadonlySet<string> = new Set(
+  Object.values(GENERATION_KINDS),
+);
+
+function isGenerationKind(v: unknown): v is GenerationKind {
+  return typeof v === "string" && GENERATION_KIND_VALUES.has(v);
+}
+
+/**
+ * Narrow an event's generation fields at runtime. The event arrives
+ * as `Record<string, unknown>` so we can't trust its shape — validate
+ * every field before handing back a typed struct. Unknown kinds or
+ * missing fields return null; the caller should log + no-op.
+ */
+function parseGenerationPayload(
+  event: Record<string, unknown>,
+): GenerationPayload | null {
+  const { kind, filePath, key } = event;
+  if (!isGenerationKind(kind)) return null;
+  if (typeof filePath !== "string" || typeof key !== "string") return null;
+  return { kind, filePath, key };
+}
 
 function applyEventToSession(
   session: ServerSession,
@@ -312,14 +348,19 @@ function updatePendingGenerations(
   type: string,
   event: Record<string, unknown>,
 ): GenerationDelta {
-  const kind = event.kind as GenerationKind;
-  const filePath = event.filePath as string;
-  const key = event.key as string;
-  const mapKey = generationKey(kind, filePath, key);
+  const payload = parseGenerationPayload(event);
+  if (!payload) {
+    log.warn("session-store", "malformed generation event", {
+      chatSessionId: session.chatSessionId,
+      type,
+    });
+    return "same";
+  }
+  const mapKey = generationKey(payload.kind, payload.filePath, payload.key);
   const wasEmpty = Object.keys(session.pendingGenerations).length === 0;
 
   if (type === EVENT_TYPES.generationStarted) {
-    session.pendingGenerations[mapKey] = { kind, filePath, key };
+    session.pendingGenerations[mapKey] = payload;
   } else {
     delete session.pendingGenerations[mapKey];
   }
