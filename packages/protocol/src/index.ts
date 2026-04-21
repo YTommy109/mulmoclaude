@@ -13,6 +13,7 @@ export {
   GENERATION_KINDS,
   type GenerationKind,
   type GenerationEvent,
+  type PendingGeneration,
   generationKey,
 } from "./events.js";
 export {

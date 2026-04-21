@@ -11,5 +11,6 @@ export {
   GENERATION_KINDS,
   type GenerationKind,
   type GenerationEvent,
+  type PendingGeneration,
   generationKey,
 } from "@mulmobridge/protocol";

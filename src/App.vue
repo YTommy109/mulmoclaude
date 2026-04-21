@@ -1302,7 +1302,11 @@ async function applyAgentEvent(
       return;
     case EVENT_TYPES.generationStarted: {
       const mapKey = generationKey(event.kind, event.filePath, event.key);
-      session.pendingGenerations[mapKey] = event.kind;
+      session.pendingGenerations[mapKey] = {
+        kind: event.kind,
+        filePath: event.filePath,
+        key: event.key,
+      };
       return;
     }
     case EVENT_TYPES.generationFinished: {

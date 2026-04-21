@@ -52,13 +52,33 @@ export interface GenerationEvent {
 }
 
 /**
+ * Decomposed view of a pending generation, stored as the *value* of
+ * `pendingGenerations[mapKey]`. Consumers read these fields directly
+ * rather than splitting the composite map key — filePath and user-
+ * defined character keys can contain arbitrary characters, so
+ * positional string parsing is unsafe.
+ */
+export interface PendingGeneration {
+  kind: GenerationKind;
+  filePath: string;
+  key: string;
+}
+
+/**
  * Stable map-key for a generation: the triple (kind, filePath, key).
- * Both server and client use this to update `pendingGenerations`.
+ * Separator is U+001F (UNIT SEPARATOR), a non-printable ASCII control
+ * character that cannot appear in filePaths or user-entered keys —
+ * this guarantees `generationKey(a) === generationKey(b)` iff a≡b,
+ * unlike a human-visible delimiter that could collide.
+ *
+ * The returned string is used only as a map identity. Do NOT split it
+ * to recover the fields — store the decomposed `PendingGeneration`
+ * object as the map value instead.
  */
 export function generationKey(
   kind: GenerationKind,
   filePath: string,
   key: string,
 ): string {
-  return `${kind}:${filePath}:${key}`;
+  return `${kind}\u001f${filePath}\u001f${key}`;
 }

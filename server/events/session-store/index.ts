@@ -15,6 +15,7 @@ import { updateHasUnread } from "../../utils/files/session-io.js";
 import {
   EVENT_TYPES,
   type GenerationKind,
+  type PendingGeneration,
   generationKey,
 } from "../../../src/types/events.js";
 import { ONE_HOUR_MS, ONE_MINUTE_MS } from "../../utils/time.js";
@@ -45,10 +46,12 @@ export interface ServerSession {
   abortRun?: () => void;
   /**
    * In-flight background generations keyed by `generationKey(kind, filePath, key)`.
-   * Non-empty means the session has ongoing work even when `isRunning` (agent turn)
-   * is false — used to keep the busy indicator lit across view navigation.
+   * The value carries the decomposed (kind, filePath, key) so consumers never
+   * have to parse the opaque composite key back out. Non-empty means the
+   * session has ongoing work even when `isRunning` (agent turn) is false —
+   * used to keep the busy indicator lit across view navigation.
    */
-  pendingGenerations: Record<string, GenerationKind>;
+  pendingGenerations: Record<string, PendingGeneration>;
 }
 
 // ── Constants ──────────────────────────────────────────────────
@@ -316,7 +319,7 @@ function updatePendingGenerations(
   const wasEmpty = Object.keys(session.pendingGenerations).length === 0;
 
   if (type === EVENT_TYPES.generationStarted) {
-    session.pendingGenerations[mapKey] = kind;
+    session.pendingGenerations[mapKey] = { kind, filePath, key };
   } else {
     delete session.pendingGenerations[mapKey];
   }

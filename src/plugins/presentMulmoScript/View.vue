@@ -579,7 +579,7 @@ import { API_ROUTES } from "../../config/apiRoutes";
 import { errorMessage } from "../../utils/errors";
 import { useClipboardCopy } from "../../composables/useClipboardCopy";
 import { useActiveSession } from "../../composables/useActiveSession";
-import { GENERATION_KINDS } from "../../types/events";
+import { GENERATION_KINDS, type PendingGeneration } from "../../types/events";
 
 interface Beat {
   speaker?: string;
@@ -673,16 +673,13 @@ const characterKeys = computed(() => {
 const activeSessionRef = useActiveSession();
 const chatSessionId = computed(() => activeSessionRef?.value?.id);
 
-const pendingForThisScript = computed<Record<string, true>>(() => {
-  const out: Record<string, true> = {};
+const pendingForThisScript = computed(() => {
+  const out: Record<string, PendingGeneration> = {};
   const pending = activeSessionRef?.value?.pendingGenerations ?? {};
   const fp = filePath.value;
   if (!fp) return out;
-  for (const key of Object.keys(pending)) {
-    const parts = key.split(":");
-    if (parts.length >= 3 && parts[1] === fp) {
-      out[key] = true;
-    }
+  for (const [mapKey, entry] of Object.entries(pending)) {
+    if (entry.filePath === fp) out[mapKey] = entry;
   }
   return out;
 });
@@ -1220,8 +1217,8 @@ async function initializeScript() {
 
   // Reflect any generations that were already in flight when we
   // mounted (user switched away mid-generation and came back).
-  for (const key of Object.keys(pendingForThisScript.value)) {
-    reflectGenerationStart(key);
+  for (const entry of Object.values(pendingForThisScript.value)) {
+    reflectGenerationStart(entry);
   }
 }
 
@@ -1229,48 +1226,50 @@ onMounted(initializeScript);
 watch(() => props.selectedResult, initializeScript);
 
 // Keep the view in sync with generations that started from a different
-// view mount or a parallel tab. When a generation key for this script
+// view mount or a parallel tab. When a generation for this script
 // disappears from session.pendingGenerations we reload the relevant
 // artifact off disk; when one appears we mirror it into the local
 // "rendering" state so spinners show even after a remount.
 watch(pendingForThisScript, (now, prev = {}) => {
-  for (const key of Object.keys(now)) {
-    if (!(key in prev)) reflectGenerationStart(key);
+  for (const [mapKey, entry] of Object.entries(now)) {
+    if (!(mapKey in prev)) reflectGenerationStart(entry);
   }
-  for (const key of Object.keys(prev)) {
-    if (!(key in now)) reflectGenerationFinish(key);
+  for (const [mapKey, entry] of Object.entries(prev)) {
+    if (!(mapKey in now)) reflectGenerationFinish(entry);
   }
 });
 
-function reflectGenerationStart(key: string): void {
-  const [kind, , tail] = key.split(":");
-  if (kind === GENERATION_KINDS.beatImage) {
-    const idx = Number(tail);
+function reflectGenerationStart(entry: PendingGeneration): void {
+  if (entry.kind === GENERATION_KINDS.beatImage) {
+    const idx = Number(entry.key);
     if (!renderedImages[idx]) renderState[idx] = "rendering";
-  } else if (kind === GENERATION_KINDS.beatAudio) {
-    const idx = Number(tail);
+  } else if (entry.kind === GENERATION_KINDS.beatAudio) {
+    const idx = Number(entry.key);
     if (!beatAudios[idx]) audioState[idx] = "generating";
-  } else if (kind === GENERATION_KINDS.characterImage) {
-    if (!charImages[tail]) charRenderState[tail] = "rendering";
-  } else if (kind === GENERATION_KINDS.movie) {
+  } else if (entry.kind === GENERATION_KINDS.characterImage) {
+    if (!charImages[entry.key]) charRenderState[entry.key] = "rendering";
+  } else if (entry.kind === GENERATION_KINDS.movie) {
     movieGenerating.value = true;
   }
 }
 
-async function reflectGenerationFinish(key: string): Promise<void> {
-  const [kind, , tail] = key.split(":");
-  if (kind === GENERATION_KINDS.beatImage) {
-    const idx = Number(tail);
+async function reflectGenerationFinish(
+  entry: PendingGeneration,
+): Promise<void> {
+  if (entry.kind === GENERATION_KINDS.beatImage) {
+    const idx = Number(entry.key);
     await loadExistingBeatImage(idx);
     if (renderState[idx] === "rendering") delete renderState[idx];
-  } else if (kind === GENERATION_KINDS.beatAudio) {
-    const idx = Number(tail);
+  } else if (entry.kind === GENERATION_KINDS.beatAudio) {
+    const idx = Number(entry.key);
     await loadExistingBeatAudio(idx);
     if (audioState[idx] === "generating") delete audioState[idx];
-  } else if (kind === GENERATION_KINDS.characterImage) {
-    await loadExistingCharacterImage(tail);
-    if (charRenderState[tail] === "rendering") delete charRenderState[tail];
-  } else if (kind === GENERATION_KINDS.movie) {
+  } else if (entry.kind === GENERATION_KINDS.characterImage) {
+    await loadExistingCharacterImage(entry.key);
+    if (charRenderState[entry.key] === "rendering") {
+      delete charRenderState[entry.key];
+    }
+  } else if (entry.kind === GENERATION_KINDS.movie) {
     movieGenerating.value = false;
     await refreshMoviePath();
   }

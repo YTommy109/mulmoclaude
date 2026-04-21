@@ -2,7 +2,7 @@
 // returned by the server's session routes.
 
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-import { EVENT_TYPES, type GenerationKind } from "./events";
+import { EVENT_TYPES, type PendingGeneration } from "./events";
 import type { ToolCallHistoryItem } from "./toolCallHistory";
 
 // ── Session origin (#486) ───────────────────────────────────
@@ -116,10 +116,9 @@ export interface ActiveSession {
   /**
    * In-flight background generations triggered by a plugin view (e.g.
    * MulmoScript image/audio/movie renders). Keyed by
-   * `generationKey(kind, filePath, key)` so views can derive their
-   * per-beat / per-character spinner state from this map instead of
-   * component-local refs that vanish on unmount. Empty map = no
-   * background work.
+   * `generationKey(kind, filePath, key)` (opaque identity, not parsed
+   * back); the value carries the decomposed (kind, filePath, key) so
+   * views read those fields directly. Empty map = no background work.
    */
-  pendingGenerations: Record<string, GenerationKind>;
+  pendingGenerations: Record<string, PendingGeneration>;
 }
