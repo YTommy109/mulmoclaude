@@ -191,12 +191,24 @@ export function pushSessionEvent(
   event: Record<string, unknown>,
 ): void {
   const type = event.type as string;
+  const isGenerationEvent =
+    type === EVENT_TYPES.generationStarted ||
+    type === EVENT_TYPES.generationFinished;
 
-  // Delivery to subscribers is always attempted — plugin-initiated
-  // generation events can fire for sessions that aren't in the
-  // in-memory store (loaded from disk, evicted after idle timeout,
-  // etc.). The client's subscription is on the channel, not on any
-  // server-side session object, so the UI still updates.
+  // Non-generation events keep the pre-existing "store or drop"
+  // behavior: toolCall / toolCallResult / status fire only during a
+  // live agent turn (which always has a store entry), and
+  // rolesUpdated / sessionFinished are equally tied to in-store
+  // sessions. Publishing them for evicted sessions would broaden the
+  // wire contract without a concrete need.
+  //
+  // Generation events are the exception — a plugin view (e.g.
+  // MulmoScript) can kick off work on a session whose store entry
+  // never existed or was evicted after idle timeout, and the client
+  // subscription lives on the channel, not on any server-side
+  // session object. We always deliver those so the UI can update.
+  const session = store.get(chatSessionId);
+  if (!session && !isGenerationEvent) return;
   publishToSessionChannel(chatSessionId, event);
 
   const generationDelta = resolveGenerationDelta(chatSessionId, type, event);
@@ -208,7 +220,6 @@ export function pushSessionEvent(
 
   // Drained: flag hasUnread, same semantics as endRun(). Clients
   // viewing the session clear it via markRead.
-  const session = store.get(chatSessionId);
   if (session) {
     session.hasUnread = true;
     // Store is the source of truth, so the refetch already sees the
