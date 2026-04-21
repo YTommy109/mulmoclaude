@@ -101,7 +101,7 @@ describe("createFileSink", () => {
     // the fresh one). Asserting just "includes newest" and "not
     // oldest" previously could pass even when retention left an
     // extra middle log behind — tighten to count + exact set.
-    const logFiles = files.filter((f) => f.startsWith("server-"));
+    const logFiles = files.filter((file) => file.startsWith("server-"));
     assert.equal(logFiles.length, 2);
     assert.ok(files.includes("server-2026-01-04.log"));
     assert.ok(files.includes("server-2026-01-03.log"));

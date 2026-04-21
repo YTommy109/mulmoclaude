@@ -12,20 +12,20 @@ async function setupTodoMocks(page: Page): Promise<void> {
       if (method === "POST") {
         const label = typeof body.label === "string" && body.label.length > 0 ? body.label : "New Column";
         const baseId = mockSlugifyColumnId(label);
-        const existing = new Set(state.columns.map((c) => c.id));
+        const existing = new Set(state.columns.map((col) => col.id));
         let newId = baseId;
-        let n = 2;
-        while (existing.has(newId)) newId = `${baseId}_${n++}`;
+        let num = 2;
+        while (existing.has(newId)) newId = `${baseId}_${num++}`;
         return {
           columns: [...state.columns, { id: newId, label }],
         };
       }
       if (method === "DELETE" && id) {
-        return { columns: state.columns.filter((c) => c.id !== id) };
+        return { columns: state.columns.filter((col) => col.id !== id) };
       }
       if (method === "PATCH" && id) {
         return {
-          columns: state.columns.map((c) => (c.id === id ? { ...c, label: "Renamed" } : c)),
+          columns: state.columns.map((col) => (col.id === id ? { ...col, label: "Renamed" } : col)),
         };
       }
     },

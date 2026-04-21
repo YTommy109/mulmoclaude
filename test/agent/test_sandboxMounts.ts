@@ -92,7 +92,7 @@ describe("resolveMountNames", () => {
     const home = makeFixtureHome({ gh: true, gitconfig: true });
     const out = resolveMountNames(["gitconfig", "", "gh"], buildAllowedConfigMounts(home));
     assert.deepEqual(
-      out.resolved.map((r) => r.name),
+      out.resolved.map((mount) => mount.name),
       ["gitconfig", "gh"],
     );
   });
@@ -117,40 +117,40 @@ describe("configMountArgs", () => {
 
 describe("sshAgentForwardArgs", () => {
   it("no-op when disabled", () => {
-    const r = sshAgentForwardArgs(false, "/tmp/anything");
-    assert.deepEqual(r, { args: [], skippedReason: null });
+    const result = sshAgentForwardArgs(false, "/tmp/anything");
+    assert.deepEqual(result, { args: [], skippedReason: null });
   });
 
   it("uses Docker Desktop magic socket on macOS", () => {
-    const r = sshAgentForwardArgs(true, "/tmp/irrelevant", "darwin");
-    assert.equal(r.skippedReason, null);
-    assert.deepEqual(r.args, ["-v", `/run/host-services/ssh-auth.sock:${SSH_AGENT_CONTAINER_SOCK}`, "-e", `SSH_AUTH_SOCK=${SSH_AGENT_CONTAINER_SOCK}`]);
+    const result = sshAgentForwardArgs(true, "/tmp/irrelevant", "darwin");
+    assert.equal(result.skippedReason, null);
+    assert.deepEqual(result.args, ["-v", `/run/host-services/ssh-auth.sock:${SSH_AGENT_CONTAINER_SOCK}`, "-e", `SSH_AUTH_SOCK=${SSH_AGENT_CONTAINER_SOCK}`]);
   });
 
   it("macOS path ignores SSH_AUTH_SOCK value entirely", () => {
-    const r = sshAgentForwardArgs(true, undefined, "darwin");
-    assert.equal(r.skippedReason, null);
-    assert.equal(r.args.length, 4);
+    const result = sshAgentForwardArgs(true, undefined, "darwin");
+    assert.equal(result.skippedReason, null);
+    assert.equal(result.args.length, 4);
   });
 
   it("reports SSH_AUTH_SOCK missing on Linux", () => {
-    const r = sshAgentForwardArgs(true, undefined, "linux");
-    assert.deepEqual(r.args, []);
-    assert.match(r.skippedReason ?? "", /not set/);
+    const result = sshAgentForwardArgs(true, undefined, "linux");
+    assert.deepEqual(result.args, []);
+    assert.match(result.skippedReason ?? "", /not set/);
   });
 
   it("reports socket path missing on disk (Linux)", () => {
-    const r = sshAgentForwardArgs(true, "/tmp/definitely-not-a-real-sock", "linux");
-    assert.deepEqual(r.args, []);
-    assert.match(r.skippedReason ?? "", /not found/);
+    const result = sshAgentForwardArgs(true, "/tmp/definitely-not-a-real-sock", "linux");
+    assert.deepEqual(result.args, []);
+    assert.match(result.skippedReason ?? "", /not found/);
   });
 
   it("binds socket and sets SSH_AUTH_SOCK when sock exists (Linux)", () => {
     const fake = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sock-")), "agent.sock");
     fs.writeFileSync(fake, "");
-    const r = sshAgentForwardArgs(true, fake, "linux");
-    assert.equal(r.skippedReason, null);
+    const result = sshAgentForwardArgs(true, fake, "linux");
+    assert.equal(result.skippedReason, null);
     const expectedHostPath = fake.replace(/\\/g, "/");
-    assert.deepEqual(r.args, ["-v", `${expectedHostPath}:${SSH_AGENT_CONTAINER_SOCK}`, "-e", `SSH_AUTH_SOCK=${SSH_AGENT_CONTAINER_SOCK}`]);
+    assert.deepEqual(result.args, ["-v", `${expectedHostPath}:${SSH_AGENT_CONTAINER_SOCK}`, "-e", `SSH_AUTH_SOCK=${SSH_AGENT_CONTAINER_SOCK}`]);
   });
 });

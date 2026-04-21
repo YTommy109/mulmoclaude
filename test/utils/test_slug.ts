@@ -72,11 +72,11 @@ describe("slugify (non-ASCII fallback)", () => {
   });
 
   it("gives different ids to labels differing only in suffix", () => {
-    const a = slugify("プロジェクトA");
-    const b = slugify("プロジェクトB");
-    assert.notEqual(a, b);
-    assert.equal(a.length, HASH_LEN);
-    assert.equal(b.length, HASH_LEN);
+    const slugA = slugify("プロジェクトA");
+    const slugB = slugify("プロジェクトB");
+    assert.notEqual(slugA, slugB);
+    assert.equal(slugA.length, HASH_LEN);
+    assert.equal(slugB.length, HASH_LEN);
   });
 
   it("keeps an ASCII prefix when ≥3 chars survive", () => {

@@ -9,7 +9,7 @@ import { ROLES, BUILTIN_ROLE_IDS, DEFAULT_ROLE_ID } from "../../src/config/roles
 describe("BUILTIN_ROLE_IDS", () => {
   it("has one entry per ROLES element", () => {
     const idsFromMap = Object.values(BUILTIN_ROLE_IDS).sort();
-    const idsFromArray = ROLES.map((r) => r.id).sort();
+    const idsFromArray = ROLES.map((role) => role.id).sort();
     assert.deepEqual(idsFromMap, idsFromArray);
   });
 
@@ -21,7 +21,7 @@ describe("BUILTIN_ROLE_IDS", () => {
 
   it("every BUILTIN_ROLE_IDS value resolves to an actual role via ROLES.find", () => {
     for (const id of Object.values(BUILTIN_ROLE_IDS)) {
-      const role = ROLES.find((r) => r.id === id);
+      const role = ROLES.find((roleItem) => roleItem.id === id);
       assert.ok(role, `no role found for id "${id}"`);
     }
   });
@@ -34,7 +34,7 @@ describe("DEFAULT_ROLE_ID", () => {
   });
 
   it("resolves to an actual role", () => {
-    const role = ROLES.find((r) => r.id === DEFAULT_ROLE_ID);
+    const role = ROLES.find((roleItem) => roleItem.id === DEFAULT_ROLE_ID);
     assert.ok(role, "DEFAULT_ROLE_ID does not match any role in ROLES");
   });
 });

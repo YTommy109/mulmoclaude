@@ -62,7 +62,7 @@ describe("readWorkspaceText / writeWorkspaceText", () => {
   it("write is atomic — no .tmp leftover on success", async () => {
     await mod.writeWorkspaceText("test-atomic/clean.txt", "ok");
     const entries = fs.readdirSync(path.join(wsRoot(), "test-atomic"));
-    assert.equal(entries.filter((f) => f.endsWith(".tmp")).length, 0);
+    assert.equal(entries.filter((file) => file.endsWith(".tmp")).length, 0);
   });
 
   it("creates parent directories on write", async () => {

@@ -8,8 +8,8 @@ import { WORKSPACE_FILES } from "../../server/workspace/paths.js";
 import { dirname } from "path";
 import type { Role } from "../../src/config/roles.js";
 
-function ensureDir(p: string): void {
-  mkdirSync(p, { recursive: true });
+function ensureDir(dirPath: string): void {
+  mkdirSync(dirPath, { recursive: true });
 }
 function writeFileAt(workspace: string, rel: string, content: string): void {
   const abs = join(workspace, rel);

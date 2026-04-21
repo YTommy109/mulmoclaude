@@ -79,7 +79,7 @@ function fakeFetcher(kind: FetcherKind, impl: (source: Source, state: SourceStat
 // Build a `getFetcher` lookup for a set of fakes.
 function makeGetFetcher(fetchers: SourceFetcher[]): (kind: FetcherKind) => SourceFetcher | null {
   const byKind = new Map<FetcherKind, SourceFetcher>();
-  for (const f of fetchers) byKind.set(f.kind, f);
+  for (const fetcher of fetchers) byKind.set(fetcher.kind, fetcher);
   return (kind) => byKind.get(kind) ?? null;
 }
 
@@ -154,7 +154,7 @@ describe("runFetchPhase — failure isolation (Q8)", () => {
       deps: makeDeps(),
       getFetcher: makeGetFetcher([fetcher]),
     });
-    const kinds = new Map(result.outcomes.map((o) => [o.sourceSlug, o.kind]));
+    const kinds = new Map(result.outcomes.map((outcome) => [outcome.sourceSlug, outcome.kind]));
     assert.equal(kinds.get("ok-a"), "success");
     assert.equal(kinds.get("broken"), "error");
     assert.equal(kinds.get("ok-b"), "success");
