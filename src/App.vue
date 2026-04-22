@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col fixed inset-0 bg-gray-900 text-white">
     <!-- Global top bar — shown in every view mode -->
-    <div ref="topBarRef" class="shrink-0 bg-white text-gray-900">
+    <div class="shrink-0 bg-white text-gray-900">
       <!-- Row 1: title + plugin launcher -->
       <div class="flex items-center gap-3 px-3 py-2 border-b border-gray-200">
         <SidebarHeader
@@ -23,31 +23,23 @@
         <CanvasViewToggle v-if="isChatPage" :model-value="layoutMode" @update:model-value="setLayoutMode" />
         <RoleSelector v-model:current-role-id="currentRoleId" :roles="roles" @change="onRoleChange" />
         <SessionTabBar
-          ref="sessionTabBarRef"
           :sessions="tabSessions"
           :current-session-id="displayedCurrentSessionId"
           :roles="roles"
           :active-session-count="activeSessionCount"
           :unread-count="unreadCount"
-          :history-open="showHistory"
+          :history-open="currentPage === 'history'"
           @new-session="handleNewSessionClick"
           @load-session="handleSessionSelect"
-          @toggle-history="toggleHistory"
+          @toggle-history="handleHistoryClick"
         />
       </div>
     </div>
 
-    <!-- History popup (all layouts) -->
-    <SessionHistoryPanel
-      v-if="showHistory"
-      ref="historyPanelRef"
-      :sessions="mergedSessions"
-      :current-session-id="currentSessionId"
-      :roles="roles"
-      :top-offset="historyTopOffset"
-      :error-message="historyError"
-      @load-session="handleSessionSelect"
-    />
+    <!-- Session history is now a canvas-column view rendered under
+         the `/history` route (see plans/feat-history-url-route.md).
+         The old absolute-positioned overlay is gone — browser
+         back/forward drives open/close instead. -->
 
     <!-- Body: sidebar (Single only) + canvas column + right sidebar -->
     <div class="flex flex-1 min-h-0">
@@ -132,6 +124,14 @@
           <WikiView v-else-if="currentPage === 'wiki'" />
           <SkillsView v-else-if="currentPage === 'skills'" />
           <RolesView v-else-if="currentPage === 'roles'" />
+          <SessionHistoryPanel
+            v-else-if="currentPage === 'history'"
+            :sessions="mergedSessions"
+            :current-session-id="currentSessionId"
+            :roles="roles"
+            :error-message="historyError"
+            @load-session="handleSessionSelect"
+          />
         </div>
 
         <!-- Bottom bar (Stack chat only — plugin views have no
@@ -202,7 +202,6 @@ import { createEmptySession } from "./utils/session/sessionFactory";
 import { buildLoadedSession, parseSessionEntries } from "./utils/session/sessionEntries";
 import { resolveNotificationTarget } from "./utils/notification/dispatch";
 import { usePendingCalls } from "./composables/usePendingCalls";
-import { useClickOutside } from "./composables/useClickOutside";
 import { useKeyNavigation } from "./composables/useKeyNavigation";
 import { useDebugBeat } from "./composables/useDebugBeat";
 import { useChatScroll } from "./composables/useChatScroll";
@@ -323,7 +322,7 @@ const userInput = ref("");
 const pastedFile = ref<PastedFile | null>(null);
 const activePane = ref<"sidebar" | "main">("sidebar");
 
-const { sessions, showHistory, historyError, fetchSessions, toggleHistory } = useSessionHistory();
+const { sessions, historyError, fetchSessions } = useSessionHistory();
 const { markSessionRead } = useSessionSync({
   sessionMap,
   currentSessionId,
@@ -349,16 +348,6 @@ useFaviconState({ isRunning, currentSummary, activeSession, sessionsUnreadCount:
 const toolResultsPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
 const chatInputRef = ref<{ focus: () => void } | null>(null);
-const topBarRef = ref<HTMLDivElement | null>(null);
-const historyTopOffset = ref<number | undefined>(undefined);
-
-const sessionTabBarRef = ref<{
-  historyButton: HTMLButtonElement | null;
-} | null>(null);
-const historyButtonRef = computed(() => sessionTabBarRef.value?.historyButton ?? null);
-const historyPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
-const historyPopupRef = computed(() => historyPanelRef.value?.root ?? null);
-
 const { focusChatInput } = useChatScroll({
   toolResultsPanelRef,
   toolResults,
@@ -446,14 +435,6 @@ function handleNewSessionClick(): void {
   createNewSession();
 }
 
-// Measure the top bar's height when the history popup opens.
-watch(showHistory, (open) => {
-  if (open) {
-    nextTick(() => {
-      historyTopOffset.value = topBarRef.value?.offsetHeight;
-    });
-  }
-});
 const rightSidebarRef = ref<InstanceType<typeof RightSidebar> | null>(null);
 
 const { availableTools, toolDescriptions, mcpToolsError, fetchMcpToolsStatus } = useMcpTools({
@@ -614,7 +595,9 @@ function activateSession(sessionId: string, roleId: string, replace: boolean): v
   // after navigation and revert currentRoleId to the previous session's role.
   currentRoleId.value = roleId;
   navigateToSession(sessionId, replace);
-  showHistory.value = false;
+  // Closing the history popup is no longer explicit — navigating to
+  // /chat/:id via navigateToSession changes the route, and the
+  // canvas-column branches away from SessionHistoryPanel naturally.
 }
 
 async function loadSession(sessionId: string) {
@@ -625,7 +608,10 @@ async function loadSession(sessionId: string) {
   // instead of silently no-opping.
   const alreadyOnThatChat = sessionId === currentSessionId.value && sessionMap.has(sessionId) && route.params.sessionId === sessionId;
   if (alreadyOnThatChat) return;
-  const replaced = removeCurrentIfEmpty();
+  // Clicking a session from /history should replace the /history
+  // entry — otherwise browser back lands on /history instead of the
+  // previous session, breaking session-to-session back/forward.
+  const replaced = removeCurrentIfEmpty() || route.name === PAGE_ROUTES.history;
 
   const live = sessionMap.get(sessionId);
   if (live) {
@@ -762,11 +748,29 @@ async function sendMessage(text?: string) {
   }
 }
 
-const { handler: handleClickOutsideHistory } = useClickOutside({
-  isOpen: showHistory,
-  buttonRef: historyButtonRef,
-  popupRef: historyPopupRef,
-});
+// History is a page route (/history) now — no click-outside handling
+// needed. Clicking the history button toggles between /history and the
+// previous page via router.back / router.push.
+function handleHistoryClick(): void {
+  if (currentPage.value === PAGE_ROUTES.history) {
+    router.back();
+  } else {
+    router.push({ name: PAGE_ROUTES.history }).catch(() => {});
+  }
+}
+
+// Fetch the session list when entering /history. `immediate: true`
+// covers the direct-link case (user opens /history as the first
+// navigation of the session).
+watch(
+  () => currentPage.value,
+  (page) => {
+    if (page === PAGE_ROUTES.history) {
+      fetchSessions().catch((err) => console.error("[history] fetch failed:", err));
+    }
+  },
+  { immediate: true },
+);
 
 // Route workspace-internal links (wiki pages, files, sessions) to the
 // appropriate page. Called from plugin Views via AppApi.
@@ -814,7 +818,6 @@ provideActiveSession(activeSession);
 useEventListeners({
   onKeyNavigation: handleKeyNavigation,
   onViewModeShortcut: handleViewModeShortcut,
-  onClickOutsideHistory: handleClickOutsideHistory,
   onTeardown: teardownPendingCalls,
 });
 

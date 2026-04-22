@@ -34,6 +34,56 @@ test.describe("history panel (useSessionHistory)", () => {
     await expect(page.getByTestId(`session-item-${SESSION_B.id}`)).toBeVisible();
   });
 
+  test("history button navigates to /history route", async ({ page }) => {
+    // Promotion from overlay to page route (#653): clicking the
+    // history button should flip the URL so the panel is bookmarkable
+    // and browser back works.
+    await page.goto("/chat");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+    await page.getByTestId("history-btn").click();
+    await expect(page).toHaveURL(/\/history$/);
+  });
+
+  test("direct link to /history opens the panel", async ({ page }) => {
+    await page.goto("/history");
+    await expect(page.getByTestId(`session-item-${SESSION_A.id}`)).toBeVisible();
+    await expect(page.getByTestId(`session-item-${SESSION_B.id}`)).toBeVisible();
+  });
+
+  test("clicking a session from /history replaces /history in browser history", async ({ page }) => {
+    // Selecting a session while on /history should replace the
+    // /history entry, so browser back goes to whatever was before
+    // /history — not back to the panel. This preserves intuitive
+    // session-to-session back/forward when the user jumps between
+    // sessions via history.
+    await page.goto("/chat");
+    await page.waitForURL(/\/chat\//);
+    const priorUrl = page.url();
+
+    await page.getByTestId("history-btn").click();
+    await expect(page).toHaveURL(/\/history$/);
+    await page.getByTestId(`session-item-${SESSION_A.id}`).click();
+    await expect(page).toHaveURL(new RegExp(`/chat/${SESSION_A.id}`));
+
+    await page.goBack();
+    await expect(page).toHaveURL(priorUrl);
+  });
+
+  test("second click on history button (while on /history) goes back to prior page", async ({ page }) => {
+    await page.goto("/chat");
+    // Wait for the `/chat` → `/chat/<newSessionId>` redirect to
+    // settle before capturing the "prior" URL — reading before the
+    // redirect gives the bare /chat which is not what the second
+    // click's router.back() lands on.
+    await page.waitForURL(/\/chat\//);
+    const priorUrl = page.url();
+
+    await page.getByTestId("history-btn").click();
+    await expect(page).toHaveURL(/\/history$/);
+    await page.getByTestId("history-btn").click();
+    await expect(page).toHaveURL(priorUrl);
+  });
+
   test("clicking a session navigates to /chat/:id", async ({ page }) => {
     await page.goto("/chat");
     await expect(page.getByText("MulmoClaude")).toBeVisible();
@@ -44,20 +94,13 @@ test.describe("history panel (useSessionHistory)", () => {
     await expect(page).toHaveURL(new RegExp(`/chat/${SESSION_A.id}`));
   });
 
-  test("clicking outside closes the panel", async ({ page }) => {
-    await page.goto("/chat");
-    await expect(page.getByText("MulmoClaude")).toBeVisible();
-
-    await page.getByTestId("history-btn").click();
-    const item = page.getByTestId(`session-item-${SESSION_A.id}`);
-    await expect(item).toBeVisible();
-
-    // Click a neutral element in the top bar — the popup now spans
-    // the full canvas width, so the only clickable "outside" region
-    // is the header itself.
-    await page.getByTestId("app-title").click();
-    await expect(item).toBeHidden();
-  });
+  // Note: the old "clicking outside closes the panel" test was
+  // removed when history was promoted from an overlay to the
+  // /history page route. There's no "outside" to click anymore —
+  // the panel is the whole canvas. Closing it means navigating
+  // elsewhere (session click, browser back, or the history
+  // button again). Covered by the "browser back" / "second click"
+  // tests below.
 
   test("button click triggers a fresh /api/sessions fetch", async ({ page }) => {
     // Count /api/sessions GETs so we can verify the button fires a

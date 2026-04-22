@@ -25,7 +25,6 @@
       <div v-else class="flex-1" />
     </template>
     <button
-      ref="historyButton"
       data-testid="history-btn"
       class="relative flex-shrink-0 flex items-center justify-center w-7 py-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
       :class="{ 'text-blue-500': historyOpen }"
@@ -50,7 +49,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { Role } from "../config/roles";
 import type { SessionSummary } from "../types/session";
@@ -72,9 +70,6 @@ const emit = defineEmits<{
   loadSession: [id: string];
   toggleHistory: [];
 }>();
-
-const historyButton = ref<HTMLButtonElement | null>(null);
-defineExpose({ historyButton });
 
 function tabColor(session: SessionSummary): string {
   if (session.isRunning) return "text-yellow-400";

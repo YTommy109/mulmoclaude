@@ -1,13 +1,16 @@
 // Composable that wires the window-level event listeners used by
-// App.vue (click-outside handlers for 3 popups + global keydown for
-// navigation + view-mode shortcuts) and tears them down on unmount.
+// App.vue (global keydown for navigation + view-mode shortcuts) and
+// tears them down on unmount.
 //
 // Plugin → App.vue communication used to live here too via
 // `roles-updated` / `skill-run` CustomEvents on `window`. That now
 // flows through `useAppApi` (provide/inject) — see #227. Anything
 // remaining in this composable is genuinely a window-level concern
-// (keyboard / mouse events that don't have a single "owning"
-// component).
+// (keyboard events that don't have a single "owning" component).
+//
+// The click-outside handler for the history popup was dropped when
+// the popup became a real page at /history (see
+// plans/feat-history-url-route.md).
 //
 // Each listener is supplied as an option so the composable stays
 // independent of App.vue's local state; the caller passes the
@@ -20,8 +23,6 @@ export interface EventListenerHandlers {
   onKeyNavigation: (e: KeyboardEvent) => void;
   /** Global keydown for Cmd/Ctrl+1/2/3 view-mode shortcut. */
   onViewModeShortcut: (e: KeyboardEvent) => void;
-  /** mousedown click-outside handlers for each popup. */
-  onClickOutsideHistory: (e: MouseEvent) => void;
   /** Called in onUnmounted after all window listeners are removed. */
   onTeardown?: () => void;
 }
@@ -30,13 +31,11 @@ export function useEventListeners(handlers: EventListenerHandlers): void {
   onMounted(() => {
     window.addEventListener("keydown", handlers.onKeyNavigation);
     window.addEventListener("keydown", handlers.onViewModeShortcut);
-    window.addEventListener("mousedown", handlers.onClickOutsideHistory);
   });
 
   onUnmounted(() => {
     window.removeEventListener("keydown", handlers.onKeyNavigation);
     window.removeEventListener("keydown", handlers.onViewModeShortcut);
-    window.removeEventListener("mousedown", handlers.onClickOutsideHistory);
     handlers.onTeardown?.();
   });
 }

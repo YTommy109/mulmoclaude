@@ -1,9 +1,9 @@
 <template>
-  <div
-    ref="root"
-    class="absolute left-0 right-0 bottom-0 bg-white border-b border-gray-200 shadow-lg z-50 overflow-y-auto"
-    :style="{ top: topOffset != null ? topOffset + 'px' : '4rem' }"
-  >
+  <!-- Rendered as the canvas-column content for the /history route
+       (see plans/feat-history-url-route.md). Previously this was an
+       absolute-positioned overlay; the `h-full overflow-y-auto` root
+       plus inline flow replaces the z-index + topOffset plumbing. -->
+  <div ref="root" class="h-full overflow-y-auto bg-white">
     <div class="p-2 space-y-1">
       <!-- Origin filter bar -->
       <div class="flex gap-1 mb-1 flex-wrap" data-testid="session-filter-bar">
@@ -109,7 +109,6 @@ const props = defineProps<{
   sessions: SessionSummary[];
   currentSessionId: string;
   roles: Role[];
-  topOffset?: number;
   // Latest fetch error from useSessionHistory, or null when healthy.
   errorMessage?: string | null;
 }>();
