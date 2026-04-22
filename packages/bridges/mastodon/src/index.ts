@@ -90,10 +90,19 @@ async function postOneStatus(chunk: string, opts: PostStatusOptions): Promise<st
   return null;
 }
 
-async function postStatus(__chatId: string, text: string, inReplyTo: string | null, visibility: string): Promise<void> {
+async function postStatus(chatId: string, text: string, inReplyTo: string | null, visibility: string): Promise<void> {
+  // Direct-visibility statuses only deliver to users @-mentioned in
+  // the body — a reply carries the mention from the parent via
+  // `in_reply_to_id`, but a fresh push (inReplyTo=null) has no parent
+  // to inherit from. Prepend the recipient handle so direct pushes
+  // actually reach the user. Non-direct visibilities don't need the
+  // mention; leave them untouched to avoid noise in public timelines.
+  const needsLeadingMention = !inReplyTo && visibility === "direct" && chatId.length > 0;
+  const bodyText = needsLeadingMention ? `@${chatId} ${text}` : text;
+
   // Thread chunk 2+ onto the previous chunk so clients render them as a
   // readable reply chain rather than N parallel replies to the original.
-  const chunks = chunkText(text, MAX_STATUS_LEN);
+  const chunks = chunkText(bodyText, MAX_STATUS_LEN);
   let prevId: string | null = inReplyTo;
   for (const chunk of chunks) {
     const postedId = await postOneStatus(chunk, { inReplyTo: prevId, visibility });
