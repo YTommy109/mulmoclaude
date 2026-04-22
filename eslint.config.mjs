@@ -35,6 +35,19 @@ export default [
   ...vuePlugin.configs["flat/recommended"],
   ...vueI18n.configs.recommended,
   {
+    // Point `@intlify/vue-i18n/*` rules at the JSON cache generated
+    // by `yarn dumpi18n` (which serialises src/lang/*.ts). Without
+    // `localeDir`, the plugin can't validate key references and
+    // surfaces a global "You need to set 'localeDir'" warning on
+    // every lint run.
+    settings: {
+      "vue-i18n": {
+        localeDir: ".i18n-cache/*.{json}",
+        messageSyntaxVersion: "^11.0.0",
+      },
+    },
+  },
+  {
     files: [
       "**/utils/html_render.ts",
       "src/utils/dom/**/*.ts",
