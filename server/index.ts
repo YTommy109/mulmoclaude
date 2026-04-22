@@ -53,6 +53,7 @@ import { requireSameOrigin } from "./api/csrfGuard.js";
 import { bearerAuth } from "./api/auth/bearerAuth.js";
 import { deleteTokenFile, generateAndWriteToken, getCurrentToken } from "./api/auth/token.js";
 import { log } from "./system/logger/index.js";
+import { logBackgroundError } from "./utils/logBackgroundError.js";
 import { startChat } from "./api/routes/agent.js";
 import { registerScheduledSkills } from "./workspace/skills/scheduler.js";
 import { registerUserTasks } from "./workspace/skills/user-tasks.js";
@@ -329,9 +330,7 @@ function maybeForceJournalRun(): void {
   // propagate out of maybeRunJournal.
   if (!env.journalForceRunOnStartup) return;
   log.info("journal", "JOURNAL_FORCE_RUN_ON_STARTUP=1 — running now");
-  maybeRunJournal({ force: true }).catch((err) => {
-    log.warn("journal", "forced startup run failed", { error: String(err) });
-  });
+  maybeRunJournal({ force: true }).catch(logBackgroundError("journal", "forced startup run failed"));
 }
 
 function maybeForceChatIndexBackfill(): void {
@@ -349,11 +348,7 @@ function maybeForceChatIndexBackfill(): void {
         skipped: result.skipped,
       });
     })
-    .catch((err) => {
-      log.warn("chat-index", "forced startup backfill failed", {
-        error: String(err),
-      });
-    });
+    .catch(logBackgroundError("chat-index", "forced startup backfill failed"));
 }
 
 function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
@@ -464,11 +459,7 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
         log.info("skills", "scheduled skills registered", { count });
       }
     })
-    .catch((err) => {
-      log.warn("skills", "failed to register scheduled skills", {
-        error: String(err),
-      });
-    });
+    .catch(logBackgroundError("skills", "failed to register scheduled skills"));
 
   // Register user-created scheduled tasks from tasks.json.
   registerUserTasks({ taskManager, startChat })
@@ -477,11 +468,7 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
         log.info("user-tasks", "user tasks registered", { count });
       }
     })
-    .catch((err) => {
-      log.warn("user-tasks", "failed to register user tasks", {
-        error: String(err),
-      });
-    });
+    .catch(logBackgroundError("user-tasks", "failed to register user tasks"));
 
   taskManager.start();
 
