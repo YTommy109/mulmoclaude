@@ -315,8 +315,7 @@ const ptBRMessages = {
   },
   pluginWiki: {
     backToIndex: "Voltar ao índice",
-    downloadPdf: "↓ PDF",
-    pdfLoadingLabel: "PDF",
+    pdf: "PDF",
     pdfFailed: "⚠ Falha no PDF",
     tabIndex: "Índice",
     tabLog: "Log",
@@ -420,6 +419,8 @@ const ptBRMessages = {
     idFormatted: "({id})",
     missingEnv: "({env} ausente)",
     requiresEnv: "Requer {env} no .env",
+    collapse: "Recolher",
+    expand: "Expandir",
     idPlaceholder: "id-unico",
     creating: "Criando…",
     create: "Criar",
@@ -461,7 +462,8 @@ const ptBRMessages = {
     orDropImage: "ou solte uma imagem",
     generate: "Gerar",
     generateAudio: "♪ Gerar",
-    saveError: "⚠ {msg}",
+    saveErrorInvalidJson: "⚠ JSON inválido: {error}",
+    saveErrorSaveFailed: "⚠ Falha ao salvar: {error}",
   },
   pluginMarkdown: {
     loading: "Carregando documento...",

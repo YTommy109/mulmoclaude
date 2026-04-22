@@ -35,17 +35,23 @@ import deMessages from "../lang/de";
 type MessageSchema = typeof enMessages;
 type Locale = "en" | "ja" | "zh" | "ko" | "es" | "pt-BR" | "fr" | "de";
 
-const SUPPORTED_LOCALES: readonly Locale[] = ["en", "ja"] as const;
+const SUPPORTED_LOCALES: readonly Locale[] = ["en", "ja", "zh", "ko", "es", "pt-BR", "fr", "de"] as const;
 const DEFAULT_LOCALE: Locale = "en";
 
 function isSupported(tag: string): tag is Locale {
   return (SUPPORTED_LOCALES as readonly string[]).includes(tag);
 }
 
-// Collapse `ja-JP`, `ja-Hira-JP`, etc. to `ja`. Returns null when the
-// primary subtag isn't one we support.
+// Match the full tag first (so `pt-BR` resolves exactly), then collapse
+// `ja-JP`, `ja-Hira-JP`, etc. to their primary subtag. Returns null when
+// neither the full tag nor the primary subtag is supported.
 function primarySubtagIfSupported(tag: string): Locale | null {
-  const primary = tag.toLowerCase().split("-")[0];
+  if (isSupported(tag)) return tag;
+  const lower = tag.toLowerCase();
+  for (const supported of SUPPORTED_LOCALES) {
+    if (supported.toLowerCase() === lower) return supported;
+  }
+  const primary = lower.split("-")[0];
   return isSupported(primary) ? primary : null;
 }
 

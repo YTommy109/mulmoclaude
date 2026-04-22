@@ -316,8 +316,7 @@ const deMessages = {
   },
   pluginWiki: {
     backToIndex: "Zurück zum Index",
-    downloadPdf: "↓ PDF",
-    pdfLoadingLabel: "PDF",
+    pdf: "PDF",
     pdfFailed: "⚠ PDF fehlgeschlagen",
     tabIndex: "Index",
     tabLog: "Protokoll",
@@ -422,6 +421,8 @@ const deMessages = {
     idFormatted: "({id})",
     missingEnv: "({env} fehlt)",
     requiresEnv: "Erfordert {env} in .env",
+    collapse: "Einklappen",
+    expand: "Ausklappen",
     idPlaceholder: "eindeutige-id",
     creating: "Wird erstellt…",
     create: "Erstellen",
@@ -463,7 +464,8 @@ const deMessages = {
     orDropImage: "oder Bild ablegen",
     generate: "Generieren",
     generateAudio: "♪ Generieren",
-    saveError: "⚠ {msg}",
+    saveErrorInvalidJson: "⚠ Ungültiges JSON: {error}",
+    saveErrorSaveFailed: "⚠ Speichern fehlgeschlagen: {error}",
   },
   pluginMarkdown: {
     loading: "Dokument wird geladen...",

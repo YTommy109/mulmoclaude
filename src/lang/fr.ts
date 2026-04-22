@@ -316,8 +316,7 @@ const frMessages = {
   },
   pluginWiki: {
     backToIndex: "Retour à l'index",
-    downloadPdf: "↓ PDF",
-    pdfLoadingLabel: "PDF",
+    pdf: "PDF",
     pdfFailed: "⚠ Échec du PDF",
     tabIndex: "Index",
     tabLog: "Journal",
@@ -422,6 +421,8 @@ const frMessages = {
     idFormatted: "({id})",
     missingEnv: "({env} manquant)",
     requiresEnv: "Nécessite {env} dans .env",
+    collapse: "Réduire",
+    expand: "Développer",
     idPlaceholder: "id-unique",
     creating: "Création…",
     create: "Créer",
@@ -463,7 +464,8 @@ const frMessages = {
     orDropImage: "ou déposez une image",
     generate: "Générer",
     generateAudio: "♪ Générer",
-    saveError: "⚠ {msg}",
+    saveErrorInvalidJson: "⚠ JSON invalide : {error}",
+    saveErrorSaveFailed: "⚠ Échec de la sauvegarde : {error}",
   },
   pluginMarkdown: {
     loading: "Chargement du document...",
