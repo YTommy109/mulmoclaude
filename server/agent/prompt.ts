@@ -250,8 +250,13 @@ export function buildNewsConciergeContext(role: Role): string | null {
 // longer prompts keep the heading form so the structure is preserved.
 const PLUGIN_COMPACT_MAX_CHARS = 400;
 
-function formatPluginSection(name: string, prompt: string): string {
-  const trimmed = prompt.trim();
+export function formatPluginSection(name: string, prompt: string): string {
+  // Normalize CRLF → LF first: a prompt authored on Windows would
+  // otherwise hide its paragraph break inside `\r\n\r\n` and the
+  // `includes("\n\n")` check would falsely classify it as single-paragraph,
+  // collapsing a multi-paragraph prompt into one bullet.
+  const normalized = prompt.replace(/\r\n/g, "\n");
+  const trimmed = normalized.trim();
   const isSingleParagraph = !trimmed.includes("\n\n");
   if (isSingleParagraph && trimmed.length <= PLUGIN_COMPACT_MAX_CHARS) {
     // Flatten any single newlines inside the paragraph so the bullet

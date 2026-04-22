@@ -12,6 +12,7 @@ import {
   buildInlinedHelpFiles,
   summarizeHelpContent,
   buildPluginPromptSections,
+  formatPluginSection,
 } from "../../server/agent/prompt.js";
 import { WORKSPACE_FILES } from "../../server/workspace/paths.js";
 import { dirname } from "path";
@@ -434,5 +435,37 @@ describe("buildPluginPromptSections", () => {
   it("returns empty array when the role has no matching plugins", () => {
     const role = makeRole({ availablePlugins: [] });
     assert.deepEqual(buildPluginPromptSections(role), []);
+  });
+});
+
+describe("formatPluginSection", () => {
+  it("compacts short single-paragraph prompts into a bullet", () => {
+    const out = formatPluginSection("doThing", "Use doThing when the user asks.");
+    assert.equal(out, "- **doThing**: Use doThing when the user asks.");
+  });
+
+  it("keeps heading form for LF-separated multi-paragraph prompts", () => {
+    const out = formatPluginSection("doThing", "First paragraph.\n\nSecond paragraph.");
+    assert.equal(out, "### doThing\n\nFirst paragraph.\n\nSecond paragraph.");
+  });
+
+  it("keeps heading form for CRLF-separated multi-paragraph prompts", () => {
+    // Windows-authored prompts would use `\r\n\r\n`. Without CRLF
+    // normalization the `\n\n` check would miss the break and collapse
+    // both paragraphs into a single bullet — regression guard.
+    const out = formatPluginSection("doThing", "First paragraph.\r\n\r\nSecond paragraph.");
+    assert.ok(out.startsWith("### doThing\n\n"));
+    assert.ok(out.includes("First paragraph.\n\nSecond paragraph."));
+  });
+
+  it("falls through to heading form when single-paragraph but too long", () => {
+    const long = "x".repeat(500);
+    const out = formatPluginSection("doThing", long);
+    assert.ok(out.startsWith("### doThing\n\n"));
+  });
+
+  it("flattens intra-paragraph line breaks in the compact form", () => {
+    const out = formatPluginSection("doThing", "Line one\n  indented continuation");
+    assert.equal(out, "- **doThing**: Line one indented continuation");
   });
 });
