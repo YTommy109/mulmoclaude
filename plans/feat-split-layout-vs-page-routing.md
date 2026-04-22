@@ -100,17 +100,27 @@ The responsibilities split:
 
 ### Update: `src/composables/useViewLayout.ts`
 
-`isStackLayout` derives from **both** `layoutMode` and the current route:
+`isStackLayout` really means "no left sidebar, full-width canvas
+column" — it's the layout flag App.vue's template actually keys off.
+That's true in two cases:
+
+1. On `/chat` when the user's layout preference is `stack`.
+2. On every non-chat page (`/files`, `/todos`, `/wiki`, `/skills`,
+   `/roles`, `/scheduler`), which are full-page views with no sidebar
+   by design.
+
+Only `/chat` + `single` shows the sidebar. So the derivation is the
+negation of that one case:
 
 ```ts
 const isStackLayout = computed(
-  () => route.name === "chat" && layoutMode.value === "stack"
+  () => !(isChatPage.value && layoutMode.value === "single")
 );
 ```
 
-Stack is only visible on `/chat`. On `/files`, `/wiki`, etc., the
-sidebar-hiding behavior must not apply even if the remembered layout
-is `"stack"`.
+Note: the layout preference itself (`layoutMode`) only meaningfully
+affects `/chat`. On non-chat pages, `isStackLayout` is true regardless
+of what the user has chosen — there's no sidebar to toggle there.
 
 ### Update: `src/utils/canvas/viewMode.ts`
 
