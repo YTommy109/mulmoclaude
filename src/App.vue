@@ -771,18 +771,22 @@ onMounted(async () => {
     currentRoleId.value = urlRole;
   }
 
-  // If the URL already names a session (e.g. a bookmarked link or a
-  // page reload), try to load it. Otherwise create a fresh one.
-  const initialSessionId = currentSessionId.value;
-  if (initialSessionId) {
-    await loadSession(initialSessionId);
-    // loadSession is a no-op when the server returns 404 — in that
-    // case sessionMap won't have the id, so fall through to create.
-    if (!sessionMap.has(initialSessionId)) {
+  // Session bootstrap only applies on /chat. On /files, /todos, /wiki,
+  // etc. we must not create or load a chat session — doing so would
+  // replace the URL with /chat/<new-id> and pull the user off the page
+  // they actually loaded.
+  if (route.name === PAGE_ROUTES.chat) {
+    const initialSessionId = currentSessionId.value;
+    if (initialSessionId) {
+      await loadSession(initialSessionId);
+      // loadSession is a no-op when the server returns 404 — in that
+      // case sessionMap won't have the id, so fall through to create.
+      if (!sessionMap.has(initialSessionId)) {
+        createNewSession();
+      }
+    } else {
       createNewSession();
     }
-  } else {
-    createNewSession();
   }
 });
 </script>
