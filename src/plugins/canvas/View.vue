@@ -46,10 +46,9 @@
 
     <div ref="containerRef" class="flex-1 p-4 overflow-hidden">
       <VueDrawingCanvas
-        v-if="isSized"
+        v-if="canvasWidth > 0"
         ref="canvasRef"
         :key="`${selectedResult?.uuid || 'default'}-${canvasRenderKey}`"
-        v-model:image="canvasImage"
         :width="canvasWidth"
         :height="canvasHeight"
         :stroke-type="'dash'"
@@ -68,8 +67,8 @@
           borderRadius: '8px',
         }"
         :lock="false"
-        @mouseup="handleDrawingEnd"
-        @touchend="handleDrawingEnd"
+        @mouseup="saveDrawing"
+        @touchend="saveDrawing"
       />
       <div class="flex items-center gap-2 flex-wrap mt-3">
         <span class="text-xs text-gray-500 mr-1">Style:</span>
@@ -123,17 +122,16 @@ const applyStyle = (style: { id: string; label: string }) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const canvasRef = ref<any>(null);
 const containerRef = ref<HTMLDivElement | null>(null);
-const canvasImage = ref("");
 const brushSize = ref(5);
 const brushColor = ref("#000000");
+// `canvasWidth === 0` doubles as "not measured yet" — the child has a
+// v-if on `canvasWidth > 0` so it mounts exactly once, with the
+// correct dimensions. Mounting at a default 800×600 and resizing a
+// tick later races the in-flight background fetch and blanks the
+// canvas on reload.
 const canvasWidth = ref(0);
 const canvasHeight = ref(0);
 const canvasRenderKey = ref(0);
-// Gates the child render until the container has been measured. If we
-// mount at a default 800×600 and then resize to fit the real container
-// a tick later, the child's remount races its in-flight background-
-// image fetch and the canvas ends up blank on reload.
-const isSized = ref(false);
 
 // The PNG on disk is the source of truth. The path is baked into
 // the tool result at openCanvas time (server-allocated), so reload
@@ -164,43 +162,24 @@ const backgroundImage = computed(() => {
 let uploadInFlight = false;
 let pendingSave = false;
 
+// Undo/redo kick off the library's async redraw; give it a tick to
+// composite before we snapshot-and-upload.
 const undo = () => {
-  if (!canvasRef.value) return;
-  try {
-    canvasRef.value.undo();
-    setTimeout(saveDrawing, 50);
-  } catch (error) {
-    console.warn("Undo operation failed:", error);
-  }
+  canvasRef.value?.undo();
+  setTimeout(saveDrawing, 50);
 };
-
 const redo = () => {
-  if (!canvasRef.value) return;
-  try {
-    canvasRef.value.redo();
-    setTimeout(saveDrawing, 50);
-  } catch (error) {
-    console.warn("Redo operation failed:", error);
-  }
+  canvasRef.value?.redo();
+  setTimeout(saveDrawing, 50);
 };
-
 const clear = () => {
-  if (!canvasRef.value) return;
-  try {
-    canvasRef.value.reset();
-    saveDrawing();
-  } catch (error) {
-    console.warn("Clear operation failed:", error);
-  }
-};
-
-const handleDrawingEnd = () => {
+  canvasRef.value?.reset();
   saveDrawing();
 };
 
-// Grab the current bitmap and PUT it back to the pre-allocated
-// file. No result mutation — the path is fixed from canvas
-// creation, so nothing upstream needs to know about saves.
+// Snapshot the current bitmap and PUT it back to the pre-allocated
+// file. No result mutation — the path is fixed from canvas creation,
+// so nothing upstream needs to know about saves.
 const saveDrawing = async (): Promise<void> => {
   if (!canvasRef.value || !imagePath.value) return;
   if (uploadInFlight) {
@@ -210,7 +189,7 @@ const saveDrawing = async (): Promise<void> => {
   uploadInFlight = true;
   try {
     const imageDataUri: string = await canvasRef.value.save();
-    const filename = imagePath.value.replace(/^artifacts\/images\//, "").replace(/^images\//, "");
+    const filename = imagePath.value.split("/").pop() ?? "";
     const result = await apiPut<{ path: string }>(API_ROUTES.image.update.replace(":filename", filename), { imageData: imageDataUri });
     if (!result.ok) throw new Error(`PUT failed: ${result.error}`);
     bumpImage(imagePath.value);
@@ -234,21 +213,18 @@ const updateCanvasSize = () => {
   const newHeight = Math.floor((newWidth * 9) / 16);
   if (newWidth <= 0) return;
   if (newWidth === canvasWidth.value && newHeight === canvasHeight.value) return;
+  const firstPaint = canvasWidth.value === 0;
   canvasWidth.value = newWidth;
   canvasHeight.value = newHeight;
-  if (!isSized.value) return;
-  // Post-initial resize: bump the shared preview cache-buster and
-  // remount the canvas child so it picks up the latest saved bitmap
-  // at the new dimensions.
-  if (imagePath.value) bumpImage(imagePath.value);
-  canvasRenderKey.value++;
+  // Remount the child on every size change *after* the first paint so
+  // it re-reads the background image at the new dimensions. The first
+  // paint doesn't need this — v-if gates the mount on `canvasWidth > 0`.
+  if (!firstPaint) canvasRenderKey.value++;
 };
 
 onMounted(async () => {
   await nextTick();
   updateCanvasSize();
-  // First paint now that we know the size.
-  isSized.value = true;
   window.addEventListener("resize", updateCanvasSize);
 });
 
