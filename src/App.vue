@@ -798,13 +798,21 @@ onMounted(async () => {
   // etc. we must not create or load a chat session — doing so would
   // replace the URL with /chat/<new-id> and pull the user off the page
   // they actually loaded.
+  //
+  // Read the URL's sessionId directly rather than through
+  // currentSessionId.value — the route-param watcher isn't `immediate`,
+  // so on a hard load of /chat/<id> the ref may still be "" when we
+  // reach this code and we'd mistakenly resume the top session.
   if (route.name === PAGE_ROUTES.chat) {
-    const initialSessionId = currentSessionId.value;
-    if (initialSessionId) {
-      await loadSession(initialSessionId);
+    const urlSessionId = typeof route.params.sessionId === "string" ? route.params.sessionId : "";
+    if (urlSessionId) {
+      if (currentSessionId.value !== urlSessionId) {
+        currentSessionId.value = urlSessionId;
+      }
+      await loadSession(urlSessionId);
       // loadSession is a no-op when the server returns 404 — in that
       // case sessionMap won't have the id, so fall through to create.
-      if (!sessionMap.has(initialSessionId)) {
+      if (!sessionMap.has(urlSessionId)) {
         createNewSession();
       }
     } else {
