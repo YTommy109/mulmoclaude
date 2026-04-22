@@ -162,6 +162,27 @@ const jaMessages = {
     pdfPreview: "PDF プレビュー",
     parseError: "パースエラー",
   },
+  settingsMcpTab: {
+    noServers: "MCP サーバは未設定です。",
+    enabled: "有効",
+    urlLabel: "URL:",
+    commandLabel: "コマンド:",
+    dockerNonWorkspaceWarning: "⚠ ワークスペース外のパスが含まれています — Docker 内では解決されません。",
+    addServerButton: "+ MCP サーバを追加",
+    nameLabel: "名前",
+    namePlaceholder: "my-server",
+    typeHttp: "HTTP",
+    typeStdio: "Stdio (コマンド)",
+    urlFieldLabel: "URL",
+    urlPlaceholder: "https://example.com/mcp",
+    commandFieldLabel: "コマンド",
+    argsLabel: "引数（1行につき1つ）",
+    argsPlaceholder: "-y\n@modelcontextprotocol/server-filesystem\n/workspace/path",
+    errNoName: "名前を入力するか、URL / 引数から推論できる値を入力してください。",
+    errBadName: "名前は小文字で始まり、[a-z0-9_-] のみ使用できます。",
+    errIdExists: "サーバ ID「{id}」は既に存在します。",
+    errBadHttpUrl: "HTTP URL は http:// または https:// で始める必要があります",
+  },
 };
 
 export default jaMessages;
