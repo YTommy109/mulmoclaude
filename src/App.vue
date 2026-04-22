@@ -338,7 +338,10 @@ const { selectedResultUuid } = useSelectedResult({
 });
 
 // ── Dynamic favicon (#470) ──────────────────────────────────
-useFaviconState({ isRunning, currentSummary, activeSession });
+// `unreadCount` covers every session (not just the active tab), so
+// the favicon badge lights up when a background session gets a new
+// reply even though the user is looking at a different session.
+useFaviconState({ isRunning, currentSummary, activeSession, sessionsUnreadCount: unreadCount });
 
 const toolResultsPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
