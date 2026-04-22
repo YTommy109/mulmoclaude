@@ -542,13 +542,14 @@ function removeCurrentIfEmpty(): boolean {
   return false;
 }
 
-// `replace` defaults to true because the common callers already live
-// on /chat/:old and rewriting that entry avoids cluttering history
-// with an empty session the user never really visited. Cross-route
-// callers (e.g. startNewChat from /wiki) pass `false` so the browser
-// Back button still returns the user to where they came from.
-function createNewSession(roleId?: string, replace = true): ActiveSession {
-  removeCurrentIfEmpty();
+// Replace vs push is derived from state, not chosen by the caller:
+// replace only when we just discarded an empty session AND we're
+// currently on that same /chat/:emptyId URL — otherwise there's
+// something worth keeping in history (a real chat transcript, or
+// a non-chat page like /wiki the user came from).
+function createNewSession(roleId?: string): ActiveSession {
+  const removedEmpty = removeCurrentIfEmpty();
+  const replace = removedEmpty && isChatPage.value;
   const rId = roleId ?? currentRoleId.value;
   const session = createEmptySession(uuidv4(), rId);
   sessionMap.set(session.id, session);
@@ -784,9 +785,9 @@ function startNewChat(message: string): void {
   // createNewSession sets currentSessionId synchronously (see the
   // comment on its declaration), so the follow-up sendMessage lands
   // in the new session rather than whatever was previously active.
-  // `replace: false` keeps the originating page (e.g. /wiki?page=foo)
-  // in history so browser Back returns there after the handoff.
-  createNewSession(currentRoleId.value, false);
+  // Cross-route push behaviour (so browser Back returns to /wiki)
+  // is now handled inside createNewSession via the isChatPage check.
+  createNewSession(currentRoleId.value);
   void sendMessage(message);
 }
 
