@@ -150,6 +150,27 @@ const enMessages = {
     errAlreadyExists: "Already exists",
     errLabelConflict: 'Label "{label}" already exists',
   },
+  pluginLauncher: {
+    todos: { label: "Todos", title: "Open todos (⌘4)" },
+    scheduler: { label: "Schedule", title: "Open schedule (⌘5)" },
+    wiki: { label: "Wiki", title: "Open wiki (⌘6)" },
+    skills: { label: "Skills", title: "Open skills (⌘7)" },
+    roles: { label: "Roles", title: "Open roles (⌘8)" },
+    files: { label: "Files", title: "Open workspace files (⌘3)" },
+  },
+  fileContentHeader: {
+    showRendered: "Show rendered Markdown",
+    showRaw: "Show raw source",
+    rendered: "Rendered",
+    raw: "Raw",
+    closeFile: "Close file",
+  },
+  fileContentRenderer: {
+    selectFile: "Select a file",
+    htmlPreview: "HTML preview",
+    pdfPreview: "PDF preview",
+    parseError: "parse error",
+  },
 };
 
 export default enMessages;

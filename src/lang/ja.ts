@@ -141,6 +141,27 @@ const jaMessages = {
     errAlreadyExists: "既に登録されています",
     errLabelConflict: "ラベル「{label}」は既に使用されています",
   },
+  pluginLauncher: {
+    todos: { label: "Todo", title: "Todo を開く (⌘4)" },
+    scheduler: { label: "スケジュール", title: "スケジュールを開く (⌘5)" },
+    wiki: { label: "Wiki", title: "Wiki を開く (⌘6)" },
+    skills: { label: "スキル", title: "スキルを開く (⌘7)" },
+    roles: { label: "ロール", title: "ロールを開く (⌘8)" },
+    files: { label: "ファイル", title: "ワークスペースファイルを開く (⌘3)" },
+  },
+  fileContentHeader: {
+    showRendered: "レンダリング表示",
+    showRaw: "ソース表示",
+    rendered: "レンダリング",
+    raw: "ソース",
+    closeFile: "ファイルを閉じる",
+  },
+  fileContentRenderer: {
+    selectFile: "ファイルを選択してください",
+    htmlPreview: "HTML プレビュー",
+    pdfPreview: "PDF プレビュー",
+    parseError: "パースエラー",
+  },
 };
 
 export default jaMessages;
