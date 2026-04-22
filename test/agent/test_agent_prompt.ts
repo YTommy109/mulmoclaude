@@ -11,6 +11,8 @@ import {
   prependJournalPointer,
   buildInlinedHelpFiles,
   summarizeHelpContent,
+  buildPluginPromptSections,
+  formatPluginSection,
 } from "../../server/agent/prompt.js";
 import { WORKSPACE_FILES } from "../../server/workspace/paths.js";
 import { dirname } from "path";
@@ -213,8 +215,9 @@ describe("buildSystemPrompt", () => {
   });
 
   it("includes plugin prompt sections from ToolDefinition.prompt", () => {
-    // manageTodoList has a prompt in its definition.ts — it should
-    // appear in the system prompt when included in availablePlugins.
+    // manageTodoList has a single-paragraph prompt in its
+    // definition.ts, so it should render in the compact bullet form
+    // (`- **name**: body`) under the "Plugin Instructions" heading.
     const role = makeRole({ availablePlugins: ["manageTodoList"] });
     const result = buildSystemPrompt({
       role,
@@ -222,8 +225,10 @@ describe("buildSystemPrompt", () => {
       useDocker: false,
     });
     assert.ok(result.includes("## Plugin Instructions"));
-    assert.ok(result.includes("### manageTodoList"));
+    assert.ok(result.includes("- **manageTodoList**: "));
     assert.ok(result.includes("todo list"));
+    // Compact form must not revert to the old heading layout.
+    assert.ok(!result.includes("### manageTodoList"));
   });
 
   it("emits the Sandbox Tools hint when useDocker is true", () => {
@@ -401,5 +406,66 @@ describe("buildInlinedHelpFiles", () => {
     writeHelp("empty.md", "   \n\n   ");
     const result = buildInlinedHelpFiles("Read helps/empty.md", workspace);
     assert.deepEqual(result, []);
+  });
+});
+
+describe("buildPluginPromptSections", () => {
+  it("returns compact bullet form for a short single-paragraph plugin prompt", () => {
+    // manageTodoList's real definition has a ~114-char single-paragraph
+    // prompt, so it must collapse to the `- **name**: body` shape.
+    const role = makeRole({ availablePlugins: ["manageTodoList"] });
+    const sections = buildPluginPromptSections(role);
+    assert.equal(sections.length, 1);
+    assert.ok(sections[0].startsWith("- **manageTodoList**: "));
+    assert.ok(!sections[0].includes("\n"));
+  });
+
+  it("returns heading form for a multi-paragraph plugin prompt", () => {
+    // presentDocument's real prompt is multi-paragraph (two paragraphs
+    // joined by \n\n), so it keeps the heading layout so structure
+    // survives.
+    const role = makeRole({ availablePlugins: ["presentDocument"] });
+    const sections = buildPluginPromptSections(role);
+    assert.equal(sections.length, 1);
+    assert.ok(sections[0].startsWith("### presentDocument\n\n"));
+    // Body retains its paragraph break
+    assert.ok(sections[0].includes("\n\n"));
+  });
+
+  it("returns empty array when the role has no matching plugins", () => {
+    const role = makeRole({ availablePlugins: [] });
+    assert.deepEqual(buildPluginPromptSections(role), []);
+  });
+});
+
+describe("formatPluginSection", () => {
+  it("compacts short single-paragraph prompts into a bullet", () => {
+    const out = formatPluginSection("doThing", "Use doThing when the user asks.");
+    assert.equal(out, "- **doThing**: Use doThing when the user asks.");
+  });
+
+  it("keeps heading form for LF-separated multi-paragraph prompts", () => {
+    const out = formatPluginSection("doThing", "First paragraph.\n\nSecond paragraph.");
+    assert.equal(out, "### doThing\n\nFirst paragraph.\n\nSecond paragraph.");
+  });
+
+  it("keeps heading form for CRLF-separated multi-paragraph prompts", () => {
+    // Windows-authored prompts would use `\r\n\r\n`. Without CRLF
+    // normalization the `\n\n` check would miss the break and collapse
+    // both paragraphs into a single bullet — regression guard.
+    const out = formatPluginSection("doThing", "First paragraph.\r\n\r\nSecond paragraph.");
+    assert.ok(out.startsWith("### doThing\n\n"));
+    assert.ok(out.includes("First paragraph.\n\nSecond paragraph."));
+  });
+
+  it("falls through to heading form when single-paragraph but too long", () => {
+    const long = "x".repeat(500);
+    const out = formatPluginSection("doThing", long);
+    assert.ok(out.startsWith("### doThing\n\n"));
+  });
+
+  it("flattens intra-paragraph line breaks in the compact form", () => {
+    const out = formatPluginSection("doThing", "Line one\n  indented continuation");
+    assert.equal(out, "- **doThing**: Line one indented continuation");
   });
 });

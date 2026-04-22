@@ -7,6 +7,7 @@ import { WORKSPACE_DIRS, WORKSPACE_FILES } from "../workspace/paths.js";
 import { getCachedCustomDirs, buildCustomDirsPrompt } from "../workspace/custom-dirs.js";
 import { TOOL_NAMES } from "../../src/config/toolNames.js";
 import { getCachedReferenceDirs, buildReferenceDirsPrompt } from "../workspace/reference-dirs.js";
+import { log } from "../system/logger/index.js";
 
 export const SYSTEM_PROMPT = `You are MulmoClaude, a versatile assistant app with rich visual output.
 
@@ -242,6 +243,35 @@ export function buildNewsConciergeContext(role: Role): string | null {
   return NEWS_CONCIERGE_PROMPT;
 }
 
+// Single-paragraph prompts up to this length collapse into a compact
+// `- **name**: body` bullet instead of the old `### name\n\n body`
+// heading. Saves ~25 chars of heading overhead per plugin and keeps the
+// whole "Plugin Instructions" block scannable. Multi-paragraph or
+// longer prompts keep the heading form so the structure is preserved.
+const PLUGIN_COMPACT_MAX_CHARS = 400;
+
+export function formatPluginSection(name: string, prompt: string): string {
+  // Normalize CRLF → LF first: a prompt authored on Windows would
+  // otherwise hide its paragraph break inside `\r\n\r\n` and the
+  // `includes("\n\n")` check would falsely classify it as single-paragraph,
+  // collapsing a multi-paragraph prompt into one bullet.
+  const normalized = prompt.replace(/\r\n/g, "\n");
+  const trimmed = normalized.trim();
+  const isSingleParagraph = !trimmed.includes("\n\n");
+  if (isSingleParagraph && trimmed.length <= PLUGIN_COMPACT_MAX_CHARS) {
+    // Flatten any single newlines inside the paragraph so the bullet
+    // stays on one visual line. Split-join avoids the super-linear
+    // backtracking that `\s*\n\s*` would bring (sonarjs/slow-regex).
+    const oneLine = trimmed
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .join(" ");
+    return `- **${name}**: ${oneLine}`;
+  }
+  return `### ${name}\n\n${trimmed}`;
+}
+
 export function buildPluginPromptSections(role: Role): string[] {
   // Widen to Set<string> so the `.has()` checks accept arbitrary
   // definition names (PLUGIN_DEFS entries and MCP tool names are
@@ -268,7 +298,7 @@ export function buildPluginPromptSections(role: Role): string[] {
 
   // MCP tool prompts override definition prompts if both exist
   const merged = { ...defPrompts, ...mcpToolPrompts };
-  return Object.entries(merged).map(([name, prompt]) => `### ${name}\n\n${prompt}`);
+  return Object.entries(merged).map(([name, prompt]) => formatPluginSection(name, prompt));
 }
 
 export interface SystemPromptParams {
@@ -375,27 +405,55 @@ export function headingSection(heading: string, items: string[]): string | null 
   return `## ${heading}\n\n${items.join("\n\n")}`;
 }
 
+// Named sections so buildSystemPrompt can log a size breakdown
+// without inventing labels at the call site.
+interface NamedSection {
+  name: string;
+  content: string | null;
+}
+
+// System prompt above this total size gets a warning in the log —
+// 20K chars is ~5K tokens, a noticeable slice of the context budget
+// and a useful early-warning threshold. Doesn't block, just flags.
+const SYSTEM_PROMPT_WARN_THRESHOLD_CHARS = 20000;
+
 export function buildSystemPrompt(params: SystemPromptParams): string {
   const { role, workspacePath, useDocker } = params;
 
-  // Every section builder returns either its content or null. The
-  // orchestrator just filters out nulls and joins — no per-section
-  // `...(cond ? [x] : [])` ceremony at the bottom.
-  const sections: Array<string | null> = [
-    SYSTEM_PROMPT,
-    role.prompt,
-    `Workspace directory: ${workspacePath}`,
-    `Today's date: ${new Date().toISOString().split("T")[0]}`,
-    buildMemoryContext(workspacePath),
-    useDocker ? SANDBOX_TOOLS_HINT : null,
-    buildWikiContext(workspacePath),
-    buildSourcesContext(workspacePath),
-    buildNewsConciergeContext(role),
-    buildCustomDirsPrompt(getCachedCustomDirs()),
-    buildReferenceDirsPrompt(getCachedReferenceDirs(), useDocker),
-    headingSection("Reference Files", buildInlinedHelpFiles(role.prompt, workspacePath)),
-    headingSection("Plugin Instructions", buildPluginPromptSections(role)),
+  const sections: NamedSection[] = [
+    { name: "base", content: SYSTEM_PROMPT },
+    { name: "role", content: role.prompt },
+    { name: "workspace", content: `Workspace directory: ${workspacePath}` },
+    { name: "date", content: `Today's date: ${new Date().toISOString().split("T")[0]}` },
+    { name: "memory", content: buildMemoryContext(workspacePath) },
+    { name: "sandbox", content: useDocker ? SANDBOX_TOOLS_HINT : null },
+    { name: "wiki", content: buildWikiContext(workspacePath) },
+    { name: "sources", content: buildSourcesContext(workspacePath) },
+    { name: "news-concierge", content: buildNewsConciergeContext(role) },
+    { name: "custom-dirs", content: buildCustomDirsPrompt(getCachedCustomDirs()) },
+    { name: "reference-dirs", content: buildReferenceDirsPrompt(getCachedReferenceDirs(), useDocker) },
+    { name: "helps", content: headingSection("Reference Files", buildInlinedHelpFiles(role.prompt, workspacePath)) },
+    { name: "plugins", content: headingSection("Plugin Instructions", buildPluginPromptSections(role)) },
   ];
 
-  return sections.filter((section): section is string => section !== null).join("\n\n");
+  const kept = sections.filter((section): section is NamedSection & { content: string } => section.content !== null);
+  const result = kept.map((section) => section.content).join("\n\n");
+
+  // Log a size breakdown so prompt-bloat regressions show up in
+  // normal run logs. Warn tier fires for outright large prompts;
+  // the debug tier gives the per-section counts for when the
+  // warning hits (or just when someone wants a baseline).
+  const breakdown = kept.map((section) => `${section.name}=${section.content.length}`).join(" ");
+  const total = result.length;
+  log.debug("prompt", "system-prompt size", { total, breakdown, roleId: role.id });
+  if (total >= SYSTEM_PROMPT_WARN_THRESHOLD_CHARS) {
+    log.warn("prompt", "system-prompt exceeds warn threshold", {
+      total,
+      threshold: SYSTEM_PROMPT_WARN_THRESHOLD_CHARS,
+      breakdown,
+      roleId: role.id,
+    });
+  }
+
+  return result;
 }
