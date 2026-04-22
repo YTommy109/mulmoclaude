@@ -60,9 +60,9 @@ function isWithinBackoff(state: SourceState | undefined, nowMs: number): boolean
   return isFutureTimestamp(state.nextAttemptAt, nowMs) || isFutureTimestamp(state.emptyBackoffUntil, nowMs);
 }
 
-function isFutureTimestamp(ts: string | null | undefined, nowMs: number): boolean {
-  if (!ts) return false;
-  const parsed = Date.parse(ts);
+function isFutureTimestamp(timestamp: string | null | undefined, nowMs: number): boolean {
+  if (!timestamp) return false;
+  const parsed = Date.parse(timestamp);
   if (!Number.isFinite(parsed)) return false;
   return parsed > nowMs;
 }
