@@ -24,6 +24,26 @@ Your personal computer is becoming your most powerful AI assistant. It runs loca
 
 A **bridge** is a tiny process (~100 lines) that translates between a messaging platform's API and the MulmoBridge socket.io protocol. The platform adapters shipped in this repo live under [`./bridges/`](./bridges/); the `@mulmobridge/client` library handles all the socket.io boilerplate, so writing a new bridge is just writing the platform adapter. For local development you can point a bridge at `@mulmobridge/mock-server` (an echo-mode server speaking the full protocol) to test without a real agent running.
 
+### With @mulmobridge/relay — skip the tunnel for webhook platforms
+
+Four platforms deliver messages via **inbound HTTP webhooks** — [LINE](./bridges/line/), [WhatsApp](./bridges/whatsapp/), [Messenger](./bridges/messenger/), [Google Chat](./bridges/google-chat/). They need the receiver to be reachable from the public internet. You have two options:
+
+- **Run the bridge on your PC + ngrok / Cloudflare Tunnel** — easiest to set up, but the tunnel has to stay up and your PC has to be online whenever a message arrives.
+- **[`@mulmobridge/relay`](./relay/) on Cloudflare Workers** — gives you a permanent public URL, queues messages when MulmoClaude is offline (and delivers them on reconnect), and runs on the Cloudflare free tier. Your PC connects *outbound* to the relay via WebSocket, so it keeps working behind any NAT with no tunnel.
+
+```text
+ Webhook platforms        Cloudflare Workers          Your PC (any NAT)
+┌──────────────────┐     ┌────────────────────────┐   ┌────────────────────────────────┐
+│  LINE            │     │ @mulmobridge/relay     │   │ @mulmobridge/chat-service      │
+│  WhatsApp        │ ──► │   (webhook receiver    │──►│          ↓                     │
+│  Messenger       │     │    + offline queue)    │   │ Your AI agent                  │
+│  Google Chat     │ ◄── │                        │◄──│ (MulmoClaude, Claude, …)       │
+└──────────────────┘     └────────────────────────┘   └────────────────────────────────┘
+    inbound webhook         always-reachable URL        outbound WebSocket only
+```
+
+**The other bridges don't need relay.** [CLI](./bridges/cli/), [Telegram](./bridges/telegram/), [Slack](./bridges/slack/), [Discord](./bridges/discord/), [Matrix](./bridges/matrix/), [IRC](./bridges/irc/), [Mattermost](./bridges/mattermost/), [Zulip](./bridges/zulip/) all use outbound polling or WebSocket connections, so they run fine from behind any NAT without a tunnel or a relay.
+
 ## Packages
 
 ### Core
