@@ -8,6 +8,10 @@ const ja = {
     loading: "読み込み中...",
     close: "閉じる",
     dismiss: "閉じる",
+    add: "追加",
+    remove: "削除",
+    saving: "保存中...",
+    saved: "保存しました",
   },
   sessionTabBar: {
     newSession: "新しいセッション",
@@ -116,6 +120,26 @@ const ja = {
     singleViewTooltip: "Single 表示・クリックで Stack に切替 (⌘2)",
     switchToSingle: "Single 表示に切替",
     switchToStack: "Stack 表示に切替",
+  },
+  settingsWorkspaceDirs: {
+    noEntries: "カスタムディレクトリは未設定です。",
+    addDirTitle: "ディレクトリを追加",
+    pathPlaceholder: "data/clients または artifacts/reports",
+    descPlaceholder: "説明（このフォルダに入れるもの）",
+    errPathRequired: "パスを入力してください",
+    errMustStartWith: "data/ または artifacts/ で始める必要があります",
+    errAlreadyExists: "既に登録されています",
+  },
+  settingsReferenceDirs: {
+    noEntries: "参照ディレクトリは未設定です。",
+    addDirTitle: "参照ディレクトリを追加",
+    pathPlaceholder: "/Users/me/ObsidianVault または ~/Documents/notes",
+    labelPlaceholder: "ラベル（省略時はフォルダ名）",
+    readOnlyBadge: "読み取り専用",
+    errPathRequired: "パスを入力してください",
+    errMustBeAbsolute: "絶対パスまたは ~/ で始まる必要があります",
+    errAlreadyExists: "既に登録されています",
+    errLabelConflict: "ラベル「{label}」は既に使用されています",
   },
 };
 

@@ -15,6 +15,10 @@ const en = {
     loading: "Loading...",
     close: "Close",
     dismiss: "Dismiss",
+    add: "Add",
+    remove: "Remove",
+    saving: "Saving...",
+    saved: "Saved",
   },
   sessionTabBar: {
     newSession: "New session",
@@ -125,6 +129,26 @@ const en = {
     singleViewTooltip: "Single view · click to switch to Stack (⌘2)",
     switchToSingle: "Switch to Single view",
     switchToStack: "Switch to Stack view",
+  },
+  settingsWorkspaceDirs: {
+    noEntries: "No custom directories configured.",
+    addDirTitle: "Add directory",
+    pathPlaceholder: "data/clients or artifacts/reports",
+    descPlaceholder: "Description (what goes in this folder)",
+    errPathRequired: "Path required",
+    errMustStartWith: "Must start with data/ or artifacts/",
+    errAlreadyExists: "Already exists",
+  },
+  settingsReferenceDirs: {
+    noEntries: "No reference directories configured.",
+    addDirTitle: "Add reference directory",
+    pathPlaceholder: "/Users/me/ObsidianVault or ~/Documents/notes",
+    labelPlaceholder: "Label (optional — defaults to folder name)",
+    readOnlyBadge: "read-only",
+    errPathRequired: "Path required",
+    errMustBeAbsolute: "Must be an absolute path or start with ~/",
+    errAlreadyExists: "Already exists",
+    errLabelConflict: 'Label "{label}" already exists',
   },
 };
 
