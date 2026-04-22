@@ -112,8 +112,8 @@ export const EMPTY_BACKOFF_MAX_MS = ONE_DAY_MS;
 export function emptyBackoffDelayMs(consecutiveEmptyFetches: number): number {
   if (consecutiveEmptyFetches < EMPTY_FETCH_THRESHOLD) return 0;
   const steps = consecutiveEmptyFetches - EMPTY_FETCH_THRESHOLD;
-  const ms = ONE_HOUR_MS * 2 ** Math.min(steps, 10);
-  return Math.min(ms, EMPTY_BACKOFF_MAX_MS);
+  const delayMs = ONE_HOUR_MS * 2 ** Math.min(steps, 10);
+  return Math.min(delayMs, EMPTY_BACKOFF_MAX_MS);
 }
 
 // Compute the next per-source state given the outcome. Pure.
