@@ -316,6 +316,7 @@ const enMessages = {
     markAsDoneColumn: "Mark as done column",
     deleteColumn: "Delete column",
     columnActions: "Column actions",
+    addCard: "+ Add card",
   },
   todoTableList: {
     noMatchingFilter: "No items match the current filter",
@@ -499,6 +500,8 @@ const enMessages = {
     previewLabel: "📊 Spreadsheet",
     previewUntitled: "Spreadsheet",
     previewSheets: "{count} sheet | {count} sheets",
+    untitled: "Spreadsheet",
+    excel: "Excel",
     valuePlaceholder: "Value",
     valueOrFormulaPlaceholder: "Value or Formula (e.g., 100 or SUM(B2:B11))",
     formatPlaceholder: "Format (e.g., $#,##0.00)",

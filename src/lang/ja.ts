@@ -308,6 +308,7 @@ const jaMessages = {
     markAsDoneColumn: "完了列に指定",
     deleteColumn: "列を削除",
     columnActions: "列のアクション",
+    addCard: "+ カードを追加",
   },
   todoTableList: {
     noMatchingFilter: "現在のフィルタに一致する項目はありません",
@@ -491,6 +492,8 @@ const jaMessages = {
     previewLabel: "📊 スプレッドシート",
     previewUntitled: "スプレッドシート",
     previewSheets: "{count} シート",
+    untitled: "スプレッドシート",
+    excel: "Excel",
     valuePlaceholder: "値",
     valueOrFormulaPlaceholder: "値または数式（例: 100, SUM(B2:B11)）",
     formatPlaceholder: "書式（例: $#,##0.00）",
