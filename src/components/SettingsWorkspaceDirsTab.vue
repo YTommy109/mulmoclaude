@@ -91,10 +91,10 @@ onMounted(load);
 
 <template>
   <div class="space-y-3">
-    <p class="text-xs text-gray-600 leading-relaxed">
-      Custom directories for organizing files under
-      <code class="bg-gray-100 px-1 rounded">data/</code> and <code class="bg-gray-100 px-1 rounded">artifacts/</code>. Claude uses these to route file saves.
-    </p>
+    <i18n-t keypath="settingsWorkspaceDirs.explanation" tag="p" class="text-xs text-gray-600 leading-relaxed">
+      <template #dataDir><code class="bg-gray-100 px-1 rounded">data/</code></template>
+      <template #artifactsDir><code class="bg-gray-100 px-1 rounded">artifacts/</code></template>
+    </i18n-t>
 
     <!-- Loading -->
     <div v-if="loading" class="text-sm text-gray-400">{{ t("common.loading") }}</div>

@@ -1,10 +1,10 @@
 <template>
   <div class="space-y-3">
-    <p class="text-xs text-gray-600 leading-relaxed">
-      Add external MCP servers. HTTP servers work in every mode. Stdio servers use the sandbox image's
-      <code class="bg-gray-100 px-1 rounded">npx</code> / <code class="bg-gray-100 px-1 rounded">node</code> /
-      <code class="bg-gray-100 px-1 rounded">tsx</code>; paths must live under the workspace when Docker is enabled.
-    </p>
+    <i18n-t keypath="settingsMcpTab.explanation" tag="p" class="text-xs text-gray-600 leading-relaxed">
+      <template #npx><code class="bg-gray-100 px-1 rounded">npx</code></template>
+      <template #node><code class="bg-gray-100 px-1 rounded">node</code></template>
+      <template #tsx><code class="bg-gray-100 px-1 rounded">tsx</code></template>
+    </i18n-t>
 
     <div v-if="servers.length === 0" class="text-xs text-gray-500 italic" data-testid="mcp-empty">{{ t("settingsMcpTab.noServers") }}</div>
 
@@ -37,9 +37,15 @@
             <span class="text-gray-500">{{ t("settingsMcpTab.urlLabel") }}</span>
             <code class="ml-1">{{ entry.spec.url }}</code>
           </div>
-          <div v-if="dockerMode && wouldRewriteLocalhost((entry.spec as HttpSpec).url)" class="text-amber-700">
-            In Docker mode <code>localhost</code> is rewritten to <code>host.docker.internal</code>.
-          </div>
+          <i18n-t
+            v-if="dockerMode && wouldRewriteLocalhost((entry.spec as HttpSpec).url)"
+            keypath="settingsMcpTab.localhostRewrite"
+            tag="div"
+            class="text-amber-700"
+          >
+            <template #localhost><code>localhost</code></template>
+            <template #hostDockerInternal><code>host.docker.internal</code></template>
+          </i18n-t>
         </div>
         <div v-else-if="entry.spec.type === 'stdio'" class="text-xs space-y-1">
           <div>

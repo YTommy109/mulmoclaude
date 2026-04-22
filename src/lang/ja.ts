@@ -124,6 +124,7 @@ const jaMessages = {
     switchToStack: "Stack 表示に切替",
   },
   settingsWorkspaceDirs: {
+    explanation: "{dataDir} および {artifactsDir} 配下でファイルを整理するためのカスタムディレクトリ。Claude がファイル保存先を振り分けるために使用します。",
     noEntries: "カスタムディレクトリは未設定です。",
     addDirTitle: "ディレクトリを追加",
     pathPlaceholder: "data/clients または artifacts/reports",
@@ -133,6 +134,8 @@ const jaMessages = {
     errAlreadyExists: "既に登録されています",
   },
   settingsReferenceDirs: {
+    explanation:
+      "Claude が読み取れるが変更できない外部ディレクトリ。Docker モードでは読み取り専用でマウントされます。Obsidian vault、プロジェクトコード、ドキュメントフォルダなどの参照に便利です。",
     noEntries: "参照ディレクトリは未設定です。",
     addDirTitle: "参照ディレクトリを追加",
     pathPlaceholder: "/Users/me/ObsidianVault または ~/Documents/notes",
@@ -165,6 +168,9 @@ const jaMessages = {
     parseError: "パースエラー",
   },
   settingsMcpTab: {
+    explanation:
+      "外部 MCP サーバを追加します。HTTP サーバはすべてのモードで動作します。Stdio サーバはサンドボックスイメージの {npx} / {node} / {tsx} を使用します。Docker 有効時はパスはワークスペース内である必要があります。",
+    localhostRewrite: "Docker モードでは {localhost} は {hostDockerInternal} に書き換えられます。",
     noServers: "MCP サーバは未設定です。",
     enabled: "有効",
     urlLabel: "URL:",
@@ -249,6 +255,10 @@ const jaMessages = {
     emptyHint: "Todo 項目はまだありません。「+ 追加」で作成してください。",
     addColumn: "列を追加",
     noMatchingFilter: "現在のフィルタに一致する項目はありません",
+  },
+  todoPreview: {
+    completedRatio: "{done}/{total} 完了",
+    moreItems: "+ {count} 件…",
   },
   todoDialogs: {
     addTitle: "Todo を追加",

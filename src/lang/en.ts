@@ -133,6 +133,7 @@ const enMessages = {
     switchToStack: "Switch to Stack view",
   },
   settingsWorkspaceDirs: {
+    explanation: "Custom directories for organizing files under {dataDir} and {artifactsDir}. Claude uses these to route file saves.",
     noEntries: "No custom directories configured.",
     addDirTitle: "Add directory",
     pathPlaceholder: "data/clients or artifacts/reports",
@@ -142,6 +143,8 @@ const enMessages = {
     errAlreadyExists: "Already exists",
   },
   settingsReferenceDirs: {
+    explanation:
+      "External directories Claude can read but not modify. In Docker mode, these are mounted read-only. Useful for referencing Obsidian vaults, project code, or document folders.",
     noEntries: "No reference directories configured.",
     addDirTitle: "Add reference directory",
     pathPlaceholder: "/Users/me/ObsidianVault or ~/Documents/notes",
@@ -174,6 +177,9 @@ const enMessages = {
     parseError: "parse error",
   },
   settingsMcpTab: {
+    explanation:
+      "Add external MCP servers. HTTP servers work in every mode. Stdio servers use the sandbox image's {npx} / {node} / {tsx}; paths must live under the workspace when Docker is enabled.",
+    localhostRewrite: "In Docker mode {localhost} is rewritten to {hostDockerInternal}.",
     noServers: "No MCP servers configured yet.",
     enabled: "enabled",
     urlLabel: "URL:",
@@ -257,6 +263,10 @@ const enMessages = {
     emptyHint: 'No todo items yet. Click "+ Add" to create one.',
     addColumn: "Add Column",
     noMatchingFilter: "No items match the current filter",
+  },
+  todoPreview: {
+    completedRatio: "{done}/{total} completed",
+    moreItems: "+ {count} more…",
   },
   todoDialogs: {
     addTitle: "Add Todo",
