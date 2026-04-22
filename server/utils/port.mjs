@@ -42,7 +42,6 @@ export function isPortFree(port) {
  */
 export async function findAvailablePort(start) {
   for (let candidate = start; candidate < start + MAX_PORT_PROBES; candidate++) {
-    // eslint-disable-next-line no-await-in-loop
     if (await isPortFree(candidate)) return candidate;
   }
   return null;
