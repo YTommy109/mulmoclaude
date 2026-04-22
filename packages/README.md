@@ -9,19 +9,20 @@ Your personal computer is becoming your most powerful AI assistant. It runs loca
 ## How It Works
 
 ```text
- You, on your phone                     Your PC at home
-┌─────────────────┐                    ┌──────────────────────────┐
-│  Telegram        │                   │  MulmoBridge chat-service │
-│  LINE            │  ── socket.io ──► │         ↓                 │
-│  Slack           │     (secure)      │  Your AI Agent            │
-│  Discord         │  ◄── replies ──── │  (Claude, GPT, custom)    │
-│  ...             │                   │         ↓                 │
-└─────────────────┘                    │  Your files, tools, data  │
-                                       └──────────────────────────┘
-
+ Phone messaging apps      Bridge process              Your PC
+┌──────────────────┐     ┌────────────────────────┐   ┌────────────────────────────────┐
+│  Telegram        │     │ ./bridges/<platform>   │   │ @mulmobridge/chat-service      │
+│  LINE            │ ──► │   (or your own bridge  │──►│          ↓                     │
+│  Slack, Discord  │     │    built on            │   │ Your AI agent                  │
+│  WhatsApp, IRC   │ ◄── │    @mulmobridge/       │◄──│ (MulmoClaude, Claude, GPT,     │
+│  ...             │     │    client)             │   │  custom — or @mulmobridge/     │
+└──────────────────┘     └────────────────────────┘   │  mock-server for offline tests)│
+                            socket.io (secure)        │          ↓                     │
+                                                      │  Files, tools, data            │
+                                                      └────────────────────────────────┘
 ```
 
-A **bridge** is a tiny process (~100 lines) that translates between a messaging platform's API and the MulmoBridge socket.io protocol. The `@mulmobridge/client` library handles all the socket.io boilerplate — writing a new bridge is just writing the platform adapter.
+A **bridge** is a tiny process (~100 lines) that translates between a messaging platform's API and the MulmoBridge socket.io protocol. The platform adapters shipped in this repo live under [`./bridges/`](./bridges/); the `@mulmobridge/client` library handles all the socket.io boilerplate, so writing a new bridge is just writing the platform adapter. For local development you can point a bridge at `@mulmobridge/mock-server` (an echo-mode server speaking the full protocol) to test without a real agent running.
 
 ## Packages
 
@@ -33,6 +34,7 @@ A **bridge** is a tiny process (~100 lines) that translates between a messaging 
 | [@mulmobridge/chat-service](./chat-service/) | Server-side chat service (Express + socket.io, DI-pure) | [![npm](https://img.shields.io/npm/v/@mulmobridge/chat-service)](https://www.npmjs.com/package/@mulmobridge/chat-service) |
 | [@mulmobridge/client](./client/) | Bridge-side socket.io client library | [![npm](https://img.shields.io/npm/v/@mulmobridge/client)](https://www.npmjs.com/package/@mulmobridge/client) |
 | [@mulmobridge/mock-server](./mock-server/) | Lightweight mock server for testing | [![npm](https://img.shields.io/npm/v/@mulmobridge/mock-server)](https://www.npmjs.com/package/@mulmobridge/mock-server) |
+| [@mulmobridge/relay](./relay/) | Cloudflare Workers relay — receives webhooks (LINE, WhatsApp, Messenger, Google Chat), queues offline, forwards via WebSocket | [![npm](https://img.shields.io/npm/v/@mulmobridge/relay)](https://www.npmjs.com/package/@mulmobridge/relay) |
 
 ### Bridges
 
@@ -139,6 +141,7 @@ packages/
   chat-service/   ← server-side Express + socket.io service
   client/         ← bridge-side socket.io client + MIME utils
   mock-server/    ← test mock server (echo mode)
+  relay/          ← Cloudflare Workers webhook relay
   bridges/
     cli/          ← reference bridge: interactive terminal
     telegram/     ← Telegram bot bridge
@@ -152,7 +155,18 @@ packages/
     zulip/        ← Zulip bridge (long-polling)
     messenger/    ← Facebook Messenger bridge (webhook)
     google-chat/  ← Google Chat bridge (webhook + JWT)
+  scheduler/      ← @receptron/task-scheduler (non-MulmoBridge, general-purpose)
+  mulmoclaude/    ← launcher npm package for the MulmoClaude app
 ```
+
+## Other packages in this directory
+
+This monorepo also hosts a couple of packages that are **not part of MulmoBridge** but live here for publishing convenience. They are independently published and usable outside this project.
+
+| Package | Description | npm |
+|---|---|---|
+| [@receptron/task-scheduler](./scheduler/) | General-purpose persistent task scheduler with catch-up recovery. Schedule recurring tasks (interval / daily / weekly / one-shot), survive restarts, recover missed runs. Zero dependencies. | [![npm](https://img.shields.io/npm/v/@receptron/task-scheduler)](https://www.npmjs.com/package/@receptron/task-scheduler) |
+| [mulmoclaude](./mulmoclaude/) | Launcher npm package for the MulmoClaude app itself — `npx mulmoclaude` to start the GUI chat on `http://localhost:3001`. Bundles the server + client as a ready-to-run distribution. | [![npm](https://img.shields.io/npm/v/mulmoclaude)](https://www.npmjs.com/package/mulmoclaude) |
 
 ## License
 
