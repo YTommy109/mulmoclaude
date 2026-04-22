@@ -7,6 +7,7 @@ import sonarjs from "eslint-plugin-sonarjs";
 import importPlugin from "eslint-plugin-import";
 import vuePlugin from "eslint-plugin-vue";
 import vueParser from "vue-eslint-parser";
+import vueI18n from "@intlify/eslint-plugin-vue-i18n"
 
 export default [
   {
@@ -32,6 +33,7 @@ export default [
   sonarjs.configs.recommended,
   ...tseslint.configs.recommended,
   ...vuePlugin.configs["flat/recommended"],
+  ...vueI18n.configs.recommended,
   {
     files: [
       "**/utils/html_render.ts",
