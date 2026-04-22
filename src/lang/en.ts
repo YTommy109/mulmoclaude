@@ -171,6 +171,29 @@ const enMessages = {
     pdfPreview: "PDF preview",
     parseError: "parse error",
   },
+  settingsMcpTab: {
+    noServers: "No MCP servers configured yet.",
+    enabled: "enabled",
+    urlLabel: "URL:",
+    commandLabel: "Command:",
+    dockerNonWorkspaceWarning: "⚠ Contains paths outside the workspace — will not resolve inside Docker.",
+    addServerButton: "+ Add MCP Server",
+    nameLabel: "Name",
+    namePlaceholder: "my-server",
+    typeHttp: "HTTP",
+    typeStdio: "Stdio (command)",
+    urlFieldLabel: "URL",
+    urlPlaceholder: "https://example.com/mcp",
+    commandFieldLabel: "Command",
+    argsLabel: "Arguments (one per line)",
+    // Message function form — skips vue-i18n's message compiler so
+    // the literal `@` isn't parsed as a linked-message reference.
+    argsPlaceholder: () => "-y\n@modelcontextprotocol/server-filesystem\n/workspace/path",
+    errNoName: "Please provide a Name, or enter a URL / args we can derive one from.",
+    errBadName: "Name must start with a lowercase letter and contain only [a-z0-9_-].",
+    errIdExists: 'Server id "{id}" already exists.',
+    errBadHttpUrl: "HTTP URL must start with http:// or https://",
+  },
 };
 
 export default enMessages;
