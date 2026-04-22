@@ -94,6 +94,8 @@ TELEGRAM_ALLOWED_CHAT_IDS=your-chat-id \
 | **Zulip** | [@mulmobridge/zulip](https://www.npmjs.com/package/@mulmobridge/zulip) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/zulip/README.md) |
 | **Facebook Messenger** | [@mulmobridge/messenger](https://www.npmjs.com/package/@mulmobridge/messenger) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/messenger/README.md) |
 | **Google Chat** | [@mulmobridge/google-chat](https://www.npmjs.com/package/@mulmobridge/google-chat) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/google-chat/README.md) |
+| **Mastodon** | [@mulmobridge/mastodon](https://www.npmjs.com/package/@mulmobridge/mastodon) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/mastodon/README.md) |
+| **Bluesky** | [@mulmobridge/bluesky](https://www.npmjs.com/package/@mulmobridge/bluesky) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/bluesky/README.md) |
 
 > **「実験的」とは？** テストが十分でなく、バグがある可能性があります。フィードバックをお待ちしています！
 
@@ -223,6 +225,8 @@ if (ack.ok) {
 | [@mulmobridge/zulip](https://www.npmjs.com/package/@mulmobridge/zulip) | Zulip ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/zulip) |
 | [@mulmobridge/messenger](https://www.npmjs.com/package/@mulmobridge/messenger) | Facebook Messenger ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/messenger) |
 | [@mulmobridge/google-chat](https://www.npmjs.com/package/@mulmobridge/google-chat) | Google Chat ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/google-chat) |
+| [@mulmobridge/mastodon](https://www.npmjs.com/package/@mulmobridge/mastodon) | Mastodon ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/mastodon) |
+| [@mulmobridge/bluesky](https://www.npmjs.com/package/@mulmobridge/bluesky) | Bluesky ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/bluesky) |
 
 ### 汎用ツール（@receptron スコープ）
 

@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- `@mulmobridge/mastodon` (v0.1.0) — Mastodon bridge. Subscribes to the user notification stream (WebSocket), handles DMs and optionally public mentions, inherits visibility on reply, forwards image attachments.
+- `@mulmobridge/bluesky` (v0.1.0) — Bluesky bridge. Polls `chat.bsky.convo.getLog` via the atproto-proxy header, forwards DMs, auto-refreshes the session JWT on 401.
+
+---
+
 ## [0.3.0] - 2026-04-22
 
 ### Highlights

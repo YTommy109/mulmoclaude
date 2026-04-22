@@ -90,6 +90,8 @@ Detailed setup: [Telegram README](https://github.com/receptron/mulmoclaude/blob/
 | **WhatsApp** | [@mulmobridge/whatsapp](https://www.npmjs.com/package/@mulmobridge/whatsapp) | Experimental | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/whatsapp/README.md) |
 | **Matrix** | [@mulmobridge/matrix](https://www.npmjs.com/package/@mulmobridge/matrix) | Experimental | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/matrix/README.md) |
 | **IRC** | [@mulmobridge/irc](https://www.npmjs.com/package/@mulmobridge/irc) | Experimental | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/irc/README.md) |
+| **Mastodon** | [@mulmobridge/mastodon](https://www.npmjs.com/package/@mulmobridge/mastodon) | Experimental | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/mastodon/README.md) |
+| **Bluesky** | [@mulmobridge/bluesky](https://www.npmjs.com/package/@mulmobridge/bluesky) | Experimental | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/bluesky/README.md) |
 
 > **"Experimental" means** testing is limited and bugs are likely. Your feedback is very welcome!
 
@@ -194,6 +196,8 @@ Bridges are ~100 lines. See the [Bridge Protocol](bridge-protocol.md) for the wi
 | [@mulmobridge/whatsapp](https://www.npmjs.com/package/@mulmobridge/whatsapp) | WhatsApp bridge | [npm](https://www.npmjs.com/package/@mulmobridge/whatsapp) | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/whatsapp) |
 | [@mulmobridge/matrix](https://www.npmjs.com/package/@mulmobridge/matrix) | Matrix bridge | [npm](https://www.npmjs.com/package/@mulmobridge/matrix) | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/matrix) |
 | [@mulmobridge/irc](https://www.npmjs.com/package/@mulmobridge/irc) | IRC bridge | [npm](https://www.npmjs.com/package/@mulmobridge/irc) | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/irc) |
+| [@mulmobridge/mastodon](https://www.npmjs.com/package/@mulmobridge/mastodon) | Mastodon bridge | [npm](https://www.npmjs.com/package/@mulmobridge/mastodon) | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/mastodon) |
+| [@mulmobridge/bluesky](https://www.npmjs.com/package/@mulmobridge/bluesky) | Bluesky bridge | [npm](https://www.npmjs.com/package/@mulmobridge/bluesky) | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/bluesky) |
 
 ### General tools (@receptron scope)
 

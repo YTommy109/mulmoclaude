@@ -72,6 +72,8 @@ Four platforms deliver messages via **inbound HTTP webhooks** — [LINE](./bridg
 | [@mulmobridge/zulip](./bridges/zulip/) | Zulip (long-polling events API) | Long polling (outbound HTTP) | **No** | [![npm](https://img.shields.io/npm/v/@mulmobridge/zulip)](https://www.npmjs.com/package/@mulmobridge/zulip) |
 | [@mulmobridge/messenger](./bridges/messenger/) | Facebook Messenger (webhook + HMAC) | Inbound HTTP webhook | **Yes** | [![npm](https://img.shields.io/npm/v/@mulmobridge/messenger)](https://www.npmjs.com/package/@mulmobridge/messenger) |
 | [@mulmobridge/google-chat](./bridges/google-chat/) | Google Chat (webhook + JWT/OIDC) | Inbound HTTP webhook | **Yes** | [![npm](https://img.shields.io/npm/v/@mulmobridge/google-chat)](https://www.npmjs.com/package/@mulmobridge/google-chat) |
+| [@mulmobridge/mastodon](./bridges/mastodon/) | Mastodon (DM + mention) | WebSocket streaming (outbound) | **No** | [![npm](https://img.shields.io/npm/v/@mulmobridge/mastodon)](https://www.npmjs.com/package/@mulmobridge/mastodon) |
+| [@mulmobridge/bluesky](./bridges/bluesky/) | Bluesky (chat.bsky DMs) | Long polling (outbound HTTP) | **No** | [![npm](https://img.shields.io/npm/v/@mulmobridge/bluesky)](https://www.npmjs.com/package/@mulmobridge/bluesky) |
 
 > **"Public URL needed?"** — Bridges that use inbound webhooks require the bridge process to be reachable from the internet (public IP, ngrok, Cloudflare Tunnel, etc.). Outbound-only bridges (polling / WebSocket) work from behind any NAT or firewall with no extra setup.
 
@@ -175,6 +177,8 @@ packages/
     zulip/        ← Zulip bridge (long-polling)
     messenger/    ← Facebook Messenger bridge (webhook)
     google-chat/  ← Google Chat bridge (webhook + JWT)
+    mastodon/     ← Mastodon bridge (WebSocket streaming)
+    bluesky/      ← Bluesky bridge (chat.bsky DMs, long polling)
   scheduler/      ← @receptron/task-scheduler (non-MulmoBridge, general-purpose)
   mulmoclaude/    ← launcher npm package for the MulmoClaude app
 ```
