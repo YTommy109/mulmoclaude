@@ -67,7 +67,7 @@ interface PostStatusOptions {
   visibility: string;
 }
 
-async function postOneStatus(chunk: string, opts: PostStatusOptions): Promise<string | null> {
+async function postOneStatus(chunk: string, opts: PostStatusOptions): Promise<string> {
   const body: JsonRecord = { status: chunk, visibility: opts.visibility };
   if (opts.inReplyTo) body.in_reply_to_id = opts.inReplyTo;
   let res: Response;
@@ -85,9 +85,19 @@ async function postOneStatus(chunk: string, opts: PostStatusOptions): Promise<st
     const detail = await res.text().catch(() => "");
     throw new Error(`Mastodon status POST failed: ${res.status} ${detail.slice(0, 200)}`);
   }
-  const payload: unknown = await res.json().catch(() => null);
-  if (isObj(payload) && typeof payload.id === "string") return payload.id;
-  return null;
+  // Mastodon's create-status endpoint always returns a Status object
+  // with an `id`. A missing id means the response is malformed; fail
+  // loudly instead of returning null, otherwise postStatus's loop
+  // would leave `prevId` stale and all later chunks would chain onto
+  // the parent of the failed one. See CodeRabbit outside-diff comment
+  // on #611.
+  const payload: unknown = await res.json().catch((err) => {
+    throw new Error(`Mastodon status POST returned invalid JSON: ${err instanceof Error ? err.message : String(err)}`);
+  });
+  if (!isObj(payload) || typeof payload.id !== "string") {
+    throw new Error("Mastodon status POST response is missing id");
+  }
+  return payload.id;
 }
 
 async function postStatus(chatId: string, text: string, inReplyTo: string | null, visibility: string): Promise<void> {
@@ -105,8 +115,7 @@ async function postStatus(chatId: string, text: string, inReplyTo: string | null
   const chunks = chunkText(bodyText, MAX_STATUS_LEN);
   let prevId: string | null = inReplyTo;
   for (const chunk of chunks) {
-    const postedId = await postOneStatus(chunk, { inReplyTo: prevId, visibility });
-    if (postedId) prevId = postedId;
+    prevId = await postOneStatus(chunk, { inReplyTo: prevId, visibility });
   }
 }
 
