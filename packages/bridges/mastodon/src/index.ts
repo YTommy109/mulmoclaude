@@ -67,7 +67,7 @@ interface PostStatusOptions {
   visibility: string;
 }
 
-async function postOneStatus(chunk: string, opts: PostStatusOptions): Promise<void> {
+async function postOneStatus(chunk: string, opts: PostStatusOptions): Promise<string | null> {
   const body: JsonRecord = { status: chunk, visibility: opts.visibility };
   if (opts.inReplyTo) body.in_reply_to_id = opts.inReplyTo;
   let res: Response;
@@ -85,12 +85,26 @@ async function postOneStatus(chunk: string, opts: PostStatusOptions): Promise<vo
     const detail = await res.text().catch(() => "");
     throw new Error(`Mastodon status POST failed: ${res.status} ${detail.slice(0, 200)}`);
   }
+  // Return the created status id so long-reply chunks can be
+  // threaded off each other rather than all re-replying to the
+  // original user status (which flattens the thread).
+  try {
+    const parsed: unknown = await res.json();
+    if (isObj(parsed) && typeof parsed.id === "string") return parsed.id;
+  } catch {
+    // ignore — chaining is best-effort; fall back to flat replies
+  }
+  return null;
 }
 
 async function postStatus(__chatId: string, text: string, inReplyTo: string | null, visibility: string): Promise<void> {
   const chunks = chunkText(text, MAX_STATUS_LEN);
+  // Chain chunks: each subsequent chunk replies to the previous one
+  // so the Mastodon thread reads top-to-bottom as a single reply.
+  let replyTarget = inReplyTo;
   for (const chunk of chunks) {
-    await postOneStatus(chunk, { inReplyTo, visibility });
+    const newId = await postOneStatus(chunk, { inReplyTo: replyTarget, visibility });
+    if (newId) replyTarget = newId;
   }
 }
 
@@ -203,9 +217,12 @@ async function handleNotification(raw: string): Promise<void> {
     console.log(`[mastodon] denied from=${parsed.senderAcct}`);
     return;
   }
-  if (!parsed.text) return;
 
+  // Collect attachments FIRST — otherwise image-only DMs (empty text,
+  // one or more images) would be silently dropped by the guard below.
   const attachments = await collectImageAttachments(parsed.media);
+  if (!parsed.text && attachments.length === 0) return;
+
   console.log(`[mastodon] message from=${parsed.senderAcct} len=${parsed.text.length} attachments=${attachments.length}`);
 
   try {
