@@ -231,19 +231,22 @@ async function pollOnce(cursor: string | undefined): Promise<string | undefined>
 async function pollLoop(): Promise<void> {
   let cursor: string | undefined;
 
-  // First call establishes a starting cursor so we don't re-deliver history.
-  try {
-    const initial = await chatRequest("GET", "chat.bsky.convo.getLog", undefined, {});
-    cursor = asString(initial.cursor) || undefined;
-  } catch (err) {
-    console.error(`[bluesky] initial getLog failed: ${err}`);
-  }
-
   while (true) {
     try {
-      cursor = await pollOnce(cursor);
+      if (!cursor) {
+        // Don't enter the main poll path until we have a cursor; otherwise a
+        // transient startup failure can cause old DMs to be replayed.
+        const initial = await chatRequest("GET", "chat.bsky.convo.getLog", undefined, {});
+        cursor = asString(initial.cursor) || undefined;
+        if (!cursor) {
+          throw new Error("initial getLog returned no cursor");
+        }
+      } else {
+        cursor = await pollOnce(cursor);
+      }
     } catch (err) {
-      console.error(`[bluesky] poll error: ${err}`);
+      const phase = cursor ? "poll" : "initial getLog";
+      console.error(`[bluesky] ${phase} failed: ${err}`);
     }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, POLL_INTERVAL_MS));
   }
