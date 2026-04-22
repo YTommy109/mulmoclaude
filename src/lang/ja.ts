@@ -22,12 +22,14 @@ const jaMessages = {
     unreadReplies: "{count} 件の未読返信",
   },
   chatInput: {
-    placeholder: "タスクを入力...",
+    placeholder: "タスクを入力、またはファイルをドロップ・ペースト・添付…",
     expandEditor: "エディタを広げる",
     composeMessage: "メッセージを作成",
     sendHint: "Cmd+Enter で送信",
     send: "送信",
+    attachFile: "ファイルを添付",
     fileTooLarge: "ファイルが大きすぎます（{sizeMB} MB）。上限は 30 MB です。",
+    unsupportedFileType: "対応していないファイル形式です。画像・PDF・DOCX・XLSX・PPTX・テキストファイルを使用してください。",
   },
   sessionHistoryPanel: {
     filters: {
@@ -184,6 +186,40 @@ const jaMessages = {
     errBadName: "名前は小文字で始まり、[a-z0-9_-] のみ使用できます。",
     errIdExists: "サーバ ID「{id}」は既に存在します。",
     errBadHttpUrl: "HTTP URL は http:// または https:// で始める必要があります",
+  },
+  pluginScheduler: {
+    prev: "前へ",
+    today: "今日",
+    goToday: "今日へ移動",
+    next: "次へ",
+    deleteItem: "項目を削除",
+    closeEditor: "エディタを閉じる",
+  },
+  pluginCanvas: {
+    undo: "元に戻す",
+    redo: "やり直し",
+    clear: "クリア",
+  },
+  pluginTodo: {
+    clearFilters: "すべてのフィルタをクリア",
+    deleteItem: "項目を削除",
+  },
+  pluginWiki: {
+    backToIndex: "インデックスに戻る",
+  },
+  pluginPresentHtml: {
+    saveAsPdf: "PDF として保存（印刷ダイアログを開きます）",
+  },
+  pluginManageSource: {
+    titlePlaceholder: "タイトル（省略可）",
+  },
+  pluginManageSkills: {
+    deleteProjectSkill: "このプロジェクト限定スキルを削除",
+  },
+  pluginSpreadsheet: {
+    valuePlaceholder: "値",
+    valueOrFormulaPlaceholder: "値または数式（例: 100, SUM(B2:B11)）",
+    formatPlaceholder: "書式（例: $#,##0.00）",
   },
 };
 

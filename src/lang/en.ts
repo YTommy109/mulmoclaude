@@ -29,12 +29,14 @@ const enMessages = {
     unreadReplies: "{count} unread reply | {count} unread replies",
   },
   chatInput: {
-    placeholder: "Type a task...",
+    placeholder: "Type a task, or drop / paste / attach a file…",
     expandEditor: "Expand editor",
     composeMessage: "Compose message",
     sendHint: "Cmd+Enter to send",
     send: "Send",
+    attachFile: "Attach file",
     fileTooLarge: "File too large ({sizeMB} MB). Maximum is 30 MB.",
+    unsupportedFileType: "File type not supported. Accepted: images, PDF, DOCX, XLSX, PPTX, text files.",
   },
   sessionHistoryPanel: {
     filters: {
@@ -193,6 +195,40 @@ const enMessages = {
     errBadName: "Name must start with a lowercase letter and contain only [a-z0-9_-].",
     errIdExists: 'Server id "{id}" already exists.',
     errBadHttpUrl: "HTTP URL must start with http:// or https://",
+  },
+  pluginScheduler: {
+    prev: "Previous",
+    today: "Today",
+    goToday: "Go to today",
+    next: "Next",
+    deleteItem: "Delete item",
+    closeEditor: "Close editor",
+  },
+  pluginCanvas: {
+    undo: "Undo",
+    redo: "Redo",
+    clear: "Clear",
+  },
+  pluginTodo: {
+    clearFilters: "Clear all filters",
+    deleteItem: "Delete item",
+  },
+  pluginWiki: {
+    backToIndex: "Back to index",
+  },
+  pluginPresentHtml: {
+    saveAsPdf: "Save as PDF (opens print dialog)",
+  },
+  pluginManageSource: {
+    titlePlaceholder: "Title (optional)",
+  },
+  pluginManageSkills: {
+    deleteProjectSkill: "Delete this project-scope skill",
+  },
+  pluginSpreadsheet: {
+    valuePlaceholder: "Value",
+    valueOrFormulaPlaceholder: "Value or Formula (e.g., 100 or SUM(B2:B11))",
+    formatPlaceholder: "Format (e.g., $#,##0.00)",
   },
 };
 

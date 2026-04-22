@@ -31,13 +31,25 @@
         </div>
 
         <div class="flex items-center gap-1">
-          <button class="w-8 h-8 flex items-center justify-center rounded border-2 border-gray-300 bg-white hover:bg-gray-50" title="Undo" @click="undo">
+          <button
+            class="w-8 h-8 flex items-center justify-center rounded border-2 border-gray-300 bg-white hover:bg-gray-50"
+            :title="t('pluginCanvas.undo')"
+            @click="undo"
+          >
             <span class="material-icons text-sm">undo</span>
           </button>
-          <button class="w-8 h-8 flex items-center justify-center rounded border-2 border-gray-300 bg-white hover:bg-gray-50" title="Redo" @click="redo">
+          <button
+            class="w-8 h-8 flex items-center justify-center rounded border-2 border-gray-300 bg-white hover:bg-gray-50"
+            :title="t('pluginCanvas.redo')"
+            @click="redo"
+          >
             <span class="material-icons text-sm">redo</span>
           </button>
-          <button class="w-8 h-8 flex items-center justify-center rounded border-2 border-red-300 bg-white hover:bg-red-50" title="Clear" @click="clear">
+          <button
+            class="w-8 h-8 flex items-center justify-center rounded border-2 border-red-300 bg-white hover:bg-red-50"
+            :title="t('pluginCanvas.clear')"
+            @click="clear"
+          >
             <span class="material-icons text-sm">delete</span>
           </button>
         </div>
@@ -87,6 +99,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
+import { useI18n } from "vue-i18n";
 import VueDrawingCanvas from "vue-drawing-canvas";
 import type { ToolResult } from "gui-chat-protocol/vue";
 import type { ImageToolData } from "./definition";
@@ -94,6 +107,8 @@ import { apiPut } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { resolveImageSrc } from "../../utils/image/resolve";
 import { bumpImage } from "../../utils/image/cacheBust";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   selectedResult: ToolResult<ImageToolData> | null;
