@@ -271,19 +271,19 @@ describe("updateCursor", () => {
 
 function controllableClock(start = 0): {
   deps: RateLimiterDeps;
-  tick: (ms: number) => void;
+  tick: (delayMs: number) => void;
 } {
   const state = { t: start };
   return {
     deps: {
       now: () => state.t,
-      sleep: (ms) => {
-        state.t += ms;
+      sleep: (delayMs) => {
+        state.t += delayMs;
         return Promise.resolve();
       },
     },
-    tick: (ms) => {
-      state.t += ms;
+    tick: (delayMs) => {
+      state.t += delayMs;
     },
   };
 }

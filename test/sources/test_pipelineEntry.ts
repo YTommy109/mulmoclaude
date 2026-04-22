@@ -49,8 +49,8 @@ function controllableClock(): RateLimiterDeps {
   const state = { t: 0 };
   return {
     now: () => state.t,
-    sleep: (ms) => {
-      state.t += ms;
+    sleep: (delayMs) => {
+      state.t += delayMs;
       return Promise.resolve();
     },
   };
@@ -350,14 +350,14 @@ describe("toLocalIsoDate", () => {
   it("formats local YYYY-MM-DD with zero-padded components", () => {
     // January 1st local midnight — ensures zero-padding on both
     // month and day.
-    const ms = new Date(2026, 0, 1, 0, 0, 0).getTime();
-    assert.equal(toLocalIsoDate(ms), "2026-01-01");
+    const delayMs = new Date(2026, 0, 1, 0, 0, 0).getTime();
+    assert.equal(toLocalIsoDate(delayMs), "2026-01-01");
   });
 
   it("keeps local time even when UTC would roll over", () => {
     // 23:00 local on 2026-04-13 is still 2026-04-13 regardless
     // of which way the UTC offset slides.
-    const ms = new Date(2026, 3, 13, 23, 0, 0).getTime();
-    assert.equal(toLocalIsoDate(ms), "2026-04-13");
+    const delayMs = new Date(2026, 3, 13, 23, 0, 0).getTime();
+    assert.equal(toLocalIsoDate(delayMs), "2026-04-13");
   });
 });

@@ -8,7 +8,7 @@
 // reads `typeof en` to feed `DefineLocaleMessage`, and readonly literal
 // types would conflict with vue-i18n's writable message interface.
 
-const en = {
+const enMessages = {
   common: {
     save: "Save",
     cancel: "Cancel",
@@ -152,4 +152,4 @@ const en = {
   },
 };
 
-export default en;
+export default enMessages;

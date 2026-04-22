@@ -39,8 +39,8 @@ function controllableClock(): RateLimiterDeps {
   const state = { t: 0 };
   return {
     now: () => state.t,
-    sleep: (ms) => {
-      state.t += ms;
+    sleep: (delayMs) => {
+      state.t += delayMs;
       return Promise.resolve();
     },
   };
