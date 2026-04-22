@@ -11,12 +11,14 @@
 // service account key is configured; otherwise the relay acknowledges
 // the message but cannot send replies back.
 
+import { chunkText } from "@mulmobridge/client/text";
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
+import { ONE_HOUR_MS, ONE_HOUR_S, TEN_SECONDS_MS, FIFTEEN_SECONDS_MS } from "../time.js";
 
 const GOOGLE_CHAT_ISSUER = "chat@system.gserviceaccount.com";
 const JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/chat@system.gserviceaccount.com";
-const JWKS_CACHE_TTL_MS = 3_600_000;
+const JWKS_CACHE_TTL_MS = ONE_HOUR_MS;
 const CHAT_API_BASE = "https://chat.googleapis.com/v1";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const CHAT_SCOPE = "https://www.googleapis.com/auth/chat.bot";
@@ -36,7 +38,7 @@ let cacheExpiresAt = 0;
 
 async function getJwks(): Promise<JwkKey[]> {
   if (Date.now() < cacheExpiresAt && cachedKeys.length > 0) return cachedKeys;
-  const res = await fetch(JWKS_URL, { signal: AbortSignal.timeout(10_000) });
+  const res = await fetch(JWKS_URL, { signal: AbortSignal.timeout(TEN_SECONDS_MS) });
   if (!res.ok) return cachedKeys;
   const data: { keys?: unknown[] } = await res.json();
   if (!Array.isArray(data.keys)) return cachedKeys;
@@ -136,7 +138,7 @@ async function makeServiceAccountJwt(account: ServiceAccount): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const header = b64UrlEncode(new TextEncoder().encode(JSON.stringify({ alg: "RS256", typ: "JWT" })));
   const claims = b64UrlEncode(
-    new TextEncoder().encode(JSON.stringify({ iss: account.client_email, scope: CHAT_SCOPE, aud: GOOGLE_TOKEN_URL, exp: now + 3600, iat: now })),
+    new TextEncoder().encode(JSON.stringify({ iss: account.client_email, scope: CHAT_SCOPE, aud: GOOGLE_TOKEN_URL, exp: now + ONE_HOUR_S, iat: now })),
   );
   const pemContents = account.private_key.replace(/-----[^-]+-----/g, "").replace(/\s/g, "");
   const keyBuffer = Uint8Array.from(atob(pemContents), (chr) => chr.charCodeAt(0));
@@ -151,7 +153,7 @@ async function getGoogleAccessToken(account: ServiceAccount): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(TEN_SECONDS_MS),
   });
   if (!res.ok) throw new Error(`Google token exchange failed: ${res.status}`);
   const data = (await res.json()) as { access_token: string };
@@ -199,17 +201,21 @@ const googleChatPlugin: PlatformPlugin = {
     if (!account) throw new Error("GOOGLE_CHAT_SERVICE_ACCOUNT_KEY is not valid JSON");
 
     const accessToken = await getGoogleAccessToken(account);
-    const chunks =
-      text.length <= MAX_CHAT_TEXT
-        ? [text]
-        : Array.from({ length: Math.ceil(text.length / MAX_CHAT_TEXT) }, (_, i) => text.slice(i * MAX_CHAT_TEXT, (i + 1) * MAX_CHAT_TEXT));
+    // chunkText respects code-point boundaries (avoids splitting emoji
+    // surrogate pairs) and keeps parity with WhatsApp / Messenger.
+    const chunks = chunkText(text, MAX_CHAT_TEXT);
     for (const chunk of chunks) {
-      const res = await fetch(`${CHAT_API_BASE}/${chatId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ text: chunk }),
-        signal: AbortSignal.timeout(15_000),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`${CHAT_API_BASE}/${chatId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ text: chunk }),
+          signal: AbortSignal.timeout(FIFTEEN_SECONDS_MS),
+        });
+      } catch (err) {
+        throw new Error(`Google Chat API network error: ${err instanceof Error ? err.message : String(err)}`);
+      }
       if (!res.ok) throw new Error(`Google Chat API failed: ${res.status}`);
     }
   },

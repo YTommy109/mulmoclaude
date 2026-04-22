@@ -10,6 +10,7 @@ import { chunkText } from "@mulmobridge/client/text";
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
 import { verifyMetaSignature, handleMetaVerification } from "./meta.js";
+import { FIFTEEN_SECONDS_MS } from "../time.js";
 
 const WHATSAPP_API_VERSION = "v21.0";
 const MAX_WA_TEXT = 4096;
@@ -77,12 +78,17 @@ const whatsappPlugin: PlatformPlugin = {
 
     const chunks = chunkText(text, MAX_WA_TEXT);
     for (const chunk of chunks) {
-      const res = await fetch(`https://graph.facebook.com/${WHATSAPP_API_VERSION}/${phoneNumberId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ messaging_product: "whatsapp", to: chatId, type: "text", text: { body: chunk } }),
-        signal: AbortSignal.timeout(15_000),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`https://graph.facebook.com/${WHATSAPP_API_VERSION}/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ messaging_product: "whatsapp", to: chatId, type: "text", text: { body: chunk } }),
+          signal: AbortSignal.timeout(FIFTEEN_SECONDS_MS),
+        });
+      } catch (err) {
+        throw new Error(`WhatsApp API network error: ${err instanceof Error ? err.message : String(err)}`);
+      }
       if (!res.ok) {
         const detail = await res.text().catch(() => "");
         throw new Error(`WhatsApp API failed: ${res.status} ${detail.slice(0, 200)}`);

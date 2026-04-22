@@ -9,6 +9,7 @@ import { chunkText } from "@mulmobridge/client/text";
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
 import { verifyMetaSignature, handleMetaVerification } from "./meta.js";
+import { FIFTEEN_SECONDS_MS } from "../time.js";
 
 const MAX_MESSENGER_TEXT = 2000;
 
@@ -74,14 +75,21 @@ const messengerPlugin: PlatformPlugin = {
     const accessToken = String(env.MESSENGER_PAGE_ACCESS_TOKEN ?? "");
     if (!accessToken) throw new Error("MESSENGER_PAGE_ACCESS_TOKEN not configured");
 
+    // Authorization header (not query string) — Graph API supports it, and
+    // avoids leaking the token into CDN / proxy access logs and error reports.
     const chunks = chunkText(text, MAX_MESSENGER_TEXT);
     for (const chunk of chunks) {
-      const res = await fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${accessToken}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipient: { id: chatId }, message: { text: chunk } }),
-        signal: AbortSignal.timeout(15_000),
-      });
+      let res: Response;
+      try {
+        res = await fetch("https://graph.facebook.com/v21.0/me/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ recipient: { id: chatId }, message: { text: chunk } }),
+          signal: AbortSignal.timeout(FIFTEEN_SECONDS_MS),
+        });
+      } catch (err) {
+        throw new Error(`Messenger API network error: ${err instanceof Error ? err.message : String(err)}`);
+      }
       if (!res.ok) {
         const detail = await res.text().catch(() => "");
         throw new Error(`Messenger API failed: ${res.status} ${detail.slice(0, 200)}`);

@@ -2,7 +2,9 @@
 // Both use the same x-hub-signature-256 HMAC and hub.challenge verification.
 
 export async function verifyMetaSignature(secret: string, body: string, signature: string): Promise<boolean> {
-  const provided = signature.replace("sha256=", "");
+  if (!signature.startsWith("sha256=")) return false;
+  const provided = signature.slice("sha256=".length);
+  if (!provided) return false;
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const sigBytes = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
@@ -18,6 +20,9 @@ export async function verifyMetaSignature(secret: string, body: string, signatur
 }
 
 export function handleMetaVerification(request: Request, verifyToken: string): Response {
+  // Reject unconfigured deployments — an empty verify token would otherwise
+  // match an empty `hub.verify_token` query param and leak the challenge echo.
+  if (!verifyToken) return new Response("Forbidden", { status: 403 });
   const url = new URL(request.url);
   const mode = url.searchParams.get("hub.mode");
   const token = url.searchParams.get("hub.verify_token");

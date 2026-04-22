@@ -32,7 +32,7 @@ export default {
 
 function handleVerificationRequest(request: Request, env: Env, url: URL): Response {
   const plugin = getPlatformByPath(url.pathname);
-  if (plugin?.handleVerification) return plugin.handleVerification(request, env);
+  if (plugin?.handleVerification && plugin.isConfigured(env)) return plugin.handleVerification(request, env);
   return new Response("Not found", { status: 404 });
 }
 
