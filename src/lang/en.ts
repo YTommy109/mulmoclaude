@@ -79,6 +79,28 @@ const en = {
     // badge next to the Reference label.
     readOnlyBadge: "RO",
   },
+  fileTree: {
+    workspace: "(workspace)",
+    recentlyChanged: "Recently changed",
+  },
+  lockStatusPopup: {
+    sandboxEnabledTooltip: "Sandbox enabled (Docker)",
+    noSandboxTooltip: "No sandbox (Docker not found)",
+    sandboxEnabledLabel: "Sandbox enabled:",
+    sandboxEnabledBody: "Docker is running. Filesystem access is isolated.",
+    noSandboxLabel: "No sandbox:",
+    noSandboxBodyPrefix: "Claude can access all files on your machine. Install",
+    noSandboxBodySuffix: "to enable filesystem isolation.",
+    dockerDesktop: "Docker Desktop",
+    hostCredentials: "Host credentials attached:",
+    credsLoading: "loading…",
+    sshAgent: "SSH agent:",
+    forwarded: "forwarded",
+    notForwarded: "not forwarded",
+    mountedConfigs: "Mounted configs:",
+    none: "none",
+    testIsolation: "Test sandbox isolation:",
+  },
 };
 
 export default en;

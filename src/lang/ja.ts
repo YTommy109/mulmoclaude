@@ -70,6 +70,28 @@ const ja = {
     reference: "参照",
     readOnlyBadge: "RO",
   },
+  fileTree: {
+    workspace: "（ワークスペース）",
+    recentlyChanged: "最近変更されました",
+  },
+  lockStatusPopup: {
+    sandboxEnabledTooltip: "サンドボックス有効 (Docker)",
+    noSandboxTooltip: "サンドボックスなし (Docker 未検出)",
+    sandboxEnabledLabel: "サンドボックス有効:",
+    sandboxEnabledBody: "Docker が動作中です。ファイルシステムアクセスは隔離されています。",
+    noSandboxLabel: "サンドボックスなし:",
+    noSandboxBodyPrefix: "Claude はこのマシンの全ファイルにアクセスできます。",
+    noSandboxBodySuffix: "をインストールしてファイルシステムを隔離してください。",
+    dockerDesktop: "Docker Desktop",
+    hostCredentials: "ホスト認証情報の接続状況:",
+    credsLoading: "読み込み中…",
+    sshAgent: "SSH エージェント:",
+    forwarded: "転送中",
+    notForwarded: "転送なし",
+    mountedConfigs: "マウント設定:",
+    none: "なし",
+    testIsolation: "サンドボックス隔離をテスト:",
+  },
 };
 
 export default ja;
