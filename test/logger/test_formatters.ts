@@ -5,7 +5,7 @@ import type { LogRecord } from "../../server/system/logger/types.js";
 
 function record(overrides: Partial<LogRecord> = {}): LogRecord {
   return {
-    ts: "2026-04-13T07:12:45.123Z",
+    time: "2026-04-13T07:12:45.123Z",
     level: "info",
     prefix: "agent",
     message: "request received",
@@ -53,7 +53,7 @@ describe("formatText", () => {
 describe("formatJson", () => {
   it("emits a JSON object with required keys only", () => {
     const out = formatJson(record());
-    assert.equal(out, '{"ts":"2026-04-13T07:12:45.123Z","level":"info","prefix":"agent","message":"request received"}');
+    assert.equal(out, '{"time":"2026-04-13T07:12:45.123Z","level":"info","prefix":"agent","message":"request received"}');
   });
 
   it("includes a data block when provided", () => {

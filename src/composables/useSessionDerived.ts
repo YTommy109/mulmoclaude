@@ -16,7 +16,7 @@ export function useSessionDerived(opts: { sessionMap: Map<string, ActiveSession>
 
   const sidebarResults = computed(() => deduplicateResults(toolResults.value));
 
-  const currentSummary = computed(() => sessions.value.find((s) => s.id === currentSessionId.value));
+  const currentSummary = computed(() => sessions.value.find((summary) => summary.id === currentSessionId.value));
 
   // The server-side summary already merges pendingGenerations into
   // `isRunning` (see server/api/routes/sessions.ts), but pub/sub events
@@ -33,9 +33,9 @@ export function useSessionDerived(opts: { sessionMap: Map<string, ActiveSession>
 
   const toolCallHistory = computed<ToolCallHistoryItem[]>(() => activeSession.value?.toolCallHistory ?? []);
 
-  const activeSessionCount = computed(() => sessions.value.filter((s) => s.isRunning).length);
+  const activeSessionCount = computed(() => sessions.value.filter((session) => session.isRunning).length);
 
-  const unreadCount = computed(() => sessions.value.filter((s) => s.hasUnread).length);
+  const unreadCount = computed(() => sessions.value.filter((session) => session.hasUnread).length);
 
   return {
     activeSession,

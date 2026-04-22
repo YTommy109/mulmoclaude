@@ -9,8 +9,8 @@ import { CANVAS_VIEW, type CanvasViewMode } from "../utils/canvas/viewMode";
 const CHAT_VIEWS = [CANVAS_VIEW.single, CANVAS_VIEW.stack] as const;
 type ChatViewMode = (typeof CHAT_VIEWS)[number];
 
-function isChatView(m: string): m is ChatViewMode {
-  return (CHAT_VIEWS as readonly string[]).includes(m);
+function isChatView(mode: string): mode is ChatViewMode {
+  return (CHAT_VIEWS as readonly string[]).includes(mode);
 }
 
 export function useViewLayout(opts: {

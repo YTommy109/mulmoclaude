@@ -225,7 +225,7 @@ async function maybeWriteSearch(inputs: MaybeWriteSearchInputs): Promise<string 
       workspaceRoot: inputs.workspaceRoot,
       query,
       sessionId: inputs.chatSessionId,
-      ts: inputs.now,
+      timestamp: inputs.now,
       resultBody: inputs.content,
     });
   } catch (err) {

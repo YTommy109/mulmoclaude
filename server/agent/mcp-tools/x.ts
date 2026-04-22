@@ -64,7 +64,7 @@ function formatTweet(tweet: XTweet, author?: XUser, url?: string): string {
     : "";
   const link = url ?? "";
   return [byline, "", tweet.text, "", metrics, link]
-    .filter((l) => l !== undefined)
+    .filter((line) => line !== undefined)
     .join("\n")
     .trimEnd();
 }
@@ -104,12 +104,12 @@ export const readXPost = {
       return errorMessage(err);
     }
 
-    if (data.errors?.length) return `X API error: ${data.errors.map((e) => e.detail).join("; ")}`;
+    if (data.errors?.length) return `X API error: ${data.errors.map((err) => err.detail).join("; ")}`;
 
     const tweet = data.data as XTweet | undefined;
     if (!tweet) return "Tweet not found.";
 
-    const author = data.includes?.users?.find((u) => u.id === tweet.author_id);
+    const author = data.includes?.users?.find((user) => user.id === tweet.author_id);
     const canonicalUrl = author ? `https://x.com/${author.username}/status/${tweet.id}` : undefined;
     return formatTweet(tweet, author, canonicalUrl);
   },
@@ -168,13 +168,13 @@ export const searchX = {
       return errorMessage(err);
     }
 
-    if (data.errors?.length) return `X API error: ${data.errors.map((e) => e.detail).join("; ")}`;
+    if (data.errors?.length) return `X API error: ${data.errors.map((err) => err.detail).join("; ")}`;
 
     const tweets = Array.isArray(data.data) ? data.data : [];
     if (tweets.length === 0) return `No recent posts found for: "${query}"`;
 
     const users = data.includes?.users ?? [];
-    const userMap = new Map(users.map((u) => [u.id, u]));
+    const userMap = new Map(users.map((user) => [user.id, user]));
 
     const lines: string[] = [`Search: "${query}" — ${tweets.length} result${tweets.length !== 1 ? "s" : ""}`, ""];
     tweets.forEach((tweet, i) => {

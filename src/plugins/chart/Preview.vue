@@ -25,8 +25,8 @@ const hint = computed(() => {
   const charts = data.value?.document?.charts ?? [];
   if (charts.length === 0) return "";
   const types = charts
-    .map((c) => c.type ?? inferTypeFromOption(c.option))
-    .filter((t): t is string => Boolean(t))
+    .map((chart) => chart.type ?? inferTypeFromOption(chart.option))
+    .filter((chartType): chartType is string => Boolean(chartType))
     .slice(0, 3);
   const suffix = charts.length > types.length ? ", …" : "";
   const typeList = types.join(", ");
@@ -41,8 +41,8 @@ function inferTypeFromOption(option: Record<string, unknown>): string | null {
     const first = series[0] as { type?: unknown };
     if (typeof first.type === "string") return first.type;
   } else if (series && typeof series === "object") {
-    const t = (series as { type?: unknown }).type;
-    if (typeof t === "string") return t;
+    const seriesType = (series as { type?: unknown }).type;
+    if (typeof seriesType === "string") return seriesType;
   }
   return null;
 }

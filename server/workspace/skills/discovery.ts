@@ -90,7 +90,7 @@ export async function collectSkillsFromDir(root: string, source: SkillSource): P
     if (skill) results.push(skill);
   }
   // Stable alphabetical order for the UI.
-  results.sort((a, b) => a.name.localeCompare(b.name));
+  results.sort((leftSkill, rightSkill) => leftSkill.name.localeCompare(rightSkill.name));
   return results;
 }
 
@@ -118,8 +118,8 @@ export async function discoverSkills(opts: DiscoverSkillsOptions = {}): Promise<
   // Project overrides user on name collision. Merge by building a
   // map keyed by name, starting with user, overwriting with project.
   const merged = new Map<string, Skill>();
-  for (const s of userSkills) merged.set(s.name, s);
-  for (const s of projectSkills) merged.set(s.name, s);
+  for (const skill of userSkills) merged.set(skill.name, skill);
+  for (const skill of projectSkills) merged.set(skill.name, skill);
 
-  return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return [...merged.values()].sort((leftSkill, rightSkill) => leftSkill.name.localeCompare(rightSkill.name));
 }

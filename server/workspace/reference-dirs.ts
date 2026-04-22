@@ -8,7 +8,7 @@
 
 import { createHash } from "crypto";
 import path from "path";
-import os from "os";
+import { homedir } from "os";
 import { log } from "../system/logger/index.js";
 import { readReferenceDirsJson, writeReferenceDirsJson, isExistingDirectory } from "../utils/files/reference-dirs-io.js";
 import { isRecord } from "../utils/types.js";
@@ -39,11 +39,11 @@ const CONTROL_CHAR_RE_G = /[\x00-\x1f]/g;
 
 // ── Validation ──────────────────────────────────────────────────
 
-function expandHome(p: string): string {
-  if (p.startsWith("~/")) {
-    return path.join(os.homedir(), p.slice(2));
+function expandHome(inputPath: string): string {
+  if (inputPath.startsWith("~/")) {
+    return path.join(homedir(), inputPath.slice(2));
   }
-  return p;
+  return inputPath;
 }
 
 function isSensitivePath(absPath: string): boolean {
@@ -52,15 +52,15 @@ function isSensitivePath(absPath: string): boolean {
   // Reject filesystem root
   if (normalized === path.parse(normalized).root) return true;
 
-  const home = os.homedir();
+  const home = homedir();
 
   // Block $HOME itself (transitively exposes .ssh etc.)
   if (normalized === home) return true;
 
   // Block home-relative sensitive dirs
   if (
-    HOME_RELATIVE_BLOCKED.some((bp) => {
-      const full = path.join(home, bp);
+    HOME_RELATIVE_BLOCKED.some((blockedPath) => {
+      const full = path.join(home, blockedPath);
       return normalized === full || normalized.startsWith(full + path.sep);
     })
   ) {
@@ -68,7 +68,7 @@ function isSensitivePath(absPath: string): boolean {
   }
 
   // Block system directories
-  return SYSTEM_BLOCKED_PREFIXES.some((p) => normalized === p || normalized.startsWith(p + path.sep));
+  return SYSTEM_BLOCKED_PREFIXES.some((blockedPrefix) => normalized === blockedPrefix || normalized.startsWith(blockedPrefix + path.sep));
 }
 
 function sanitizeLabel(raw: string): string {
@@ -76,8 +76,8 @@ function sanitizeLabel(raw: string): string {
   return raw.replace(CONTROL_CHAR_RE_G, " ").trim().slice(0, MAX_LABEL_LENGTH);
 }
 
-function hasTraversalSegment(p: string): boolean {
-  return p.split(path.sep).some((seg) => seg === "..");
+function hasTraversalSegment(inputPath: string): boolean {
+  return inputPath.split(path.sep).some((segment) => segment === "..");
 }
 
 function validateEntry(raw: unknown): ReferenceDirEntry | null {
@@ -117,11 +117,11 @@ export function loadReferenceDirs(root?: string): ReferenceDirEntry[] {
   const entries = parsed
     .slice(0, MAX_ENTRIES)
     .map(validateEntry)
-    .filter((e): e is ReferenceDirEntry => {
-      if (!e) return false;
+    .filter((entry): entry is ReferenceDirEntry => {
+      if (!entry) return false;
       // Deduplicate labels — first entry wins
-      if (seenLabels.has(e.label)) return false;
-      seenLabels.add(e.label);
+      if (seenLabels.has(entry.label)) return false;
+      seenLabels.add(entry.label);
       return true;
     });
 
@@ -155,8 +155,8 @@ export function validateReferenceDirs(raw: unknown): { entries: ReferenceDirEntr
     if (entry) {
       entries.push(entry);
     } else {
-      const p = isRecord(item) ? String((item as Record<string, unknown>).hostPath ?? "") : "";
-      errors.push(`entry ${i}: invalid or blocked path "${p}"`);
+      const hostPath = isRecord(item) ? String((item as Record<string, unknown>).hostPath ?? "") : "";
+      errors.push(`entry ${i}: invalid or blocked path "${hostPath}"`);
     }
   });
   if (errors.length > 0) {
@@ -233,9 +233,9 @@ export function buildReferenceDirsPrompt(entries: readonly ReferenceDirEntry[], 
     "",
   ];
 
-  for (const e of entries) {
-    const mountPath = useDocker ? containerPath(e) : e.hostPath;
-    lines.push(`- \`${mountPath}\` — ${e.label}`);
+  for (const entry of entries) {
+    const mountPath = useDocker ? containerPath(entry) : entry.hostPath;
+    lines.push(`- \`${mountPath}\` — ${entry.label}`);
   }
 
   if (!useDocker) {

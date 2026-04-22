@@ -45,11 +45,11 @@ export async function postAgentRun(body: AgentRequestBody): Promise<{ ok: true }
       };
     }
     return { ok: true };
-  } catch (e) {
-    console.error("[agent] fetch error:", e);
+  } catch (err) {
+    console.error("[agent] fetch error:", err);
     return {
       ok: false,
-      error: e instanceof Error ? e.message : "Connection error.",
+      error: err instanceof Error ? err.message : "Connection error.",
     };
   }
 }

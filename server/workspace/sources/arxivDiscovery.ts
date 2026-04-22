@@ -16,7 +16,7 @@ import { workspacePath } from "../paths.js";
 import { log } from "../../system/logger/index.js";
 import { slugify } from "../../utils/slug.js";
 import type { Source } from "./types.js";
-import fs from "fs";
+import { mkdirSync } from "fs";
 
 // ── Constants ───────────────────────────────────────────────────
 
@@ -33,8 +33,8 @@ const DEFAULT_MAX_ITEMS = 20;
  * Example: ["transformer", "attention"] → 'ti:"transformer" OR abs:"transformer" OR ti:"attention" OR abs:"attention"'
  */
 export function buildArxivQuery(keywords: readonly string[]): string {
-  const terms = keywords.flatMap((kw) => {
-    const stripped = kw.replace(/"/g, "");
+  const terms = keywords.flatMap((keyword) => {
+    const stripped = keyword.replace(/"/g, "");
     return [`ti:"${stripped}"`, `abs:"${stripped}"`];
   });
   return terms.join(" OR ");
@@ -48,8 +48,8 @@ export function buildArxivQuery(keywords: readonly string[]): string {
  */
 export function keywordsToSlug(keywords: readonly string[]): string {
   const latin = keywords
-    .map((kw) => slugify(kw, ""))
-    .filter((s) => s.length > 0)
+    .map((keyword) => slugify(keyword, ""))
+    .filter((slugPart) => slugPart.length > 0)
     .slice(0, 3)
     .join("-");
   // Short hash of ALL keywords ensures uniqueness even when the
@@ -88,10 +88,10 @@ export async function discoverAndRegister(root?: string): Promise<DiscoveryResul
 
   // Ensure sources directory exists
   const dir = sourcesRoot(base);
-  fs.mkdirSync(dir, { recursive: true });
+  mkdirSync(dir, { recursive: true });
 
   const existing = await listSources(base);
-  const existingSlugs = new Set(existing.map((s) => s.slug));
+  const existingSlugs = new Set(existing.map((source) => source.slug));
 
   const registered: string[] = [];
   const skipped: string[] = [];
@@ -158,17 +158,17 @@ export async function pruneStaleAutoSources(root?: string): Promise<string[]> {
   const base = root ?? workspacePath;
   const profile = loadInterests(base);
   const existing = await listSources(base);
-  const autoSources = existing.filter((s) => s.slug.startsWith(ARXIV_SLUG_PREFIX));
+  const autoSources = existing.filter((source) => source.slug.startsWith(ARXIV_SLUG_PREFIX));
 
   if (autoSources.length === 0) return [];
 
   // If no profile at all, prune everything auto-registered
-  const currentKeywords = profile ? new Set(profile.keywords.map((k) => k.toLowerCase())) : new Set<string>();
+  const currentKeywords = profile ? new Set(profile.keywords.map((keyword) => keyword.toLowerCase())) : new Set<string>();
 
   const pruned: string[] = [];
   for (const source of autoSources) {
     const notes = (source.notes ?? "").toLowerCase();
-    const hasMatch = [...currentKeywords].some((kw) => notes.includes(kw));
+    const hasMatch = [...currentKeywords].some((keyword) => notes.includes(keyword));
     if (!hasMatch && currentKeywords.size > 0) {
       // Keywords changed — this source is stale but don't delete,
       // just log. User can manually remove via manageSource.

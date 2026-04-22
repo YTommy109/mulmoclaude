@@ -68,8 +68,8 @@ describe("extractText", () => {
 
 describe("truncate", () => {
   it("passes short input through unchanged", () => {
-    const s = "hello world";
-    assert.equal(truncate(s), s);
+    const str = "hello world";
+    assert.equal(truncate(str), str);
   });
 
   it("keeps head + tail for long input", () => {

@@ -173,7 +173,7 @@ const saving = ref(false);
 const editDescription = ref("");
 const editBody = ref("");
 
-const selected = computed(() => skills.value.find((s) => s.name === selectedName.value) ?? null);
+const selected = computed(() => skills.value.find((skill) => skill.name === selectedName.value) ?? null);
 
 const renderedBody = computed(() => {
   const body = detail.value?.body;
@@ -272,7 +272,7 @@ async function saveEdit(): Promise<void> {
     body: editBody.value,
   };
   // Update the sidebar summary too.
-  const idx = skills.value.findIndex((s) => s.name === name);
+  const idx = skills.value.findIndex((skill) => skill.name === name);
   if (idx >= 0) {
     skills.value[idx] = {
       ...skills.value[idx],
@@ -311,7 +311,7 @@ async function deleteSkill(): Promise<void> {
     return;
   }
   // Remove from the local list, advance selection, clear detail.
-  const idx = skills.value.findIndex((s) => s.name === name);
+  const idx = skills.value.findIndex((skill) => skill.name === name);
   if (idx >= 0) {
     skills.value.splice(idx, 1);
   }

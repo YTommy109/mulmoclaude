@@ -73,7 +73,7 @@ export function useNotifications(): {
 
   const unreadCount = computed(() => {
     if (!readAt.value) return notifications.value.length;
-    return notifications.value.filter((n) => n.firedAt > readAt.value!).length;
+    return notifications.value.filter((notif) => notif.firedAt > readAt.value!).length;
   });
 
   function markAllRead(): void {
@@ -82,8 +82,8 @@ export function useNotifications(): {
     }
   }
 
-  function dismiss(id: string): void {
-    notifications.value = notifications.value.filter((n) => n.id !== id);
+  function dismiss(notifId: string): void {
+    notifications.value = notifications.value.filter((notif) => notif.id !== notifId);
   }
 
   return { notifications, latest, unreadCount, markAllRead, dismiss };

@@ -11,8 +11,8 @@
 // real DOM.
 export function findScrollableChild(container: HTMLElement): HTMLElement | null {
   const children = container.querySelectorAll("*");
-  for (const el of children) {
-    const html = el as HTMLElement;
+  for (const elem of children) {
+    const html = elem as HTMLElement;
     if (html.scrollHeight > html.clientHeight) {
       const style = getComputedStyle(html);
       if (style.overflowY === "auto" || style.overflowY === "scroll" || style.overflow === "auto" || style.overflow === "scroll") {

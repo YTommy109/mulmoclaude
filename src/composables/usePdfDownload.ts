@@ -42,10 +42,10 @@ export function usePdfDownload(): UsePdfDownloadHandle {
       }
       const blob = await response.blob();
       url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.click();
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
     } catch (err) {
       pdfError.value = errorMessage(err);
     } finally {

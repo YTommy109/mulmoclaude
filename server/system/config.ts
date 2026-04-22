@@ -9,7 +9,7 @@
 // defaults. Writers perform an atomic replace (tmp + rename) so a
 // reader never observes a half-written file.
 
-import fs from "fs";
+import { mkdirSync } from "fs";
 import path from "path";
 import { log } from "./logger/index.js";
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
@@ -44,7 +44,7 @@ export function mcpConfigPath(): string {
 }
 
 export function ensureConfigsDir(): void {
-  fs.mkdirSync(configsDir(), { recursive: true });
+  mkdirSync(configsDir(), { recursive: true });
 }
 
 export function isAppSettings(value: unknown): value is AppSettings {
@@ -181,8 +181,8 @@ export function isMcpConfigFile(value: unknown): value is McpConfigFile {
 
   const servers = value.mcpServers;
   if (!isRecord(servers)) return false;
-  for (const [id, spec] of Object.entries(servers)) {
-    if (!isMcpServerId(id)) return false;
+  for (const [serverId, spec] of Object.entries(servers)) {
+    if (!isMcpServerId(serverId)) return false;
     if (!isMcpServerSpec(spec)) return false;
   }
   return true;
@@ -220,7 +220,7 @@ export function saveMcpConfig(cfg: McpConfigFile): void {
 
 // Flatten storage form to UI-friendly array.
 export function toMcpEntries(cfg: McpConfigFile): McpServerEntry[] {
-  return Object.entries(cfg.mcpServers).map(([id, spec]) => ({ id, spec }));
+  return Object.entries(cfg.mcpServers).map(([serverId, spec]) => ({ id: serverId, spec }));
 }
 
 // Re-inflate UI-friendly array to storage form. Duplicate ids are

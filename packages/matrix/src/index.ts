@@ -29,15 +29,15 @@ if (!homeserverUrl || !accessToken || !userId) {
 const allowedRooms = new Set(
   (process.env.MATRIX_ALLOWED_ROOMS ?? "")
     .split(",")
-    .map((s) => s.trim())
+    .map((roomId) => roomId.trim())
     .filter(Boolean),
 );
 const allowAll = allowedRooms.size === 0;
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });
 
-mulmo.onPush((ev) => {
-  matrixClient.sendTextMessage(ev.chatId, ev.message).catch((err: unknown) => console.error(`[matrix] push send failed: ${err}`));
+mulmo.onPush((pushEvent) => {
+  matrixClient.sendTextMessage(pushEvent.chatId, pushEvent.message).catch((err: unknown) => console.error(`[matrix] push send failed: ${err}`));
 });
 
 const matrixClient: MatrixClient = createClient({

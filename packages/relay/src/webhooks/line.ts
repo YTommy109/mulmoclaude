@@ -1,6 +1,6 @@
 // LINE platform plugin.
 
-import { chunkText } from "@mulmobridge/client";
+import { chunkText } from "@mulmobridge/client/text";
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
 
@@ -83,7 +83,7 @@ const linePlugin: PlatformPlugin = {
 
     const messages = chunkText(text, MAX_LINE_TEXT)
       .slice(0, MAX_LINE_MESSAGES_PER_REQUEST)
-      .map((t) => ({ type: "text", text: t }));
+      .map((messageText) => ({ type: "text", text: messageText }));
     const url = replyToken ? "https://api.line.me/v2/bot/message/reply" : "https://api.line.me/v2/bot/message/push";
     const body = replyToken ? { replyToken, messages } : { to: chatId, messages };
 

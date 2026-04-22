@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mergeRoles } from "../../../src/utils/role/merge.js";
 import type { Role } from "../../../src/config/roles";
 
-function role(id: string, name = id): Role {
+function role(roleId: string, name = roleId): Role {
   return {
-    id,
+    id: roleId,
     name,
     icon: "star",
     prompt: "",
@@ -17,7 +17,7 @@ describe("mergeRoles", () => {
   it("returns built-in roles unchanged when there are no custom roles", () => {
     const out = mergeRoles([role("a"), role("b")], []);
     assert.deepEqual(
-      out.map((r) => r.id),
+      out.map((entry) => entry.id),
       ["a", "b"],
     );
   });
@@ -25,7 +25,7 @@ describe("mergeRoles", () => {
   it("appends custom roles after the built-ins", () => {
     const out = mergeRoles([role("a"), role("b")], [role("c"), role("d")]);
     assert.deepEqual(
-      out.map((r) => r.id),
+      out.map((entry) => entry.id),
       ["a", "b", "c", "d"],
     );
   });
@@ -43,7 +43,7 @@ describe("mergeRoles", () => {
   it("returns custom only when built-ins are empty", () => {
     const out = mergeRoles([], [role("only")]);
     assert.deepEqual(
-      out.map((r) => r.id),
+      out.map((entry) => entry.id),
       ["only"],
     );
   });
@@ -55,7 +55,7 @@ describe("mergeRoles", () => {
   it("preserves the order of built-in roles that are not overridden", () => {
     const out = mergeRoles([role("a"), role("b"), role("c"), role("d")], [role("c", "Custom C")]);
     assert.deepEqual(
-      out.map((r) => r.id),
+      out.map((entry) => entry.id),
       ["a", "b", "d", "c"],
     );
   });

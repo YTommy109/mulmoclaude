@@ -115,18 +115,18 @@ export function buildClassifyPrompt(input: ClassifyInput): string {
   if (titles.length > 0) {
     lines.push("");
     lines.push("RECENT ITEM TITLES:");
-    for (const t of titles.slice(0, 5)) {
-      lines.push(`- ${t}`);
+    for (const title of titles.slice(0, 5)) {
+      lines.push(`- ${title}`);
     }
   }
   const summaries = input.sampleSummaries ?? [];
   if (summaries.length > 0) {
     lines.push("");
     lines.push("RECENT ITEM SUMMARIES:");
-    for (const s of summaries.slice(0, 3)) {
+    for (const summary of summaries.slice(0, 3)) {
       // One-line truncation so a single long abstract doesn't
       // dominate the prompt budget.
-      lines.push(`- ${s.replace(/\s+/g, " ").slice(0, 200)}`);
+      lines.push(`- ${summary.replace(/\s+/g, " ").slice(0, 200)}`);
     }
   }
   return lines.join("\n");
@@ -167,8 +167,8 @@ export function validateClassifyResult(obj: unknown): ClassifyResult {
   if (!isRecord(obj)) {
     throw new Error("[sources/classifier] output is not an object");
   }
-  const o = obj as Record<string, unknown>;
-  const categories = normalizeCategories(o.categories);
+  const record = obj as Record<string, unknown>;
+  const categories = normalizeCategories(record.categories);
   if (categories.length === 0) {
     // The model is required to pick at least one (min_items=1 in
     // the schema). If we end up here, something went wrong upstream
@@ -178,7 +178,7 @@ export function validateClassifyResult(obj: unknown): ClassifyResult {
     // with no categories.
     throw new Error("[sources/classifier] output has no valid categories from the taxonomy");
   }
-  const rationale = typeof o.rationale === "string" ? o.rationale.slice(0, 400) : "";
+  const rationale = typeof record.rationale === "string" ? record.rationale.slice(0, 400) : "";
   return { categories, rationale };
 }
 

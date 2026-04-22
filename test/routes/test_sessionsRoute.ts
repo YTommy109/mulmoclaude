@@ -8,9 +8,9 @@
 
 import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import fs from "fs";
+import { mkdirSync, readFileSync } from "fs";
 import { mkdtemp, rm, writeFile, utimes } from "fs/promises";
-import os from "os";
+import { tmpdir } from "os";
 import path from "path";
 import type { Request, Response } from "express";
 import { encodeCursor } from "../../server/api/routes/sessionsCursor.js";
@@ -47,7 +47,7 @@ function extractRouteHandler(mod: RouteModule, routePath: string, method: string
   const router = mod.default as unknown as RouterInternals;
   for (const frame of router.stack) {
     if (frame.route?.path !== routePath) continue;
-    const layer = frame.route.stack.find((s) => s.method === method);
+    const layer = frame.route.stack.find((stackLayer) => stackLayer.method === method);
     if (layer) return layer.handle;
   }
   throw new Error(`route ${method.toUpperCase()} ${routePath} not registered`);
@@ -90,7 +90,7 @@ let getHandler: Handler;
 let markReadHandler: Handler;
 
 async function writeSession(
-  id: string,
+  sessionId: string,
   opts: {
     roleId?: string;
     mtimeMs: number;
@@ -102,37 +102,37 @@ async function writeSession(
   const meta = {
     roleId: opts.roleId ?? "general",
     startedAt: new Date(opts.mtimeMs).toISOString(),
-    firstUserMessage: opts.firstUserMessage ?? `msg for ${id}`,
+    firstUserMessage: opts.firstUserMessage ?? `msg for ${sessionId}`,
   };
-  await writeFile(path.join(chatDir, `${id}.json`), JSON.stringify(meta));
-  await writeFile(path.join(chatDir, `${id}.jsonl`), "");
+  await writeFile(path.join(chatDir, `${sessionId}.json`), JSON.stringify(meta));
+  await writeFile(path.join(chatDir, `${sessionId}.jsonl`), "");
   // Set both atime and mtime so the handler's stat.mtimeMs reads
   // what the test intends. Back-date the .json meta too — the cursor
   // derivation reads it alongside the .jsonl mtime (hasUnread writes
   // bump meta but not jsonl), so a freshly-written meta at "now"
   // would otherwise dominate the computed changeMs.
   const secs = opts.mtimeMs / 1000;
-  await utimes(path.join(chatDir, `${id}.jsonl`), secs, secs);
-  await utimes(path.join(chatDir, `${id}.json`), secs, secs);
+  await utimes(path.join(chatDir, `${sessionId}.jsonl`), secs, secs);
+  await utimes(path.join(chatDir, `${sessionId}.json`), secs, secs);
 
   if (opts.indexedAtMs !== undefined) {
     const manifestPath = path.join(manifestDir, "manifest.json");
     let entries: unknown[] = [];
     try {
-      entries = JSON.parse(fs.readFileSync(manifestPath, "utf-8")).entries ?? [];
+      entries = JSON.parse(readFileSync(manifestPath, "utf-8")).entries ?? [];
     } catch {
       /* first write */
     }
     entries.push({
-      id,
+      id: sessionId,
       roleId: meta.roleId,
       startedAt: meta.startedAt,
       indexedAt: new Date(opts.indexedAtMs).toISOString(),
-      title: `AI title ${id}`,
-      summary: `AI summary ${id}`,
+      title: `AI title ${sessionId}`,
+      summary: `AI summary ${sessionId}`,
       keywords: ["k1"],
     });
-    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    mkdirSync(path.dirname(manifestPath), { recursive: true });
     await writeFile(manifestPath, JSON.stringify({ version: 1, entries }));
   }
 }
@@ -140,15 +140,15 @@ async function writeSession(
 async function resetChatDir(): Promise<void> {
   await rm(chatDir, { recursive: true, force: true });
   await rm(manifestDir, { recursive: true, force: true });
-  fs.mkdirSync(chatDir, { recursive: true });
-  fs.mkdirSync(manifestDir, { recursive: true });
+  mkdirSync(chatDir, { recursive: true });
+  mkdirSync(manifestDir, { recursive: true });
 }
 
 before(async () => {
-  tmpRoot = await mkdtemp(path.join(os.tmpdir(), "mulmo-sessions-route-"));
+  tmpRoot = await mkdtemp(path.join(tmpdir(), "mulmo-sessions-route-"));
   originalHome = process.env.HOME;
   originalUserProfile = process.env.USERPROFILE;
-  // The workspace path resolves once at module load from os.homedir(),
+  // The workspace path resolves once at module load from homedir(),
   // so we have to steer it BEFORE importing the route module. This
   // mirrors the setup in test_configRoute.ts.
   process.env.HOME = tmpRoot;
@@ -158,11 +158,11 @@ before(async () => {
   // files, `chat/index` for the manifest after #284).
   const { WORKSPACE_PATHS } = await import("../../server/workspace/paths.js");
   const { indexDirFor } = await import("../../server/workspace/chat-index/paths.js");
-  const { workspacePath: wp } = await import("../../server/workspace/workspace.js");
+  const { workspacePath: workspacePth } = await import("../../server/workspace/workspace.js");
   chatDir = WORKSPACE_PATHS.chat;
-  manifestDir = indexDirFor(wp);
-  fs.mkdirSync(chatDir, { recursive: true });
-  fs.mkdirSync(manifestDir, { recursive: true });
+  manifestDir = indexDirFor(workspacePth);
+  mkdirSync(chatDir, { recursive: true });
+  mkdirSync(manifestDir, { recursive: true });
   const routeMod = await import("../../server/api/routes/sessions.js");
   getHandler = extractRouteHandler(routeMod, "/api/sessions", "get");
   markReadHandler = extractRouteHandler(routeMod, "/api/sessions/:id/mark-read", "post");
@@ -202,7 +202,7 @@ describe("GET /api/sessions — full fetch (no ?since=)", () => {
 
     const { state, res } = mockRes();
     await getHandler({ query: {} } as unknown as Request, res);
-    const ids = state.body!.sessions.map((s) => s.id);
+    const ids = state.body!.sessions.map((sess) => sess.id);
     assert.deepEqual(ids, ["newer", "older"]);
   });
 });
@@ -219,7 +219,7 @@ describe("GET /api/sessions?since=<cursor> — incremental fetch", () => {
       } as unknown as Request,
       res,
     );
-    const ids = state.body!.sessions.map((s) => s.id);
+    const ids = state.body!.sessions.map((sess) => sess.id);
     assert.deepEqual(ids, ["new"]);
   });
 
@@ -236,7 +236,7 @@ describe("GET /api/sessions?since=<cursor> — incremental fetch", () => {
       } as unknown as Request,
       res,
     );
-    const ids = state.body!.sessions.map((s) => s.id);
+    const ids = state.body!.sessions.map((sess) => sess.id);
     assert.deepEqual(ids, ["summarised"]);
     // The returned cursor must advance to the indexedAt time, not
     // just the mtime, so the next call won't re-fetch this row.
@@ -327,7 +327,7 @@ describe("POST /api/sessions/:id/mark-read", () => {
     const { res } = mockMarkReadRes();
     await markReadHandler({ params: { id: "s1" } } as unknown as Request, res);
 
-    const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+    const meta = JSON.parse(readFileSync(metaPath, "utf-8"));
     assert.equal(meta.hasUnread, false);
   });
 });

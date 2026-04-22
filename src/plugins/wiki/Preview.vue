@@ -43,11 +43,11 @@ const { refresh } = useFreshPluginData<WikiData>({
 watch(
   () => props.result.uuid,
   () => {
-    const d = props.result.data;
-    if (d) {
-      action.value = d.action ?? "index";
-      title.value = d.title ?? "Wiki";
-      pageEntries.value = d.pageEntries ?? [];
+    const wikiData = props.result.data;
+    if (wikiData) {
+      action.value = wikiData.action ?? "index";
+      title.value = wikiData.title ?? "Wiki";
+      pageEntries.value = wikiData.pageEntries ?? [];
     }
     void refresh();
   },

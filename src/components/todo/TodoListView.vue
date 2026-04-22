@@ -58,22 +58,22 @@ const emit = defineEmits<{
 
 const expandedId = ref<string | null>(null);
 
-function toggleExpand(id: string): void {
-  expandedId.value = expandedId.value === id ? null : id;
+function toggleExpand(itemId: string): void {
+  expandedId.value = expandedId.value === itemId ? null : itemId;
 }
 
 function toggleComplete(item: TodoItem): void {
   emit("toggleComplete", item);
 }
 
-function onSave(id: string, input: PatchItemInput): void {
-  emit("patch", id, input);
+function onSave(itemId: string, input: PatchItemInput): void {
+  emit("patch", itemId, input);
   expandedId.value = null;
 }
 
 function statusLabel(item: TodoItem): string {
   if (!item.status) return "";
-  const col = props.columns.find((c) => c.id === item.status);
+  const col = props.columns.find((column) => column.id === item.status);
   return col?.label ?? "";
 }
 </script>

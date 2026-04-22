@@ -11,7 +11,7 @@ function jsonlLine(source: "user" | "assistant", message: string): string {
 }
 
 function jsonlFrom(entries: { source: "user" | "assistant"; message: string }[]): string {
-  return entries.map((e) => jsonlLine(e.source, e.message)).join("\n") + "\n";
+  return entries.map((entry) => jsonlLine(entry.source, entry.message)).join("\n") + "\n";
 }
 
 describe("isStaleSessionError", () => {

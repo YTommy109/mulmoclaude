@@ -42,8 +42,8 @@ const items = ref<TodoItem[]>(props.result.data?.items ?? []);
 const { refresh } = useFreshPluginData<TodoItem[]>({
   endpoint: () => API_ROUTES.todos.list,
   extract: (json) => {
-    const v = (json as { data?: { items?: TodoItem[] } }).data?.items;
-    return Array.isArray(v) ? v : null;
+    const extracted = (json as { data?: { items?: TodoItem[] } }).data?.items;
+    return Array.isArray(extracted) ? extracted : null;
   },
   apply: (data) => {
     items.value = data;

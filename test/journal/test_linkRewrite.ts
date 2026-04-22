@@ -49,8 +49,10 @@ describe("rewriteWorkspaceLinks", () => {
   });
 
   it("handles markdown headings and prose around links", () => {
-    const md = ["# Title", "", "Some [link](/wiki/pages/topic.md) in prose.", "", "## Subheading", "", "- bullet [two](/HTMLs/report.html) here"].join("\n");
-    const out = rewriteWorkspaceLinks("summaries/daily/2026/04/11.md", md);
+    const markdown = ["# Title", "", "Some [link](/wiki/pages/topic.md) in prose.", "", "## Subheading", "", "- bullet [two](/HTMLs/report.html) here"].join(
+      "\n",
+    );
+    const out = rewriteWorkspaceLinks("summaries/daily/2026/04/11.md", markdown);
     assert.match(out, /\[link\]\(\.\.\/\.\.\/\.\.\/\.\.\/wiki\/pages\/topic\.md\)/);
     assert.match(out, /\[two\]\(\.\.\/\.\.\/\.\.\/\.\.\/HTMLs\/report\.html\)/);
   });
@@ -107,19 +109,19 @@ describe("rewriteMarkdownLinks", () => {
   });
 
   it("passes through plain bracketed text that is not a link", () => {
-    const out = rewriteMarkdownLinks("[not a link] followed by text", (h) => h);
+    const out = rewriteMarkdownLinks("[not a link] followed by text", (href) => href);
     assert.equal(out, "[not a link] followed by text");
   });
 
   it("handles an empty input", () => {
     assert.equal(
-      rewriteMarkdownLinks("", (h) => h),
+      rewriteMarkdownLinks("", (href) => href),
       "",
     );
   });
 
   it("handles input with no links at all", () => {
-    const out = rewriteMarkdownLinks("plain prose without links", (h) => h);
+    const out = rewriteMarkdownLinks("plain prose without links", (href) => href);
     assert.equal(out, "plain prose without links");
   });
 

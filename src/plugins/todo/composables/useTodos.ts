@@ -166,12 +166,12 @@ export function useTodos(initialItems: TodoItem[] = [], initialColumns: StatusCo
     error,
     refresh,
     createItem: (input) => call(API_ROUTES.todos.items, "POST", input),
-    patchItem: (id, input) => call(API_ROUTES.todos.item.replace(":id", encodeURIComponent(id)), "PATCH", input),
-    moveItem: (id, input) => call(API_ROUTES.todos.itemMove.replace(":id", encodeURIComponent(id)), "POST", input),
-    deleteItem: (id) => call(API_ROUTES.todos.item.replace(":id", encodeURIComponent(id)), "DELETE"),
+    patchItem: (itemId, input) => call(API_ROUTES.todos.item.replace(":id", encodeURIComponent(itemId)), "PATCH", input),
+    moveItem: (itemId, input) => call(API_ROUTES.todos.itemMove.replace(":id", encodeURIComponent(itemId)), "POST", input),
+    deleteItem: (itemId) => call(API_ROUTES.todos.item.replace(":id", encodeURIComponent(itemId)), "DELETE"),
     addColumn: (input) => call(API_ROUTES.todos.columns, "POST", input),
-    patchColumn: (id, input) => call(API_ROUTES.todos.column.replace(":id", encodeURIComponent(id)), "PATCH", input),
-    deleteColumn: (id) => call(API_ROUTES.todos.column.replace(":id", encodeURIComponent(id)), "DELETE"),
+    patchColumn: (colId, input) => call(API_ROUTES.todos.column.replace(":id", encodeURIComponent(colId)), "PATCH", input),
+    deleteColumn: (colId) => call(API_ROUTES.todos.column.replace(":id", encodeURIComponent(colId)), "DELETE"),
     reorderColumns: (ids) => call(API_ROUTES.todos.columnsOrder, "PUT", { ids }),
   };
 }

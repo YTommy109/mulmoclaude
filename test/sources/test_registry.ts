@@ -127,76 +127,76 @@ describe("buildSource — validation", () => {
   });
 
   it("returns null for missing slug", () => {
-    const f = base();
-    f.delete("slug");
-    assert.equal(buildSource(f, ""), null);
+    const front = base();
+    front.delete("slug");
+    assert.equal(buildSource(front, ""), null);
   });
 
   it("returns null for invalid slug (uppercase)", () => {
-    const f = base();
-    f.set("slug", "HN");
-    assert.equal(buildSource(f, ""), null);
+    const front = base();
+    front.set("slug", "HN");
+    assert.equal(buildSource(front, ""), null);
   });
 
   it("returns null for invalid slug (path traversal)", () => {
-    const f = base();
-    f.set("slug", "../etc/passwd");
-    assert.equal(buildSource(f, ""), null);
+    const front = base();
+    front.set("slug", "../etc/passwd");
+    assert.equal(buildSource(front, ""), null);
   });
 
   it("returns null for missing title", () => {
-    const f = base();
-    f.delete("title");
-    assert.equal(buildSource(f, ""), null);
+    const front = base();
+    front.delete("title");
+    assert.equal(buildSource(front, ""), null);
   });
 
   it("returns null for missing url", () => {
-    const f = base();
-    f.delete("url");
-    assert.equal(buildSource(f, ""), null);
+    const front = base();
+    front.delete("url");
+    assert.equal(buildSource(front, ""), null);
   });
 
   it("returns null for unknown fetcher kind", () => {
-    const f = base();
-    f.set("fetcher_kind", "bogus");
-    assert.equal(buildSource(f, ""), null);
+    const front = base();
+    front.set("fetcher_kind", "bogus");
+    assert.equal(buildSource(front, ""), null);
   });
 
   it("returns null for unknown schedule", () => {
-    const f = base();
-    f.set("schedule", "quarterly");
-    assert.equal(buildSource(f, ""), null);
+    const front = base();
+    front.set("schedule", "quarterly");
+    assert.equal(buildSource(front, ""), null);
   });
 
   it("drops invalid categories silently", () => {
-    const f = base();
-    f.set("categories", ["ai", "bogus", "security"]);
-    const source = buildSource(f, "");
+    const front = base();
+    front.set("categories", ["ai", "bogus", "security"]);
+    const source = buildSource(front, "");
     assert.ok(source);
     assert.deepEqual(source!.categories, ["ai", "security"]);
   });
 
   it("falls back to the default max_items_per_fetch for invalid values", () => {
-    const f = base();
-    f.set("max_items_per_fetch", "not-a-number");
-    const source = buildSource(f, "");
+    const front = base();
+    front.set("max_items_per_fetch", "not-a-number");
+    const source = buildSource(front, "");
     assert.ok(source);
     assert.equal(source!.maxItemsPerFetch, DEFAULT_MAX_ITEMS_PER_FETCH);
   });
 
   it("falls back to the default for a zero / negative max", () => {
-    const f = base();
-    f.set("max_items_per_fetch", "0");
-    assert.equal(buildSource(f, "")!.maxItemsPerFetch, DEFAULT_MAX_ITEMS_PER_FETCH);
-    f.set("max_items_per_fetch", "-10");
-    assert.equal(buildSource(f, "")!.maxItemsPerFetch, DEFAULT_MAX_ITEMS_PER_FETCH);
+    const front = base();
+    front.set("max_items_per_fetch", "0");
+    assert.equal(buildSource(front, "")!.maxItemsPerFetch, DEFAULT_MAX_ITEMS_PER_FETCH);
+    front.set("max_items_per_fetch", "-10");
+    assert.equal(buildSource(front, "")!.maxItemsPerFetch, DEFAULT_MAX_ITEMS_PER_FETCH);
   });
 
   it("collects unrecognized keys into fetcherParams", () => {
-    const f = base();
-    f.set("github_repo", "anthropics/claude-code");
-    f.set("arxiv_query", "cs.CL");
-    const source = buildSource(f, "");
+    const front = base();
+    front.set("github_repo", "anthropics/claude-code");
+    front.set("arxiv_query", "cs.CL");
+    const source = buildSource(front, "");
     assert.ok(source);
     assert.deepEqual(source!.fetcherParams, {
       github_repo: "anthropics/claude-code",
@@ -205,9 +205,9 @@ describe("buildSource — validation", () => {
   });
 
   it("ignores array values in fetcherParams (schema mismatch)", () => {
-    const f = base();
-    f.set("weird_array", ["a", "b"]);
-    const source = buildSource(f, "");
+    const front = base();
+    front.set("weird_array", ["a", "b"]);
+    const source = buildSource(front, "");
     assert.ok(source);
     assert.equal(source!.fetcherParams["weird_array"], undefined);
   });
@@ -414,10 +414,10 @@ describe("listSources", () => {
       { ...makeSource(), slug: "alpha", title: "A" },
       { ...makeSource(), slug: "bravo", title: "B" },
     ];
-    for (const s of sources) await writeSource(workspace, s);
+    for (const src of sources) await writeSource(workspace, src);
     const listed = await listSources(workspace);
     assert.deepEqual(
-      listed.map((s) => s.slug),
+      listed.map((src) => src.slug),
       ["alpha", "bravo", "charlie"],
     );
   });

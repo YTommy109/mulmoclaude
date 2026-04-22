@@ -1,5 +1,11 @@
 # MulmoClaude
 
+[![npm version](https://img.shields.io/npm/v/mulmoclaude.svg)](https://www.npmjs.com/package/mulmoclaude)
+[![npm downloads](https://img.shields.io/npm/dm/mulmoclaude.svg)](https://www.npmjs.com/package/mulmoclaude)
+[![License: MIT](https://img.shields.io/npm/l/mulmoclaude.svg)](LICENSE)
+[![CI](https://github.com/receptron/mulmoclaude/actions/workflows/pull_request.yaml/badge.svg)](https://github.com/receptron/mulmoclaude/actions/workflows/pull_request.yaml)
+[![GitHub stars](https://img.shields.io/github/stars/receptron/mulmoclaude.svg?style=social)](https://github.com/receptron/mulmoclaude/stargazers)
+
 GUI-chat with Claude Code — plus long-term memory, visual tools, and messaging app access.
 
 Chat with Claude Code and get back not just text but **interactive visual output**: documents, spreadsheets, mind maps, charts, images, forms, 3D scenes, and more. A built-in personal wiki gives Claude **persistent knowledge** that grows with every conversation.
@@ -23,6 +29,8 @@ yarn dev
 Open [http://localhost:5173](http://localhost:5173). That's it — start chatting.
 
 > **Prerequisites**: Node.js 20+, [Claude Code CLI](https://claude.ai/code) installed and authenticated.
+
+> **UI language**: Defaults to English. Set `VITE_LOCALE=ja` in `.env` to use the Japanese dictionary (`src/lang/ja.ts`). Locale is picked at build/dev time; restart `yarn dev` after changing it. See [`docs/developer.md`](docs/developer.md#i18n-vue-i18n) for how to add strings.
 
 ## What can you do?
 

@@ -70,10 +70,11 @@ export interface ToolResultEntry extends SessionEntry {
   result: ToolResultComplete;
 }
 
-export const isTextEntry = (e: SessionEntry): e is TextEntry =>
-  (e.source === "user" || e.source === "assistant") && e.type === EVENT_TYPES.text && typeof e.message === "string";
+export const isTextEntry = (entry: SessionEntry): entry is TextEntry =>
+  (entry.source === "user" || entry.source === "assistant") && entry.type === EVENT_TYPES.text && typeof entry.message === "string";
 
-export const isToolResultEntry = (e: SessionEntry): e is ToolResultEntry => e.source === "tool" && e.type === EVENT_TYPES.toolResult && e.result !== undefined;
+export const isToolResultEntry = (entry: SessionEntry): entry is ToolResultEntry =>
+  entry.source === "tool" && entry.type === EVENT_TYPES.toolResult && entry.result !== undefined;
 
 // In-memory session held in `sessionMap`. PR #88 introduced this so
 // multiple chats can run concurrently — `id` matches the `chatSessionId`

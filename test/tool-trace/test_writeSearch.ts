@@ -1,7 +1,7 @@
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, readdir, rm } from "fs/promises";
-import os from "os";
+import { tmpdir } from "os";
 import path from "path";
 import {
   buildSearchMarkdown,
@@ -26,105 +26,105 @@ describe("formatSearchDateDir", () => {
 
 describe("computeSearchHash", () => {
   it("is deterministic for the same inputs", () => {
-    const a = computeSearchHash("foo", SID, FIXED_TS);
-    const b = computeSearchHash("foo", SID, FIXED_TS);
-    assert.equal(a, b);
+    const hash1 = computeSearchHash("foo", SID, FIXED_TS);
+    const hash2 = computeSearchHash("foo", SID, FIXED_TS);
+    assert.equal(hash1, hash2);
   });
 
   it("differs when query changes", () => {
-    const a = computeSearchHash("foo", SID, FIXED_TS);
-    const b = computeSearchHash("bar", SID, FIXED_TS);
-    assert.notEqual(a, b);
+    const hash1 = computeSearchHash("foo", SID, FIXED_TS);
+    const hash2 = computeSearchHash("bar", SID, FIXED_TS);
+    assert.notEqual(hash1, hash2);
   });
 
   it("differs when sessionId changes", () => {
-    const a = computeSearchHash("foo", "session-A", FIXED_TS);
-    const b = computeSearchHash("foo", "session-B", FIXED_TS);
-    assert.notEqual(a, b);
+    const hash1 = computeSearchHash("foo", "session-A", FIXED_TS);
+    const hash2 = computeSearchHash("foo", "session-B", FIXED_TS);
+    assert.notEqual(hash1, hash2);
   });
 
   it("returns an 8-char base64url-ish string", () => {
-    const h = computeSearchHash("foo", SID, FIXED_TS);
-    assert.equal(h.length, 8);
-    assert.match(h, /^[A-Za-z0-9_-]+$/);
+    const hash = computeSearchHash("foo", SID, FIXED_TS);
+    assert.equal(hash.length, 8);
+    assert.match(hash, /^[A-Za-z0-9_-]+$/);
   });
 });
 
 describe("computeSearchRelPath", () => {
   it("builds conversations/searches/YYYY-MM-DD/<slug>-<hash>.md", () => {
-    const p = computeSearchRelPath({
+    const relPath = computeSearchRelPath({
       query: "熊本地震 2016",
       sessionId: SID,
-      ts: FIXED_TS,
+      timestamp: FIXED_TS,
     });
-    assert.ok(p.startsWith("conversations/searches/2026-04-13/"));
-    assert.ok(p.endsWith(".md"));
+    assert.ok(relPath.startsWith("conversations/searches/2026-04-13/"));
+    assert.ok(relPath.endsWith(".md"));
   });
 
   it("produces stable path for identical inputs", () => {
-    const a = computeSearchRelPath({
+    const path1 = computeSearchRelPath({
       query: "claude code",
       sessionId: SID,
-      ts: FIXED_TS,
+      timestamp: FIXED_TS,
     });
-    const b = computeSearchRelPath({
+    const path2 = computeSearchRelPath({
       query: "claude code",
       sessionId: SID,
-      ts: FIXED_TS,
+      timestamp: FIXED_TS,
     });
-    assert.equal(a, b);
+    assert.equal(path1, path2);
   });
 
   it("produces different paths for different queries", () => {
-    const a = computeSearchRelPath({
+    const path1 = computeSearchRelPath({
       query: "foo",
       sessionId: SID,
-      ts: FIXED_TS,
+      timestamp: FIXED_TS,
     });
-    const b = computeSearchRelPath({
+    const path2 = computeSearchRelPath({
       query: "bar",
       sessionId: SID,
-      ts: FIXED_TS,
+      timestamp: FIXED_TS,
     });
-    assert.notEqual(a, b);
+    assert.notEqual(path1, path2);
   });
 });
 
 describe("buildSearchMarkdown", () => {
   it("includes YAML frontmatter + heading + body", () => {
-    const md = buildSearchMarkdown({
+    const markdown = buildSearchMarkdown({
       query: "foo",
       sessionId: SID,
-      ts: FIXED_TS,
+      timestamp: FIXED_TS,
       resultBody: "- result 1\n- result 2",
     });
-    assert.ok(md.startsWith("---\n"));
-    assert.ok(md.includes(`query: foo`));
-    assert.ok(md.includes(`sessionId: ${SID}`));
-    assert.ok(md.includes(`ts: 2026-04-13T05:18:47.123Z`));
-    assert.ok(md.includes("# Search: foo"));
-    assert.ok(md.includes("- result 1"));
-    assert.ok(md.endsWith("\n"), "should end with a trailing newline");
+    assert.ok(markdown.startsWith("---\n"));
+    assert.ok(markdown.includes(`query: foo`));
+    assert.ok(markdown.includes(`sessionId: ${SID}`));
+    assert.ok(markdown.includes(`ts: 2026-04-13T05:18:47.123Z`));
+    assert.ok(markdown.includes("# Search: foo"));
+    assert.ok(markdown.includes("- result 1"));
+    assert.ok(markdown.endsWith("\n"), "should end with a trailing newline");
   });
 
   it("quotes query when it contains a colon", () => {
-    const md = buildSearchMarkdown({
+    const markdown = buildSearchMarkdown({
       query: "a:b",
       sessionId: SID,
-      ts: FIXED_TS,
+      timestamp: FIXED_TS,
       resultBody: "body",
     });
-    assert.ok(md.includes('query: "a:b"'));
+    assert.ok(markdown.includes('query: "a:b"'));
   });
 
   it("passes through unicode queries unchanged in the heading", () => {
-    const md = buildSearchMarkdown({
+    const markdown = buildSearchMarkdown({
       query: "熊本地震",
       sessionId: SID,
-      ts: FIXED_TS,
+      timestamp: FIXED_TS,
       resultBody: "body",
     });
-    assert.ok(md.includes("# Search: 熊本地震"));
+    assert.ok(markdown.includes("# Search: 熊本地震"));
   });
 });
 
@@ -132,7 +132,7 @@ describe("writeSearchResult (I/O)", () => {
   let workspaceRoot: string;
 
   before(async () => {
-    workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "tool-trace-"));
+    workspaceRoot = await mkdtemp(path.join(tmpdir(), "tool-trace-"));
   });
 
   after(async () => {
@@ -144,7 +144,7 @@ describe("writeSearchResult (I/O)", () => {
       workspaceRoot,
       query: "foo query",
       sessionId: SID,
-      ts: FIXED_TS,
+      timestamp: FIXED_TS,
       resultBody: "top result",
     });
     assert.ok(rel.startsWith("conversations/searches/2026-04-13/"));
@@ -158,18 +158,18 @@ describe("writeSearchResult (I/O)", () => {
       workspaceRoot,
       query: "alpha",
       sessionId: SID,
-      ts: FIXED_TS,
+      timestamp: FIXED_TS,
       resultBody: "a",
     });
     await writeSearchResult({
       workspaceRoot,
       query: "beta",
       sessionId: SID,
-      ts: FIXED_TS,
+      timestamp: FIXED_TS,
       resultBody: "b",
     });
     const dir = path.join(workspaceRoot, "conversations", "searches", "2026-04-13");
-    const files = (await readdir(dir)).filter((n) => n.endsWith(".md"));
+    const files = (await readdir(dir)).filter((name) => name.endsWith(".md"));
     // At least two files (prior test in this block wrote one too).
     assert.ok(files.length >= 2);
   });

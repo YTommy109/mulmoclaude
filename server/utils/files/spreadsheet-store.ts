@@ -1,4 +1,4 @@
-import fs from "fs/promises";
+import { mkdir, realpath, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../../workspace/paths.js";
@@ -13,8 +13,8 @@ let spreadsheetsDirReal: string | null = null;
 
 async function ensureSpreadsheetsDir(): Promise<string> {
   if (spreadsheetsDirReal) return spreadsheetsDirReal;
-  await fs.mkdir(SPREADSHEETS_DIR, { recursive: true });
-  spreadsheetsDirReal = await fs.realpath(SPREADSHEETS_DIR);
+  await mkdir(SPREADSHEETS_DIR, { recursive: true });
+  spreadsheetsDirReal = await realpath(SPREADSHEETS_DIR);
   return spreadsheetsDirReal;
 }
 
@@ -36,16 +36,16 @@ async function safeResolve(relativePath: string): Promise<string> {
 /** Save sheets array as a JSON file. Returns the workspace-relative path. */
 export async function saveSpreadsheet(sheets: unknown[]): Promise<string> {
   await ensureSpreadsheetsDir();
-  const id = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
-  const filename = `${id}.json`;
-  await fs.writeFile(path.join(SPREADSHEETS_DIR, filename), JSON.stringify(sheets), "utf-8");
+  const sheetId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  const filename = `${sheetId}.json`;
+  await writeFile(path.join(SPREADSHEETS_DIR, filename), JSON.stringify(sheets), "utf-8");
   return path.posix.join(WORKSPACE_DIRS.spreadsheets, filename);
 }
 
 /** Overwrite an existing spreadsheet file. */
 export async function overwriteSpreadsheet(relativePath: string, sheets: unknown[]): Promise<void> {
   const absPath = await safeResolve(relativePath);
-  await fs.writeFile(absPath, JSON.stringify(sheets), "utf-8");
+  await writeFile(absPath, JSON.stringify(sheets), "utf-8");
 }
 
 /** Check if a string is a spreadsheet file path (not inline data).

@@ -40,8 +40,8 @@ interface SummaryRow {
   preview: string;
 }
 
-function row(id: string, updatedAt = ""): SummaryRow {
-  return { id, roleId: "general", startedAt: "", updatedAt, preview: "" };
+function row(sessionId: string, updatedAt = ""): SummaryRow {
+  return { id: sessionId, roleId: "general", startedAt: "", updatedAt, preview: "" };
 }
 
 function envelope(sessions: SummaryRow[], cursor: string, deletedIds: string[] = []) {
@@ -138,10 +138,10 @@ describe("useSessionHistory — cursor-aware incremental fetch (#205)", () => {
     );
     await fetchSessions();
 
-    const ids = sessions.value.map((s) => s.id);
+    const ids = sessions.value.map((session) => session.id);
     assert.deepEqual(ids.sort(), ["a", "b", "c"].sort(), "diff should upsert a/c while preserving untouched b");
-    const a = sessions.value.find((s) => s.id === "a");
-    assert.equal(a?.preview, "updated", "a must have the diff's fields");
+    const sessionA = sessions.value.find((session) => session.id === "a");
+    assert.equal(sessionA?.preview, "updated", "a must have the diff's fields");
   });
 
   it("removes cached rows whose id appears in deletedIds", async () => {
@@ -152,7 +152,7 @@ describe("useSessionHistory — cursor-aware incremental fetch (#205)", () => {
 
     stubFetch(async () => mockJsonResponse(200, envelope([], "v1:2", ["b"])));
     await fetchSessions();
-    const ids = sessions.value.map((s) => s.id).sort();
+    const ids = sessions.value.map((session) => session.id).sort();
     assert.deepEqual(ids, ["a", "c"]);
   });
 });

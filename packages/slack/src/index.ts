@@ -29,7 +29,7 @@ if (!botToken || !appToken) {
 const allowedChannels = new Set(
   (process.env.SLACK_ALLOWED_CHANNELS ?? "")
     .split(",")
-    .map((s) => s.trim())
+    .map((channelId) => channelId.trim())
     .filter(Boolean),
 );
 const allowAll = allowedChannels.size === 0;
@@ -42,8 +42,8 @@ const client = createBridgeClient({ transportId: TRANSPORT_ID });
 // Resolve the bot's own user ID so we can ignore our own messages
 let botUserId: string | null = null;
 
-client.onPush((ev) => {
-  web.chat.postMessage({ channel: ev.chatId, text: ev.message }).catch((err) => console.error(`[slack] push send failed: ${err}`));
+client.onPush((pushEvent) => {
+  web.chat.postMessage({ channel: pushEvent.chatId, text: pushEvent.message }).catch((err) => console.error(`[slack] push send failed: ${err}`));
 });
 
 socketMode.on("message", async ({ event, ack }) => {

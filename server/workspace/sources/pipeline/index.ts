@@ -34,6 +34,7 @@ import { listSources } from "../registry.js";
 import { readManyStates, writeManyStates } from "../sourceState.js";
 import { dailyNewsPath } from "../paths.js";
 import { getFetcher as registryGetFetcher, type FetcherDeps, type SourceFetcher } from "../fetchers/index.js";
+import { defaultSourceState } from "../types.js";
 import type { FetcherKind, Source, SourceItem, SourceState, SourceSchedule } from "../types.js";
 import { planEligibleSources } from "./plan.js";
 import { runFetchPhase, computeNextState, type FetchOutcome } from "./fetch.js";
@@ -92,11 +93,11 @@ export { toLocalIsoDate } from "../../../utils/date.js";
 // Convert a wall-clock millis value to the LOCAL year-month
 // key (YYYY-MM) used as the archive fallback for items without
 // a parseable publishedAt.
-export function toLocalYearMonth(ms: number): string {
-  const d = new Date(ms);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
+export function toLocalYearMonth(millis: number): string {
+  const date = new Date(millis);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
 }
 
 export async function runSourcesPipeline(input: RunPipelineInput): Promise<RunPipelineResult> {
@@ -125,7 +126,7 @@ export async function runSourcesPipeline(input: RunPipelineInput): Promise<RunPi
   const allSources = await listSources(workspaceRoot);
   const statesBySlug = await readManyStates(
     workspaceRoot,
-    allSources.map((s) => s.slug),
+    allSources.map((source) => source.slug),
   );
 
   // --- 2. Plan ------------------------------------------------------
@@ -234,13 +235,7 @@ function buildNextStates(
   }
   const nextStates: SourceState[] = [];
   for (const source of eligible) {
-    const prev = statesBySlug.get(source.slug) ?? {
-      slug: source.slug,
-      lastFetchedAt: null,
-      cursor: {},
-      consecutiveFailures: 0,
-      nextAttemptAt: null,
-    };
+    const prev = statesBySlug.get(source.slug) ?? defaultSourceState(source.slug);
     const outcome = outcomeBySlug.get(source.slug);
     if (!outcome) continue; // unreachable in practice; defensive
     nextStates.push(computeNextState(prev, outcome, nowMs));

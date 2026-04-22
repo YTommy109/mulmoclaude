@@ -34,8 +34,8 @@ import { mcpToolsRouter, mcpTools, isMcpToolEnabled } from "./agent/mcp-tools/in
 import { initWorkspace, workspacePath } from "./workspace/workspace.js";
 import { env, isGeminiAvailable } from "./system/env.js";
 import { buildSandboxStatus } from "./api/sandboxStatus.js";
-import fs from "fs";
-import os from "os";
+import { existsSync, readFileSync } from "fs";
+import { homedir } from "os";
 import { isDockerAvailable, ensureSandboxImage } from "./system/docker.js";
 import { maybeRunJournal } from "./workspace/journal/index.js";
 import { backfillAllSessions } from "./workspace/chat-index/index.js";
@@ -48,6 +48,7 @@ import schedulerTasksRoutes from "./api/routes/schedulerTasks.js";
 import { loadSchedulerOverrides, UTC_HH_MM_RE } from "./utils/files/scheduler-overrides-io.js";
 import type { IPubSub } from "./events/pub-sub/index.js";
 import { initSessionStore } from "./events/session-store/index.js";
+import { connectRelay } from "./events/relay-client.js";
 import { requireSameOrigin } from "./api/csrfGuard.js";
 import { bearerAuth } from "./api/auth/bearerAuth.js";
 import { deleteTokenFile, generateAndWriteToken, getCurrentToken } from "./api/auth/token.js";
@@ -156,13 +157,13 @@ app.use(configRoutes);
 app.use(skillsRoutes);
 async function listSessionsForBridge(opts: { limit: number; offset: number }) {
   const rows = await loadAllSessions();
-  const sorted = rows.sort((a, b) => b.changeMs - a.changeMs);
+  const sorted = rows.sort((leftSession, rightSession) => rightSession.changeMs - leftSession.changeMs);
   const total = sorted.length;
-  const sessions = sorted.slice(opts.offset, opts.offset + opts.limit).map((r) => ({
-    id: r.summary.id,
-    roleId: r.summary.roleId,
-    preview: r.summary.preview,
-    updatedAt: r.summary.updatedAt,
+  const sessions = sorted.slice(opts.offset, opts.offset + opts.limit).map((row) => ({
+    id: row.summary.id,
+    roleId: row.summary.roleId,
+    preview: row.summary.preview,
+    updatedAt: row.summary.updatedAt,
   }));
   return { sessions, total };
 }
@@ -227,13 +228,13 @@ if (env.isProduction) {
   // `{ index: false }` so express.static doesn't intercept `GET /`
   // with the built index.html. We need our own handler that reads
   // the file and substitutes the bearer token placeholder on each
-  // request — see the `app.get("*")` fallback below.
+  // request — see the wildcard fallback below.
   app.use(express.static(path.join(__dirname, "../client"), { index: false }));
   const indexHtmlPath = path.join(__dirname, "../client/index.html");
-  app.get("*", (_req: Request, res: Response) => {
+  app.get("/{*splat}", (_req: Request, res: Response) => {
     let html: string;
     try {
-      html = fs.readFileSync(indexHtmlPath, "utf-8");
+      html = readFileSync(indexHtmlPath, "utf-8");
     } catch (err) {
       log.error("server", "failed to read index.html", { error: String(err) });
       serverError(res, "Internal Server Error");
@@ -269,13 +270,13 @@ function isPortFree(port: number): Promise<boolean> {
 }
 
 async function ensureCredentialsAvailable(): Promise<void> {
-  const credentialsPath = path.join(os.homedir(), ".claude", ".credentials.json");
-  if (fs.existsSync(credentialsPath)) return;
+  const credentialsPath = path.join(homedir(), ".claude", ".credentials.json");
+  if (existsSync(credentialsPath)) return;
 
   if (process.platform === "darwin") {
     const { refreshCredentials } = await import("./system/credentials.js");
-    const ok = await refreshCredentials();
-    if (ok) return;
+    const refreshSucceeded = await refreshCredentials();
+    if (refreshSucceeded) return;
     log.error("sandbox", "Failed to export credentials from macOS Keychain. Run `npm run sandbox:login` manually.");
     process.exit(1);
   }
@@ -309,14 +310,14 @@ async function setupSandbox(): Promise<boolean> {
 
 function logMcpStatus(): void {
   const enabledMcpTools = mcpTools.filter(isMcpToolEnabled);
-  const disabledMcpTools = mcpTools.filter((t) => !isMcpToolEnabled(t));
+  const disabledMcpTools = mcpTools.filter((toolDef) => !isMcpToolEnabled(toolDef));
   if (enabledMcpTools.length > 0) {
     log.info("mcp", "Available", {
-      tools: enabledMcpTools.map((t) => t.definition.name).join(", "),
+      tools: enabledMcpTools.map((toolDef) => toolDef.definition.name).join(", "),
     });
   }
   if (disabledMcpTools.length > 0) {
-    const names = disabledMcpTools.map((t) => t.definition.name + " (" + (t.requiredEnv ?? []).join(", ") + ")").join(", ");
+    const names = disabledMcpTools.map((toolDef) => toolDef.definition.name + " (" + (toolDef.requiredEnv ?? []).join(", ") + ")").join(", ");
     log.info("mcp", "Unavailable (missing env)", { tools: names });
   }
 }
@@ -373,6 +374,16 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
   // --- Chat socket transport (Phase A of #268) ---
   chatService.attachSocket(httpServer);
 
+  // --- Relay WebSocket client ---
+  if (env.relayUrl && env.relayToken) {
+    connectRelay({
+      relayUrl: env.relayUrl,
+      relayToken: env.relayToken,
+      relay: chatService.relay,
+      logger: log,
+    });
+  }
+
   // --- Session Store ---
   initSessionStore(pubsub);
 
@@ -413,24 +424,24 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>): void {
   // are silently ignored — the hardcoded defaults above remain.
   const overrides = loadSchedulerOverrides();
   for (const task of systemTasks) {
-    const ovr = overrides[task.id];
-    if (!ovr) continue;
-    if (task.schedule.type === SCHEDULE_TYPES.interval && typeof ovr.intervalMs === "number" && ovr.intervalMs > 0) {
+    const override = overrides[task.id];
+    if (!override) continue;
+    if (task.schedule.type === SCHEDULE_TYPES.interval && typeof override.intervalMs === "number" && override.intervalMs > 0) {
       log.info("scheduler", "applying override", {
         id: task.id,
-        intervalMs: ovr.intervalMs,
+        intervalMs: override.intervalMs,
       });
       task.schedule = {
         type: SCHEDULE_TYPES.interval,
-        intervalMs: ovr.intervalMs,
+        intervalMs: override.intervalMs,
       };
     }
-    if (task.schedule.type === SCHEDULE_TYPES.daily && typeof ovr.time === "string" && UTC_HH_MM_RE.test(ovr.time)) {
+    if (task.schedule.type === SCHEDULE_TYPES.daily && typeof override.time === "string" && UTC_HH_MM_RE.test(override.time)) {
       log.info("scheduler", "applying override", {
         id: task.id,
-        time: ovr.time,
+        time: override.time,
       });
-      task.schedule = { type: SCHEDULE_TYPES.daily, time: ovr.time };
+      task.schedule = { type: SCHEDULE_TYPES.daily, time: override.time };
     }
   }
 

@@ -72,9 +72,9 @@ describe("colorForLabel", () => {
   });
 
   it("is deterministic for the same input", () => {
-    const a = colorForLabel("Urgent");
-    const b = colorForLabel("Urgent");
-    assert.equal(a, b);
+    const colorA = colorForLabel("Urgent");
+    const colorB = colorForLabel("Urgent");
+    assert.equal(colorA, colorB);
   });
 
   it("is case-insensitive", () => {
@@ -194,7 +194,7 @@ describe("listLabelsWithCount", () => {
     const items = [{ labels: ["Zebra"] }, { labels: ["apple"] }, { labels: ["Mango"] }];
     const result = listLabelsWithCount(items);
     assert.deepEqual(
-      result.map((r) => r.label),
+      result.map((item) => item.label),
       ["apple", "Mango", "Zebra"],
     );
   });

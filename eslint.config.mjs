@@ -7,6 +7,7 @@ import sonarjs from "eslint-plugin-sonarjs";
 import importPlugin from "eslint-plugin-import";
 import vuePlugin from "eslint-plugin-vue";
 import vueParser from "vue-eslint-parser";
+import vueI18n from "@intlify/eslint-plugin-vue-i18n"
 
 export default [
   {
@@ -16,12 +17,22 @@ export default [
     ],
   },
   {
-    ignores: ["lib", "src/plugins/spreadsheet/engine", "packages/*/dist"],
+    ignores: [
+      "lib",
+      "src/plugins/spreadsheet/engine",
+      "packages/*/dist",
+      // mulmoclaude launcher copies server/client/shared src here at
+      // publish time. Original sources are linted at their real paths.
+      "packages/mulmoclaude/client",
+      "packages/mulmoclaude/server",
+      "packages/mulmoclaude/src",
+    ],
   },
   eslint.configs.recommended,
   sonarjs.configs.recommended,
   ...tseslint.configs.recommended,
   ...vuePlugin.configs["flat/recommended"],
+  ...vueI18n.configs.recommended,
   {
     files: [
       "**/utils/html_render.ts",
@@ -45,23 +56,24 @@ export default [
     },
     rules: {
       indent: ["error", 2],
-      // Loop iterators (i/j), throwaway (_), and domain-standard
-      // 2-char idioms exempted. `id` covers every record-with-id
-      // in the codebase. `fs`/`os`/`path` are Node-module imports.
-      // `ok` is the Result-pattern discriminator. `ms`/`ts` are
-      // unit-suffixed time values. `md` is markdown. `it` is
-      // node:test's `it()`.
-      // Enabled as `warn` so existing short names across the repo
-      // don't block CI — we migrate incrementally.
+      // Loop iterators (i/j), throwaway (_), and the Result-pattern
+      // discriminator (ok) are the only exempted short names. Everything
+      // else — fs/os namespace imports, id/md/ms abbreviations, etc. —
+      // must be ≥3 chars. Use named imports (e.g. `{ readFileSync }`
+      // from "fs") and descriptive locals (`markdown`, `delayMs`,
+      // `itemId`) instead.
       "id-length": [
-        "warn",
+        "error",
         {
           min: 3,
+          // Don't flag object property keys — external API payloads
+          // legitimately use short keys like `id`, `to`, `n`, `e`.
+          properties: "never",
           exceptions: [
+            "_",
             "i",
             "j",
-            "fs",
-            "os"
+            "ok"
           ],
         },
       ],
@@ -91,7 +103,10 @@ export default [
       "sonarjs/no-ignored-exceptions": "error",
       "sonarjs/todo-tag": "off",
       "sonarjs/no-commented-code": "off",
-      "sonarjs/no-nested-conditional": "warn",
+      // The rule has no depth option — it flags any nested ternary.
+      // In practice most of our `a ? b : c ? d : e` chains are clean
+      // option tables, not obfuscation. Disable rather than warn.
+      "sonarjs/no-nested-conditional": "off",
       "sonarjs/cognitive-complexity": "error",
       // `@typescript-eslint/no-unused-vars` already covers this and
       // honours the `^__` ignore pattern (see its options above); the
@@ -136,10 +151,6 @@ export default [
       // `no-explicit-any` at `error` in production code; demote to
       // warn inside tests.
       "@typescript-eslint/no-explicit-any": "warn",
-      // Tests use lots of throwaway names (`a`, `b` in sort compare,
-      // `{ id: "a" }` in fixtures, `s` in session tests, etc.) that
-      // are fine in test context and would be noise to rename.
-      "id-length": "off",
     },
   },
   {

@@ -163,9 +163,9 @@ Disallow: /private
 `);
     const merged = selectGroup(duplicateGroupsRobots, "Googlebot");
     assert.ok(merged);
-    const kinds = merged!.rules.map((r) => ({
-      kind: r.kind,
-      pattern: r.pattern,
+    const kinds = merged!.rules.map((rule) => ({
+      kind: rule.kind,
+      pattern: rule.pattern,
     }));
     assert.deepEqual(kinds, [
       { kind: "allow", pattern: "/public" },

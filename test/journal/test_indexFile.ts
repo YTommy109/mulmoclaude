@@ -147,9 +147,9 @@ describe("renderRecentDaysSection", () => {
       date: `2026-01-0${i + 1}`,
     }));
     const lines = renderRecentDaysSection(days, 3);
-    const rows = lines.filter((l) => l.startsWith("- ["));
+    const rows = lines.filter((line) => line.startsWith("- ["));
     assert.equal(rows.length, 3);
-    assert.ok(lines.some((l) => /…and 2 earlier days\./.test(l)));
+    assert.ok(lines.some((line) => /…and 2 earlier days\./.test(line)));
   });
 
   it("uses singular 'day' when exactly one is collapsed", () => {
@@ -157,13 +157,13 @@ describe("renderRecentDaysSection", () => {
       date: `2026-01-0${i + 1}`,
     }));
     const lines = renderRecentDaysSection(days, 3);
-    assert.ok(lines.some((l) => /…and 1 earlier day\./.test(l)));
+    assert.ok(lines.some((line) => /…and 1 earlier day\./.test(line)));
   });
 
   it("omits the collapsed-count footer when nothing is collapsed", () => {
     const days = [{ date: "2026-04-11" }];
     const lines = renderRecentDaysSection(days, 14);
-    assert.ok(!lines.some((l) => /earlier day/.test(l)));
+    assert.ok(!lines.some((line) => /earlier day/.test(line)));
   });
 });
 
@@ -193,20 +193,20 @@ describe("topic sort order (compareTopicsNewestFirst)", () => {
   };
 
   it("sorts topics newest first", () => {
-    const md = buildIndexMarkdown({
+    const markdown = buildIndexMarkdown({
       ...BASE,
       topics: [
         { slug: "old", title: "Old", lastUpdatedIso: "2026-01-01T00:00:00Z" },
         { slug: "new", title: "New", lastUpdatedIso: "2026-04-12T00:00:00Z" },
       ],
     });
-    const newIdx = md.indexOf("New");
-    const oldIdx = md.indexOf("Old");
+    const newIdx = markdown.indexOf("New");
+    const oldIdx = markdown.indexOf("Old");
     assert.ok(newIdx < oldIdx, "New should come before Old");
   });
 
   it("topics without timestamps sort after those with timestamps", () => {
-    const md = buildIndexMarkdown({
+    const markdown = buildIndexMarkdown({
       ...BASE,
       topics: [
         { slug: "no-time", title: "No Time" },
@@ -217,13 +217,13 @@ describe("topic sort order (compareTopicsNewestFirst)", () => {
         },
       ],
     });
-    const hasIdx = md.indexOf("Has Time");
-    const noIdx = md.indexOf("No Time");
+    const hasIdx = markdown.indexOf("Has Time");
+    const noIdx = markdown.indexOf("No Time");
     assert.ok(hasIdx < noIdx, "Has Time should come before No Time");
   });
 
   it("same timestamp → sorted by slug for determinism", () => {
-    const md = buildIndexMarkdown({
+    const markdown = buildIndexMarkdown({
       ...BASE,
       topics: [
         {
@@ -238,8 +238,8 @@ describe("topic sort order (compareTopicsNewestFirst)", () => {
         },
       ],
     });
-    const alphaIdx = md.indexOf("Alpha");
-    const zebraIdx = md.indexOf("Zebra");
+    const alphaIdx = markdown.indexOf("Alpha");
+    const zebraIdx = markdown.indexOf("Zebra");
     assert.ok(alphaIdx < zebraIdx, "Alpha should come before Zebra");
   });
 });

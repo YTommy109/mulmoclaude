@@ -69,7 +69,7 @@ interface ParsedIssue {
 // signal.
 export function parseGithubIssue(raw: unknown): ParsedIssue | null {
   if (!isRecord(raw)) return null;
-  const id = typeof raw.id === "number" && Number.isFinite(raw.id) ? raw.id : null;
+  const issueId = typeof raw.id === "number" && Number.isFinite(raw.id) ? raw.id : null;
   const issueNumber = typeof raw.number === "number" && Number.isFinite(raw.number) ? raw.number : null;
   const title = typeof raw.title === "string" ? raw.title : null;
   const htmlUrl = typeof raw.html_url === "string" ? raw.html_url : null;
@@ -81,7 +81,7 @@ export function parseGithubIssue(raw: unknown): ParsedIssue | null {
   // object) means this is a PR. Absence means it's an issue.
   const isPr = "pull_request" in raw && raw.pull_request !== undefined && raw.pull_request !== null;
   return {
-    id,
+    id: issueId,
     number: issueNumber,
     title,
     htmlUrl,
@@ -110,7 +110,7 @@ export function issueToSourceItem(issue: ParsedIssue, source: Source, params: Is
 
   const normalizedUrl = normalizeUrl(issue.htmlUrl);
   if (!normalizedUrl) return null;
-  const id = stableItemId(normalizedUrl);
+  const itemId = stableItemId(normalizedUrl);
 
   // Title annotations: `[PR]` for pulls, `[closed]` for closed
   // state so the daily summary makes state visible at a glance.
@@ -123,7 +123,7 @@ export function issueToSourceItem(issue: ParsedIssue, source: Source, params: Is
   const summary = issue.body ? firstParagraph(issue.body) : null;
 
   return {
-    id,
+    id: itemId,
     title,
     url: normalizedUrl,
     publishedAt: new Date(updatedTs).toISOString(),
@@ -139,9 +139,9 @@ export function updateIssuesCursor(current: Record<string, string>, issues: read
   for (const issue of issues) {
     if (issue.isPr && !params.includePrs) continue;
     if (!issue.updatedAt) continue;
-    const ts = Date.parse(issue.updatedAt);
-    if (!Number.isFinite(ts)) continue;
-    if (newest === null || ts > newest) newest = ts;
+    const updatedMs = Date.parse(issue.updatedAt);
+    if (!Number.isFinite(updatedMs)) continue;
+    if (newest === null || updatedMs > newest) newest = updatedMs;
   }
   if (newest === null) return current;
   const currentTs = current[ISSUES_CURSOR_KEY] ? Date.parse(current[ISSUES_CURSOR_KEY]) : -Infinity;

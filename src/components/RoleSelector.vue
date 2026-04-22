@@ -47,8 +47,8 @@ const dropdown = ref<HTMLDivElement | null>(null);
 
 const currentRoleName = computed(() => roleName(props.roles, props.currentRoleId));
 
-function selectRole(id: string): void {
-  emit("update:currentRoleId", id);
+function selectRole(roleId: string): void {
+  emit("update:currentRoleId", roleId);
   open.value = false;
   emit("change");
 }

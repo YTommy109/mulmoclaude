@@ -63,7 +63,7 @@ export function shouldAutoRenderBeat(beat: { image?: { type?: string } | undefin
  * what's missing after a movie-generation event arrives.
  */
 export function getMissingCharacterKeys(keys: readonly string[], images: Record<string, unknown>, renderState: Record<string, string | undefined>): string[] {
-  return keys.filter((k) => !images[k] && renderState[k] !== "rendering");
+  return keys.filter((charKey) => !images[charKey] && renderState[charKey] !== "rendering");
 }
 
 /**

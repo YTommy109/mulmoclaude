@@ -93,11 +93,11 @@ async function handleTaskAction(action: string, input: Record<string, unknown>, 
     }
 
     if (action === SCHEDULER_ACTIONS.deleteTask) {
-      const id = typeof input.id === "string" ? input.id : "";
+      const taskId = typeof input.id === "string" ? input.id : "";
       const tasks = loadUserTasks();
-      const idx = tasks.findIndex((t) => t.id === id);
+      const idx = tasks.findIndex((task) => task.id === taskId);
       if (idx === -1) {
-        res.status(404).json({ error: `task not found: ${id}` });
+        res.status(404).json({ error: `task not found: ${taskId}` });
         return;
       }
       const name = tasks[idx].name;
@@ -107,17 +107,17 @@ async function handleTaskAction(action: string, input: Record<string, unknown>, 
       res.json({
         uuid: crypto.randomUUID(),
         message: `Task "${name}" deleted.`,
-        data: { deleted: id },
+        data: { deleted: taskId },
       });
       return;
     }
 
     if (action === SCHEDULER_ACTIONS.runTask) {
-      const id = typeof input.id === "string" ? input.id : "";
+      const taskId = typeof input.id === "string" ? input.id : "";
       const tasks = loadUserTasks();
-      const task = tasks.find((t) => t.id === id);
+      const task = tasks.find((candidate) => candidate.id === taskId);
       if (!task) {
-        res.status(404).json({ error: `task not found: ${id}` });
+        res.status(404).json({ error: `task not found: ${taskId}` });
         return;
       }
       const chatSessionId = crypto.randomUUID();
@@ -138,7 +138,7 @@ async function handleTaskAction(action: string, input: Record<string, unknown>, 
       res.json({
         uuid: crypto.randomUUID(),
         message: `Task "${task.name}" triggered.`,
-        data: { triggered: id, chatSessionId },
+        data: { triggered: taskId, chatSessionId },
       });
       return;
     }

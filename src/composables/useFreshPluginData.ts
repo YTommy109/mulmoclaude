@@ -70,9 +70,9 @@ export function useFreshPluginData<T>(opts: UseFreshPluginDataOptions<T>): UseFr
 
   async function refresh(): Promise<boolean> {
     controller?.abort();
-    const c = new AbortController();
-    controller = c;
-    return refreshOnce(opts, c.signal);
+    const ctrl = new AbortController();
+    controller = ctrl;
+    return refreshOnce(opts, ctrl.signal);
   }
 
   function abort(): void {

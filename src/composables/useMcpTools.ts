@@ -56,8 +56,8 @@ export function useMcpTools(opts: UseMcpToolsOptions) {
     }
     mcpToolsError.value = null;
     const tools = result.data;
-    disabledMcpTools.value = new Set(tools.filter((t) => !t.enabled).map((t) => t.name));
-    mcpToolDescriptions.value = Object.fromEntries(tools.filter(hasPrompt).map((t) => [t.name, t.prompt]));
+    disabledMcpTools.value = new Set(tools.filter((tool) => !tool.enabled).map((tool) => tool.name));
+    mcpToolDescriptions.value = Object.fromEntries(tools.filter(hasPrompt).map((tool) => [tool.name, tool.prompt]));
   }
 
   return {

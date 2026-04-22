@@ -17,7 +17,7 @@ export function useRoles(): {
 } {
   const roles = ref<Role[]>(ROLES);
   const currentRoleId = ref(ROLES[0].id);
-  const currentRole = computed(() => roles.value.find((r) => r.id === currentRoleId.value) ?? roles.value[0]);
+  const currentRole = computed(() => roles.value.find((role) => role.id === currentRoleId.value) ?? roles.value[0]);
 
   async function refreshRoles(): Promise<void> {
     const result = await apiGet<Role[]>(API_ROUTES.roles.list);

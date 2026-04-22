@@ -28,7 +28,7 @@ if (!server || !nick || !channelsStr) {
 
 const channels = channelsStr
   .split(",")
-  .map((s) => s.trim())
+  .map((channelName) => channelName.trim())
   .filter(Boolean);
 const useTls = (process.env.IRC_TLS ?? "true") !== "false";
 const port = Number(process.env.IRC_PORT) || (useTls ? 6697 : 6667);
@@ -36,9 +36,9 @@ const password = process.env.IRC_PASSWORD;
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });
 
-mulmo.onPush((ev) => {
-  // ev.chatId is the channel name
-  irc.say(ev.chatId, ev.message);
+mulmo.onPush((pushEvent) => {
+  // pushEvent.chatId is the channel name
+  irc.say(pushEvent.chatId, pushEvent.message);
 });
 
 const irc = new IrcClient();
@@ -54,9 +54,9 @@ irc.connect({
 irc.on("registered", () => {
   console.log("MulmoClaude IRC bridge");
   console.log(`Connected to ${server}:${port} as ${nick}`);
-  for (const ch of channels) {
-    irc.join(ch);
-    console.log(`Joined ${ch}`);
+  for (const channelName of channels) {
+    irc.join(channelName);
+    console.log(`Joined ${channelName}`);
   }
 });
 

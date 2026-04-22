@@ -7,7 +7,7 @@
       @click="onToggle"
     >
       <span class="material-icons text-sm text-gray-400 shrink-0">{{ expanded ? "folder_open" : "folder" }}</span>
-      <span class="text-gray-700 truncate">{{ node.name || "(workspace)" }}</span>
+      <span class="text-gray-700 truncate">{{ node.name || t("fileTree.workspace") }}</span>
     </button>
     <button
       v-else
@@ -19,13 +19,13 @@
     >
       <span class="material-icons text-sm text-gray-400 shrink-0">description</span>
       <span class="truncate">{{ node.name }}</span>
-      <span v-if="isRecent" class="ml-auto w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" title="Recently changed" />
+      <span v-if="isRecent" class="ml-auto w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" :title="t('fileTree.recentlyChanged')" />
     </button>
     <div v-if="node.type === 'dir' && expanded" class="pl-4">
       <!-- Loading state: children not in the cache yet. Rendered
            once per dir so a slow network shows where the wait is,
            not as a global overlay. -->
-      <div v-if="loadingChildren" class="px-2 py-1 text-xs text-gray-400">Loading...</div>
+      <div v-if="loadingChildren" class="px-2 py-1 text-xs text-gray-400">{{ t("common.loading") }}</div>
       <FileTree
         v-for="child in loadedChildren"
         :key="child.path"
@@ -33,6 +33,7 @@
         :selected-path="selectedPath"
         :recent-paths="recentPaths"
         :children-by-path="childrenByPath"
+        :sort-mode="sortMode"
         @select="(p) => emit('select', p)"
         @load-children="(p) => emit('loadChildren', p)"
       />
@@ -42,7 +43,12 @@
 
 <script setup lang="ts">
 import { computed, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { useExpandedDirs } from "../composables/useExpandedDirs";
+import { sortChildren } from "../utils/files/sortChildren";
+import type { FileSortMode } from "../composables/useFileSortMode";
+
+const { t } = useI18n();
 
 // TreeNode lives in src/types/fileTree.ts so .ts composables can
 // import it without depending on a .vue module. Re-export here so
@@ -59,6 +65,7 @@ const props = defineProps<{
   // so the parent kicks off the fetch. `null` = load in flight →
   // show spinner. Array = loaded.
   childrenByPath: Map<string, TreeNode[] | null>;
+  sortMode: FileSortMode;
 }>();
 
 const emit = defineEmits<{
@@ -77,7 +84,7 @@ const cached = computed(() => props.childrenByPath.get(props.node.path));
 // `cached === null` = load in flight. `undefined` = never requested.
 // Array = loaded.
 const loadingChildren = computed(() => cached.value === null);
-const loadedChildren = computed(() => (Array.isArray(cached.value) ? cached.value : []));
+const loadedChildren = computed(() => (Array.isArray(cached.value) ? sortChildren(cached.value, props.sortMode) : []));
 
 // Kick off a fetch if the dir is expanded but its children haven't
 // been requested yet. Covers two scenarios:

@@ -85,8 +85,8 @@ const labelsText = ref((props.item.labels ?? []).join(", "));
 function parseLabels(raw: string): string[] {
   return raw
     .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 }
 
 function save(): void {

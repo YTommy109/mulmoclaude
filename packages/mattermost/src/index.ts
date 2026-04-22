@@ -26,7 +26,7 @@ if (!mmUrl || !botToken) {
 const allowedChannels = new Set(
   (process.env.MATTERMOST_ALLOWED_CHANNELS ?? "")
     .split(",")
-    .map((s) => s.trim())
+    .map((channelId) => channelId.trim())
     .filter(Boolean),
 );
 const allowAll = allowedChannels.size === 0;
@@ -34,8 +34,8 @@ const allowAll = allowedChannels.size === 0;
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });
 let botUserId: string | null = null;
 
-mulmo.onPush((ev) => {
-  postMessage(ev.chatId, ev.message).catch((err) => console.error(`[mattermost] push send failed: ${err}`));
+mulmo.onPush((pushEvent) => {
+  postMessage(pushEvent.chatId, pushEvent.message).catch((err) => console.error(`[mattermost] push send failed: ${err}`));
 });
 
 // ── Mattermost REST API ─────────────────────────────────────────
@@ -79,14 +79,14 @@ async function postMessage(channelId: string, text: string): Promise<void> {
 
 function connectWebSocket(): void {
   const wsUrl = mmUrl!.replace(/^http/, "ws").replace(/\/$/, "");
-  const ws = new WebSocket(`${wsUrl}/api/v4/websocket`, {
+  const webSocket = new WebSocket(`${wsUrl}/api/v4/websocket`, {
     headers: { Authorization: `Bearer ${botToken}` },
   });
 
-  ws.on("open", () => {
+  webSocket.on("open", () => {
     console.log("[mattermost] WebSocket connected");
     // Authenticate
-    ws.send(
+    webSocket.send(
       JSON.stringify({
         seq: 1,
         action: "authentication_challenge",
@@ -95,7 +95,7 @@ function connectWebSocket(): void {
     );
   });
 
-  ws.on("message", async (data) => {
+  webSocket.on("message", async (data) => {
     try {
       const event: {
         event?: string;
@@ -128,21 +128,21 @@ function connectWebSocket(): void {
     }
   });
 
-  ws.on("close", () => {
+  webSocket.on("close", () => {
     console.log("[mattermost] WebSocket closed, reconnecting in 5s...");
     setTimeout(connectWebSocket, 5000);
   });
 
-  ws.on("error", (err) => {
+  webSocket.on("error", (err) => {
     console.error(`[mattermost] WebSocket error: ${err.message}`);
   });
 }
 
 async function main(): Promise<void> {
-  const me = await apiGet("/users/me");
-  const id = typeof me.id === "string" ? me.id : "";
-  const username = typeof me.username === "string" ? me.username : "unknown";
-  botUserId = id;
+  const currentUser = await apiGet("/users/me");
+  const currentUserId = typeof currentUser.id === "string" ? currentUser.id : "";
+  const username = typeof currentUser.username === "string" ? currentUser.username : "unknown";
+  botUserId = currentUserId;
 
   console.log("MulmoClaude Mattermost bridge");
   console.log(`Server: ${mmUrl}`);

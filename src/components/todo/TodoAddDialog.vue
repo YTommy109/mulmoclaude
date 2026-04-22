@@ -123,8 +123,8 @@ function submit(): void {
   if (dueDate.value !== "") input.dueDate = dueDate.value;
   const labels = labelsText.value
     .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
   if (labels.length > 0) input.labels = labels;
   emit("create", input);
 }

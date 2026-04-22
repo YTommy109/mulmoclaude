@@ -15,24 +15,24 @@
 // the workspace scale (~hundreds of dirs) this is negligible. If
 // profiling shows otherwise, cache the parsed ignore instances.
 
-import fs from "fs";
+import { readFileSync } from "fs";
 import path from "path";
 import ignore, { type Ignore } from "ignore";
 
 export class GitignoreFilter {
-  private ig: Ignore;
+  private rules: Ignore;
 
   constructor(rules?: string) {
-    this.ig = ignore();
+    this.rules = ignore();
     if (rules) {
-      this.ig.add(rules);
+      this.rules.add(rules);
     }
   }
 
   /** Test whether a workspace-relative path should be hidden. */
   ignores(relPath: string): boolean {
     if (!relPath) return false;
-    return this.ig.ignores(relPath);
+    return this.rules.ignores(relPath);
   }
 
   /** Create a child filter that inherits this filter's rules and
@@ -40,12 +40,12 @@ export class GitignoreFilter {
   childForDir(dirAbsPath: string): GitignoreFilter {
     const child = new GitignoreFilter();
     // Inherit parent rules
-    child.ig = ignore().add(this.ig);
+    child.rules = ignore().add(this.rules);
     // Add local .gitignore if present
     const gitignorePath = path.join(dirAbsPath, ".gitignore");
     try {
-      const content = fs.readFileSync(gitignorePath, "utf-8");
-      child.ig.add(content);
+      const content = readFileSync(gitignorePath, "utf-8");
+      child.rules.add(content);
     } catch {
       // No .gitignore in this directory — just inherit parent
     }
@@ -61,7 +61,7 @@ export class GitignoreFilter {
 export function createRootFilter(workspaceRoot: string): GitignoreFilter {
   const gitignorePath = path.join(workspaceRoot, ".gitignore");
   try {
-    const content = fs.readFileSync(gitignorePath, "utf-8");
+    const content = readFileSync(gitignorePath, "utf-8");
     return new GitignoreFilter(content);
   } catch {
     return new GitignoreFilter();

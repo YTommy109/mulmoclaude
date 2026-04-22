@@ -1,7 +1,7 @@
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, rm, utimes, writeFile } from "fs/promises";
-import os from "os";
+import { tmpdir } from "os";
 import path from "path";
 import { maybeAppendWikiBacklinks, type WikiBacklinksDeps } from "../../server/workspace/wiki-backlinks/index.js";
 import { BACKLINKS_MARKER } from "../../server/workspace/wiki-backlinks/sessionBacklinks.js";
@@ -24,7 +24,7 @@ describe("maybeAppendWikiBacklinks (driver)", () => {
   let workspaceRoot: string;
 
   before(async () => {
-    workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "wiki-backlinks-"));
+    workspaceRoot = await mkdtemp(path.join(tmpdir(), "wiki-backlinks-"));
   });
 
   after(async () => {
@@ -118,9 +118,9 @@ describe("maybeAppendWikiBacklinks (driver)", () => {
     await writeFile(brokenPath, "# Broken\n", "utf-8");
 
     const deps: Partial<WikiBacklinksDeps> = {
-      readFile: async (p: string) => {
-        if (p.endsWith("broken.md")) throw new Error("simulated read failure");
-        return readFile(p, "utf-8");
+      readFile: async (filePath: string) => {
+        if (filePath.endsWith("broken.md")) throw new Error("simulated read failure");
+        return readFile(filePath, "utf-8");
       },
     };
 

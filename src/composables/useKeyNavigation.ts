@@ -18,7 +18,7 @@ function isVerticalArrow(key: string): key is "ArrowUp" | "ArrowDown" {
 
 function resolveNextUuid(results: ToolResultComplete[], currentUuid: string | null, direction: "ArrowUp" | "ArrowDown"): string | null {
   if (results.length === 0) return null;
-  const idx = results.findIndex((r) => r.uuid === currentUuid);
+  const idx = results.findIndex((result) => result.uuid === currentUuid);
   if (idx === -1) {
     return direction === "ArrowDown" ? results[0].uuid : results[results.length - 1].uuid;
   }
@@ -36,23 +36,23 @@ export function useKeyNavigation(opts: {
 }) {
   const { canvasRef, activePane, sidebarResults, selectedResultUuid } = opts;
 
-  function handleCanvasKeydown(e: KeyboardEvent): void {
-    if (!isVerticalArrow(e.key)) return;
-    if (isEditableTarget(e.target)) return;
+  function handleCanvasKeydown(event: KeyboardEvent): void {
+    if (!isVerticalArrow(event.key)) return;
+    if (isEditableTarget(event.target)) return;
     if (!canvasRef.value) return;
     const scrollable = findScrollableChild(canvasRef.value);
     if (!scrollable) return;
-    e.preventDefault();
-    const delta = e.key === "ArrowDown" ? SCROLL_AMOUNT : -SCROLL_AMOUNT;
+    event.preventDefault();
+    const delta = event.key === "ArrowDown" ? SCROLL_AMOUNT : -SCROLL_AMOUNT;
     scrollable.scrollBy({ top: delta, behavior: "smooth" });
   }
 
-  function handleKeyNavigation(e: KeyboardEvent): void {
+  function handleKeyNavigation(event: KeyboardEvent): void {
     if (activePane.value !== "sidebar") return;
-    if (isEditableTarget(e.target)) return;
-    if (!isVerticalArrow(e.key)) return;
-    e.preventDefault();
-    const nextUuid = resolveNextUuid(sidebarResults.value, selectedResultUuid.value, e.key);
+    if (isEditableTarget(event.target)) return;
+    if (!isVerticalArrow(event.key)) return;
+    event.preventDefault();
+    const nextUuid = resolveNextUuid(sidebarResults.value, selectedResultUuid.value, event.key);
     if (nextUuid) selectedResultUuid.value = nextUuid;
   }
 

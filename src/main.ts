@@ -2,6 +2,7 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router/index";
 import { installGuards } from "./router/guards";
+import i18n from "./lib/vue-i18n";
 import { setAuthToken } from "./utils/api";
 import { readAuthTokenFromMeta } from "./utils/dom/authTokenMeta";
 import "./index.css";
@@ -22,4 +23,5 @@ installGuards(router);
 
 const app = createApp(App);
 app.use(router);
+app.use(i18n);
 app.mount("#app");

@@ -4,16 +4,16 @@ import { isClickOutside } from "../../../src/utils/dom/clickOutside.js";
 
 // Minimal Element-shaped fakes. The function only needs `contains`.
 function fakeEl(name: string, descendants: Node[] = []): HTMLElement {
-  const el = {
+  const element = {
     __name: name,
-    contains: (n: Node | null) => {
-      if (!n) return false;
-      if (n === (el as unknown as Node)) return true;
-      return descendants.includes(n);
+    contains: (node: Node | null) => {
+      if (!node) return false;
+      if (node === (element as unknown as Node)) return true;
+      return descendants.includes(node);
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
-  return el as HTMLElement;
+  return element as HTMLElement;
 }
 
 function fakeNode(name: string): Node {

@@ -48,9 +48,9 @@ watch(expanded, (isExpanded) => {
   });
 });
 
-function onClick(e: MouseEvent, query: string): void {
+function onClick(event: MouseEvent, query: string): void {
   expanded.value = false;
-  if (e.shiftKey) {
+  if (event.shiftKey) {
     emit("edit", query);
     return;
   }

@@ -431,7 +431,7 @@ const charErrors = reactive<Record<string, string>>({});
 const charDragOver = reactive<Record<string, boolean>>({});
 const beatDragOver = reactive<Record<number, boolean>>({});
 
-const anyBeatRendering = computed(() => Object.values(renderState).some((s) => s === "rendering"));
+const anyBeatRendering = computed(() => Object.values(renderState).some((state) => state === "rendering"));
 
 const characterKeys = computed(() => {
   const imgs = script.value.imageParams?.images ?? {};
@@ -447,10 +447,10 @@ const chatSessionId = computed(() => activeSessionRef?.value?.id);
 const pendingForThisScript = computed(() => {
   const out: Record<string, PendingGeneration> = {};
   const pending = activeSessionRef?.value?.pendingGenerations ?? {};
-  const fp = filePath.value;
-  if (!fp) return out;
+  const currentPath = filePath.value;
+  if (!currentPath) return out;
   for (const [mapKey, entry] of Object.entries(pending)) {
-    if (entry.filePath === fp) out[mapKey] = entry;
+    if (entry.filePath === currentPath) out[mapKey] = entry;
   }
   return out;
 });

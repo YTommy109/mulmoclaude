@@ -274,8 +274,8 @@ describe("buildDayBuckets", () => {
 
   it("tracks the full day-set for a session that spans many dates", () => {
     const byDate = new Map<string, SessionExcerpt>();
-    for (const d of ["2026-04-10", "2026-04-11", "2026-04-12"]) {
-      byDate.set(d, mkExcerpt("s1", d));
+    for (const dateKey of ["2026-04-10", "2026-04-11", "2026-04-12"]) {
+      byDate.set(dateKey, mkExcerpt("s1", dateKey));
     }
     const plan = buildDayBuckets(new Map([["s1", byDate]]));
     assert.equal(plan.sessionToDays.get("s1")!.size, 3);
@@ -366,8 +366,8 @@ describe("parseArchivistOutput", () => {
 });
 
 describe("computeJustCompletedSessions", () => {
-  function makeMeta(id: string, mtimeMs = 100): SessionFileMeta {
-    return { id, mtimeMs };
+  function makeMeta(sessionId: string, mtimeMs = 100): SessionFileMeta {
+    return { id: sessionId, mtimeMs };
   }
 
   it("marks a session complete when this day is its only remaining one", () => {
@@ -376,7 +376,7 @@ describe("computeJustCompletedSessions", () => {
     const excerpts = [mkExcerpt("s1", "hi")];
     const completed = computeJustCompletedSessions("2026-04-10", excerpts, sessionToDays, dirtyMetaById);
     assert.deepEqual(
-      completed.map((m) => m.id),
+      completed.map((meta) => meta.id),
       ["s1"],
     );
     // sessionToDays should be empty after the mutation.
@@ -408,7 +408,7 @@ describe("computeJustCompletedSessions", () => {
     const completed = computeJustCompletedSessions("2026-04-10", excerpts, sessionToDays, dirtyMetaById);
     // Only s1 completes; s2 still has 2026-04-11 pending.
     assert.deepEqual(
-      completed.map((m) => m.id),
+      completed.map((meta) => meta.id),
       ["s1"],
     );
     assert.equal(sessionToDays.has("s1"), false);

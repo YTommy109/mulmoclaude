@@ -9,9 +9,9 @@ import { isRecord } from "../types";
 // Type guard: a text-response entry whose `data.role` is `"user"`.
 // Used by App.vue to find the first user message in a live session
 // when building the merged history list.
-export function isUserTextResponse(r: ToolResultComplete): boolean {
-  if (r.toolName !== "text-response") return false;
-  const data = r.data;
+export function isUserTextResponse(res: ToolResultComplete): boolean {
+  if (res.toolName !== "text-response") return false;
+  const data = res.data;
   if (!isRecord(data)) return false;
   return data.role === "user";
 }

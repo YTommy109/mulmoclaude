@@ -1,5 +1,6 @@
 <template>
   <div class="flex items-center gap-2">
+    <img :src="logoUrl" alt="" class="h-[50px] w-auto -my-3.5 -ml-3 rounded object-contain shrink-0" />
     <h1 data-testid="app-title" class="text-sm font-semibold text-gray-800 mr-1" :style="titleStyle">MulmoClaude</h1>
     <div class="flex gap-2">
       <LockStatusPopup
@@ -13,12 +14,18 @@
       <button
         class="text-gray-400 hover:text-gray-700"
         :class="{ 'text-blue-500': showRightSidebar }"
-        title="Tool call history"
+        :title="t('sidebarHeader.toolCallHistory')"
         @click="emit('toggleRightSidebar')"
       >
         <span class="material-icons">build</span>
       </button>
-      <button class="text-gray-400 hover:text-gray-700" data-testid="settings-btn" title="Settings" aria-label="Settings" @click="emit('openSettings')">
+      <button
+        class="text-gray-400 hover:text-gray-700"
+        data-testid="settings-btn"
+        :title="t('sidebarHeader.settings')"
+        :aria-label="t('sidebarHeader.settings')"
+        @click="emit('openSettings')"
+      >
         <span class="material-icons">settings</span>
       </button>
     </div>
@@ -27,10 +34,14 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, type CSSProperties } from "vue";
+import { useI18n } from "vue-i18n";
 import LockStatusPopup from "./LockStatusPopup.vue";
 import NotificationBell from "./NotificationBell.vue";
 import { useClickOutside } from "../composables/useClickOutside";
 import type { NotificationPayload } from "../types/notification";
+import logoUrl from "../assets/mulmo_bw.png";
+
+const { t } = useI18n();
 
 defineProps<{
   sandboxEnabled: boolean;

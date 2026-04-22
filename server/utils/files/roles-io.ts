@@ -4,22 +4,22 @@
 // Optional `root` for test DI.
 
 import path from "node:path";
-import fs from "node:fs";
+import { mkdirSync, statSync, unlinkSync } from "node:fs";
 import { WORKSPACE_DIRS } from "../../workspace/paths.js";
 import { workspacePath } from "../../workspace/paths.js";
 import { writeFileAtomicSync } from "./atomic.js";
 import { isEnoent } from "./safe.js";
 
-const root = (r?: string) => r ?? workspacePath;
+const root = (workspaceRoot?: string) => workspaceRoot ?? workspacePath;
 
-function roleFilePath(id: string, r?: string): string {
-  return path.join(root(r), WORKSPACE_DIRS.roles, `${id}.json`);
+function roleFilePath(roleId: string, workspaceRoot?: string): string {
+  return path.join(root(workspaceRoot), WORKSPACE_DIRS.roles, `${roleId}.json`);
 }
 
 /** Check if a custom role file exists. */
-export function roleExists(id: string, r?: string): boolean {
+export function roleExists(roleId: string, workspaceRoot?: string): boolean {
   try {
-    fs.statSync(roleFilePath(id, r));
+    statSync(roleFilePath(roleId, workspaceRoot));
     return true;
   } catch {
     return false;
@@ -27,9 +27,9 @@ export function roleExists(id: string, r?: string): boolean {
 }
 
 /** Delete a custom role file. Returns false if not found. */
-export function deleteRole(id: string, r?: string): boolean {
+export function deleteRole(roleId: string, workspaceRoot?: string): boolean {
   try {
-    fs.unlinkSync(roleFilePath(id, r));
+    unlinkSync(roleFilePath(roleId, workspaceRoot));
     return true;
   } catch (err) {
     if (isEnoent(err)) return false;
@@ -38,8 +38,8 @@ export function deleteRole(id: string, r?: string): boolean {
 }
 
 /** Save (create or overwrite) a custom role file atomically. */
-export function saveRole(id: string, data: unknown, r?: string): void {
-  const dir = path.join(root(r), WORKSPACE_DIRS.roles);
-  fs.mkdirSync(dir, { recursive: true });
-  writeFileAtomicSync(roleFilePath(id, r), JSON.stringify(data, null, 2));
+export function saveRole(roleId: string, data: unknown, workspaceRoot?: string): void {
+  const dir = path.join(root(workspaceRoot), WORKSPACE_DIRS.roles);
+  mkdirSync(dir, { recursive: true });
+  writeFileAtomicSync(roleFilePath(roleId, workspaceRoot), JSON.stringify(data, null, 2));
 }

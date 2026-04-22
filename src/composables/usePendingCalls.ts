@@ -59,7 +59,7 @@ export function usePendingCalls(opts: UsePendingCallsOptions) {
     // unused.
     const __tickDep = displayTick.value;
     const now = Date.now();
-    return opts.toolCallHistory.value.filter((c) => __tickDep >= 0 && isCallStillPending(c, now));
+    return opts.toolCallHistory.value.filter((entry) => __tickDep >= 0 && isCallStillPending(entry, now));
   });
 
   function teardown(): void {

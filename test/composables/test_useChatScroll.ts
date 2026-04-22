@@ -21,7 +21,7 @@ import { makeTextResult } from "../../src/utils/tools/result.js";
 function makeFakeScrollEl() {
   const writes: number[] = [];
   let scrollTop = 0;
-  const el = {
+  const element = {
     get scrollTop() {
       return scrollTop;
     },
@@ -33,7 +33,7 @@ function makeFakeScrollEl() {
   };
   // The composable expects an HTMLDivElement; the fake only needs
   // scrollTop/scrollHeight, so the cast is safe in test scope.
-  return { el: el as unknown as HTMLDivElement, writes };
+  return { el: element as unknown as HTMLDivElement, writes };
 }
 
 describe("useChatScroll — streaming auto-scroll", () => {

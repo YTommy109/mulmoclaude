@@ -2,10 +2,10 @@
 
 import type { ActiveSession } from "../../types/session";
 
-export function createEmptySession(id: string, roleId: string): ActiveSession {
+export function createEmptySession(sessionId: string, roleId: string): ActiveSession {
   const now = new Date().toISOString();
   return {
-    id,
+    id: sessionId,
     roleId,
     toolResults: [],
     resultTimestamps: new Map(),

@@ -18,11 +18,12 @@ import assert from "node:assert/strict";
 import { execSync, spawn } from "node:child_process";
 import path from "node:path";
 
+import { ONE_SECOND_MS } from "../../server/utils/time.ts";
 const PROJECT_ROOT = path.resolve(import.meta.dirname, "../..");
 
 function isDockerAvailable(): boolean {
   try {
-    execSync("docker info", { stdio: "ignore", timeout: 5000 });
+    execSync("docker info", { stdio: "ignore", timeout: 5 * ONE_SECOND_MS });
     return true;
   } catch {
     return false;
@@ -33,7 +34,7 @@ function isSandboxImageAvailable(): boolean {
   try {
     const out = execSync("docker images -q mulmoclaude-sandbox", {
       encoding: "utf-8",
-      timeout: 5000,
+      timeout: 5 * ONE_SECOND_MS,
     });
     return out.trim().length > 0;
   } catch {
@@ -54,7 +55,7 @@ const canRunDocker = isDockerAvailable() && isSandboxImageAvailable();
 
 describe("MCP server Docker smoke test", { skip: !canRunDocker }, () => {
   it("responds to initialize + tools/list inside Docker container", async () => {
-    const toDockerPath = (p: string): string => p.replace(/\\/g, "/");
+    const toDockerPath = (filePath: string): string => filePath.replace(/\\/g, "/");
 
     const dockerArgs = [
       "run",
@@ -126,21 +127,21 @@ describe("MCP server Docker smoke test", { skip: !canRunDocker }, () => {
       const timer = setTimeout(() => {
         child.kill("SIGTERM");
         reject(new Error(`Docker MCP server timed out. stderr: ${stderr}`));
-      }, 30_000);
+      }, 30 * ONE_SECOND_MS);
 
       child.on("close", (code) => {
         clearTimeout(timer);
         const parsed: JsonRpcResponse[] = stdout
           .split("\n")
-          .filter((l) => l.trim())
-          .map((l) => {
+          .filter((line) => line.trim())
+          .map((line) => {
             try {
-              return JSON.parse(l) as JsonRpcResponse;
+              return JSON.parse(line) as JsonRpcResponse;
             } catch {
               return null;
             }
           })
-          .filter((r): r is JsonRpcResponse => r !== null);
+          .filter((resp): resp is JsonRpcResponse => resp !== null);
 
         if (parsed.length === 0 && code !== 0) {
           reject(new Error(`Docker MCP server exited ${code}. stderr:\n${stderr.slice(0, 1000)}`));
@@ -150,14 +151,14 @@ describe("MCP server Docker smoke test", { skip: !canRunDocker }, () => {
       });
     });
 
-    const initResp = responses.find((r) => r.id === 1);
+    const initResp = responses.find((resp) => resp.id === 1);
     assert.ok(initResp?.result, "Missing initialize response");
     assert.equal(initResp.result.serverInfo?.name, "mulmoclaude");
 
-    const toolsResp = responses.find((r) => r.id === 2);
+    const toolsResp = responses.find((resp) => resp.id === 2);
     assert.ok(toolsResp?.result?.tools, "Missing tools/list response");
 
-    const toolNames = toolsResp.result.tools.map((t) => t.name);
+    const toolNames = toolsResp.result.tools.map((tool) => tool.name);
     assert.ok(toolNames.includes("presentMulmoScript"), `presentMulmoScript not in tools: ${toolNames.join(", ")}`);
     assert.ok(toolNames.includes("manageTodoList"), `manageTodoList not in tools: ${toolNames.join(", ")}`);
   });

@@ -46,7 +46,7 @@ function parseTableRow(trimmed: string): WikiPageEntry | null {
   const cols = trimmed
     .split("|")
     .slice(1, -1)
-    .map((c) => c.trim().replace(/^`|`$/g, ""));
+    .map((column) => column.trim().replace(/^`|`$/g, ""));
   if (cols.length < 2) return null;
   const slug = cols[0];
   const title = cols[1] || slug;
@@ -70,11 +70,11 @@ export function extractSlugFromBulletHref(rawHref: string): string {
 }
 
 function parseBulletLinkRow(trimmed: string): WikiPageEntry | null {
-  const m = BULLET_LINK_PATTERN.exec(trimmed);
-  if (!m) return null;
-  const title = m[1].trim();
-  const href = m[2] ?? "";
-  const desc = m[3]?.trim() ?? "";
+  const match = BULLET_LINK_PATTERN.exec(trimmed);
+  if (!match) return null;
+  const title = match[1].trim();
+  const href = match[2] ?? "";
+  const desc = match[3]?.trim() ?? "";
   // Prefer the slug embedded in the href so non-ASCII titles keep
   // a navigable slug. Fall back to slugifying the title only when
   // the href has no recognisable slug (rare — usually means the
@@ -84,10 +84,10 @@ function parseBulletLinkRow(trimmed: string): WikiPageEntry | null {
 }
 
 function parseBulletWikiLinkRow(trimmed: string): WikiPageEntry | null {
-  const m = BULLET_WIKI_LINK_PATTERN.exec(trimmed);
-  if (!m) return null;
-  const title = m[1].trim();
-  const desc = m[2]?.trim() ?? "";
+  const match = BULLET_WIKI_LINK_PATTERN.exec(trimmed);
+  if (!match) return null;
+  const title = match[1].trim();
+  const desc = match[2]?.trim() ?? "";
   return { title, slug: wikiSlugify(title), description: desc };
 }
 
@@ -289,7 +289,7 @@ export function findMissingFiles(pageEntries: readonly WikiPageEntry[], fileSlug
 
 export function findBrokenLinksInPage(fileName: string, content: string, fileSlugs: ReadonlySet<string>): string[] {
   const issues: string[] = [];
-  const wikiLinks = [...content.matchAll(WIKI_LINK_PATTERN)].map((m) => m[1]);
+  const wikiLinks = [...content.matchAll(WIKI_LINK_PATTERN)].map((match) => match[1]);
   for (const link of wikiLinks) {
     const linkSlug = wikiSlugify(link);
     if (!fileSlugs.has(linkSlug)) {
@@ -315,7 +315,7 @@ async function collectLintIssues(): Promise<string[]> {
   }
   const indexContent = readFileOrEmpty(indexFile());
   const pageEntries = parseIndexEntries(indexContent);
-  const indexedSlugs = new Set(pageEntries.map((e) => e.slug));
+  const indexedSlugs = new Set(pageEntries.map((entry) => entry.slug));
   const pageFiles = [...slugs.values()];
   const fileSlugs = new Set(slugs.keys());
 
@@ -325,8 +325,8 @@ async function collectLintIssues(): Promise<string[]> {
   // Parallel read: N small markdown files, ~50 KB each. Bounded by
   // the number of wiki pages, not by CPU.
   const contents = await Promise.all(
-    pageFiles.map(async (f) => {
-      const content = await readTextSafe(path.join(dir, f));
+    pageFiles.map(async (fileName) => {
+      const content = await readTextSafe(path.join(dir, fileName));
       return content ?? "";
     }),
   );

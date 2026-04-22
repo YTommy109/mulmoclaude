@@ -77,16 +77,16 @@ export function getPlatformByPath(path: string): PlatformPlugin | undefined {
 }
 
 export function getPlatformByName(name: Platform): PlatformPlugin | undefined {
-  for (const p of plugins.values()) {
-    if (p.name === name) return p;
+  for (const plugin of plugins.values()) {
+    if (plugin.name === name) return plugin;
   }
   return undefined;
 }
 
 export function getConfiguredPlatforms(env: Env): Record<string, boolean> {
   const result: Record<string, boolean> = {};
-  for (const p of plugins.values()) {
-    result[p.name] = p.isConfigured(env);
+  for (const plugin of plugins.values()) {
+    result[plugin.name] = plugin.isConfigured(env);
   }
   return result;
 }

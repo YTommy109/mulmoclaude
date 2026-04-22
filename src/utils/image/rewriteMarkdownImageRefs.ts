@@ -51,7 +51,7 @@ function shouldSkip(url: string): boolean {
 function resolveWorkspacePath(basePath: string, url: string): string | null {
   // Absolute-within-workspace (e.g. "/images/foo.png") — reset base.
   const isAbsolute = url.startsWith("/");
-  const baseSegs = isAbsolute ? [] : basePath.split("/").filter((s) => s !== "" && s !== ".");
+  const baseSegs = isAbsolute ? [] : basePath.split("/").filter((seg) => seg !== "" && seg !== ".");
   const segs = [...baseSegs];
 
   const urlSegs = (isAbsolute ? url.slice(1) : url).split("/");
@@ -76,9 +76,9 @@ function extractBracketedAlt(raw: string): string | null {
   if (!raw.startsWith("![")) return null;
   let depth = 1;
   for (let i = 2; i < raw.length; i++) {
-    const c = raw[i];
-    if (c === "[") depth++;
-    else if (c === "]") {
+    const char = raw[i];
+    if (char === "[") depth++;
+    else if (char === "]") {
       depth--;
       if (depth === 0) return raw.slice(2, i);
     }
@@ -123,7 +123,7 @@ function getContainerChildren(token: Token): Token[] | null {
 // Returns true if the container was rendered via its children, false
 // if the caller should fall back to emitting the parent's raw.
 function renderContainerChildren(raw: string, children: Token[], basePath: string, out: string[]): boolean {
-  const joined = children.map((c) => (c as { raw?: string }).raw ?? "").join("");
+  const joined = children.map((token) => (token as { raw?: string }).raw ?? "").join("");
   if (joined === "") return false;
   const idx = raw.indexOf(joined);
   if (idx < 0) return false;

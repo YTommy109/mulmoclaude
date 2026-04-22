@@ -97,7 +97,7 @@ describe("collectSkillsFromDir", () => {
     await writeSkill(root, "mango", "M");
     const skills = await collectSkillsFromDir(root, "user");
     assert.deepEqual(
-      skills.map((s) => s.name),
+      skills.map((skill) => skill.name),
       ["apple", "mango", "zebra"],
     );
   });
@@ -146,7 +146,7 @@ describe("discoverSkills", () => {
     const skills = await discoverSkills({ userDir: root });
     assert.equal(skills.length, 2);
     assert.deepEqual(
-      skills.map((s) => [s.name, s.source]),
+      skills.map((skill) => [skill.name, skill.source]),
       [
         ["u1", "user"],
         ["u2", "user"],
@@ -171,7 +171,7 @@ describe("discoverSkills", () => {
       });
       // Alphabetical: only_project, only_user, shared
       assert.deepEqual(
-        skills.map((s) => [s.name, s.source, s.description]),
+        skills.map((skill) => [skill.name, skill.source, skill.description]),
         [
           ["only_project", "project", "Project only"],
           ["only_user", "user", "User only"],

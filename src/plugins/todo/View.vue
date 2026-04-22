@@ -111,8 +111,8 @@ const items = ref<TodoItem[]>(props.selectedResult.data?.items ?? []);
 const { refresh } = useFreshPluginData<TodoItem[]>({
   endpoint: () => API_ROUTES.todos.list,
   extract: (json) => {
-    const v = (json as { data?: { items?: TodoItem[] } }).data?.items;
-    return Array.isArray(v) ? v : null;
+    const extracted = (json as { data?: { items?: TodoItem[] } }).data?.items;
+    return Array.isArray(extracted) ? extracted : null;
   },
   apply: (data) => {
     items.value = data;
@@ -163,12 +163,12 @@ function clearFilters(): void {
 
 // ── YAML helpers ─────────────────────────────────────────────────────────────
 
-function yamlStringValue(v: string): string {
-  const needsQuotes = v === "" || /[:#[\]{},&*?|<>=!%@`]/.test(v) || /^\s|\s$/.test(v) || /^(true|false|null|~)$/i.test(v) || /^\d/.test(v);
+function yamlStringValue(str: string): string {
+  const needsQuotes = str === "" || /[:#[\]{},&*?|<>=!%@`]/.test(str) || /^\s|\s$/.test(str) || /^(true|false|null|~)$/i.test(str) || /^\d/.test(str);
   if (needsQuotes) {
-    return `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    return `"${str.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
   }
-  return v;
+  return str;
 }
 
 function serializeYaml(item: TodoItem): string {
@@ -191,19 +191,19 @@ function parseFlowSequence(raw: string): string[] {
   let buffer = "";
   let inQuotes = false;
   for (let i = 0; i < inner.length; i++) {
-    const ch = inner[i];
-    if (ch === '"' && inner[i - 1] !== "\\") {
+    const char = inner[i];
+    if (char === '"' && inner[i - 1] !== "\\") {
       inQuotes = !inQuotes;
-      buffer += ch;
+      buffer += char;
       continue;
     }
-    if (ch === "," && !inQuotes) {
+    if (char === "," && !inQuotes) {
       const piece = parseYamlValue(buffer.trim());
       if (piece) result.push(piece);
       buffer = "";
       continue;
     }
-    buffer += ch;
+    buffer += char;
   }
   const last = parseYamlValue(buffer.trim());
   if (last) result.push(last);

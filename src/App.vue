@@ -254,17 +254,17 @@ const router = useRouter();
 
 // Omit ?role= for the default role to keep URLs clean.
 function buildRoleQuery(): Record<string, string> {
-  const id = currentRoleId.value;
-  if (!id || roles.value.length === 0 || id === roles.value[0]?.id) return {};
-  return { role: id };
+  const roleId = currentRoleId.value;
+  if (!roleId || roles.value.length === 0 || roleId === roles.value[0]?.id) return {};
+  return { role: roleId };
 }
 
-function navigateToSession(id: string, replace = false): void {
-  currentSessionId.value = id;
+function navigateToSession(sessionId: string, replace = false): void {
+  currentSessionId.value = sessionId;
   const method = replace ? router.replace : router.push;
   method({
     name: "chat",
-    params: { sessionId: id },
+    params: { sessionId },
     query: { ...buildViewQuery(), ...buildRoleQuery() },
   }).catch((err) => {
     if (err?.type !== 16) {
@@ -383,9 +383,9 @@ const { isStackLayout, restoreChatViewForSession, displayedCurrentSessionId } = 
 // Not wired into the internal `loadSession` call path because that
 // also fires on initial mount with `?view=plugin` URLs, which must
 // be honoured as-is.
-function handleSessionSelect(id: string): void {
+function handleSessionSelect(sessionId: string): void {
   restoreChatViewForSession();
-  loadSession(id);
+  loadSession(sessionId);
 }
 
 function handleNewSessionClick(): void {
@@ -426,8 +426,8 @@ const { mergedSessions, tabSessions } = useMergedSessions({
 // when switching away (running sessions keep their subscription so they
 // continue receiving events — session_finished will clean them up).
 let previousSessionId: string | null = null;
-watch(currentSessionId, (id) => {
-  const session = sessionMap.get(id);
+watch(currentSessionId, (sessionId) => {
+  const session = sessionMap.get(sessionId);
   // Subscribe to the new session's channel
   if (session) {
     ensureSessionSubscription(session);
@@ -436,23 +436,23 @@ watch(currentSessionId, (id) => {
   // no in-flight background generations. Tearing down the subscription
   // while a generation is still running would orphan its completion
   // event, leaving the session's busy indicator stuck on.
-  if (previousSessionId && previousSessionId !== id) {
+  if (previousSessionId && previousSessionId !== sessionId) {
     const prevSession = sessionMap.get(previousSessionId);
     const prevBusy = !!prevSession && (prevSession.isRunning || Object.keys(prevSession.pendingGenerations ?? {}).length > 0);
     if (prevSession && !prevBusy) {
       unsubscribeSession(previousSessionId);
     }
   }
-  previousSessionId = id;
+  previousSessionId = sessionId;
 
   // Clear unread in both sessionMap and sessions list (for badge count),
   // then tell the server so other tabs see it too.
-  const summary = sessions.value.find((entry) => entry.id === id);
+  const summary = sessions.value.find((entry) => entry.id === sessionId);
   const wasUnread = (session && session.hasUnread) || (summary && summary.hasUnread);
   if (wasUnread) {
     if (session) session.hasUnread = false;
     if (summary) summary.hasUnread = false;
-    markSessionRead(id);
+    markSessionRead(sessionId);
   }
 });
 
@@ -485,11 +485,11 @@ const needsGeminiForRole = (roleId: string) => needsGemini(roles.value, roleId);
 // router.replace instead of router.push to keep the empty session out
 // of browser navigation history.
 function removeCurrentIfEmpty(): boolean {
-  const id = currentSessionId.value;
-  if (!id) return false;
-  const session = sessionMap.get(id);
+  const sessionId = currentSessionId.value;
+  if (!sessionId) return false;
+  const session = sessionMap.get(sessionId);
   if (session && session.toolResults.length === 0) {
-    sessionMap.delete(id);
+    sessionMap.delete(sessionId);
     return true;
   }
   return false;
@@ -500,8 +500,8 @@ function createNewSession(roleId?: string): ActiveSession {
   const rId = roleId ?? currentRoleId.value;
   const session = createEmptySession(uuidv4(), rId);
   sessionMap.set(session.id, session);
-  navigateToSession(session.id, true);
   currentRoleId.value = rId;
+  navigateToSession(session.id, true);
   suggestionsPanelRef.value?.collapse();
   nextTick(() => focusChatInput());
   return sessionMap.get(session.id)!;
@@ -516,37 +516,40 @@ function onRoleChange() {
   maybeSeedRoleDefault(session);
 }
 
-function activateSession(id: string, roleId: string, replace: boolean): void {
-  const reactiveSession = sessionMap.get(id);
+function activateSession(sessionId: string, roleId: string, replace: boolean): void {
+  const reactiveSession = sessionMap.get(sessionId);
   if (reactiveSession) ensureSessionSubscription(reactiveSession);
-  navigateToSession(id, replace);
+  // Set role before navigating: buildRoleQuery() reads currentRoleId to
+  // build ?role=, and the route.query.role watcher would otherwise fire
+  // after navigation and revert currentRoleId to the previous session's role.
   currentRoleId.value = roleId;
+  navigateToSession(sessionId, replace);
   showHistory.value = false;
 }
 
-async function loadSession(id: string) {
-  if (id === currentSessionId.value && sessionMap.has(id)) return;
+async function loadSession(sessionId: string) {
+  if (sessionId === currentSessionId.value && sessionMap.has(sessionId)) return;
   const replaced = removeCurrentIfEmpty();
 
-  const live = sessionMap.get(id);
+  const live = sessionMap.get(sessionId);
   if (live) {
-    activateSession(id, live.roleId, replaced);
+    activateSession(sessionId, live.roleId, replaced);
     return;
   }
 
-  const response = await apiGet<SessionEntry[]>(API_ROUTES.sessions.detail.replace(":id", encodeURIComponent(id)));
+  const response = await apiGet<SessionEntry[]>(API_ROUTES.sessions.detail.replace(":id", encodeURIComponent(sessionId)));
   if (!response.ok) return;
 
   const newSession = buildLoadedSession({
-    id,
+    id: sessionId,
     entries: response.data,
     defaultRoleId: currentRoleId.value,
     urlResult: typeof route.query.result === "string" ? route.query.result : null,
-    serverSummary: sessions.value.find((s) => s.id === id),
+    serverSummary: sessions.value.find((summary) => summary.id === sessionId),
     nowIso: new Date().toISOString(),
   });
-  sessionMap.set(id, newSession);
-  activateSession(id, newSession.roleId, replaced);
+  sessionMap.set(sessionId, newSession);
+  activateSession(sessionId, newSession.roleId, replaced);
 }
 
 // Re-fetch the transcript from the server and patch any entries the

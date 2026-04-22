@@ -80,10 +80,10 @@ async function fillImagePlaceholders(markdown: string): Promise<string> {
   }
 
   const results = await Promise.all(
-    matches.map(async (m) => ({
-      full: m[0],
-      prompt: m[1],
-      url: geminiOk ? await generateImageFile(m[1]) : null,
+    matches.map(async (match) => ({
+      full: match[0],
+      prompt: match[1],
+      url: geminiOk ? await generateImageFile(match[1]) : null,
     })),
   );
 
@@ -91,7 +91,7 @@ async function fillImagePlaceholders(markdown: string): Promise<string> {
   // success rate even when most calls go through. The per-call
   // error already lands at warn from generateImageFile's catch.
   if (geminiOk) {
-    const failed = results.filter((r) => !r.url).length;
+    const failed = results.filter((result) => !result.url).length;
     if (failed > 0) {
       log.warn("present-document", "image generation had failures", {
         failed,
@@ -122,25 +122,36 @@ async function fillImagePlaceholders(markdown: string): Promise<string> {
 interface PresentDocumentBody {
   title: string;
   markdown: string;
-  filenameHint?: string;
+  filenamePrefix: string;
 }
 
-interface PresentDocumentResponse {
+interface PresentDocumentSuccess {
   message: string;
   title: string;
-  data: { markdown: string; filenameHint?: string };
+  data: { markdown: string; filenamePrefix: string };
 }
 
-router.post(API_ROUTES.plugins.presentDocument, async (req: Request<object, unknown, PresentDocumentBody>, res: Response<PresentDocumentResponse>) => {
-  const { title, markdown, filenameHint } = req.body;
-  const filledMarkdown = await fillImagePlaceholders(markdown);
-  const markdownPath = await saveMarkdown(filledMarkdown);
-  res.json({
-    message: `Document "${title}" is ready.`,
-    title,
-    data: { markdown: markdownPath, filenameHint },
-  });
-});
+interface PresentDocumentError {
+  error: string;
+}
+
+router.post(
+  API_ROUTES.plugins.presentDocument,
+  async (req: Request<object, unknown, PresentDocumentBody>, res: Response<PresentDocumentSuccess | PresentDocumentError>) => {
+    const { title, markdown, filenamePrefix } = req.body;
+    if (typeof filenamePrefix !== "string" || filenamePrefix.trim().length === 0) {
+      badRequest(res, "filenamePrefix is required");
+      return;
+    }
+    const filledMarkdown = await fillImagePlaceholders(markdown);
+    const markdownPath = await saveMarkdown(filledMarkdown, filenamePrefix);
+    res.json({
+      message: `Document "${title}" is ready.`,
+      title,
+      data: { markdown: markdownPath, filenamePrefix },
+    });
+  },
+);
 
 // Update markdown file on disk (user edits in View)
 interface UpdateMarkdownBody {

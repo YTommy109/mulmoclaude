@@ -26,6 +26,8 @@ function makeState(over: Partial<SourceState> = {}): SourceState {
     cursor: {},
     consecutiveFailures: 0,
     nextAttemptAt: null,
+    consecutiveEmptyFetches: 0,
+    emptyBackoffUntil: null,
     ...over,
   };
 }
@@ -46,7 +48,7 @@ describe("planEligibleSources — schedule matching", () => {
       nowMs: 0,
     });
     assert.deepEqual(
-      eligible.map((s) => s.slug),
+      eligible.map((src) => src.slug),
       ["daily-1", "daily-2"],
     );
   });
@@ -96,7 +98,7 @@ describe("planEligibleSources — sort ordering", () => {
       nowMs: 0,
     });
     assert.deepEqual(
-      eligible.map((s) => s.slug),
+      eligible.map((src) => src.slug),
       ["alpha", "bravo", "charlie"],
     );
   });
@@ -188,6 +190,46 @@ describe("planEligibleSources — backoff respect", () => {
     // Defensive: a corrupt state file shouldn't permanently lock
     // out a source. Run it, and the next run's writeState will
     // overwrite with a valid timestamp.
+    assert.equal(eligible.length, 1);
+  });
+
+  it("skips sources with a future emptyBackoffUntil (empty-fetch adaptive backoff)", () => {
+    const sources = [makeSource({ slug: "quiet-feed" })];
+    const states = new Map([
+      [
+        "quiet-feed",
+        makeState({
+          slug: "quiet-feed",
+          emptyBackoffUntil: "2026-04-13T12:00:00Z", // 2 hours after now
+        }),
+      ],
+    ]);
+    const eligible = planEligibleSources({
+      sources,
+      statesBySlug: states,
+      scheduleType: "daily",
+      nowMs: now,
+    });
+    assert.equal(eligible.length, 0);
+  });
+
+  it("includes sources whose emptyBackoffUntil has already passed", () => {
+    const sources = [makeSource({ slug: "quiet-feed-ready" })];
+    const states = new Map([
+      [
+        "quiet-feed-ready",
+        makeState({
+          slug: "quiet-feed-ready",
+          emptyBackoffUntil: "2026-04-13T08:00:00Z", // 2 hours before now
+        }),
+      ],
+    ]);
+    const eligible = planEligibleSources({
+      sources,
+      statesBySlug: states,
+      scheduleType: "daily",
+      nowMs: now,
+    });
     assert.equal(eligible.length, 1);
   });
 });

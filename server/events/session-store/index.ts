@@ -65,8 +65,8 @@ const storelessPending = new Map<string, Set<string>>();
 let pubsub: IPubSub | null = null;
 let evictionTimer: ReturnType<typeof setInterval> | null = null;
 
-export function initSessionStore(ps: IPubSub): void {
-  pubsub = ps;
+export function initSessionStore(pubSubInstance: IPubSub): void {
+  pubsub = pubSubInstance;
   if (evictionTimer) clearInterval(evictionTimer);
   evictionTimer = setInterval(evictIdleSessions, EVICTION_CHECK_INTERVAL_MS);
 }
@@ -288,8 +288,8 @@ interface GenerationPayload {
 
 const GENERATION_KIND_VALUES: ReadonlySet<string> = new Set(Object.values(GENERATION_KINDS));
 
-function isGenerationKind(v: unknown): v is GenerationKind {
-  return typeof v === "string" && GENERATION_KIND_VALUES.has(v);
+function isGenerationKind(value: unknown): value is GenerationKind {
+  return typeof value === "string" && GENERATION_KIND_VALUES.has(value);
 }
 
 /**
@@ -314,7 +314,7 @@ function applyEventToSession(session: ServerSession, type: string, event: Record
       timestamp: Date.now(),
     });
   } else if (type === EVENT_TYPES.toolCallResult) {
-    const entry = session.toolCallHistory.find((e) => e.toolUseId === event.toolUseId);
+    const entry = session.toolCallHistory.find((historyEntry) => historyEntry.toolUseId === event.toolUseId);
     if (entry) entry.result = event.content as string;
   } else if (type === EVENT_TYPES.status) {
     session.statusMessage = event.message as string;
@@ -404,8 +404,8 @@ export function getSessionImageData(chatSessionId: string): string | undefined {
 
 export function getActiveSessionIds(): Set<string> {
   const ids = new Set<string>();
-  for (const [id, session] of store) {
-    if (session.isRunning) ids.add(id);
+  for (const [chatSessionId, session] of store) {
+    if (session.isRunning) ids.add(chatSessionId);
   }
   return ids;
 }
@@ -465,14 +465,14 @@ function notifySessionsChanged(): void {
 
 function evictIdleSessions(): void {
   const now = Date.now();
-  for (const [id, session] of store) {
+  for (const [chatSessionId, session] of store) {
     if (session.isRunning) continue;
     const age = now - new Date(session.updatedAt).getTime();
     if (age > IDLE_EVICTION_MS) {
       log.info("session-store", "evicting idle session", {
-        chatSessionId: id,
+        chatSessionId,
       });
-      removeSession(id);
+      removeSession(chatSessionId);
     }
   }
 }

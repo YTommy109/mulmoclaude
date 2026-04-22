@@ -15,7 +15,7 @@ import type { TodoItem } from "../../server/api/routes/todos.js";
 
 function cols(): StatusColumn[] {
   // Fresh copy each call so mutations in one test don't bleed.
-  return DEFAULT_COLUMNS.map((c) => ({ ...c }));
+  return DEFAULT_COLUMNS.map((col) => ({ ...col }));
 }
 
 function makeItem(overrides: Partial<TodoItem> = {}): TodoItem {
@@ -44,7 +44,7 @@ describe("normalizeColumns", () => {
   it("strips entries missing id or label", () => {
     const result = normalizeColumns([{ id: "a", label: "A" }, { id: 5, label: "B" }, { id: "c" }, { label: "D" }, { id: "e", label: "E" }]);
     assert.deepEqual(
-      result.map((c) => c.id),
+      result.map((col) => col.id),
       ["a", "e"],
     );
   });
@@ -130,17 +130,17 @@ describe("handleAddColumn", () => {
     const result = handleAddColumn(cols(), [], { label: "Doing (進行中)" });
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
-    const id = result.columns[result.columns.length - 1]?.id;
-    assert.ok(id?.startsWith("doing_"));
+    const columnId = result.columns[result.columns.length - 1]?.id;
+    assert.ok(columnId?.startsWith("doing_"));
   });
 
   it("is deterministic — same label always yields the same id", () => {
-    const a = handleAddColumn(cols(), [], { label: "完了" });
-    const b = handleAddColumn(cols(), [], { label: "完了" });
-    if (a.kind !== "success" || b.kind !== "success") {
+    const resultA = handleAddColumn(cols(), [], { label: "完了" });
+    const resultB = handleAddColumn(cols(), [], { label: "完了" });
+    if (resultA.kind !== "success" || resultB.kind !== "success") {
       assert.fail("both should succeed");
     }
-    assert.equal(a.columns[a.columns.length - 1]?.id, b.columns[b.columns.length - 1]?.id);
+    assert.equal(resultA.columns[resultA.columns.length - 1]?.id, resultB.columns[resultB.columns.length - 1]?.id);
   });
 
   it("demotes existing done columns when isDone is true", () => {
@@ -150,7 +150,7 @@ describe("handleAddColumn", () => {
     });
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
-    const doneIds = result.columns.filter((c) => c.isDone).map((c) => c.id);
+    const doneIds = result.columns.filter((col) => col.isDone).map((col) => col.id);
     assert.deepEqual(doneIds, ["archived"]);
   });
 
@@ -166,10 +166,10 @@ describe("handleAddColumn", () => {
     });
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
-    const a = result.items?.find((i) => i.id === "a");
-    const b = result.items?.find((i) => i.id === "b");
-    assert.equal(a?.completed, false);
-    assert.equal(b?.completed, false);
+    const itemA = result.items?.find((i) => i.id === "a");
+    const itemB = result.items?.find((i) => i.id === "b");
+    assert.equal(itemA?.completed, false);
+    assert.equal(itemB?.completed, false);
   });
 
   it("does not resync items when adding a non-done column", () => {
@@ -188,7 +188,7 @@ describe("handlePatchColumn", () => {
     const result = handlePatchColumn(cols(), "todo", { label: "Up Next" }, items);
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
-    assert.equal(result.columns.find((c) => c.id === "todo")?.label, "Up Next");
+    assert.equal(result.columns.find((col) => col.id === "todo")?.label, "Up Next");
     assert.equal(result.items, undefined);
   });
 
@@ -204,8 +204,8 @@ describe("handlePatchColumn", () => {
     const result = handlePatchColumn(cols(), "in_progress", { isDone: true }, items);
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
-    const inProgress = result.columns.find((c) => c.id === "in_progress");
-    const done = result.columns.find((c) => c.id === "done");
+    const inProgress = result.columns.find((col) => col.id === "in_progress");
+    const done = result.columns.find((col) => col.id === "done");
     assert.equal(inProgress?.isDone, true);
     assert.equal(done?.isDone, undefined);
     // "a" is now in the new done column → completed should be true.
@@ -244,7 +244,7 @@ describe("handleDeleteColumn", () => {
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
     assert.equal(
-      result.columns.find((c) => c.id === "backlog"),
+      result.columns.find((col) => col.id === "backlog"),
       undefined,
     );
     // "a" was in backlog → moves to first non-done column (now "todo")
@@ -267,7 +267,7 @@ describe("handleDeleteColumn", () => {
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
     // All four items now live in "todo" with unique, contiguous orders.
-    const todoItems = result.items!.filter((i) => i.status === "todo").sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
+    const todoItems = result.items!.filter((i) => i.status === "todo").sort((itemX, itemY) => (itemX.order ?? 0) - (itemY.order ?? 0));
     const orders = todoItems.map((i) => i.order);
     // No duplicates.
     assert.equal(new Set(orders).size, 4);
@@ -281,15 +281,15 @@ describe("handleDeleteColumn", () => {
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
     assert.equal(
-      result.columns.find((c) => c.id === "done"),
+      result.columns.find((col) => col.id === "done"),
       undefined,
     );
     const last = result.columns[result.columns.length - 1];
     assert.equal(last?.isDone, true);
     // Orphan from old done column moved to new done column.
-    const a = result.items?.find((i) => i.id === "a");
-    assert.equal(a?.status, last?.id);
-    assert.equal(a?.completed, true);
+    const itemA = result.items?.find((i) => i.id === "a");
+    assert.equal(itemA?.status, last?.id);
+    assert.equal(itemA?.completed, true);
   });
 });
 
@@ -314,7 +314,7 @@ describe("handleReorderColumns", () => {
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
     assert.deepEqual(
-      result.columns.map((c) => c.id),
+      result.columns.map((col) => col.id),
       ["done", "in_progress", "todo", "backlog"],
     );
   });

@@ -100,8 +100,8 @@ async function enqueueMessages(messages: RelayMessage[], env: Env): Promise<void
 }
 
 async function forwardToDurableObject(request: Request, env: Env, path: string): Promise<Response> {
-  const id = env.RELAY.idFromName("singleton");
-  const stub = env.RELAY.get(id);
+  const durableObjectId = env.RELAY.idFromName("singleton");
+  const stub = env.RELAY.get(durableObjectId);
   const url = new URL(request.url);
   url.pathname = path;
   return stub.fetch(new Request(url.toString(), request));

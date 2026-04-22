@@ -50,8 +50,8 @@ describe("withStoryContext — resolver rejects filePath", () => {
         handlerCalled = true;
       },
       {
-        resolveStoryPath: (_fp, r) => {
-          (r as unknown as RecordedResponse).status(400).json({ error: "bad" });
+        resolveStoryPath: (_fp, resp) => {
+          (resp as unknown as RecordedResponse).status(400).json({ error: "bad" });
           return null;
         },
         buildContext: async () => {
@@ -101,7 +101,7 @@ describe("withStoryContext — buildContext returns null", () => {
       res as unknown as Response,
       "stories/x.json",
       {
-        onContextMissing: (r) => (r as unknown as RecordedResponse).json({ audio: null }),
+        onContextMissing: (resp) => (resp as unknown as RecordedResponse).json({ audio: null }),
       },
       async () => {
         handlerCalled = true;

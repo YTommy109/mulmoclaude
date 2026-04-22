@@ -8,9 +8,9 @@ describe("TOOL_NAMES", () => {
     // set of values has no duplicates.
     const values = Object.values(TOOL_NAMES);
     assert.equal(new Set(values).size, values.length);
-    for (const v of values) {
-      assert.equal(typeof v, "string");
-      assert.ok(v.length > 0);
+    for (const val of values) {
+      assert.equal(typeof val, "string");
+      assert.ok(val.length > 0);
     }
   });
 
@@ -55,8 +55,8 @@ describe("isToolName", () => {
     const input: unknown = "manageWiki";
     if (isToolName(input)) {
       // If this compiles, the narrowing works.
-      const t: ToolName = input;
-      assert.equal(t, "manageWiki");
+      const toolName: ToolName = input;
+      assert.equal(toolName, "manageWiki");
     } else {
       assert.fail("expected narrow to succeed for a valid tool name");
     }

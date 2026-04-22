@@ -35,7 +35,7 @@ describe("splitFragmentAndQuery", () => {
 describe("rewriteMarkdownLinks", () => {
   it("rewrites the href of every markdown link", () => {
     const input = "See [foo](old) and [bar](old2).";
-    const result = rewriteMarkdownLinks(input, (h) => h.toUpperCase());
+    const result = rewriteMarkdownLinks(input, (href) => href.toUpperCase());
     assert.equal(result, "See [foo](OLD) and [bar](OLD2).");
   });
 
@@ -47,7 +47,7 @@ describe("rewriteMarkdownLinks", () => {
 
   it("handles adjacent links", () => {
     const input = "[a](1)[b](2)";
-    const result = rewriteMarkdownLinks(input, (h) => `_${h}_`);
+    const result = rewriteMarkdownLinks(input, (href) => `_${href}_`);
     assert.equal(result, "[a](_1_)[b](_2_)");
   });
 });

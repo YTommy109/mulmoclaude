@@ -95,13 +95,13 @@ export function useCanvasViewMode(opts: UseCanvasViewModeOptions): {
     }
   });
 
-  function handleViewModeShortcut(e: KeyboardEvent): void {
-    if (!(e.metaKey || e.ctrlKey)) return;
-    if (e.altKey || e.shiftKey) return;
-    const target = viewModeForShortcutKey(e.key);
+  function handleViewModeShortcut(event: KeyboardEvent): void {
+    if (!(event.metaKey || event.ctrlKey)) return;
+    if (event.altKey || event.shiftKey) return;
+    const target = viewModeForShortcutKey(event.key);
     if (target === null) return;
     setCanvasViewMode(target);
-    e.preventDefault();
+    event.preventDefault();
   }
 
   /** Plugin-launcher click: switch canvas to the matching view mode. */

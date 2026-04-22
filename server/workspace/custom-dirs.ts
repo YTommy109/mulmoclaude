@@ -4,7 +4,7 @@
 // directories under `data/` and `artifacts/` for organizing files.
 // Claude sees these in the system prompt and routes saves accordingly.
 
-import fs from "fs";
+import { existsSync, mkdirSync, readFileSync } from "fs";
 import path from "path";
 import { workspacePath, WORKSPACE_DIRS } from "./paths.js";
 import { log } from "../system/logger/index.js";
@@ -45,8 +45,8 @@ const CONTROL_CHAR_RE_G = /[\x00-\x1f]/g;
 
 // ── Validation ──────────────────────────────────────────────────
 
-function isValidStructure(v: unknown): v is DirStructure {
-  return v === DIR_STRUCTURES.flat || v === DIR_STRUCTURES.byName || v === DIR_STRUCTURES.byDate;
+function isValidStructure(value: unknown): value is DirStructure {
+  return value === DIR_STRUCTURES.flat || value === DIR_STRUCTURES.byName || value === DIR_STRUCTURES.byDate;
 }
 
 function validatePath(rawPath: string): string | null {
@@ -55,7 +55,7 @@ function validatePath(rawPath: string): string | null {
   const normalized = path.posix.normalize(rawPath);
 
   // Must start with allowed prefix
-  if (!ALLOWED_PREFIXES.some((p) => normalized.startsWith(p))) return null;
+  if (!ALLOWED_PREFIXES.some((prefix) => normalized.startsWith(prefix))) return null;
 
   // No path traversal
   if (normalized.includes("..")) return null;
@@ -64,7 +64,7 @@ function validatePath(rawPath: string): string | null {
   if (path.isAbsolute(normalized)) return null;
 
   // Not a reserved system directory
-  if (RESERVED_DIRS.some((r) => normalized === r || normalized.startsWith(r + "/"))) {
+  if (RESERVED_DIRS.some((reservedDir) => normalized === reservedDir || normalized.startsWith(reservedDir + "/"))) {
     return null;
   }
 
@@ -102,8 +102,8 @@ export function loadCustomDirs(root?: string): CustomDirEntry[] {
   const base = root ?? workspacePath;
   const filePath = path.join(base, CONFIG_FILE);
   try {
-    if (!fs.existsSync(filePath)) return [];
-    const raw = fs.readFileSync(filePath, "utf-8");
+    if (!existsSync(filePath)) return [];
+    const raw = readFileSync(filePath, "utf-8");
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) {
       log.warn("custom-dirs", "workspace-dirs.json is not an array");
@@ -112,7 +112,7 @@ export function loadCustomDirs(root?: string): CustomDirEntry[] {
     const entries = parsed
       .slice(0, MAX_ENTRIES)
       .map(validateEntry)
-      .filter((e): e is CustomDirEntry => e !== null);
+      .filter((entry): entry is CustomDirEntry => entry !== null);
 
     const skipped = parsed.length - entries.length;
     if (skipped > 0) {
@@ -132,7 +132,7 @@ export function loadCustomDirs(root?: string): CustomDirEntry[] {
 export function saveCustomDirs(entries: readonly CustomDirEntry[], root?: string): void {
   const base = root ?? workspacePath;
   const filePath = path.join(base, CONFIG_FILE);
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  mkdirSync(path.dirname(filePath), { recursive: true });
   writeFileAtomicSync(filePath, JSON.stringify(entries, null, 2));
   invalidateCache();
 }
@@ -153,8 +153,8 @@ export function validateCustomDirs(raw: unknown): { entries: CustomDirEntry[] } 
     if (entry) {
       entries.push(entry);
     } else {
-      const p = isRecord(item) ? String((item as Record<string, unknown>).path ?? "") : "";
-      errors.push(`entry ${i}: invalid path "${p}"`);
+      const itemPath = isRecord(item) ? String((item as Record<string, unknown>).path ?? "") : "";
+      errors.push(`entry ${i}: invalid path "${itemPath}"`);
     }
   });
   if (errors.length > 0) {
@@ -186,7 +186,7 @@ export function ensureCustomDirs(entries: readonly CustomDirEntry[], root?: stri
   const base = root ?? workspacePath;
   for (const entry of entries) {
     const dirPath = path.join(base, entry.path);
-    fs.mkdirSync(dirPath, { recursive: true });
+    mkdirSync(dirPath, { recursive: true });
   }
 }
 
@@ -205,14 +205,14 @@ export function buildCustomDirsPrompt(entries: readonly CustomDirEntry[]): strin
     "",
   ];
 
-  for (const e of entries) {
+  for (const entry of entries) {
     const structureHint =
-      e.structure === DIR_STRUCTURES.byName
+      entry.structure === DIR_STRUCTURES.byName
         ? " (organize by name in subfolders)"
-        : e.structure === DIR_STRUCTURES.byDate
+        : entry.structure === DIR_STRUCTURES.byDate
           ? " (organize by date: YYYY/MM/DD/)"
           : "";
-    lines.push(`- \`${e.path}/\`${structureHint} — ${e.description}`);
+    lines.push(`- \`${entry.path}/\`${structureHint} — ${entry.description}`);
   }
 
   lines.push("");

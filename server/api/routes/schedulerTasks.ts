@@ -29,7 +29,7 @@ router.get(API_ROUTES.scheduler.tasks, (_req: Request, res: Response) => {
   // have no origin field of their own.
   const systemTasks = getSchedulerTasks();
   const userTasks = loadUserTasks();
-  const all = [...systemTasks.map((t) => ({ ...t, origin: "system" as const })), ...userTasks.map((t) => ({ ...t, origin: "user" as const }))];
+  const all = [...systemTasks.map((task) => ({ ...task, origin: "system" as const })), ...userTasks.map((task) => ({ ...task, origin: "user" as const }))];
   res.json({ tasks: all });
 });
 
@@ -58,14 +58,14 @@ router.post(API_ROUTES.scheduler.tasks, async (req: Request, res: Response) => {
 // ── Update user task ────────────────────────────────────────────
 
 router.put(API_ROUTES.scheduler.task, async (req: Request<{ id: string }>, res: Response) => {
-  const { id } = req.params;
+  const { id: taskId } = req.params;
   try {
     const updated = await withUserTaskLock(async (tasks) => {
-      const result = applyUpdate(tasks, id, req.body);
+      const result = applyUpdate(tasks, taskId, req.body);
       if (result.kind === "error") {
         throw new Error(result.error);
       }
-      const task = result.tasks.find((t) => t.id === id);
+      const task = result.tasks.find((taskItem) => taskItem.id === taskId);
       return { tasks: result.tasks, result: task };
     });
     res.json({ task: updated });
@@ -83,15 +83,15 @@ router.put(API_ROUTES.scheduler.task, async (req: Request<{ id: string }>, res: 
 // ── Delete user task ────────────────────────────────────────────
 
 router.delete(API_ROUTES.scheduler.task, async (req: Request<{ id: string }>, res: Response) => {
-  const { id } = req.params;
+  const { id: taskId } = req.params;
   try {
     await withUserTaskLock(async (tasks) => {
-      const idx = tasks.findIndex((t) => t.id === id);
-      if (idx === -1) throw new Error(`task not found: ${id}`);
-      const next = tasks.filter((t) => t.id !== id);
+      const index = tasks.findIndex((task) => task.id === taskId);
+      if (index === -1) throw new Error(`task not found: ${taskId}`);
+      const next = tasks.filter((task) => task.id !== taskId);
       return { tasks: next, result: undefined };
     });
-    res.json({ deleted: id });
+    res.json({ deleted: taskId });
   } catch (err) {
     const msg = errorMessage(err);
     if (msg.startsWith("task not found")) {
@@ -106,10 +106,10 @@ router.delete(API_ROUTES.scheduler.task, async (req: Request<{ id: string }>, re
 // ── Manual trigger ──────────────────────────────────────────────
 
 router.post(API_ROUTES.scheduler.taskRun, async (req: Request<{ id: string }>, res: Response) => {
-  const { id } = req.params;
+  const { id: taskId } = req.params;
   // Check user tasks first
   const userTasks = loadUserTasks();
-  const userTask = userTasks.find((t) => t.id === id);
+  const userTask = userTasks.find((task) => task.id === taskId);
   if (userTask) {
     const chatSessionId = crypto.randomUUID();
     log.info("scheduler-tasks", "manual run (user task)", {
@@ -126,14 +126,14 @@ router.post(API_ROUTES.scheduler.taskRun, async (req: Request<{ id: string }>, r
         error: String(err),
       });
     });
-    res.json({ triggered: id, chatSessionId });
+    res.json({ triggered: taskId, chatSessionId });
     return;
   }
   // Not a user task — check system/skill tasks
   const systemTasks = getSchedulerTasks();
-  const found = systemTasks.find((t) => t.id === id);
+  const found = systemTasks.find((task) => task.id === taskId);
   if (!found) {
-    notFound(res, `task not found: ${id}`);
+    notFound(res, `task not found: ${taskId}`);
     return;
   }
   // System tasks don't have a prompt to startChat with — return 400

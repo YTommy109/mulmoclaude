@@ -15,7 +15,7 @@
 // See docs/sandbox-credentials.md for the user-facing contract.
 
 import path from "node:path";
-import fs from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { log } from "../system/logger/index.js";
@@ -48,7 +48,7 @@ export interface SandboxMountSpec {
  */
 export function buildAllowedConfigMounts(home: string = homedir()): Record<string, SandboxMountSpec> {
   return {
-    gh: {
+    ["gh"]: {
       name: "gh",
       hostPath: path.join(home, ".config", "gh"),
       containerPath: "/home/node/.config/gh",
@@ -105,7 +105,7 @@ export function resolveMountNames(names: readonly string[], allowed: Record<stri
 
 function hostPathExists(spec: SandboxMountSpec): boolean {
   try {
-    const stat = fs.statSync(spec.hostPath);
+    const stat = statSync(spec.hostPath);
     return spec.kind === "dir" ? stat.isDirectory() : stat.isFile();
   } catch {
     return false;
@@ -181,7 +181,7 @@ export function sshAgentForwardArgs(
       skippedReason: "SSH_AUTH_SOCK not set on host",
     };
   }
-  if (!fs.existsSync(sshAuthSock)) {
+  if (!existsSync(sshAuthSock)) {
     return {
       args: [],
       skippedReason: `SSH_AUTH_SOCK=${sshAuthSock} not found on host`,
@@ -261,7 +261,7 @@ export function resolveSandboxAuth(params: ResolveSandboxAuthParams): ResolvedSa
   const args = [...configMountArgs(parsed.resolved), ...sshResult.args, ...sshAllowedHostsArgs, ...ghTokenArgs.args];
   const allowedHostsSuffix = sshResult.args.length > 0 && params.sshAllowedHosts ? ` → hosts: ${params.sshAllowedHosts}` : "";
   const appliedDescriptions = [
-    ...parsed.resolved.map((s) => `${s.name} (${s.description})`),
+    ...parsed.resolved.map((spec) => `${spec.name} (${spec.description})`),
     ...(sshResult.args.length > 0 ? [`ssh-agent forward${allowedHostsSuffix}`] : []),
     ...(ghTokenArgs.args.length > 0 ? ["gh CLI (GH_TOKEN fallback)"] : []),
   ];
@@ -284,7 +284,7 @@ export function resolveSandboxAuth(params: ResolveSandboxAuthParams): ResolvedSa
 // GH_TOKEN env var. This only runs when "gh" was explicitly
 // requested (#259 opt-in principle).
 function resolveGhTokenFallback(requestedNames: readonly string[], parsed: ParsedMountList): { args: string[] } {
-  const ghRequested = requestedNames.some((n) => n.trim() === "gh");
+  const ghRequested = requestedNames.some((name) => name.trim() === "gh");
   if (!ghRequested) return { args: [] };
 
   // If an explicit GH_TOKEN is already in the environment, pass it.
@@ -295,8 +295,8 @@ function resolveGhTokenFallback(requestedNames: readonly string[], parsed: Parse
   // If the file mount resolved (hosts.yml exists), the token might
   // be in the file. Check if it's keyring-based by looking for
   // "oauth_token" in the hosts.yml — if missing, fall back.
-  const ghResolved = parsed.resolved.some((s) => s.name === "gh");
-  const ghMissing = parsed.missing.some((s) => s.name === "gh");
+  const ghResolved = parsed.resolved.some((spec) => spec.name === "gh");
+  const ghMissing = parsed.missing.some((spec) => spec.name === "gh");
 
   // gh dir doesn't exist at all → try extracting from keyring
   // gh dir exists (mounted) → still try, since keyring auth leaves
@@ -324,6 +324,6 @@ function resolveGhTokenFallback(requestedNames: readonly string[], parsed: Parse
 // Docker accepts POSIX-style paths even on Windows when using
 // Docker Desktop, and the rest of the codebase already uses this
 // helper in buildDockerSpawnArgs.
-function toDockerPath(p: string): string {
-  return p.replace(/\\/g, "/");
+function toDockerPath(hostPath: string): string {
+  return hostPath.replace(/\\/g, "/");
 }

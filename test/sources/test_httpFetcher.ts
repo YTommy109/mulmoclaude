@@ -15,20 +15,20 @@ import { HostRateLimiter, type RateLimiterDeps } from "../../server/workspace/so
 // Controllable clock for the rate limiter.
 function controllableClock(start = 0): {
   deps: RateLimiterDeps;
-  tick: (ms: number) => void;
+  tick: (delayMs: number) => void;
   read: () => number;
 } {
   const state = { t: start };
   return {
     deps: {
       now: () => state.t,
-      sleep: (ms) => {
-        state.t += ms;
+      sleep: (delayMs) => {
+        state.t += delayMs;
         return Promise.resolve();
       },
     },
-    tick: (ms) => {
-      state.t += ms;
+    tick: (delayMs) => {
+      state.t += delayMs;
     },
     read: () => state.t,
   };
@@ -52,8 +52,8 @@ function makeStubFetch(responses: Record<string, Response | Error>): {
     const headers: Record<string, string> = {};
     const rawHeaders = init?.headers as Record<string, string> | undefined;
     if (rawHeaders) {
-      for (const [k, v] of Object.entries(rawHeaders)) {
-        headers[k] = v;
+      for (const [key, val] of Object.entries(rawHeaders)) {
+        headers[key] = val;
       }
     }
     calls.push({ url, headers, signal: init?.signal ?? null });
@@ -158,8 +158,8 @@ describe("fetchPolite — rate limiting", () => {
       const url = String(input);
       order.push(`start:${url}`);
       if (url.endsWith("a")) {
-        await new Promise<void>((r) => {
-          releaseA = r;
+        await new Promise<void>((resolve) => {
+          releaseA = resolve;
         });
       }
       order.push(`end:${url}`);
@@ -171,14 +171,14 @@ describe("fetchPolite — rate limiting", () => {
       rateLimiterDeps: clock.deps,
       crawlDelayMs: () => 0,
     });
-    const a = fetchPolite("https://example.com/a", deps);
-    const b = fetchPolite("https://example.com/b", deps);
+    const fetchA = fetchPolite("https://example.com/a", deps);
+    const fetchB = fetchPolite("https://example.com/b", deps);
     await Promise.resolve();
     await Promise.resolve();
     // Only a has started; b is queued.
     assert.deepEqual(order, ["start:https://example.com/a"]);
     releaseA();
-    await Promise.all([a, b]);
+    await Promise.all([fetchA, fetchB]);
     // b starts only after a ends.
     assert.deepEqual(order, ["start:https://example.com/a", "end:https://example.com/a", "start:https://example.com/b", "end:https://example.com/b"]);
   });
@@ -241,7 +241,7 @@ describe("fetchPolite — timeout + abort", () => {
     const calls: string[] = [];
     const deps = makeDeps({
       fetchImpl: stub.fetchImpl,
-      onWillFetch: (u) => calls.push(u),
+      onWillFetch: (fetchUrl) => calls.push(fetchUrl),
     });
     await fetchPolite(url, deps);
     assert.deepEqual(calls, [url]);
