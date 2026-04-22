@@ -64,3 +64,14 @@ export function stripDataUri(dataUri: string): string {
 export function isImagePath(value: string): boolean {
   return value.startsWith(`${WORKSPACE_DIRS.images}/`) && value.endsWith(".png");
 }
+
+/** Build the workspace-relative image path for a filename, or null
+ *  if the derived path wouldn't satisfy `isImagePath` (e.g. empty
+ *  name, wrong extension). Keeps route handlers from reaching for
+ *  `WORKSPACE_DIRS.images` directly — the images/ convention lives
+ *  in exactly one place. */
+export function imagePathFromFilename(filename: string): string | null {
+  if (!filename) return null;
+  const relativePath = path.posix.join(WORKSPACE_DIRS.images, filename);
+  return isImagePath(relativePath) ? relativePath : null;
+}

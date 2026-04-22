@@ -19,7 +19,7 @@
 import { computed } from "vue";
 import type { ToolResult } from "gui-chat-protocol/vue";
 import type { ImageToolData } from "./types";
-import { resolveImageSrc } from "../../utils/image/resolve";
+import { resolveImageSrcFresh } from "../../utils/image/resolve";
 
 const props = withDefaults(
   defineProps<{
@@ -30,5 +30,5 @@ const props = withDefaults(
   { alt: "Image", promptLabel: "Prompt" },
 );
 
-const resolvedSrc = computed(() => (props.selectedResult.data?.imageData ? resolveImageSrc(props.selectedResult.data.imageData) : ""));
+const resolvedSrc = computed(() => (props.selectedResult.data?.imageData ? resolveImageSrcFresh(props.selectedResult.data.imageData) : ""));
 </script>

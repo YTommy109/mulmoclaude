@@ -9,7 +9,7 @@
 import { computed } from "vue";
 import type { ToolResult } from "gui-chat-protocol/vue";
 import type { ImageToolData } from "./types";
-import { resolveImageSrc } from "../../utils/image/resolve";
+import { resolveImageSrcFresh } from "../../utils/image/resolve";
 
 const props = withDefaults(
   defineProps<{
@@ -19,5 +19,5 @@ const props = withDefaults(
   { alt: "Image" },
 );
 
-const resolvedSrc = computed(() => (props.result.data?.imageData ? resolveImageSrc(props.result.data.imageData) : ""));
+const resolvedSrc = computed(() => (props.result.data?.imageData ? resolveImageSrcFresh(props.result.data.imageData) : ""));
 </script>
