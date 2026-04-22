@@ -133,6 +133,7 @@ const enMessages = {
     switchToStack: "Switch to Stack view",
   },
   settingsWorkspaceDirs: {
+    explanation: "Custom directories for organizing files under {dataDir} and {artifactsDir}. Claude uses these to route file saves.",
     noEntries: "No custom directories configured.",
     addDirTitle: "Add directory",
     pathPlaceholder: "data/clients or artifacts/reports",
@@ -142,6 +143,8 @@ const enMessages = {
     errAlreadyExists: "Already exists",
   },
   settingsReferenceDirs: {
+    explanation:
+      "External directories Claude can read but not modify. In Docker mode, these are mounted read-only. Useful for referencing Obsidian vaults, project code, or document folders.",
     noEntries: "No reference directories configured.",
     addDirTitle: "Add reference directory",
     pathPlaceholder: "/Users/me/ObsidianVault or ~/Documents/notes",
@@ -174,6 +177,9 @@ const enMessages = {
     parseError: "parse error",
   },
   settingsMcpTab: {
+    explanation:
+      "Add external MCP servers. HTTP servers work in every mode. Stdio servers use the sandbox image's {npx} / {node} / {tsx}; paths must live under the workspace when Docker is enabled.",
+    localhostRewrite: "In Docker mode {localhost} is rewritten to {hostDockerInternal}.",
     noServers: "No MCP servers configured yet.",
     enabled: "enabled",
     urlLabel: "URL:",
@@ -258,6 +264,10 @@ const enMessages = {
     addColumn: "Add Column",
     noMatchingFilter: "No items match the current filter",
   },
+  todoPreview: {
+    completedRatio: "{done}/{total} completed",
+    moreItems: "+ {count} more…",
+  },
   todoDialogs: {
     addTitle: "Add Todo",
     noneOption: "— None —",
@@ -283,6 +293,13 @@ const enMessages = {
   },
   pluginWiki: {
     backToIndex: "Back to index",
+    downloadPdf: "↓ PDF",
+    pdfLoadingLabel: "PDF",
+    pdfFailed: "⚠ PDF failed",
+    tabIndex: "Index",
+    tabLog: "Log",
+    tabLint: "Lint",
+    empty: "Wiki is empty. Ask the Wiki Manager to ingest a source.",
   },
   pluginPresentHtml: {
     saveAsPdf: "Save as PDF (opens print dialog)",
@@ -419,18 +436,25 @@ const enMessages = {
     copiedLabel: "Copied!",
   },
   pluginTextResponse: {
-    copyTooltip: "Copy to clipboard",
-    copied: "Copied!",
-    edit: "Edit",
-    save: "Save",
+    pdf: "PDF",
+    pdfFailed: "⚠ PDF failed",
+    editContent: "Edit Text Content",
+    applyChanges: "Apply Changes",
+    copyLabel: "Copy",
+    copiedLabel: "Copied!",
     cancel: "Cancel",
-    downloadPdf: "Download as PDF",
-    downloadingPdf: "Generating PDF…",
   },
   pluginSpreadsheet: {
     valuePlaceholder: "Value",
     valueOrFormulaPlaceholder: "Value or Formula (e.g., 100 or SUM(B2:B11))",
     formatPlaceholder: "Format (e.g., $#,##0.00)",
+    loading: "Loading spreadsheet...",
+    noData: "No spreadsheet data available",
+    editData: "Edit Spreadsheet Data",
+    applyChanges: "Apply Changes",
+    update: "Update",
+    stringType: "String",
+    formulaType: "Formula",
   },
   app: {
     // `<i18n-t>` slots — named `envKey` / `envFile` render as inline

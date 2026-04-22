@@ -98,10 +98,7 @@ onMounted(load);
 
 <template>
   <div class="space-y-3">
-    <p class="text-xs text-gray-600 leading-relaxed">
-      External directories Claude can read but not modify. In Docker mode, these are mounted read-only. Useful for referencing Obsidian vaults, project code, or
-      document folders.
-    </p>
+    <p class="text-xs text-gray-600 leading-relaxed">{{ t("settingsReferenceDirs.explanation") }}</p>
 
     <!-- Loading -->
     <div v-if="loading" class="text-sm text-gray-400">{{ t("common.loading") }}</div>

@@ -124,6 +124,7 @@ const jaMessages = {
     switchToStack: "Stack 表示に切替",
   },
   settingsWorkspaceDirs: {
+    explanation: "{dataDir} および {artifactsDir} 配下でファイルを整理するためのカスタムディレクトリ。Claude がファイル保存先を振り分けるために使用します。",
     noEntries: "カスタムディレクトリは未設定です。",
     addDirTitle: "ディレクトリを追加",
     pathPlaceholder: "data/clients または artifacts/reports",
@@ -133,6 +134,8 @@ const jaMessages = {
     errAlreadyExists: "既に登録されています",
   },
   settingsReferenceDirs: {
+    explanation:
+      "Claude が読み取れるが変更できない外部ディレクトリ。Docker モードでは読み取り専用でマウントされます。Obsidian vault、プロジェクトコード、ドキュメントフォルダなどの参照に便利です。",
     noEntries: "参照ディレクトリは未設定です。",
     addDirTitle: "参照ディレクトリを追加",
     pathPlaceholder: "/Users/me/ObsidianVault または ~/Documents/notes",
@@ -165,6 +168,9 @@ const jaMessages = {
     parseError: "パースエラー",
   },
   settingsMcpTab: {
+    explanation:
+      "外部 MCP サーバを追加します。HTTP サーバはすべてのモードで動作します。Stdio サーバはサンドボックスイメージの {npx} / {node} / {tsx} を使用します。Docker 有効時はパスはワークスペース内である必要があります。",
+    localhostRewrite: "Docker モードでは {localhost} は {hostDockerInternal} に書き換えられます。",
     noServers: "MCP サーバは未設定です。",
     enabled: "有効",
     urlLabel: "URL:",
@@ -250,6 +256,10 @@ const jaMessages = {
     addColumn: "列を追加",
     noMatchingFilter: "現在のフィルタに一致する項目はありません",
   },
+  todoPreview: {
+    completedRatio: "{done}/{total} 完了",
+    moreItems: "+ {count} 件…",
+  },
   todoDialogs: {
     addTitle: "Todo を追加",
     noneOption: "— なし —",
@@ -275,6 +285,13 @@ const jaMessages = {
   },
   pluginWiki: {
     backToIndex: "インデックスに戻る",
+    downloadPdf: "↓ PDF",
+    pdfLoadingLabel: "PDF",
+    pdfFailed: "⚠ PDF 失敗",
+    tabIndex: "インデックス",
+    tabLog: "ログ",
+    tabLint: "Lint",
+    empty: "Wiki は空です。Wiki Manager にソースの取り込みを依頼してください。",
   },
   pluginPresentHtml: {
     saveAsPdf: "PDF として保存（印刷ダイアログを開きます）",
@@ -411,18 +428,25 @@ const jaMessages = {
     copiedLabel: "コピーしました！",
   },
   pluginTextResponse: {
-    copyTooltip: "クリップボードにコピー",
-    copied: "コピーしました！",
-    edit: "編集",
-    save: "保存",
+    pdf: "PDF",
+    pdfFailed: "⚠ PDF 失敗",
+    editContent: "テキストを編集",
+    applyChanges: "変更を適用",
+    copyLabel: "コピー",
+    copiedLabel: "コピーしました！",
     cancel: "キャンセル",
-    downloadPdf: "PDF をダウンロード",
-    downloadingPdf: "PDF 生成中…",
   },
   pluginSpreadsheet: {
     valuePlaceholder: "値",
     valueOrFormulaPlaceholder: "値または数式（例: 100, SUM(B2:B11)）",
     formatPlaceholder: "書式（例: $#,##0.00）",
+    loading: "スプレッドシート読み込み中...",
+    noData: "スプレッドシートのデータがありません",
+    editData: "スプレッドシートデータを編集",
+    applyChanges: "変更を適用",
+    update: "更新",
+    stringType: "文字列",
+    formulaType: "数式",
   },
   app: {
     geminiRequired: "画像生成には {envKey} が必要です。{envFile} に追加してアプリを再起動してください。",
