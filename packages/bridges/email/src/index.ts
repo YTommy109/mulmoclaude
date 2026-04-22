@@ -21,11 +21,14 @@ import "dotenv/config";
 import { ImapFlow } from "imapflow";
 import { simpleParser, type ParsedMail } from "mailparser";
 import nodemailer from "nodemailer";
-import { createBridgeClient, chunkText } from "@mulmobridge/client";
+import { createBridgeClient } from "@mulmobridge/client";
 
 const TRANSPORT_ID = "email";
-const MAX_REPLY_LEN = 100_000;
+const MAX_BODY_LEN = 100_000; // truncate inbound email text before forwarding to MulmoClaude
+const MAX_REPLY_LEN = 100_000; // truncate outbound reply so SMTP servers don't bounce
 const DEFAULT_POLL_SEC = 30;
+const RECONNECT_BASE_MS = 2_000;
+const RECONNECT_MAX_MS = 60_000;
 
 const imapHost = process.env.EMAIL_IMAP_HOST;
 const imapUser = process.env.EMAIL_IMAP_USER;
@@ -114,6 +117,32 @@ function referenceChain(parsed: ParsedMail): string[] {
   return [];
 }
 
+// Named HTML entities worth decoding. Not exhaustive (&copy; / &reg;
+// etc. are left as-is) — just the ones that appear in normal text
+// and that make stripped HTML look garbled if left raw.
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity: string) => {
+    if (entity.startsWith("#x") || entity.startsWith("#X")) {
+      const code = parseInt(entity.slice(2), 16);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+    }
+    if (entity.startsWith("#")) {
+      const code = parseInt(entity.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+    }
+    return NAMED_ENTITIES[entity] ?? match;
+  });
+}
+
 function stripHtmlTags(html: string): string {
   // Char-by-char to avoid regex backtracking on malformed HTML.
   const out: string[] = [];
@@ -123,7 +152,10 @@ function stripHtmlTags(html: string): string {
     else if (char === ">") inTag = false;
     else if (!inTag) out.push(char);
   }
-  return out.join("").replace(/\n\s*\n\s*\n+/g, "\n\n");
+  // Decode entities after stripping tags: once the angle brackets are
+  // gone the escaped "<" / "&lt;" inside content renders as expected.
+  const textOnly = decodeHtmlEntities(out.join(""));
+  return textOnly.replace(/\n\s*\n\s*\n+/g, "\n\n");
 }
 
 function extractPlainBody(parsed: ParsedMail): string {
@@ -161,9 +193,12 @@ async function handleIncoming(msg: Incoming): Promise<void> {
   };
 
   try {
-    const chunks = chunkText(msg.text, MAX_REPLY_LEN);
-    const combined = chunks.join("");
-    const ack = await mulmo.send(msg.senderAddress, combined);
+    // Truncate oversize bodies before forwarding. Previously the code
+    // did `chunkText(msg.text, MAX_BODY_LEN).join("")` which is a
+    // no-op — chunk-then-rejoin returns the original string. Replaced
+    // with an explicit slice so the MAX_BODY_LEN cap actually bites.
+    const trimmed = msg.text.length > MAX_BODY_LEN ? msg.text.slice(0, MAX_BODY_LEN) + "\n\n…(input truncated)" : msg.text;
+    const ack = await mulmo.send(msg.senderAddress, trimmed);
     const statusSuffix = ack.status ? ` (${ack.status})` : "";
     const replyText = ack.ok ? (ack.reply ?? "") : `Error${statusSuffix}: ${ack.error ?? "unknown"}`;
     await sendReply(meta.recipient, meta.subject, meta.references, replyText);
@@ -196,25 +231,67 @@ async function processUnread(client: ImapFlow): Promise<void> {
   }
 }
 
-async function pollLoop(): Promise<void> {
-  const client = new ImapFlow({
+function makeImapClient(): ImapFlow {
+  return new ImapFlow({
     host: imapHost!,
     port: imapPort,
     secure: imapTls,
     auth: { user: imapUser!, pass: imapPass! },
     logger: false,
   });
+}
 
-  await client.connect();
-  console.log(`[email] IMAP connected ${imapHost}:${imapPort}`);
+function sleep(delayMs: number): Promise<void> {
+  return new Promise((done) => setTimeout(done, delayMs));
+}
+
+async function pollLoop(): Promise<void> {
+  // Reconnect loop. The previous single-client while(true) polled a
+  // dead connection after any IMAP server blip — auth failures,
+  // kernel socket resets, daemon restarts. We now keep a fresh
+  // client per connect attempt, back off exponentially when the
+  // connect itself fails, and reset the backoff on clean polls.
+  let backoffMs = RECONNECT_BASE_MS;
 
   while (true) {
+    const client = makeImapClient();
+    let closed = false;
+    // `close` fires on any disconnect — server-side hang-up, idle
+    // timeout, kernel reset. Flip the flag so the inner poll loop
+    // bails and the outer loop reconnects.
+    client.on("close", () => {
+      closed = true;
+    });
+    client.on("error", (err: Error) => {
+      console.error(`[email] IMAP connection error: ${err.message}`);
+    });
+
     try {
-      await processUnread(client);
+      await client.connect();
+      console.log(`[email] IMAP connected ${imapHost}:${imapPort}`);
+      backoffMs = RECONNECT_BASE_MS; // reset after a good connect
+
+      while (!closed) {
+        try {
+          await processUnread(client);
+        } catch (err) {
+          console.error(`[email] poll error: ${err}`);
+        }
+        await sleep(pollIntervalSec * 1_000);
+      }
+      console.warn("[email] IMAP connection closed, reconnecting");
     } catch (err) {
-      console.error(`[email] poll error: ${err}`);
+      console.error(`[email] IMAP connect failed: ${err instanceof Error ? err.message : String(err)} — retry in ${backoffMs}ms`);
+      await sleep(backoffMs);
+      backoffMs = Math.min(backoffMs * 2, RECONNECT_MAX_MS);
+      continue;
+    } finally {
+      try {
+        await client.logout();
+      } catch {
+        /* already dead */
+      }
     }
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, pollIntervalSec * 1_000));
   }
 }
 

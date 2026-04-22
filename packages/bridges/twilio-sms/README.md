@@ -45,7 +45,8 @@ Text the Twilio number — you'll get a reply.
 | `TWILIO_AUTH_TOKEN`      | yes         | —       | Twilio Auth Token (used for REST + signature verification) |
 | `TWILIO_FROM_NUMBER`     | yes         | —       | Your Twilio number in E.164, e.g. `+15551234567` |
 | `TWILIO_WEBHOOK_PORT`    | no          | `3010`  | HTTP port |
-| `TWILIO_PUBLIC_URL`      | recommended | —       | Full public URL of the `/sms` endpoint (e.g. `https://abcd.ngrok-free.app`). Required to verify Twilio's `X-Twilio-Signature`. Without it, signature verification is skipped with a warning (dev-only). |
+| `TWILIO_PUBLIC_URL`      | yes (prod)  | —       | Full public URL the bridge is reachable at (e.g. `https://abcd.ngrok-free.app`, including any query string Twilio signs). Required to verify Twilio's `X-Twilio-Signature`. The bridge refuses to start without it unless `TWILIO_ALLOW_UNVERIFIED=1` is also set. |
+| `TWILIO_ALLOW_UNVERIFIED`| no          | —       | Set to `1` to skip signature verification (local testing only). Prints a loud warning and leaves `/sms` wide open. Do **not** set in production. |
 | `TWILIO_ALLOWED_NUMBERS` | no          | (all)   | CSV of sender E.164 numbers allowed (empty = accept every number) |
 | `MULMOCLAUDE_AUTH_TOKEN` | no          | auto    | MulmoClaude bearer token override |
 | `MULMOCLAUDE_API_URL`    | no          | `http://localhost:3001` | MulmoClaude server URL |
@@ -53,7 +54,7 @@ Text the Twilio number — you'll get a reply.
 ## How it works
 
 1. Twilio posts form-encoded `From`, `To`, `Body`, `MessageSid` to `/sms` every time an SMS arrives.
-2. The bridge verifies `X-Twilio-Signature` (HMAC-SHA1 over URL + sorted params) using the auth token — if `TWILIO_PUBLIC_URL` is set.
+2. The bridge verifies `X-Twilio-Signature` (HMAC-SHA1 over the full URL — including query string — + sorted form params) using the auth token. `TWILIO_PUBLIC_URL` must match the URL Twilio sees (scheme + host + optional path prefix); the request's actual query string is read from `req.originalUrl`.
 3. We ACK `204` immediately so Twilio doesn't retry, then (asynchronously) forward the trimmed body to MulmoClaude keyed by the sender's number.
 4. The reply is sent back via `POST /2010-04-01/Accounts/{SID}/Messages.json` with Basic auth; long replies are chunked at 1 600 chars (Twilio's concatenated-SMS ceiling).
 

@@ -15,8 +15,13 @@
 // Optional:
 //   TWILIO_WEBHOOK_PORT    — HTTP port (default 3010)
 //   TWILIO_PUBLIC_URL      — Full public URL of /sms, used for signature
-//                            verification. If unset, verification is
-//                            skipped with a warning (dev mode only).
+//                            verification. Required by default; the
+//                            bridge refuses to start without it unless
+//                            TWILIO_ALLOW_UNVERIFIED=1 is also set
+//                            (dev-only escape hatch).
+//   TWILIO_ALLOW_UNVERIFIED — When "1", skip signature verification.
+//                            Only for local testing — prints a loud
+//                            warning and leaves /sms wide open.
 //   TWILIO_ALLOWED_NUMBERS — CSV of sender numbers allowed (empty = all)
 
 import "dotenv/config";
@@ -38,6 +43,18 @@ if (!accountSid || !authToken || !fromNumber) {
 }
 
 const publicUrl = process.env.TWILIO_PUBLIC_URL?.replace(/\/$/, "");
+const allowUnverified = process.env.TWILIO_ALLOW_UNVERIFIED === "1";
+if (!publicUrl && !allowUnverified) {
+  console.error(
+    "TWILIO_PUBLIC_URL is required for X-Twilio-Signature verification.\n" +
+      "For local testing only, you can set TWILIO_ALLOW_UNVERIFIED=1 to skip\n" +
+      "verification — but never in production (open webhook).",
+  );
+  process.exit(1);
+}
+if (!publicUrl && allowUnverified) {
+  console.warn("[twilio-sms] ⚠ TWILIO_ALLOW_UNVERIFIED=1 — signature verification DISABLED. Use only in local testing.");
+}
 const allowedNumbers = new Set(
   (process.env.TWILIO_ALLOWED_NUMBERS ?? "")
     .split(",")
@@ -148,13 +165,16 @@ app.post("/sms", async (req: Request, res: ExpressResponse) => {
   if (publicUrl) {
     const sig = typeof req.headers["x-twilio-signature"] === "string" ? req.headers["x-twilio-signature"] : "";
     const params = stringifyParams(req.body as Record<string, unknown>);
-    if (!sig || !signatureValid(`${publicUrl}/sms`, params, sig)) {
+    // Twilio signs the *full* URL it POSTed to — including query string.
+    // `req.originalUrl` keeps the querystring that Twilio saw, whereas
+    // `req.path` is just "/sms". Without this, any webhook URL with a
+    // query parameter (e.g. ?env=prod) would fail verification.
+    const fullUrl = `${publicUrl}${req.originalUrl}`;
+    if (!sig || !signatureValid(fullUrl, params, sig)) {
       console.warn("[twilio-sms] AUTH_FAILED: X-Twilio-Signature mismatch");
       res.status(401).send("Invalid signature");
       return;
     }
-  } else {
-    console.warn("[twilio-sms] signature verification skipped (set TWILIO_PUBLIC_URL in production)");
   }
 
   // ACK right away so Twilio doesn't retry; we'll send the reply asynchronously.
