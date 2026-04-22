@@ -671,17 +671,28 @@ const { handler: handleClickOutsideHistory } = useClickOutside({
 
 // Route workspace-internal links (wiki pages, files, sessions) to the
 // appropriate canvas view. Called from plugin Views via AppApi.
+//
+// Use a single router.push instead of setCanvasViewMode + router.push
+// to avoid double navigation entries. The route watcher in
+// useCanvasViewMode updates canvasViewMode from route.query.view.
 function navigateToWorkspacePath(href: string): void {
   const target = classifyWorkspacePath(href);
   if (!target) return;
+
+  // Clean view-specific query params before building the new query.
+  const query: Record<string, string> = {};
+  for (const [key, val] of Object.entries(route.query)) {
+    if (key !== "path" && key !== "page" && typeof val === "string") {
+      query[key] = val;
+    }
+  }
+
   switch (target.kind) {
     case "wiki":
-      setCanvasViewMode(CANVAS_VIEW.wiki);
-      router.push({ query: { ...buildViewQuery(), view: CANVAS_VIEW.wiki, page: target.slug } }).catch(() => {});
+      router.push({ query: { ...query, view: CANVAS_VIEW.wiki, page: target.slug } }).catch(() => {});
       break;
     case "file":
-      setCanvasViewMode(CANVAS_VIEW.files);
-      router.push({ query: { ...buildViewQuery(), view: CANVAS_VIEW.files, path: target.path } }).catch(() => {});
+      router.push({ query: { ...query, view: CANVAS_VIEW.files, path: target.path } }).catch(() => {});
       break;
     case "session":
       handleSessionSelect(target.sessionId);

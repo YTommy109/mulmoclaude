@@ -173,8 +173,8 @@ function openLinksInNewTab(event: MouseEvent): void {
   if (!anchor) return;
   const href = anchor.getAttribute("href");
   if (!href || href.startsWith("#")) return;
-  event.preventDefault();
   if (classifyWorkspacePath(href)) {
+    event.preventDefault();
     appApi.navigateToWorkspacePath(href);
   }
 }
