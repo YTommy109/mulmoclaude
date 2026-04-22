@@ -12,6 +12,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 - `@mulmobridge/mastodon` (v0.1.0) — Mastodon bridge. Subscribes to the user notification stream (WebSocket), handles DMs and optionally public mentions, inherits visibility on reply, forwards image attachments.
 - `@mulmobridge/bluesky` (v0.1.0) — Bluesky bridge. Polls `chat.bsky.convo.getLog` via the atproto-proxy header, forwards DMs, auto-refreshes the session JWT on 401.
+- `@mulmobridge/chatwork` (v0.1.0) — Chatwork bridge (Japanese business chat). Polls unread messages per room via REST, sends replies back, strips Chatwork markup before forwarding.
+- `@mulmobridge/xmpp` (v0.1.0) — XMPP / Jabber bridge. Connects with JID + password to any XMPP server over TLS, handles `type=chat` message stanzas.
 
 ---
 

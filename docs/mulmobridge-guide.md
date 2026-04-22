@@ -96,6 +96,8 @@ TELEGRAM_ALLOWED_CHAT_IDS=your-chat-id \
 | **Google Chat** | [@mulmobridge/google-chat](https://www.npmjs.com/package/@mulmobridge/google-chat) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/google-chat/README.md) |
 | **Mastodon** | [@mulmobridge/mastodon](https://www.npmjs.com/package/@mulmobridge/mastodon) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/mastodon/README.md) |
 | **Bluesky** | [@mulmobridge/bluesky](https://www.npmjs.com/package/@mulmobridge/bluesky) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/bluesky/README.md) |
+| **Chatwork** | [@mulmobridge/chatwork](https://www.npmjs.com/package/@mulmobridge/chatwork) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/chatwork/README.md) |
+| **XMPP / Jabber** | [@mulmobridge/xmpp](https://www.npmjs.com/package/@mulmobridge/xmpp) | 実験的 | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/xmpp/README.md) |
 
 > **「実験的」とは？** テストが十分でなく、バグがある可能性があります。フィードバックをお待ちしています！
 
@@ -227,6 +229,8 @@ if (ack.ok) {
 | [@mulmobridge/google-chat](https://www.npmjs.com/package/@mulmobridge/google-chat) | Google Chat ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/google-chat) |
 | [@mulmobridge/mastodon](https://www.npmjs.com/package/@mulmobridge/mastodon) | Mastodon ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/mastodon) |
 | [@mulmobridge/bluesky](https://www.npmjs.com/package/@mulmobridge/bluesky) | Bluesky ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/bluesky) |
+| [@mulmobridge/chatwork](https://www.npmjs.com/package/@mulmobridge/chatwork) | Chatwork ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/chatwork) |
+| [@mulmobridge/xmpp](https://www.npmjs.com/package/@mulmobridge/xmpp) | XMPP / Jabber ブリッジ | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/xmpp) |
 
 ### 汎用ツール（@receptron スコープ）
 

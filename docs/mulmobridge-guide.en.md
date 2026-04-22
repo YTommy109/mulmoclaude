@@ -92,6 +92,8 @@ Detailed setup: [Telegram README](https://github.com/receptron/mulmoclaude/blob/
 | **IRC** | [@mulmobridge/irc](https://www.npmjs.com/package/@mulmobridge/irc) | Experimental | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/irc/README.md) |
 | **Mastodon** | [@mulmobridge/mastodon](https://www.npmjs.com/package/@mulmobridge/mastodon) | Experimental | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/mastodon/README.md) |
 | **Bluesky** | [@mulmobridge/bluesky](https://www.npmjs.com/package/@mulmobridge/bluesky) | Experimental | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/bluesky/README.md) |
+| **Chatwork** | [@mulmobridge/chatwork](https://www.npmjs.com/package/@mulmobridge/chatwork) | Experimental | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/chatwork/README.md) |
+| **XMPP / Jabber** | [@mulmobridge/xmpp](https://www.npmjs.com/package/@mulmobridge/xmpp) | Experimental | [README](https://github.com/receptron/mulmoclaude/blob/main/packages/bridges/xmpp/README.md) |
 
 > **"Experimental" means** testing is limited and bugs are likely. Your feedback is very welcome!
 
@@ -198,6 +200,8 @@ Bridges are ~100 lines. See the [Bridge Protocol](bridge-protocol.md) for the wi
 | [@mulmobridge/irc](https://www.npmjs.com/package/@mulmobridge/irc) | IRC bridge | [npm](https://www.npmjs.com/package/@mulmobridge/irc) | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/irc) |
 | [@mulmobridge/mastodon](https://www.npmjs.com/package/@mulmobridge/mastodon) | Mastodon bridge | [npm](https://www.npmjs.com/package/@mulmobridge/mastodon) | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/mastodon) |
 | [@mulmobridge/bluesky](https://www.npmjs.com/package/@mulmobridge/bluesky) | Bluesky bridge | [npm](https://www.npmjs.com/package/@mulmobridge/bluesky) | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/bluesky) |
+| [@mulmobridge/chatwork](https://www.npmjs.com/package/@mulmobridge/chatwork) | Chatwork bridge | [npm](https://www.npmjs.com/package/@mulmobridge/chatwork) | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/chatwork) |
+| [@mulmobridge/xmpp](https://www.npmjs.com/package/@mulmobridge/xmpp) | XMPP / Jabber bridge | [npm](https://www.npmjs.com/package/@mulmobridge/xmpp) | [source](https://github.com/receptron/mulmoclaude/tree/main/packages/bridges/xmpp) |
 
 ### General tools (@receptron scope)
 
