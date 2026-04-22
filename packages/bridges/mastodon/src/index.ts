@@ -49,6 +49,7 @@ const dmOnly = (process.env.MASTODON_DM_ONLY ?? "true").toLowerCase() !== "false
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });
 const apiBase = `${instanceUrl.replace(/\/$/, "")}/api/v1`;
 const streamUrl = `${instanceUrl.replace(/^http/, "ws").replace(/\/$/, "")}/api/v1/streaming?stream=user:notification&access_token=${encodeURIComponent(accessToken)}`;
+let reconnectBackoffMs = RECONNECT_BASE_MS;
 
 mulmo.onPush((pushEvent) => {
   postStatus(pushEvent.chatId, pushEvent.message, null, "direct").catch((err) => console.error(`[mastodon] push send failed: ${err}`));
@@ -63,12 +64,16 @@ function isObj(value: unknown): value is JsonRecord {
 }
 
 interface PostStatusOptions {
+  chatId: string;
   inReplyTo: string | null;
   visibility: string;
 }
 
 async function postOneStatus(chunk: string, opts: PostStatusOptions): Promise<string | null> {
-  const body: JsonRecord = { status: chunk, visibility: opts.visibility };
+  // Proactive direct messages need an explicit mention target; reply posts
+  // inherit recipients from the parent status via in_reply_to_id.
+  const statusText = !opts.inReplyTo && opts.visibility === "direct" && opts.chatId ? `@${opts.chatId} ${chunk}` : chunk;
+  const body: JsonRecord = { status: statusText, visibility: opts.visibility };
   if (opts.inReplyTo) body.in_reply_to_id = opts.inReplyTo;
   let res: Response;
   try {
@@ -93,13 +98,13 @@ async function postOneStatus(chunk: string, opts: PostStatusOptions): Promise<st
   return null;
 }
 
-async function postStatus(__chatId: string, text: string, inReplyTo: string | null, visibility: string): Promise<void> {
+async function postStatus(chatId: string, text: string, inReplyTo: string | null, visibility: string): Promise<void> {
   // Thread chunk 2+ onto the previous chunk so clients render them as a
   // readable reply chain rather than N parallel replies to the original.
   const chunks = chunkText(text, MAX_STATUS_LEN);
   let prevId: string | null = inReplyTo;
   for (const chunk of chunks) {
-    const postedId = await postOneStatus(chunk, { inReplyTo: prevId, visibility });
+    const postedId = await postOneStatus(chunk, { chatId, inReplyTo: prevId, visibility });
     if (postedId) prevId = postedId;
   }
 }
@@ -256,11 +261,10 @@ function parseFrame(raw: unknown): StreamFrame | null {
 
 function connect(): void {
   const socket = new WebSocket(streamUrl);
-  let backoffMs = RECONNECT_BASE_MS;
 
   socket.on("open", () => {
     console.log(`[mastodon] stream connected: ${instanceUrl}`);
-    backoffMs = RECONNECT_BASE_MS;
+    reconnectBackoffMs = RECONNECT_BASE_MS;
   });
 
   socket.on("message", (buffer) => {
@@ -274,11 +278,12 @@ function connect(): void {
   });
 
   socket.on("close", (code, reason) => {
-    console.warn(`[mastodon] stream closed code=${code} reason=${reason.toString().slice(0, 100)}; reconnecting in ${backoffMs}ms`);
+    const retryDelayMs = reconnectBackoffMs;
+    console.warn(`[mastodon] stream closed code=${code} reason=${reason.toString().slice(0, 100)}; reconnecting in ${retryDelayMs}ms`);
     setTimeout(() => {
-      backoffMs = Math.min(backoffMs * 2, RECONNECT_MAX_MS);
+      reconnectBackoffMs = Math.min(reconnectBackoffMs * 2, RECONNECT_MAX_MS);
       connect();
-    }, backoffMs);
+    }, retryDelayMs);
   });
 }
 
