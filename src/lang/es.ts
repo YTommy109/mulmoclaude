@@ -316,8 +316,7 @@ const esMessages = {
   },
   pluginWiki: {
     backToIndex: "Volver al índice",
-    downloadPdf: "↓ PDF",
-    pdfLoadingLabel: "PDF",
+    pdf: "PDF",
     pdfFailed: "⚠ Error de PDF",
     tabIndex: "Índice",
     tabLog: "Registro",

@@ -313,8 +313,7 @@ const zhMessages = {
   },
   pluginWiki: {
     backToIndex: "返回目录",
-    downloadPdf: "↓ PDF",
-    pdfLoadingLabel: "PDF",
+    pdf: "PDF",
     pdfFailed: "⚠ PDF 失败",
     tabIndex: "目录",
     tabLog: "日志",

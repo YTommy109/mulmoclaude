@@ -315,8 +315,7 @@ const koMessages = {
   },
   pluginWiki: {
     backToIndex: "목차로 돌아가기",
-    downloadPdf: "↓ PDF",
-    pdfLoadingLabel: "PDF",
+    pdf: "PDF",
     pdfFailed: "⚠ PDF 실패",
     tabIndex: "목차",
     tabLog: "로그",
