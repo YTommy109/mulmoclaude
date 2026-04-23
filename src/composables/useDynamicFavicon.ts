@@ -1,54 +1,36 @@
-// Dynamic favicon that changes color based on agent state (#470).
+// Dynamic favicon that changes its backing color based on a rich
+// runtime context (#470 + palette expansion).
 //
-// Renders the MulmoClaude mascot on a colored rounded square. The
-// background color reflects state, and the mascot floats on top:
-//   idle (gray) → running (blue, pulse) → done (green) → error (red)
-//   notification badge (orange dot) overlaid when unread count > 0.
+// Color selection moved to `./favicon/resolveColor.ts`; this module
+// is now a thin canvas renderer that takes the already-resolved
+// color and paints it behind the mascot. The split keeps the pixel-
+// level drawing code and the rule chain independently testable.
 //
-// The logo PNG has an opaque white background, which would otherwise
-// hide the state color. On first load we pre-process the pixels,
-// punching out near-white pixels to transparency so the colored
-// backing shows through. The processed image is cached as an
-// offscreen canvas for the lifetime of the page.
-//
-// If the logo fails to load we fall back to the earlier "M"-letter
-// variant so the tab icon never disappears entirely.
+// Rendering details:
+// - The logo PNG has an opaque white background; on first load we
+//   pre-process the pixels, punching near-white to transparency so
+//   the resolved color shows through.
+// - If the PNG fails to load we fall back to a plain colored square
+//   with the letter "M" so the tab icon never blanks out.
 
 import { watch, type Ref, type ComputedRef } from "vue";
 import logoUrl from "../assets/mulmo_bw.png";
 
-export const FAVICON_STATES = {
-  idle: "idle",
-  running: "running",
-  done: "done",
-  error: "error",
-} as const;
-
-export type FaviconState = (typeof FAVICON_STATES)[keyof typeof FAVICON_STATES];
-
-const STATE_COLORS: Record<FaviconState, string> = {
-  idle: "#6B7280", // gray-500
-  running: "#3B82F6", // blue-500
-  done: "#22C55E", // green-500
-  error: "#EF4444", // red-500
-};
-
-const NOTIFICATION_DOT_COLOR = "#DC2626"; // red-600 — stands out against the gray/blue/green state backgrounds
+// Keep the palette-independent display constants local to this file
+// — they describe pixel geometry, not semantics.
+const NOTIFICATION_DOT_COLOR = "#DC2626"; // red-600
 const SIZE = 32;
 const RADIUS = 6;
-// How much of the inner rounded square the mascot fills. 2 px of
-// padding on each side keeps it off the rounded corners and leaves
-// room for the colored backing to peek around the outline.
+// How much of the rounded square the mascot fills. 2 px of padding
+// on each side keeps it off the rounded corners and leaves room for
+// the colored backing to peek around the outline.
 const MASCOT_INSET = 2;
 
 // Pixels whose RGB channels are all above this are treated as the
-// PNG's white backing and punched to transparent. The PNG uses a soft
-// pastel palette so the mascot itself never hits all three channels
-// this high.
+// PNG's white backing and punched to transparent. The PNG uses soft
+// pastels so the mascot itself never hits all three channels this
+// high.
 const WHITE_TO_ALPHA_THRESHOLD = 235;
-// Pixels in the [FEATHER_LOW, WHITE_TO_ALPHA_THRESHOLD] band get a
-// partial-alpha ramp so the mascot's anti-aliased outline blends with
-// the colored background instead of showing a hard seam.
 const FEATHER_LOW = 205;
 
 // ── Asset loading ──────────────────────────────────────────────
@@ -84,9 +66,6 @@ function decodeAndPunchOutWhite(): Promise<HTMLCanvasElement> {
   });
 }
 
-// Copy the decoded <img> into an offscreen canvas and scan every
-// pixel, replacing near-white with transparency. The PNG is opaque so
-// the background would otherwise cover the state color backing.
 function buildTransparentLogoCanvas(img: HTMLImageElement): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = img.naturalWidth;
@@ -102,10 +81,8 @@ function buildTransparentLogoCanvas(img: HTMLImageElement): HTMLCanvasElement {
     const blue = pixels[i + 2];
     const minChannel = Math.min(red, green, blue);
     if (minChannel >= WHITE_TO_ALPHA_THRESHOLD) {
-      pixels[i + 3] = 0; // fully transparent
+      pixels[i + 3] = 0;
     } else if (minChannel >= FEATHER_LOW) {
-      // Linear ramp across the feather band. At minChannel = FEATHER_LOW
-      // alpha stays 255; at threshold it drops to 0.
       const ratio = (minChannel - FEATHER_LOW) / (WHITE_TO_ALPHA_THRESHOLD - FEATHER_LOW);
       pixels[i + 3] = Math.round(255 * (1 - ratio));
     }
@@ -130,8 +107,6 @@ function drawRoundedRect(ctx: CanvasRenderingContext2D, posX: number, posY: numb
   ctx.closePath();
 }
 
-// Aspect-preserving letterbox: scale the logo to fit the inner area
-// without distorting the mascot, then center the leftover space.
 function drawLogoCentered(ctx: CanvasRenderingContext2D, source: HTMLCanvasElement, inset: number): void {
   const available = SIZE - inset * 2;
   const aspect = source.width / source.height;
@@ -157,12 +132,9 @@ function drawNotificationDot(ctx: CanvasRenderingContext2D): void {
 
 // ── Composition ────────────────────────────────────────────────
 
-// Fallback for when the logo PNG fails to decode (or before the first
-// decode completes). Mirrors the earlier "M"-on-colored-square design
-// so the favicon always has a valid first paint.
-function renderFallbackFavicon(ctx: CanvasRenderingContext2D, state: FaviconState, hasNotification: boolean): void {
+function renderFallbackFavicon(ctx: CanvasRenderingContext2D, color: string, hasNotification: boolean): void {
   drawRoundedRect(ctx, 1, 1, SIZE - 2, SIZE - 2, RADIUS);
-  ctx.fillStyle = STATE_COLORS[state];
+  ctx.fillStyle = color;
   ctx.fill();
 
   ctx.fillStyle = "white";
@@ -174,23 +146,21 @@ function renderFallbackFavicon(ctx: CanvasRenderingContext2D, state: FaviconStat
   if (hasNotification) drawNotificationDot(ctx);
 }
 
-function renderLogoFavicon(ctx: CanvasRenderingContext2D, logo: HTMLCanvasElement, state: FaviconState, hasNotification: boolean): void {
-  // Colored rounded-square backing — the dynamic cue.
+function renderLogoFavicon(ctx: CanvasRenderingContext2D, logo: HTMLCanvasElement, color: string, isRunning: boolean, hasNotification: boolean): void {
   drawRoundedRect(ctx, 0, 0, SIZE, SIZE, RADIUS);
-  ctx.fillStyle = STATE_COLORS[state];
+  ctx.fillStyle = color;
   ctx.fill();
 
-  // Clip subsequent draws to the rounded square so the mascot's
-  // anti-aliased edges don't spill past the corners.
   ctx.save();
   drawRoundedRect(ctx, 0, 0, SIZE, SIZE, RADIUS);
   ctx.clip();
   drawLogoCentered(ctx, logo, MASCOT_INSET);
   ctx.restore();
 
-  // Running state: subtle inner glow ring reinforces the pulse cue
-  // without overpowering the colored backing.
-  if (state === FAVICON_STATES.running) {
+  // Running glow — kept at a fixed white/translucent ring so it reads
+  // against any resolved color (blue, cyan, orange, whatever) rather
+  // than having to retune per palette entry.
+  if (isRunning) {
     ctx.strokeStyle = "rgba(255, 255, 255, 0.55)";
     ctx.lineWidth = 1.5;
     drawRoundedRect(ctx, 2.25, 2.25, SIZE - 4.5, SIZE - 4.5, Math.max(RADIUS - 1, 2));
@@ -200,7 +170,7 @@ function renderLogoFavicon(ctx: CanvasRenderingContext2D, logo: HTMLCanvasElemen
   if (hasNotification) drawNotificationDot(ctx);
 }
 
-async function renderFavicon(state: FaviconState, hasNotification: boolean): Promise<string> {
+async function renderFavicon(color: string, isRunning: boolean, hasNotification: boolean): Promise<string> {
   const canvas = document.createElement("canvas");
   canvas.width = SIZE;
   canvas.height = SIZE;
@@ -210,14 +180,14 @@ async function renderFavicon(state: FaviconState, hasNotification: boolean): Pro
   if (!logoLoadFailed) {
     try {
       const logo = await loadLogo();
-      renderLogoFavicon(ctx, logo, state, hasNotification);
+      renderLogoFavicon(ctx, logo, color, isRunning, hasNotification);
       return canvas.toDataURL("image/png");
     } catch {
-      // fall through — renderFallbackFavicon below handles it.
+      // fall through to the fallback path
     }
   }
 
-  renderFallbackFavicon(ctx, state, hasNotification);
+  renderFallbackFavicon(ctx, color, hasNotification);
   return canvas.toDataURL("image/png");
 }
 
@@ -234,17 +204,27 @@ function applyFavicon(dataUrl: string): void {
   link.href = dataUrl;
 }
 
-export function useDynamicFavicon(opts: { state: Ref<FaviconState> | ComputedRef<FaviconState>; hasNotification: Ref<boolean> | ComputedRef<boolean> }): void {
+export interface DynamicFaviconOpts {
+  color: Ref<string> | ComputedRef<string>;
+  isRunning: Ref<boolean> | ComputedRef<boolean>;
+  hasNotification: Ref<boolean> | ComputedRef<boolean>;
+}
+
+export function useDynamicFavicon(opts: DynamicFaviconOpts): void {
   async function update(): Promise<void> {
-    const dataUrl = await renderFavicon(opts.state.value, opts.hasNotification.value);
+    const dataUrl = await renderFavicon(opts.color.value, opts.isRunning.value, opts.hasNotification.value);
     applyFavicon(dataUrl);
   }
 
   watch(
-    [opts.state, opts.hasNotification],
+    [opts.color, opts.isRunning, opts.hasNotification],
     () => {
       update().catch((err) => console.warn("[favicon] render failed", err));
     },
     { immediate: true },
   );
 }
+
+// Re-export the state enum from the new location so existing callers
+// continue to import from this file during the transition period.
+export { FAVICON_STATES, type FaviconState } from "./favicon/types";

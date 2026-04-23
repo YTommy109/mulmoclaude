@@ -330,7 +330,7 @@ const { markSessionRead } = useSessionSync({
   currentSessionId,
   fetchSessions,
 });
-const { geminiAvailable, sandboxEnabled, fetchHealth } = useHealth();
+const { geminiAvailable, sandboxEnabled, cpuLoadRatio, fetchHealth } = useHealth();
 
 const { activeSession, toolResults, sidebarResults, currentSummary, isRunning, statusMessage, toolCallHistory, activeSessionCount, unreadCount } =
   useSessionDerived({ sessionMap, currentSessionId, sessions });
@@ -345,7 +345,7 @@ const { selectedResultUuid } = useSelectedResult({
 // `unreadCount` covers every session (not just the active tab), so
 // the favicon badge lights up when a background session gets a new
 // reply even though the user is looking at a different session.
-useFaviconState({ isRunning, currentSummary, activeSession, sessionsUnreadCount: unreadCount });
+useFaviconState({ isRunning, currentSummary, activeSession, sessionsUnreadCount: unreadCount, cpuLoadRatio });
 
 const toolResultsPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
