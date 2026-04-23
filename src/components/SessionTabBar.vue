@@ -34,6 +34,7 @@
             v-if="originGlyph(sessions[i - 1].origin)"
             role="img"
             class="absolute -top-[3px] -right-[5px] w-3.5 h-3.5 rounded-full bg-white ring-1 ring-gray-300 flex items-center justify-center"
+            :title="originTooltip(sessions[i - 1].origin)"
             :aria-label="originTooltip(sessions[i - 1].origin)"
           >
             <span class="material-icons !text-[10px] leading-none text-gray-500" aria-hidden="true">{{ originGlyph(sessions[i - 1].origin) }}</span>
@@ -135,14 +136,11 @@ function tabLabel(session: SessionSummary): string {
   return roleName(props.roles, session.roleId);
 }
 
-// Tooltip on the tab button itself. Combines the origin name
-// (so mouse users hovering can see "Started by scheduler" — the
-// glyph aria-label is not exposed as a native tooltip) with the
-// session summary / preview / role fallback chain.
+// Tooltip on the tab button itself — session summary / preview /
+// role fallback only. Origin ("Started by scheduler") lives on the
+// origin badge's own tooltip so the two don't duplicate.
 function tabTooltip(session: SessionSummary): string {
-  const body = session.summary || session.preview || roleName(props.roles, session.roleId);
-  const origin = originTooltip(session.origin);
-  return origin ? `${origin} · ${body}` : body;
+  return session.summary || session.preview || roleName(props.roles, session.roleId);
 }
 
 // Material-icons glyph for the origin badge overlaid on non-human
