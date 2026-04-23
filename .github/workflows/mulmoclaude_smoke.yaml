@@ -106,6 +106,32 @@ jobs:
           DISABLE_SANDBOX: "1"
         run: node scripts/mulmoclaude/smoke.mjs
 
+      # Preserve the smoke-verified tarball as a downloadable
+      # artifact. tarball.mjs packs the launcher into
+      # packages/mulmoclaude/mulmoclaude-<X.Y.Z>.tgz and leaves it
+      # in place after a successful HTTP 200 probe — so what you
+      # grab here is exactly the tarball that just booted cleanly
+      # in a clean dir, with prepare-dist applied.
+      #
+      # Use case: a release engineer can download the artifact
+      # straight from the Actions run page and run
+      # `npx <downloaded>.tgz` locally to validate the UX before
+      # publishing, without having to rebuild the whole repo. CI
+      # fail paths also upload because the launcher log artifact
+      # alone isn't enough to reproduce — having the .tgz too
+      # lets you retry the install locally.
+      - name: Upload smoke-verified tarball
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mulmoclaude-tarball
+          path: packages/mulmoclaude/mulmoclaude-*.tgz
+          if-no-files-found: ignore
+          # Slightly longer than the launcher log — tarballs are
+          # useful for "did v0.4.1 actually work?" forensics weeks
+          # out, whereas a boot log goes stale fast.
+          retention-days: 30
+
       # Launcher stdout/stderr teed to /tmp/mc-smoke-*/launcher.log
       # by the tarball stage. Upload so a failed boot is diagnosable
       # without re-running locally. `if-no-files-found: ignore`
