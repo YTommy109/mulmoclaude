@@ -58,6 +58,7 @@ const zhMessages = {
     running: "运行中",
     unread: "未读",
     noMessages: "(无消息)",
+    openRowAria: "打开会话: {preview}",
   },
   notificationBell: {
     notifications: "通知",
@@ -320,9 +321,12 @@ const zhMessages = {
     deleteColumn: "删除列",
     columnActions: "列操作",
     addCard: "+ 添加卡片",
+    openCardAria: "打开任务: {task}",
   },
   todoTableList: {
     noMatchingFilter: "没有项目匹配当前筛选",
+    sortColumnAria: "按 {column} 排序",
+    expandRowAria: "展开任务: {task}",
   },
   pluginWiki: {
     backToIndex: "返回目录",

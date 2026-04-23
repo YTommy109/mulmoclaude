@@ -60,6 +60,7 @@ const jaMessages = {
     running: "実行中",
     unread: "未読",
     noMessages: "（メッセージなし）",
+    openRowAria: "セッションを開く: {preview}",
   },
   notificationBell: {
     notifications: "通知",
@@ -323,9 +324,12 @@ const jaMessages = {
     deleteColumn: "列を削除",
     columnActions: "列のアクション",
     addCard: "+ カードを追加",
+    openCardAria: "タスクを開く: {task}",
   },
   todoTableList: {
     noMatchingFilter: "現在のフィルタに一致する項目はありません",
+    sortColumnAria: "{column} で並べ替え",
+    expandRowAria: "タスクを展開: {task}",
   },
   pluginWiki: {
     backToIndex: "インデックスに戻る",

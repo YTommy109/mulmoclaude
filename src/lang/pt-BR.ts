@@ -53,6 +53,7 @@ const ptBRMessages = {
     running: "Em execução",
     unread: "Não lida",
     noMessages: "(sem mensagens)",
+    openRowAria: "Abrir sessão: {preview}",
   },
   notificationBell: {
     notifications: "Notificações",
@@ -318,9 +319,12 @@ const ptBRMessages = {
     deleteColumn: "Excluir coluna",
     columnActions: "Ações da coluna",
     addCard: "+ Adicionar cartão",
+    openCardAria: "Abrir tarefa: {task}",
   },
   todoTableList: {
     noMatchingFilter: "Nenhum item corresponde ao filtro atual",
+    sortColumnAria: "Ordenar por {column}",
+    expandRowAria: "Expandir tarefa: {task}",
   },
   pluginWiki: {
     backToIndex: "Voltar ao índice",

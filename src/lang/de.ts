@@ -53,6 +53,7 @@ const deMessages = {
     running: "Läuft",
     unread: "Ungelesen",
     noMessages: "(keine Nachrichten)",
+    openRowAria: "Sitzung öffnen: {preview}",
   },
   notificationBell: {
     notifications: "Benachrichtigungen",
@@ -319,9 +320,12 @@ const deMessages = {
     deleteColumn: "Spalte löschen",
     columnActions: "Spaltenaktionen",
     addCard: "+ Karte hinzufügen",
+    openCardAria: "Aufgabe öffnen: {task}",
   },
   todoTableList: {
     noMatchingFilter: "Keine Einträge passen zum aktuellen Filter",
+    sortColumnAria: "Nach {column} sortieren",
+    expandRowAria: "Aufgabe ausklappen: {task}",
   },
   pluginWiki: {
     backToIndex: "Zurück zum Index",

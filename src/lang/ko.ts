@@ -60,6 +60,7 @@ const koMessages = {
     running: "실행 중",
     unread: "읽지 않음",
     noMessages: "(메시지 없음)",
+    openRowAria: "세션 열기: {preview}",
   },
   notificationBell: {
     notifications: "알림",
@@ -323,9 +324,12 @@ const koMessages = {
     deleteColumn: "칼럼 삭제",
     columnActions: "칼럼 작업",
     addCard: "+ 카드 추가",
+    openCardAria: "작업 열기: {task}",
   },
   todoTableList: {
     noMatchingFilter: "현재 필터와 일치하는 항목이 없습니다",
+    sortColumnAria: "{column} 기준으로 정렬",
+    expandRowAria: "작업 펼치기: {task}",
   },
   pluginWiki: {
     backToIndex: "목차로 돌아가기",

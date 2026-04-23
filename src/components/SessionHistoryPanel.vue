@@ -35,10 +35,15 @@
       <div
         v-for="session in filteredSessions"
         :key="session.id"
-        class="cursor-pointer rounded border p-2 text-sm transition-colors"
+        tabindex="0"
+        role="button"
+        :aria-label="t('sessionHistoryPanel.openRowAria', { preview: session.preview || t('sessionHistoryPanel.noMessages') })"
+        class="cursor-pointer rounded border p-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
         :class="rowClasses(session)"
         :data-testid="`session-item-${session.id}`"
         @click="emit('loadSession', session.id)"
+        @keydown.enter.prevent.self="(e) => !e.repeat && emit('loadSession', session.id)"
+        @keydown.space.prevent.self="(e) => !e.repeat && emit('loadSession', session.id)"
       >
         <div class="flex items-center gap-1 text-xs text-gray-500 mb-1">
           <span class="material-icons text-xs">{{ roleIconFor(session.roleId) }}</span>

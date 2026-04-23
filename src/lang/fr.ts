@@ -53,6 +53,7 @@ const frMessages = {
     running: "En cours",
     unread: "Non lu",
     noMessages: "(aucun message)",
+    openRowAria: "Ouvrir la session : {preview}",
   },
   notificationBell: {
     notifications: "Notifications",
@@ -319,9 +320,12 @@ const frMessages = {
     deleteColumn: "Supprimer la colonne",
     columnActions: "Actions de colonne",
     addCard: "+ Ajouter une carte",
+    openCardAria: "Ouvrir la tâche : {task}",
   },
   todoTableList: {
     noMatchingFilter: "Aucun élément ne correspond au filtre actuel",
+    sortColumnAria: "Trier par {column}",
+    expandRowAria: "Développer la tâche : {task}",
   },
   pluginWiki: {
     backToIndex: "Retour à l'index",

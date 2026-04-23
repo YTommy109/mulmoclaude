@@ -75,6 +75,7 @@ const enMessages = {
     running: "Running",
     unread: "Unread",
     noMessages: "(no messages)",
+    openRowAria: "Open session: {preview}",
   },
   notificationBell: {
     notifications: "Notifications",
@@ -339,9 +340,12 @@ const enMessages = {
     deleteColumn: "Delete column",
     columnActions: "Column actions",
     addCard: "+ Add card",
+    openCardAria: "Open task: {task}",
   },
   todoTableList: {
     noMatchingFilter: "No items match the current filter",
+    sortColumnAria: "Sort by {column}",
+    expandRowAria: "Expand task: {task}",
   },
   pluginWiki: {
     backToIndex: "Back to index",

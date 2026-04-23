@@ -58,6 +58,7 @@ const esMessages = {
     running: "En ejecución",
     unread: "Sin leer",
     noMessages: "(sin mensajes)",
+    openRowAria: "Abrir sesión: {preview}",
   },
   notificationBell: {
     notifications: "Notificaciones",
@@ -324,9 +325,12 @@ const esMessages = {
     deleteColumn: "Eliminar columna",
     columnActions: "Acciones de columna",
     addCard: "+ Añadir tarjeta",
+    openCardAria: "Abrir tarea: {task}",
   },
   todoTableList: {
     noMatchingFilter: "Ningún elemento coincide con el filtro actual",
+    sortColumnAria: "Ordenar por {column}",
+    expandRowAria: "Expandir tarea: {task}",
   },
   pluginWiki: {
     backToIndex: "Volver al índice",
