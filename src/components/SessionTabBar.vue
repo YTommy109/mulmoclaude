@@ -18,17 +18,19 @@
         :data-testid="`session-tab-${sessions[i - 1].id}`"
         @click="emit('loadSession', sessions[i - 1].id)"
       >
-        <!-- Origin side-stripe — 2px colour accent on the left edge of
-             non-human-started sessions. Keeps the tab surface calm
-             (no second icon competing with the role glyph) while
-             still giving scheduler / skill / bridge a recognisable
-             signature. -->
+        <!-- Origin glyph — coloured material-icons mark at the
+             top-left for non-human-started sessions. Colour AND
+             shape together tell scheduler / skill / bridge apart
+             at a glance without forcing users to memorise a
+             colour legend. The tab `title` also spells it out
+             for hover / screen readers. -->
         <span
-          v-if="originStripeColor(sessions[i - 1].origin)"
-          class="absolute left-0 top-0 bottom-0 w-0.5"
-          :class="originStripeColor(sessions[i - 1].origin)"
+          v-if="originMeta(sessions[i - 1].origin)"
+          class="material-icons absolute top-0 left-0.5 leading-none text-[11px]"
+          :class="originMeta(sessions[i - 1].origin)!.color"
           :aria-label="originTooltip(sessions[i - 1].origin)"
-        />
+          >{{ originMeta(sessions[i - 1].origin)!.glyph }}</span
+        >
         <span
           class="material-icons text-base leading-none shrink-0"
           :class="[tabColor(sessions[i - 1]), sessions[i - 1].isRunning ? 'animate-spin [animation-duration:3s]' : '']"
@@ -122,19 +124,25 @@ function tabLabel(session: SessionSummary): string {
   return roleName(props.roles, session.roleId);
 }
 
+// Tooltip on the tab button itself. Combines the origin name
+// (so mouse users hovering can see "Started by scheduler" — the
+// glyph aria-label is not exposed as a native tooltip) with the
+// session summary / preview / role fallback chain.
 function tabTooltip(session: SessionSummary): string {
-  return session.summary || session.preview || roleName(props.roles, session.roleId);
+  const body = session.summary || session.preview || roleName(props.roles, session.roleId);
+  const origin = originTooltip(session.origin);
+  return origin ? `${origin} · ${body}` : body;
 }
 
-// Left-edge colour accent for non-human-started sessions. Keeps
-// the tab surface calm (no extra icon competing with the role
-// glyph) while still giving scheduler / skill / bridge tabs a
-// recognisable signature at a glance.
-function originStripeColor(origin: SessionOrigin | undefined): string | null {
+// Glyph + colour for the top-left origin mark on non-human
+// sessions. Material-icons names (shape) plus a tailwind text
+// colour together give scheduler / skill / bridge a recognisable
+// signature at a glance.
+function originMeta(origin: SessionOrigin | undefined): { glyph: string; color: string } | null {
   if (!origin || origin === SESSION_ORIGINS.human) return null;
-  if (origin === SESSION_ORIGINS.scheduler) return "bg-blue-400";
-  if (origin === SESSION_ORIGINS.skill) return "bg-emerald-400";
-  if (origin === SESSION_ORIGINS.bridge) return "bg-purple-400";
+  if (origin === SESSION_ORIGINS.scheduler) return { glyph: "schedule", color: "text-blue-500" };
+  if (origin === SESSION_ORIGINS.skill) return { glyph: "build", color: "text-emerald-500" };
+  if (origin === SESSION_ORIGINS.bridge) return { glyph: "sync_alt", color: "text-purple-500" };
   return null;
 }
 
