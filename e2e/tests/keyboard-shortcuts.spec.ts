@@ -106,4 +106,28 @@ test.describe("keyboard shortcuts (useEventListeners)", () => {
     const stored = await page.evaluate(() => localStorage.getItem("canvas_layout_mode"));
     expect(stored).toBe("single");
   });
+
+  test("Cmd/Ctrl+1 keeps the user's role selector pick when resuming a session (#701)", async ({ page }) => {
+    // The role selector is user-owned: only the dropdown mutates it.
+    // Resuming a session from another page must not yank the selector
+    // back to the session's own roleId.
+    //
+    // Fixture sessions are created with roleId "general". Change the
+    // selector to "artist" on /files, then Cmd+1 back to /chat and
+    // confirm the selector still shows "Artist" even though the
+    // resumed session is tagged "general".
+    await page.goto("/chat");
+    await page.waitForURL(/\/chat\//);
+
+    await page.goto("/files");
+    await expect(page).toHaveURL(/\/files/);
+
+    await page.getByTestId("role-selector-btn").click();
+    await page.getByTestId("role-option-artist").click();
+    await expect(page.getByTestId("role-selector-btn")).toContainText("Artist");
+
+    await pressShortcut(page, "1");
+    await expect(page).toHaveURL(/\/chat\//);
+    await expect(page.getByTestId("role-selector-btn")).toContainText("Artist");
+  });
 });

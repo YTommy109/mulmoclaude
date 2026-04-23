@@ -1,13 +1,13 @@
 {
   "name": "mulmoclaude",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "MulmoClaude — GUI-chat with Claude Code + long-term memory. One command to start.",
   "type": "module",
   "bin": {
     "mulmoclaude": "bin/mulmoclaude.js"
   },
   "scripts": {
-    "prepublishOnly": "node bin/prepare-dist.js",
+    "prepack": "node bin/prepare-dist.js",
     "typecheck": "echo \"mulmoclaude: no typecheck (launcher is plain JS; server and src are dist artifacts)\"",
     "test": "echo no tests yet"
   },
@@ -49,6 +49,9 @@
     "ws": "^8.20.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.3.6"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.1.0"
   },
   "engines": {
     "node": ">=20"

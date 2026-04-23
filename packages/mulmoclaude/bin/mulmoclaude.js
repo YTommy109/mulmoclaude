@@ -104,7 +104,7 @@ Options:
 }
 
 if (args.includes("--version")) {
-  console.log("mulmoclaude 0.3.0");
+  console.log("mulmoclaude 0.4.0");
   process.exit(0);
 }
 

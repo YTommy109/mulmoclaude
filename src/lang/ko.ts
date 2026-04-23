@@ -1,5 +1,10 @@
 // Korean dictionary. Mirror the shape of src/lang/en.ts —
 // missing keys fall back to English per createI18n's fallbackLocale.
+//
+// ⚠️ `<name>` 같은 꺾쇠 괄호가 들어간 문자열은 vue-i18n 의 XSS
+// 탐지에 걸려 "Detected HTML in '…' message" 경고가 발생하므로
+// 반드시 **함수 형식** 으로 작성한다. 자세한 내용은 en.ts 의
+// 헤더 주석 참고.
 
 const koMessages = {
   common: {
@@ -22,6 +27,12 @@ const koMessages = {
     // pluralization 규약에 맞추기 위해 `|` 구분자를 유지합니다.
     activeSessions: "활성 세션 {count}개 (에이전트 실행 중)",
     unreadReplies: "읽지 않은 답장 {count}개",
+    unreadDot: "새 답장",
+    origin: {
+      scheduler: "스케줄러에서 시작됨",
+      skill: "스킬에서 시작됨",
+      bridge: "브리지에서 시작됨",
+    },
   },
   chatInput: {
     placeholder: "작업을 입력하거나 파일을 드래그 / 붙여넣기 / 첨부하세요…",
@@ -36,6 +47,7 @@ const koMessages = {
   sessionHistoryPanel: {
     filters: {
       all: "전체",
+      unread: "읽지 않음",
       human: "사람",
       scheduler: "스케줄러",
       skill: "스킬",
@@ -48,6 +60,7 @@ const koMessages = {
     running: "실행 중",
     unread: "읽지 않음",
     noMessages: "(메시지 없음)",
+    openRowAria: "세션 열기: {preview}",
   },
   notificationBell: {
     notifications: "알림",
@@ -56,6 +69,7 @@ const koMessages = {
     dismiss: "닫기",
   },
   sidebarHeader: {
+    home: "최신 채팅으로 이동",
     toolCallHistory: "도구 호출 기록",
     settings: "설정",
   },
@@ -106,11 +120,18 @@ const koMessages = {
   settingsModal: {
     title: "설정",
     tabs: {
+      gemini: "Gemini API 키",
       tools: "허용된 도구",
       mcp: "MCP 서버",
       dirs: "디렉터리",
       refs: "참조 디렉터리",
     },
+    // `<i18n-t>` 슬롯 — `envKey` / `envFile` 은 SettingsModal.vue 에서
+    // 인라인 `<code>` 로 렌더링되므로 변수명·파일명은 번역하지 않고
+    // 남깁니다.
+    geminiRequired: "이미지 생성에는 {envKey} 가 필요합니다. {envFile} 에 추가하고 앱을 재시작해주세요.",
+    geminiAskButton: "Claude 에게 질문",
+    geminiAskMessage: "이 앱에서 Gemini API 키는 어떤 역할을 하나요?",
     toolNamesLabel: "도구 이름",
     invalidToolNamesPrefix: "다음은 비표준으로 보입니다 (예상 접두사",
     invalidToolNamesSuffix: "):",
@@ -153,6 +174,7 @@ const koMessages = {
     todos: { label: "할 일", title: "할 일 열기 (⌘4)" },
     scheduler: { label: "일정", title: "일정 열기 (⌘5)" },
     wiki: { label: "위키", title: "위키 열기 (⌘6)" },
+    sources: { label: "소스", title: "정보 소스 열기" },
     skills: { label: "스킬", title: "스킬 열기 (⌘7)" },
     roles: { label: "역할", title: "역할 열기 (⌘8)" },
     files: { label: "파일", title: "워크스페이스 파일 열기 (⌘3)" },
@@ -195,6 +217,7 @@ const koMessages = {
     errBadName: "이름은 소문자로 시작해야 하며 [a-z0-9_-] 만 포함할 수 있습니다.",
     errIdExists: '서버 id "{id}" 는 이미 존재합니다.',
     errBadHttpUrl: "HTTP URL 은 http:// 또는 https:// 로 시작해야 합니다",
+    pendingEntryWarning: "대기 중인 MCP 서버 항목을 완료하거나 취소하세요.",
   },
   pluginScheduler: {
     prev: "이전",
@@ -214,6 +237,7 @@ const koMessages = {
     update: "업데이트",
     editSource: "원본 편집",
     applyChanges: "변경 사항 적용",
+    yamlParseError: "YAML 을 파싱할 수 없습니다 — 'title' 이 포함되어 있는지 확인하세요",
     propLabel: "{key}:",
     moreCount: "+{count}개 더",
     previewIcon: "📅",
@@ -253,6 +277,7 @@ const koMessages = {
     clearFilters: "모든 필터 지우기",
     deleteItem: "항목 삭제",
     apiError: "⚠ 할 일 업데이트 실패: {error}",
+    loadFailed: "Todo 불러오기에 실패했습니다",
     heading: "할 일 목록",
     completedRatio: "{done}/{total} 완료",
     filter: "필터:",
@@ -309,9 +334,12 @@ const koMessages = {
     deleteColumn: "칼럼 삭제",
     columnActions: "칼럼 작업",
     addCard: "+ 카드 추가",
+    openCardAria: "작업 열기: {task}",
   },
   todoTableList: {
     noMatchingFilter: "현재 필터와 일치하는 항목이 없습니다",
+    sortColumnAria: "{column} 기준으로 정렬",
+    expandRowAria: "작업 펼치기: {task}",
   },
   pluginWiki: {
     backToIndex: "목차로 돌아가기",
@@ -324,6 +352,9 @@ const koMessages = {
     previewMore: "+ {count}개 더…",
     chatPlaceholder: "이 페이지에 대해 질문…",
     chatSend: "이 페이지에 대한 새 채팅 시작",
+    tagFilterAll: "전체",
+    noMatches: "#{tag} 태그가 달린 페이지가 없습니다",
+    lintChat: "Wiki 점검",
   },
   pluginPresentHtml: {
     saveAsPdf: "PDF 로 저장 (인쇄 대화 상자 열기)",
@@ -381,13 +412,25 @@ const koMessages = {
     flashPresetAlreadyRegistered: '"{label}" 의 모든 소스가 이미 등록되어 있습니다.',
     flashPresetRegistered: '"{label}" 에서 {count}개 소스를 등록했습니다. 수집 중…',
     flashPresetPartial: "{ok}/{total} 등록. 오류: {errors}",
+    errPrimaryRequired: "URL / 쿼리 필드를 입력하세요.",
+    errRssUrlProtocol: "RSS 피드 URL은 http:// 또는 https://로 시작해야 합니다.",
+    errRssUrlInvalid: "RSS 피드 URL이 유효한 URL이 아닙니다.",
+    errRssUrlHost: "RSS 피드 URL에는 호스트가 포함되어야 합니다.",
+    errGithubInvalid: "GitHub 리포지토리 URL (https://github.com/owner/repo) 또는 owner/repo를 입력하세요.",
+    errUnsupportedKind: "지원하지 않는 fetcher 종류입니다.",
+    initialLoading: "소스를 불러오는 중…",
+    initialLoadFailed: "소스를 불러오지 못했습니다.",
+    retryLabel: "다시 시도",
   },
   pluginManageSkills: {
     deleteProjectSkill: "이 프로젝트 스킬 삭제",
     heading: "스킬",
     previewCount: "{count}개 스킬",
     previewMore: "+{count}개 더",
-    subheading: '{count}개 사용 가능 · 클릭해서 보기 · "Run" 은 /<name> 형식으로 호출합니다',
+    // 함수 형식으로 vue-i18n 의 메시지 컴파일러를 우회한다. 일반
+    // 문자열이면 `<name>` 이 HTML 조각으로 간주되어 매번 "Detected
+    // HTML in '…' message" 경고가 발생한다.
+    subheading: ({ named }: { named: (key: string) => unknown }) => `${named("count")}개 사용 가능 · 클릭해서 보기 · "Run" 은 /<name> 형식으로 호출합니다`,
     emptyWithPath: "스킬을 찾을 수 없습니다. {path} 아래에 스킬 폴더를 추가하세요.",
     emptySkillPath: "~/.claude/skills/",
     selectHint: "왼쪽에서 스킬을 선택해 SKILL.md 를 확인하세요.",
@@ -493,7 +536,6 @@ const koMessages = {
     cancel: "취소",
   },
   pluginSpreadsheet: {
-    previewLabel: "📊 스프레드시트",
     previewUntitled: "스프레드시트",
     previewSheets: "{count}개 시트",
     untitled: "스프레드시트",
@@ -505,14 +547,15 @@ const koMessages = {
     noData: "사용 가능한 스프레드시트 데이터가 없습니다",
     editData: "스프레드시트 데이터 편집",
     applyChanges: "변경 사항 적용",
+    dataMustBeArray: "데이터는 시트 배열이어야 합니다",
+    loadFailed: "스프레드시트 불러오기 실패: {error}",
+    invalidJsonAlert: "잘못된 JSON 형식: {error}",
+    unknownError: "알 수 없는 오류",
     update: "업데이트",
     stringType: "문자열",
     formulaType: "수식",
   },
   app: {
-    // `<i18n-t>` 슬롯 — `envKey` / `envFile` 은 App.vue 에서 인라인
-    // `<code>` 로 렌더링되므로 변수명·파일명은 번역하지 않고 남깁니다.
-    geminiRequired: "이미지 생성에는 {envKey} 가 필요합니다. {envFile} 에 추가하고 앱을 재시작해주세요.",
     startConversation: "대화 시작",
   },
   suggestionsPanel: {

@@ -8,9 +8,19 @@ description: Publish the `mulmoclaude` npm package — with dep audit, workspace
 
 1. The package's `dependencies` must cover every `import "…"` in `server/` — the root `package.json` isn't shipped, so implicit inheritance doesn't exist.
 2. `@mulmobridge/*` workspace packages can drift — local `src/` adds exports without a version bump, so `npm install` resolves to an older published `dist/` that's missing them. All dependents fail at runtime.
-3. `prepare-dist.js` runs via `prepublishOnly`, so `npm publish` already invokes it — but you still need `yarn build` first (for `dist/client/`) and `yarn build:packages` if any workspace package was bumped.
+3. `prepare-dist.js` runs via `prepack`, so both `npm pack` and `npm publish` invoke it — but you still need `yarn build` first (for `dist/client/`) and `yarn build:packages` if any workspace package was bumped. (Earlier versions used `prepublishOnly`, which npm 10+ no longer fires on `npm pack`, so the §4 tarball test silently shipped a 4-file stub.)
 
-Run every step; a "ready banner + HTTP 200" in /tmp is the go/no-go.
+### CI coverage — the first-line defence
+
+**As of PR #669 / #688**, all three traps run automatically on every PR that touches the launcher via `.github/workflows/mulmoclaude_smoke.yaml`, driven by `scripts/mulmoclaude/smoke.mjs`:
+
+- **§1 deps audit** → `scripts/mulmoclaude/deps.mjs` — bare imports + dynamic `import("pkg")` in `server/*.ts` checked against `packages/mulmoclaude/package.json` (including `optionalDependencies` / `peerDependencies`).
+- **§2 workspace drift** → `scripts/mulmoclaude/drift.mjs` — local `src/index.ts` value-export lines compared against the **registry-published** dist (fetched from `registry.npmjs.org` + `unpkg`), not `node_modules` — the workspace symlink would otherwise always match.
+- **§4 tarball boot** → `scripts/mulmoclaude/tarball.mjs` — `npm pack` + clean install + launcher start with `DISABLE_SANDBOX=1` and a stubbed `claude` CLI + HTTP 200 on `/`.
+
+**Before releasing, the go/no-go is: "latest `MulmoClaude publish smoke` run on `main` is green."** Run the manual steps below only if you need to cover a scenario CI doesn't (e.g. the `--force publish` path, or publishing a cascaded `@mulmobridge/*` dep).
+
+Run every step; a "ready banner + HTTP 200" in /tmp is the go/no-go for the manual fallback.
 
 ### 0. Preconditions
 
@@ -24,82 +34,31 @@ npm whoami
 
 ### 1. Dependency audit (catches "ERR_MODULE_NOT_FOUND at runtime")
 
-Compare bare imports under `server/` with what `packages/mulmoclaude/package.json` declares. Anything missing must be added.
+CI runs this on every PR. To reproduce locally:
 
 ```bash
-python3 <<'PY'
-import json, re, os
-root = '.'
-pkg = json.load(open(f'{root}/packages/mulmoclaude/package.json'))
-have = set(pkg.get('dependencies', {}).keys())
-
-# Extract the `from "..."` specifier from every top-level
-# import / export-from. Two passes:
-#   1. Single-line imports  — `import X from "pkg"` or
-#                              `export { a } from "pkg"`
-#   2. Multi-line imports   — `import {\n  a, b,\n} from "pkg"` etc.
-# Anything else (comments, Array.from, string literals) is ignored.
-SINGLE = re.compile(
-    r"^\s*(?:import|export)\b[^{\n]*\sfrom\s+['\"]([^./][^'\"]*)['\"]",
-    re.MULTILINE,
-)
-MULTI = re.compile(
-    r"^\s*(?:import|export)\s*\{[^}]*\}\s*from\s+['\"]([^./][^'\"]*)['\"]",
-    re.MULTILINE | re.DOTALL,
-)
-imports = set()
-for dirpath, _, files in os.walk(f'{root}/server'):
-    if 'node_modules' in dirpath: continue
-    for f in files:
-        if not f.endswith('.ts'): continue
-        with open(os.path.join(dirpath, f)) as fh:
-            txt = fh.read()
-        for rx in (SINGLE, MULTI):
-            for m in rx.finditer(txt):
-                name = m.group(1)
-                imports.add('/'.join(name.split('/')[:2]) if name.startswith('@') else name.split('/')[0])
-
-builtins = {'fs','path','os','http','url','util','stream','net','crypto','child_process','events','zlib','module'}
-missing = sorted(n for n in imports if n not in have and n not in builtins and not n.startswith('node:'))
-print('MISSING from mulmoclaude deps:', missing or 'none')
-PY
+node scripts/mulmoclaude/deps.mjs
 ```
 
-For each missing package, read the root `package.json` for the version and add it to `packages/mulmoclaude/package.json`.
+The script walks `server/**/*.ts`, extracts every bare `import`/`export`-from specifier AND every literal `import("pkg")` dynamic import, and compares against the union of `dependencies` + `optionalDependencies` + `peerDependencies` in `packages/mulmoclaude/package.json`. Exit 0 when clean; exit 1 + one-line-per-missing-package on failure. Built-ins are pulled from `node:module`'s `builtinModules` so they track whatever Node version you're running.
+
+For each missing package, read the root `package.json` for the version and add it to `packages/mulmoclaude/package.json`. Use `optionalDependencies` when the import has a `try/catch` fallback (e.g. native modules that may fail to build) — `node-pty` in `server/system/credentials.ts` is the canonical example.
 
 ### 2. Workspace drift check (catches "X does not provide an export named Y")
 
-If local `packages/<name>/src/` has more exports than the already-published `dist/`, mulmoclaude will resolve the published (stale) build at runtime and fail. Check each workspace package mulmoclaude depends on:
+If local `packages/<name>/src/` has more value-exports than the already-published `dist/`, consumers installing mulmoclaude from the registry will resolve the stale dist at runtime and crash with `does not provide an export named X`.
+
+CI runs this on every PR. Reproduce locally:
 
 ```bash
-# Count only runtime (value) exports. TS `export type …` / `export
-# interface …` disappear at compile time, so counting them in src/
-# would always look "drifted" vs dist/.
-count_value_exports() {
-  # strips type-only lines, then counts remaining `^export` occurrences
-  grep -E '^export' "$1" 2>/dev/null \
-    | grep -Ev '^export (type|interface)\b' \
-    | grep -Ev '^export \{ *type\b' \
-    | wc -l | tr -d ' '
-}
-
-for pkg in protocol client chat-service; do
-  local=$(jq -r .version packages/$pkg/package.json)
-  remote=$(npm view @mulmobridge/$pkg version 2>/dev/null)
-  local_ex=$(count_value_exports "packages/$pkg/src/index.ts")
-  pub_ex=$(count_value_exports "node_modules/@mulmobridge/$pkg/dist/index.js")
-  # Flag a drift only when local source has MORE value exports than the
-  # currently-installed dist — that's the scenario where consumers will
-  # crash with "does not provide an export named X".
-  flag=""
-  [ -n "$local_ex" ] && [ -n "$pub_ex" ] && [ "$local_ex" -gt "$pub_ex" ] && flag=" ⚠ DRIFT"
-  echo "@mulmobridge/$pkg: ver local=$local registry=$remote, value-exports local=$local_ex pub=$pub_ex$flag"
-done
+node scripts/mulmoclaude/drift.mjs
 ```
 
-The `⚠ DRIFT` flag is the signal that the package needs a bump + republish before mulmoclaude can be published. No flag = good to ship.
+The script fetches each `@mulmobridge/<name>`'s `latest` dist-tag from `registry.npmjs.org`, pulls the entry file from `unpkg`, and compares its value-export line count against `packages/<name>/src/index.ts`. **Comparing against `node_modules/@mulmobridge/<name>/dist/` would miss the problem** — that path is a yarn workspace symlink into `packages/<name>/`, so `yarn build:packages` rebuilds it from the current src and `src == dist` always.
 
-For each drifted package (local exports > pub exports, OR versions match but source ≠ published):
+Output uses a `→ published v<X.Y.Z>` suffix to name both sides; a `⚠` prefix is the signal the package needs a bump + republish before mulmoclaude can be published.
+
+For each drifted package:
 
 ```bash
 # Bump in that package's package.json, then:
@@ -118,9 +77,19 @@ yarn install         # picks up any new deps from §1
 yarn build           # builds workspace packages AND dist/client (Vite)
 ```
 
-### 4. Local tarball test — MANDATORY before publish
+### 4. Local tarball test — verified by CI on every PR, rerun locally when needed
 
-`prepare-dist` runs via `prepublishOnly`, so `npm pack` exercises the exact same flow. Test the tarball in a clean dir to catch runtime issues (missing dep, export drift, …) before they hit the registry.
+`prepare-dist` runs via `prepack`, so `npm pack` exercises the exact same flow `npm publish` would. CI runs the full pack → clean install → boot → HTTP 200 probe on every PR; before releasing, confirm the latest `MulmoClaude publish smoke` run on `main` is green.
+
+To reproduce locally (e.g. when debugging a CI failure):
+
+```bash
+node scripts/mulmoclaude/smoke.mjs   # all three stages: deps, drift, tarball
+# — or just the tarball step —
+node scripts/mulmoclaude/tarball.mjs
+```
+
+The one-liner equivalent, if you want to see the launcher boot by hand:
 
 ```bash
 cd packages/mulmoclaude && rm -f mulmoclaude-*.tgz && npm pack
@@ -136,7 +105,7 @@ LAUNCHER=$!
 kill $LAUNCHER
 ```
 
-Expected: **`✓ MulmoClaude is ready` banner + `HTTP 200`**. Any ERR_MODULE_NOT_FOUND, export errors, or port crashes → stop and fix before publishing.
+Expected: **`✓ MulmoClaude is ready` banner + `HTTP 200`**. Any ERR_MODULE_NOT_FOUND, export errors, or port crashes → stop and fix before publishing. (If the smoke CI already failed on this PR, the launcher log is attached as an Actions artifact — check there first before reproducing locally.)
 
 ### 5. Test-only version rule
 
@@ -201,3 +170,7 @@ gh pr create --title "..." --body "..."
 - Reinstall of `@mulmobridge/protocol@0.1.2` returned a build without `GENERATION_KINDS` even though the local source had it → §2 exists.
 - `Port 3001 is already in use` silently timed out the ready poll → 0.1.2 added port fallback. If you see similar "ready never fires" reports, check for a port conflict first.
 - A test publish on `0.1.x` should never land as a committed version on the branch — §5.
+- The earliest §2 shell script compared `node_modules/@mulmobridge/*/dist` against `packages/*/src` — a yarn workspace symlink, so `yarn build:packages` made them identical and the check never fired on CI. Drift must compare against the **registry**-published dist (see `scripts/mulmoclaude/drift.mjs`).
+- `npm pack` in npm 10+ no longer fires `prepublishOnly` — a §4 tarball smoke with the old hook would ship a 4-file stub (just `bin/*`). The package now uses `prepack`, which fires on both `npm pack` and `npm publish`. Caught by the smoke workflow's first real CI run.
+- Dynamic `import("pkg")` with try/catch is a legit pattern for optional native modules (`node-pty`). The audit flags it anyway; declare the package in `optionalDependencies` to signal intent.
+- The launcher's pre-flight refuses to start if `claude --version` fails AND if `~/.claude/*` are absent. CI uses a `claude` stub on PATH + `DISABLE_SANDBOX=1` to bypass both; the smoke only needs the server to serve `/`, no real agent calls.

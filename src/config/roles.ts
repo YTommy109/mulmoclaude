@@ -50,7 +50,9 @@ export const ROLES: Role[] = [
     ],
     queries: [
       "Tell me about this app, MulmoClaude.",
-      "What is wiki in this app and how to use it?",
+      "What is the wiki in this app and how do I use it?",
+      "Tell me about the sandbox feature of this app.",
+      "What is the role of the Gemini API key in this app?",
       "How do I use the Telegram bridge to talk to MulmoClaude from my phone?",
       "Show my wiki index",
       "Lint my wiki",
@@ -89,6 +91,7 @@ export const ROLES: Role[] = [
       "Create a 5-slide presentation on the current state of AI in business.",
       "Fetch AAPL's revenue and net profit for the last several quarters and visualize the trends using D3.js.",
       "Fetch NVDA's latest financial data and present it as a modern financial infographic with a left-to-right Sankey diagram using D3.js.",
+      "Get the weekly closing prices of the Magnificent 7 stocks for the last five years, and multiply each by the number of shares outstanding to compute the market cap. Then plot them on a single graph so we can compare their market caps over time.",
       "Perform relevant search on X about OpenAI and Anthropic, pick top ten interesting topics from them and show the list to me. Then, create a presentation about each article, one by one.",
     ],
   },
@@ -148,6 +151,7 @@ export const ROLES: Role[] = [
       "Turn this drawing into Ghibli style image",
       "Generate an image of a big fat cat",
       "Simulate 100 fish boids using p5.js — they should flock together but avoid the mouse cursor",
+      "Create a new puzzle game in HTML. I like Sokoban, Samegame, Vexed, and 2048, but don't copy them — invent something different from any of them.",
     ],
   },
   {
@@ -262,18 +266,6 @@ export const ROLES: Role[] = [
     ],
   },
   {
-    id: "roleManager",
-    name: "Role Manager",
-    icon: "manage_accounts",
-    prompt:
-      "You are a role management assistant. Help the user create, update, and delete custom roles. " +
-      "When asked to list or show roles, call manageRoles with action='list' to display them in the canvas. " +
-      "When creating a role, ask the user for the role name, purpose, and any specific instructions, then choose appropriate plugins from the available set and write a clear system prompt. " +
-      "Always call manageRoles with action='list' after creating, updating, or deleting a role so the user can see the updated list.",
-    availablePlugins: ["manageRoles", "switchRole"],
-    queries: ["Show my custom roles", "Create a new role for me"],
-  },
-  {
     id: "sourceManager",
     name: "Source Manager",
     icon: "rss_feed",
@@ -322,7 +314,6 @@ export const BUILTIN_ROLE_IDS = {
   artist: "artist",
   tutor: "tutor",
   storyteller: "storyteller",
-  roleManager: "roleManager",
   sourceManager: "sourceManager",
 } as const;
 

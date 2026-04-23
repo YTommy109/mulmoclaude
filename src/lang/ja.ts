@@ -1,5 +1,10 @@
 // Japanese dictionary. Mirror the shape of src/lang/en.ts —
 // missing keys fall back to English per createI18n's fallbackLocale.
+//
+// ⚠️ `<name>` のような山括弧を含む文字列は vue-i18n の XSS
+// ヒューリスティックに引っかかり「Detected HTML in '…' message」
+// 警告が出るため、**関数形式** で書くこと。詳細は en.ts の
+// ヘッダーコメントを参照。
 
 const jaMessages = {
   common: {
@@ -22,6 +27,12 @@ const jaMessages = {
     // pluralization API に合わせて `|` 区切りで揃える。
     activeSessions: "{count} 件のアクティブセッション（エージェント実行中）",
     unreadReplies: "{count} 件の未読返信",
+    unreadDot: "新しい返信",
+    origin: {
+      scheduler: "スケジューラから開始",
+      skill: "スキルから開始",
+      bridge: "ブリッジから開始",
+    },
   },
   chatInput: {
     placeholder: "タスクを入力、またはファイルをドロップ・ペースト・添付…",
@@ -36,6 +47,7 @@ const jaMessages = {
   sessionHistoryPanel: {
     filters: {
       all: "すべて",
+      unread: "未読",
       human: "手動",
       scheduler: "スケジューラ",
       skill: "スキル",
@@ -48,6 +60,7 @@ const jaMessages = {
     running: "実行中",
     unread: "未読",
     noMessages: "（メッセージなし）",
+    openRowAria: "セッションを開く: {preview}",
   },
   notificationBell: {
     notifications: "通知",
@@ -56,6 +69,7 @@ const jaMessages = {
     dismiss: "閉じる",
   },
   sidebarHeader: {
+    home: "最新のチャットに移動",
     toolCallHistory: "ツール呼び出し履歴",
     settings: "設定",
   },
@@ -105,11 +119,18 @@ const jaMessages = {
   settingsModal: {
     title: "設定",
     tabs: {
+      gemini: "Gemini API キー",
       tools: "許可ツール",
       mcp: "MCP サーバ",
       dirs: "ディレクトリ",
       refs: "参照ディレクトリ",
     },
+    // `<i18n-t>` スロット — `envKey` / `envFile` は SettingsModal.vue で
+    // インラインの `<code>` として描画されるため、変数名とファイル名は
+    // 翻訳せずそのまま残します。
+    geminiRequired: "画像生成には {envKey} が必要です。{envFile} に追加してアプリを再起動してください。",
+    geminiAskButton: "Claude に質問",
+    geminiAskMessage: "このアプリにおける Gemini API キーの役割は何ですか?",
     toolNamesLabel: "ツール名",
     invalidToolNamesPrefix: "次の項目は標準的ではないようです（期待される接頭辞",
     invalidToolNamesSuffix: "）:",
@@ -152,6 +173,7 @@ const jaMessages = {
     todos: { label: "Todo", title: "Todo を開く (⌘4)" },
     scheduler: { label: "スケジュール", title: "スケジュールを開く (⌘5)" },
     wiki: { label: "Wiki", title: "Wiki を開く (⌘6)" },
+    sources: { label: "ソース", title: "情報ソースを開く" },
     skills: { label: "スキル", title: "スキルを開く (⌘7)" },
     roles: { label: "ロール", title: "ロールを開く (⌘8)" },
     files: { label: "ファイル", title: "ワークスペースファイルを開く (⌘3)" },
@@ -194,6 +216,7 @@ const jaMessages = {
     errBadName: "名前は小文字で始まり、[a-z0-9_-] のみ使用できます。",
     errIdExists: "サーバ ID「{id}」は既に存在します。",
     errBadHttpUrl: "HTTP URL は http:// または https:// で始める必要があります",
+    pendingEntryWarning: "保留中の MCP サーバ設定を確定またはキャンセルしてください。",
   },
   pluginScheduler: {
     prev: "前へ",
@@ -214,6 +237,7 @@ const jaMessages = {
     update: "更新",
     editSource: "ソースを編集",
     applyChanges: "変更を適用",
+    yamlParseError: "YAML を解析できません — 'title' が含まれているか確認してください",
     propLabel: "{key}:",
     moreCount: "他 {count} 件",
     previewIcon: "📅",
@@ -253,6 +277,7 @@ const jaMessages = {
     clearFilters: "すべてのフィルタをクリア",
     deleteItem: "項目を削除",
     apiError: "⚠ Todo の更新に失敗: {error}",
+    loadFailed: "Todo の読み込みに失敗しました",
     heading: "Todo リスト",
     completedRatio: "{done}/{total} 完了",
     filter: "フィルタ:",
@@ -309,9 +334,12 @@ const jaMessages = {
     deleteColumn: "列を削除",
     columnActions: "列のアクション",
     addCard: "+ カードを追加",
+    openCardAria: "タスクを開く: {task}",
   },
   todoTableList: {
     noMatchingFilter: "現在のフィルタに一致する項目はありません",
+    sortColumnAria: "{column} で並べ替え",
+    expandRowAria: "タスクを展開: {task}",
   },
   pluginWiki: {
     backToIndex: "インデックスに戻る",
@@ -324,6 +352,9 @@ const jaMessages = {
     previewMore: "+ {count} 件…",
     chatPlaceholder: "このページについて質問…",
     chatSend: "このページについて新しいチャットを開始",
+    tagFilterAll: "すべて",
+    noMatches: "#{tag} タグのページがありません",
+    lintChat: "Wiki を Lint",
   },
   pluginPresentHtml: {
     saveAsPdf: "PDF として保存（印刷ダイアログを開きます）",
@@ -381,13 +412,25 @@ const jaMessages = {
     flashPresetAlreadyRegistered: "「{label}」のソースはすべて登録済みです。",
     flashPresetRegistered: "「{label}」から {count} 件のソースを登録しました。取得中…",
     flashPresetPartial: "登録 {ok}/{total} 件。エラー: {errors}",
+    errPrimaryRequired: "URL / クエリを入力してください。",
+    errRssUrlProtocol: "RSS フィード URL は http:// または https:// で始めてください。",
+    errRssUrlInvalid: "RSS フィード URL が有効な URL ではありません。",
+    errRssUrlHost: "RSS フィード URL にはホスト名が必要です。",
+    errGithubInvalid: "GitHub リポジトリの URL (https://github.com/owner/repo) または owner/repo を入力してください。",
+    errUnsupportedKind: "未対応の fetcher 種別です。",
+    initialLoading: "ソース一覧を読み込み中…",
+    initialLoadFailed: "ソース一覧の読み込みに失敗しました。",
+    retryLabel: "再試行",
   },
   pluginManageSkills: {
     deleteProjectSkill: "このプロジェクト限定スキルを削除",
     heading: "スキル",
     previewCount: "{count} スキル",
     previewMore: "他 {count} 件",
-    subheading: "{count} 件利用可能 · クリックで表示 · 「Run」で /<name> として呼び出し",
+    // 関数形式で vue-i18n のメッセージコンパイラをバイパスする。
+    // 通常形式だと `<name>` が HTML フラグメント扱いされ、毎回
+    // 「Detected HTML in '…' message」警告が出る。
+    subheading: ({ named }: { named: (key: string) => unknown }) => `${named("count")} 件利用可能 · クリックで表示 · 「Run」で /<name> として呼び出し`,
     emptyWithPath: "スキルが見つかりません。{path} にスキルフォルダを追加してください。",
     emptySkillPath: "~/.claude/skills/",
     selectHint: "左側のスキルを選択して SKILL.md を表示します。",
@@ -493,7 +536,6 @@ const jaMessages = {
     cancel: "キャンセル",
   },
   pluginSpreadsheet: {
-    previewLabel: "📊 スプレッドシート",
     previewUntitled: "スプレッドシート",
     previewSheets: "{count} シート",
     untitled: "スプレッドシート",
@@ -505,12 +547,15 @@ const jaMessages = {
     noData: "スプレッドシートのデータがありません",
     editData: "スプレッドシートデータを編集",
     applyChanges: "変更を適用",
+    dataMustBeArray: "データはシートの配列である必要があります",
+    loadFailed: "スプレッドシートの読み込みに失敗: {error}",
+    invalidJsonAlert: "不正な JSON 形式です: {error}",
+    unknownError: "不明なエラー",
     update: "更新",
     stringType: "文字列",
     formulaType: "数式",
   },
   app: {
-    geminiRequired: "画像生成には {envKey} が必要です。{envFile} に追加してアプリを再起動してください。",
     startConversation: "会話を開始してください",
   },
   suggestionsPanel: {

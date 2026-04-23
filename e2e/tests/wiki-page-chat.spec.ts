@@ -11,7 +11,7 @@ const INDEX_PAYLOAD = {
   action: "index",
   title: "Wiki Index",
   content: "# Wiki Index\n\nRoot page.",
-  pageEntries: [{ title: "Onboarding", slug: "onboarding", description: "Getting started" }],
+  pageEntries: [{ title: "Onboarding", slug: "onboarding", description: "Getting started", tags: [] }],
 };
 
 const PAGE_ONBOARDING = {
@@ -82,13 +82,13 @@ test.describe("wiki page chat composer", () => {
   });
 
   test("composer hidden on the log view", async ({ page }) => {
-    await page.goto("/wiki?view=log");
+    await page.goto("/wiki/log");
     await expect(page.getByText("Did stuff")).toBeVisible();
     await expect(page.getByTestId("wiki-page-chat-input")).toHaveCount(0);
   });
 
   test("composer visible on a leaf page with the send button disabled when empty", async ({ page }) => {
-    await page.goto("/wiki?page=onboarding");
+    await page.goto("/wiki/pages/onboarding");
     await expect(page.getByRole("heading", { level: 1, name: "Onboarding" })).toBeVisible();
     const input = page.getByTestId("wiki-page-chat-input");
     await expect(input).toBeVisible();
@@ -97,19 +97,22 @@ test.describe("wiki page chat composer", () => {
     await expect(page.getByTestId("wiki-page-chat-send")).toBeDisabled();
   });
 
-  test("send stays disabled when the URL slug contains path-traversal tokens", async ({ page }) => {
-    // Defence-in-depth: even if the server returns a page payload
-    // for `?page=../secrets`, the client must refuse to interpolate
-    // the slug into `data/wiki/pages/${slug}.md` and fire off an
-    // agent run that could Read outside the wiki directory.
-    await page.goto("/wiki?page=" + encodeURIComponent("../secrets"));
-    await expect(page.getByTestId("wiki-page-chat-input")).toBeVisible();
-    await page.getByTestId("wiki-page-chat-input").fill("What's in here?");
-    await expect(page.getByTestId("wiki-page-chat-send")).toBeDisabled();
+  test("traversal URL is redirected to /wiki by the router guard", async ({ page }) => {
+    // After the guard was added (plans/feat-wiki-path-urls.md review
+    // pass), dangerous slugs like `../secrets` never reach the view —
+    // the guard `replace:true`-redirects to `/wiki` before mount. So
+    // the composer isn't just disabled, it doesn't exist: we should
+    // land on the index with no page-chat input rendered at all.
+    await page.goto("/wiki/pages/" + encodeURIComponent("../secrets"));
+    await expect(page.getByTestId("wiki-page-entry-onboarding")).toBeVisible();
+    await expect(page.getByTestId("wiki-page-chat-input")).toHaveCount(0);
+    await expect(async () => {
+      expect(new URL(page.url()).pathname).toMatch(/^\/wiki\/?$/);
+    }).toPass({ timeout: 5000 });
   });
 
   test("sending prepends the read-page instruction and lands on /chat", async ({ page }) => {
-    await page.goto("/wiki?page=onboarding");
+    await page.goto("/wiki/pages/onboarding");
     await expect(page.getByTestId("wiki-page-chat-input")).toBeVisible();
 
     const agentReq = captureNextAgentRequest(page);
@@ -134,7 +137,7 @@ test.describe("wiki page chat composer", () => {
     // cross-route flow from /wiki must push so the wiki URL stays in
     // history. Otherwise the user loses their way back after a quick
     // handoff.
-    await page.goto("/wiki?page=onboarding");
+    await page.goto("/wiki/pages/onboarding");
     await expect(page.getByTestId("wiki-page-chat-input")).toBeVisible();
 
     await page.getByTestId("wiki-page-chat-input").fill("What does onboarding cover?");
@@ -142,7 +145,7 @@ test.describe("wiki page chat composer", () => {
     await page.waitForURL(/\/chat\//);
 
     await page.goBack();
-    await page.waitForURL(/\/wiki\?page=onboarding/);
+    await page.waitForURL(/\/wiki\/pages\/onboarding$/);
     await expect(page.getByRole("heading", { level: 1, name: "Onboarding" })).toBeVisible();
   });
 });

@@ -1,10 +1,10 @@
-// Composable for the session-history dropdown in the header.
+// Composable for the session-history view at `/history`.
 //
-// Owns the `sessions` list (what the server knows about) and the
-// `showHistory` open/closed flag, plus the fetch + toggle helpers.
-// The dropdown lazy-loads the list only when opened, and callers
-// can invoke `fetchSessions()` directly after an end-of-run so the
-// sidebar title cache stays fresh.
+// Owns the `sessions` list (what the server knows about) plus the
+// fetch helper. The view's open/closed state is now URL-backed (see
+// plans/feat-history-url-route.md) — callers watch `route.name` and
+// invoke `fetchSessions()` on route enter rather than going through
+// an in-memory toggle flag.
 //
 // Since #205, `fetchSessions()` sends the server's last-issued
 // cursor back as `?since=<cursor>` so the server can reply with
@@ -26,15 +26,12 @@ interface SessionsResponse {
 
 export function useSessionHistory(): {
   sessions: Ref<SessionSummary[]>;
-  showHistory: Ref<boolean>;
   historyError: Ref<string | null>;
   fetchSessions: () => Promise<SessionSummary[]>;
-  toggleHistory: () => Promise<void>;
 } {
   const sessions = ref<SessionSummary[]>([]);
-  const showHistory = ref(false);
   // Surfaces the most recent fetch failure. Kept alongside the (stale)
-  // sessions list rather than wiping it — a dropdown that goes blank
+  // sessions list rather than wiping it — a panel that goes blank
   // the moment the network hiccups is worse UX than one that shows
   // "⚠ using cached list" with the last-known good entries.
   const historyError = ref<string | null>(null);
@@ -66,16 +63,9 @@ export function useSessionHistory(): {
     return sessions.value;
   }
 
-  async function toggleHistory(): Promise<void> {
-    showHistory.value = !showHistory.value;
-    if (showHistory.value) await fetchSessions();
-  }
-
   return {
     sessions,
-    showHistory,
     historyError,
     fetchSessions,
-    toggleHistory,
   };
 }

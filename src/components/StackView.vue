@@ -1,26 +1,45 @@
 <template>
-  <div ref="containerRef" class="h-full overflow-y-auto bg-gray-50 p-4 space-y-3" data-testid="stack-scroll">
-    <div v-if="toolResults.length === 0" class="flex items-center justify-center h-full text-gray-400 text-sm">{{ t("common.noResultsYet") }}</div>
-    <div
-      v-for="result in toolResults"
-      :key="result.uuid"
-      :ref="(element) => setItemRef(result.uuid, element as HTMLElement | null)"
-      class="bg-white rounded-lg border transition-colors"
-      :class="result.uuid === selectedResultUuid ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'"
-    >
-      <button
-        class="w-full flex items-center gap-2 px-3 py-2 border-b border-gray-100 text-left hover:bg-gray-50"
-        :title="result.title || result.toolName"
-        @click="emit('select', result.uuid)"
+  <div class="h-full flex flex-col bg-gray-50">
+    <div class="shrink-0 flex items-center gap-1 text-xs text-gray-400 px-4 pt-3 pb-2" data-testid="stack-role-header">
+      <span v-if="sessionRoleIcon" class="material-icons text-xs leading-none">{{ sessionRoleIcon }}</span>
+      <span v-if="sessionRoleName">{{ sessionRoleName }}</span>
+      <div class="ml-auto flex items-center gap-1">
+        <button
+          type="button"
+          class="text-gray-400 hover:text-gray-700"
+          :class="{ 'text-blue-500': showRightSidebar }"
+          :title="t('sidebarHeader.toolCallHistory')"
+          :aria-label="t('sidebarHeader.toolCallHistory')"
+          :aria-pressed="showRightSidebar"
+          @click="emit('toggle-right-sidebar')"
+        >
+          <span class="material-icons text-lg" aria-hidden="true">build</span>
+        </button>
+        <CanvasViewToggle :model-value="layoutMode" @update:model-value="(mode) => emit('update:layoutMode', mode)" />
+      </div>
+    </div>
+    <div ref="containerRef" class="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3" data-testid="stack-scroll">
+      <div v-if="toolResults.length === 0" class="flex items-center justify-center h-full text-gray-400 text-sm">{{ t("common.noResultsYet") }}</div>
+      <div
+        v-for="result in toolResults"
+        :key="result.uuid"
+        :ref="(element) => setItemRef(result.uuid, element as HTMLElement | null)"
+        class="bg-white rounded-lg border transition-colors"
+        :class="result.uuid === selectedResultUuid ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'"
       >
-        <span class="material-icons text-sm text-gray-400">{{ iconFor(result.toolName) }}</span>
-        <span class="text-sm font-medium text-gray-800 truncate">{{ result.title || result.toolName }}</span>
-        <span v-if="resultTimestamps.get(result.uuid)" class="text-[10px] text-gray-400 shrink-0">{{
-          formatSmartTime(resultTimestamps.get(result.uuid)!)
-        }}</span>
-        <span class="font-mono text-xs text-gray-400 shrink-0">{{ result.toolName }}</span>
-      </button>
-      <!-- text-response: render the message as Markdown via the
+        <button
+          class="w-full flex items-center gap-2 px-3 py-2 border-b border-gray-100 text-left hover:bg-gray-50"
+          :title="result.title || result.toolName"
+          @click="emit('select', result.uuid)"
+        >
+          <span class="material-icons text-sm text-gray-400">{{ iconFor(result.toolName) }}</span>
+          <span class="text-sm font-medium text-gray-800 truncate">{{ result.title || result.toolName }}</span>
+          <span v-if="resultTimestamps.get(result.uuid)" class="text-[10px] text-gray-400 shrink-0">{{
+            formatSmartTime(resultTimestamps.get(result.uuid)!)
+          }}</span>
+          <span class="font-mono text-xs text-gray-400 shrink-0">{{ result.toolName }}</span>
+        </button>
+        <!-- text-response: render the message as Markdown via the
            underlying plugin View. The .stack-text-response class below
            collapses the plugin's own card chrome (outer p-6, inner
            rounded/border/shadow box, role header) so only the stack
@@ -31,38 +50,39 @@
            "open external links in a new tab" click handler. Attach
            the same handler here via @click.capture so cross-origin
            links in assistant Markdown don't navigate the SPA away. -->
-      <div v-if="isTextResponse(result)" class="stack-text-response" @click.capture="handleExternalLinkClick">
-        <TextResponseOriginalView :selected-result="result" />
-      </div>
-      <!-- Document-like plugins: let the content flow at its natural
+        <div v-if="isTextResponse(result)" class="stack-text-response" @click.capture="handleExternalLinkClick">
+          <TextResponseOriginalView :selected-result="result" />
+        </div>
+        <!-- Document-like plugins: let the content flow at its natural
            height by overriding the plugin's internal h-full / overflow
            / flex-1 via the .stack-natural scoped styles below. For
            plugins that embed iframes (e.g. presentHtml) we also size
            each iframe to its content after load. -->
-      <div
-        v-else-if="isStackNatural(result.toolName)"
-        :ref="(element) => setNaturalWrapperRef(result.uuid, element as HTMLElement | null)"
-        class="stack-natural"
-      >
-        <component
-          :is="getPlugin(result.toolName)?.viewComponent"
-          v-if="getPlugin(result.toolName)?.viewComponent"
-          :selected-result="result"
-          :send-text-message="sendTextMessage"
-          @update-result="(r: ToolResultComplete) => emit('updateResult', r)"
-        />
-      </div>
-      <!-- Other plugins: fixed height wrapper so plugins that rely on
+        <div
+          v-else-if="isStackNatural(result.toolName)"
+          :ref="(element) => setNaturalWrapperRef(result.uuid, element as HTMLElement | null)"
+          class="stack-natural"
+        >
+          <component
+            :is="getPlugin(result.toolName)?.viewComponent"
+            v-if="getPlugin(result.toolName)?.viewComponent"
+            :selected-result="result"
+            :send-text-message="sendTextMessage"
+            @update-result="(r: ToolResultComplete) => emit('updateResult', r)"
+          />
+        </div>
+        <!-- Other plugins: fixed height wrapper so plugins that rely on
            h-full continue to render properly. -->
-      <div v-else :style="{ height: PLUGIN_HEIGHT }">
-        <component
-          :is="getPlugin(result.toolName)?.viewComponent"
-          v-if="getPlugin(result.toolName)?.viewComponent"
-          :selected-result="result"
-          :send-text-message="sendTextMessage"
-          @update-result="(r: ToolResultComplete) => emit('updateResult', r)"
-        />
-        <pre v-else class="h-full overflow-auto p-4 text-xs text-gray-500 whitespace-pre-wrap">{{ JSON.stringify(result, null, 2) }}</pre>
+        <div v-else :style="{ height: PLUGIN_HEIGHT }">
+          <component
+            :is="getPlugin(result.toolName)?.viewComponent"
+            v-if="getPlugin(result.toolName)?.viewComponent"
+            :selected-result="result"
+            :send-text-message="sendTextMessage"
+            @update-result="(r: ToolResultComplete) => emit('updateResult', r)"
+          />
+          <pre v-else class="h-full overflow-auto p-4 text-xs text-gray-500 whitespace-pre-wrap">{{ JSON.stringify(result, null, 2) }}</pre>
+        </div>
       </div>
     </div>
   </div>
@@ -80,6 +100,8 @@ import { handleExternalLinkClick } from "../utils/dom/externalLink";
 import type { TextResponseData } from "../plugins/textResponse/types";
 import { formatSmartTime } from "../utils/format/date";
 import { isRecord } from "../utils/types";
+import CanvasViewToggle from "./CanvasViewToggle.vue";
+import type { LayoutMode } from "../utils/canvas/layoutMode";
 
 // Most plugin viewComponents use h-full internally, so a defined parent
 // height is required for them to render. text-response and the
@@ -113,11 +135,17 @@ const props = defineProps<{
   selectedResultUuid: string | null;
   resultTimestamps: Map<string, number>;
   sendTextMessage?: (text: string) => void;
+  sessionRoleName?: string;
+  sessionRoleIcon?: string;
+  layoutMode: LayoutMode;
+  showRightSidebar: boolean;
 }>();
 
 const emit = defineEmits<{
   select: [uuid: string];
   updateResult: [result: ToolResultComplete];
+  "update:layoutMode": [mode: LayoutMode];
+  "toggle-right-sidebar": [];
 }>();
 
 const containerRef = ref<HTMLDivElement | null>(null);

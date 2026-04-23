@@ -3,7 +3,15 @@
     <div v-if="filteredItems.length === 0" class="h-full flex items-center justify-center text-gray-400 text-sm">{{ t("todoTableList.noMatchingFilter") }}</div>
     <ul v-else class="space-y-2 max-w-3xl mx-auto">
       <li v-for="item in filteredItems" :key="item.id" class="rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
-        <div class="flex items-center gap-3 p-3 cursor-pointer group" @click="toggleExpand(item.id)">
+        <div
+          tabindex="0"
+          role="button"
+          :aria-label="t('todoTableList.expandRowAria', { task: item.text })"
+          class="flex items-center gap-3 p-3 cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded"
+          @click="toggleExpand(item.id)"
+          @keydown.enter.prevent.self="(e) => !e.repeat && toggleExpand(item.id)"
+          @keydown.space.prevent.self="(e) => !e.repeat && toggleExpand(item.id)"
+        >
           <input type="checkbox" :checked="item.completed" class="cursor-pointer shrink-0" @click.stop @change="toggleComplete(item)" />
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 flex-wrap">

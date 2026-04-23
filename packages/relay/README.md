@@ -4,7 +4,7 @@ Cloudflare Workers relay for MulmoBridge. Receives webhooks from messaging platf
 
 ## Why
 
-Without the relay, webhook-based bridges (LINE, Slack, etc.) need a public URL — typically via ngrok, which requires manual URL updates on every restart.
+Without the relay, webhook-based bridges (LINE, Messenger, Google Chat, Teams, …) need a public URL — typically via ngrok, which requires manual URL updates on every restart. (Slack is supported separately via `@mulmobridge/slack`, which uses Socket Mode on the user's machine and doesn't need the relay.)
 
 With the relay:
 
@@ -156,29 +156,29 @@ The relay uses a plugin architecture. Each platform is a self-contained
 file in `src/webhooks/` that implements `PlatformPlugin`:
 
 ```typescript
-// src/webhooks/slack.ts
-const slackPlugin: PlatformPlugin = {
-  name: PLATFORMS.slack,
-  mode: CONNECTION_MODES.webhook, // or "polling" or "persistent"
-  webhookPath: "/webhook/slack",
-  isConfigured: (env) => !!env.SLACK_SIGNING_SECRET,
+// src/webhooks/google-chat.ts (real example — ship shape)
+const googleChatPlugin: PlatformPlugin = {
+  name: PLATFORMS.googleChat,
+  mode: CONNECTION_MODES.webhook,
+  webhookPath: "/webhook/google-chat",
+  isConfigured: (env) => !!env.GOOGLE_CHAT_PROJECT_NUMBER,
   handleWebhook: async (request, body, env) => {
-    /* ... */
+    /* verify JWT, parse event, return RelayMessage[] */
   },
   sendResponse: async (chatId, text, env) => {
-    /* ... */
+    /* POST to https://chat.googleapis.com/v1/{chatId}/messages */
   },
 };
-registerPlatform(slackPlugin);
+registerPlatform(googleChatPlugin);
 ```
 
-Three connection modes are supported:
+Three connection modes are defined in `CONNECTION_MODES`; today only `webhook` is wired up (every real plugin uses it). `polling` and `persistent` are reserved for future platforms that can't post webhooks — e.g. a Discord Gateway integration would be `persistent`.
 
-| Mode         | Examples                           | Method                          |
-| ------------ | ---------------------------------- | ------------------------------- |
-| `webhook`    | LINE, Messenger, Google Chat       | Platform POSTs to relay URL     |
-| `polling`    | Telegram (alt)                     | Relay fetches from platform API |
-| `persistent` | Slack Socket Mode, Discord Gateway | Relay maintains WS to platform  |
+| Mode         | Examples (shipped)                                       | Method                          |
+| ------------ | -------------------------------------------------------- | ------------------------------- |
+| `webhook`    | LINE, WhatsApp, Messenger, Google Chat, Telegram, Teams  | Platform POSTs to relay URL     |
+| `polling`    | — (reserved)                                             | Relay fetches from platform API |
+| `persistent` | — (reserved)                                             | Relay maintains WS to platform  |
 
 ### Relay vs Bridge packages
 

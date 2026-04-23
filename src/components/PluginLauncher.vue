@@ -1,5 +1,5 @@
 <template>
-  <div ref="rootRef" class="flex border border-gray-300 rounded overflow-hidden text-xs" data-testid="plugin-launcher">
+  <div ref="rootRef" class="inline-flex w-fit border border-gray-300 rounded overflow-hidden text-xs" data-testid="plugin-launcher">
     <template v-for="(target, idx) in TARGETS" :key="target.key">
       <!-- Visual separator between data plugins and management plugins -->
       <div v-if="idx === SEPARATOR_AFTER_INDEX" class="w-px bg-gray-300 my-0.5" />
@@ -43,7 +43,7 @@ export type PluginLauncherKind = "view"; // Switch the canvas to a dedicated vie
 // strings out of this file avoids duplication across locales.
 export interface PluginLauncherTarget {
   /** Stable key for testid + dispatch in App.vue. */
-  key: "todos" | "scheduler" | "skills" | "wiki" | "roles" | "files";
+  key: "todos" | "scheduler" | "wiki" | "sources" | "skills" | "roles" | "files";
   kind: PluginLauncherKind;
   /** Material-icons glyph. */
   icon: string;
@@ -54,15 +54,16 @@ const TARGETS: PluginLauncherTarget[] = [
   { key: "todos", kind: "view", icon: "checklist" },
   { key: "scheduler", kind: "view", icon: "event" },
   { key: "wiki", kind: "view", icon: "menu_book" },
+  { key: "sources", kind: "view", icon: "rss_feed" },
   // ─── Management / navigation ───
   { key: "skills", kind: "view", icon: "psychology" },
   { key: "roles", kind: "view", icon: "manage_accounts" },
   { key: "files", kind: "view", icon: "folder" },
 ];
 
-// Index AFTER which the visual separator is inserted (between wiki
-// and skills — data plugins on the left, management on the right).
-const SEPARATOR_AFTER_INDEX = 3;
+// Index AFTER which the visual separator is inserted (between data
+// plugins on the left and management on the right).
+const SEPARATOR_AFTER_INDEX = 4;
 
 function isActive(target: PluginLauncherTarget): boolean {
   return props.activeViewMode === target.key;

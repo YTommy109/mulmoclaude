@@ -8,6 +8,19 @@
 // reads `typeof en` to feed `DefineLocaleMessage`, and readonly literal
 // types would conflict with vue-i18n's writable message interface.
 
+// ⚠️ Angle-bracket text (e.g. `<name>`, `</tag>`) in a plain string
+// message trips vue-i18n's XSS heuristic and logs
+// `[intlify] Detected HTML in '…' message` on every mount. If the
+// copy must contain `<...>`, use the **function form** so the
+// message compiler is skipped entirely:
+//
+//   subheading: ({ named }: { named: (key: string) => unknown }) =>
+//     `${named("count")} available · invokes as /<name>`,
+//
+// See `argsPlaceholder` and `pluginManageSkills.subheading` for
+// worked examples. Mirror the same form in every other lang file
+// when the English side uses a function.
+
 const enMessages = {
   common: {
     save: "Save",
@@ -29,6 +42,12 @@ const enMessages = {
     // based on the number. `{count}` is interpolated.
     activeSessions: "{count} active session (agent running) | {count} active sessions (agent running)",
     unreadReplies: "{count} unread reply | {count} unread replies",
+    unreadDot: "New reply",
+    origin: {
+      scheduler: "Started by scheduler",
+      skill: "Started by skill",
+      bridge: "Started by bridge",
+    },
   },
   chatInput: {
     placeholder: "Type a task, or drop / paste / attach a file…",
@@ -43,6 +62,7 @@ const enMessages = {
   sessionHistoryPanel: {
     filters: {
       all: "All",
+      unread: "Unread",
       human: "Human",
       scheduler: "Scheduler",
       skill: "Skill",
@@ -55,6 +75,7 @@ const enMessages = {
     running: "Running",
     unread: "Unread",
     noMessages: "(no messages)",
+    openRowAria: "Open session: {preview}",
   },
   notificationBell: {
     notifications: "Notifications",
@@ -63,6 +84,7 @@ const enMessages = {
     dismiss: "Dismiss",
   },
   sidebarHeader: {
+    home: "Go to latest chat",
     toolCallHistory: "Tool call history",
     settings: "Settings",
   },
@@ -114,11 +136,18 @@ const enMessages = {
   settingsModal: {
     title: "Settings",
     tabs: {
+      gemini: "Gemini API Key",
       tools: "Allowed Tools",
       mcp: "MCP Servers",
       dirs: "Directories",
       refs: "Reference Dirs",
     },
+    // `<i18n-t>` slots — named `envKey` / `envFile` render as inline
+    // `<code>` in SettingsModal.vue, so the literal variable and file
+    // names stay untranslated while the surrounding copy is localised.
+    geminiRequired: "Image generation requires {envKey}. Add it to {envFile} and restart the app.",
+    geminiAskButton: "Ask Claude",
+    geminiAskMessage: "What is the role of the Gemini API key in this app?",
     toolNamesLabel: "Tool names",
     invalidToolNamesPrefix: "These look non-standard (expected prefix",
     invalidToolNamesSuffix: "):",
@@ -161,6 +190,7 @@ const enMessages = {
     todos: { label: "Todos", title: "Open todos (⌘4)" },
     scheduler: { label: "Schedule", title: "Open schedule (⌘5)" },
     wiki: { label: "Wiki", title: "Open wiki (⌘6)" },
+    sources: { label: "Sources", title: "Open information sources" },
     skills: { label: "Skills", title: "Open skills (⌘7)" },
     roles: { label: "Roles", title: "Open roles (⌘8)" },
     files: { label: "Files", title: "Open workspace files (⌘3)" },
@@ -203,6 +233,7 @@ const enMessages = {
     errBadName: "Name must start with a lowercase letter and contain only [a-z0-9_-].",
     errIdExists: 'Server id "{id}" already exists.',
     errBadHttpUrl: "HTTP URL must start with http:// or https://",
+    pendingEntryWarning: "Finish or cancel the pending MCP server entry first.",
   },
   pluginScheduler: {
     prev: "Previous",
@@ -222,6 +253,7 @@ const enMessages = {
     update: "Update",
     editSource: "Edit Source",
     applyChanges: "Apply Changes",
+    yamlParseError: "Could not parse YAML — ensure 'title' is present",
     propLabel: "{key}:",
     moreCount: "+{count} more",
     previewIcon: "📅",
@@ -261,6 +293,7 @@ const enMessages = {
     clearFilters: "Clear all filters",
     deleteItem: "Delete item",
     apiError: "⚠ Failed to update todos: {error}",
+    loadFailed: "Failed to load todos",
     heading: "Todo List",
     completedRatio: "{done}/{total} completed",
     filter: "Filter:",
@@ -317,9 +350,12 @@ const enMessages = {
     deleteColumn: "Delete column",
     columnActions: "Column actions",
     addCard: "+ Add card",
+    openCardAria: "Open task: {task}",
   },
   todoTableList: {
     noMatchingFilter: "No items match the current filter",
+    sortColumnAria: "Sort by {column}",
+    expandRowAria: "Expand task: {task}",
   },
   pluginWiki: {
     backToIndex: "Back to index",
@@ -332,6 +368,9 @@ const enMessages = {
     previewMore: "+ {count} more…",
     chatPlaceholder: "Ask about this page…",
     chatSend: "Start a new chat about this page",
+    tagFilterAll: "All",
+    noMatches: "No pages tagged #{tag}",
+    lintChat: "Lint My Wiki",
   },
   pluginPresentHtml: {
     saveAsPdf: "Save as PDF (opens print dialog)",
@@ -389,13 +428,25 @@ const enMessages = {
     flashPresetAlreadyRegistered: 'All sources in "{label}" are already registered.',
     flashPresetRegistered: 'Registered {count} source from "{label}". Fetching…|Registered {count} sources from "{label}". Fetching…',
     flashPresetPartial: "Registered {ok}/{total}. Errors: {errors}",
+    errPrimaryRequired: "Please fill in the URL / query field.",
+    errRssUrlProtocol: "RSS feed URL must start with http:// or https://",
+    errRssUrlInvalid: "RSS feed URL is not a valid URL.",
+    errRssUrlHost: "RSS feed URL must include a host.",
+    errGithubInvalid: "Enter a GitHub repo URL (https://github.com/owner/repo) or owner/repo.",
+    errUnsupportedKind: "Unsupported fetcher kind.",
+    initialLoading: "Loading sources…",
+    initialLoadFailed: "Failed to load sources.",
+    retryLabel: "Retry",
   },
   pluginManageSkills: {
     deleteProjectSkill: "Delete this project-scope skill",
     heading: "Skills",
     previewCount: "{count} skill | {count} skills",
     previewMore: "+{count} more",
-    subheading: '{count} available · click one to view · "Run" invokes it as /<name>',
+    // Function form skips vue-i18n's message compiler, which
+    // otherwise flags the literal `<name>` as a suspected HTML
+    // fragment and warns about XSS on every mount.
+    subheading: ({ named }: { named: (key: string) => unknown }) => `${named("count")} available · click one to view · "Run" invokes it as /<name>`,
     emptyWithPath: "No skills found. Add skill folders under {path}.",
     emptySkillPath: "~/.claude/skills/",
     selectHint: "Select a skill on the left to view its SKILL.md.",
@@ -501,7 +552,6 @@ const enMessages = {
     cancel: "Cancel",
   },
   pluginSpreadsheet: {
-    previewLabel: "📊 Spreadsheet",
     previewUntitled: "Spreadsheet",
     previewSheets: "{count} sheet | {count} sheets",
     untitled: "Spreadsheet",
@@ -513,15 +563,15 @@ const enMessages = {
     noData: "No spreadsheet data available",
     editData: "Edit Spreadsheet Data",
     applyChanges: "Apply Changes",
+    dataMustBeArray: "Data must be an array of sheets",
+    loadFailed: "Failed to load spreadsheet: {error}",
+    invalidJsonAlert: "Invalid JSON format: {error}",
+    unknownError: "Unknown error",
     update: "Update",
     stringType: "String",
     formulaType: "Formula",
   },
   app: {
-    // `<i18n-t>` slots — named `envKey` / `envFile` render as inline
-    // `<code>` in App.vue, so the literal variable and file names
-    // stay untranslated while the surrounding copy is localised.
-    geminiRequired: "Image generation requires {envKey}. Add it to {envFile} and restart the app.",
     startConversation: "Start a conversation",
   },
   suggestionsPanel: {

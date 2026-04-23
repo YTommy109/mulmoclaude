@@ -1,7 +1,7 @@
 <template>
   <div class="h-full bg-white flex flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+    <div class="flex items-center justify-between px-6 py-2 border-b border-gray-100 shrink-0">
       <div class="flex items-center gap-3">
         <button v-if="action !== 'index'" class="text-gray-400 hover:text-gray-700" :title="t('pluginWiki.backToIndex')" @click="router.back()">
           <span class="material-icons text-base">arrow_back</span>
@@ -18,6 +18,12 @@
           </div>
           <span v-if="pdfError" class="text-xs text-red-500 self-center ml-2" :title="pdfError">{{ t("pluginWiki.pdfFailed") }}</span>
         </template>
+        <div v-if="action === 'index'" class="button-group">
+          <button class="download-btn download-btn-green" data-testid="wiki-lint-chat-button" @click="startLintChat">
+            <span class="material-icons">rule</span>
+            {{ t("pluginWiki.lintChat") }}
+          </button>
+        </div>
         <div class="flex border border-gray-300 rounded overflow-hidden text-xs">
           <button
             :class="[
@@ -66,24 +72,72 @@
       </div>
     </div>
 
-    <!-- Index: page card list -->
-    <div v-else-if="action === 'index' && pageEntries && pageEntries.length > 0" class="flex-1 overflow-y-auto">
-      <div
-        v-for="entry in pageEntries"
-        :key="entry.slug"
-        class="flex items-baseline gap-2 px-4 py-1 cursor-pointer hover:bg-blue-50 transition-colors"
-        :data-testid="`wiki-page-entry-${entry.slug || entry.title}`"
-        @click="navigatePage(entry.slug || entry.title)"
-      >
-        <span class="font-medium text-sm text-gray-800 shrink-0">{{ entry.title }}</span>
-        <span v-if="entry.description" class="text-xs text-gray-500 truncate">
-          {{ entry.description }}
-        </span>
+    <!-- Index: tag filter + page card list -->
+    <div v-else-if="action === 'index' && pageEntries && pageEntries.length > 0" class="flex-1 flex flex-col overflow-hidden">
+      <div v-if="allTags.length > 0 || selectedTag !== null" class="shrink-0 border-b border-gray-100 px-4 py-2 flex flex-wrap gap-1">
+        <button
+          :class="['tag-chip', selectedTag === null ? 'tag-chip-active' : 'tag-chip-inactive']"
+          data-testid="wiki-tag-filter-all"
+          @click="selectedTag = null"
+        >
+          {{ t("pluginWiki.tagFilterAll") }}
+        </button>
+        <button
+          v-for="[tag, count] in allTags"
+          :key="tag"
+          :class="['tag-chip', selectedTag === tag ? 'tag-chip-active' : 'tag-chip-inactive']"
+          :data-testid="`wiki-tag-filter-${tag}`"
+          @click="toggleTagFilter(tag)"
+        >
+          {{ tag }} ({{ count }})
+        </button>
+        <button
+          v-if="selectedTag !== null && !allTags.some(([tag]) => tag === selectedTag)"
+          class="tag-chip tag-chip-active"
+          :data-testid="`wiki-tag-filter-${selectedTag}`"
+          @click="toggleTagFilter(selectedTag)"
+        >
+          {{ `${selectedTag} (1)` }}
+        </button>
+      </div>
+      <div v-if="visibleEntries.length === 0 && selectedTag" class="flex-1 flex items-center justify-center text-gray-400 text-sm px-4 text-center">
+        {{ t("pluginWiki.noMatches", { tag: selectedTag }) }}
+      </div>
+      <div v-else ref="scrollRef" class="flex-1 overflow-y-auto">
+        <div
+          v-for="entry in visibleEntries"
+          :key="entry.slug"
+          class="flex items-baseline gap-2 px-4 py-1 cursor-pointer hover:bg-blue-50 transition-colors"
+          :data-testid="`wiki-page-entry-${entry.slug || entry.title}`"
+          @click="navigatePage(entry.slug || entry.title)"
+        >
+          <span class="font-medium text-sm text-gray-800 shrink-0">{{ entry.title }}</span>
+          <span v-if="entry.description" class="text-xs text-gray-500 truncate">
+            {{ entry.description }}
+          </span>
+          <span v-if="entry.tags && entry.tags.length > 0" class="flex gap-1 flex-wrap shrink-0">
+            <button
+              v-for="tag in entry.tags"
+              :key="tag"
+              class="entry-tag-chip"
+              :data-testid="`wiki-entry-tag-${entry.slug}-${tag}`"
+              @click.stop="toggleTagFilter(tag)"
+            >
+              {{ `#${tag}` }}
+            </button>
+          </span>
+        </div>
       </div>
     </div>
 
     <!-- Markdown content -->
-    <div v-else class="flex-1 overflow-y-auto px-6 py-4 prose prose-sm max-w-none wiki-content" @click="handleContentClick" v-html="renderedContent" />
+    <div
+      v-else
+      ref="scrollRef"
+      class="flex-1 overflow-y-auto px-6 py-4 prose prose-sm max-w-none wiki-content"
+      @click="handleContentClick"
+      v-html="renderedContent"
+    />
 
     <!-- Per-page chat composer (standalone /wiki route only). Sending
          spawns a fresh chat session with a prepended "read this page
@@ -119,8 +173,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
-import { useRoute, useRouter, isNavigationFailure, type LocationQuery } from "vue-router";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { marked } from "marked";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
@@ -131,12 +185,15 @@ import { useImeAwareEnter } from "../../composables/useImeAwareEnter";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { useAppApi } from "../../composables/useAppApi";
 import { renderWikiLinks } from "./helpers";
+import { BUILTIN_ROLE_IDS } from "../../config/roles";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
+import { extractFrontmatter } from "../../utils/format/frontmatter";
 import { apiPost } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { PAGE_ROUTES } from "../../router";
+import { WIKI_ACTION, WIKI_ROUTE_SECTION, buildWikiRouteParams, isSafeWikiSlug, readWikiRouteTarget, wikiActionFor, type WikiTarget } from "./route";
 
-type WikiTabView = "log" | "lint_report";
+type WikiTabView = typeof WIKI_ACTION.log | typeof WIKI_ACTION.lintReport;
 
 const route = useRoute();
 const router = useRouter();
@@ -152,6 +209,10 @@ const action = ref(props.selectedResult?.data?.action ?? "index");
 const title = ref(props.selectedResult?.data?.title ?? "Wiki");
 const content = ref(props.selectedResult?.data?.content ?? "");
 const pageEntries = ref<WikiPageEntry[]>(props.selectedResult?.data?.pageEntries ?? []);
+// View-local tag filter. Null = no filter. Not persisted to URL —
+// kept intentionally ephemeral so it doesn't leak into bookmarks
+// or the per-session stack history.
+const selectedTag = ref<string | null>(null);
 // Declared up here — not next to callApi — because the URL watcher
 // below fires with `immediate: true`, which invokes callApi
 // synchronously during setup. If this ref were declared after the
@@ -202,32 +263,88 @@ watch(
 // handlers push to the router; this watcher drives callApi(). Only
 // runs when WikiView is mounted as the /wiki page — when mounted as
 // a manageWiki tool-result inside /chat, the tool-result watcher
-// above seeds state and this watcher does nothing.
+// above seeds state and this watcher does nothing. Unsafe params
+// (e.g. `/wiki/pages/..%2Fsecrets` decoded to `slug === "../secrets"`)
+// are already intercepted by the router guard in `router/guards.ts`
+// and redirected to `/wiki`; by the time the watcher fires, the
+// params are known-safe. `readWikiRouteTarget` returning `null` here
+// therefore means an unexpected shape — fall back to the index view.
 watch(
-  () => (route.name === PAGE_ROUTES.wiki ? [route.query.page, route.query.view] : null),
+  () => (route.name === PAGE_ROUTES.wiki ? [route.params.section, route.params.slug] : null),
   (params) => {
     if (!params) return;
-    const [page, view] = params;
-    if (typeof page === "string" && page.length > 0) {
-      callApi({ action: "page", pageName: page });
-    } else if (view === "log" || view === "lint_report") {
-      callApi({ action: view });
+    const target = readWikiRouteTarget({ section: params[0], slug: params[1] }) ?? { kind: "index" };
+    if (target.kind === "page") {
+      callApi({ action: WIKI_ACTION.page, pageName: target.slug });
     } else {
-      callApi({ action: "index" });
+      callApi({ action: wikiActionFor(target) });
     }
   },
   { immediate: true },
 );
 
+// Tag frequencies for the filter bar — sorted by count desc, then
+// name asc so the most common tags appear first and equally-common
+// tags stay in deterministic order. Singletons are dropped: a tag
+// used on a single page adds no filtering value, just visual noise.
+// Per-entry `#tag` chips still render every tag, so singletons stay
+// clickable from the row itself.
+const allTags = computed<[string, number][]>(() => {
+  const counts = new Map<string, number>();
+  for (const entry of pageEntries.value) {
+    for (const tag of entry.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  }
+  return [...counts.entries()].filter(([, count]) => count > 1).sort(([tagA, countA], [tagB, countB]) => countB - countA || tagA.localeCompare(tagB));
+});
+
+const visibleEntries = computed(() =>
+  selectedTag.value === null ? pageEntries.value : pageEntries.value.filter((entry) => (entry.tags ?? []).includes(selectedTag.value as string)),
+);
+
+function toggleTagFilter(tag: string) {
+  selectedTag.value = selectedTag.value === tag ? null : tag;
+}
+
+// Spawn a new chat under the General role (which owns the wiki
+// tooling) regardless of the role the user is currently viewing the
+// wiki under. "lint my wiki" is a direct instruction to the agent,
+// not a tool call — the agent decides how to run the lint and
+// report back.
+function startLintChat() {
+  appApi.startNewChat("lint my wiki", BUILTIN_ROLE_IDS.general);
+}
+
+// Clear the filter whenever we leave the index view — otherwise
+// switching to Log / Lint and back leaves a stale filter active,
+// which feels like a bug.
+watch(action, (next) => {
+  if (next !== "index") selectedTag.value = null;
+});
+
+// The wiki view stays mounted across wiki navigations (the router
+// just updates params and callApi swaps content.value), so the
+// scrollable container would otherwise keep the previous page's
+// scrollTop. Reset to the top whenever the rendered body changes.
+const scrollRef = ref<HTMLElement | null>(null);
+watch(content, async () => {
+  await nextTick();
+  if (scrollRef.value) scrollRef.value.scrollTop = 0;
+});
+
 const renderedContent = computed(() => {
   if (!content.value) return "";
+  // Strip YAML frontmatter before rendering — marked doesn't parse
+  // it, so the `---` fences turn into <hr>s and the inner keys
+  // render as plain text (title / created / updated / tags / source).
+  const body = extractFrontmatter(content.value).body;
+  if (!body) return "";
   // Rewrite workspace-relative image refs (`![alt](images/foo.png)`)
   // to `/api/files/raw?path=...` BEFORE marked parses them — without
   // this, the browser tries to fetch against the SPA route URL
   // (/chat/…/images/foo.png) and 404s. basePath = wiki/pages for
   // individual pages so `../images/foo.png` resolves correctly.
   const basePath = action.value === "page" ? "wiki/pages" : "wiki";
-  const withImages = rewriteMarkdownImageRefs(content.value, basePath);
+  const withImages = rewriteMarkdownImageRefs(body, basePath);
   return marked.parse(renderWikiLinks(withImages)) as string;
 });
 
@@ -266,38 +383,20 @@ async function callApi(body: Record<string, unknown>) {
   }
 }
 
-function dropKeys(query: LocationQuery, keys: string[]): LocationQuery {
-  const next: LocationQuery = {};
-  for (const [key, value] of Object.entries(query)) {
-    if (!keys.includes(key)) next[key] = value;
-  }
-  return next;
-}
-
-function pushWiki(query: LocationQuery) {
-  const target = route.name === PAGE_ROUTES.wiki ? { query } : { name: PAGE_ROUTES.wiki, query };
-  router.push(target).catch((err: unknown) => {
+function pushWiki(target: WikiTarget) {
+  router.push({ name: PAGE_ROUTES.wiki, params: buildWikiRouteParams(target) }).catch((err: unknown) => {
     if (!isNavigationFailure(err)) {
       console.error("[wiki] navigation failed:", err);
     }
   });
 }
 
-// Preserve siblings only when already on /wiki. Cross-route jumps
-// (e.g. from /chat, where the URL may carry `?result=<uuid>`) start
-// from a clean query so chat-specific params don't bleed into /wiki.
-function currentWikiQuery(): LocationQuery {
-  return route.name === PAGE_ROUTES.wiki ? route.query : {};
-}
-
-function navigate(newAction: "index" | WikiTabView) {
-  const base = currentWikiQuery();
-  const query = newAction === "index" ? dropKeys(base, ["page", "view"]) : { ...dropKeys(base, ["page"]), view: newAction };
-  pushWiki(query);
+function navigate(newAction: typeof WIKI_ACTION.index | WikiTabView) {
+  pushWiki(newAction === WIKI_ACTION.index ? { kind: "index" } : { kind: newAction });
 }
 
 function navigatePage(pageName: string) {
-  pushWiki({ ...dropKeys(currentWikiQuery(), ["view"]), page: pageName });
+  pushWiki({ kind: "page", slug: pageName });
 }
 
 // --- Per-page chat composer ---
@@ -307,21 +406,18 @@ const chatDraft = ref("");
 const isStandaloneWikiRoute = computed(() => route.name === PAGE_ROUTES.wiki);
 const canSendChat = computed(() => chatDraft.value.trim().length > 0 && currentSlug() !== null);
 
-// Reject path-traversal tokens so `?page=../secrets` can't be
-// interpolated into the prompt and escape `data/wiki/pages/`. Keeps
-// non-ASCII slugs (e.g. Japanese titles like `さくらインターネット`)
-// working — we only ban separators and `..`, not arbitrary unicode.
-function isSafeSlug(slug: string): boolean {
-  return slug.length > 0 && !slug.includes("/") && !slug.includes("\\") && !slug.includes("..");
-}
-
 function currentSlug(): string | null {
   // Prefer the URL on /wiki (source of truth for that route); fall
   // back to the tool-result payload when WikiView is mounted as a
-  // manageWiki result inside /chat.
-  const raw = route.name === PAGE_ROUTES.wiki && typeof route.query.page === "string" ? route.query.page : (props.selectedResult?.data?.pageName ?? null);
-  if (!raw || !isSafeSlug(raw)) return null;
-  return raw;
+  // manageWiki result inside /chat. `isSafeWikiSlug` guards against
+  // traversal tokens — the router guard already strips these from
+  // standalone /wiki URLs, but the tool-result payload arrives from
+  // the server/agent and can't assume that upstream filter.
+  const raw =
+    route.name === PAGE_ROUTES.wiki && route.params.section === WIKI_ROUTE_SECTION.pages && typeof route.params.slug === "string"
+      ? route.params.slug
+      : (props.selectedResult?.data?.pageName ?? null);
+  return isSafeWikiSlug(raw) ? raw : null;
 }
 
 function submitChat() {
@@ -354,6 +450,46 @@ function handleContentClick(event: MouseEvent) {
 </script>
 
 <style scoped>
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.tag-chip-active {
+  background-color: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+.tag-chip-inactive {
+  background-color: #f3f4f6;
+  color: #374151;
+  border-color: #e5e7eb;
+}
+.tag-chip-inactive:hover {
+  background-color: #e5e7eb;
+}
+.entry-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.375rem;
+  font-size: 0.7rem;
+  line-height: 1rem;
+  border-radius: 9999px;
+  background-color: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.entry-tag-chip:hover {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
 .button-group {
   display: flex;
   gap: 0.5em;
@@ -394,6 +530,12 @@ function handleContentClick(event: MouseEvent) {
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
   color: #111827;
+}
+.wiki-content :deep(h1:first-child),
+.wiki-content :deep(h2:first-child),
+.wiki-content :deep(h3:first-child),
+.wiki-content :deep(p:first-child) {
+  margin-top: 0;
 }
 .wiki-content :deep(h2) {
   font-size: 1.2rem;

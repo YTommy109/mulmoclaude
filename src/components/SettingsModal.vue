@@ -1,5 +1,5 @@
 <template>
-  <div v-if="open" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" data-testid="settings-modal-backdrop" @click="close">
+  <div v-if="open" class="fixed inset-0 z-50 bg-black/40 flex items-start justify-center pt-16" data-testid="settings-modal-backdrop" @click="close">
     <div
       class="bg-white rounded-lg shadow-xl w-[36rem] max-h-[85vh] flex flex-col"
       role="dialog"
@@ -16,6 +16,15 @@
       </div>
 
       <div class="flex border-b border-gray-200 px-5">
+        <button
+          v-if="!geminiAvailable"
+          class="px-3 py-2 text-sm border-b-2"
+          :class="activeTab === 'gemini' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-800'"
+          data-testid="settings-tab-gemini"
+          @click="activeTab = 'gemini'"
+        >
+          {{ t("settingsModal.tabs.gemini") }}
+        </button>
         <button
           class="px-3 py-2 text-sm border-b-2"
           :class="activeTab === 'tools' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-800'"
@@ -55,7 +64,20 @@
           ⚠ {{ loadError }}
         </div>
 
-        <div v-if="activeTab === 'tools'" class="space-y-3">
+        <div v-if="activeTab === 'gemini'" class="space-y-3">
+          <div class="rounded border border-yellow-400 bg-yellow-50 p-3 text-sm text-yellow-800" data-testid="settings-gemini-warning">
+            <span class="material-icons text-sm align-middle mr-1">warning</span>
+            <i18n-t keypath="settingsModal.geminiRequired" tag="span">
+              <template #envKey><code class="font-mono">GEMINI_API_KEY</code></template>
+              <template #envFile><code class="font-mono">.env</code></template>
+            </i18n-t>
+          </div>
+          <button class="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600" data-testid="settings-gemini-ask-btn" @click="askAboutGemini">
+            {{ t("settingsModal.geminiAskButton") }}
+          </button>
+        </div>
+
+        <div v-else-if="activeTab === 'tools'" class="space-y-3">
           <i18n-t keypath="settingsToolsTab.explanation" tag="p" class="text-xs text-gray-600 leading-relaxed">
             <template #allowedTools><code class="bg-gray-100 px-1 rounded">--allowedTools</code></template>
             <template #claudeMcp><code class="bg-gray-100 px-1 rounded">claude mcp</code></template>
@@ -101,7 +123,7 @@
         <SettingsReferenceDirsTab v-else-if="activeTab === 'refs'" />
       </div>
 
-      <div class="px-5 py-3 border-t border-gray-200 flex items-center justify-between gap-3">
+      <div v-if="activeTab !== 'gemini'" class="px-5 py-3 border-t border-gray-200 flex items-center justify-between gap-3">
         <span v-if="statusMessage" class="text-xs" :class="statusError ? 'text-red-600' : 'text-green-600'" data-testid="settings-status">
           {{ statusMessage }}
         </span>
@@ -140,6 +162,7 @@ const { t } = useI18n();
 interface Props {
   open: boolean;
   dockerMode?: boolean;
+  geminiAvailable?: boolean;
   // Forwarded from useMcpTools — if non-null, the MCP tab shows a
   // small warning strip so the user knows "all tools visible" is a
   // fallback rather than an accurate listing.
@@ -148,11 +171,13 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   dockerMode: false,
+  geminiAvailable: true,
   mcpToolsError: null,
 });
 const emit = defineEmits<{
   "update:open": [value: boolean];
   saved: [];
+  "ask-gemini": [];
 }>();
 
 // Typed ref to the SettingsMcpTab so save() can flush a pending draft
@@ -160,7 +185,7 @@ const emit = defineEmits<{
 // button" footgun). Null when the MCP tab isn't the active one.
 const mcpTabRef = ref<{ flushDraft: () => boolean } | null>(null);
 
-const activeTab = ref<"tools" | "mcp" | "dirs" | "refs">("tools");
+const activeTab = ref<"gemini" | "tools" | "mcp" | "dirs" | "refs">("tools");
 const toolsText = ref("");
 const mcpServers = ref<McpServerEntry[]>([]);
 const loadError = ref("");
@@ -219,7 +244,7 @@ async function save(): Promise<void> {
   // the user can fix it.
   if (mcpTabRef.value && !mcpTabRef.value.flushDraft()) {
     statusError.value = true;
-    statusMessage.value = "Finish or cancel the pending MCP server entry first.";
+    statusMessage.value = t("settingsMcpTab.pendingEntryWarning");
     return;
   }
   saving.value = true;
@@ -247,6 +272,11 @@ function close(): void {
   emit("update:open", false);
 }
 
+function askAboutGemini(): void {
+  emit("ask-gemini");
+  close();
+}
+
 function addMcpServer(entry: McpServerEntry): void {
   mcpServers.value = [...mcpServers.value, entry];
 }
@@ -267,6 +297,7 @@ watch(
   () => props.open,
   (isOpen) => {
     if (isOpen) {
+      activeTab.value = props.geminiAvailable ? "tools" : "gemini";
       loadConfig();
       statusMessage.value = "";
       statusError.value = false;
