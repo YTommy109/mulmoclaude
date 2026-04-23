@@ -15,19 +15,9 @@
         <div class="flex-1 min-w-0">
           <PluginLauncher :active-tool-name="selectedResult?.toolName ?? null" :active-view-mode="currentPage" @navigate="onPluginNavigate" />
         </div>
-        <button
-          v-if="isChatPage"
-          class="text-gray-400 hover:text-gray-700"
-          :class="{ 'text-blue-500': showRightSidebar }"
-          :title="t('sidebarHeader.toolCallHistory')"
-          @click="toggleRightSidebar"
-        >
-          <span class="material-icons">build</span>
-        </button>
       </div>
-      <!-- Row 2: canvas toggle + role selector + session tabs -->
+      <!-- Row 2: role selector + session tabs -->
       <div class="flex items-center gap-3 px-3 py-2 border-b border-gray-100">
-        <CanvasViewToggle v-if="isChatPage" :model-value="layoutMode" @update:model-value="setLayoutMode" />
         <RoleSelector v-model:current-role-id="currentRoleId" :roles="roles" @change="onRoleChange" />
         <SessionTabBar
           :sessions="tabSessions"
@@ -76,8 +66,12 @@
           :pending-calls="pendingCalls"
           :session-role-name="sessionRoleName"
           :session-role-icon="sessionRoleIcon"
+          :layout-mode="layoutMode"
+          :show-right-sidebar="showRightSidebar"
           @select="onSidebarItemClick"
           @activate="activePane = 'sidebar'"
+          @update:layout-mode="setLayoutMode"
+          @toggle-right-sidebar="toggleRightSidebar"
         />
 
         <!-- Sample queries (expandable pane) -->
@@ -126,8 +120,12 @@
             :send-text-message="sendMessage"
             :session-role-name="sessionRoleName"
             :session-role-icon="sessionRoleIcon"
+            :layout-mode="layoutMode"
+            :show-right-sidebar="showRightSidebar"
             @select="(uuid) => (selectedResultUuid = uuid)"
             @update-result="handleUpdateResult"
+            @update:layout-mode="setLayoutMode"
+            @toggle-right-sidebar="toggleRightSidebar"
           />
           <!-- Distinct pages -->
           <FilesView v-else-if="currentPage === 'files'" :refresh-token="filesRefreshToken" @load-session="handleSessionSelect" />
@@ -190,7 +188,6 @@ import SuggestionsPanel from "./components/SuggestionsPanel.vue";
 import ChatInput, { type PastedFile } from "./components/ChatInput.vue";
 import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
 import ToolResultsPanel from "./components/ToolResultsPanel.vue";
-import CanvasViewToggle from "./components/CanvasViewToggle.vue";
 import PluginLauncher from "./components/PluginLauncher.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
