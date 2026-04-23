@@ -27,6 +27,10 @@ export default [
       "packages/mulmoclaude/client",
       "packages/mulmoclaude/server",
       "packages/mulmoclaude/src",
+      // Deliberately-minimal TS snippets that exercise the
+      // import-extraction regex in scripts/mulmoclaude/deps.mjs.
+      // They're inputs to a parser test, not production code.
+      "test/scripts/mulmoclaude/fixtures",
     ],
   },
   eslint.configs.recommended,
