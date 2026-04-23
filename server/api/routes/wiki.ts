@@ -78,7 +78,12 @@ export function buildTableColumnMap(headerRow: string): Map<string, number> {
   const cells = headerRow
     .split("|")
     .slice(1, -1)
-    .map((cell) => cell.trim().toLowerCase());
+    // Mirror `parseTableRow`'s cell-normalising: strip the surrounding
+    // backticks that commonly wrap cell values in wiki tables. Without
+    // this, a `| \`tags\` |` header maps to the key "`tags`" and the
+    // subsequent `columnMap.get("tags")` lookup silently misses the
+    // column, falling back to `tags: []`.
+    .map((cell) => cell.trim().replace(/^`|`$/g, "").toLowerCase());
   const map = new Map<string, number>();
   cells.forEach((cell, i) => {
     if (cell) map.set(cell, i);

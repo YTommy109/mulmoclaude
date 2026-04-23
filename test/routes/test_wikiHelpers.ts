@@ -414,6 +414,14 @@ describe("buildTableColumnMap", () => {
     assert.equal(map.get("tags"), 2);
     assert.equal(map.size, 2);
   });
+
+  it("strips surrounding backticks from header cells", () => {
+    // Mirror parseTableRow's data-cell normaliser so a backticked
+    // header like `| `tags` |` still resolves via columnMap.get("tags").
+    const map = buildTableColumnMap("| `slug` | `tags` |");
+    assert.equal(map.get("slug"), 0);
+    assert.equal(map.get("tags"), 1);
+  });
 });
 
 describe("parseFrontmatterTags", () => {
