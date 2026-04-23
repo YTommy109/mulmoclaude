@@ -35,9 +35,14 @@
           >{{ roleIcon(roles, sessions[i - 1].roleId) }}</span
         >
         <span class="text-xs text-gray-700 truncate min-w-0">{{ tabLabel(sessions[i - 1]) }}</span>
-        <!-- Unread dot — inactive sessions only; active tab is what the user's looking at. -->
+        <!-- Unread dot. Suppressed only when the user is actually
+             looking at that chat session — otherwise
+             `currentSessionId` keeps pointing at the last chat
+             even when the user is on /wiki, /files, etc., and the
+             dot would silently disappear on the tab that most
+             needs it. -->
         <span
-          v-if="sessions[i - 1].hasUnread && sessions[i - 1].id !== currentSessionId"
+          v-if="sessions[i - 1].hasUnread && !(isChatPage && sessions[i - 1].id === currentSessionId)"
           class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"
           :aria-label="t('sessionTabBar.unreadDot')"
         />
@@ -79,6 +84,12 @@ const { t } = useI18n();
 const props = defineProps<{
   sessions: SessionSummary[];
   currentSessionId: string;
+  // `currentSessionId` is "the last chat session the user was on".
+  // It does NOT clear when the user navigates to /wiki /files etc.,
+  // so we need a separate flag to know whether that session is
+  // actually on-screen. Only then does it make sense to suppress
+  // the unread dot on its tab.
+  isChatPage: boolean;
   roles: Role[];
   activeSessionCount: number;
   unreadCount: number;

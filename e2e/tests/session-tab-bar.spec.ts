@@ -61,4 +61,35 @@ test.describe("session tab bar — visible per-tab info", () => {
     await expect(tabA.getByLabel("Started by scheduler")).toBeVisible();
     await expect(tabB.getByLabel("Started by bridge")).toBeVisible();
   });
+
+  test("unread dot stays visible when the user leaves /chat for a plugin page", async ({ page }) => {
+    // Regression: the dot was gated on `sessions[i].id !==
+    // currentSessionId`, which evaluates the same way on /wiki /files
+    // etc. because `currentSessionId` doesn't clear when the user
+    // navigates off chat. That meant the tab the user was reading
+    // before navigating away would silently lose its unread dot the
+    // moment a new reply arrived — exactly when they need it most.
+    await mockAllApis(page, {
+      sessions: [
+        { ...SESSION_A, hasUnread: true },
+        { ...SESSION_B, hasUnread: true },
+      ],
+    });
+
+    // On /chat, the active session's dot is suppressed (the user is
+    // literally looking at that conversation).
+    await page.goto("/chat");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+    const tabB = page.getByTestId(`session-tab-${SESSION_B.id}`);
+    await expect(tabB).toBeVisible();
+    const activeTabId = await tabB.evaluate((el) => el.getAttribute("data-testid"));
+    // SESSION_B is newer → it's the displayed chat session.
+    expect(activeTabId).toBe(`session-tab-${SESSION_B.id}`);
+
+    // Navigate off chat. The dot on tab B must now appear, because
+    // B is no longer on-screen.
+    await page.goto("/wiki");
+    await expect(page.getByTestId(`session-tab-${SESSION_B.id}`).getByLabel("New reply")).toBeVisible();
+    await expect(page.getByTestId(`session-tab-${SESSION_A.id}`).getByLabel("New reply")).toBeVisible();
+  });
 });
