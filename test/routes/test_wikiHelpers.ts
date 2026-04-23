@@ -371,6 +371,17 @@ describe("extractHashTags", () => {
     assert.deepEqual(out.tags, ["a", "b"]);
     assert.equal(out.description, "foo bar");
   });
+
+  it("accepts non-ASCII tag names (Japanese, CJK, etc.)", () => {
+    const out = extractHashTags("日本のクラウド事業者 #クラウド #日本企業 #データセンター");
+    assert.deepEqual(out.tags, ["クラウド", "データセンター", "日本企業"]);
+    assert.equal(out.description, "日本のクラウド事業者");
+  });
+
+  it("accepts mixed ASCII + non-ASCII tags", () => {
+    const out = extractHashTags("notes #ai-エージェント #foo");
+    assert.deepEqual(out.tags, ["ai-エージェント", "foo"]);
+  });
 });
 
 describe("parseTagsCell", () => {
@@ -490,5 +501,15 @@ describe("findTagDrift", () => {
     const entries = [entry("foo", ["a"])];
     const frontmatter = new Map<string, string[]>();
     assert.deepEqual(findTagDrift(entries, frontmatter), []);
+  });
+
+  it("lowercases the lookup so mixed-case filenames still match", () => {
+    // collectLintIssues lowercases the map keys. Here the index.md
+    // slug is lowercased (via wikiSlugify on a wiki-link), and the
+    // map was keyed from a `MyPage.md` filename — we still expect
+    // the two to be compared.
+    const entries = [entry("mypage", ["a"])];
+    const frontmatter = new Map<string, string[]>([["mypage", ["a", "b"]]]);
+    assert.equal(findTagDrift(entries, frontmatter).length, 1);
   });
 });

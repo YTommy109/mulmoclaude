@@ -42,7 +42,11 @@ const TABLE_SEPARATOR_PATTERN = /^\|[\s|:-]+\|$/;
 // where `wikiSlugify` returns "" and the slug would otherwise be lost.
 const BULLET_LINK_PATTERN = /^[-*]\s+\[([^\]]+)\]\(([^)]*)\)(?:\s*[—–-]\s*(.*))?/;
 const BULLET_WIKI_LINK_PATTERN = /^[-*]\s+\[\[([^\]]+)\]\](?:\s*[—–-]\s*(.*))?/;
-const HASHTAG_PATTERN = /(?:^|\s)#([a-z0-9][a-z0-9-]*)/gi;
+// Unicode-aware tag body: any letter or number in any script
+// (so Japanese / Chinese / Korean tags like `#クラウド` or `#可視化`
+// work), plus `-` and `_` as internal joiners. First char is a
+// letter or number only — no leading punctuation.
+const HASHTAG_PATTERN = /(?:^|\s)#([\p{L}\p{N}][\p{L}\p{N}_-]*)/gu;
 
 // Extract `#tag` tokens from a bullet description, returning the
 // stripped description and a sorted, deduped, lowercased tag list.
@@ -381,7 +385,11 @@ function formatTagList(tags: readonly string[]): string {
 export function findTagDrift(pageEntries: readonly WikiPageEntry[], frontmatterTagsBySlug: ReadonlyMap<string, readonly string[]>): string[] {
   const issues: string[] = [];
   for (const entry of pageEntries) {
-    const pageTags = frontmatterTagsBySlug.get(entry.slug);
+    // Lowercase on lookup — `collectLintIssues` keys the map with
+    // lowercased slugs, so a `MyPage.md` filename still matches an
+    // `entry.slug` of `mypage` produced by `wikiSlugify` on the
+    // wiki-link parser path.
+    const pageTags = frontmatterTagsBySlug.get(entry.slug.toLowerCase());
     if (pageTags === undefined) continue;
     const pageSet = new Set(pageTags);
     const indexSet = new Set(entry.tags);
@@ -426,7 +434,11 @@ async function collectLintIssues(): Promise<string[]> {
   const frontmatterTagsBySlug = new Map<string, string[]>();
   for (let i = 0; i < pageFiles.length; i++) {
     issues.push(...findBrokenLinksInPage(pageFiles[i], contents[i], fileSlugs));
-    const slug = pageFiles[i].replace(/\.md$/i, "");
+    // Lowercase the map key so a `MyPage.md` filename still matches
+    // an `entry.slug` of `mypage` produced by `wikiSlugify` on the
+    // wiki-link parser path. `findTagDrift` lowercases the lookup
+    // side to match.
+    const slug = pageFiles[i].replace(/\.md$/i, "").toLowerCase();
     frontmatterTagsBySlug.set(slug, parseFrontmatterTags(contents[i]));
   }
   issues.push(...findTagDrift(pageEntries, frontmatterTagsBySlug));
