@@ -19,19 +19,26 @@
         :aria-current="sessions[i - 1].id === currentSessionId ? 'page' : undefined"
         @click="emit('loadSession', sessions[i - 1].id)"
       >
-        <!-- Single icon slot. Non-human sessions swap the role
-             icon for a coloured origin glyph (schedule / build /
-             sync_alt) so the origin is readable at a glance
-             without stacking two icons next to each other.
-             Human sessions keep the role icon. Origin info is
+        <!-- Role icon is the primary glyph on every tab. Non-human
+             sessions add a small grey circled origin badge on the
+             top-right (schedule / build / sync_alt) so the origin
+             is still readable without hiding the role. Origin is
              also prepended to the tab `title` tooltip. -->
-        <span
-          class="material-icons text-base leading-none shrink-0"
-          :class="[iconColor(sessions[i - 1]), sessions[i - 1].isRunning ? 'animate-spin [animation-duration:3s]' : '']"
-          :aria-label="iconAriaLabel(sessions[i - 1]) || undefined"
-          >{{ iconGlyph(sessions[i - 1]) }}</span
-        >
-        <span class="text-xs text-gray-700 truncate min-w-0">{{ tabLabel(sessions[i - 1]) }}</span>
+        <span class="relative shrink-0 flex items-center leading-none">
+          <span
+            class="material-icons text-base leading-none"
+            :class="[iconColor(sessions[i - 1]), sessions[i - 1].isRunning ? 'animate-spin [animation-duration:3s]' : '']"
+            >{{ iconGlyph(sessions[i - 1]) }}</span
+          >
+          <span
+            v-if="originGlyph(sessions[i - 1].origin)"
+            class="absolute -top-[3px] -right-[5px] w-3.5 h-3.5 rounded-full bg-white ring-1 ring-gray-300 flex items-center justify-center"
+            :aria-label="originTooltip(sessions[i - 1].origin)"
+          >
+            <span class="material-icons !text-[10px] leading-none text-gray-500">{{ originGlyph(sessions[i - 1].origin) }}</span>
+          </span>
+        </span>
+        <span class="text-xs text-gray-700 truncate min-w-0" :class="sessions[i - 1].hasUnread ? 'font-bold' : ''">{{ tabLabel(sessions[i - 1]) }}</span>
         <!-- Unread dot. Suppressed only when the user is actually
              looking at that chat session — otherwise
              `currentSessionId` keeps pointing at the last chat
@@ -99,34 +106,18 @@ const emit = defineEmits<{
   toggleHistory: [];
 }>();
 
-// Colour for the tab's main icon. Running always wins (yellow
-// is the "work-in-progress" signal), then origin colour for
-// scheduler / skill / bridge, then the standard active / idle
-// greys for human sessions.
+// Colour for the tab's main (role) icon. Running always wins
+// (yellow is the "work-in-progress" signal); unread bumps it to
+// gray-900; otherwise inactive gray-400. Origin no longer
+// influences this colour — it's conveyed by the overlay badge.
 function iconColor(session: SessionSummary): string {
   if (session.isRunning) return "text-yellow-400";
-  const origin = originMeta(session.origin);
-  if (origin) return origin.color;
   if (session.hasUnread) return "text-gray-900";
   return "text-gray-400";
 }
 
-// Which material-icons glyph to render in the tab's icon slot.
-// Non-human sessions surface origin (scheduler / skill / bridge)
-// instead of the role icon — role is still available via the
-// `title` tooltip's fallback chain.
 function iconGlyph(session: SessionSummary): string {
-  const origin = originMeta(session.origin);
-  if (origin) return origin.glyph;
   return roleIcon(props.roles, session.roleId);
-}
-
-// `aria-label` announces the origin for non-human sessions
-// (human sessions get nothing — the tab `title` already covers
-// them and a redundant aria-label just doubles the screen
-// reader's output).
-function iconAriaLabel(session: SessionSummary): string {
-  return originTooltip(session.origin);
 }
 
 // Short label shown next to the role icon so users can tell
@@ -153,16 +144,14 @@ function tabTooltip(session: SessionSummary): string {
   return origin ? `${origin} · ${body}` : body;
 }
 
-// Glyph + colour for the top-left origin mark on non-human
-// sessions. Material-icons names (shape) plus a tailwind text
-// colour together give scheduler / skill / bridge a recognisable
-// signature at a glance.
-function originMeta(origin: SessionOrigin | undefined): { glyph: string; color: string } | null {
-  if (!origin || origin === SESSION_ORIGINS.human) return null;
-  if (origin === SESSION_ORIGINS.scheduler) return { glyph: "schedule", color: "text-blue-500" };
-  if (origin === SESSION_ORIGINS.skill) return { glyph: "build", color: "text-emerald-500" };
-  if (origin === SESSION_ORIGINS.bridge) return { glyph: "sync_alt", color: "text-purple-500" };
-  return null;
+// Material-icons glyph for the origin badge overlaid on non-human
+// tabs. Empty string means no badge (human sessions, unknown).
+function originGlyph(origin: SessionOrigin | undefined): string {
+  if (!origin || origin === SESSION_ORIGINS.human) return "";
+  if (origin === SESSION_ORIGINS.scheduler) return "schedule";
+  if (origin === SESSION_ORIGINS.skill) return "build";
+  if (origin === SESSION_ORIGINS.bridge) return "sync_alt";
+  return "";
 }
 
 function originTooltip(origin: SessionOrigin | undefined): string {
