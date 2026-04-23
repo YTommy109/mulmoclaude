@@ -393,6 +393,8 @@ const frMessages = {
     errGithubInvalid: "Saisissez une URL de dépôt GitHub (https://github.com/owner/repo) ou owner/repo.",
     errUnsupportedKind: "Type de fetcher non pris en charge.",
     initialLoading: "Chargement des sources…",
+    initialLoadFailed: "Impossible de charger les sources.",
+    retryLabel: "Réessayer",
   },
   pluginManageSkills: {
     deleteProjectSkill: "Supprimer cette skill de projet",

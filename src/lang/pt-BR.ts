@@ -391,6 +391,8 @@ const ptBRMessages = {
     errGithubInvalid: "Informe uma URL de repositório do GitHub (https://github.com/owner/repo) ou owner/repo.",
     errUnsupportedKind: "Tipo de fetcher não suportado.",
     initialLoading: "Carregando fontes…",
+    initialLoadFailed: "Falha ao carregar fontes.",
+    retryLabel: "Tentar novamente",
   },
   pluginManageSkills: {
     deleteProjectSkill: "Excluir esta skill de projeto",

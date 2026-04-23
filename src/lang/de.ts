@@ -393,6 +393,8 @@ const deMessages = {
     errGithubInvalid: "Bitte eine GitHub-Repo-URL (https://github.com/owner/repo) oder owner/repo angeben.",
     errUnsupportedKind: "Nicht unterstützter Fetcher-Typ.",
     initialLoading: "Quellen werden geladen…",
+    initialLoadFailed: "Quellen konnten nicht geladen werden.",
+    retryLabel: "Erneut versuchen",
   },
   pluginManageSkills: {
     deleteProjectSkill: "Diese Projekt-Skill löschen",

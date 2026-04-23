@@ -393,6 +393,8 @@ const zhMessages = {
     errGithubInvalid: "请输入 GitHub 仓库 URL (https://github.com/owner/repo) 或 owner/repo。",
     errUnsupportedKind: "不支持的 fetcher 类型。",
     initialLoading: "正在加载信息源…",
+    initialLoadFailed: "加载信息源失败。",
+    retryLabel: "重试",
   },
   pluginManageSkills: {
     deleteProjectSkill: "删除此项目级技能",

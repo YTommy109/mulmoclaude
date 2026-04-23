@@ -397,6 +397,8 @@ const esMessages = {
     errGithubInvalid: "Introduce una URL de repositorio de GitHub (https://github.com/owner/repo) o owner/repo.",
     errUnsupportedKind: "Tipo de fetcher no compatible.",
     initialLoading: "Cargando fuentes…",
+    initialLoadFailed: "No se pudieron cargar las fuentes.",
+    retryLabel: "Reintentar",
   },
   pluginManageSkills: {
     deleteProjectSkill: "Eliminar esta skill de proyecto",

@@ -396,6 +396,8 @@ const koMessages = {
     errGithubInvalid: "GitHub 리포지토리 URL (https://github.com/owner/repo) 또는 owner/repo를 입력하세요.",
     errUnsupportedKind: "지원하지 않는 fetcher 종류입니다.",
     initialLoading: "소스를 불러오는 중…",
+    initialLoadFailed: "소스를 불러오지 못했습니다.",
+    retryLabel: "다시 시도",
   },
   pluginManageSkills: {
     deleteProjectSkill: "이 프로젝트 스킬 삭제",

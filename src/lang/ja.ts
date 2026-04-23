@@ -396,6 +396,8 @@ const jaMessages = {
     errGithubInvalid: "GitHub リポジトリの URL (https://github.com/owner/repo) または owner/repo を入力してください。",
     errUnsupportedKind: "未対応の fetcher 種別です。",
     initialLoading: "ソース一覧を読み込み中…",
+    initialLoadFailed: "ソース一覧の読み込みに失敗しました。",
+    retryLabel: "再試行",
   },
   pluginManageSkills: {
     deleteProjectSkill: "このプロジェクト限定スキルを削除",

@@ -6,7 +6,7 @@
         <span class="text-xs text-gray-500"> {{ t("pluginManageSource.sourceCount", sources.length, { named: { count: sources.length } }) }} </span>
         <button
           class="px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-          :disabled="initialLoading || adding || busy === 'rebuild'"
+          :disabled="initialLoading || initialLoadError !== null || adding || busy === 'rebuild'"
           data-testid="sources-add-btn"
           @click="startAdd"
         >
@@ -15,7 +15,7 @@
         </button>
         <button
           class="px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-          :disabled="initialLoading || busy === 'rebuild'"
+          :disabled="initialLoading || initialLoadError !== null || busy === 'rebuild'"
           data-testid="sources-rebuild-btn"
           @click="rebuild"
         >
@@ -87,9 +87,22 @@
       <!-- Page-mode gate: hide empty state + preset buttons until the
            initial fetch completes, so users can't register presets
            against a still-empty local list (would re-POST slugs the
-           server already has). -->
+           server already has). Failed loads stay gated too — empty
+           local state in that case means "unknown", not "zero". -->
       <div v-if="initialLoading" class="flex items-center justify-center h-full p-6" data-testid="sources-initial-loading">
         <span class="text-sm text-gray-500 italic">{{ t("pluginManageSource.initialLoading") }}</span>
+      </div>
+      <div v-else-if="initialLoadError" class="flex flex-col items-center justify-center h-full p-6 gap-3" data-testid="sources-initial-error">
+        <span class="text-sm text-red-600">{{ t("pluginManageSource.initialLoadFailed") }}</span>
+        <span class="text-xs text-gray-500 max-w-md text-center">{{ initialLoadError }}</span>
+        <button
+          class="px-3 py-1 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
+          :disabled="initialLoading"
+          data-testid="sources-initial-retry"
+          @click="retryInitialLoad"
+        >
+          {{ t("pluginManageSource.retryLabel") }}
+        </button>
       </div>
       <div v-else-if="sources.length === 0" class="flex flex-col items-center justify-center h-full p-6 gap-4" data-testid="sources-empty">
         <i18n-t keypath="pluginManageSource.emptyPickPack" tag="p" class="text-sm text-gray-500 italic text-center max-w-md">
@@ -239,7 +252,14 @@ const busy = ref<string | null>(null);
 // Add / presets / Rebuild before `GET /api/sources` resolves —
 // otherwise `installPreset()` checks `sources.value` against an
 // empty set and re-POSTs slugs the server already has.
+//
+// `initialLoadError` distinguishes "load finished, list really is
+// empty" from "load failed, list is unknown". Without this split,
+// a 500 on the first GET would release the gate with sources===[],
+// letting the same double-register happen the gate was added to
+// prevent. See PR #676 follow-up review.
 const initialLoading = ref(props.mode === "page");
+const initialLoadError = ref<string | null>(null);
 
 // --- Add source form state ---------------------------------------------
 
@@ -599,13 +619,17 @@ function flash(message: string, isError = false): void {
   }, 4000);
 }
 
-async function refreshList(): Promise<void> {
+// Returns the server error string on failure so callers (e.g. the
+// initial page-mode load) can keep that error visible in the UI
+// rather than rely on the transient flash toast.
+async function refreshList(): Promise<string | null> {
   const response = await apiGet<{ sources: Source[] }>(API_ROUTES.sources.list);
   if (!response.ok) {
     flash(t("pluginManageSource.flashRefreshListFailed", { error: response.error }), true);
-    return;
+    return response.error || t("pluginManageSource.initialLoadFailed");
   }
   localSources.value = response.data.sources;
+  return null;
 }
 
 async function remove(slug: string): Promise<void> {
@@ -728,13 +752,28 @@ const briefHtml = computed(() => {
 //   - plugin mode: skip the list fetch — the tool-result seed (even
 //     when .data is absent due to a failure) is authoritative until
 //     the user clicks Rebuild/Remove/Add.
+async function doInitialLoad(): Promise<void> {
+  initialLoading.value = true;
+  initialLoadError.value = null;
+  try {
+    initialLoadError.value = await refreshList();
+  } finally {
+    initialLoading.value = false;
+  }
+}
+
+async function retryInitialLoad(): Promise<void> {
+  await doInitialLoad();
+  // Re-attempt the brief fetch too — a network blip that killed the
+  // list also likely killed the brief, and we only hit this path on
+  // the retry button, so users expect a full reload.
+  const initial = lastRebuild.value?.isoDate ?? todayIsoDate();
+  loadBrief(initial);
+}
+
 onMounted(async () => {
   if (props.mode === "page") {
-    try {
-      await refreshList();
-    } finally {
-      initialLoading.value = false;
-    }
+    await doInitialLoad();
   }
   const initial = lastRebuild.value?.isoDate ?? todayIsoDate();
   loadBrief(initial);

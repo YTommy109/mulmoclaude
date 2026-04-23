@@ -199,6 +199,46 @@ test.describe("/sources page", () => {
     await expect(page.getByTestId(`source-row-${SOURCE_A.slug}`)).toBeVisible();
   });
 
+  test("initial /api/sources GET failure stays gated — empty state and presets are not exposed", async ({ page }) => {
+    // Follow-up regression for PR #676 review: when the first GET
+    // fails, `refreshList()` never sets localSources and the gate
+    // must stay closed — otherwise `sources.length === 0` renders
+    // the empty state, exposing preset buttons that would attempt
+    // to register slugs the server may actually have.
+    //
+    // Flip to a 500 on the first GET, then OK on subsequent retries.
+    let getCount = 0;
+    await page.route(
+      (url) => url.pathname === "/api/sources",
+      (route: Route) => {
+        if (route.request().method() !== "GET") return route.fallback();
+        getCount++;
+        if (getCount === 1) {
+          return route.fulfill({ status: 500, json: { error: "server blew up" } });
+        }
+        return route.fulfill({ json: { sources: [SOURCE_A] } });
+      },
+    );
+
+    await page.goto("/sources");
+
+    // Error state, not empty state.
+    await expect(page.getByTestId("sources-initial-error")).toBeVisible();
+    await expect(page.getByTestId("sources-empty")).toBeHidden();
+    await expect(page.getByTestId("sources-presets")).toBeHidden();
+
+    // Header buttons stay disabled so Add / Rebuild can't race
+    // against the unknown-state list either.
+    await expect(page.getByTestId("sources-add-btn")).toBeDisabled();
+    await expect(page.getByTestId("sources-rebuild-btn")).toBeDisabled();
+
+    // Retry clears the error and exposes the server's real list.
+    await page.getByTestId("sources-initial-retry").click();
+    await expect(page.getByTestId("sources-initial-error")).toBeHidden();
+    await expect(page.getByTestId(`source-row-${SOURCE_A.slug}`)).toBeVisible();
+    await expect(page.getByTestId("sources-add-btn")).toBeEnabled();
+  });
+
   test("register form submits POST /api/sources and triggers rebuild", async ({ page }) => {
     const state = await installSourcesMocks(page, []);
     await page.goto("/sources");

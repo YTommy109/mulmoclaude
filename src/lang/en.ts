@@ -412,6 +412,8 @@ const enMessages = {
     errGithubInvalid: "Enter a GitHub repo URL (https://github.com/owner/repo) or owner/repo.",
     errUnsupportedKind: "Unsupported fetcher kind.",
     initialLoading: "Loading sources…",
+    initialLoadFailed: "Failed to load sources.",
+    retryLabel: "Retry",
   },
   pluginManageSkills: {
     deleteProjectSkill: "Delete this project-scope skill",
