@@ -54,7 +54,14 @@ export function allocateRandomPort() {
 // `{ ok: false, attempts, elapsedMs, lastError }` after timeout.
 // The injectable fetch is what makes this unit-testable without
 // actually standing up an HTTP server.
-export async function pollHttp({ url, timeoutMs = DEFAULT_BOOT_TIMEOUT_MS, intervalMs = DEFAULT_POLL_INTERVAL_MS, fetchImpl = globalThis.fetch, now = Date.now, sleep = defaultSleep } = {}) {
+export async function pollHttp({
+  url,
+  timeoutMs = DEFAULT_BOOT_TIMEOUT_MS,
+  intervalMs = DEFAULT_POLL_INTERVAL_MS,
+  fetchImpl = globalThis.fetch,
+  now = Date.now,
+  sleep = defaultSleep,
+} = {}) {
   const startedAt = now();
   let attempts = 0;
   let lastError = null;
@@ -97,24 +104,39 @@ export function buildInstallerPackageJson({ tarballName } = {}) {
 
 // Spawn a child process, collect stdout/stderr as strings, enforce a
 // timeout. Returns `{ code, signal, stdout, stderr, timedOut }`.
+//
+// On timeout we send SIGTERM, then escalate to SIGKILL if the child
+// still hasn't exited after `KILL_GRACE_MS` — npm subprocesses under
+// load can ignore SIGTERM long enough to hang a CI job past its
+// overall budget, so the hard kill is a safety net.
 async function runCommand(cmd, args, { cwd, timeoutMs, env } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { cwd, env: env ?? process.env, stdio: ["ignore", "pipe", "pipe"] });
     const stdout = [];
     const stderr = [];
     let timedOut = false;
+    let sigkillTimer = null;
     const killTimer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGTERM");
+      sigkillTimer = setTimeout(() => {
+        if (child.exitCode === null && child.signalCode === null) {
+          child.kill("SIGKILL");
+        }
+      }, KILL_GRACE_MS);
     }, timeoutMs ?? DEFAULT_INSTALL_TIMEOUT_MS);
+    const clearKillTimers = () => {
+      clearTimeout(killTimer);
+      if (sigkillTimer) clearTimeout(sigkillTimer);
+    };
     child.stdout?.on("data", (chunk) => stdout.push(chunk));
     child.stderr?.on("data", (chunk) => stderr.push(chunk));
     child.once("error", (err) => {
-      clearTimeout(killTimer);
+      clearKillTimers();
       reject(err);
     });
     child.once("close", (code, signal) => {
-      clearTimeout(killTimer);
+      clearKillTimers();
       resolve({
         code,
         signal,
@@ -162,6 +184,12 @@ async function installTarball({ workDir, tarballAbsolutePath, installTimeoutMs }
 // `logFile`, wait for the poll helper to get a 200. Returns the
 // probe outcome and a reference to the child so the caller can
 // clean it up — even on success — to free the port.
+//
+// Spawn failures (ENOENT on the bin, EACCES, etc.) race the HTTP
+// probe via `Promise.race` — otherwise `pollHttp` would eat the
+// full boot timeout waiting for a child that never started, and
+// the smoke would look like a boot-too-slow failure instead of
+// the actual install/permission bug.
 async function bootAndProbe({ workDir, port, bootTimeoutMs, logFile }) {
   const bin = path.join(workDir, "node_modules", ".bin", "mulmoclaude");
   const child = spawn(bin, ["--no-open", "--port", String(port)], {
@@ -180,10 +208,23 @@ async function bootAndProbe({ workDir, port, bootTimeoutMs, logFile }) {
   };
   await attachSink(child.stdout, "out");
   await attachSink(child.stderr, "err");
-  const probe = await pollHttp({
-    url: `http://127.0.0.1:${port}/`,
-    timeoutMs: bootTimeoutMs ?? DEFAULT_BOOT_TIMEOUT_MS,
+  const spawnErrorPromise = new Promise((resolve) => {
+    child.once("error", (err) => {
+      resolve({
+        ok: false,
+        attempts: 0,
+        elapsedMs: 0,
+        lastError: `launcher spawn failed: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    });
   });
+  const probe = await Promise.race([
+    pollHttp({
+      url: `http://127.0.0.1:${port}/`,
+      timeoutMs: bootTimeoutMs ?? DEFAULT_BOOT_TIMEOUT_MS,
+    }),
+    spawnErrorPromise,
+  ]);
   return { probe, child };
 }
 
@@ -202,7 +243,15 @@ async function killGracefully(child) {
 // caller passes a malformed `root`. Cleanup is best-effort: the
 // tarball, the work dir, and the process are all tidied up in a
 // finally block before returning.
+//
+// Cleanup policy: on **success** we remove the tarball and, if we
+// allocated the work dir ourselves, remove it too — keeping the
+// workspace tidy across repeated local runs. On **failure** we
+// leave both in place so investigators can inspect the installed
+// tree and the packed artifact. A caller-provided `workDir` is
+// always left alone (CI typically uploads it as an artifact).
 export async function runTarballSmoke({ root = process.cwd(), workDir, logFile, bootTimeoutMs, packTimeoutMs, installTimeoutMs, port } = {}) {
+  const weAllocatedWorkDir = !workDir;
   const runDir = workDir ?? (await mkdtemp(path.join(os.tmpdir(), "mc-smoke-")));
   const resolvedLog = logFile ?? path.join(runDir, "launcher.log");
   await mkdir(runDir, { recursive: true });
@@ -211,12 +260,14 @@ export async function runTarballSmoke({ root = process.cwd(), workDir, logFile, 
 
   let tarballPath = null;
   let child = null;
+  let succeeded = false;
   try {
     tarballPath = await packTarball({ root, packTimeoutMs });
     await installTarball({ workDir: runDir, tarballAbsolutePath: tarballPath, installTimeoutMs });
     const resolvedPort = port ?? (await allocateRandomPort());
     const booted = await bootAndProbe({ workDir: runDir, port: resolvedPort, bootTimeoutMs, logFile: resolvedLog });
     child = booted.child;
+    succeeded = booted.probe.ok;
     return {
       ok: booted.probe.ok,
       port: resolvedPort,
@@ -240,10 +291,14 @@ export async function runTarballSmoke({ root = process.cwd(), workDir, logFile, 
     };
   } finally {
     if (child) await killGracefully(child);
-    // Tarball cleanup is conservative — leaving it around after a
-    // failure is actually useful for post-mortem (inspect contents,
-    // reproduce install locally). Only nuke on success + when we
-    // created the work dir ourselves.
+    if (succeeded) {
+      if (tarballPath) {
+        await rm(tarballPath, { force: true }).catch(() => {});
+      }
+      if (weAllocatedWorkDir) {
+        await rm(runDir, { recursive: true, force: true }).catch(() => {});
+      }
+    }
   }
 }
 

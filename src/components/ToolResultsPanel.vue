@@ -5,12 +5,15 @@
       <span v-if="sessionRoleName">{{ sessionRoleName }}</span>
       <div class="ml-auto flex items-center gap-1">
         <button
+          type="button"
           class="text-gray-400 hover:text-gray-700"
           :class="{ 'text-blue-500': showRightSidebar }"
           :title="t('sidebarHeader.toolCallHistory')"
+          :aria-label="t('sidebarHeader.toolCallHistory')"
+          :aria-pressed="showRightSidebar"
           @click="emit('toggle-right-sidebar')"
         >
-          <span class="material-icons text-lg">build</span>
+          <span class="material-icons text-lg" aria-hidden="true">build</span>
         </button>
         <CanvasViewToggle :model-value="layoutMode" @update:model-value="(mode) => emit('update:layoutMode', mode)" />
       </div>
