@@ -1,7 +1,7 @@
 <template>
   <div class="h-full bg-white flex flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+    <div class="flex items-center justify-between px-6 py-2 border-b border-gray-100 shrink-0">
       <div class="flex items-center gap-3">
         <button v-if="action !== 'index'" class="text-gray-400 hover:text-gray-700" :title="t('pluginWiki.backToIndex')" @click="router.back()">
           <span class="material-icons text-base">arrow_back</span>
@@ -103,7 +103,7 @@
       <div v-if="visibleEntries.length === 0 && selectedTag" class="flex-1 flex items-center justify-center text-gray-400 text-sm px-4 text-center">
         {{ t("pluginWiki.noMatches", { tag: selectedTag }) }}
       </div>
-      <div v-else class="flex-1 overflow-y-auto">
+      <div v-else ref="scrollRef" class="flex-1 overflow-y-auto">
         <div
           v-for="entry in visibleEntries"
           :key="entry.slug"
@@ -131,7 +131,13 @@
     </div>
 
     <!-- Markdown content -->
-    <div v-else class="flex-1 overflow-y-auto px-6 py-4 prose prose-sm max-w-none wiki-content" @click="handleContentClick" v-html="renderedContent" />
+    <div
+      v-else
+      ref="scrollRef"
+      class="flex-1 overflow-y-auto px-6 py-4 prose prose-sm max-w-none wiki-content"
+      @click="handleContentClick"
+      v-html="renderedContent"
+    />
 
     <!-- Per-page chat composer (standalone /wiki route only). Sending
          spawns a fresh chat session with a prepended "read this page
@@ -167,7 +173,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { marked } from "marked";
@@ -181,6 +187,7 @@ import { useAppApi } from "../../composables/useAppApi";
 import { renderWikiLinks } from "./helpers";
 import { BUILTIN_ROLE_IDS } from "../../config/roles";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
+import { extractFrontmatter } from "../../utils/format/frontmatter";
 import { apiPost } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { PAGE_ROUTES } from "../../router";
@@ -314,15 +321,30 @@ watch(action, (next) => {
   if (next !== "index") selectedTag.value = null;
 });
 
+// The wiki view stays mounted across wiki navigations (the router
+// just updates params and callApi swaps content.value), so the
+// scrollable container would otherwise keep the previous page's
+// scrollTop. Reset to the top whenever the rendered body changes.
+const scrollRef = ref<HTMLElement | null>(null);
+watch(content, async () => {
+  await nextTick();
+  if (scrollRef.value) scrollRef.value.scrollTop = 0;
+});
+
 const renderedContent = computed(() => {
   if (!content.value) return "";
+  // Strip YAML frontmatter before rendering — marked doesn't parse
+  // it, so the `---` fences turn into <hr>s and the inner keys
+  // render as plain text (title / created / updated / tags / source).
+  const body = extractFrontmatter(content.value).body;
+  if (!body) return "";
   // Rewrite workspace-relative image refs (`![alt](images/foo.png)`)
   // to `/api/files/raw?path=...` BEFORE marked parses them — without
   // this, the browser tries to fetch against the SPA route URL
   // (/chat/…/images/foo.png) and 404s. basePath = wiki/pages for
   // individual pages so `../images/foo.png` resolves correctly.
   const basePath = action.value === "page" ? "wiki/pages" : "wiki";
-  const withImages = rewriteMarkdownImageRefs(content.value, basePath);
+  const withImages = rewriteMarkdownImageRefs(body, basePath);
   return marked.parse(renderWikiLinks(withImages)) as string;
 });
 
@@ -508,6 +530,12 @@ function handleContentClick(event: MouseEvent) {
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
   color: #111827;
+}
+.wiki-content :deep(h1:first-child),
+.wiki-content :deep(h2:first-child),
+.wiki-content :deep(h3:first-child),
+.wiki-content :deep(p:first-child) {
+  margin-top: 0;
 }
 .wiki-content :deep(h2) {
   font-size: 1.2rem;
