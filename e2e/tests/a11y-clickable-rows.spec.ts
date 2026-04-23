@@ -65,11 +65,11 @@ test.describe("clickable-region a11y", () => {
     await expect(row).toBeVisible();
     const startUrl = page.url();
 
-    await row.evaluate((el) => {
+    await row.evaluate((rowEl) => {
       // Synthetic keydown event whose target is a CHILD span inside
       // the row, not the row itself. With `.self`, the handler must
       // skip. Without it, the handler would fire and navigate away.
-      const child = el.querySelector("span") ?? el;
+      const child = rowEl.querySelector("span") ?? rowEl;
       child.dispatchEvent(new KeyboardEvent("keydown", { key: " ", code: "Space", bubbles: true, cancelable: true }));
     });
 
