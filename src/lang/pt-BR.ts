@@ -141,6 +141,12 @@ const ptBRMessages = {
     switchToSingle: "Alternar para visão única",
     switchToStack: "Alternar para visão em pilha",
   },
+  sessionHistoryToggle: {
+    showTooltip: "Mostrar o painel de histórico de sessões à esquerda",
+    hideTooltip: "Ocultar o painel de histórico de sessões",
+    show: "Mostrar histórico de sessões",
+    hide: "Ocultar histórico de sessões",
+  },
   settingsWorkspaceDirs: {
     explanation: "Diretórios personalizados para organizar arquivos em {dataDir} e {artifactsDir}. O Claude os usa para decidir onde salvar arquivos.",
     noEntries: "Nenhum diretório personalizado configurado.",

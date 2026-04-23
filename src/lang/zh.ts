@@ -144,6 +144,12 @@ const zhMessages = {
     switchToSingle: "切换到单一视图",
     switchToStack: "切换到堆叠视图",
   },
+  sessionHistoryToggle: {
+    showTooltip: "在左侧显示会话历史面板",
+    hideTooltip: "隐藏会话历史面板",
+    show: "显示会话历史",
+    hide: "隐藏会话历史",
+  },
   settingsWorkspaceDirs: {
     explanation: "自定义用于在 {dataDir} 和 {artifactsDir} 下组织文件的目录。Claude 会参照这些来决定文件保存路径。",
     noEntries: "未配置自定义目录。",

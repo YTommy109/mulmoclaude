@@ -141,6 +141,12 @@ const frMessages = {
     switchToSingle: "Passer à la vue simple",
     switchToStack: "Passer à la vue empilée",
   },
+  sessionHistoryToggle: {
+    showTooltip: "Afficher le panneau d'historique des sessions à gauche",
+    hideTooltip: "Masquer le panneau d'historique des sessions",
+    show: "Afficher l'historique des sessions",
+    hide: "Masquer l'historique des sessions",
+  },
   settingsWorkspaceDirs: {
     explanation:
       "Répertoires personnalisés pour organiser les fichiers sous {dataDir} et {artifactsDir}. Claude s'en sert pour router l'enregistrement des fichiers.",

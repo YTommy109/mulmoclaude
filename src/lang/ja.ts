@@ -146,6 +146,12 @@ const jaMessages = {
     switchToSingle: "Single 表示に切替",
     switchToStack: "Stack 表示に切替",
   },
+  sessionHistoryToggle: {
+    showTooltip: "左側にセッション履歴パネルを表示",
+    hideTooltip: "セッション履歴パネルを閉じる",
+    show: "セッション履歴を表示",
+    hide: "セッション履歴を閉じる",
+  },
   settingsWorkspaceDirs: {
     explanation: "{dataDir} および {artifactsDir} 配下でファイルを整理するためのカスタムディレクトリ。Claude がファイル保存先を振り分けるために使用します。",
     noEntries: "カスタムディレクトリは未設定です。",

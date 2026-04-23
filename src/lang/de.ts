@@ -141,6 +141,12 @@ const deMessages = {
     switchToSingle: "Zur Einzelansicht wechseln",
     switchToStack: "Zur Stapelansicht wechseln",
   },
+  sessionHistoryToggle: {
+    showTooltip: "Sitzungsverlauf-Panel links anzeigen",
+    hideTooltip: "Sitzungsverlauf-Panel ausblenden",
+    show: "Sitzungsverlauf anzeigen",
+    hide: "Sitzungsverlauf ausblenden",
+  },
   settingsWorkspaceDirs: {
     explanation:
       "Benutzerdefinierte Verzeichnisse zur Organisation von Dateien unter {dataDir} und {artifactsDir}. Claude nutzt sie, um das Speichern von Dateien zu steuern.",

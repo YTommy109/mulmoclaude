@@ -15,6 +15,7 @@
         >
           <span class="material-icons text-lg" aria-hidden="true">build</span>
         </button>
+        <SessionHistoryToggleButton :model-value="showSessionHistory" @update:model-value="(value) => emit('update:showSessionHistory', value)" />
         <CanvasViewToggle :model-value="layoutMode" @update:model-value="(mode) => emit('update:layoutMode', mode)" />
       </div>
     </div>
@@ -101,6 +102,7 @@ import type { TextResponseData } from "../plugins/textResponse/types";
 import { formatSmartTime } from "../utils/format/date";
 import { isRecord } from "../utils/types";
 import CanvasViewToggle from "./CanvasViewToggle.vue";
+import SessionHistoryToggleButton from "./SessionHistoryToggleButton.vue";
 import type { LayoutMode } from "../utils/canvas/layoutMode";
 
 // Most plugin viewComponents use h-full internally, so a defined parent
@@ -139,12 +141,14 @@ const props = defineProps<{
   sessionRoleIcon?: string;
   layoutMode: LayoutMode;
   showRightSidebar: boolean;
+  showSessionHistory: boolean;
 }>();
 
 const emit = defineEmits<{
   select: [uuid: string];
   updateResult: [result: ToolResultComplete];
   "update:layoutMode": [mode: LayoutMode];
+  "update:showSessionHistory": [value: boolean];
   "toggle-right-sidebar": [];
 }>();
 

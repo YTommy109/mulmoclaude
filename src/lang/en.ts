@@ -163,6 +163,12 @@ const enMessages = {
     switchToSingle: "Switch to Single view",
     switchToStack: "Switch to Stack view",
   },
+  sessionHistoryToggle: {
+    showTooltip: "Show session history panel on the left",
+    hideTooltip: "Hide session history panel",
+    show: "Show session history",
+    hide: "Hide session history",
+  },
   settingsWorkspaceDirs: {
     explanation: "Custom directories for organizing files under {dataDir} and {artifactsDir}. Claude uses these to route file saves.",
     noEntries: "No custom directories configured.",

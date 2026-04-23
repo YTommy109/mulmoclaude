@@ -147,6 +147,12 @@ const koMessages = {
     switchToSingle: "단일 보기로 전환",
     switchToStack: "스택 보기로 전환",
   },
+  sessionHistoryToggle: {
+    showTooltip: "왼쪽에 세션 기록 패널 표시",
+    hideTooltip: "세션 기록 패널 숨기기",
+    show: "세션 기록 표시",
+    hide: "세션 기록 숨기기",
+  },
   settingsWorkspaceDirs: {
     explanation: "{dataDir} 와 {artifactsDir} 아래에서 파일을 정리하기 위한 커스텀 디렉터리입니다. Claude 는 이를 참조해 파일 저장 위치를 결정합니다.",
     noEntries: "설정된 커스텀 디렉터리가 없습니다.",
