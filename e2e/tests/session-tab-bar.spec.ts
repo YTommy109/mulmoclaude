@@ -82,7 +82,7 @@ test.describe("session tab bar — visible per-tab info", () => {
     await expect(page.getByText("MulmoClaude")).toBeVisible();
     const tabB = page.getByTestId(`session-tab-${SESSION_B.id}`);
     await expect(tabB).toBeVisible();
-    const activeTabId = await tabB.evaluate((el) => el.getAttribute("data-testid"));
+    const activeTabId = await tabB.evaluate((node) => node.getAttribute("data-testid"));
     // SESSION_B is newer → it's the displayed chat session.
     expect(activeTabId).toBe(`session-tab-${SESSION_B.id}`);
 
