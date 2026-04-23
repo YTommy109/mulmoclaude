@@ -1,5 +1,10 @@
 // Spanish dictionary. Mirror the shape of src/lang/en.ts —
 // missing keys fall back to English per createI18n's fallbackLocale.
+//
+// ⚠️ Las cadenas que contienen ángulos (p.ej. `<name>`) activan la
+// heurística XSS de vue-i18n y generan el aviso
+// "Detected HTML in '…' message". Usa siempre la **forma función**
+// en esos casos. Ver la cabecera de en.ts para más detalle.
 
 const esMessages = {
   common: {
@@ -20,6 +25,12 @@ const esMessages = {
     sessionHistory: "Historial de sesiones",
     activeSessions: "{count} sesión activa (agente en ejecución) | {count} sesiones activas (agente en ejecución)",
     unreadReplies: "{count} respuesta sin leer | {count} respuestas sin leer",
+    unreadDot: "Nueva respuesta",
+    origin: {
+      scheduler: "Iniciada por el programador",
+      skill: "Iniciada por una skill",
+      bridge: "Iniciada por un bridge",
+    },
   },
   chatInput: {
     placeholder: "Escribe una tarea, o arrastra / pega / adjunta un archivo…",
@@ -34,6 +45,7 @@ const esMessages = {
   sessionHistoryPanel: {
     filters: {
       all: "Todas",
+      unread: "No leídas",
       human: "Persona",
       scheduler: "Programador",
       skill: "Skill",
@@ -46,6 +58,7 @@ const esMessages = {
     running: "En ejecución",
     unread: "Sin leer",
     noMessages: "(sin mensajes)",
+    openRowAria: "Abrir sesión: {preview}",
   },
   notificationBell: {
     notifications: "Notificaciones",
@@ -54,6 +67,7 @@ const esMessages = {
     dismiss: "Descartar",
   },
   sidebarHeader: {
+    home: "Ir al chat más reciente",
     toolCallHistory: "Historial de llamadas a herramientas",
     settings: "Ajustes",
   },
@@ -105,11 +119,19 @@ const esMessages = {
   settingsModal: {
     title: "Ajustes",
     tabs: {
+      gemini: "Clave API de Gemini",
       tools: "Herramientas permitidas",
       mcp: "Servidores MCP",
       dirs: "Directorios",
       refs: "Directorios de referencia",
     },
+    // Slots `<i18n-t>` — los nombres `envKey` / `envFile` se renderizan
+    // como `<code>` en línea en SettingsModal.vue, por lo que los
+    // literales de variable y nombre de archivo se mantienen sin
+    // traducir.
+    geminiRequired: "La generación de imágenes requiere {envKey}. Añádelo a {envFile} y reinicia la app.",
+    geminiAskButton: "Preguntar a Claude",
+    geminiAskMessage: "¿Cuál es el rol de la clave API de Gemini en esta app?",
     toolNamesLabel: "Nombres de herramientas",
     invalidToolNamesPrefix: "Estas parecen no estándar (prefijo esperado",
     invalidToolNamesSuffix: "):",
@@ -153,6 +175,7 @@ const esMessages = {
     todos: { label: "Tareas", title: "Abrir tareas (⌘4)" },
     scheduler: { label: "Agenda", title: "Abrir agenda (⌘5)" },
     wiki: { label: "Wiki", title: "Abrir wiki (⌘6)" },
+    sources: { label: "Fuentes", title: "Abrir fuentes de información" },
     skills: { label: "Skills", title: "Abrir skills (⌘7)" },
     roles: { label: "Roles", title: "Abrir roles (⌘8)" },
     files: { label: "Archivos", title: "Abrir archivos del área de trabajo (⌘3)" },
@@ -196,6 +219,7 @@ const esMessages = {
     errBadName: "El nombre debe comenzar con una letra minúscula y contener solo [a-z0-9_-].",
     errIdExists: 'El id de servidor "{id}" ya existe.',
     errBadHttpUrl: "La URL HTTP debe comenzar con http:// o https://",
+    pendingEntryWarning: "Finaliza o cancela primero la entrada de servidor MCP pendiente.",
   },
   pluginScheduler: {
     prev: "Anterior",
@@ -215,6 +239,7 @@ const esMessages = {
     update: "Actualizar",
     editSource: "Editar fuente",
     applyChanges: "Aplicar cambios",
+    yamlParseError: "No se pudo analizar el YAML — asegúrate de que 'title' esté presente",
     propLabel: "{key}:",
     moreCount: "+{count} más",
     previewIcon: "📅",
@@ -254,6 +279,7 @@ const esMessages = {
     clearFilters: "Borrar todos los filtros",
     deleteItem: "Eliminar elemento",
     apiError: "⚠ Error al actualizar las tareas: {error}",
+    loadFailed: "Error al cargar los Todos",
     heading: "Lista de tareas",
     completedRatio: "{done}/{total} completadas",
     filter: "Filtro:",
@@ -310,9 +336,12 @@ const esMessages = {
     deleteColumn: "Eliminar columna",
     columnActions: "Acciones de columna",
     addCard: "+ Añadir tarjeta",
+    openCardAria: "Abrir tarea: {task}",
   },
   todoTableList: {
     noMatchingFilter: "Ningún elemento coincide con el filtro actual",
+    sortColumnAria: "Ordenar por {column}",
+    expandRowAria: "Expandir tarea: {task}",
   },
   pluginWiki: {
     backToIndex: "Volver al índice",
@@ -325,6 +354,9 @@ const esMessages = {
     previewMore: "+ {count} más…",
     chatPlaceholder: "Pregunta sobre esta página…",
     chatSend: "Iniciar un chat nuevo sobre esta página",
+    tagFilterAll: "Todas",
+    noMatches: "No hay páginas con la etiqueta #{tag}",
+    lintChat: "Revisar mi wiki",
   },
   pluginPresentHtml: {
     saveAsPdf: "Guardar como PDF (abre el diálogo de impresión)",
@@ -382,13 +414,25 @@ const esMessages = {
     flashPresetAlreadyRegistered: 'Todas las fuentes de "{label}" ya están registradas.',
     flashPresetRegistered: 'Registrada {count} fuente de "{label}". Obteniendo…|Registradas {count} fuentes de "{label}". Obteniendo…',
     flashPresetPartial: "Registradas {ok}/{total}. Errores: {errors}",
+    errPrimaryRequired: "Por favor, rellena el campo URL / consulta.",
+    errRssUrlProtocol: "La URL del feed RSS debe empezar por http:// o https://",
+    errRssUrlInvalid: "La URL del feed RSS no es una URL válida.",
+    errRssUrlHost: "La URL del feed RSS debe incluir un host.",
+    errGithubInvalid: "Introduce una URL de repositorio de GitHub (https://github.com/owner/repo) o owner/repo.",
+    errUnsupportedKind: "Tipo de fetcher no compatible.",
+    initialLoading: "Cargando fuentes…",
+    initialLoadFailed: "No se pudieron cargar las fuentes.",
+    retryLabel: "Reintentar",
   },
   pluginManageSkills: {
     deleteProjectSkill: "Eliminar esta skill de proyecto",
     heading: "Skills",
     previewCount: "{count} skill | {count} skills",
     previewMore: "+{count} más",
-    subheading: '{count} disponibles · haz clic para ver · "Run" la invoca como /<name>',
+    // La forma función evita el compilador de mensajes de vue-i18n,
+    // que de lo contrario marca el literal `<name>` como fragmento
+    // HTML y avisa "Detected HTML in '…' message" en cada montaje.
+    subheading: ({ named }: { named: (key: string) => unknown }) => `${named("count")} disponibles · haz clic para ver · "Run" la invoca como /<name>`,
     emptyWithPath: "No se encontraron skills. Añade carpetas de skills en {path}.",
     emptySkillPath: "~/.claude/skills/",
     selectHint: "Selecciona una skill a la izquierda para ver su SKILL.md.",
@@ -494,7 +538,6 @@ const esMessages = {
     cancel: "Cancelar",
   },
   pluginSpreadsheet: {
-    previewLabel: "📊 Hoja de cálculo",
     previewUntitled: "Hoja de cálculo",
     previewSheets: "{count} hoja | {count} hojas",
     untitled: "Hoja de cálculo",
@@ -506,15 +549,15 @@ const esMessages = {
     noData: "No hay datos de hoja de cálculo disponibles",
     editData: "Editar datos de la hoja de cálculo",
     applyChanges: "Aplicar cambios",
+    dataMustBeArray: "Los datos deben ser una matriz de hojas",
+    loadFailed: "Error al cargar la hoja de cálculo: {error}",
+    invalidJsonAlert: "Formato JSON no válido: {error}",
+    unknownError: "Error desconocido",
     update: "Actualizar",
     stringType: "Texto",
     formulaType: "Fórmula",
   },
   app: {
-    // Slots `<i18n-t>` — los nombres `envKey` / `envFile` se renderizan
-    // como `<code>` en línea en App.vue, por lo que los literales de
-    // variable y nombre de archivo se mantienen sin traducir.
-    geminiRequired: "La generación de imágenes requiere {envKey}. Añádelo a {envFile} y reinicia la app.",
     startConversation: "Inicia una conversación",
   },
   suggestionsPanel: {

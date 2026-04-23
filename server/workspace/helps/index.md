@@ -15,7 +15,6 @@ Under the hood it uses the Claude Code Agent SDK as its LLM core. Claude has ful
 - **Tutor** — Assesses your knowledge level, then teaches any topic with structured documents and visuals.
 - **Storyteller** — Crafts illustrated narrative stories as a MulmoScript storyboard.
 - **Storyteller Plus** — Like Storyteller, with consistent character images across beats.
-- **Role Manager** — Create, edit, and delete custom roles.
 - *(Additional roles may be defined by the user in the workspace.)*
 
 ## Key Capabilities
@@ -40,6 +39,7 @@ See [Wiki](helps/wiki.md) for details on how it works.
 ## Help Pages
 
 - [Wiki](helps/wiki.md) — how the personal knowledge wiki works, its folder layout, page format, and operations
+- [Gemini API Key](helps/gemini.md) — why `GEMINI_API_KEY` is strongly recommended (images, audio, video) and how to get one from Google AI Studio
 - [MulmoScript](helps/mulmoscript.md) — format reference for authoring multimedia stories: beats, image types, speech, audio, and a minimal example
 - [Business Presentation Template](helps/business.md) — MulmoScript template and rules for business presentations in the Office role
 - [Spreadsheet](helps/spreadsheet.md) — cell format, formulas, date handling, and format codes for the presentSpreadsheet plugin

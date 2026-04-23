@@ -116,7 +116,8 @@ function handleDismiss(event: Event, notificationId: string): void {
           :data-testid="`notification-item-${n.id}`"
           :aria-label="n.title"
           @click="handleClick(n)"
-          @keydown.enter="handleClick(n)"
+          @keydown.enter.prevent.self="(e) => !e.repeat && handleClick(n)"
+          @keydown.space.prevent.self="(e) => !e.repeat && handleClick(n)"
         >
           <span class="material-icons text-lg mt-0.5 shrink-0" :class="n.priority === NOTIFICATION_PRIORITIES.high ? 'text-red-500' : 'text-gray-400'">
             {{ iconName(n) }}

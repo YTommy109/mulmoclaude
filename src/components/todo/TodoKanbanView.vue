@@ -63,9 +63,14 @@
             <template #item="{ element }: { element: TodoItem }">
               <div
                 :data-testid="`todo-card-${element.id}`"
-                class="bg-white border border-l-4 border-gray-200 rounded shadow-sm p-2 cursor-grab hover:shadow active:cursor-grabbing"
+                tabindex="0"
+                role="button"
+                :aria-label="t('todoKanban.openCardAria', { task: element.text })"
+                class="bg-white border border-l-4 border-gray-200 rounded shadow-sm p-2 cursor-grab hover:shadow active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                 :class="element.priority ? PRIORITY_BORDER[element.priority] : 'border-l-gray-200'"
                 @click="emit('open', element)"
+                @keydown.enter.prevent.self="(e) => !e.repeat && emit('open', element)"
+                @keydown.space.prevent.self="(e) => !e.repeat && emit('open', element)"
               >
                 <div class="flex items-start gap-2">
                   <input

@@ -1,14 +1,14 @@
 <template>
-  <div
-    ref="root"
-    class="absolute left-0 right-0 bottom-0 bg-white border-b border-gray-200 shadow-lg z-50 overflow-y-auto"
-    :style="{ top: topOffset != null ? topOffset + 'px' : '4rem' }"
-  >
+  <!-- Rendered as the canvas-column content for the /history route
+       (see plans/feat-history-url-route.md). Previously this was an
+       absolute-positioned overlay; the `h-full overflow-y-auto` root
+       plus inline flow replaces the z-index + topOffset plumbing. -->
+  <div ref="root" class="h-full overflow-y-auto bg-white">
     <div class="p-2 space-y-1">
       <!-- Origin filter bar -->
       <div class="flex gap-1 mb-1 flex-wrap" data-testid="session-filter-bar">
         <button
-          v-for="f in FILTERS"
+          v-for="f in HISTORY_FILTER_ORDER"
           :key="f"
           class="px-2 py-0.5 text-[10px] rounded-full border transition-colors"
           :class="activeFilter === f ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'"
@@ -16,7 +16,7 @@
           @click="activeFilter = f"
         >
           {{ t(`sessionHistoryPanel.filters.${f}`) }}
-          <span v-if="f !== 'all'" class="ml-0.5 opacity-70">{{ countByOrigin(f) }}</span>
+          <span v-if="f !== HISTORY_FILTERS.all" class="ml-0.5 opacity-70">{{ countByOrigin(f) }}</span>
         </button>
       </div>
 
@@ -30,15 +30,20 @@
         <span v-if="sessions.length > 0">{{ t("sessionHistoryPanel.showingLastKnown") }}</span>
       </div>
       <p v-if="filteredSessions.length === 0" class="text-xs text-gray-400 p-2">
-        {{ activeFilter === "all" ? t("sessionHistoryPanel.noSessions") : t("sessionHistoryPanel.noMatching") }}
+        {{ activeFilter === HISTORY_FILTERS.all ? t("sessionHistoryPanel.noSessions") : t("sessionHistoryPanel.noMatching") }}
       </p>
       <div
         v-for="session in filteredSessions"
         :key="session.id"
-        class="cursor-pointer rounded border p-2 text-sm transition-colors"
+        tabindex="0"
+        role="button"
+        :aria-label="t('sessionHistoryPanel.openRowAria', { preview: session.preview || t('sessionHistoryPanel.noMessages') })"
+        class="cursor-pointer rounded border p-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
         :class="rowClasses(session)"
         :data-testid="`session-item-${session.id}`"
         @click="emit('loadSession', session.id)"
+        @keydown.enter.prevent.self="(e) => !e.repeat && emit('loadSession', session.id)"
+        @keydown.space.prevent.self="(e) => !e.repeat && emit('loadSession', session.id)"
       >
         <div class="flex items-center gap-1 text-xs text-gray-500 mb-1">
           <span class="material-icons text-xs">{{ roleIconFor(session.roleId) }}</span>
@@ -75,15 +80,23 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute, useRouter } from "vue-router";
 import type { Role } from "../config/roles";
 import type { SessionSummary, SessionOrigin } from "../types/session";
 import { SESSION_ORIGINS } from "../types/session";
+import { HISTORY_FILTERS, HISTORY_FILTER_ORDER, isHistoryFilter, type HistoryFilter } from "../config/historyFilters";
+import { PAGE_ROUTES } from "../router";
 import { formatDate } from "../utils/format/date";
 import { roleIcon, roleName } from "../utils/role/icon";
 
 const { t } = useI18n();
+const route = useRoute();
+const router = useRouter();
 
-const FILTERS = ["all" as const, SESSION_ORIGINS.human, SESSION_ORIGINS.scheduler, SESSION_ORIGINS.skill, SESSION_ORIGINS.bridge];
+// `unread` is mutually exclusive with origin pills — selecting it
+// shows every unread-flagged session regardless of origin, matching
+// the user expectation that "unread" is the primary question ("what
+// needs my attention?") rather than an origin sub-filter.
 
 const ORIGIN_ICONS: Record<string, string> = {
   human: "person",
@@ -103,7 +116,6 @@ const props = defineProps<{
   sessions: SessionSummary[];
   currentSessionId: string;
   roles: Role[];
-  topOffset?: number;
   // Latest fetch error from useSessionHistory, or null when healthy.
   errorMessage?: string | null;
 }>();
@@ -117,20 +129,33 @@ defineExpose({ root });
 
 // ── Filter ──────────────────────────────────────────────────
 
-const activeFilter = ref<SessionOrigin | "all">("all");
+// Backed by the /history/:filter? path param so browser back/forward
+// restores prior filter states and deep links like /history/unread work.
+const activeFilter = computed<HistoryFilter>({
+  get: () => {
+    const raw = route.params.filter;
+    return typeof raw === "string" && isHistoryFilter(raw) ? raw : HISTORY_FILTERS.all;
+  },
+  set: (value) => {
+    const params = value === HISTORY_FILTERS.all ? {} : { filter: value };
+    router.push({ name: PAGE_ROUTES.history, params });
+  },
+});
 
 function originOf(session: SessionSummary): SessionOrigin {
   return session.origin ?? SESSION_ORIGINS.human;
 }
 
 const filteredSessions = computed(() => {
-  if (activeFilter.value === "all") return props.sessions;
+  if (activeFilter.value === HISTORY_FILTERS.all) return props.sessions;
+  if (activeFilter.value === HISTORY_FILTERS.unread) return props.sessions.filter((session) => session.hasUnread === true);
   return props.sessions.filter((session) => originOf(session) === activeFilter.value);
 });
 
-function countByOrigin(origin: string): number {
-  if (origin === "all") return props.sessions.length;
-  return props.sessions.filter((session) => originOf(session) === origin).length;
+function countByOrigin(filterKey: HistoryFilter): number {
+  if (filterKey === HISTORY_FILTERS.all) return props.sessions.length;
+  if (filterKey === HISTORY_FILTERS.unread) return props.sessions.filter((session) => session.hasUnread === true).length;
+  return props.sessions.filter((session) => originOf(session) === filterKey).length;
 }
 
 function originIcon(origin: string): string {

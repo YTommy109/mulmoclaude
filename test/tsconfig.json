@@ -26,5 +26,14 @@
     "jsx": "preserve"
   },
   "include": ["**/*.ts", "../src/**/*.ts", "../server/**/*.ts", "../packages/*/src/**/*.ts"],
-  "exclude": ["../node_modules", "../dist", "../packages/relay"]
+  "exclude": [
+    "../node_modules",
+    "../dist",
+    "../packages/relay",
+    // Fixtures for scripts/mulmoclaude/deps.mjs — deliberately minimal
+    // TS files used only as regex inputs. Type-checking them would
+    // fail because they reference packages (e.g. `mammoth/lib/foo`)
+    // that aren't installed as dev deps at this repo's root.
+    "scripts/mulmoclaude/fixtures"
+  ]
 }

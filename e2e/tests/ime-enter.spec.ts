@@ -13,41 +13,34 @@ import { test, expect } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
 import { chatInput, fillChatInput } from "../fixtures/chat";
 
-// Dispatch a composition event on the textarea.
-async function dispatchComposition(textarea: ReturnType<typeof chatInput>, type: "compositionstart" | "compositionend") {
-  await textarea.evaluate((elem, eventType) => elem.dispatchEvent(new CompositionEvent(eventType, { bubbles: true })), type);
-}
+// The events in a real IME confirmation arrive within microseconds of
+// each other (same JS microtask in Safari). Every `await
+// page.evaluate(...)` hop crosses the test-runner ↔ browser boundary,
+// which in CI can exceed the composable's 30 ms race window. So we
+// dispatch whole sequences inside a single `evaluate` — one hop, one
+// JS turn, deterministic timing regardless of CI load.
 
-// Dispatch a keydown Enter on the textarea.
-async function dispatchEnterKeydown(textarea: ReturnType<typeof chatInput>, opts: { isComposing?: boolean } = {}) {
-  await textarea.evaluate(
-    (elem, options) =>
-      elem.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "Enter",
-          code: "Enter",
-          isComposing: options.isComposing ?? false,
-          bubbles: true,
-          cancelable: true,
-        }),
-      ),
-    opts,
-  );
-}
+type ImeStep = { kind: "composition"; type: "compositionstart" | "compositionend" } | { kind: "keydown"; isComposing: boolean; shiftKey?: boolean };
 
-// Dispatch a Shift+Enter keydown on the textarea.
-async function dispatchShiftEnterKeydown(textarea: ReturnType<typeof chatInput>) {
-  await textarea.evaluate((elem) =>
-    elem.dispatchEvent(
-      new KeyboardEvent("keydown", {
-        key: "Enter",
-        code: "Enter",
-        shiftKey: true,
-        bubbles: true,
-        cancelable: true,
-      }),
-    ),
-  );
+async function dispatchImeSequence(textarea: ReturnType<typeof chatInput>, steps: readonly ImeStep[]) {
+  await textarea.evaluate((elem, stepList) => {
+    for (const step of stepList) {
+      if (step.kind === "composition") {
+        elem.dispatchEvent(new CompositionEvent(step.type, { bubbles: true }));
+      } else {
+        elem.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "Enter",
+            code: "Enter",
+            isComposing: step.isComposing,
+            shiftKey: step.shiftKey ?? false,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      }
+    }
+  }, steps);
 }
 
 test.describe("IME Enter handling", () => {
@@ -80,12 +73,15 @@ test.describe("IME Enter handling", () => {
     const input = chatInput(page);
     await fillChatInput(page, "テスト");
 
-    // Chrome order: compositionstart → keydown(Enter, isComposing=true) → compositionend
-    await dispatchComposition(input, "compositionstart");
-    await dispatchEnterKeydown(input, { isComposing: true });
-    await dispatchComposition(input, "compositionend");
+    // Chrome order: compositionstart → keydown(Enter, isComposing=true) → compositionend.
+    // The `isComposing: true` flag alone blocks the send; no timing
+    // dependency here, but we still batch for consistency.
+    await dispatchImeSequence(input, [
+      { kind: "composition", type: "compositionstart" },
+      { kind: "keydown", isComposing: true },
+      { kind: "composition", type: "compositionend" },
+    ]);
 
-    // Wait a tick to ensure no async send was queued.
     await page.waitForTimeout(100);
     expect(agentCalls).toHaveLength(0);
   });
@@ -94,22 +90,17 @@ test.describe("IME Enter handling", () => {
     const input = chatInput(page);
     await fillChatInput(page, "テスト");
 
-    // Safari fires all three events synchronously in the same microtask.
-    // Dispatch atomically in one evaluate() to avoid CDP round-trip latency
-    // inflating the gap beyond SAFARI_IME_RACE_WINDOW_MS (30ms).
-    await input.evaluate((elem) => {
-      elem.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-      elem.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
-      elem.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "Enter",
-          code: "Enter",
-          isComposing: false,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
+    // Safari order: compositionstart → compositionend → keydown(Enter, isComposing=false).
+    // The composable's 30 ms post-compositionend race window is what
+    // suppresses the send. We batch inside one evaluate() so the gap
+    // between compositionend and keydown is microseconds (same JS
+    // turn) rather than a full round-trip, which in slow CI webkit
+    // can exceed 30 ms and flake this test.
+    await dispatchImeSequence(input, [
+      { kind: "composition", type: "compositionstart" },
+      { kind: "composition", type: "compositionend" },
+      { kind: "keydown", isComposing: false },
+    ]);
 
     await page.waitForTimeout(100);
     expect(agentCalls).toHaveLength(0);
@@ -119,26 +110,18 @@ test.describe("IME Enter handling", () => {
     const input = chatInput(page);
     await fillChatInput(page, "テスト");
 
-    // Complete an IME sequence first (Safari order) — atomic to avoid CDP latency.
-    await input.evaluate((elem) => {
-      elem.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-      elem.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
-      elem.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "Enter",
-          code: "Enter",
-          isComposing: false,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    });
+    // Complete an IME sequence first (Safari order), atomically.
+    await dispatchImeSequence(input, [
+      { kind: "composition", type: "compositionstart" },
+      { kind: "composition", type: "compositionend" },
+      { kind: "keydown", isComposing: false },
+    ]);
 
-    // Wait past the 30ms race window, then send a real Enter.
+    // Wait past the 30 ms race window, then send a real Enter.
     await page.waitForTimeout(100);
     expect(agentCalls).toHaveLength(0);
 
-    await dispatchEnterKeydown(input, { isComposing: false });
+    await dispatchImeSequence(input, [{ kind: "keydown", isComposing: false }]);
     await page.waitForTimeout(100);
     expect(agentCalls).toHaveLength(1);
   });
@@ -147,7 +130,7 @@ test.describe("IME Enter handling", () => {
     const input = chatInput(page);
     await fillChatInput(page, "改行テスト");
 
-    await dispatchShiftEnterKeydown(input);
+    await dispatchImeSequence(input, [{ kind: "keydown", isComposing: false, shiftKey: true }]);
 
     await page.waitForTimeout(100);
     expect(agentCalls).toHaveLength(0);

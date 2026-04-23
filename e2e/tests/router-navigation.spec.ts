@@ -27,6 +27,38 @@ test.describe("session navigation via URL", () => {
     expect(page.url()).toMatch(/\/chat\/[\w-]+/);
   });
 
+  test("clicking the app home button keeps the current empty session when there is no history", async ({ page }) => {
+    await page.route(
+      (url) => url.pathname === "/api/sessions",
+      (route) => {
+        if (route.request().method() === "GET") {
+          return route.fulfill({
+            json: { sessions: [], cursor: "v1:0", deletedIds: [] },
+          });
+        }
+        return route.fallback();
+      },
+    );
+
+    await page.route(
+      (url) => url.pathname.startsWith("/api/sessions/") && url.pathname !== "/api/sessions",
+      (route) => {
+        if (route.request().method() === "POST") {
+          return route.fulfill({ json: { ok: true } });
+        }
+        return route.fulfill({ status: 404, json: { error: "not found" } });
+      },
+    );
+
+    await page.goto("/chat");
+    await page.waitForURL(/\/chat\//);
+    const initialUrl = page.url();
+
+    await page.getByTestId("app-home-btn").click();
+
+    await expect(page).toHaveURL(initialUrl);
+  });
+
   test("clicking a session in history changes the URL", async ({ page }) => {
     await page.goto("/chat");
     await page.waitForURL(/\/chat\//);
@@ -38,7 +70,11 @@ test.describe("session navigation via URL", () => {
     expect(page.url()).toContain(SESSION_A.id);
   });
 
-  test("browser back returns to the previous session", async ({ page }) => {
+  test("browser back returns to the previous session (via /history)", async ({ page }) => {
+    // /history is a real page route, so navigating between sessions
+    // via the history panel leaves /history entries in browser
+    // history. Stack after two selects: [..., /history, /chat/A,
+    // /history, /chat/B]. One back → /history; another back → /chat/A.
     await page.goto("/chat");
     await page.waitForURL(/\/chat\//);
 
@@ -52,15 +88,20 @@ test.describe("session navigation via URL", () => {
     await page.locator(`[data-testid="session-item-${SESSION_B.id}"]`).click();
     await page.waitForURL(new RegExp(SESSION_B.id));
 
-    // Back → session A
+    // Back → /history (the panel we opened to pick B)
+    await page.goBack();
+    await page.waitForURL(/\/history$/);
+
+    // Back → /chat/A
     await page.goBack();
     await page.waitForURL(new RegExp(SESSION_A.id));
   });
 
   test("browser forward works after going back", async ({ page }) => {
-    // Navigate through two real (non-empty) sessions so both are in
-    // browser history — the initial empty session is intentionally
-    // replaced out of history by removeCurrentIfEmpty.
+    // With /history as a real page route, the stack after two
+    // session selects is [..., /history, /chat/A, /history, /chat/B].
+    // Going back twice lands on /chat/A via /history; going forward
+    // twice returns through /history to /chat/B.
     await page.goto("/chat");
     await page.waitForURL(/\/chat\//);
 
@@ -72,11 +113,15 @@ test.describe("session navigation via URL", () => {
     await page.locator(`[data-testid="session-item-${SESSION_B.id}"]`).click();
     await page.waitForURL(new RegExp(SESSION_B.id));
 
-    // Back → session A
+    // Back twice → session A (via /history)
+    await page.goBack();
+    await page.waitForURL(/\/history$/);
     await page.goBack();
     await page.waitForURL(new RegExp(SESSION_A.id));
 
-    // Forward → session B
+    // Forward twice → session B (via /history)
+    await page.goForward();
+    await page.waitForURL(/\/history$/);
     await page.goForward();
     await page.waitForURL(new RegExp(SESSION_B.id));
   });

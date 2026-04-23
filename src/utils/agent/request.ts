@@ -3,6 +3,8 @@
 import type { Role } from "../../config/roles";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { apiFetchRaw } from "../api";
+import { errorMessage } from "../errors";
+import { isNonEmptyString } from "../types";
 
 export interface AgentRequestBodyParams {
   message: string;
@@ -16,6 +18,24 @@ export interface AgentRequestBody {
   roleId: string;
   chatSessionId: string;
   selectedImageData: string | undefined;
+  // IANA identifier (e.g. "Asia/Tokyo", "America/New_York"). The
+  // server uses this to interpret bare time expressions in the user's
+  // message without asking for clarification every turn. Undefined if
+  // the browser can't resolve a timezone — the server then falls back
+  // to its own local time and asks as before.
+  userTimezone: string | undefined;
+}
+
+// `Intl.DateTimeFormat().resolvedOptions().timeZone` can, in theory,
+// throw in some locked-down environments; wrap so a broken Intl
+// doesn't take down the send path.
+function resolveBrowserTimezone(): string | undefined {
+  try {
+    const zoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return isNonEmptyString(zoneId) ? zoneId : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function buildAgentRequestBody(params: AgentRequestBodyParams): AgentRequestBody {
@@ -24,6 +44,7 @@ export function buildAgentRequestBody(params: AgentRequestBodyParams): AgentRequ
     roleId: params.role.id,
     chatSessionId: params.chatSessionId,
     selectedImageData: params.selectedImageData,
+    userTimezone: resolveBrowserTimezone(),
   };
 }
 
@@ -49,7 +70,7 @@ export async function postAgentRun(body: AgentRequestBody): Promise<{ ok: true }
     console.error("[agent] fetch error:", err);
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Connection error.",
+      error: errorMessage(err, "Connection error."),
     };
   }
 }

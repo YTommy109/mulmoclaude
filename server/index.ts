@@ -34,7 +34,7 @@ import { initWorkspace, workspacePath } from "./workspace/workspace.js";
 import { env, isGeminiAvailable } from "./system/env.js";
 import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import { existsSync, readFileSync } from "fs";
-import { homedir } from "os";
+import { cpus, homedir, loadavg } from "os";
 import { isDockerAvailable, ensureSandboxImage, getDockerBridgeIp } from "./system/docker.js";
 import { maybeRunJournal } from "./workspace/journal/index.js";
 import { backfillAllSessions } from "./workspace/chat-index/index.js";
@@ -112,10 +112,19 @@ app.use("/api", (req, res, next) => {
 });
 
 app.get(API_ROUTES.health, (_req: Request, res: Response) => {
+  // `os.loadavg()[0]` is the kernel 1-minute load average. On Linux /
+  // macOS it's the primary "is this machine busy" signal; on Windows
+  // the array is `[0, 0, 0]` (platform has no equivalent), in which
+  // case `load1` stays 0 and the favicon's overloaded rule silently
+  // never fires there. `cores` lets the client normalise so a 16-core
+  // box at load 8 reads the same intensity as an 8-core box at load 4.
+  const [load1] = loadavg();
+  const cores = cpus().length;
   res.json({
     status: "OK",
     geminiAvailable: isGeminiAvailable(),
     sandboxEnabled,
+    cpu: { load1, cores },
   });
 });
 

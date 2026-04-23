@@ -1,0 +1,148 @@
+# Publish-prep smoke for the `mulmoclaude` launcher package.
+#
+# Runs the three traps described in
+# `.claude/skills/publish-mulmoclaude/SKILL.md`:
+#
+#   1. §1 dependency audit — every bare import under server/ must
+#      be declared in packages/mulmoclaude/package.json.
+#   2. §2 workspace drift   — a local @mulmobridge/* src/ must not
+#      expose more value-exports than the currently-installed dist.
+#   3. §4 tarball boot      — `npm pack` + clean install + launcher
+#      start + HTTP 200 on "/".
+#
+# Kept in a separate workflow from pull_request.yaml so a single
+# Ubuntu cell isn't multiplied across the six-cell (OS × Node)
+# matrix the main lint/test job uses. Nothing here needs Windows or
+# macOS — the tarball path is pure Node.
+
+name: MulmoClaude publish smoke
+
+on:
+  pull_request:
+    branches: [main]
+    # Only run when something that could affect the launcher tarball
+    # actually changed. Docs-only PRs, e2e fixtures, etc. shouldn't
+    # burn CI minutes packing + installing mulmoclaude.
+    paths:
+      - "packages/mulmoclaude/**"
+      - "packages/protocol/**"
+      - "packages/client/**"
+      - "packages/chat-service/**"
+      - "server/**"
+      - "src/**"
+      - "scripts/mulmoclaude/**"
+      - ".github/workflows/mulmoclaude_smoke.yaml"
+      # Top-level dep + build-config changes can silently break the
+      # launcher (new root dep that server/ imports, prepare-dist
+      # tweak, etc.) so cover those too.
+      - "package.json"
+      - "yarn.lock"
+      - "tsconfig*.json"
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    # Generous cap: `yarn install` + `yarn build` + `npm pack` +
+    # `npm install` + launcher boot is ~6-8 min on a warm cache,
+    # ~12 min cold. 20 min leaves headroom for transient slowness.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Use Node.js 24.x
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          cache: yarn
+
+      - run: yarn install --frozen-lockfile --network-timeout 120000
+
+      # Workspace packages must be built before smoke runs — the
+      # §2 drift check reads from node_modules/@mulmobridge/*/dist/
+      # which is populated by `yarn build:packages`.
+      - name: Build internal packages
+        run: yarn build:packages
+
+      # Full build produces dist/client/ that prepare-dist.js copies
+      # into the tarball. Without it, the launcher starts but can't
+      # serve the UI and "/" returns an unhelpful error.
+      - name: Build client
+        run: yarn build
+
+      # The launcher pre-flight rejects if `claude --version` doesn't
+      # succeed. Real installs need the Claude Code CLI + auth, but
+      # the smoke test only needs the server to boot and serve `/`
+      # (index.html, no agent query involved). A tiny stub on PATH
+      # passes the pre-flight without pulling the real CLI +
+      # credentials into CI.
+      - name: Stub Claude Code CLI for pre-flight
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/claude" <<'STUB'
+          #!/usr/bin/env bash
+          if [ "$1" = "--version" ]; then
+            echo "claude 0.0.0 (smoke-stub)"
+            exit 0
+          fi
+          echo "smoke-stub claude: no real backend available" >&2
+          exit 1
+          STUB
+          chmod +x "$HOME/.local/bin/claude"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # DISABLE_SANDBOX=1 short-circuits the Docker sandbox probe
+      # before it stats ~/.claude/.* — those files only exist on a
+      # machine where `claude` has been run interactively. Without
+      # this the launcher calls process.exit(1) during startup on
+      # CI's pristine $HOME.
+      - name: Run publish smoke
+        env:
+          DISABLE_SANDBOX: "1"
+        run: node scripts/mulmoclaude/smoke.mjs
+
+      # Preserve the smoke-verified tarball as a downloadable
+      # artifact. tarball.mjs packs the launcher into
+      # packages/mulmoclaude/mulmoclaude-<X.Y.Z>.tgz and leaves it
+      # in place after a successful HTTP 200 probe — so what you
+      # grab here is exactly the tarball that just booted cleanly
+      # in a clean dir, with prepare-dist applied.
+      #
+      # Use case: a release engineer can download the artifact
+      # straight from the Actions run page and run
+      # `npx <downloaded>.tgz` locally to validate the UX before
+      # publishing, without having to rebuild the whole repo. CI
+      # fail paths also upload because the launcher log artifact
+      # alone isn't enough to reproduce — having the .tgz too
+      # lets you retry the install locally.
+      - name: Upload smoke-verified tarball
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mulmoclaude-tarball
+          path: packages/mulmoclaude/mulmoclaude-*.tgz
+          if-no-files-found: ignore
+          # Slightly longer than the launcher log — tarballs are
+          # useful for "did v0.4.1 actually work?" forensics weeks
+          # out, whereas a boot log goes stale fast.
+          retention-days: 30
+
+      # Launcher stdout/stderr teed to /tmp/mc-smoke-*/launcher.log
+      # by the tarball stage. Upload so a failed boot is diagnosable
+      # without re-running locally. `if-no-files-found: ignore`
+      # keeps green runs quiet (the log exists but nobody needs it).
+      - name: Upload launcher log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mulmoclaude-launcher-log
+          # mktemp-generated path — match by glob because the suffix
+          # is random per run.
+          path: /tmp/mc-smoke-*/launcher.log
+          if-no-files-found: ignore
+          retention-days: 7

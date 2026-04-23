@@ -21,6 +21,7 @@ Slack bridge for [MulmoClaude](https://github.com/receptron/mulmoclaude). Uses *
 - `groups:history` — read messages in private channels
 - `im:history` — read direct messages
 - `mpim:history` — read group DMs
+- `reactions:write` — **optional**, only needed if you enable `SLACK_ACK_REACTION` (see below)
 
 ### 3. Enable Socket Mode
 
@@ -84,40 +85,47 @@ Everything posted in `#ai-help` counts as **one long conversation**, no matter w
 
 **Watch out:** after a few weeks, the session accumulates a lot of context. The AI starts pulling in stale details, and responses get slower / more expensive. Start a *new channel* if you want a fresh start.
 
-### 🧵 `thread` — one session per Slack thread
+### 🧵 `thread` — one session per Slack thread (auto-created)
 
-Posts in the root of the channel still share one session (as in `channel` mode), but **replies inside a thread get their own isolated session**.
+Each top-level post **auto-creates a thread on the first bot reply**, and every message inside that thread is one isolated session. Fire off several top-level posts on different topics and each one becomes its own thread — replies don't interleave at channel level.
 
 ```text
 #ai-help
-├── Alice: "Summarize yesterday's standup"          ┐
-├── Alice: "Translate that to Japanese"             │  ← Channel session
-│                                                   │    (root posts only)
-├── Bob:  "What about the action items?"   ──────── ┤
-│   │                                               │
-│   ├── Alice: "Focus on the ones assigned to me"   ├  ← Thread session #1
-│   └── Bob:  "Cool, thanks"                        │    (independent of
-│                                                   │     channel session)
-├── Alice: "Draft a status update"        ───────── ┤
-│   ├── Dev:  "Include the deploy notes too"        ├  ← Thread session #2
-│   └── Alice: "Perfect"                            │
+├── Alice: "Summarize yesterday's standup" ────────┐
+│   └── 🤖: "Here is the summary…"                   ├  ← Thread session #1
+│       Alice: "Now translate to Japanese"          │    (auto-created by
+│       🤖: "…"                                      │     the bot's reply)
+│
+├── Bob: "What about the action items?" ───────────┐
+│   └── 🤖: "Action items were…"                     ├  ← Thread session #2
+│       Bob: "Who owns the deploy one?"             │    (separate topic,
+│       🤖: "…"                                      │     separate thread)
+│
+└── Alice: "Draft a status update" ────────────────┐
+    └── 🤖: "Here is a draft…"                       ├  ← Thread session #3
+        Dev: "Include the deploy notes too"        │    (can be continued
+        🤖: "…"                                      │     by anyone)
 ```
 
 **When to use:** a shared `#ai-help` or `#general` with multiple people asking unrelated questions. Threads keep conversations separate so the AI doesn't mix "Alice's translation task" with "Bob's deploy question".
 
-**Watch out:** because each thread = a new session, the AI doesn't automatically know context from other threads in the same channel. If Alice asks the bot in a thread "use the same style as yesterday's post", the bot won't find that post unless Alice quotes it or opens the thread from that post.
+**Watch out:**
 
-### 🤖 `auto` — future auto-detection (reserved)
+- Behaviour change in v0.2+: the bot now **always** replies inside a thread in this mode. Previously, top-level posts stayed top-level. If you liked the old behaviour, use `channel` or `auto`.
+- Because each thread = a new session, the AI doesn't automatically know context from other threads in the same channel. If Alice asks the bot in a thread "use the same style as yesterday's post", the bot won't find that post unless Alice quotes it or opens the thread from that post.
+- DMs are unaffected — threading inside a 1:1 is meaningless, so DMs always stay top-level.
 
-Currently behaves **exactly like `thread`**. This slot is reserved for a future smarter behaviour (e.g., "infer from channel naming conventions").
+### 🤖 `auto` — opt-in threading (reserved for future auto-detection)
+
+Works like `channel` for top-level posts but keeps thread-scoped sessions when users manually start a thread. Reserved for a future smarter behaviour (e.g., "infer from channel naming conventions").
 
 ### Quick comparison
 
 | Mode | Root post | Thread reply | Best for |
 |---|---|---|---|
-| `channel` *(default)* | → channel session | → **channel session** (same conversation) | 1:1 DMs, small teams |
-| `thread` | → channel session | → thread session (new conversation) | Busy shared channels |
-| `auto` | (same as `thread`) | (same as `thread`) | Future-proof |
+| `channel` *(default)* | → channel session (top-level reply) | → **channel session** (same conversation, threaded reply) | 1:1 DMs, small teams |
+| `thread` | → **auto-creates a thread** (new session per topic) | → thread session (new conversation) | Busy shared channels, multi-topic users |
+| `auto` | → channel session (top-level reply) | → thread session (new conversation) | Future-proof, opt-in threading |
 
 ### How to choose
 
@@ -135,6 +143,31 @@ That said, if you switch from `channel` → `thread`, messages that were previou
 
 ---
 
+## Ack reaction (👀)
+
+Add an emoji reaction to every inbound message the bridge processes, so the user gets an immediate "the bot saw me" signal — before the agent has finished thinking. Off by default; opt in with `SLACK_ACK_REACTION`.
+
+| `SLACK_ACK_REACTION` value | Behaviour |
+|---|---|
+| unset / empty / `0` / `false` / `off` / `no` | Off (default) |
+| `1` / `true` / `on` / `yes` | On, reacts with `:eyes:` |
+| Any other emoji shortcode (no colons) | On, reacts with that emoji |
+
+Emoji shortcode rules: lowercase letters, digits, `_`, `+`, `-`. No surrounding colons. Both standard emoji (`white_check_mark`, `thumbsup`) and custom workspace emoji (`my_bot_ack`) work.
+
+```bash
+# Examples
+SLACK_ACK_REACTION=1                    # 👀
+SLACK_ACK_REACTION=white_check_mark     # ✅
+SLACK_ACK_REACTION=my_bot_ack           # custom workspace emoji
+```
+
+**Operator setup**: add the `reactions:write` Bot Token Scope in **OAuth & Permissions** and reinstall the app. Without the scope, the reaction call fails with `missing_scope` — the bridge logs a warning and continues normally, so the rest of the bot still works.
+
+**Design**: the reaction call is fire-and-forget — the agent starts processing immediately, not after the reaction lands. The reaction is not removed when the reply arrives; it stays as a "seen" indicator.
+
+---
+
 ## Environment Variables
 
 | Variable | Required | Description |
@@ -143,6 +176,7 @@ That said, if you switch from `channel` → `thread`, messages that were previou
 | `SLACK_APP_TOKEN` | Yes | `xapp-...` App-Level Token (connections:write) |
 | `SLACK_ALLOWED_CHANNELS` | No | CSV of channel IDs to restrict access (empty = all) |
 | `SLACK_SESSION_GRANULARITY` | No | `channel` *(default)* \| `thread` \| `auto`. See above. |
+| `SLACK_ACK_REACTION` | No | Off by default. `1` enables with 👀; any other emoji shortcode selects a custom emoji. Requires the `reactions:write` scope when enabled. See above. |
 | `MULMOCLAUDE_API_URL` | No | Default `http://localhost:3001` |
 | `MULMOCLAUDE_AUTH_TOKEN` | No | Bearer token (auto-read from workspace if not set) |
 

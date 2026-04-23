@@ -1,5 +1,9 @@
 // Simplified Chinese dictionary. Mirror the shape of src/lang/en.ts —
 // missing keys fall back to English per createI18n's fallbackLocale.
+//
+// ⚠️ 包含 `<name>` 等尖括号的字符串会触发 vue-i18n 的 XSS
+// 检测,输出 "Detected HTML in '…' message" 警告。此类文案必须
+// 改用 **函数形式**。详见 en.ts 的头部注释。
 
 const zhMessages = {
   common: {
@@ -21,6 +25,12 @@ const zhMessages = {
     // 中文无单复数之分，但仍保留 `|` 分隔符以对齐 vue-i18n 的 pluralization 约定。
     activeSessions: "{count} 个活动会话（代理运行中）",
     unreadReplies: "{count} 条未读回复",
+    unreadDot: "新回复",
+    origin: {
+      scheduler: "由调度器启动",
+      skill: "由技能启动",
+      bridge: "由桥接启动",
+    },
   },
   chatInput: {
     placeholder: "输入任务,或拖放 / 粘贴 / 附加文件…",
@@ -35,6 +45,7 @@ const zhMessages = {
   sessionHistoryPanel: {
     filters: {
       all: "全部",
+      unread: "未读",
       human: "人工",
       scheduler: "调度器",
       skill: "技能",
@@ -47,6 +58,7 @@ const zhMessages = {
     running: "运行中",
     unread: "未读",
     noMessages: "(无消息)",
+    openRowAria: "打开会话: {preview}",
   },
   notificationBell: {
     notifications: "通知",
@@ -55,6 +67,7 @@ const zhMessages = {
     dismiss: "关闭",
   },
   sidebarHeader: {
+    home: "前往最新对话",
     toolCallHistory: "工具调用历史",
     settings: "设置",
   },
@@ -105,11 +118,17 @@ const zhMessages = {
   settingsModal: {
     title: "设置",
     tabs: {
+      gemini: "Gemini API 密钥",
       tools: "允许的工具",
       mcp: "MCP 服务器",
       dirs: "目录",
       refs: "引用目录",
     },
+    // `<i18n-t>` 插槽 — 命名为 `envKey` / `envFile`,在 SettingsModal.vue
+    // 中作为行内 `<code>` 渲染,因此字面的变量名和文件名保持不翻译。
+    geminiRequired: "图像生成需要 {envKey}。请将它加入 {envFile} 并重启应用。",
+    geminiAskButton: "询问 Claude",
+    geminiAskMessage: "Gemini API 密钥在这个应用中起什么作用?",
     toolNamesLabel: "工具名称",
     invalidToolNamesPrefix: "以下工具名看起来不符合规范(预期前缀",
     invalidToolNamesSuffix: "):",
@@ -151,6 +170,7 @@ const zhMessages = {
     todos: { label: "待办", title: "打开待办 (⌘4)" },
     scheduler: { label: "日程", title: "打开日程 (⌘5)" },
     wiki: { label: "百科", title: "打开 Wiki (⌘6)" },
+    sources: { label: "信息源", title: "打开信息源" },
     skills: { label: "技能", title: "打开技能 (⌘7)" },
     roles: { label: "角色", title: "打开角色 (⌘8)" },
     files: { label: "文件", title: "打开工作区文件 (⌘3)" },
@@ -193,6 +213,7 @@ const zhMessages = {
     errBadName: "名称必须以小写字母开头,且仅包含 [a-z0-9_-]。",
     errIdExists: '服务器 id "{id}" 已存在。',
     errBadHttpUrl: "HTTP URL 必须以 http:// 或 https:// 开头",
+    pendingEntryWarning: "请先完成或取消待处理的 MCP 服务器条目。",
   },
   pluginScheduler: {
     prev: "上一个",
@@ -212,6 +233,7 @@ const zhMessages = {
     update: "更新",
     editSource: "编辑源",
     applyChanges: "应用更改",
+    yamlParseError: "无法解析 YAML — 请确保包含 'title'",
     propLabel: "{key}:",
     moreCount: "+还有 {count} 个",
     previewIcon: "📅",
@@ -251,6 +273,7 @@ const zhMessages = {
     clearFilters: "清除所有筛选",
     deleteItem: "删除项目",
     apiError: "⚠ 更新待办失败: {error}",
+    loadFailed: "加载 Todo 失败",
     heading: "待办列表",
     completedRatio: "{done}/{total} 已完成",
     filter: "筛选:",
@@ -307,9 +330,12 @@ const zhMessages = {
     deleteColumn: "删除列",
     columnActions: "列操作",
     addCard: "+ 添加卡片",
+    openCardAria: "打开任务: {task}",
   },
   todoTableList: {
     noMatchingFilter: "没有项目匹配当前筛选",
+    sortColumnAria: "按 {column} 排序",
+    expandRowAria: "展开任务: {task}",
   },
   pluginWiki: {
     backToIndex: "返回目录",
@@ -322,6 +348,9 @@ const zhMessages = {
     previewMore: "+ 还有 {count} 项…",
     chatPlaceholder: "就本页提问…",
     chatSend: "就本页开启新对话",
+    tagFilterAll: "全部",
+    noMatches: "没有带 #{tag} 标签的页面",
+    lintChat: "检查 Wiki",
   },
   pluginPresentHtml: {
     saveAsPdf: "另存为 PDF(打开打印对话框)",
@@ -379,13 +408,25 @@ const zhMessages = {
     flashPresetAlreadyRegistered: '"{label}" 中的所有信息源均已注册。',
     flashPresetRegistered: '已从 "{label}" 注册 {count} 个信息源。正在抓取…',
     flashPresetPartial: "已注册 {ok}/{total}。错误: {errors}",
+    errPrimaryRequired: "请填写 URL / 查询字段。",
+    errRssUrlProtocol: "RSS 源 URL 必须以 http:// 或 https:// 开头。",
+    errRssUrlInvalid: "RSS 源 URL 不是有效的 URL。",
+    errRssUrlHost: "RSS 源 URL 必须包含主机名。",
+    errGithubInvalid: "请输入 GitHub 仓库 URL (https://github.com/owner/repo) 或 owner/repo。",
+    errUnsupportedKind: "不支持的 fetcher 类型。",
+    initialLoading: "正在加载信息源…",
+    initialLoadFailed: "加载信息源失败。",
+    retryLabel: "重试",
   },
   pluginManageSkills: {
     deleteProjectSkill: "删除此项目级技能",
     heading: "技能",
     previewCount: "{count} 个技能",
     previewMore: "+还有 {count} 个",
-    subheading: '{count} 个可用 · 点击查看 · "Run" 会以 /<name> 的形式调用',
+    // 使用函数形式绕过 vue-i18n 的消息编译器,否则 `<name>`
+    // 会被当作 HTML 片段,每次挂载都会触发
+    // "Detected HTML in '…' message" 警告。
+    subheading: ({ named }: { named: (key: string) => unknown }) => `${named("count")} 个可用 · 点击查看 · "Run" 会以 /<name> 的形式调用`,
     emptyWithPath: "未找到技能。请在 {path} 下添加技能文件夹。",
     emptySkillPath: "~/.claude/skills/",
     selectHint: "在左侧选择一个技能以查看其 SKILL.md。",
@@ -491,7 +532,6 @@ const zhMessages = {
     cancel: "取消",
   },
   pluginSpreadsheet: {
-    previewLabel: "📊 电子表格",
     previewUntitled: "电子表格",
     previewSheets: "{count} 个工作表",
     untitled: "电子表格",
@@ -503,14 +543,15 @@ const zhMessages = {
     noData: "没有可用的电子表格数据",
     editData: "编辑电子表格数据",
     applyChanges: "应用更改",
+    dataMustBeArray: "数据必须是工作表数组",
+    loadFailed: "加载电子表格失败: {error}",
+    invalidJsonAlert: "无效的 JSON 格式: {error}",
+    unknownError: "未知错误",
     update: "更新",
     stringType: "字符串",
     formulaType: "公式",
   },
   app: {
-    // `<i18n-t>` 插槽 — 命名为 `envKey` / `envFile`,在 App.vue 中作为
-    // 行内 `<code>` 渲染,因此字面的变量名和文件名保持不翻译。
-    geminiRequired: "图像生成需要 {envKey}。请将它加入 {envFile} 并重启应用。",
     startConversation: "开始对话",
   },
   suggestionsPanel: {
