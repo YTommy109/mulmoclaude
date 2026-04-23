@@ -574,6 +574,11 @@ function onRoleChange() {
 async function resumeOrCreateChatSession(): Promise<void> {
   const topId = mergedSessions.value[0]?.id;
   if (!topId) {
+    const currentSession = sessionMap.get(currentSessionId.value);
+    if (currentSession && currentSession.toolResults.length === 0) {
+      navigateToSession(currentSession.id);
+      return;
+    }
     createNewSession();
     return;
   }
