@@ -12,6 +12,7 @@
 
 import { defineComponent, h } from "vue";
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
+import { HISTORY_FILTER_ROUTE_PATTERN } from "../config/historyFilters";
 
 // Stub component that renders nothing. Required by vue-router (every
 // route needs a component) but never actually mounted because App.vue
@@ -54,7 +55,11 @@ const routes: RouteRecordRaw[] = [
   { path: "/wiki/:section(pages|log|lint-report)?/:slug?", name: PAGE_ROUTES.wiki, component: Stub },
   { path: "/skills", name: PAGE_ROUTES.skills, component: Stub },
   { path: "/roles", name: PAGE_ROUTES.roles, component: Stub },
-  { path: "/history", name: PAGE_ROUTES.history, component: Stub },
+  // `filter` is a closed enum (see src/config/historyFilters.ts). The
+  // default `all` is represented by the bare `/history` URL, so it is
+  // not part of the pattern. Unknown values fall through to the
+  // catch-all redirect below.
+  { path: `/history/:filter(${HISTORY_FILTER_ROUTE_PATTERN})?`, name: PAGE_ROUTES.history, component: Stub },
   { path: "/sources", name: PAGE_ROUTES.sources, component: Stub },
   { path: "/:pathMatch(.*)*", redirect: "/chat" },
 ];
