@@ -45,6 +45,7 @@ const esMessages = {
   sessionHistoryPanel: {
     filters: {
       all: "Todas",
+      unread: "No leídas",
       human: "Persona",
       scheduler: "Programador",
       skill: "Skill",
@@ -65,6 +66,7 @@ const esMessages = {
     dismiss: "Descartar",
   },
   sidebarHeader: {
+    home: "Ir al chat más reciente",
     toolCallHistory: "Historial de llamadas a herramientas",
     settings: "Ajustes",
   },

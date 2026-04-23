@@ -47,6 +47,7 @@ const jaMessages = {
   sessionHistoryPanel: {
     filters: {
       all: "すべて",
+      unread: "未読",
       human: "手動",
       scheduler: "スケジューラ",
       skill: "スキル",
@@ -67,6 +68,7 @@ const jaMessages = {
     dismiss: "閉じる",
   },
   sidebarHeader: {
+    home: "最新のチャットに移動",
     toolCallHistory: "ツール呼び出し履歴",
     settings: "設定",
   },

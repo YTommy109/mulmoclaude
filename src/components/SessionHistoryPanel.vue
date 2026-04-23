@@ -1,9 +1,9 @@
 <template>
-  <div
-    ref="root"
-    class="absolute left-0 right-0 bottom-0 bg-white border-b border-gray-200 shadow-lg z-50 overflow-y-auto"
-    :style="{ top: topOffset != null ? topOffset + 'px' : '4rem' }"
-  >
+  <!-- Rendered as the canvas-column content for the /history route
+       (see plans/feat-history-url-route.md). Previously this was an
+       absolute-positioned overlay; the `h-full overflow-y-auto` root
+       plus inline flow replaces the z-index + topOffset plumbing. -->
+  <div ref="root" class="h-full overflow-y-auto bg-white">
     <div class="p-2 space-y-1">
       <!-- Origin filter bar -->
       <div class="flex gap-1 mb-1 flex-wrap" data-testid="session-filter-bar">
@@ -83,7 +83,13 @@ import { roleIcon, roleName } from "../utils/role/icon";
 
 const { t } = useI18n();
 
-const FILTERS = ["all" as const, SESSION_ORIGINS.human, SESSION_ORIGINS.scheduler, SESSION_ORIGINS.skill, SESSION_ORIGINS.bridge];
+// `unread` is mutually exclusive with origin pills — selecting it
+// shows every unread-flagged session regardless of origin, matching
+// the user expectation that "unread" is the primary question ("what
+// needs my attention?") rather than an origin sub-filter.
+const UNREAD_FILTER = "unread" as const;
+const FILTERS = ["all" as const, UNREAD_FILTER, SESSION_ORIGINS.human, SESSION_ORIGINS.scheduler, SESSION_ORIGINS.skill, SESSION_ORIGINS.bridge];
+type FilterKey = (typeof FILTERS)[number];
 
 const ORIGIN_ICONS: Record<string, string> = {
   human: "person",
@@ -103,7 +109,6 @@ const props = defineProps<{
   sessions: SessionSummary[];
   currentSessionId: string;
   roles: Role[];
-  topOffset?: number;
   // Latest fetch error from useSessionHistory, or null when healthy.
   errorMessage?: string | null;
 }>();
@@ -117,7 +122,7 @@ defineExpose({ root });
 
 // ── Filter ──────────────────────────────────────────────────
 
-const activeFilter = ref<SessionOrigin | "all">("all");
+const activeFilter = ref<FilterKey>("all");
 
 function originOf(session: SessionSummary): SessionOrigin {
   return session.origin ?? SESSION_ORIGINS.human;
@@ -125,12 +130,14 @@ function originOf(session: SessionSummary): SessionOrigin {
 
 const filteredSessions = computed(() => {
   if (activeFilter.value === "all") return props.sessions;
+  if (activeFilter.value === UNREAD_FILTER) return props.sessions.filter((session) => session.hasUnread === true);
   return props.sessions.filter((session) => originOf(session) === activeFilter.value);
 });
 
-function countByOrigin(origin: string): number {
-  if (origin === "all") return props.sessions.length;
-  return props.sessions.filter((session) => originOf(session) === origin).length;
+function countByOrigin(filterKey: FilterKey): number {
+  if (filterKey === "all") return props.sessions.length;
+  if (filterKey === UNREAD_FILTER) return props.sessions.filter((session) => session.hasUnread === true).length;
+  return props.sessions.filter((session) => originOf(session) === filterKey).length;
 }
 
 function originIcon(origin: string): string {

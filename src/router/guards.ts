@@ -8,6 +8,7 @@
 
 import type { Router } from "vue-router";
 import { readPathMatch } from "../composables/useFileSelection";
+import { readWikiRouteTarget } from "../plugins/wiki/route";
 
 // Basic sanity check for a session ID. Real existence verification
 // happens in App.vue's onMounted / loadSession — we can't do async
@@ -28,6 +29,20 @@ export function installGuards(router: Router): void {
       const sessionId = dest.params.sessionId;
       if (typeof sessionId === "string" && sessionId.length > 0 && !isValidSessionId(sessionId)) {
         return { name: "chat", params: {}, query: {}, replace: true };
+      }
+    }
+
+    if (dest.name === "wiki") {
+      // Vue Router decodes `%2F` back to `/` in `route.params.slug`,
+      // so `/wiki/pages/..%2Fsecrets` arrives here as
+      // `{ section: "pages", slug: "../secrets" }`. `readWikiRouteTarget`
+      // returns `null` for unsafe slugs, a missing slug on the `pages`
+      // section, or an unknown section. In any of those cases, bounce
+      // to `/wiki` with `replace: true` so no broken URL lands in
+      // history. Legal targets fall through to the view, where the
+      // route watcher drives the fetch.
+      if (readWikiRouteTarget(dest.params) === null) {
+        return { name: "wiki", params: {}, query: dest.query, replace: true };
       }
     }
 

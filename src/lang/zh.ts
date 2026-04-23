@@ -45,6 +45,7 @@ const zhMessages = {
   sessionHistoryPanel: {
     filters: {
       all: "全部",
+      unread: "未读",
       human: "人工",
       scheduler: "调度器",
       skill: "技能",
@@ -65,6 +66,7 @@ const zhMessages = {
     dismiss: "关闭",
   },
   sidebarHeader: {
+    home: "前往最新对话",
     toolCallHistory: "工具调用历史",
     settings: "设置",
   },

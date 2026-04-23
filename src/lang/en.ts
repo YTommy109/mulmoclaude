@@ -62,6 +62,7 @@ const enMessages = {
   sessionHistoryPanel: {
     filters: {
       all: "All",
+      unread: "Unread",
       human: "Human",
       scheduler: "Scheduler",
       skill: "Skill",
@@ -82,6 +83,7 @@ const enMessages = {
     dismiss: "Dismiss",
   },
   sidebarHeader: {
+    home: "Go to latest chat",
     toolCallHistory: "Tool call history",
     settings: "Settings",
   },

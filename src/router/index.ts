@@ -26,6 +26,7 @@ export const PAGE_ROUTES = {
   wiki: "wiki",
   skills: "skills",
   roles: "roles",
+  history: "history",
 } as const;
 
 export type PageRouteName = (typeof PAGE_ROUTES)[keyof typeof PAGE_ROUTES];
@@ -43,9 +44,16 @@ const routes: RouteRecordRaw[] = [
   { path: "/files/:pathMatch(.*)*", name: PAGE_ROUTES.files, component: Stub },
   { path: "/todos", name: PAGE_ROUTES.todos, component: Stub },
   { path: "/scheduler", name: PAGE_ROUTES.scheduler, component: Stub },
-  { path: "/wiki", name: PAGE_ROUTES.wiki, component: Stub },
+  // Wiki sub-views live on the path rather than in query params so
+  // URLs mirror the filesystem layout (`data/wiki/pages/<slug>.md`)
+  // and stay sibling-safe (no query-key bleed from other routes).
+  // `section` is a closed enum; unknown sections fall through to the
+  // catch-all redirect below. `slug` only applies when `section ===
+  // "pages"`. See plans/feat-wiki-path-urls.md.
+  { path: "/wiki/:section(pages|log|lint-report)?/:slug?", name: PAGE_ROUTES.wiki, component: Stub },
   { path: "/skills", name: PAGE_ROUTES.skills, component: Stub },
   { path: "/roles", name: PAGE_ROUTES.roles, component: Stub },
+  { path: "/history", name: PAGE_ROUTES.history, component: Stub },
   { path: "/:pathMatch(.*)*", redirect: "/chat" },
 ];
 

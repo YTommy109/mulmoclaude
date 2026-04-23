@@ -120,7 +120,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { useRoute, useRouter, isNavigationFailure, type LocationQuery } from "vue-router";
+import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { marked } from "marked";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
@@ -135,8 +135,9 @@ import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImage
 import { apiPost } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { PAGE_ROUTES } from "../../router";
+import { WIKI_ACTION, WIKI_ROUTE_SECTION, buildWikiRouteParams, isSafeWikiSlug, readWikiRouteTarget, wikiActionFor, type WikiTarget } from "./route";
 
-type WikiTabView = "log" | "lint_report";
+type WikiTabView = typeof WIKI_ACTION.log | typeof WIKI_ACTION.lintReport;
 
 const route = useRoute();
 const router = useRouter();
@@ -202,18 +203,21 @@ watch(
 // handlers push to the router; this watcher drives callApi(). Only
 // runs when WikiView is mounted as the /wiki page — when mounted as
 // a manageWiki tool-result inside /chat, the tool-result watcher
-// above seeds state and this watcher does nothing.
+// above seeds state and this watcher does nothing. Unsafe params
+// (e.g. `/wiki/pages/..%2Fsecrets` decoded to `slug === "../secrets"`)
+// are already intercepted by the router guard in `router/guards.ts`
+// and redirected to `/wiki`; by the time the watcher fires, the
+// params are known-safe. `readWikiRouteTarget` returning `null` here
+// therefore means an unexpected shape — fall back to the index view.
 watch(
-  () => (route.name === PAGE_ROUTES.wiki ? [route.query.page, route.query.view] : null),
+  () => (route.name === PAGE_ROUTES.wiki ? [route.params.section, route.params.slug] : null),
   (params) => {
     if (!params) return;
-    const [page, view] = params;
-    if (typeof page === "string" && page.length > 0) {
-      callApi({ action: "page", pageName: page });
-    } else if (view === "log" || view === "lint_report") {
-      callApi({ action: view });
+    const target = readWikiRouteTarget({ section: params[0], slug: params[1] }) ?? { kind: "index" };
+    if (target.kind === "page") {
+      callApi({ action: WIKI_ACTION.page, pageName: target.slug });
     } else {
-      callApi({ action: "index" });
+      callApi({ action: wikiActionFor(target) });
     }
   },
   { immediate: true },
@@ -266,38 +270,20 @@ async function callApi(body: Record<string, unknown>) {
   }
 }
 
-function dropKeys(query: LocationQuery, keys: string[]): LocationQuery {
-  const next: LocationQuery = {};
-  for (const [key, value] of Object.entries(query)) {
-    if (!keys.includes(key)) next[key] = value;
-  }
-  return next;
-}
-
-function pushWiki(query: LocationQuery) {
-  const target = route.name === PAGE_ROUTES.wiki ? { query } : { name: PAGE_ROUTES.wiki, query };
-  router.push(target).catch((err: unknown) => {
+function pushWiki(target: WikiTarget) {
+  router.push({ name: PAGE_ROUTES.wiki, params: buildWikiRouteParams(target) }).catch((err: unknown) => {
     if (!isNavigationFailure(err)) {
       console.error("[wiki] navigation failed:", err);
     }
   });
 }
 
-// Preserve siblings only when already on /wiki. Cross-route jumps
-// (e.g. from /chat, where the URL may carry `?result=<uuid>`) start
-// from a clean query so chat-specific params don't bleed into /wiki.
-function currentWikiQuery(): LocationQuery {
-  return route.name === PAGE_ROUTES.wiki ? route.query : {};
-}
-
-function navigate(newAction: "index" | WikiTabView) {
-  const base = currentWikiQuery();
-  const query = newAction === "index" ? dropKeys(base, ["page", "view"]) : { ...dropKeys(base, ["page"]), view: newAction };
-  pushWiki(query);
+function navigate(newAction: typeof WIKI_ACTION.index | WikiTabView) {
+  pushWiki(newAction === WIKI_ACTION.index ? { kind: "index" } : { kind: newAction });
 }
 
 function navigatePage(pageName: string) {
-  pushWiki({ ...dropKeys(currentWikiQuery(), ["view"]), page: pageName });
+  pushWiki({ kind: "page", slug: pageName });
 }
 
 // --- Per-page chat composer ---
@@ -307,21 +293,18 @@ const chatDraft = ref("");
 const isStandaloneWikiRoute = computed(() => route.name === PAGE_ROUTES.wiki);
 const canSendChat = computed(() => chatDraft.value.trim().length > 0 && currentSlug() !== null);
 
-// Reject path-traversal tokens so `?page=../secrets` can't be
-// interpolated into the prompt and escape `data/wiki/pages/`. Keeps
-// non-ASCII slugs (e.g. Japanese titles like `さくらインターネット`)
-// working — we only ban separators and `..`, not arbitrary unicode.
-function isSafeSlug(slug: string): boolean {
-  return slug.length > 0 && !slug.includes("/") && !slug.includes("\\") && !slug.includes("..");
-}
-
 function currentSlug(): string | null {
   // Prefer the URL on /wiki (source of truth for that route); fall
   // back to the tool-result payload when WikiView is mounted as a
-  // manageWiki result inside /chat.
-  const raw = route.name === PAGE_ROUTES.wiki && typeof route.query.page === "string" ? route.query.page : (props.selectedResult?.data?.pageName ?? null);
-  if (!raw || !isSafeSlug(raw)) return null;
-  return raw;
+  // manageWiki result inside /chat. `isSafeWikiSlug` guards against
+  // traversal tokens — the router guard already strips these from
+  // standalone /wiki URLs, but the tool-result payload arrives from
+  // the server/agent and can't assume that upstream filter.
+  const raw =
+    route.name === PAGE_ROUTES.wiki && route.params.section === WIKI_ROUTE_SECTION.pages && typeof route.params.slug === "string"
+      ? route.params.slug
+      : (props.selectedResult?.data?.pageName ?? null);
+  return isSafeWikiSlug(raw) ? raw : null;
 }
 
 function submitChat() {

@@ -47,6 +47,7 @@ const koMessages = {
   sessionHistoryPanel: {
     filters: {
       all: "전체",
+      unread: "읽지 않음",
       human: "사람",
       scheduler: "스케줄러",
       skill: "스킬",
@@ -67,6 +68,7 @@ const koMessages = {
     dismiss: "닫기",
   },
   sidebarHeader: {
+    home: "최신 채팅으로 이동",
     toolCallHistory: "도구 호출 기록",
     settings: "설정",
   },
