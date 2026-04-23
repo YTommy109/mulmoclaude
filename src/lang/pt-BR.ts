@@ -328,6 +328,7 @@ const ptBRMessages = {
     chatSend: "Iniciar um novo chat sobre esta página",
     tagFilterAll: "Todas",
     noMatches: "Nenhuma página com a tag #{tag}",
+    lintChat: "Revisar meu wiki",
   },
   pluginPresentHtml: {
     saveAsPdf: "Salvar como PDF (abre o diálogo de impressão)",

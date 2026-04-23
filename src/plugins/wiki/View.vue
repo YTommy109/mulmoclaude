@@ -18,6 +18,12 @@
           </div>
           <span v-if="pdfError" class="text-xs text-red-500 self-center ml-2" :title="pdfError">{{ t("pluginWiki.pdfFailed") }}</span>
         </template>
+        <div v-if="action === 'index'" class="button-group">
+          <button class="download-btn download-btn-green" data-testid="wiki-lint-chat-button" @click="startLintChat">
+            <span class="material-icons">rule</span>
+            {{ t("pluginWiki.lintChat") }}
+          </button>
+        </div>
         <div class="flex border border-gray-300 rounded overflow-hidden text-xs">
           <button
             :class="[
@@ -165,6 +171,7 @@ import { useImeAwareEnter } from "../../composables/useImeAwareEnter";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { useAppApi } from "../../composables/useAppApi";
 import { renderWikiLinks } from "./helpers";
+import { BUILTIN_ROLE_IDS } from "../../config/roles";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { apiPost } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
@@ -281,6 +288,15 @@ const visibleEntries = computed(() =>
 
 function toggleTagFilter(tag: string) {
   selectedTag.value = selectedTag.value === tag ? null : tag;
+}
+
+// Spawn a new chat under the General role (which owns the wiki
+// tooling) regardless of the role the user is currently viewing the
+// wiki under. "lint my wiki" is a direct instruction to the agent,
+// not a tool call — the agent decides how to run the lint and
+// report back.
+function startLintChat() {
+  appApi.startNewChat("lint my wiki", BUILTIN_ROLE_IDS.general);
 }
 
 // Clear the filter whenever we leave the index view — otherwise

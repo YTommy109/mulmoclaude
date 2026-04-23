@@ -329,6 +329,7 @@ const deMessages = {
     chatSend: "Neuen Chat zu dieser Seite starten",
     tagFilterAll: "Alle",
     noMatches: "Keine Seiten mit dem Tag #{tag}",
+    lintChat: "Wiki prüfen",
   },
   pluginPresentHtml: {
     saveAsPdf: "Als PDF speichern (öffnet Druckdialog)",

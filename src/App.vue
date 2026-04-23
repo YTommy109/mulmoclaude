@@ -819,13 +819,13 @@ function navigateToWorkspacePath(href: string): void {
   }
 }
 
-function startNewChat(message: string): void {
+function startNewChat(message: string, roleId?: string): void {
   // createNewSession sets currentSessionId synchronously (see the
   // comment on its declaration), so the follow-up sendMessage lands
   // in the new session rather than whatever was previously active.
   // Cross-route push behaviour (so browser Back returns to /wiki)
   // is now handled inside createNewSession via the isChatPage check.
-  createNewSession(currentRoleId.value);
+  createNewSession(roleId ?? currentRoleId.value);
   void sendMessage(message);
 }
 
@@ -833,7 +833,7 @@ function startNewChat(message: string): void {
 provideAppApi({
   refreshRoles,
   sendMessage: (message: string) => sendMessage(message),
-  startNewChat: (message: string) => startNewChat(message),
+  startNewChat: (message: string, roleId?: string) => startNewChat(message, roleId),
   navigateToWorkspacePath: (href: string) => navigateToWorkspacePath(href),
 });
 // Plugin Views that need to tag background work with the current

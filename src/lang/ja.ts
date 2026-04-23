@@ -333,6 +333,7 @@ const jaMessages = {
     chatSend: "このページについて新しいチャットを開始",
     tagFilterAll: "すべて",
     noMatches: "#{tag} タグのページがありません",
+    lintChat: "Wiki を Lint",
   },
   pluginPresentHtml: {
     saveAsPdf: "PDF として保存（印刷ダイアログを開きます）",
