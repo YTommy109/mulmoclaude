@@ -176,7 +176,7 @@ SLACK_ACK_REACTION=my_bot_ack           # custom workspace emoji
 | `SLACK_APP_TOKEN` | Yes | `xapp-...` App-Level Token (connections:write) |
 | `SLACK_ALLOWED_CHANNELS` | No | CSV of channel IDs to restrict access (empty = all) |
 | `SLACK_SESSION_GRANULARITY` | No | `channel` *(default)* \| `thread` \| `auto`. See above. |
-| `SLACK_ACK_REACTION` | No | Off by default. `1` enables with 👀; any other emoji shortcode selects a custom emoji. Requires the `reactions:write` scope. See above. |
+| `SLACK_ACK_REACTION` | No | Off by default. `1` enables with 👀; any other emoji shortcode selects a custom emoji. Requires the `reactions:write` scope when enabled. See above. |
 | `MULMOCLAUDE_API_URL` | No | Default `http://localhost:3001` |
 | `MULMOCLAUDE_AUTH_TOKEN` | No | Bearer token (auto-read from workspace if not set) |
 
