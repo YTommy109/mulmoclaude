@@ -1,9 +1,9 @@
 // Vue-router setup (history mode — clean URLs without #).
 //
 // Each page has its own route: /chat, /files, /todos, /scheduler,
-// /wiki, /skills, /roles. Layout preference (single vs. stack) is a
-// separate concern persisted in localStorage — it is not part of the
-// URL.
+// /wiki, /skills, /roles, /history, /sources. Layout preference
+// (single vs. stack) is a separate concern persisted in localStorage
+// — it is not part of the URL.
 //
 // History mode requires the server to serve index.html for any path
 // that doesn't match an API route or static file. In production the
@@ -28,6 +28,7 @@ export const PAGE_ROUTES = {
   skills: "skills",
   roles: "roles",
   history: "history",
+  sources: "sources",
 } as const;
 
 export type PageRouteName = (typeof PAGE_ROUTES)[keyof typeof PAGE_ROUTES];
@@ -59,6 +60,7 @@ const routes: RouteRecordRaw[] = [
   // not part of the pattern. Unknown values fall through to the
   // catch-all redirect below.
   { path: `/history/:filter(${HISTORY_FILTER_ROUTE_PATTERN})?`, name: PAGE_ROUTES.history, component: Stub },
+  { path: "/sources", name: PAGE_ROUTES.sources, component: Stub },
   { path: "/:pathMatch(.*)*", redirect: "/chat" },
 ];
 
