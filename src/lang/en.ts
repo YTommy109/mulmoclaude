@@ -348,6 +348,7 @@ const enMessages = {
     chatPlaceholder: "Ask about this page…",
     chatSend: "Start a new chat about this page",
     emptyPage: 'The page "{title}" does not exist yet.',
+    emptyContent: 'The page "{title}" exists but has no content.',
     createPage: "Create this wiki page",
   },
   pluginPresentHtml: {

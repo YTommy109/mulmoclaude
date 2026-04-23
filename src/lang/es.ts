@@ -333,6 +333,7 @@ const esMessages = {
     chatPlaceholder: "Pregunta sobre esta página…",
     chatSend: "Iniciar un chat nuevo sobre esta página",
     emptyPage: 'La página "{title}" aún no existe.',
+    emptyContent: 'La página "{title}" existe pero no tiene contenido.',
     createPage: "Crear esta página wiki",
   },
   pluginPresentHtml: {

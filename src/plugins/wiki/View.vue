@@ -77,6 +77,14 @@
       </div>
     </div>
 
+    <!-- Empty state: page file exists but has no content -->
+    <div v-else-if="!content && !navError && action === 'page'" class="flex-1 flex items-center justify-center text-gray-400 text-sm">
+      <div class="text-center space-y-2">
+        <span class="material-icons text-4xl text-gray-300">article</span>
+        <p>{{ t("pluginWiki.emptyContent", { title: title }) }}</p>
+      </div>
+    </div>
+
     <!-- Empty state: index or other -->
     <div v-else-if="!content && !navError" class="flex-1 flex items-center justify-center text-gray-400 text-sm">
       <div class="text-center space-y-2">

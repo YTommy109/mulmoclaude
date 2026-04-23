@@ -329,6 +329,7 @@ const zhMessages = {
     chatPlaceholder: "就本页提问…",
     chatSend: "就本页开启新对话",
     emptyPage: "页面「{title}」尚不存在。",
+    emptyContent: "页面「{title}」已存在，但没有内容。",
     createPage: "创建此 Wiki 页面",
   },
   pluginPresentHtml: {

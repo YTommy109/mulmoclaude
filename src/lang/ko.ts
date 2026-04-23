@@ -332,6 +332,7 @@ const koMessages = {
     chatPlaceholder: "이 페이지에 대해 질문…",
     chatSend: "이 페이지에 대한 새 채팅 시작",
     emptyPage: "「{title}」 페이지가 아직 없습니다.",
+    emptyContent: "「{title}」 페이지는 존재하지만 내용이 없습니다.",
     createPage: "이 Wiki 페이지 만들기",
   },
   pluginPresentHtml: {

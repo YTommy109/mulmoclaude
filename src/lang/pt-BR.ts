@@ -327,6 +327,7 @@ const ptBRMessages = {
     chatPlaceholder: "Pergunte sobre esta página…",
     chatSend: "Iniciar um novo chat sobre esta página",
     emptyPage: 'A página "{title}" ainda não existe.',
+    emptyContent: 'A página "{title}" existe, mas não tem conteúdo.',
     createPage: "Criar esta página wiki",
   },
   pluginPresentHtml: {

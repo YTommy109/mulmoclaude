@@ -332,6 +332,7 @@ const jaMessages = {
     chatPlaceholder: "このページについて質問…",
     chatSend: "このページについて新しいチャットを開始",
     emptyPage: "「{title}」のページはまだありません。",
+    emptyContent: "「{title}」のページは存在しますが、内容がありません。",
     createPage: "この Wiki ページを作成",
   },
   pluginPresentHtml: {

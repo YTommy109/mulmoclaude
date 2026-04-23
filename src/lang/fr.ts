@@ -328,6 +328,7 @@ const frMessages = {
     chatPlaceholder: "Posez une question sur cette page…",
     chatSend: "Démarrer une nouvelle conversation sur cette page",
     emptyPage: "La page « {title} » n'existe pas encore.",
+    emptyContent: "La page « {title} » existe mais n'a pas de contenu.",
     createPage: "Créer cette page wiki",
   },
   pluginPresentHtml: {
