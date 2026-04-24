@@ -9,10 +9,14 @@ export interface PackageDriftResult {
   /** The version the `latest` dist-tag resolved to on the registry. Null when
    * the fetch failed and we fell back to the local installed dist. */
   publishedVersion?: string | null;
-  status: "ok" | "drifted" | "skipped";
-  /** Present when `status` is "ok" or "drifted". */
+  /** `pending-publish` means the src has new exports AND the local
+   *  package.json version is ahead of the registry — i.e. the bump
+   *  is already in place, the cascade publish just hasn't landed
+   *  yet. Smoke treats this as non-fatal. */
+  status: "ok" | "drifted" | "pending-publish" | "skipped";
+  /** Present when `status` is "ok", "drifted", or "pending-publish". */
   localCount?: number;
-  /** Present when `status` is "ok" or "drifted". */
+  /** Present when `status` is "ok", "drifted", or "pending-publish". */
   distCount?: number;
   /** Present when `status` is "skipped" — human-readable explanation. */
   reason?: string;
@@ -32,6 +36,13 @@ export interface PublishedSource {
 export type FetchPublishedSource = (args: { packageBaseName: string; timeoutMs?: number }) => Promise<PublishedSource>;
 
 export function countValueExportLines(source: string): number;
+
+/**
+ * Returns true when `local` (a semver-ish string) is strictly
+ * greater than `published`. Ignores prerelease / build suffixes.
+ * Returns false for any malformed / missing input.
+ */
+export function isLocalVersionAhead(local: string | null | undefined, published: string | null | undefined): boolean;
 
 export interface CheckPackageDriftOptions {
   root?: string;

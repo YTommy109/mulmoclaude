@@ -179,15 +179,51 @@ export async function checkPackageDrift({
   const localCount = countValueExportLines(srcSource);
   const distCount = countValueExportLines(distSource);
   const drifted = localCount > distCount;
+
+  // A bumped version is the developer's acknowledgement that the new
+  // exports land under a new release. The registry still ships the
+  // old dist, but consumers of the NEW version will get the new
+  // exports once it's published — so from the drift-check's POV this
+  // is "pending publish", not "broken". Downgrading to non-failing
+  // also unblocks PRs that add exports + bump version + await the
+  // cascade publish to land after merge.
+  const isBumped = drifted && isLocalVersionAhead(localVersion, publishedVersion);
+
+  const status = drifted ? (isBumped ? "pending-publish" : "drifted") : "ok";
   return {
     packageBaseName,
     localVersion,
     publishedVersion,
-    status: drifted ? "drifted" : "ok",
+    status,
     localCount,
     distCount,
     ...(fallbackReason ? { fallbackReason } : {}),
   };
+}
+
+// Compare two semver-ish version strings and return true when
+// `local` is strictly ahead of `published`. Ignores pre-release /
+// build suffixes — we only bump majors / minors / patches in this
+// monorepo, and a prerelease drift is still "intentional" anyway.
+// Returns false on any malformed input so the drift check errs on
+// the strict side (caller's old behaviour preserved).
+export function isLocalVersionAhead(local, published) {
+  if (typeof local !== "string" || typeof published !== "string") return false;
+  const parse = (str) => {
+    const cleaned = str.split(/[-+]/)[0];
+    const parts = cleaned.split(".").map((part) => Number.parseInt(part, 10));
+    if (parts.length < 3) return null;
+    if (parts.some((part) => !Number.isFinite(part))) return null;
+    return parts.slice(0, 3);
+  };
+  const localParts = parse(local);
+  const publishedParts = parse(published);
+  if (!localParts || !publishedParts) return false;
+  for (let idx = 0; idx < 3; idx++) {
+    if (localParts[idx] > publishedParts[idx]) return true;
+    if (localParts[idx] < publishedParts[idx]) return false;
+  }
+  return false;
 }
 
 // Auto-detect which @mulmobridge/* packages to check by reading the

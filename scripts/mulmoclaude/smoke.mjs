@@ -39,14 +39,21 @@ async function runDepsStage({ root, auditFn }) {
 }
 
 // §2 wrapper — checkWorkspaceDrift returns one result per auto-
-// detected bridge. Status is one of "ok" | "drifted" | "skipped".
+// detected bridge. Status is one of "ok" | "drifted" | "pending-
+// publish" | "skipped". "pending-publish" is OK-with-a-note: the
+// developer bumped the local package version above the registry's,
+// so the new exports are intentional and will ship on the next
+// cascade publish. Only "drifted" (= new exports, version NOT
+// bumped) fails the stage.
 async function runDriftStage({ root, driftFn }) {
   const results = await driftFn({ root });
   const drifted = results.filter((row) => row.status === "drifted");
+  const pending = results.filter((row) => row.status === "pending-publish");
   if (drifted.length === 0) {
     const skipped = results.filter((row) => row.status === "skipped").length;
     const okCount = results.filter((row) => row.status === "ok").length;
-    return passed(`${okCount} package(s) ok, ${skipped} skipped`, { results });
+    const pendingNote = pending.length > 0 ? `, ${pending.length} pending publish (${pending.map((row) => `${row.packageBaseName}@${row.localVersion}`).join(", ")})` : "";
+    return passed(`${okCount} package(s) ok${pendingNote}, ${skipped} skipped`, { results });
   }
   return failed(
     `${drifted.length} package(s) drifted`,
