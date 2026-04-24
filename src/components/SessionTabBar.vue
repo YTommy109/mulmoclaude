@@ -14,14 +14,11 @@
              so the SessionHistoryPanel picks up the same treatment. -->
         <SessionRoleIcon :session="sessions[i - 1]" :roles="roles" />
         <span class="text-xs text-gray-700 truncate min-w-0" :class="sessions[i - 1].hasUnread ? 'font-bold' : ''">{{ tabLabel(sessions[i - 1]) }}</span>
-        <!-- Unread dot. Suppressed only when the user is actually
-             looking at that chat session — otherwise
-             `currentSessionId` keeps pointing at the last chat
-             even when the user is on /wiki, /files, etc., and the
-             dot would silently disappear on the tab that most
-             needs it. -->
+        <!-- Unread dot. Suppressed on the currently-selected session —
+             which is `""` on non-chat pages, so the dot stays visible
+             there. -->
         <span
-          v-if="sessions[i - 1].hasUnread && !(isChatPage && sessions[i - 1].id === currentSessionId)"
+          v-if="sessions[i - 1].hasUnread && sessions[i - 1].id !== currentSessionId"
           class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"
           :aria-label="t('sessionTabBar.unreadDot')"
         />
@@ -42,13 +39,11 @@ const { t } = useI18n();
 
 const props = defineProps<{
   sessions: SessionSummary[];
+  // The session currently displayed on /chat, or `""` when the user
+  // is on any other page. Drives the tab highlight and the unread-dot
+  // suppression — no tab is "current" while the user is on /wiki,
+  // /files, etc.
   currentSessionId: string;
-  // `currentSessionId` is "the last chat session the user was on".
-  // It does NOT clear when the user navigates to /wiki /files etc.,
-  // so we need a separate flag to know whether that session is
-  // actually on-screen. Only then does it make sense to suppress
-  // the unread dot on its tab.
-  isChatPage: boolean;
   roles: Role[];
 }>();
 

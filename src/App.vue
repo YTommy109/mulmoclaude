@@ -37,13 +37,7 @@
             @update:side-panel-visible="setSidePanelVisible"
           />
         </div>
-        <SessionTabBar
-          :sessions="tabSessions"
-          :current-session-id="displayedCurrentSessionId"
-          :is-chat-page="isChatPage"
-          :roles="roles"
-          @load-session="handleSessionSelect"
-        />
+        <SessionTabBar :sessions="tabSessions" :current-session-id="currentSessionId" :roles="roles" @load-session="handleSessionSelect" />
       </div>
     </div>
 
@@ -98,7 +92,7 @@
           :results="sidebarResults"
           :selected-uuid="selectedResultUuid"
           :result-timestamps="activeSession?.resultTimestamps ?? new Map()"
-          :is-running="isRunning"
+          :is-running="activeSessionRunning"
           :status-message="statusMessage"
           :pending-calls="pendingCalls"
           :session-role-name="sessionRoleName"
@@ -115,7 +109,7 @@
         <SuggestionsPanel ref="suggestionsPanelRef" :queries="currentRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
 
         <!-- Text input -->
-        <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="isRunning" @send="sendMessage()" />
+        <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="activeSessionRunning" @send="sendMessage()" />
       </div>
 
       <!-- Canvas column -->
@@ -167,7 +161,7 @@
              session context, so no chat input is shown) -->
         <div v-if="isChatPage && layoutMode === 'stack'" class="border-t border-gray-200 bg-white shrink-0">
           <SuggestionsPanel ref="suggestionsPanelRef" :queries="currentRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
-          <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="isRunning" @send="sendMessage()" />
+          <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="activeSessionRunning" @send="sendMessage()" />
         </div>
       </div>
 
@@ -280,11 +274,14 @@ const sessionMap = reactive(new Map<string, ActiveSession>());
 // subscription so events arrive via WebSocket.
 const sessionSubscriptions = new Map<string, () => void>();
 
-// currentSessionId is a plain ref so that synchronous writes (e.g.
-// inside createNewSession, which is called right before sendMessage
-// might run) take effect immediately. The URL is kept in sync via
-// navigateToSession, and external URL changes (back button, typed
-// URL) feed back into the ref via the route watcher below.
+// currentSessionId is "the session currently displayed on /chat" —
+// it's `""` whenever the user is on any other page. A plain ref (not
+// a computed) so synchronous writes (e.g. inside createNewSession,
+// which is called right before sendMessage might run) take effect
+// immediately. The URL is kept in sync via navigateToSession, and
+// external URL changes (back button, typed URL) feed back into the
+// ref via the route watcher below. An `isChatPage` watcher clears
+// it when the user leaves /chat.
 const currentSessionId = ref("");
 
 // --- Debug beat (pub/sub) ---
@@ -358,8 +355,18 @@ const { markSessionRead } = useSessionSync({
 });
 const { geminiAvailable, sandboxEnabled, cpuLoadRatio, fetchHealth } = useHealth();
 
-const { activeSession, toolResults, sidebarResults, currentSummary, isRunning, statusMessage, toolCallHistory, activeSessionCount, unreadCount } =
-  useSessionDerived({ sessionMap, currentSessionId, sessions });
+const {
+  activeSession,
+  toolResults,
+  sidebarResults,
+  currentSummary,
+  isRunning,
+  activeSessionRunning,
+  statusMessage,
+  toolCallHistory,
+  activeSessionCount,
+  unreadCount,
+} = useSessionDerived({ sessionMap, currentSessionId, sessions });
 
 const { selectedResultUuid } = useSelectedResult({
   activeSession,
@@ -393,7 +400,7 @@ const chatInputRef = ref<{ focus: () => void } | null>(null);
 const { focusChatInput } = useChatScroll({
   toolResultsPanelRef,
   toolResults,
-  isRunning,
+  isRunning: activeSessionRunning,
   chatInputRef,
 });
 
@@ -454,12 +461,12 @@ function handleViewModeShortcut(event: KeyboardEvent): void {
   if (event.altKey || event.shiftKey) return;
 
   if (event.key === "1") {
+    // Cmd+1 toggles layout on /chat; on any other page it's a no-op.
+    // Users navigate to /chat by clicking a session in the history
+    // panel or via the URL.
+    if (route.name !== PAGE_ROUTES.chat) return;
     event.preventDefault();
-    if (route.name === PAGE_ROUTES.chat) {
-      toggleLayoutMode();
-    } else {
-      resumeOrCreateChatSession().catch((err) => console.error("[Cmd+1] resume failed:", err));
-    }
+    toggleLayoutMode();
     return;
   }
 
@@ -481,11 +488,23 @@ function isPageRouteName(value: string): value is PageRouteName {
 }
 
 // Layout only matters on /chat; other pages are full-width by design.
-const { isStackLayout, displayedCurrentSessionId } = useViewLayout({
+const { isStackLayout } = useViewLayout({
   layoutMode,
   isChatPage,
-  currentSessionId,
   activePane,
+});
+
+// Clear currentSessionId when the user leaves /chat so downstream
+// consumers (history-panel border, mark-read, unread dot, session-
+// state sync) see "nothing selected" instead of the stale last-viewed
+// session. Also prune any empty session that was never sent to — we
+// don't persist empty sessions on the server. Fires true → false only;
+// an empty → /chat transition is handled by the route-params watcher
+// and onMounted.
+watch(isChatPage, (isChat, wasChat) => {
+  if (!(wasChat && !isChat)) return;
+  removeCurrentIfEmpty();
+  currentSessionId.value = "";
 });
 
 function handleSessionSelect(sessionId: string): void {
@@ -510,7 +529,7 @@ const { availableTools, toolDescriptions, mcpToolsError, fetchMcpToolsStatus } =
 });
 
 const { pendingCalls, teardown: teardownPendingCalls } = usePendingCalls({
-  isRunning,
+  isRunning: activeSessionRunning,
   toolCallHistory,
 });
 
@@ -622,19 +641,14 @@ function onRoleChange() {
   maybeSeedRoleDefault(session);
 }
 
-// Land on /chat with no specific session in mind (initial load, Cmd+1
-// from another page). Prefer the most-recent session so the user
+// Land on /chat with no specific session in mind (initial load or
+// home-button click). Prefer the most-recent session so the user
 // resumes where they left off; only create a fresh session when they
 // have no chat history at all. Explicit "+" clicks and role switches
 // still create a new session via createNewSession() directly.
 async function resumeOrCreateChatSession(): Promise<void> {
   const topId = mergedSessions.value[0]?.id;
   if (!topId) {
-    const currentSession = sessionMap.get(currentSessionId.value);
-    if (currentSession && currentSession.toolResults.length === 0) {
-      navigateToSession(currentSession.id);
-      return;
-    }
     createNewSession();
     return;
   }
@@ -661,12 +675,11 @@ function activateSession(sessionId: string, replace: boolean): void {
 }
 
 async function loadSession(sessionId: string) {
-  // currentSessionId tracks "last active chat session" and is NOT
-  // reset when the user navigates to a non-chat page (/wiki, /files,
-  // …). Also checking the URL ensures that clicking the same session
-  // in the tab bar from /wiki still triggers a /chat navigation
-  // instead of silently no-opping.
-  const alreadyOnThatChat = sessionId === currentSessionId.value && sessionMap.has(sessionId) && route.params.sessionId === sessionId;
+  // currentSessionId is `""` on non-chat pages, so clicking a session
+  // in the history panel from /wiki never matches and always navigates
+  // to /chat. On /chat this guard just avoids re-navigating to the
+  // session we're already displaying.
+  const alreadyOnThatChat = sessionId === currentSessionId.value && sessionMap.has(sessionId);
   if (alreadyOnThatChat) return;
   // Mirror createNewSession: only replace when we just discarded an
   // empty session AND we're on that /chat/:emptyId URL. On any
@@ -779,7 +792,7 @@ function unsubscribeSession(chatSessionId: string): void {
 
 async function sendMessage(text?: string) {
   const message = typeof text === "string" ? text : userInput.value.trim();
-  if (!message || isRunning.value) return;
+  if (!message || activeSessionRunning.value) return;
   userInput.value = "";
   const fileSnapshot = pastedFile.value;
   pastedFile.value = null;
