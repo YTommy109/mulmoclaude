@@ -6,8 +6,10 @@
 // After the layout/page split:
 //  - Cmd+1 toggles layout (single ↔ stack) when on /chat; on other
 //    pages it navigates back to /chat without toggling.
-//  - Cmd+2–7 navigate directly to /files, /todos, /scheduler, /wiki,
+//  - Cmd+2–7 navigate directly to /files, /todos, /calendar, /wiki,
 //    /skills, /roles.
+//  - Cmd+9 navigates to /automations (added by #758 when Scheduler
+//    was split into Calendar + Actions).
 
 import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
@@ -37,12 +39,20 @@ test.describe("keyboard shortcuts (useEventListeners)", () => {
     await expect(page).toHaveURL(/\/todos(?:$|\?)/);
   });
 
-  test("Cmd/Ctrl+4 navigates to /scheduler", async ({ page }) => {
+  test("Cmd/Ctrl+4 navigates to /calendar", async ({ page }) => {
     await page.goto("/chat");
     await expect(page.getByText("MulmoClaude")).toBeVisible();
 
     await pressShortcut(page, "4");
-    await expect(page).toHaveURL(/\/scheduler(?:$|\?)/);
+    await expect(page).toHaveURL(/\/calendar(?:$|\?)/);
+  });
+
+  test("Cmd/Ctrl+9 navigates to /automations", async ({ page }) => {
+    await page.goto("/chat");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+
+    await pressShortcut(page, "9");
+    await expect(page).toHaveURL(/\/automations(?:$|\?)/);
   });
 
   test("Cmd/Ctrl+5 navigates to /wiki", async ({ page }) => {

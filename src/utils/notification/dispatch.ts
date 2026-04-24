@@ -4,7 +4,7 @@ import { NOTIFICATION_ACTION_TYPES, NOTIFICATION_VIEWS, type NotificationAction 
 
 // Views that map directly to a canvas view mode (excludes "chat"
 // which is handled as a session navigation).
-type CanvasNotificationView = "todos" | "scheduler" | "files";
+type CanvasNotificationView = "todos" | "calendar" | "automations" | "files";
 
 export type NotificationTarget = { kind: "session"; sessionId: string } | { kind: "view"; view: CanvasNotificationView } | null;
 
@@ -15,7 +15,12 @@ export function resolveNotificationTarget(action: NotificationAction): Notificat
   if (action.view === NOTIFICATION_VIEWS.chat && action.sessionId) {
     return { kind: "session", sessionId: action.sessionId };
   }
-  if (action.view === NOTIFICATION_VIEWS.todos || action.view === NOTIFICATION_VIEWS.scheduler || action.view === NOTIFICATION_VIEWS.files) {
+  if (
+    action.view === NOTIFICATION_VIEWS.todos ||
+    action.view === NOTIFICATION_VIEWS.calendar ||
+    action.view === NOTIFICATION_VIEWS.automations ||
+    action.view === NOTIFICATION_VIEWS.files
+  ) {
     return { kind: "view", view: action.view };
   }
   return null;

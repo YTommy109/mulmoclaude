@@ -29,7 +29,8 @@ export type NotificationActionType = (typeof NOTIFICATION_ACTION_TYPES)[keyof ty
 
 export const NOTIFICATION_VIEWS = {
   todos: "todos",
-  scheduler: "scheduler",
+  calendar: "calendar",
+  automations: "automations",
   files: "files",
   chat: "chat",
 } as const;

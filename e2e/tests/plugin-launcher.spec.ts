@@ -24,8 +24,12 @@ test.describe("plugin launcher — navigation path", () => {
     await clickLauncherAndAssertPath(page, "todos", "/todos");
   });
 
-  test("Scheduler button navigates to /scheduler", async ({ page }) => {
-    await clickLauncherAndAssertPath(page, "scheduler", "/scheduler");
+  test("Calendar button navigates to /calendar", async ({ page }) => {
+    await clickLauncherAndAssertPath(page, "calendar", "/calendar");
+  });
+
+  test("Actions button navigates to /automations", async ({ page }) => {
+    await clickLauncherAndAssertPath(page, "automations", "/automations");
   });
 
   test("Wiki button navigates to /wiki", async ({ page }) => {
