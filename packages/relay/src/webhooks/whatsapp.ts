@@ -11,6 +11,7 @@ import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
 import { verifyMetaSignature, handleMetaVerification } from "./meta.js";
 import { FIFTEEN_SECONDS_MS } from "../time.js";
+import { makeUuid } from "../utils/id.js";
 
 const WHATSAPP_API_VERSION = "v21.0";
 const MAX_WA_TEXT = 4096;
@@ -62,7 +63,7 @@ const whatsappPlugin: PlatformPlugin = {
     if (!valid) throw new Error("WhatsApp signature verification failed");
 
     return extractWaMessages(JSON.parse(body)).map((msg) => ({
-      id: crypto.randomUUID(),
+      id: makeUuid(),
       platform: PLATFORMS.whatsapp,
       senderId: msg.from,
       chatId: msg.from,

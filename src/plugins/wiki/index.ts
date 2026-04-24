@@ -5,6 +5,7 @@ import Preview from "./Preview.vue";
 import toolDefinition from "./definition";
 import { apiPost } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
+import { makeUuid } from "../../utils/id";
 
 export interface WikiPageEntry {
   title: string;
@@ -34,14 +35,14 @@ const wikiPlugin: ToolPlugin<WikiData> = {
       const prefix = result.status === 0 ? "Wiki request failed" : `Wiki API error ${result.status}`;
       return {
         toolName: "manageWiki",
-        uuid: crypto.randomUUID(),
+        uuid: makeUuid(),
         message: `${prefix}: ${result.error}`,
       };
     }
     return {
       ...result.data,
       toolName: "manageWiki",
-      uuid: result.data.uuid ?? crypto.randomUUID(),
+      uuid: result.data.uuid ?? makeUuid(),
     };
   },
 

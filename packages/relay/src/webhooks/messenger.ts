@@ -10,6 +10,7 @@ import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
 import { verifyMetaSignature, handleMetaVerification } from "./meta.js";
 import { FIFTEEN_SECONDS_MS } from "../time.js";
+import { makeUuid } from "../utils/id.js";
 
 const MAX_MESSENGER_TEXT = 2000;
 
@@ -62,7 +63,7 @@ const messengerPlugin: PlatformPlugin = {
     if (!valid) throw new Error("Messenger signature verification failed");
 
     return extractMessages(JSON.parse(body)).map((msg) => ({
-      id: crypto.randomUUID(),
+      id: makeUuid(),
       platform: PLATFORMS.messenger,
       senderId: msg.senderId,
       chatId: msg.senderId,

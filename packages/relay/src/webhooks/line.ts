@@ -3,6 +3,7 @@
 import { chunkText } from "@mulmobridge/client/text";
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
+import { makeUuid } from "../utils/id.js";
 
 interface LineEvent {
   type: string;
@@ -62,7 +63,7 @@ const linePlugin: PlatformPlugin = {
       const chatId = event.source?.groupId ?? event.source?.roomId ?? event.source?.userId ?? "unknown";
 
       messages.push({
-        id: crypto.randomUUID(),
+        id: makeUuid(),
         platform: PLATFORMS.line,
         senderId: event.source?.userId ?? "unknown",
         chatId,
