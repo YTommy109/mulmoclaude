@@ -57,7 +57,7 @@ Two built-in tasks that run without any configuration:
 | **Journal** | Summarizes recent chats into daily notes | Every hour |
 | **Chat Index** | Adds titles and summaries to chat history | Every hour |
 
-These appear in the Tasks tab but can't be modified (marked with a "System" badge).
+These appear in the **Actions** tab but can't be modified (marked with a "System" badge).
 
 ### User Tasks (Created by You)
 
@@ -206,7 +206,7 @@ Scheduler data lives in your MulmoClaude workspace:
 ### Q: My task isn't running
 
 - Is your PC awake? MulmoClaude server must be running
-- Check the Tasks tab — is the task "enabled"?
+- Check the **Actions** tab — is the task "enabled"?
 - Look at execution history for errors
 
 ### Q: How do I set my local timezone?
@@ -222,7 +222,7 @@ All times are UTC. Convert to your timezone:
 
 ### Q: How do I stop all tasks?
 
-Stop the MulmoClaude server and all tasks stop. To stop individual tasks, disable them in the Tasks tab.
+Stop the MulmoClaude server and all tasks stop. To stop individual tasks, disable them in the **Actions** tab.
 
 ### Q: Do calendar events trigger actions?
 
