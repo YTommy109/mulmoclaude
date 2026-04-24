@@ -98,7 +98,13 @@ type ParsedMessage =
     }
   | { ok: false; error: string };
 
-type HandshakeResult = { ok: true; transportId: string; options: Readonly<Record<string, unknown>> } | { ok: false; error: string };
+// Flat primitives only — matches protocol's BridgeOptions. The
+// chat-service type is duplicated rather than imported to keep this
+// package free of a hard dep on protocol-as-a-value (it has always
+// been types-only there, and the re-declaration is one line).
+type BridgeOptions = Readonly<Record<string, string | number | boolean>>;
+
+type HandshakeResult = { ok: true; transportId: string; options: BridgeOptions } | { ok: false; error: string };
 
 export function bridgeRoom(transportId: string): string {
   return `bridge:${transportId}`;
@@ -187,7 +193,7 @@ export function attachChatSocket(server: http.Server, deps: ChatSocketDeps): Cha
         // Options captured at handshake time (see io.use). Empty
         // object when the bridge didn't send any — the host app
         // treats absence and empty identically.
-        bridgeOptions: (socket.data.bridgeOptions as Readonly<Record<string, unknown>> | undefined) ?? {},
+        bridgeOptions: (socket.data.bridgeOptions as BridgeOptions | undefined) ?? {},
         // Stream text chunks to this bridge socket in real time
         // (Phase C of #268). The ack still returns the full text
         // for backward compatibility.
@@ -226,19 +232,30 @@ export function attachChatSocket(server: http.Server, deps: ChatSocketDeps): Cha
   return { io, pushToBridge };
 }
 
-// `options` on the handshake is opaque: we sanitise it to a plain
-// `Record<string, unknown>` and pass it verbatim to the relay. The
-// protocol does not interpret keys — the host app (e.g. MulmoClaude)
-// is free to look up specific keys (`defaultRole`, …) via its own
-// startChat hook.
-function sanitiseOptions(raw: unknown): Readonly<Record<string, unknown>> {
+// `options` on the handshake is reduced to a FLAT PRIMITIVE bag:
+// string / number / boolean only. This serves two purposes —
+//   1. Rejects nested objects / arrays / functions so a downstream
+//      merge in the host app can't reintroduce prototype-pollution
+//      via a deeply-nested `__proto__` (top-level `__proto__` is
+//      stripped separately as a belt-and-braces guard).
+//   2. Makes the wire contract explicit: every value the host sees
+//      is something you could put in an env var.
+// Anything else (objects, arrays, null, undefined, functions,
+// symbols, bigints) is dropped silently. The bridge author is
+// responsible for flattening complex config into primitives before
+// sending.
+export function sanitiseOptions(raw: unknown): BridgeOptions {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  const out: Record<string, unknown> = {};
+  const out: Record<string, string | number | boolean> = {};
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    // Drop prototype-polluting keys defensively — never useful in
-    // this context and the bridge can't recover from them anyway.
     if (key === "__proto__" || key === "prototype" || key === "constructor") continue;
-    out[key] = value;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      // Drop non-finite numbers (NaN / Infinity) — they serialise
+      // oddly and the host app shouldn't be asked to distinguish
+      // "valid zero" from "broken input".
+      if (typeof value === "number" && !Number.isFinite(value)) continue;
+      out[key] = value;
+    }
   }
   return out;
 }

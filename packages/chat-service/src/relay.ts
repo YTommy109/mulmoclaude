@@ -19,10 +19,12 @@ export interface RelayParams {
   externalChatId: string;
   text: string;
   attachments?: Attachment[];
-  /** Opaque bag captured at handshake time. Forwarded to the host
-   *  app's startChat callback as `bridgeOptions`. Empty when the
-   *  bridge didn't send any. See plans/feat-bridge-options-passthrough.md. */
-  bridgeOptions?: Readonly<Record<string, unknown>>;
+  /** Flat primitive bag captured at handshake time (string /
+   *  number / boolean values only — see socket.ts sanitiser).
+   *  Forwarded to the host app's startChat callback as
+   *  `bridgeOptions`. Empty when the bridge didn't send any.
+   *  See plans/feat-bridge-options-passthrough.md. */
+  bridgeOptions?: Readonly<Record<string, string | number | boolean>>;
   /** Called for each text chunk as the agent generates it. Used by
    *  the socket transport to stream text to the bridge in real time
    *  (Phase C of #268). */
@@ -151,7 +153,7 @@ export function createRelay(deps: RelayDeps): RelayFn {
 // default on absence / unknown id (with a warn log so an env-var
 // typo is traceable). Exported for direct unit testing.
 export function resolveDefaultRole(
-  bridgeOptions: Readonly<Record<string, unknown>> | undefined,
+  bridgeOptions: Readonly<Record<string, string | number | boolean>> | undefined,
   getRole: (roleId: string) => Role,
   fallbackRoleId: string,
   logger: Logger,

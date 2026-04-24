@@ -14,7 +14,7 @@ Add a generic **opaque options bag** that flows `bridge env → client → chat-
 
 ### Env var convention
 
-```
+```text
 SLACK_BOT_TOKEN=xoxb-…             # internal: consumed by the bridge itself
 SLACK_APP_TOKEN=xapp-…             # internal
 SLACK_ALLOWED_CHANNELS=C123,C456   # internal
@@ -102,6 +102,6 @@ Other `bridgeOptions.*` keys are ignored by MulmoClaude today; a different host 
 - `packages/chat-service/src/types.ts` — extend StartChatParams typing.
 - `server/api/routes/agent.ts` — accept `bridgeOptions` in StartChatParams; log on role resolve failure.
 - `packages/bridges/slack/README.md` — document `SLACK_BRIDGE_DEFAULT_ROLE`.
-- `test/client/test_options.ts` (new) — env scrape rules, precedence, camelCase mapping, empty drop.
-- `test/chat-service/test_socket.ts` — extend to cover options handshake + forwarding.
-- `test/routes/test_agent_bridgeOptions.ts` (new) — defaultRole applied on new session, ignored on existing session, unknown role falls back with log.
+- `packages/client/test/test_options.ts` (new) — env scrape rules, precedence, camelCase mapping, empty drop.
+- `packages/chat-service/test/test_resolveDefaultRole.ts` (new) — defaultRole honoured on new sessions, unknown role warn + fallback, non-string input ignored.
+- `packages/chat-service/test/test_sanitiseOptions.ts` (new) — wire-contract enforcement: only flat primitives survive; nested objects / arrays / non-finite numbers / prototype-polluting keys are dropped.

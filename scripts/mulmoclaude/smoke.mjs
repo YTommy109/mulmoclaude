@@ -52,7 +52,8 @@ async function runDriftStage({ root, driftFn }) {
   if (drifted.length === 0) {
     const skipped = results.filter((row) => row.status === "skipped").length;
     const okCount = results.filter((row) => row.status === "ok").length;
-    const pendingNote = pending.length > 0 ? `, ${pending.length} pending publish (${pending.map((row) => `${row.packageBaseName}@${row.localVersion}`).join(", ")})` : "";
+    const pendingList = pending.map((row) => `${row.packageBaseName}@${row.localVersion}`).join(", ");
+    const pendingNote = pending.length > 0 ? `, ${pending.length} pending publish (${pendingList})` : "";
     return passed(`${okCount} package(s) ok${pendingNote}, ${skipped} skipped`, { results });
   }
   return failed(

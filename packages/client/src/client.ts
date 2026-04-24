@@ -13,7 +13,7 @@
 // minimal non-Node equivalent.
 
 import { io, type Socket } from "socket.io-client";
-import { CHAT_SOCKET_EVENTS, CHAT_SOCKET_PATH, type Attachment } from "@mulmobridge/protocol";
+import { CHAT_SOCKET_EVENTS, CHAT_SOCKET_PATH, type Attachment, type BridgeOptions } from "@mulmobridge/protocol";
 import { readBridgeToken, TOKEN_FILE_PATH } from "./token.js";
 import { readBridgeEnvOptions } from "./options.js";
 
@@ -41,11 +41,14 @@ export interface BridgeClientOptions {
   transportId: string;
   /** Defaults to `$MULMOCLAUDE_API_URL` or `http://localhost:3001`. */
   apiUrl?: string;
-  /** Opaque bag forwarded to the host app's startChat callback via
-   *  the handshake. Protocol doesn't interpret any keys. If omitted,
-   *  the client auto-scrapes `<TRANSPORT>_BRIDGE_*` / `BRIDGE_*`
-   *  env vars. Pass `{}` explicitly to opt out of the scrape. */
-  options?: Readonly<Record<string, unknown>>;
+  /** Flat primitive bag forwarded to the host app's startChat
+   *  callback via the handshake (`BridgeOptions` from the
+   *  protocol). Values must be string / number / boolean — nested
+   *  objects are rejected server-side by the chat-service. If
+   *  omitted, the client auto-scrapes `<TRANSPORT>_BRIDGE_*` /
+   *  `BRIDGE_*` env vars (producing string values). Pass `{}`
+   *  explicitly to opt out of the scrape. */
+  options?: BridgeOptions;
 }
 
 export interface BridgeClient {

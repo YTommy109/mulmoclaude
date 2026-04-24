@@ -15,16 +15,30 @@ export const CHAT_SOCKET_EVENTS = {
 export type ChatSocketEvent = (typeof CHAT_SOCKET_EVENTS)[keyof typeof CHAT_SOCKET_EVENTS];
 
 /**
- * Shape of `socket.handshake.auth` on the bridge chat socket. The
- * server validates `transportId` + `token`; `options` is an opaque
- * bag forwarded verbatim to the host application's startChat
- * callback. The protocol doesn't interpret any keys — bridges and
- * host apps agree on the key names (e.g. `defaultRole`) out of band.
+ * Bridge → host-app option bag carried on the handshake.
  *
- * See `plans/feat-bridge-options-passthrough.md` for the convention.
+ * Values are restricted to flat primitives (string / number /
+ * boolean). The restriction serves two purposes:
+ *
+ *   1. The wire contract is explicit — no surprise nested objects
+ *      slip through to the host app's callback where a downstream
+ *      merge might reintroduce prototype-pollution risk.
+ *   2. The scrape-from-env path produces strings anyway, so the
+ *      ceiling is already flat primitives in practice.
+ *
+ * Protocol does not interpret any keys — bridges and host apps agree
+ * on names (`defaultRole`, …) out of band.
+ */
+export type BridgeOptions = Readonly<Record<string, string | number | boolean>>;
+
+/**
+ * Shape of `socket.handshake.auth` on the bridge chat socket. The
+ * server validates `transportId` + `token`; `options` is the opaque-
+ * but-primitive bag forwarded to the host application's startChat
+ * callback. See `plans/feat-bridge-options-passthrough.md`.
  */
 export interface BridgeHandshakeAuth {
   transportId: string;
   token?: string;
-  options?: Readonly<Record<string, unknown>>;
+  options?: BridgeOptions;
 }

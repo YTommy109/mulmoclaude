@@ -77,10 +77,18 @@ describe("resolveDefaultRole", () => {
 
   it("ignores non-string defaultRole values without throwing", () => {
     const { logger } = makeLogger();
-    // Hostile / malformed values the bridge client might send.
-    assert.equal(resolveDefaultRole({ defaultRole: 123 as unknown }, makeGetRole(KNOWN_ROLES), "general", logger, "slack"), "general");
-    assert.equal(resolveDefaultRole({ defaultRole: null as unknown }, makeGetRole(KNOWN_ROLES), "general", logger, "slack"), "general");
-    assert.equal(resolveDefaultRole({ defaultRole: {} as unknown }, makeGetRole(KNOWN_ROLES), "general", logger, "slack"), "general");
+    // The type now narrows the bag to primitives, but numbers /
+    // booleans still sneak in if a bridge author mis-reads their
+    // own config. Double-cast to simulate the runtime shape a
+    // non-TS consumer might send (`null`, `{}`) and assert
+    // resolveDefaultRole is still fail-safe in those cases.
+    // Numbers first — type-compatible post-narrowing.
+    assert.equal(resolveDefaultRole({ defaultRole: 123 }, makeGetRole(KNOWN_ROLES), "general", logger, "slack"), "general");
+    assert.equal(resolveDefaultRole({ defaultRole: true }, makeGetRole(KNOWN_ROLES), "general", logger, "slack"), "general");
+    // Now the out-of-type shapes (would-be-blocked by sanitise
+    // upstream, but the resolver must still be defensive).
+    assert.equal(resolveDefaultRole({ defaultRole: null as unknown as string }, makeGetRole(KNOWN_ROLES), "general", logger, "slack"), "general");
+    assert.equal(resolveDefaultRole({ defaultRole: {} as unknown as string }, makeGetRole(KNOWN_ROLES), "general", logger, "slack"), "general");
   });
 
   it("treats empty-string defaultRole as absence (no warn)", () => {
