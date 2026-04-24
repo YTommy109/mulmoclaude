@@ -7,10 +7,18 @@ test.beforeEach(async ({ page }) => {
   await mockAllApis(page);
 });
 
-// Helper: open history panel and wait for sessions to load.
+// Helper: open the session-history side panel and wait for sessions
+// to load. The toggle is idempotent — callers that open the panel
+// twice in a row (e.g. between two session selects) should call
+// this helper both times; selecting a session does not auto-close
+// the panel.
 async function openHistoryWithSessions(page: Page) {
-  await page.locator('[data-testid="history-btn"]').click();
-  // Wait for sessions to load (fetched async when the panel opens).
+  const toggle = page.getByTestId("session-history-toggle-off");
+  // Panel is only closed when the off-state toggle is present; no-op
+  // if the panel is already open.
+  if (await toggle.isVisible()) {
+    await toggle.click();
+  }
   await page.locator(`[data-testid="session-item-${SESSION_A.id}"]`).waitFor({ state: "visible", timeout: 5 * ONE_SECOND_MS });
 }
 
@@ -70,38 +78,28 @@ test.describe("session navigation via URL", () => {
     expect(page.url()).toContain(SESSION_A.id);
   });
 
-  test("browser back returns to the previous session (via /history)", async ({ page }) => {
-    // /history is a real page route, so navigating between sessions
-    // via the history panel leaves /history entries in browser
-    // history. Stack after two selects: [..., /history, /chat/A,
-    // /history, /chat/B]. One back → /history; another back → /chat/A.
+  test("browser back returns to the previous session", async ({ page }) => {
+    // With /history gone, the side panel is DOM state, not a route.
+    // Stack after two session selects: [..., /chat/<initial>,
+    // /chat/A, /chat/B]. One back → /chat/A.
     await page.goto("/chat");
     await page.waitForURL(/\/chat\//);
 
-    // Navigate to session A
     await openHistoryWithSessions(page);
     await page.locator(`[data-testid="session-item-${SESSION_A.id}"]`).click();
     await page.waitForURL(new RegExp(SESSION_A.id));
 
-    // Navigate to session B
-    await openHistoryWithSessions(page);
     await page.locator(`[data-testid="session-item-${SESSION_B.id}"]`).click();
     await page.waitForURL(new RegExp(SESSION_B.id));
 
-    // Back → /history (the panel we opened to pick B)
-    await page.goBack();
-    await page.waitForURL(/\/history$/);
-
-    // Back → /chat/A
     await page.goBack();
     await page.waitForURL(new RegExp(SESSION_A.id));
   });
 
   test("browser forward works after going back", async ({ page }) => {
-    // With /history as a real page route, the stack after two
-    // session selects is [..., /history, /chat/A, /history, /chat/B].
-    // Going back twice lands on /chat/A via /history; going forward
-    // twice returns through /history to /chat/B.
+    // Stack after two session selects: [..., /chat/<initial>,
+    // /chat/A, /chat/B]. Back lands on /chat/A; forward returns
+    // to /chat/B.
     await page.goto("/chat");
     await page.waitForURL(/\/chat\//);
 
@@ -109,19 +107,12 @@ test.describe("session navigation via URL", () => {
     await page.locator(`[data-testid="session-item-${SESSION_A.id}"]`).click();
     await page.waitForURL(new RegExp(SESSION_A.id));
 
-    await openHistoryWithSessions(page);
     await page.locator(`[data-testid="session-item-${SESSION_B.id}"]`).click();
     await page.waitForURL(new RegExp(SESSION_B.id));
 
-    // Back twice → session A (via /history)
-    await page.goBack();
-    await page.waitForURL(/\/history$/);
     await page.goBack();
     await page.waitForURL(new RegExp(SESSION_A.id));
 
-    // Forward twice → session B (via /history)
-    await page.goForward();
-    await page.waitForURL(/\/history$/);
     await page.goForward();
     await page.waitForURL(new RegExp(SESSION_B.id));
   });
@@ -188,6 +179,21 @@ test.describe("page routing", () => {
 
   test("unknown path redirects to /chat", async ({ page }) => {
     await page.goto("/does-not-exist");
+    await page.waitForURL(/\/chat/);
+    expect(new URL(page.url()).pathname).toMatch(/^\/chat/);
+  });
+
+  test("legacy /history bookmark falls through to /chat", async ({ page }) => {
+    // The old /history route is gone; the catch-all redirects
+    // anything unknown (including deep /history/<filter> bookmarks)
+    // to /chat so existing bookmarks don't 404.
+    await page.goto("/history");
+    await page.waitForURL(/\/chat/);
+    expect(new URL(page.url()).pathname).toMatch(/^\/chat/);
+  });
+
+  test("legacy /history/<filter> bookmark falls through to /chat", async ({ page }) => {
+    await page.goto("/history/unread");
     await page.waitForURL(/\/chat/);
     expect(new URL(page.url()).pathname).toMatch(/^\/chat/);
   });

@@ -71,9 +71,9 @@ test.describe("fetch failure → inline error banner (#280)", () => {
 
     await page.goto("/chat");
 
-    // Open the history popup — this is what calls fetchSessions().
+    // Open the side panel — this fires a fresh fetchSessions().
     const failedGet = page.waitForResponse((resp) => resp.url().includes("/api/sessions") && resp.request().method() === "GET" && resp.status() === 500);
-    await page.locator('[data-testid="history-btn"]').click();
+    await page.getByTestId("session-history-toggle-off").click();
     await failedGet;
 
     const banner = page.locator('[data-testid="session-history-error"]');

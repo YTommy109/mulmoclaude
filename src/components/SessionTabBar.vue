@@ -37,17 +37,15 @@
       </button>
       <div v-else class="flex-1" />
     </template>
-    <SessionHistoryNavButton
+    <!-- Session-history side-panel toggle. Carries the aggregate
+         session-status badges (active = yellow, unread = red) that
+         used to live on the separate /history entry button. -->
+    <SessionHistoryToggleButton
+      :model-value="sidePanelVisible"
       :active-session-count="activeSessionCount"
       :unread-count="unreadCount"
-      :history-open="historyOpen"
-      @toggle-history="emit('toggleHistory')"
+      @update:model-value="(value: boolean) => emit('update:sidePanelVisible', value)"
     />
-    <!-- Session-history side-panel toggle. Distinct from the
-         expand_more button above (which navigates to /history) —
-         this one opens the SessionHistoryPanel as a standalone left
-         column next to the canvas, persisted in localStorage. -->
-    <SessionHistoryToggleButton :model-value="sidePanelVisible" @update:model-value="(value: boolean) => emit('update:sidePanelVisible', value)" />
   </div>
 </template>
 
@@ -56,7 +54,6 @@ import { useI18n } from "vue-i18n";
 import type { Role } from "../config/roles";
 import { type SessionSummary } from "../types/session";
 import { roleName } from "../utils/role/icon";
-import SessionHistoryNavButton from "./SessionHistoryNavButton.vue";
 import SessionHistoryToggleButton from "./SessionHistoryToggleButton.vue";
 import SessionRoleIcon from "./SessionRoleIcon.vue";
 
@@ -74,14 +71,12 @@ const props = defineProps<{
   roles: Role[];
   activeSessionCount: number;
   unreadCount: number;
-  historyOpen: boolean;
   sidePanelVisible: boolean;
 }>();
 
 const emit = defineEmits<{
   newSession: [];
   loadSession: [id: string];
-  toggleHistory: [];
   "update:sidePanelVisible": [value: boolean];
 }>();
 

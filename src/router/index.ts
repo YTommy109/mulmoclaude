@@ -1,9 +1,9 @@
 // Vue-router setup (history mode — clean URLs without #).
 //
 // Each page has its own route: /chat, /files, /todos, /scheduler,
-// /wiki, /skills, /roles, /history, /sources. Layout preference
-// (single vs. stack) is a separate concern persisted in localStorage
-// — it is not part of the URL.
+// /wiki, /skills, /roles, /sources. Layout preference (single vs.
+// stack) is a separate concern persisted in localStorage — it is
+// not part of the URL.
 //
 // History mode requires the server to serve index.html for any path
 // that doesn't match an API route or static file. In production the
@@ -12,7 +12,6 @@
 
 import { defineComponent, h } from "vue";
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
-import { HISTORY_FILTER_ROUTE_PATTERN } from "../config/historyFilters";
 
 // Stub component that renders nothing. Required by vue-router (every
 // route needs a component) but never actually mounted because App.vue
@@ -27,7 +26,6 @@ export const PAGE_ROUTES = {
   wiki: "wiki",
   skills: "skills",
   roles: "roles",
-  history: "history",
   sources: "sources",
 } as const;
 
@@ -55,11 +53,6 @@ const routes: RouteRecordRaw[] = [
   { path: "/wiki/:section(pages|log|lint-report)?/:slug?", name: PAGE_ROUTES.wiki, component: Stub },
   { path: "/skills", name: PAGE_ROUTES.skills, component: Stub },
   { path: "/roles", name: PAGE_ROUTES.roles, component: Stub },
-  // `filter` is a closed enum (see src/config/historyFilters.ts). The
-  // default `all` is represented by the bare `/history` URL, so it is
-  // not part of the pattern. Unknown values fall through to the
-  // catch-all redirect below.
-  { path: `/history/:filter(${HISTORY_FILTER_ROUTE_PATTERN})?`, name: PAGE_ROUTES.history, component: Stub },
   { path: "/sources", name: PAGE_ROUTES.sources, component: Stub },
   { path: "/:pathMatch(.*)*", redirect: "/chat" },
 ];

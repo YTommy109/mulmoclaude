@@ -49,9 +49,15 @@ export async function startNewSession(page: Page): Promise<void> {
   await page.getByTestId("new-session-btn").click();
 }
 
-/** Open the session history popup (clock icon). */
+/**
+ * Open the session-history side panel. Clicking the toggle when the
+ * panel is closed reveals the panel (with its filter bar and session
+ * list); clicking again closes it. Use this helper wherever older
+ * tests used to click the now-removed /history nav button — the
+ * side panel is the only session-history entry point now.
+ */
 export async function openSessionHistory(page: Page): Promise<void> {
-  await page.getByTestId("history-btn").click();
+  await page.getByTestId("session-history-toggle-off").click();
 }
 
 /** Click an existing session tab by id (appears after opening a session). */

@@ -75,18 +75,14 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRoute, useRouter } from "vue-router";
 import type { Role } from "../config/roles";
 import type { SessionSummary, SessionOrigin } from "../types/session";
 import { SESSION_ORIGINS } from "../types/session";
-import { HISTORY_FILTERS, HISTORY_FILTER_ORDER, isHistoryFilter, type HistoryFilter } from "../config/historyFilters";
-import { PAGE_ROUTES } from "../router";
+import { HISTORY_FILTERS, HISTORY_FILTER_ORDER, type HistoryFilter } from "../config/historyFilters";
 import { formatDate } from "../utils/format/date";
 import SessionRoleIcon from "./SessionRoleIcon.vue";
 
 const { t } = useI18n();
-const route = useRoute();
-const router = useRouter();
 
 // `unread` is mutually exclusive with origin pills — selecting it
 // shows every unread-flagged session regardless of origin, matching
@@ -110,18 +106,11 @@ defineExpose({ root });
 
 // ── Filter ──────────────────────────────────────────────────
 
-// Backed by the /history/:filter? path param so browser back/forward
-// restores prior filter states and deep links like /history/unread work.
-const activeFilter = computed<HistoryFilter>({
-  get: () => {
-    const raw = route.params.filter;
-    return typeof raw === "string" && isHistoryFilter(raw) ? raw : HISTORY_FILTERS.all;
-  },
-  set: (value) => {
-    const params = value === HISTORY_FILTERS.all ? {} : { filter: value };
-    router.push({ name: PAGE_ROUTES.history, params });
-  },
-});
+// Panel-local state. Resets to `all` when the panel unmounts —
+// persisting across mounts didn't earn its keep (no deep-link story
+// now that /history is gone), and keeping it local avoids leaking
+// panel UI state into a global store.
+const activeFilter = ref<HistoryFilter>(HISTORY_FILTERS.all);
 
 function originOf(session: SessionSummary): SessionOrigin {
   return session.origin ?? SESSION_ORIGINS.human;
