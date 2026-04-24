@@ -19,6 +19,7 @@ export interface WikiData {
   content: string;
   pageEntries?: WikiPageEntry[];
   pageName?: string;
+  pageExists?: boolean;
 }
 
 const wikiPlugin: ToolPlugin<WikiData> = {
