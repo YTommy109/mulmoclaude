@@ -56,15 +56,15 @@
         class="w-72 flex-shrink-0 border-r border-gray-200 bg-white text-gray-900 flex flex-col"
         data-testid="session-history-side-panel"
       >
-        <!-- Panel header. Stacked over two rows because w-80 can't
+        <!-- Panel header. Stacked over two rows because w-72 can't
              fit RoleSelector (w-56) plus three 28–32px buttons on a
              single line. Row 1 pairs the role picker with the new-
              session button so the `+` sits next to RoleSelector just
              like it does in the hidden SessionTabBar; Row 2 carries
              the remaining actions (/history nav + close toggle).
-             When Row 2's SessionTabBar is hidden by sidePanelVisible,
-             these controls are the only session UI on /chat, so
-             none of them can be dropped. -->
+             These controls are the only session UI while the panel
+             is open (Row 2's SessionTabBar is hidden), so none can
+             be dropped. -->
         <div class="border-b border-gray-100">
           <div class="flex items-center gap-1 px-2 py-1">
             <RoleSelector v-model:current-role-id="currentRoleId" :roles="roles" @change="onRoleChange" />

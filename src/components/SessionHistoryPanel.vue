@@ -46,9 +46,10 @@
         @keydown.space.prevent.self="(e) => !e.repeat && emit('loadSession', session.id)"
       >
         <!-- Timestamp pill straddling the top border, mirroring the
-             ToolResultsPanel card design. Runs/unread still render
-             inline in the meta line below because they're status
-             labels, not times. -->
+             ToolResultsPanel card design. The running indicator
+             still renders inline in the meta line below (it's a
+             status, not a time); unread is signalled solely through
+             previewClasses (bold text). -->
         <span class="absolute top-0 right-2 -translate-y-1/2 bg-white px-1 text-[10px] text-gray-400 leading-none pointer-events-none">
           {{ formatDate(session.updatedAt) }}
         </span>
