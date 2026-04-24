@@ -1,13 +1,13 @@
 <template>
   <div class="flex-1 min-h-0 flex flex-col bg-gray-100">
-    <div class="shrink-0 flex items-center gap-1 text-xs text-gray-400 px-2 pt-2 pb-1" data-testid="sidebar-role-header">
+    <div class="shrink-0 flex items-center gap-2 text-xs text-gray-400 px-3 py-2 border-b border-gray-100" data-testid="sidebar-role-header">
       <span v-if="sessionRoleIcon" class="material-icons text-xs leading-none">{{ sessionRoleIcon }}</span>
-      <span v-if="sessionRoleName">{{ sessionRoleName }}</span>
-      <div class="ml-auto flex items-center gap-1">
+      <span v-if="sessionRoleName" class="truncate">{{ sessionRoleName }}</span>
+      <div class="ml-auto flex items-center gap-0.5 shrink-0">
         <button
           type="button"
-          class="text-gray-400 hover:text-gray-700"
-          :class="{ 'text-blue-500': showRightSidebar }"
+          class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+          :class="{ '!text-blue-500': showRightSidebar }"
           :title="t('sidebarHeader.toolCallHistory')"
           :aria-label="t('sidebarHeader.toolCallHistory')"
           :aria-pressed="showRightSidebar"

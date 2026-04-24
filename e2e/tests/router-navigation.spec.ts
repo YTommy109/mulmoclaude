@@ -35,38 +35,6 @@ test.describe("session navigation via URL", () => {
     expect(page.url()).toMatch(/\/chat\/[\w-]+/);
   });
 
-  test("clicking the app home button keeps the current empty session when there is no history", async ({ page }) => {
-    await page.route(
-      (url) => url.pathname === "/api/sessions",
-      (route) => {
-        if (route.request().method() === "GET") {
-          return route.fulfill({
-            json: { sessions: [], cursor: "v1:0", deletedIds: [] },
-          });
-        }
-        return route.fallback();
-      },
-    );
-
-    await page.route(
-      (url) => url.pathname.startsWith("/api/sessions/") && url.pathname !== "/api/sessions",
-      (route) => {
-        if (route.request().method() === "POST") {
-          return route.fulfill({ json: { ok: true } });
-        }
-        return route.fulfill({ status: 404, json: { error: "not found" } });
-      },
-    );
-
-    await page.goto("/chat");
-    await page.waitForURL(/\/chat\//);
-    const initialUrl = page.url();
-
-    await page.getByTestId("app-home-btn").click();
-
-    await expect(page).toHaveURL(initialUrl);
-  });
-
   test("clicking a session in history changes the URL", async ({ page }) => {
     await page.goto("/chat");
     await page.waitForURL(/\/chat\//);

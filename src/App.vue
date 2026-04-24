@@ -3,7 +3,7 @@
     <!-- Global top bar — shown in every view mode -->
     <div class="shrink-0 bg-white text-gray-900">
       <!-- Row 1: title + plugin launcher -->
-      <div class="flex items-center gap-3 px-3 py-2 border-b border-gray-200">
+      <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-200">
         <SidebarHeader
           :sandbox-enabled="sandboxEnabled"
           :gemini-available="geminiAvailable"
@@ -19,21 +19,25 @@
       </div>
       <!-- Row 2: role selector + session tabs. Shown whenever the
            side panel is hidden — Row 2 and the side panel are
-           mutually exclusive. -->
+           mutually exclusive. The header-controls wrapper is pinned
+           to 264px (w-72 minus px-3 padding on each side) so that
+           RoleSelector / + / toggle occupy the exact same x-range as
+           they do inside the open side panel — toggling the panel
+           therefore doesn't shift those controls. -->
       <div v-if="!sidePanelVisible" class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
-        <RoleSelector v-model:current-role-id="currentRoleId" :roles="roles" @change="onRoleChange" />
-        <SessionTabBar
-          :sessions="tabSessions"
-          :current-session-id="displayedCurrentSessionId"
-          :is-chat-page="isChatPage"
-          :roles="roles"
-          :active-session-count="activeSessionCount"
-          :unread-count="unreadCount"
-          :side-panel-visible="sidePanelVisible"
-          @new-session="handleNewSessionClick"
-          @load-session="handleSessionSelect"
-          @update:side-panel-visible="setSidePanelVisible"
-        />
+        <div class="w-[264px] shrink-0">
+          <SessionHeaderControls
+            v-model:current-role-id="currentRoleId"
+            :roles="roles"
+            :side-panel-visible="sidePanelVisible"
+            :active-session-count="activeSessionCount"
+            :unread-count="unreadCount"
+            @role-change="onRoleChange"
+            @new-session="handleNewSessionClick"
+            @update:side-panel-visible="setSidePanelVisible"
+          />
+        </div>
+        <SessionTabBar :sessions="tabSessions" :current-session-id="currentSessionId" :roles="roles" @load-session="handleSessionSelect" />
       </div>
     </div>
 
@@ -47,7 +51,7 @@
            role selector + new-session button instead. -->
       <div
         v-if="sidePanelVisible"
-        class="group relative border-r border-gray-200 bg-white text-gray-900 flex flex-col min-w-0 overflow-hidden"
+        class="relative border-r border-gray-200 bg-white text-gray-900 flex flex-col min-w-0 overflow-hidden"
         :class="sidePanelExpanded ? 'flex-1' : 'w-72 flex-shrink-0'"
         data-testid="session-history-side-panel"
       >
@@ -56,27 +60,19 @@
              close toggle. The expand affordance lives on the panel's
              right edge as a hover-reveal handle instead of a header
              button, so no second row is needed. -->
-        <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
-          <RoleSelector v-model:current-role-id="currentRoleId" :roles="roles" fluid @change="onRoleChange" />
-          <div class="flex items-center gap-1 shrink-0">
-            <button
-              class="flex-shrink-0 flex items-center justify-center w-7 py-1 rounded border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
-              data-testid="new-session-btn"
-              :title="t('sessionTabBar.newSession')"
-              :aria-label="t('sessionTabBar.newSession')"
-              @click="handleNewSessionClick"
-            >
-              <span class="material-icons text-sm">add</span>
-            </button>
-            <SessionHistoryToggleButton
-              :model-value="sidePanelVisible"
-              :active-session-count="activeSessionCount"
-              :unread-count="unreadCount"
-              @update:model-value="setSidePanelVisibleAndCollapse"
-            />
-          </div>
+        <div class="flex items-center px-3 py-2 border-b border-gray-100">
+          <SessionHeaderControls
+            v-model:current-role-id="currentRoleId"
+            :roles="roles"
+            :side-panel-visible="sidePanelVisible"
+            :active-session-count="activeSessionCount"
+            :unread-count="unreadCount"
+            @role-change="onRoleChange"
+            @new-session="handleNewSessionClick"
+            @update:side-panel-visible="setSidePanelVisibleAndCollapse"
+          />
         </div>
-        <div class="relative flex-1 min-h-0">
+        <div class="group relative flex-1 min-h-0">
           <SessionHistoryPanel
             :sessions="mergedSessions"
             :current-session-id="currentSessionId"
@@ -96,7 +92,7 @@
           :results="sidebarResults"
           :selected-uuid="selectedResultUuid"
           :result-timestamps="activeSession?.resultTimestamps ?? new Map()"
-          :is-running="isRunning"
+          :is-running="activeSessionRunning"
           :status-message="statusMessage"
           :pending-calls="pendingCalls"
           :session-role-name="sessionRoleName"
@@ -113,7 +109,7 @@
         <SuggestionsPanel ref="suggestionsPanelRef" :queries="currentRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
 
         <!-- Text input -->
-        <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="isRunning" @send="sendMessage()" />
+        <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="activeSessionRunning" @send="sendMessage()" />
       </div>
 
       <!-- Canvas column -->
@@ -165,7 +161,7 @@
              session context, so no chat input is shown) -->
         <div v-if="isChatPage && layoutMode === 'stack'" class="border-t border-gray-200 bg-white shrink-0">
           <SuggestionsPanel ref="suggestionsPanelRef" :queries="currentRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
-          <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="isRunning" @send="sendMessage()" />
+          <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="activeSessionRunning" @send="sendMessage()" />
         </div>
       </div>
 
@@ -205,13 +201,12 @@ import { getPlugin } from "./tools";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import RightSidebar from "./components/RightSidebar.vue";
 import SidebarHeader from "./components/SidebarHeader.vue";
-import RoleSelector from "./components/RoleSelector.vue";
+import SessionHeaderControls from "./components/SessionHeaderControls.vue";
 import SessionTabBar from "./components/SessionTabBar.vue";
 import SuggestionsPanel from "./components/SuggestionsPanel.vue";
 import ChatInput, { type PastedFile } from "./components/ChatInput.vue";
 import SessionHistoryExpandButton from "./components/SessionHistoryExpandButton.vue";
 import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
-import SessionHistoryToggleButton from "./components/SessionHistoryToggleButton.vue";
 import ToolResultsPanel from "./components/ToolResultsPanel.vue";
 import PluginLauncher from "./components/PluginLauncher.vue";
 import StackView from "./components/StackView.vue";
@@ -279,11 +274,14 @@ const sessionMap = reactive(new Map<string, ActiveSession>());
 // subscription so events arrive via WebSocket.
 const sessionSubscriptions = new Map<string, () => void>();
 
-// currentSessionId is a plain ref so that synchronous writes (e.g.
-// inside createNewSession, which is called right before sendMessage
-// might run) take effect immediately. The URL is kept in sync via
-// navigateToSession, and external URL changes (back button, typed
-// URL) feed back into the ref via the route watcher below.
+// currentSessionId is "the session currently displayed on /chat" —
+// it's `""` whenever the user is on any other page. A plain ref (not
+// a computed) so synchronous writes (e.g. inside createNewSession,
+// which is called right before sendMessage might run) take effect
+// immediately. The URL is kept in sync via navigateToSession, and
+// external URL changes (back button, typed URL) feed back into the
+// ref via the route watcher below. An `isChatPage` watcher clears
+// it when the user leaves /chat.
 const currentSessionId = ref("");
 
 // --- Debug beat (pub/sub) ---
@@ -368,8 +366,18 @@ const { markSessionRead } = useSessionSync({
 });
 const { geminiAvailable, sandboxEnabled, cpuLoadRatio, fetchHealth } = useHealth();
 
-const { activeSession, toolResults, sidebarResults, currentSummary, isRunning, statusMessage, toolCallHistory, activeSessionCount, unreadCount } =
-  useSessionDerived({ sessionMap, currentSessionId, sessions });
+const {
+  activeSession,
+  toolResults,
+  sidebarResults,
+  currentSummary,
+  isRunning,
+  activeSessionRunning,
+  statusMessage,
+  toolCallHistory,
+  activeSessionCount,
+  unreadCount,
+} = useSessionDerived({ sessionMap, currentSessionId, sessions });
 
 const { selectedResultUuid } = useSelectedResult({
   activeSession,
@@ -403,14 +411,14 @@ const chatInputRef = ref<{ focus: () => void } | null>(null);
 const { focusChatInput } = useChatScroll({
   toolResultsPanelRef,
   toolResults,
-  isRunning,
+  isRunning: activeSessionRunning,
   chatInputRef,
 });
 
 const { showRightSidebar, toggleRightSidebar } = useRightSidebar();
 const showSettings = ref(false);
 
-const { layoutMode, setLayoutMode, toggleLayoutMode } = useLayoutMode();
+const { layoutMode, setLayoutMode } = useLayoutMode();
 const { sidePanelVisible, setSidePanelVisible } = useSidePanelVisible();
 // Transient full-width mode for the session-history side panel.
 // Not persisted: reopening the panel should always start collapsed.
@@ -446,40 +454,6 @@ watch(sidePanelVisible, (visible, prev) => {
   }
 });
 
-// Cmd/Ctrl + 1 toggles layout when on /chat; on any other page it
-// navigates to /chat (layout flip requires a second press). Cmd+2–7
-// navigate directly to the matching page.
-const PAGE_SHORTCUT_KEYS: Record<string, PageRouteName> = {
-  "2": PAGE_ROUTES.files,
-  "3": PAGE_ROUTES.todos,
-  "4": PAGE_ROUTES.calendar,
-  "5": PAGE_ROUTES.wiki,
-  "6": PAGE_ROUTES.skills,
-  "7": PAGE_ROUTES.roles,
-  "9": PAGE_ROUTES.automations,
-};
-
-function handleViewModeShortcut(event: KeyboardEvent): void {
-  if (!(event.metaKey || event.ctrlKey)) return;
-  if (event.altKey || event.shiftKey) return;
-
-  if (event.key === "1") {
-    event.preventDefault();
-    if (route.name === PAGE_ROUTES.chat) {
-      toggleLayoutMode();
-    } else {
-      resumeOrCreateChatSession().catch((err) => console.error("[Cmd+1] resume failed:", err));
-    }
-    return;
-  }
-
-  const page = PAGE_SHORTCUT_KEYS[event.key];
-  if (page) {
-    event.preventDefault();
-    router.push({ name: page }).catch(() => {});
-  }
-}
-
 function onPluginNavigate(target: { key: string }): void {
   if (isPageRouteName(target.key)) {
     router.push({ name: target.key }).catch(() => {});
@@ -491,11 +465,23 @@ function isPageRouteName(value: string): value is PageRouteName {
 }
 
 // Layout only matters on /chat; other pages are full-width by design.
-const { isStackLayout, displayedCurrentSessionId } = useViewLayout({
+const { isStackLayout } = useViewLayout({
   layoutMode,
   isChatPage,
-  currentSessionId,
   activePane,
+});
+
+// Clear currentSessionId when the user leaves /chat so downstream
+// consumers (history-panel border, mark-read, unread dot, session-
+// state sync) see "nothing selected" instead of the stale last-viewed
+// session. Also prune any empty session that was never sent to — we
+// don't persist empty sessions on the server. Fires true → false only;
+// an empty → /chat transition is handled by the route-params watcher
+// and onMounted.
+watch(isChatPage, (isChat, wasChat) => {
+  if (!(wasChat && !isChat)) return;
+  removeCurrentIfEmpty();
+  currentSessionId.value = "";
 });
 
 function handleSessionSelect(sessionId: string): void {
@@ -520,7 +506,7 @@ const { availableTools, toolDescriptions, mcpToolsError, fetchMcpToolsStatus } =
 });
 
 const { pendingCalls, teardown: teardownPendingCalls } = usePendingCalls({
-  isRunning,
+  isRunning: activeSessionRunning,
   toolCallHistory,
 });
 
@@ -632,19 +618,14 @@ function onRoleChange() {
   maybeSeedRoleDefault(session);
 }
 
-// Land on /chat with no specific session in mind (initial load, Cmd+1
-// from another page). Prefer the most-recent session so the user
+// Land on /chat with no specific session in mind (initial load or
+// home-button click). Prefer the most-recent session so the user
 // resumes where they left off; only create a fresh session when they
 // have no chat history at all. Explicit "+" clicks and role switches
 // still create a new session via createNewSession() directly.
 async function resumeOrCreateChatSession(): Promise<void> {
   const topId = mergedSessions.value[0]?.id;
   if (!topId) {
-    const currentSession = sessionMap.get(currentSessionId.value);
-    if (currentSession && currentSession.toolResults.length === 0) {
-      navigateToSession(currentSession.id);
-      return;
-    }
     createNewSession();
     return;
   }
@@ -671,12 +652,11 @@ function activateSession(sessionId: string, replace: boolean): void {
 }
 
 async function loadSession(sessionId: string) {
-  // currentSessionId tracks "last active chat session" and is NOT
-  // reset when the user navigates to a non-chat page (/wiki, /files,
-  // …). Also checking the URL ensures that clicking the same session
-  // in the tab bar from /wiki still triggers a /chat navigation
-  // instead of silently no-opping.
-  const alreadyOnThatChat = sessionId === currentSessionId.value && sessionMap.has(sessionId) && route.params.sessionId === sessionId;
+  // currentSessionId is `""` on non-chat pages, so clicking a session
+  // in the history panel from /wiki never matches and always navigates
+  // to /chat. On /chat this guard just avoids re-navigating to the
+  // session we're already displaying.
+  const alreadyOnThatChat = sessionId === currentSessionId.value && sessionMap.has(sessionId);
   if (alreadyOnThatChat) return;
   // Mirror createNewSession: only replace when we just discarded an
   // empty session AND we're on that /chat/:emptyId URL. On any
@@ -789,7 +769,7 @@ function unsubscribeSession(chatSessionId: string): void {
 
 async function sendMessage(text?: string) {
   const message = typeof text === "string" ? text : userInput.value.trim();
-  if (!message || isRunning.value) return;
+  if (!message || activeSessionRunning.value) return;
   userInput.value = "";
   const fileSnapshot = pastedFile.value;
   pastedFile.value = null;
@@ -866,7 +846,6 @@ provideActiveSession(activeSession);
 
 useEventListeners({
   onKeyNavigation: handleKeyNavigation,
-  onViewModeShortcut: handleViewModeShortcut,
   onTeardown: teardownPendingCalls,
 });
 

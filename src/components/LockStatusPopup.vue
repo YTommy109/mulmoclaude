@@ -3,7 +3,10 @@
     <button
       ref="button"
       data-testid="sandbox-lock-button"
-      :class="sandboxEnabled ? 'text-gray-400 hover:text-gray-700' : 'text-amber-400 hover:text-amber-500'"
+      :class="[
+        'h-8 w-8 flex items-center justify-center rounded',
+        sandboxEnabled ? 'text-gray-400 hover:text-gray-700' : 'text-amber-400 hover:text-amber-500',
+      ]"
       :title="sandboxEnabled ? t('lockStatusPopup.sandboxEnabledTooltip') : t('lockStatusPopup.noSandboxTooltip')"
       @click="emit('update:open', !open)"
     >
