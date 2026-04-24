@@ -116,12 +116,33 @@ const SCENARIOS: readonly NotificationScenario[] = [
 ];
 
 /**
- * Mock the pub-sub socket so the client receives a single canned
- * notification as soon as it subscribes to the `notifications`
- * channel. Mirrors the engine.io / socket.io handshake used in
- * chat-flow.spec.ts.
+ * Mock the pub-sub socket so the client receives one or more
+ * canned notifications as soon as it subscribes to the
+ * `notifications` channel. Mirrors the engine.io / socket.io
+ * handshake used in chat-flow.spec.ts.
+ *
+ * Accepts either a single payload or an array — multiple payloads
+ * are emitted in order with a small inter-event gap so the
+ * client's reactive state settles deterministically.
  */
-async function installNotificationStream(page: Page, payload: NotificationPayload): Promise<void> {
+// Stagger payload emissions over `socket` so the subscribe ack
+// settles before the first data event, and so multiple events
+// don't collapse into a single reactive tick — masking per-item
+// tracking bugs.
+function emitPayloadsStaggered(socket: WebSocketRoute, list: readonly NotificationPayload[]): void {
+  for (let index = 0; index < list.length; index++) {
+    const payload = list[index];
+    setTimeout(
+      () => {
+        socket.send("42" + JSON.stringify(["data", { channel: NOTIFICATIONS_CHANNEL, data: payload }]));
+      },
+      30 + index * 20,
+    );
+  }
+}
+
+async function installNotificationStream(page: Page, payloads: NotificationPayload | readonly NotificationPayload[]): Promise<void> {
+  const list = Array.isArray(payloads) ? payloads : [payloads];
   await page.routeWebSocket(
     (url) => url.pathname.startsWith("/ws/pubsub"),
     (socket: WebSocketRoute) => {
@@ -155,18 +176,72 @@ async function installNotificationStream(page: Page, payload: NotificationPayloa
         if (!Array.isArray(parsed)) return;
         const [name, arg] = parsed as [string, unknown];
         if (name !== "subscribe" || arg !== NOTIFICATIONS_CHANNEL) return;
-        // Slight delay so the subscribe ack settles before the
-        // data event lands — mirrors real server timing and keeps
-        // the client's reactive state stable when the bell opens.
-        setTimeout(() => {
-          socket.send("42" + JSON.stringify(["data", { channel: NOTIFICATIONS_CHANNEL, data: payload }]));
-        }, 30);
+        emitPayloadsStaggered(socket, list);
       });
     },
   );
 }
 
 test.describe("notification permalinks", () => {
+  test("unread badge survives panel open and decreases on item click", async ({ page }) => {
+    // Two distinct notifications so we can verify per-item read
+    // tracking — clicking one should drop the badge from 2 → 1
+    // without flipping the other to read.
+    const first = buildPayload("notif-unread-1", "Stays unread", {
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.calendar },
+    });
+    const second = buildPayload("notif-unread-2", "Will be clicked", {
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.todos, itemId: "todo-z" },
+    });
+
+    await mockAllApis(page, { sessions: [] });
+    await installNotificationStream(page, [first, second]);
+
+    await page.goto("/");
+    await expect(page.getByTestId("notification-badge")).toHaveText("2", { timeout: 5000 });
+
+    // Open the panel — badge must NOT auto-clear.
+    await page.getByTestId("notification-bell").click();
+    await expect(page.getByTestId("notification-panel")).toBeVisible();
+    await expect(page.getByTestId("notification-badge")).toHaveText("2");
+    await expect(page.getByTestId(`notification-item-${first.id}`)).toHaveAttribute("data-unread", "true");
+    await expect(page.getByTestId(`notification-item-${second.id}`)).toHaveAttribute("data-unread", "true");
+
+    // Click the second item — it navigates AND drops the badge to 1.
+    await page.getByTestId(`notification-item-${second.id}`).click();
+    await expect(page).toHaveURL(/\/todos\/todo-z/);
+
+    // Re-open the bell and confirm only the first stays unread.
+    await page.getByTestId("notification-bell").click();
+    await expect(page.getByTestId("notification-badge")).toHaveText("1");
+    await expect(page.getByTestId(`notification-item-${first.id}`)).toHaveAttribute("data-unread", "true");
+    await expect(page.getByTestId(`notification-item-${second.id}`)).toHaveAttribute("data-unread", "false");
+  });
+
+  test("dismissing an unread item drops the badge", async ({ page }) => {
+    const payload = buildPayload("notif-dismiss-1", "Will be dismissed", {
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.calendar },
+    });
+
+    await mockAllApis(page, { sessions: [] });
+    await installNotificationStream(page, [payload]);
+
+    await page.goto("/");
+    await expect(page.getByTestId("notification-badge")).toHaveText("1", { timeout: 5000 });
+
+    await page.getByTestId("notification-bell").click();
+    // The × button is the only descendant <button> of the notification
+    // item — target it via its aria-label.
+    await page.getByTestId(`notification-item-${payload.id}`).getByRole("button").click();
+
+    // Item is gone; the badge should disappear with it.
+    await expect(page.getByTestId(`notification-item-${payload.id}`)).toHaveCount(0);
+    await expect(page.getByTestId("notification-badge")).toHaveCount(0);
+  });
+
   for (const scenario of SCENARIOS) {
     test(scenario.description, async ({ page }) => {
       await mockAllApis(page, { sessions: [] });
