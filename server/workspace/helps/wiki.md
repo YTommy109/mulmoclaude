@@ -126,6 +126,7 @@ Key rules:
 - `#tag` tokens appear inline in the description (whitespace-bounded on the left). Tokens are extracted and indexed for the Wiki tag-filter UI. Tags accept any Unicode letter or digit (so `#クラウド`, `#可視化`, `#ai-agents` all work); `-` and `_` are allowed as internal joiners but not as the first character. Separate adjacent tags with a space — there is no right-hand boundary char, so `#クラウドデータ` parses as one tag.
 - Group by category if useful, then include a "タグ一覧" / "Tags" section with the same `[Title](pages/<slug>.md)` link form so every mention is clickable.
 - Keep the index in sync with `pages/` — when you add a page, add a row; when you rename a file, update every link that points at it.
+- **Order entries newest-first** in the page list section. When creating a new page, **prepend** its bullet at the top — not append at the bottom. When you update an existing page (content, description, or tags), **move that bullet to the top** so the index reads as a journal of recent activity. The "タグ一覧" / "Tags" section stays alphabetical / categorical — only the main page list is ordered by recency.
 
 ### Alternative table format
 
