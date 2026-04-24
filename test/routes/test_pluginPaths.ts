@@ -40,10 +40,11 @@ describe("isMarkdownPath", () => {
   });
 });
 
-// Cross-check: isSpreadsheetPath rejects traversal that isMarkdownPath
-// does not catch (since isMarkdownPath is prefix+suffix only). This
-// confirms the two functions have different strictness levels.
-describe("isSpreadsheetPath vs isMarkdownPath — traversal awareness", () => {
+// Both validators reject path-traversal attempts. Markdown is held to
+// the same strictness as spreadsheet because `overwriteMarkdown` does
+// no realpath / safeResolve before writing — these gates are the
+// primary defence at the route layer.
+describe("isSpreadsheetPath / isMarkdownPath — traversal awareness", () => {
   it("isSpreadsheetPath rejects path-normalized traversal", () => {
     assert.equal(isSpreadsheetPath("artifacts/spreadsheets/../spreadsheets/f.json"), false);
   });
@@ -52,13 +53,11 @@ describe("isSpreadsheetPath vs isMarkdownPath — traversal awareness", () => {
     assert.equal(isSpreadsheetPath("artifacts/spreadsheets/../../etc/passwd.json"), false);
   });
 
-  it("isMarkdownPath accepts prefix+suffix but relies on server-side safeResolve for traversal", () => {
-    // This path has the right prefix and suffix, but contains ".."
-    // isMarkdownPath only checks prefix+suffix, so this would pass.
-    // The actual security gate is the server-side safeResolve call.
-    const suspicious = "artifacts/documents/../documents/f.md";
-    // Whether this is true or false depends on prefix match — the
-    // prefix still matches so isMarkdownPath returns true.
-    assert.equal(isMarkdownPath(suspicious), true);
+  it("isMarkdownPath rejects path-normalized traversal", () => {
+    assert.equal(isMarkdownPath("artifacts/documents/../documents/f.md"), false);
+  });
+
+  it("isMarkdownPath rejects double-dot segments", () => {
+    assert.equal(isMarkdownPath("artifacts/documents/../../etc/passwd.md"), false);
   });
 });

@@ -33,7 +33,17 @@ export async function overwriteMarkdown(relativePath: string, content: string): 
   await writeFile(absPath, content, "utf-8");
 }
 
-/** Check if a string is a markdown file path (not inline content). */
+/** Check if a string is a markdown file path (not inline content).
+ *  Rejects traversal attempts like `artifacts/documents/../outside.md`
+ *  so callers can rely on prefix+suffix alone. Mirrors the
+ *  `isSpreadsheetPath` policy. The server-side `path.join` in
+ *  `overwriteMarkdown` does NOT normalize traversal on its own, so
+ *  this gate is the primary defence — keep it strict. */
 export function isMarkdownPath(value: string): boolean {
-  return value.startsWith(`${WORKSPACE_DIRS.markdowns}/`) && value.endsWith(".md");
+  if (!value.startsWith(`${WORKSPACE_DIRS.markdowns}/`)) return false;
+  if (!value.endsWith(".md")) return false;
+  const normalized = path.posix.normalize(value);
+  if (normalized !== value) return false;
+  if (normalized.includes("..")) return false;
+  return true;
 }
