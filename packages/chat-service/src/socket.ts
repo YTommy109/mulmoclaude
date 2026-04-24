@@ -77,6 +77,7 @@ export interface ChatSocketHandle {
 interface HandshakeAuth {
   transportId?: unknown;
   token?: unknown;
+  options?: unknown;
 }
 
 interface MessagePayload {
@@ -97,7 +98,13 @@ type ParsedMessage =
     }
   | { ok: false; error: string };
 
-type HandshakeResult = { ok: true; transportId: string } | { ok: false; error: string };
+// Flat primitives only — matches protocol's BridgeOptions. The
+// chat-service type is duplicated rather than imported to keep this
+// package free of a hard dep on protocol-as-a-value (it has always
+// been types-only there, and the re-declaration is one line).
+type BridgeOptions = Readonly<Record<string, string | number | boolean>>;
+
+type HandshakeResult = { ok: true; transportId: string; options: BridgeOptions } | { ok: false; error: string };
 
 export function bridgeRoom(transportId: string): string {
   return `bridge:${transportId}`;
@@ -120,6 +127,9 @@ export function attachChatSocket(server: http.Server, deps: ChatSocketDeps): Cha
       return;
     }
     socket.data.transportId = result.transportId;
+    // Stash options on the socket so every subsequent message from
+    // this bridge inherits the same config without re-sending it.
+    socket.data.bridgeOptions = result.options;
     next();
   });
 
@@ -180,6 +190,10 @@ export function attachChatSocket(server: http.Server, deps: ChatSocketDeps): Cha
         externalChatId: parsed.externalChatId,
         text: parsed.text,
         attachments: parsed.attachments,
+        // Options captured at handshake time (see io.use). Empty
+        // object when the bridge didn't send any — the host app
+        // treats absence and empty identically.
+        bridgeOptions: (socket.data.bridgeOptions as BridgeOptions | undefined) ?? {},
         // Stream text chunks to this bridge socket in real time
         // (Phase C of #268). The ack still returns the full text
         // for backward compatibility.
@@ -218,6 +232,34 @@ export function attachChatSocket(server: http.Server, deps: ChatSocketDeps): Cha
   return { io, pushToBridge };
 }
 
+// `options` on the handshake is reduced to a FLAT PRIMITIVE bag:
+// string / number / boolean only. This serves two purposes —
+//   1. Rejects nested objects / arrays / functions so a downstream
+//      merge in the host app can't reintroduce prototype-pollution
+//      via a deeply-nested `__proto__` (top-level `__proto__` is
+//      stripped separately as a belt-and-braces guard).
+//   2. Makes the wire contract explicit: every value the host sees
+//      is something you could put in an env var.
+// Anything else (objects, arrays, null, undefined, functions,
+// symbols, bigints) is dropped silently. The bridge author is
+// responsible for flattening complex config into primitives before
+// sending.
+export function sanitiseOptions(raw: unknown): BridgeOptions {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string | number | boolean> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (key === "__proto__" || key === "prototype" || key === "constructor") continue;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      // Drop non-finite numbers (NaN / Infinity) — they serialise
+      // oddly and the host app shouldn't be asked to distinguish
+      // "valid zero" from "broken input".
+      if (typeof value === "number" && !Number.isFinite(value)) continue;
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
 function validateHandshake(auth: unknown, tokenProvider: (() => string | null) | undefined): HandshakeResult {
   if (!auth || typeof auth !== "object") {
     return { ok: false, error: "handshake auth is required" };
@@ -227,9 +269,10 @@ function validateHandshake(auth: unknown, tokenProvider: (() => string | null) |
     return { ok: false, error: "transportId is required" };
   }
   const transportId = transportIdRaw.trim();
+  const options = sanitiseOptions((auth as HandshakeAuth).options);
 
   if (!tokenProvider) {
-    return { ok: true, transportId };
+    return { ok: true, transportId, options };
   }
 
   const expected = tokenProvider();
@@ -246,7 +289,7 @@ function validateHandshake(auth: unknown, tokenProvider: (() => string | null) |
   if (provided !== expected) {
     return { ok: false, error: "invalid token" };
   }
-  return { ok: true, transportId };
+  return { ok: true, transportId, options };
 }
 
 function parseMessagePayload(payload: MessagePayload): ParsedMessage {

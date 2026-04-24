@@ -13,8 +13,9 @@
 // minimal non-Node equivalent.
 
 import { io, type Socket } from "socket.io-client";
-import { CHAT_SOCKET_EVENTS, CHAT_SOCKET_PATH, type Attachment } from "@mulmobridge/protocol";
+import { CHAT_SOCKET_EVENTS, CHAT_SOCKET_PATH, type Attachment, type BridgeOptions } from "@mulmobridge/protocol";
 import { readBridgeToken, TOKEN_FILE_PATH } from "./token.js";
+import { readBridgeEnvOptions } from "./options.js";
 
 // 6 min > the server's REPLY_TIMEOUT_MS (5 min) so the server's
 // timeout surfaces as a reply, not a client-side cancellation.
@@ -40,6 +41,14 @@ export interface BridgeClientOptions {
   transportId: string;
   /** Defaults to `$MULMOCLAUDE_API_URL` or `http://localhost:3001`. */
   apiUrl?: string;
+  /** Flat primitive bag forwarded to the host app's startChat
+   *  callback via the handshake (`BridgeOptions` from the
+   *  protocol). Values must be string / number / boolean — nested
+   *  objects are rejected server-side by the chat-service. If
+   *  omitted, the client auto-scrapes `<TRANSPORT>_BRIDGE_*` /
+   *  `BRIDGE_*` env vars (producing string values). Pass `{}`
+   *  explicitly to opt out of the scrape. */
+  options?: BridgeOptions;
 }
 
 export interface BridgeClient {
@@ -84,10 +93,18 @@ export function requireBearerToken(): string {
 export function createBridgeClient(opts: BridgeClientOptions): BridgeClient {
   const apiUrl = opts.apiUrl ?? process.env.MULMOCLAUDE_API_URL ?? DEFAULT_API_URL;
   const token = requireBearerToken();
+  // `opts.options === undefined` → scrape env automatically.
+  // `opts.options === {}` → opt out of the scrape explicitly.
+  const options = opts.options ?? readBridgeEnvOptions(opts.transportId, process.env);
+  // Only include the `options` key in the handshake when there's
+  // something to send — keeps old servers unaware of the field from
+  // ever seeing an empty object on the wire.
+  const auth: Record<string, unknown> = { transportId: opts.transportId, token };
+  if (Object.keys(options).length > 0) auth.options = options;
 
   const socket = io(apiUrl, {
     path: CHAT_SOCKET_PATH,
-    auth: { transportId: opts.transportId, token },
+    auth,
     transports: ["websocket"],
   });
 
