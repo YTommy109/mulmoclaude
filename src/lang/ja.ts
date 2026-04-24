@@ -140,6 +140,9 @@ const jaMessages = {
     saving: "保存中…",
     loadingLabel: "読み込み中…",
     unsavedMarker: "●",
+    unsavedToolsConfirm: "許可ツールに未保存の変更があります。閉じてもよろしいですか?",
+    unsavedMcpDraftConfirm: "MCP サーバーの下書きが残っています。閉じてもよろしいですか?",
+    mcpSaveFailed: "MCP サーバーの変更を保存できませんでした。",
   },
   canvasViewToggle: {
     stackViewTooltip: "スタック表示・クリックで Single に切替 (⌘1)",

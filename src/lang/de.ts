@@ -135,6 +135,9 @@ const deMessages = {
     saving: "Wird gespeichert…",
     loadingLabel: "Wird geladen…",
     unsavedMarker: "●",
+    unsavedToolsConfirm: "Allowed Tools enthält ungespeicherte Änderungen. Trotzdem schließen?",
+    unsavedMcpDraftConfirm: "Ein MCP-Server-Entwurf ist noch offen. Trotzdem schließen?",
+    mcpSaveFailed: "Änderungen an den MCP-Servern konnten nicht gespeichert werden.",
   },
   canvasViewToggle: {
     stackViewTooltip: "Stapelansicht · klicken, um zur Einzelansicht zu wechseln (⌘1)",

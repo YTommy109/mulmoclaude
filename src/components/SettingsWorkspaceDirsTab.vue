@@ -40,35 +40,33 @@ async function load(): Promise<void> {
 }
 
 // Concurrency: user can click Add then Remove (or two Adds) before
-// the first PUT returns. If we just rolled back to a captured
-// `previous` on failure, a stale response would clobber newer local
-// state. Instead:
-//  - Queue PUTs through a Promise chain (`inflight`) so they run in
-//    the same order the user triggered them and can't overlap.
-//  - Each task only applies the server echo if it's the LAST one
-//    still pending — intermediate echoes might be stale relative
-//    to subsequent optimistic mutations.
-//  - On failure with nothing else pending, reload from the server
-//    (authoritative) instead of rolling back to a snapshot that
-//    may itself be obsolete.
+// the first PUT returns, and any of those mutations can be rejected
+// server-side (e.g. a path outside data/ / artifacts/). We serialize
+// via an `inflight` chain and deliberately do NOT apply optimistic
+// updates — a rejected entry would otherwise linger in `dirs.value`
+// and cascade-corrupt every subsequent PUT. Each queued task derives
+// its payload from the current (last server-confirmed) `dirs.value`
+// at execute time, so prior successful mutations compose but
+// failures don't poison later work.
+//
+// `let inflight` is scoped to the setup block (per-instance), so it
+// GCs naturally when the tab unmounts on a switch away.
 let inflight: Promise<unknown> = Promise.resolve();
-let pendingCount = 0;
 
-async function persist(nextState: DirEntry[]): Promise<boolean> {
-  dirs.value = nextState;
-  pendingCount++;
+type DirProducer = (current: DirEntry[]) => DirEntry[];
+
+async function persist(produce: DirProducer): Promise<boolean> {
   const task: Promise<boolean> = inflight
     .catch(() => undefined)
     .then(async () => {
-      const result = await apiPut<{ dirs: DirEntry[] }>(API_ROUTES.config.workspaceDirs, { dirs: nextState });
-      pendingCount--;
+      const next = produce(dirs.value);
+      const result = await apiPut<{ dirs: DirEntry[] }>(API_ROUTES.config.workspaceDirs, { dirs: next });
       if (!result.ok) {
         persistError.value = result.error;
-        if (pendingCount === 0) await load();
         return false;
       }
+      dirs.value = result.data.dirs;
       persistError.value = "";
-      if (pendingCount === 0) dirs.value = result.data.dirs;
       return true;
     });
   inflight = task;
@@ -90,14 +88,12 @@ async function addEntry(): Promise<void> {
     draftError.value = t("settingsWorkspaceDirs.errAlreadyExists");
     return;
   }
-  const ok = await persist([
-    ...dirs.value,
-    {
-      path,
-      description: draftDescription.value.trim(),
-      structure: draftStructure.value,
-    },
-  ]);
+  const entry: DirEntry = {
+    path,
+    description: draftDescription.value.trim(),
+    structure: draftStructure.value,
+  };
+  const ok = await persist((current) => [...current, entry]);
   if (ok) {
     draftPath.value = "";
     draftDescription.value = "";
@@ -106,7 +102,11 @@ async function addEntry(): Promise<void> {
 }
 
 async function removeEntry(index: number): Promise<void> {
-  await persist(dirs.value.filter((_, i) => i !== index));
+  // Capture identity at click time so the remove lands on the same
+  // logical row even after earlier queued mutations shift indices.
+  const target = dirs.value[index];
+  if (!target) return;
+  await persist((current) => current.filter((dir) => dir !== target));
 }
 
 onMounted(load);

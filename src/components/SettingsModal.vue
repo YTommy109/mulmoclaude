@@ -294,28 +294,31 @@ async function saveTools(): Promise<void> {
 }
 
 // MCP mutations — each add/update/remove persists to the mcp-only
-// endpoint. Same concurrency story as Reference / Workspace Dirs:
-// queue PUTs so late responses can't clobber newer local state, and
-// reload from the server on a failure when nothing else is pending
-// (a captured `previous` snapshot becomes unreliable across
-// overlapping mutations).
+// endpoint. We serialize via an inflight chain but deliberately do
+// NOT apply optimistic updates: a server-side rejection (e.g. a
+// malformed server spec) would otherwise leave the invalid entry in
+// local state and cascade-corrupt subsequent PUTs. Instead, each
+// queued task derives its payload from the current (last
+// server-confirmed) `mcpServers.value` at execute time, so prior
+// successful mutations are incorporated but prior failures never
+// poison later operations. Reset on modal open so a pending PUT
+// from a previous session can't tail the new one.
 let mcpInflight: Promise<unknown> = Promise.resolve();
-let mcpPending = 0;
 
-async function persistMcp(next: McpServerEntry[]): Promise<void> {
-  mcpServers.value = next;
-  mcpPending++;
+type McpProducer = (current: McpServerEntry[]) => McpServerEntry[];
+
+async function persistMcp(produce: McpProducer): Promise<void> {
   const task = mcpInflight
     .catch(() => undefined)
     .then(async () => {
+      const next = produce(mcpServers.value);
       const response = await apiPut<{ servers: McpServerEntry[] }>(API_ROUTES.config.mcp, { servers: next });
-      mcpPending--;
       if (!response.ok) {
         statusError.value = true;
-        statusMessage.value = response.error || "MCP save failed";
-        if (mcpPending === 0) await loadConfig();
+        statusMessage.value = response.error || t("settingsModal.mcpSaveFailed");
         return;
       }
+      mcpServers.value = response.data?.servers ?? next;
       emit("saved");
       statusError.value = false;
       statusMessage.value = "";
@@ -330,30 +333,33 @@ function askAboutGemini(): void {
 }
 
 function addMcpServer(entry: McpServerEntry): void {
-  void persistMcp([...mcpServers.value, entry]);
+  void persistMcp((current) => [...current, entry]);
 }
 
 function updateMcpServer(index: number, entry: McpServerEntry): void {
-  const next = [...mcpServers.value];
-  next[index] = entry;
-  void persistMcp(next);
+  // Capture identity so the update lands on the same logical row
+  // even if earlier queued mutations shift indices.
+  const target = mcpServers.value[index];
+  void persistMcp((current) => current.map((srv) => (srv === target ? entry : srv)));
 }
 
 function removeMcpServer(index: number): void {
-  void persistMcp(mcpServers.value.filter((_, i) => i !== index));
+  const target = mcpServers.value[index];
+  if (!target) return;
+  void persistMcp((current) => current.filter((srv) => srv !== target));
 }
 
 function close(): void {
   // Guard against silent data loss. The draft forms and dirty text
   // belong to different tabs; warn about each so the user knows
-  // which is at risk. English-only confirms — this is an
-  // infrequent, destructive prompt and window.confirm is the only
-  // blocking primitive we have.
+  // which is at risk. window.confirm is the only blocking primitive
+  // we have — copy is localized so non-English users get a
+  // translated prompt.
   if (toolsDirty.value) {
-    if (!window.confirm("Allowed Tools has unsaved changes. Close anyway?")) return;
+    if (!window.confirm(t("settingsModal.unsavedToolsConfirm"))) return;
   }
   if (mcpTabRef.value?.hasPendingDraft()) {
-    if (!window.confirm("MCP server draft is still open. Close anyway?")) return;
+    if (!window.confirm(t("settingsModal.unsavedMcpDraftConfirm"))) return;
   }
   emit("update:open", false);
 }
@@ -362,6 +368,9 @@ watch(
   () => props.open,
   (isOpen) => {
     if (isOpen) {
+      // Reset async state from any previous session so a pending
+      // PUT from a prior open can't tail newly queued mutations.
+      mcpInflight = Promise.resolve();
       activeTab.value = props.geminiAvailable ? "tools" : "gemini";
       loadConfig();
       statusMessage.value = "";

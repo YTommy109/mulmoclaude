@@ -138,6 +138,9 @@ const zhMessages = {
     saving: "保存中…",
     loadingLabel: "加载中…",
     unsavedMarker: "●",
+    unsavedToolsConfirm: "允许的工具有未保存的更改,仍要关闭吗?",
+    unsavedMcpDraftConfirm: "MCP 服务器草稿尚未完成,仍要关闭吗?",
+    mcpSaveFailed: "保存 MCP 服务器更改失败。",
   },
   canvasViewToggle: {
     stackViewTooltip: "堆叠视图 · 点击切换到单一视图 (⌘1)",

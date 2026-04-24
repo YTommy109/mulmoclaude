@@ -141,6 +141,9 @@ const koMessages = {
     saving: "저장 중…",
     loadingLabel: "불러오는 중…",
     unsavedMarker: "●",
+    unsavedToolsConfirm: "허용된 도구에 저장되지 않은 변경 사항이 있습니다. 계속 닫으시겠습니까?",
+    unsavedMcpDraftConfirm: "MCP 서버 초안이 아직 열려 있습니다. 계속 닫으시겠습니까?",
+    mcpSaveFailed: "MCP 서버 변경 사항을 저장하지 못했습니다.",
   },
   canvasViewToggle: {
     stackViewTooltip: "스택 보기 · 클릭하여 단일 보기로 전환 (⌘1)",
