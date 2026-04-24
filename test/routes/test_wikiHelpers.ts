@@ -12,6 +12,7 @@ import {
   formatLintReport,
   parseIndexEntries,
   parseTagsCell,
+  toPageResponse,
   wikiSlugify,
   type WikiPageEntry,
 } from "../../server/api/routes/wiki.js";
@@ -596,5 +597,62 @@ describe("buildPageResponseData", () => {
       exists: false,
     });
     assert.match(response.instructions, /wiki\/pages\/video-generation\.md/);
+  });
+});
+
+// Pin the wrapper layer that sits between resolvePagePath (I/O) and
+// buildPageResponseData (shape). The original bug this PR fixes was
+// exactly this layer conflating `content` with `exists` in the old
+// inline GET handler, so tests here guard against re-introducing that
+// conflation in a future refactor of the wrapper.
+describe("toPageResponse", () => {
+  it("filePath=null → exists:false + resolvedTitle falls back to pageName", () => {
+    const response = toPageResponse({
+      action: "page",
+      pageName: "Viverse",
+      filePath: null,
+      content: "",
+    });
+    assert.equal(response.data.pageExists, false);
+    assert.equal(response.title, "Viverse");
+    assert.equal(response.data.error, "Page not found: Viverse");
+  });
+
+  it("filePath set with empty content → exists:true + empty-state response", () => {
+    // Regression guard for the #678 / #744 bug: filePath present
+    // (page file exists) AND content empty (zero-byte file) must
+    // yield pageExists:true + "Page is empty" — NOT "Page not found".
+    const response = toPageResponse({
+      action: "page",
+      pageName: "empty-file",
+      filePath: "/some/abs/wiki/pages/empty-file.md",
+      content: "",
+    });
+    assert.equal(response.data.pageExists, true);
+    assert.equal(response.data.error, "Page is empty: empty-file");
+    assert.match(response.instructions, /has no content yet/);
+  });
+
+  it("filePath set with content → exists:true + populated response", () => {
+    const response = toPageResponse({
+      action: "page",
+      pageName: "existing",
+      filePath: "/some/abs/wiki/pages/existing.md",
+      content: "# Existing\n\nBody.",
+    });
+    assert.equal(response.data.pageExists, true);
+    assert.equal(response.data.error, undefined);
+    assert.equal(response.data.content, "# Existing\n\nBody.");
+  });
+
+  it("derives resolvedTitle from filePath basename, dropping the .md extension", () => {
+    const response = toPageResponse({
+      action: "page",
+      pageName: "Foo",
+      filePath: "/some/abs/wiki/pages/foo-bar.md",
+      content: "body",
+    });
+    assert.equal(response.title, "foo-bar");
+    assert.equal(response.data.pageName, "foo-bar");
   });
 });

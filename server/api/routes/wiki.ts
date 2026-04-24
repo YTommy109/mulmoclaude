@@ -331,9 +331,15 @@ export function buildPageResponseData(args: { action: string; pageName: string; 
   };
 }
 
-async function buildPageResponse(action: string, pageName: string): Promise<WikiResponse> {
-  const filePath = await resolvePagePath(pageName);
-  const content = filePath ? readFileOrEmpty(filePath) : "";
+// Pure-ish seam between `resolvePagePath` + `readFileOrEmpty` (the
+// filesystem I/O) and `buildPageResponseData` (the response shape).
+// Exported so tests can exercise the `exists`/`resolvedTitle`
+// computation without spinning up a real wiki directory — the
+// original regression this PR fixed was precisely this layer
+// conflating `content` with `exists`, so pinning it here is worth
+// the extra indirection.
+export function toPageResponse(args: { action: string; pageName: string; filePath: string | null; content: string }): WikiResponse {
+  const { action, pageName, filePath, content } = args;
   const resolvedTitle = filePath ? path.basename(filePath, ".md") : pageName;
   return buildPageResponseData({
     action,
@@ -342,6 +348,12 @@ async function buildPageResponse(action: string, pageName: string): Promise<Wiki
     content,
     exists: !!filePath,
   });
+}
+
+async function buildPageResponse(action: string, pageName: string): Promise<WikiResponse> {
+  const filePath = await resolvePagePath(pageName);
+  const content = filePath ? readFileOrEmpty(filePath) : "";
+  return toPageResponse({ action, pageName, filePath, content });
 }
 
 function buildLogResponse(action: string): WikiResponse {
