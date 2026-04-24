@@ -191,11 +191,14 @@ async function applyMarkdown() {
 
   saveError.value = null;
 
-  // If file-based, save to server
+  // If file-based, save to server. The `raw` value is the
+  // workspace-relative path returned by the server, so we send it
+  // verbatim — the route accepts any depth under `artifacts/documents/`
+  // (e.g. the YYYY/MM partitions added in #764).
   if (isFilePath(raw)) {
     saving.value = true;
-    const filename = raw.replace(/^(artifacts\/documents|markdowns)\//, "");
-    const result = await apiPut<unknown>(API_ROUTES.plugins.updateMarkdown.replace(":filename", filename), {
+    const result = await apiPut<unknown>(API_ROUTES.plugins.updateMarkdown, {
+      relativePath: raw,
       markdown: editableMarkdown.value,
     });
     saving.value = false;

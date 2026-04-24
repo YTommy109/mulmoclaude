@@ -113,9 +113,13 @@ export const API_ROUTES = {
   // Names match the plugin tool name or the short verb the plugin uses.
   plugins: {
     presentDocument: "/api/present-document",
-    updateMarkdown: "/api/markdowns/:filename",
+    // Body carries the workspace-relative path so the route doesn't
+    // have to reconstruct one from a basename — required after #764
+    // sharded artifact storage by YYYY/MM. Same shape as
+    // image.update.
+    updateMarkdown: "/api/markdowns/update",
     presentSpreadsheet: "/api/present-spreadsheet",
-    updateSpreadsheet: "/api/spreadsheets/:filename",
+    updateSpreadsheet: "/api/spreadsheets/update",
     mindmap: "/api/mindmap",
     quiz: "/api/quiz",
     form: "/api/form",
