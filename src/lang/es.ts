@@ -56,7 +56,6 @@ const esMessages = {
     noSessions: "Aún no hay sesiones.",
     noMatching: "No hay sesiones coincidentes.",
     running: "En ejecución",
-    unread: "Sin leer",
     noMessages: "(sin mensajes)",
     openRowAria: "Abrir sesión: {preview}",
   },

@@ -56,7 +56,6 @@ const zhMessages = {
     noSessions: "暂无会话。",
     noMatching: "没有匹配的会话。",
     running: "运行中",
-    unread: "未读",
     noMessages: "(无消息)",
     openRowAria: "打开会话: {preview}",
   },

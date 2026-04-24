@@ -73,7 +73,6 @@ const enMessages = {
     noSessions: "No sessions yet.",
     noMatching: "No matching sessions.",
     running: "Running",
-    unread: "Unread",
     noMessages: "(no messages)",
     openRowAria: "Open session: {preview}",
   },

@@ -51,7 +51,6 @@ const ptBRMessages = {
     noSessions: "Ainda não há sessões.",
     noMatching: "Nenhuma sessão correspondente.",
     running: "Em execução",
-    unread: "Não lida",
     noMessages: "(sem mensagens)",
     openRowAria: "Abrir sessão: {preview}",
   },

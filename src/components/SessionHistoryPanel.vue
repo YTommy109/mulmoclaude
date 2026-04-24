@@ -4,7 +4,7 @@
        absolute-positioned overlay; the `h-full overflow-y-auto` root
        plus inline flow replaces the z-index + topOffset plumbing. -->
   <div ref="root" class="h-full overflow-y-auto bg-white">
-    <div class="p-2 space-y-1">
+    <div class="p-2 space-y-2">
       <!-- Origin filter bar -->
       <div class="flex gap-1 mb-1 flex-wrap" data-testid="session-filter-bar">
         <button
@@ -38,31 +38,29 @@
         tabindex="0"
         role="button"
         :aria-label="t('sessionHistoryPanel.openRowAria', { preview: session.preview || t('sessionHistoryPanel.noMessages') })"
-        class="cursor-pointer rounded border p-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+        class="relative cursor-pointer rounded border p-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
         :class="rowClasses(session)"
         :data-testid="`session-item-${session.id}`"
         @click="emit('loadSession', session.id)"
         @keydown.enter.prevent.self="(e) => !e.repeat && emit('loadSession', session.id)"
         @keydown.space.prevent.self="(e) => !e.repeat && emit('loadSession', session.id)"
       >
-        <div class="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
-          <!-- Shared role + origin glyph: same visual treatment as
-               the SessionTabBar tabs. Role name stays next to it so
-               the panel row still identifies the role in text. -->
+        <!-- Timestamp pill straddling the top border, mirroring the
+             ToolResultsPanel card design. Runs/unread still render
+             inline in the meta line below because they're status
+             labels, not times. -->
+        <span class="absolute top-0 right-2 -translate-y-1/2 bg-white px-1 text-[10px] text-gray-400 leading-none pointer-events-none">
+          {{ formatDate(session.updatedAt) }}
+        </span>
+        <div class="flex items-center gap-1.5">
           <SessionRoleIcon :session="session" :roles="roles" size="sm" />
-          <span>{{ roleNameFor(session.roleId) }}</span>
-          <span class="ml-auto flex items-center gap-1.5">
-            <span v-if="isSessionRunning(session)" class="flex items-center gap-0.5 text-yellow-600 font-medium">
-              <span class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
-              {{ t("sessionHistoryPanel.running") }}
-            </span>
-            <span v-else-if="isSessionUnread(session)" class="flex items-center gap-0.5 text-gray-900 font-bold">{{ t("sessionHistoryPanel.unread") }}</span>
-            <span v-else>{{ formatDate(session.updatedAt) }}</span>
+          <p class="truncate flex-1 min-w-0" :class="previewClasses(session)">
+            {{ session.preview || t("sessionHistoryPanel.noMessages") }}
+          </p>
+          <span v-if="isSessionRunning(session)" class="flex-shrink-0 flex items-center" :aria-label="t('sessionHistoryPanel.running')">
+            <span class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
           </span>
         </div>
-        <p class="truncate" :class="previewClasses(session)">
-          {{ session.preview || t("sessionHistoryPanel.noMessages") }}
-        </p>
         <!-- Optional second line: AI-generated summary of the
              session, populated by the chat indexer (#123). -->
         <p v-if="session.summary" class="text-xs text-gray-500 truncate mt-0.5">
@@ -83,7 +81,6 @@ import { SESSION_ORIGINS } from "../types/session";
 import { HISTORY_FILTERS, HISTORY_FILTER_ORDER, isHistoryFilter, type HistoryFilter } from "../config/historyFilters";
 import { PAGE_ROUTES } from "../router";
 import { formatDate } from "../utils/format/date";
-import { roleName } from "../utils/role/icon";
 import SessionRoleIcon from "./SessionRoleIcon.vue";
 
 const { t } = useI18n();
@@ -141,12 +138,6 @@ function countByOrigin(filterKey: HistoryFilter): number {
   return props.sessions.filter((session) => originOf(session) === filterKey).length;
 }
 
-// ── Role helpers ────────────────────────────────────────────
-
-function roleNameFor(roleId: string): string {
-  return roleName(props.roles, roleId);
-}
-
 function isSessionRunning(session: SessionSummary): boolean {
   return session.isRunning ?? false;
 }
@@ -156,14 +147,11 @@ function isSessionUnread(session: SessionSummary): boolean {
 }
 
 function rowClasses(session: SessionSummary): string {
-  if (isSessionRunning(session)) return "border-yellow-400 bg-yellow-50 hover:bg-yellow-100";
-  if (isSessionUnread(session)) return "border-sky-300 bg-sky-50 hover:bg-sky-100";
-  if (session.id === props.currentSessionId) return "border-blue-400 bg-blue-50 hover:bg-blue-100";
+  if (session.id === props.currentSessionId) return "border-black hover:bg-gray-50";
   return "border-gray-200 hover:bg-gray-50";
 }
 
 function previewClasses(session: SessionSummary): string {
-  if (isSessionRunning(session)) return "text-yellow-800";
   if (isSessionUnread(session)) return "text-gray-900 font-bold";
   return "text-gray-700";
 }

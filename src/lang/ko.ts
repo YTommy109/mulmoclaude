@@ -58,7 +58,6 @@ const koMessages = {
     noSessions: "아직 세션이 없습니다.",
     noMatching: "일치하는 세션이 없습니다.",
     running: "실행 중",
-    unread: "읽지 않음",
     noMessages: "(메시지 없음)",
     openRowAria: "세션 열기: {preview}",
   },

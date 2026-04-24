@@ -51,7 +51,6 @@ const frMessages = {
     noSessions: "Aucune session pour le moment.",
     noMatching: "Aucune session correspondante.",
     running: "En cours",
-    unread: "Non lu",
     noMessages: "(aucun message)",
     openRowAria: "Ouvrir la session : {preview}",
   },

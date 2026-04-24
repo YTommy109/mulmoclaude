@@ -51,7 +51,6 @@ const deMessages = {
     noSessions: "Noch keine Sitzungen.",
     noMatching: "Keine passenden Sitzungen.",
     running: "Läuft",
-    unread: "Ungelesen",
     noMessages: "(keine Nachrichten)",
     openRowAria: "Sitzung öffnen: {preview}",
   },

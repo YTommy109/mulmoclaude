@@ -58,7 +58,6 @@ const jaMessages = {
     noSessions: "セッションはまだありません。",
     noMatching: "該当するセッションはありません。",
     running: "実行中",
-    unread: "未読",
     noMessages: "（メッセージなし）",
     openRowAria: "セッションを開く: {preview}",
   },
