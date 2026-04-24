@@ -50,13 +50,22 @@ function matchBridgePrefix(name: string, transportPrefix: string): string | null
  * Precedence when the same key resolves from both forms:
  * transport-specific wins over shared.
  *
+ * Transport ids with dashes (`google-chat`, `line-works`,
+ * `twilio-sms`, …) are normalised to underscores when building the
+ * env prefix: `google-chat` → `GOOGLE_CHAT_BRIDGE_*`. Dashes in env
+ * var names break shells, so `_` is the portable convention.
+ *
  * Example:
  *   SLACK_BRIDGE_DEFAULT_ROLE=slack
  *   BRIDGE_DEFAULT_ROLE=general
  *   → `{ defaultRole: "slack" }`
+ *
+ *   GOOGLE_CHAT_BRIDGE_DEFAULT_ROLE=support
+ *   (with transportId="google-chat")
+ *   → `{ defaultRole: "support" }`
  */
 export function readBridgeEnvOptions(transportId: string, env: Readonly<Record<string, string | undefined>>): Record<string, string> {
-  const transportPrefix = `${transportId.toUpperCase()}_BRIDGE_`;
+  const transportPrefix = `${transportId.toUpperCase().replace(/-/g, "_")}_BRIDGE_`;
   const shared: Record<string, string> = {};
   const specific: Record<string, string> = {};
 

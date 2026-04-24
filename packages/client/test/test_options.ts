@@ -97,6 +97,30 @@ describe("readBridgeEnvOptions", () => {
     assert.deepEqual(out, {});
   });
 
+  it("normalises dashed transportId to underscore in the env prefix", () => {
+    // `google-chat`, `line-works`, `twilio-sms` all use dashes
+    // internally, but env var names can't contain dashes in a
+    // portable way — shells treat `-` as a word break and won't let
+    // you set `GOOGLE-CHAT_BRIDGE_*` with normal syntax. The scraper
+    // must look for the underscore form and still match.
+    assert.deepEqual(readBridgeEnvOptions("google-chat", { GOOGLE_CHAT_BRIDGE_DEFAULT_ROLE: "support" }), { defaultRole: "support" });
+    assert.deepEqual(readBridgeEnvOptions("line-works", { LINE_WORKS_BRIDGE_MAX_PAGE_SIZE: "100" }), { maxPageSize: "100" });
+    assert.deepEqual(readBridgeEnvOptions("twilio-sms", { TWILIO_SMS_BRIDGE_ENABLED: "true" }), { enabled: "true" });
+  });
+
+  it("ignores the literal-dash prefix form for dashed transports", () => {
+    // Defensive: since shells can't set `GOOGLE-CHAT_…` easily, the
+    // dashed form is effectively unreachable in practice — but if
+    // someone constructs it programmatically we should still NOT
+    // pick it up, since the contract is now "underscore form".
+    const out = readBridgeEnvOptions("google-chat", {
+      // Fabricate a dashed name to prove we don't accept it.
+      "GOOGLE-CHAT_BRIDGE_DEFAULT_ROLE": "bogus",
+      GOOGLE_CHAT_BRIDGE_DEFAULT_ROLE: "correct",
+    });
+    assert.deepEqual(out, { defaultRole: "correct" });
+  });
+
   it("tolerates undefined values in the env dict", () => {
     const out = readBridgeEnvOptions("slack", {
       SLACK_BRIDGE_DEFAULT_ROLE: "slack",

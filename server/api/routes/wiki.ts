@@ -235,24 +235,7 @@ async function resolvePagePath(pageName: string): Promise<string | null> {
 router.get(API_ROUTES.wiki.base, async (req: Request, res: Response<WikiResponse | ErrorResponse>) => {
   const slug = getOptionalStringQuery(req, "slug");
   if (slug) {
-    const filePath = await resolvePagePath(slug);
-    const content = filePath ? readFileOrEmpty(filePath) : "";
-    const resolvedTitle = filePath ? path.basename(filePath, ".md") : slug;
-    const exists = !!filePath;
-    res.json({
-      data: {
-        action: "page",
-        title: resolvedTitle,
-        content,
-        pageName: resolvedTitle,
-        pageExists: exists,
-        error: content ? undefined : `Page not found: ${slug}`,
-      },
-      message: content ? `Showing page: ${resolvedTitle}` : `Page not found: ${slug}`,
-      title: resolvedTitle,
-      instructions: "The wiki page is now displayed on the canvas.",
-      updating: true,
-    });
+    res.json(await buildPageResponse("page", slug));
   } else {
     const content = readFileOrEmpty(indexFile());
     const pageEntries = parseIndexEntries(content);
@@ -305,11 +288,14 @@ function buildIndexResponse(action: string): WikiResponse {
   };
 }
 
-async function buildPageResponse(action: string, pageName: string): Promise<WikiResponse> {
-  const filePath = await resolvePagePath(pageName);
-  const content = filePath ? readFileOrEmpty(filePath) : "";
-  const resolvedTitle = filePath ? path.basename(filePath, ".md") : pageName;
-  const exists = !!filePath;
+// Pure branching helper extracted from buildPageResponse so the three
+// states (missing / empty / has-content) can be pinned by unit tests
+// without requiring a real filesystem. The I/O wrapper below supplies
+// `exists`, `content`, and `resolvedTitle` from disk; this function
+// builds the response shape — including the error / message /
+// instructions distinctions that the GET and POST handlers share.
+export function buildPageResponseData(args: { action: string; pageName: string; resolvedTitle: string; content: string; exists: boolean }): WikiResponse {
+  const { action, pageName, resolvedTitle, content, exists } = args;
   const hasContent = !!content;
   // Three states:
   //   1. !exists              → page file is missing entirely.
@@ -321,9 +307,8 @@ async function buildPageResponse(action: string, pageName: string): Promise<Wiki
   // instructions now distinguish missing vs empty so the client and
   // the agent get consistent signals.
   const missing = !exists;
-  const empty = exists && !hasContent;
   const slug = wikiSlugify(pageName);
-  const errorMessage = missing ? `Page not found: ${pageName}` : empty ? `Page is empty: ${pageName}` : undefined;
+  const errorMessage = missing ? `Page not found: ${pageName}` : hasContent ? undefined : `Page is empty: ${pageName}`;
   const statusMessage = hasContent ? `Showing page: ${resolvedTitle}` : missing ? `Page not found: ${pageName}` : `Page exists but is empty: ${resolvedTitle}`;
   const statusInstructions = hasContent
     ? "The wiki page is now displayed on the canvas."
@@ -344,6 +329,31 @@ async function buildPageResponse(action: string, pageName: string): Promise<Wiki
     instructions: statusInstructions,
     updating: true,
   };
+}
+
+// Pure-ish seam between `resolvePagePath` + `readFileOrEmpty` (the
+// filesystem I/O) and `buildPageResponseData` (the response shape).
+// Exported so tests can exercise the `exists`/`resolvedTitle`
+// computation without spinning up a real wiki directory — the
+// original regression this PR fixed was precisely this layer
+// conflating `content` with `exists`, so pinning it here is worth
+// the extra indirection.
+export function toPageResponse(args: { action: string; pageName: string; filePath: string | null; content: string }): WikiResponse {
+  const { action, pageName, filePath, content } = args;
+  const resolvedTitle = filePath ? path.basename(filePath, ".md") : pageName;
+  return buildPageResponseData({
+    action,
+    pageName,
+    resolvedTitle,
+    content,
+    exists: !!filePath,
+  });
+}
+
+async function buildPageResponse(action: string, pageName: string): Promise<WikiResponse> {
+  const filePath = await resolvePagePath(pageName);
+  const content = filePath ? readFileOrEmpty(filePath) : "";
+  return toPageResponse({ action, pageName, filePath, content });
 }
 
 function buildLogResponse(action: string): WikiResponse {
