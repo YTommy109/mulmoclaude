@@ -157,6 +157,12 @@ const koMessages = {
     show: "세션 기록 표시",
     hide: "세션 기록 숨기기",
   },
+  sessionHistoryExpand: {
+    expandTooltip: "세션 기록 패널을 전체 너비로 확장",
+    collapseTooltip: "세션 기록 패널 축소",
+    expand: "세션 기록 확장",
+    collapse: "세션 기록 축소",
+  },
   settingsWorkspaceDirs: {
     explanation: "{dataDir} 와 {artifactsDir} 아래에서 파일을 정리하기 위한 커스텀 디렉터리입니다. Claude 는 이를 참조해 파일 저장 위치를 결정합니다.",
     noEntries: "설정된 커스텀 디렉터리가 없습니다.",

@@ -7,6 +7,7 @@ import { setAuthToken } from "./utils/api";
 import { readAuthTokenFromMeta } from "./utils/dom/authTokenMeta";
 import "./index.css";
 import "material-icons/iconfont/material-icons.css";
+import "material-symbols/outlined.css";
 
 import.meta.glob(["../node_modules/@gui-chat-plugin/*/dist/style.css", "../node_modules/@mulmochat-plugin/*/dist/style.css"], { eager: true });
 

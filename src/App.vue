@@ -53,7 +53,8 @@
            owns the full-page experience. -->
       <div
         v-if="sidePanelVisible"
-        class="w-72 flex-shrink-0 border-r border-gray-200 bg-white text-gray-900 flex flex-col"
+        class="border-r border-gray-200 bg-white text-gray-900 flex flex-col min-w-0 overflow-hidden"
+        :class="sidePanelExpanded ? 'flex-1' : 'w-72 flex-shrink-0'"
         data-testid="session-history-side-panel"
       >
         <!-- Panel header. Stacked over two rows because w-72 can't
@@ -90,7 +91,8 @@
               :history-open="currentPage === 'history'"
               @toggle-history="handleHistoryClick"
             />
-            <SessionHistoryToggleButton :model-value="sidePanelVisible" @update:model-value="setSidePanelVisible" />
+            <SessionHistoryExpandButton :model-value="sidePanelExpanded" @update:model-value="(value: boolean) => (sidePanelExpanded = value)" />
+            <SessionHistoryToggleButton :model-value="sidePanelVisible" @update:model-value="setSidePanelVisibleAndCollapse" />
           </div>
         </div>
         <div class="flex-1 min-h-0">
@@ -105,7 +107,7 @@
       </div>
 
       <!-- Sidebar (Single layout only) -->
-      <div v-if="!isStackLayout" class="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-white text-gray-900 relative">
+      <div v-if="!isStackLayout && !sidePanelExpanded" class="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-white text-gray-900 relative">
         <!-- Tool result previews -->
         <ToolResultsPanel
           ref="toolResultsPanelRef"
@@ -133,7 +135,7 @@
       </div>
 
       <!-- Canvas column -->
-      <div class="flex-1 flex flex-col bg-white text-gray-900 min-w-0 overflow-hidden relative">
+      <div v-if="!sidePanelExpanded" class="flex-1 flex flex-col bg-white text-gray-900 min-w-0 overflow-hidden relative">
         <div ref="canvasRef" class="flex-1 overflow-hidden outline-none min-h-0" tabindex="0" @mousedown="activePane = 'main'" @keydown="handleCanvasKeydown">
           <!-- Chat page: single or stack layout -->
           <template v-if="isChatPage && layoutMode === 'single'">
@@ -196,7 +198,7 @@
            page — system prompt / tools / tool-call history are all
            agent-context and have no meaning on plugin views. -->
       <RightSidebar
-        v-if="showRightSidebar && isChatPage"
+        v-if="showRightSidebar && isChatPage && !sidePanelExpanded"
         ref="rightSidebarRef"
         :tool-call-history="toolCallHistory"
         :available-tools="availableTools"
@@ -232,6 +234,7 @@ import RoleSelector from "./components/RoleSelector.vue";
 import SessionTabBar from "./components/SessionTabBar.vue";
 import SuggestionsPanel from "./components/SuggestionsPanel.vue";
 import ChatInput, { type PastedFile } from "./components/ChatInput.vue";
+import SessionHistoryExpandButton from "./components/SessionHistoryExpandButton.vue";
 import SessionHistoryNavButton from "./components/SessionHistoryNavButton.vue";
 import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
 import SessionHistoryToggleButton from "./components/SessionHistoryToggleButton.vue";
@@ -424,6 +427,14 @@ const showSettings = ref(false);
 
 const { layoutMode, setLayoutMode, toggleLayoutMode } = useLayoutMode();
 const { sidePanelVisible, setSidePanelVisible } = useSidePanelVisible();
+// Transient full-width mode for the session-history side panel.
+// Not persisted: reopening the panel should always start collapsed.
+const sidePanelExpanded = ref(false);
+
+function setSidePanelVisibleAndCollapse(value: boolean): void {
+  setSidePanelVisible(value);
+  if (!value) sidePanelExpanded.value = false;
+}
 const { preHistoryUrl } = useHistoryEntrance();
 
 // Current page derives from the route. The chat page has a layout
@@ -494,10 +505,12 @@ const { isStackLayout, displayedCurrentSessionId } = useViewLayout({
 });
 
 function handleSessionSelect(sessionId: string): void {
+  sidePanelExpanded.value = false;
   loadSession(sessionId);
 }
 
 function handleNewSessionClick(): void {
+  sidePanelExpanded.value = false;
   createNewSession();
 }
 
