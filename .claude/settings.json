@@ -1,4 +1,11 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(yarn test)",
+      "Bash(yarn test *)",
+      "Bash(yarn test:*)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
