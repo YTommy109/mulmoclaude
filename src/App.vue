@@ -61,22 +61,38 @@
         class="w-80 flex-shrink-0 border-r border-gray-200 bg-white text-gray-900 flex flex-col"
         data-testid="session-history-side-panel"
       >
-        <!-- Panel header carries the controls that used to live in
-             Row 2 (RoleSelector, new-session) plus the toggle that
-             closes the panel. With Row 2 hidden, the canvas column
-             can extend up to the SidebarHeader. -->
-        <div class="flex items-center gap-2 px-2 py-1 border-b border-gray-100">
-          <RoleSelector v-model:current-role-id="currentRoleId" :roles="roles" @change="onRoleChange" />
-          <button
-            class="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
-            data-testid="new-session-btn"
-            :title="t('sessionTabBar.newSession')"
-            :aria-label="t('sessionTabBar.newSession')"
-            @click="handleNewSessionClick"
-          >
-            <span class="material-icons text-sm">add</span>
-          </button>
-          <div class="ml-auto">
+        <!-- Panel header. Stacked over two rows because w-80 can't
+             fit RoleSelector (w-56) plus three 28–32px buttons on a
+             single line. Row 1 owns the role picker; Row 2 carries
+             the actions (new session, /history nav, close toggle).
+             When Row 2's SessionTabBar is hidden by sidePanelVisible,
+             these controls are the only session UI on /chat, so
+             none of them can be dropped. -->
+        <div class="border-b border-gray-100">
+          <div class="px-2 py-1">
+            <RoleSelector v-model:current-role-id="currentRoleId" :roles="roles" @change="onRoleChange" />
+          </div>
+          <div class="flex items-center gap-1 px-2 pb-1">
+            <button
+              class="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+              data-testid="new-session-btn"
+              :title="t('sessionTabBar.newSession')"
+              :aria-label="t('sessionTabBar.newSession')"
+              @click="handleNewSessionClick"
+            >
+              <span class="material-icons text-sm">add</span>
+            </button>
+            <!-- /history entrypoint + per-session stats. Mirrored from
+                 the hidden Row 2 SessionTabBar so the full-page history
+                 view is still reachable in one click when the side
+                 panel is open. -->
+            <SessionHistoryNavButton
+              class="ml-auto"
+              :active-session-count="activeSessionCount"
+              :unread-count="unreadCount"
+              :history-open="currentPage === 'history'"
+              @toggle-history="handleHistoryClick"
+            />
             <SessionHistoryToggleButton :model-value="showSessionHistory" @update:model-value="setShowSessionHistory" />
           </div>
         </div>
@@ -219,6 +235,7 @@ import RoleSelector from "./components/RoleSelector.vue";
 import SessionTabBar from "./components/SessionTabBar.vue";
 import SuggestionsPanel from "./components/SuggestionsPanel.vue";
 import ChatInput, { type PastedFile } from "./components/ChatInput.vue";
+import SessionHistoryNavButton from "./components/SessionHistoryNavButton.vue";
 import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
 import SessionHistoryToggleButton from "./components/SessionHistoryToggleButton.vue";
 import ToolResultsPanel from "./components/ToolResultsPanel.vue";
