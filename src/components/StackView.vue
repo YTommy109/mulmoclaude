@@ -18,8 +18,13 @@
         <CanvasViewToggle :model-value="layoutMode" @update:model-value="(mode) => emit('update:layoutMode', mode)" />
       </div>
     </div>
-    <div ref="containerRef" class="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3" data-testid="stack-scroll">
-      <div v-if="toolResults.length === 0" class="flex items-center justify-center h-full text-gray-400 text-sm">{{ t("common.noResultsYet") }}</div>
+    <!-- Empty state pulled out of the scroll container so `h-full` +
+         the container's `pb-4` padding can't combine into a stray
+         scrollbar. A sibling `flex-1` slot centers cleanly. -->
+    <div v-if="toolResults.length === 0" class="flex-1 flex items-center justify-center text-gray-400 text-sm" data-testid="stack-empty">
+      {{ t("common.noResultsYet") }}
+    </div>
+    <div v-else ref="containerRef" class="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3" data-testid="stack-scroll">
       <div
         v-for="result in toolResults"
         :key="result.uuid"
