@@ -151,6 +151,12 @@ const frMessages = {
     show: "Afficher l'historique des sessions",
     hide: "Masquer l'historique des sessions",
   },
+  sessionHistoryExpand: {
+    expandTooltip: "Agrandir le panneau d'historique des sessions en pleine largeur",
+    collapseTooltip: "Réduire le panneau d'historique des sessions",
+    expand: "Agrandir l'historique des sessions",
+    collapse: "Réduire l'historique des sessions",
+  },
   settingsWorkspaceDirs: {
     explanation:
       "Répertoires personnalisés pour organiser les fichiers sous {dataDir} et {artifactsDir}. Claude s'en sert pour router l'enregistrement des fichiers.",

@@ -156,6 +156,12 @@ const jaMessages = {
     show: "セッション履歴を表示",
     hide: "セッション履歴を閉じる",
   },
+  sessionHistoryExpand: {
+    expandTooltip: "セッション履歴パネルを全画面表示",
+    collapseTooltip: "セッション履歴パネルを元のサイズに戻す",
+    expand: "セッション履歴を拡大",
+    collapse: "セッション履歴を縮小",
+  },
   settingsWorkspaceDirs: {
     explanation: "{dataDir} および {artifactsDir} 配下でファイルを整理するためのカスタムディレクトリ。Claude がファイル保存先を振り分けるために使用します。",
     noEntries: "カスタムディレクトリは未設定です。",

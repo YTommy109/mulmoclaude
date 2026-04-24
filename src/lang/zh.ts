@@ -154,6 +154,12 @@ const zhMessages = {
     show: "显示会话历史",
     hide: "隐藏会话历史",
   },
+  sessionHistoryExpand: {
+    expandTooltip: "将会话历史面板展开为全宽",
+    collapseTooltip: "收起会话历史面板",
+    expand: "展开会话历史",
+    collapse: "收起会话历史",
+  },
   settingsWorkspaceDirs: {
     explanation: "自定义用于在 {dataDir} 和 {artifactsDir} 下组织文件的目录。Claude 会参照这些来决定文件保存路径。",
     noEntries: "未配置自定义目录。",

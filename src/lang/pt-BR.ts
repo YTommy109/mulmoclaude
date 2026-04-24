@@ -151,6 +151,12 @@ const ptBRMessages = {
     show: "Mostrar histórico de sessões",
     hide: "Ocultar histórico de sessões",
   },
+  sessionHistoryExpand: {
+    expandTooltip: "Expandir o painel de histórico de sessões para largura total",
+    collapseTooltip: "Recolher o painel de histórico de sessões",
+    expand: "Expandir histórico de sessões",
+    collapse: "Recolher histórico de sessões",
+  },
   settingsWorkspaceDirs: {
     explanation: "Diretórios personalizados para organizar arquivos em {dataDir} e {artifactsDir}. O Claude os usa para decidir onde salvar arquivos.",
     noEntries: "Nenhum diretório personalizado configurado.",

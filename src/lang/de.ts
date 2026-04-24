@@ -151,6 +151,12 @@ const deMessages = {
     show: "Sitzungsverlauf anzeigen",
     hide: "Sitzungsverlauf ausblenden",
   },
+  sessionHistoryExpand: {
+    expandTooltip: "Sitzungsverlauf-Panel auf volle Breite erweitern",
+    collapseTooltip: "Sitzungsverlauf-Panel verkleinern",
+    expand: "Sitzungsverlauf erweitern",
+    collapse: "Sitzungsverlauf verkleinern",
+  },
   settingsWorkspaceDirs: {
     explanation:
       "Benutzerdefinierte Verzeichnisse zur Organisation von Dateien unter {dataDir} und {artifactsDir}. Claude nutzt sie, um das Speichern von Dateien zu steuern.",

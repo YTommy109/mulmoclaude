@@ -173,6 +173,12 @@ const enMessages = {
     show: "Show session history",
     hide: "Hide session history",
   },
+  sessionHistoryExpand: {
+    expandTooltip: "Expand session history panel to full width",
+    collapseTooltip: "Collapse session history panel",
+    expand: "Expand session history",
+    collapse: "Collapse session history",
+  },
   settingsWorkspaceDirs: {
     explanation: "Custom directories for organizing files under {dataDir} and {artifactsDir}. Claude uses these to route file saves.",
     noEntries: "No custom directories configured.",

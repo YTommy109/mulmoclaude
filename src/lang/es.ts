@@ -157,6 +157,12 @@ const esMessages = {
     show: "Mostrar historial de sesiones",
     hide: "Ocultar historial de sesiones",
   },
+  sessionHistoryExpand: {
+    expandTooltip: "Expandir el panel de historial de sesiones a ancho completo",
+    collapseTooltip: "Contraer el panel de historial de sesiones",
+    expand: "Expandir historial de sesiones",
+    collapse: "Contraer historial de sesiones",
+  },
   settingsWorkspaceDirs: {
     explanation:
       "Directorios personalizados para organizar archivos dentro de {dataDir} y {artifactsDir}. Claude los utiliza para decidir dónde guardar los archivos.",
