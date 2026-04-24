@@ -216,7 +216,7 @@ import { marked } from "marked";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { WikiData, WikiPageEntry } from "./index";
 import { handleExternalLinkClick } from "../../utils/dom/externalLink";
-import { classifyWorkspacePath } from "../../utils/path/workspaceLinkRouter";
+import { classifyWorkspacePath, resolveWikiHref } from "../../utils/path/workspaceLinkRouter";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { useImeAwareEnter } from "../../composables/useImeAwareEnter";
 import { usePdfDownload } from "../../composables/usePdfDownload";
@@ -492,22 +492,8 @@ function submitChat() {
 
 const imeEnter = useImeAwareEnter(submitChat);
 
-/** Wiki pages live at `data/wiki/pages/` in the workspace. */
-const WIKI_PAGES_DIR = "data/wiki/pages";
-
-/**
- * Resolve a potentially-relative href against the wiki pages directory
- * so that `classifyWorkspacePath` can normalize `../` segments.
- *
- * Example: `../sources/foo.md` → `data/wiki/pages/../sources/foo.md`
- *        → (after normalization) `data/wiki/sources/foo.md`
- */
-function resolveWikiHref(href: string): string {
-  if (href.startsWith("./") || href.startsWith("../")) {
-    return `${WIKI_PAGES_DIR}/${href}`;
-  }
-  return href;
-}
+/** Base directory for wiki content, adjusted by the current view. */
+const WIKI_BASE_DIR = computed(() => (action.value === "page" ? "data/wiki/pages" : "data/wiki"));
 
 function handleContentClick(event: MouseEvent) {
   // 1. Internal wiki links: `[[Page Name]]` was rewritten to a
@@ -525,12 +511,15 @@ function handleContentClick(event: MouseEvent) {
   //    (mailto:, tel:, anchors) fall through to the browser default.
   if (handleExternalLinkClick(event)) return;
   // 3. Workspace-internal links: resolve relative paths against the
-  //    wiki page's filesystem location and route to the appropriate view.
+  //    wiki content's filesystem location and route to the appropriate view.
+  //    Skip modifier-key clicks and middle clicks so the browser's
+  //    "open in new tab" behaviour is preserved.
+  if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
   const anchor = target.closest("a");
   if (!anchor) return;
   const href = anchor.getAttribute("href");
   if (!href || href.startsWith("#")) return;
-  const resolved = resolveWikiHref(href);
+  const resolved = resolveWikiHref(href, WIKI_BASE_DIR.value);
   if (classifyWorkspacePath(resolved)) {
     event.preventDefault();
     appApi.navigateToWorkspacePath(resolved);

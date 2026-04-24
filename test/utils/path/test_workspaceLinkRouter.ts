@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { classifyWorkspacePath } from "../../../src/utils/path/workspaceLinkRouter.js";
+import { classifyWorkspacePath, resolveWikiHref } from "../../../src/utils/path/workspaceLinkRouter.js";
 
 describe("classifyWorkspacePath", () => {
   // ── Wiki page links ───────────────────────────────────────
@@ -157,6 +157,45 @@ describe("classifyWorkspacePath", () => {
     it("strips both fragment and query", () => {
       const result = classifyWorkspacePath("data/wiki/pages/foo.md?bar=1#baz");
       assert.deepEqual(result, { kind: "wiki", slug: "foo" });
+    });
+  });
+});
+
+describe("resolveWikiHref", () => {
+  const PAGES_BASE = "data/wiki/pages";
+  const WIKI_BASE = "data/wiki";
+
+  describe("relative paths (./ and ../)", () => {
+    it("prepends baseDir for ../ paths", () => {
+      assert.equal(resolveWikiHref("../sources/foo.md", PAGES_BASE), "data/wiki/pages/../sources/foo.md");
+    });
+
+    it("prepends baseDir for ./ paths", () => {
+      assert.equal(resolveWikiHref("./sibling.md", PAGES_BASE), "data/wiki/pages/./sibling.md");
+    });
+
+    it("uses wiki base for log-relative paths", () => {
+      assert.equal(resolveWikiHref("./pages/foo.md", WIKI_BASE), "data/wiki/./pages/foo.md");
+    });
+  });
+
+  describe("bare filenames (no /)", () => {
+    it("treats bare .md filename as relative", () => {
+      assert.equal(resolveWikiHref("sibling.md", PAGES_BASE), "data/wiki/pages/sibling.md");
+    });
+
+    it("treats bare name without extension as relative", () => {
+      assert.equal(resolveWikiHref("config", PAGES_BASE), "data/wiki/pages/config");
+    });
+  });
+
+  describe("absolute workspace paths (contains /)", () => {
+    it("passes through workspace-root-relative paths unchanged", () => {
+      assert.equal(resolveWikiHref("data/wiki/sources/foo.md", PAGES_BASE), "data/wiki/sources/foo.md");
+    });
+
+    it("passes through conversations path unchanged", () => {
+      assert.equal(resolveWikiHref("conversations/chat/abc.jsonl", PAGES_BASE), "conversations/chat/abc.jsonl");
     });
   });
 });

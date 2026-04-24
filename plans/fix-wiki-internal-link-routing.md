@@ -37,7 +37,7 @@ textResponse View には `classifyWorkspacePath` + `navigateToWorkspacePath` に
 
 `handleContentClick` のハンドラチェーンを拡張:
 
-```
+```text
 wiki リンク → 外部リンク → ワークスペースパス（新規）→ ブラウザデフォルト
 ```
 
