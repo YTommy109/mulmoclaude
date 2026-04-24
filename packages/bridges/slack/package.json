@@ -1,6 +1,6 @@
 {
   "name": "@mulmobridge/slack",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Slack bridge for MulmoBridge — connect a Slack bot to MulmoClaude",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
   "license": "MIT",
   "author": "Receptron Team",
   "dependencies": {
-    "@mulmobridge/client": "^0.1.3",
+    "@mulmobridge/client": "^0.1.4",
     "@mulmobridge/protocol": "^0.1.4",
     "@slack/socket-mode": "^2.0.6",
     "@slack/web-api": "^7.15.1",
