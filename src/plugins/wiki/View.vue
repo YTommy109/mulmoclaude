@@ -1,33 +1,43 @@
 <template>
   <div class="h-full bg-white flex flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between px-6 py-2 border-b border-gray-100 shrink-0">
-      <div class="flex items-center gap-3">
-        <button v-if="action !== 'index'" class="text-gray-400 hover:text-gray-700" :title="t('pluginWiki.backToIndex')" @click="router.back()">
+    <div class="flex items-center justify-between gap-2 px-6 py-2 border-b border-gray-100 shrink-0">
+      <div class="flex items-center gap-2 min-w-0">
+        <button
+          v-if="action !== 'index'"
+          class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+          :title="t('pluginWiki.backToIndex')"
+          @click="router.back()"
+        >
           <span class="material-icons text-base">arrow_back</span>
         </button>
-        <h2 class="text-lg font-semibold text-gray-800">{{ title }}</h2>
+        <h2 class="text-lg font-semibold text-gray-800 truncate">{{ title }}</h2>
       </div>
-      <div class="flex gap-1 items-center">
+      <div class="flex items-center gap-2">
         <template v-if="action === 'page' && content">
-          <div class="button-group">
-            <button class="download-btn download-btn-green" :disabled="pdfDownloading" @click="downloadPdf">
-              <span class="material-icons">{{ pdfDownloading ? "hourglass_empty" : "download" }}</span>
-              {{ t("pluginWiki.pdf") }}
-            </button>
-          </div>
-          <span v-if="pdfError" class="text-xs text-red-500 self-center ml-2" :title="pdfError">{{ t("pluginWiki.pdfFailed") }}</span>
-        </template>
-        <div v-if="action === 'index'" class="button-group">
-          <button class="download-btn download-btn-green" data-testid="wiki-lint-chat-button" @click="startLintChat">
-            <span class="material-icons">rule</span>
-            {{ t("pluginWiki.lintChat") }}
+          <button
+            class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            :disabled="pdfDownloading"
+            @click="downloadPdf"
+          >
+            <span class="material-icons text-base">{{ pdfDownloading ? "hourglass_empty" : "download" }}</span>
+            {{ t("pluginWiki.pdf") }}
           </button>
-        </div>
+          <span v-if="pdfError" class="text-xs text-red-500" :title="pdfError">{{ t("pluginWiki.pdfFailed") }}</span>
+        </template>
+        <button
+          v-if="action === 'index'"
+          class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm transition-colors"
+          data-testid="wiki-lint-chat-button"
+          @click="startLintChat"
+        >
+          <span class="material-icons text-base">rule</span>
+          {{ t("pluginWiki.lintChat") }}
+        </button>
         <div class="flex border border-gray-300 rounded overflow-hidden text-xs">
           <button
             :class="[
-              'px-2.5 py-1 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
+              'h-8 px-2.5 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
               action === 'index' ? 'bg-blue-50 text-blue-600 font-medium' : 'bg-white text-gray-600 hover:bg-gray-50',
             ]"
             @click="navigate('index')"
@@ -37,7 +47,7 @@
           </button>
           <button
             :class="[
-              'px-2.5 py-1 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
+              'h-8 px-2.5 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
               action === 'log' ? 'bg-blue-50 text-blue-600 font-medium' : 'bg-white text-gray-600 hover:bg-gray-50',
             ]"
             @click="navigate('log')"
@@ -47,7 +57,7 @@
           </button>
           <button
             :class="[
-              'px-2.5 py-1 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
+              'h-8 px-2.5 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
               action === 'lint_report' ? 'bg-blue-50 text-blue-600 font-medium' : 'bg-white text-gray-600 hover:bg-gray-50',
             ]"
             @click="navigate('lint_report')"
@@ -567,31 +577,6 @@ function handleContentClick(event: MouseEvent) {
 .entry-tag-chip:hover {
   background-color: #dbeafe;
   color: #1d4ed8;
-}
-.button-group {
-  display: flex;
-  gap: 0.5em;
-}
-.download-btn {
-  padding: 0.5em 1em;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9em;
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-}
-.download-btn-green {
-  background-color: #4caf50;
-}
-.download-btn .material-icons {
-  font-size: 1.2em;
-}
-.download-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 .wiki-content :deep(.wiki-link) {
   color: #2563eb;

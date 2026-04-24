@@ -10,14 +10,16 @@
       <div class="text-gray-500">{{ t("pluginMarkdown.noContent") }}</div>
     </div>
     <template v-else>
-      <div class="flex justify-end px-4 py-2 border-b border-gray-100 shrink-0">
-        <div class="button-group">
-          <button class="download-btn download-btn-green" :disabled="pdfDownloading" @click="downloadPdf">
-            <span class="material-icons">{{ pdfDownloading ? "hourglass_empty" : "download" }}</span>
-            {{ t("pluginMarkdown.pdf") }}
-          </button>
-        </div>
-        <span v-if="pdfError" class="text-xs text-red-500 self-center ml-2" :title="pdfError">{{ t("pluginMarkdown.pdfFailedShort") }}</span>
+      <div class="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
+        <button
+          class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          :disabled="pdfDownloading"
+          @click="downloadPdf"
+        >
+          <span class="material-icons text-base">{{ pdfDownloading ? "hourglass_empty" : "download" }}</span>
+          {{ t("pluginMarkdown.pdf") }}
+        </button>
+        <span v-if="pdfError" class="text-xs text-red-500" :title="pdfError">{{ t("pluginMarkdown.pdfFailedShort") }}</span>
       </div>
       <div v-if="loadError" class="load-error-banner" role="alert">
         {{ t("pluginMarkdown.refreshFailed", { error: loadError }) }}
@@ -245,36 +247,6 @@ watch(
   flex: 1;
   overflow-y: auto;
   min-height: 0;
-}
-
-.button-group {
-  display: flex;
-  gap: 0.5em;
-}
-
-.download-btn {
-  padding: 0.5em 1em;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9em;
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-}
-
-.download-btn-green {
-  background-color: #4caf50;
-}
-
-.download-btn .material-icons {
-  font-size: 1.2em;
-}
-
-.download-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .markdown-content :deep(h1) {

@@ -19,20 +19,30 @@
       </div>
       <!-- Row 2: role selector + session tabs. Shown whenever the
            side panel is hidden — Row 2 and the side panel are
-           mutually exclusive. -->
+           mutually exclusive. The header-controls wrapper is pinned
+           to 264px (w-72 minus px-3 padding on each side) so that
+           RoleSelector / + / toggle occupy the exact same x-range as
+           they do inside the open side panel — toggling the panel
+           therefore doesn't shift those controls. -->
       <div v-if="!sidePanelVisible" class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
-        <RoleSelector v-model:current-role-id="currentRoleId" :roles="roles" @change="onRoleChange" />
+        <div class="w-[264px] shrink-0">
+          <SessionHeaderControls
+            v-model:current-role-id="currentRoleId"
+            :roles="roles"
+            :side-panel-visible="sidePanelVisible"
+            :active-session-count="activeSessionCount"
+            :unread-count="unreadCount"
+            @role-change="onRoleChange"
+            @new-session="handleNewSessionClick"
+            @update:side-panel-visible="setSidePanelVisible"
+          />
+        </div>
         <SessionTabBar
           :sessions="tabSessions"
           :current-session-id="displayedCurrentSessionId"
           :is-chat-page="isChatPage"
           :roles="roles"
-          :active-session-count="activeSessionCount"
-          :unread-count="unreadCount"
-          :side-panel-visible="sidePanelVisible"
-          @new-session="handleNewSessionClick"
           @load-session="handleSessionSelect"
-          @update:side-panel-visible="setSidePanelVisible"
         />
       </div>
     </div>
@@ -47,7 +57,7 @@
            role selector + new-session button instead. -->
       <div
         v-if="sidePanelVisible"
-        class="group relative border-r border-gray-200 bg-white text-gray-900 flex flex-col min-w-0 overflow-hidden"
+        class="relative border-r border-gray-200 bg-white text-gray-900 flex flex-col min-w-0 overflow-hidden"
         :class="sidePanelExpanded ? 'flex-1' : 'w-72 flex-shrink-0'"
         data-testid="session-history-side-panel"
       >
@@ -56,27 +66,19 @@
              close toggle. The expand affordance lives on the panel's
              right edge as a hover-reveal handle instead of a header
              button, so no second row is needed. -->
-        <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
-          <RoleSelector v-model:current-role-id="currentRoleId" :roles="roles" fluid @change="onRoleChange" />
-          <div class="flex items-center gap-0.5 shrink-0">
-            <button
-              class="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
-              data-testid="new-session-btn"
-              :title="t('sessionTabBar.newSession')"
-              :aria-label="t('sessionTabBar.newSession')"
-              @click="handleNewSessionClick"
-            >
-              <span class="material-icons text-sm">add</span>
-            </button>
-            <SessionHistoryToggleButton
-              :model-value="sidePanelVisible"
-              :active-session-count="activeSessionCount"
-              :unread-count="unreadCount"
-              @update:model-value="setSidePanelVisibleAndCollapse"
-            />
-          </div>
+        <div class="flex items-center px-3 py-2 border-b border-gray-100">
+          <SessionHeaderControls
+            v-model:current-role-id="currentRoleId"
+            :roles="roles"
+            :side-panel-visible="sidePanelVisible"
+            :active-session-count="activeSessionCount"
+            :unread-count="unreadCount"
+            @role-change="onRoleChange"
+            @new-session="handleNewSessionClick"
+            @update:side-panel-visible="setSidePanelVisibleAndCollapse"
+          />
         </div>
-        <div class="relative flex-1 min-h-0">
+        <div class="group relative flex-1 min-h-0">
           <SessionHistoryPanel
             :sessions="mergedSessions"
             :current-session-id="currentSessionId"
@@ -205,13 +207,12 @@ import { getPlugin } from "./tools";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import RightSidebar from "./components/RightSidebar.vue";
 import SidebarHeader from "./components/SidebarHeader.vue";
-import RoleSelector from "./components/RoleSelector.vue";
+import SessionHeaderControls from "./components/SessionHeaderControls.vue";
 import SessionTabBar from "./components/SessionTabBar.vue";
 import SuggestionsPanel from "./components/SuggestionsPanel.vue";
 import ChatInput, { type PastedFile } from "./components/ChatInput.vue";
 import SessionHistoryExpandButton from "./components/SessionHistoryExpandButton.vue";
 import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
-import SessionHistoryToggleButton from "./components/SessionHistoryToggleButton.vue";
 import ToolResultsPanel from "./components/ToolResultsPanel.vue";
 import PluginLauncher from "./components/PluginLauncher.vue";
 import StackView from "./components/StackView.vue";
