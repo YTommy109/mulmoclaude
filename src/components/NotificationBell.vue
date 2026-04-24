@@ -73,7 +73,7 @@ function handleDismiss(event: Event, notificationId: string): void {
   <div ref="rootRef" class="relative">
     <!-- Bell button -->
     <button
-      class="relative text-gray-400 hover:text-gray-700"
+      class="relative h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-gray-700"
       data-testid="notification-bell"
       :aria-label="t('notificationBell.notifications')"
       @click="toggle"

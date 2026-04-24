@@ -5,7 +5,7 @@
       <div v-if="idx === SEPARATOR_AFTER_INDEX" class="w-px bg-gray-300 my-0.5" />
       <button
         :class="[
-          'px-2.5 py-1 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
+          'h-8 px-2.5 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
           isActive(target) ? 'bg-blue-50 text-blue-600 font-medium' : 'bg-white text-gray-600 hover:bg-gray-50',
         ]"
         :title="t(`pluginLauncher.${target.key}.title`)"

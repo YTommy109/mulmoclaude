@@ -3,7 +3,7 @@
     <!-- Global top bar — shown in every view mode -->
     <div class="shrink-0 bg-white text-gray-900">
       <!-- Row 1: title + plugin launcher -->
-      <div class="flex items-center gap-3 px-3 py-2 border-b border-gray-200">
+      <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-200">
         <SidebarHeader
           :sandbox-enabled="sandboxEnabled"
           :gemini-available="geminiAvailable"
@@ -58,9 +58,9 @@
              button, so no second row is needed. -->
         <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
           <RoleSelector v-model:current-role-id="currentRoleId" :roles="roles" fluid @change="onRoleChange" />
-          <div class="flex items-center gap-1 shrink-0">
+          <div class="flex items-center gap-0.5 shrink-0">
             <button
-              class="flex-shrink-0 flex items-center justify-center w-7 py-1 rounded border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+              class="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
               data-testid="new-session-btn"
               :title="t('sessionTabBar.newSession')"
               :aria-label="t('sessionTabBar.newSession')"

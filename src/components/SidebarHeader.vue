@@ -13,7 +13,7 @@
            the brand label here is a clickable logo, not a page heading. -->
       <span data-testid="app-title" class="text-sm font-semibold text-gray-800 mr-1" :style="titleStyle">MulmoClaude</span>
     </button>
-    <div class="flex gap-2">
+    <div class="flex gap-0.5">
       <LockStatusPopup
         ref="lockPopup"
         :sandbox-enabled="sandboxEnabled"
@@ -23,7 +23,7 @@
       />
       <NotificationBell :force-close="lockPopupOpen" @navigate="(action) => emit('notificationNavigate', action)" @update:open="onNotificationOpen" />
       <button
-        class="relative text-gray-400 hover:text-gray-700"
+        class="relative h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-gray-700"
         data-testid="settings-btn"
         :title="settingsLabel"
         :aria-label="settingsLabel"
