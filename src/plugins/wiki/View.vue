@@ -216,6 +216,7 @@ import { marked } from "marked";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { WikiData, WikiPageEntry } from "./index";
 import { handleExternalLinkClick } from "../../utils/dom/externalLink";
+import { classifyWorkspacePath } from "../../utils/path/workspaceLinkRouter";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { useImeAwareEnter } from "../../composables/useImeAwareEnter";
 import { usePdfDownload } from "../../composables/usePdfDownload";
@@ -491,6 +492,23 @@ function submitChat() {
 
 const imeEnter = useImeAwareEnter(submitChat);
 
+/** Wiki pages live at `data/wiki/pages/` in the workspace. */
+const WIKI_PAGES_DIR = "data/wiki/pages";
+
+/**
+ * Resolve a potentially-relative href against the wiki pages directory
+ * so that `classifyWorkspacePath` can normalize `../` segments.
+ *
+ * Example: `../sources/foo.md` → `data/wiki/pages/../sources/foo.md`
+ *        → (after normalization) `data/wiki/sources/foo.md`
+ */
+function resolveWikiHref(href: string): string {
+  if (href.startsWith("./") || href.startsWith("../")) {
+    return `${WIKI_PAGES_DIR}/${href}`;
+  }
+  return href;
+}
+
 function handleContentClick(event: MouseEvent) {
   // 1. Internal wiki links: `[[Page Name]]` was rewritten to a
   //    `<span class="wiki-link">` during markdown pre-processing,
@@ -505,7 +523,18 @@ function handleContentClick(event: MouseEvent) {
   //    in a new tab so clicking them doesn't navigate the whole
   //    SPA away from MulmoClaude. Same-origin and non-http links
   //    (mailto:, tel:, anchors) fall through to the browser default.
-  handleExternalLinkClick(event);
+  if (handleExternalLinkClick(event)) return;
+  // 3. Workspace-internal links: resolve relative paths against the
+  //    wiki page's filesystem location and route to the appropriate view.
+  const anchor = target.closest("a");
+  if (!anchor) return;
+  const href = anchor.getAttribute("href");
+  if (!href || href.startsWith("#")) return;
+  const resolved = resolveWikiHref(href);
+  if (classifyWorkspacePath(resolved)) {
+    event.preventDefault();
+    appApi.navigateToWorkspacePath(resolved);
+  }
 }
 </script>
 

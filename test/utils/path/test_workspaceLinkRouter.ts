@@ -109,6 +109,38 @@ describe("classifyWorkspacePath", () => {
     });
   });
 
+  // ── Wiki relative path resolution ─────────────────────────
+  // Wiki pages link to sources/sessions with relative paths like
+  // `../sources/foo.md`. The wiki View prepends `data/wiki/pages/`
+  // before calling classifyWorkspacePath so that `../` segments
+  // resolve correctly against the wiki page's filesystem location.
+
+  describe("wiki relative paths (pre-resolved with data/wiki/pages/ prefix)", () => {
+    it("resolves ../sources/<name>.md to a file", () => {
+      const resolved = "data/wiki/pages/../sources/my-source.md";
+      const result = classifyWorkspacePath(resolved);
+      assert.deepEqual(result, { kind: "file", path: "data/wiki/sources/my-source.md" });
+    });
+
+    it("resolves ../../../conversations/chat/<id>.jsonl to a session", () => {
+      const resolved = "data/wiki/pages/../../../conversations/chat/550e8400-e29b-41d4-a716-446655440000.jsonl";
+      const result = classifyWorkspacePath(resolved);
+      assert.deepEqual(result, { kind: "session", sessionId: "550e8400-e29b-41d4-a716-446655440000" });
+    });
+
+    it("resolves ./other-page.md to a wiki page", () => {
+      const resolved = "data/wiki/pages/./other-page.md";
+      const result = classifyWorkspacePath(resolved);
+      assert.deepEqual(result, { kind: "wiki", slug: "other-page" });
+    });
+
+    it("resolves sibling page reference (no prefix needed)", () => {
+      const resolved = "data/wiki/pages/sibling.md";
+      const result = classifyWorkspacePath(resolved);
+      assert.deepEqual(result, { kind: "wiki", slug: "sibling" });
+    });
+  });
+
   // ── Fragment / query stripping ────────────────────────────
 
   describe("strips fragment and query", () => {
