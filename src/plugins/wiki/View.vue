@@ -516,8 +516,10 @@ const imeEnter = useImeAwareEnter(submitChat);
 /** Base directory for wiki content, adjusted by the current view. */
 const WIKI_BASE_DIR = computed(() => (action.value === "page" ? "data/wiki/pages" : "data/wiki"));
 
-// Serialised PUT chain for rapid checkbox clicks (#775). Each click
-// queues onto the previous so a slower network can't reorder writes.
+// Serialised POST chain for rapid task-checkbox clicks (#775). Each
+// click queues onto the previous so a slower network can't reorder
+// writes. (The wire call is `POST /api/wiki { action: "save" }`, not
+// PUT — the comment used to say PUT and contradicted the call site.)
 //
 // `saveQueueGeneration` invalidates older queued saves after a
 // failure-triggered refresh: their captured snapshots were computed
