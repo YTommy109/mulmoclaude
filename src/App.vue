@@ -107,7 +107,14 @@
         <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
 
         <!-- Text input -->
-        <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="activeSessionRunning" @send="sendMessage()" />
+        <ChatInput
+          ref="chatInputRef"
+          v-model="userInput"
+          v-model:pasted-file="pastedFile"
+          :is-running="activeSessionRunning"
+          @send="sendMessage()"
+          @cancel="cancelActiveRun"
+        />
       </div>
 
       <!-- Canvas column -->
@@ -159,7 +166,14 @@
              session context, so no chat input is shown) -->
         <div v-if="isChatPage && layoutMode === 'stack'" class="border-t border-gray-200 bg-white shrink-0">
           <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
-          <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="activeSessionRunning" @send="sendMessage()" />
+          <ChatInput
+            ref="chatInputRef"
+            v-model="userInput"
+            v-model:pasted-file="pastedFile"
+            :is-running="activeSessionRunning"
+            @send="sendMessage()"
+            @cancel="cancelActiveRun"
+          />
         </div>
       </div>
 
@@ -258,7 +272,7 @@ import { useEventListeners } from "./composables/useEventListeners";
 import { provideAppApi } from "./composables/useAppApi";
 import { provideActiveSession } from "./composables/useActiveSession";
 import { useRoute, useRouter } from "vue-router";
-import { apiGet } from "./utils/api";
+import { apiGet, apiPost } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
 
@@ -772,6 +786,28 @@ function unsubscribeSession(chatSessionId: string): void {
   if (unsub) {
     unsub();
     sessionSubscriptions.delete(chatSessionId);
+  }
+}
+
+// Stop the in-flight agent run for the currently displayed session.
+// Backend (POST /api/agent/cancel) flips the run's AbortController,
+// which closes the SSE stream and resets `isRunning`. We don't
+// optimistically flip local state — the SSE close handler does that
+// uniformly whether the cancel came from us or anywhere else (#731).
+async function cancelActiveRun(): Promise<void> {
+  const sessionId = currentSessionId.value;
+  if (!sessionId) return;
+  console.info("[agent] cancel requested", { chatSessionId: sessionId });
+  const result = await apiPost<{ ok: boolean }>(API_ROUTES.agent.cancel, { chatSessionId: sessionId });
+  if (!result.ok) {
+    console.warn("[agent] cancel POST failed", { chatSessionId: sessionId, error: result.error });
+    return;
+  }
+  // Backend's `ok: false` means the session wasn't in-flight (already
+  // finished, or duplicate Stop click). Benign, but distinct from a
+  // network failure — surface separately in the console.
+  if (!result.data?.ok) {
+    console.info("[agent] cancel was a no-op (no run in flight)", { chatSessionId: sessionId });
   }
 }
 

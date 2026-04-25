@@ -84,10 +84,15 @@ interface CancelBody {
 router.post(API_ROUTES.agent.cancel, (req: Request<object, unknown, CancelBody>, res: Response<OkResponse>) => {
   const { chatSessionId } = req.body;
   if (!chatSessionId) {
+    log.warn("agent", "cancel rejected — missing chatSessionId");
     res.json({ ok: false });
     return;
   }
   const ok = cancelRun(chatSessionId);
+  // `ok=false` here means the session id wasn't tracked as running —
+  // benign on duplicate clicks or after a natural finish, but still
+  // worth distinguishing in logs from a successful abort.
+  log.info("agent", ok ? "cancel issued" : "cancel no-op (no run in flight)", { chatSessionId });
   res.json({ ok });
 });
 

@@ -489,7 +489,32 @@ Full reference: [`docs/logging.md`](logging.md). Two rules to keep in mind when 
 1. **Never call `console.*` outside `server/system/logger/`.** Import and use `log.{error,warn,info,debug}(prefix, msg, data?)` instead. The structured payload powers JSON file shipping and grep-friendly text output. The only sanctioned `console.error` is the file-sink fallback inside the logger itself.
 2. **Prefix is lowercase, hyphenated, no brackets.** The text formatter wraps it in `[ ]`. Keep payload values scalar; nested objects are JSON-stringified.
 
-Existing prefixes in use: `agent`, `agent-stderr`, `server`, `workspace`, `sandbox`, `mcp`, `task-manager`, `journal`, `chat-index`, `pdf`, `config`.
+Existing prefixes in use: `agent`, `agent-stderr`, `server`, `workspace`, `sandbox`, `mcp`, `task-manager`, `journal`, `chat-index`, `pdf`, `config`, `image`, `wiki`, `pipeline`, `pipeline.fetch`, `scheduler`, `scheduler-tasks`, `sources`, `notifications`, `auth`.
+
+### Layered logging template (#779)
+
+Routes that do anything more than echo state should follow this shape, mirroring [`server/api/routes/image.ts`](../server/api/routes/image.ts) (PR #780) and [`server/api/routes/wiki.ts`](../server/api/routes/wiki.ts):
+
+| Stage | Level | Required payload |
+|---|---|---|
+| Entry, after input validation | `info` | route name + key id (sessionId / slug / path) + `promptMeta(prompt)` for freeform user input, or `previewSnippet(slug)` for identifier-shaped fields |
+| Success | `info` | bytes / item count / generated id |
+| External SDK / fetch returned no data | `warn` | input fingerprint + reason |
+| Internal exception (we threw, not the SDK) | `error` | input fingerprint + `errorMessage(err)` |
+| External SDK request/response shape | `debug` | only inside the SDK wrapper (`server/utils/gemini.ts` etc.); never inside route files |
+
+The "input fingerprint" in the warn / error rows is whichever helper the entry log used — `promptMeta` for freeform prompts, `previewSnippet` for identifiers. Pick by call-site shape, per the table below:
+
+| Helper | Use for | Output |
+|---|---|---|
+| [`promptMeta`](../server/utils/promptMeta.ts) | freeform user-supplied prompts / pasted text — anything that could carry credentials, URLs, or PII | `{ length, sha256: <12-hex> }` — fingerprint only |
+| [`previewSnippet`](../server/utils/logPreview.ts) | identifier-shaped fields with grep value (slug, page name, action verb) | first 120 chars + `…` |
+
+Default to `promptMeta` for any field a user types or pastes freely; reserve `previewSnippet` for fields the user picks from a closed set (a slug, an action name) or that the system already constrains (a page name routed through a slugifier). **Never log** API keys, bearer tokens, cookies, full prompts, full markdown bodies, or absolute paths that include `/Users/<name>` (use the workspace-relative path instead).
+
+### Operational note: hard-to-reproduce error reports
+
+When a user reports "this failed with no UI feedback" and you can't reproduce it, **start by auditing the relevant route's log coverage**. If the file has zero `log.*` calls (or only catch-block logs without an entry log), there's nothing to grep against — the first move is to add the layered logging template above and ship it as its own PR before continuing the bug hunt. The current state of every route is tracked in [`plans/log-audit/findings.md`](../plans/log-audit/findings.md); if the route you're touching is marked "none" or "partial", upgrading it counts as in-scope groundwork.
 
 ---
 
