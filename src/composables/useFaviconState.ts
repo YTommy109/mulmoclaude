@@ -50,13 +50,20 @@ export function useFaviconState(opts: {
   // a message (right before a run begins) and stays pinned until the
   // run ends, so it's a safe proxy for "this run started at…".
   //
-  // Scanning all sessions (instead of only the on-screen one) means
-  // a 3-minute-old background run in another session still trips the
-  // cyan runningLong escalation when the user is sitting on /files.
+  // Caller passes `mergedSessions` (live in-memory state OR'd with
+  // server summaries), so this scan picks up two things the raw
+  // server `sessions` list would miss until the next /api/sessions
+  // refetch:
+  //   • `beginUserTurn`'s synchronous `live.updatedAt` stamp, so the
+  //     runningLong clock is anchored to the actual user click, not
+  //     the refetch arrival time.
+  //   • `live.pendingGenerations` (folded into the merged summary's
+  //     `isRunning`), so a generation kicked off by the bridge or a
+  //     background tab counts the moment its event lands.
   //
   // Falls back to `Date.now()` only if no running session has a
   // parseable `updatedAt` (brand-new session before the first
-  // server echo).
+  // server echo and before `beginUserTurn`).
   const runningSinceMs = computed<number | null>(() => {
     if (!isRunning.value) return null;
     let earliest = Number.POSITIVE_INFINITY;

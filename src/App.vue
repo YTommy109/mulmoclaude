@@ -378,11 +378,23 @@ const sessionRoleIcon = computed(() => {
   return roleIcon(roles.value, roleId);
 });
 
+const { mergedSessions, tabSessions } = useMergedSessions({
+  sessionMap,
+  sessions,
+});
+
 // ── Dynamic favicon (#470) ──────────────────────────────────
 // Every input here is global, not per-on-screen-session: the user
 // is often on /files or other non-chat views, so the favicon has
 // to react to the whole session list rather than `activeSession`.
-useFaviconState({ isRunning, sessions, sessionsUnreadCount: unreadCount, cpuLoadRatio });
+//
+// `isRunning` is the global scan from useSessionDerived (sessionMap +
+// server summaries), and `mergedSessions` folds the in-memory
+// `updatedAt` / `pendingGenerations` over server summaries — so the
+// runningLong clock picks up `beginUserTurn`'s local stamp on the
+// very same tick as `isRunning` flips, without waiting for the next
+// /api/sessions refetch.
+useFaviconState({ isRunning, sessions: mergedSessions, sessionsUnreadCount: unreadCount, cpuLoadRatio });
 
 const toolResultsPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
@@ -490,11 +502,6 @@ const { pendingCalls, teardown: teardownPendingCalls } = usePendingCalls({
 });
 
 const selectedResult = computed(() => toolResults.value.find((result) => result.uuid === selectedResultUuid.value) ?? null);
-
-const { mergedSessions, tabSessions } = useMergedSessions({
-  sessionMap,
-  sessions,
-});
 
 // Centralised session-switch handler: subscribe to the current session's
 // pub/sub channel so we receive real-time events even if the session is
