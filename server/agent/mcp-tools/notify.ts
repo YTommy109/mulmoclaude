@@ -43,7 +43,9 @@ export const notify = {
   },
 
   prompt:
-    "Use the `notify` tool whenever you would otherwise reach for an external notification mechanism — task completion announcements, monitoring summaries, scheduled reminders firing now, or any moment where the user explicitly says 'tell me when …' / '通知して' / 'remind me'. After firing, briefly tell the user you sent the notification.",
+    "Use the `notify` MCP tool — NOT a user-installed `/notify` skill — when the user asks for a notification ('通知して' / 'remind me' / 'tell me when …') or when reporting completion of a long-running task / monitoring summary / scheduled reminder firing. " +
+    "This is the canonical built-in notification path: it fans out to the web bell, any active bridge transport, and macOS Reminders (when MACOS_REMINDER_NOTIFICATIONS=1 + darwin), and has NO active-user suppression — if the user asks for a notification, fire one. " +
+    "After firing, briefly tell the user you sent the notification.",
 
   async handler(args: Record<string, unknown>): Promise<string> {
     const title = typeof args.title === "string" ? args.title.trim() : "";
