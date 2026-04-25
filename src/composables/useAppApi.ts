@@ -32,6 +32,13 @@ export interface AppApi {
   startNewChat: (message: string, roleId?: string) => void;
   /** Navigate to a workspace-internal link (wiki page, file, session). */
   navigateToWorkspacePath: (href: string) => void;
+  /**
+   * Look up the creation timestamp (epoch ms) of a tool result in the
+   * active session. Used by plugin views that need to date-stamp
+   * downloads from the result's content. Returns `undefined` when the
+   * uuid isn't in the active session's `resultTimestamps` map.
+   */
+  getResultTimestamp: (uuid: string) => number | undefined;
 }
 
 const APP_API_KEY = Symbol("appApi");

@@ -225,6 +225,7 @@ import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { useImeAwareEnter } from "../../composables/useImeAwareEnter";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { useAppApi } from "../../composables/useAppApi";
+import { buildPdfFilename } from "../../utils/files/filename";
 import { renderWikiLinks } from "./helpers";
 import { BUILTIN_ROLE_IDS } from "../../config/roles";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
@@ -407,7 +408,13 @@ const renderedContent = computed(() => {
 const { pdfDownloading, pdfError, downloadPdf: rawDownloadPdf } = usePdfDownload();
 
 async function downloadPdf() {
-  await rawDownloadPdf(content.value, `${title.value}.pdf`);
+  const uuid = props.selectedResult?.uuid;
+  const filename = buildPdfFilename({
+    name: title.value,
+    fallback: "wiki",
+    timestampMs: uuid ? appApi.getResultTimestamp(uuid) : undefined,
+  });
+  await rawDownloadPdf(content.value, filename);
 }
 
 async function callApi(body: Record<string, unknown>) {
