@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { marked } from "marked";
 import { findTaskLines, toggleTaskAt, makeTasksInteractive } from "../../../src/utils/markdown/taskList.js";
 
 describe("toggleTaskAt", () => {
@@ -231,5 +232,71 @@ describe("makeTasksInteractive", () => {
   it("is idempotent on already-transformed HTML", () => {
     const transformed = '<input class="md-task" type="checkbox">';
     assert.equal(makeTasksInteractive(transformed), transformed);
+  });
+});
+
+// `makeTasksInteractive` is a regex over the literal string `marked`
+// happens to emit today (`<input disabled="" type="checkbox">` and
+// `<input checked="" disabled="" type="checkbox">`). If a future
+// marked version reorders attributes, drops the empty-value form, or
+// changes whitespace, the regex stops matching — and the breakage is
+// silent at runtime (checkboxes render but never toggle). These tests
+// exercise the actual marked output we ship against, so any such
+// drift fails the test BEFORE it hits production.
+describe("makeTasksInteractive — marked output compatibility lock", () => {
+  it("strips disabled and tags both unchecked and checked tasks rendered by marked", () => {
+    const markdown = "- [ ] todo\n- [x] done\n";
+    const html = marked(markdown) as string;
+    // Lock the marked-side assumption: both the unchecked and the
+    // checked render forms must end with `disabled="" type="checkbox">`
+    // — that's what the regex anchors on.
+    assert.ok(html.includes('<input disabled="" type="checkbox">'), `marked unchecked form changed; got: ${html}`);
+    assert.ok(html.includes('<input checked="" disabled="" type="checkbox">'), `marked checked form changed; got: ${html}`);
+
+    const interactive = makeTasksInteractive(html);
+    assert.ok(interactive.includes('<input class="md-task" type="checkbox">'), "unchecked input was not made interactive");
+    assert.ok(interactive.includes('<input checked="" class="md-task" type="checkbox">'), "checked input was not made interactive");
+    assert.ok(!interactive.includes("disabled"), "disabled attribute leaked through into the rewritten HTML");
+  });
+
+  it("works through marked's full pipeline: source → render → interactive → click finds the n-th input", () => {
+    // End-to-end shape check: rendering 3 tasks must yield 3 inputs
+    // tagged with `class="md-task"` so `querySelectorAll('input.md-task')`
+    // in View.vue's click handler matches the source-side index.
+    const markdown = "- [ ] zero\n- [x] one\n- [ ] two\n";
+    const interactive = makeTasksInteractive(marked(markdown) as string);
+    const matches = interactive.match(/<input[^>]*class="md-task"[^>]*>/g) ?? [];
+    assert.equal(matches.length, 3, `expected 3 interactive inputs, got ${matches.length} in: ${interactive}`);
+  });
+});
+
+// View.vue cross-checks `findTaskLines(source).length` against the
+// rendered `input.md-task` count and refuses to toggle on mismatch
+// (locked-in pluginMarkdown.taskCountMismatch error). These tests
+// prove the hazard scenarios are real and detectable purely from
+// `findTaskLines` + marked output — i.e. the cross-check has
+// something to actually catch.
+describe("findTaskLines vs marked render — cross-check justification", () => {
+  it("an indented-code-block task line counts in source but renders as code (no input)", () => {
+    // 4-space indent makes this content of an indented code block.
+    // Source walker still sees a task line (documented limitation);
+    // marked renders the line as `<pre><code>` with no checkbox.
+    const markdown = "    - [ ] looks-like-task\n- [ ] real\n";
+    const sourceCount = findTaskLines(markdown).length;
+    const inputCount = (marked(markdown) as string).match(/<input[^>]*type="checkbox">/g)?.length ?? 0;
+    assert.equal(sourceCount, 2, "source walker should count both lines");
+    assert.equal(inputCount, 1, "marked should render only the un-indented task as a checkbox");
+    // 2 vs 1 → mismatch → View.vue refuses click → no corruption.
+  });
+
+  it("counts agree on a clean document (no false-positive refuses)", () => {
+    // The cross-check must not fire for the common case — otherwise
+    // every click would refuse. Verify a normal mixed task / non-task
+    // / blockquote / fence / ordered-list document agrees.
+    const markdown = ["# Heading", "- [ ] a", "- [x] b", "Some prose.", "1. [ ] ordered", "> - [ ] quoted", "```", "- [ ] inside-fence", "```"].join("\n");
+    const sourceCount = findTaskLines(markdown).length;
+    const inputCount = (marked(markdown) as string).match(/<input[^>]*type="checkbox">/g)?.length ?? 0;
+    assert.equal(sourceCount, inputCount, `mismatch on the happy path — source ${sourceCount}, dom ${inputCount}`);
+    assert.equal(sourceCount, 4, "expected 4 real tasks (a, b, ordered, quoted)");
   });
 });

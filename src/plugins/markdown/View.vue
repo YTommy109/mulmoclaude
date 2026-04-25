@@ -312,7 +312,7 @@ function onMarkdownClick(event: MouseEvent): void {
   const sourceTasks = findTaskLines(markdownContent.value);
   if (sourceTasks.length !== taskInputs.length) {
     target.checked = !target.checked;
-    saveError.value = "Markdown source and rendered output disagree on the number of tasks. Refusing to toggle to avoid corruption.";
+    saveError.value = t("pluginMarkdown.taskCountMismatch");
     return;
   }
 
