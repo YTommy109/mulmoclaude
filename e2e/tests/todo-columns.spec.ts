@@ -16,7 +16,9 @@ async function setupTodoMocks(page: Page): Promise<void> {
         const existing = new Set(state.columns.map((col) => col.id));
         let newId = baseId;
         let num = 2;
-        while (existing.has(newId)) newId = `${baseId}_${num++}`;
+        // Hyphen separator post #732 — must mirror the server's
+        // `uniqueId()` in todosColumnsHandlers.ts.
+        while (existing.has(newId)) newId = `${baseId}-${num++}`;
         return {
           columns: [...state.columns, { id: newId, label }],
         };

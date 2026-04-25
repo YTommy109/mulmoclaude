@@ -12,6 +12,7 @@ import {
   type StatusColumn,
 } from "../../server/api/routes/todosColumnsHandlers.js";
 import type { TodoItem } from "../../server/api/routes/todos.js";
+import { isValidSlug, DEFAULT_MAX_LENGTH } from "../../server/utils/slug.js";
 
 function cols(): StatusColumn[] {
   // Fresh copy each call so mutations in one test don't bleed.
@@ -111,6 +112,22 @@ describe("handleAddColumn", () => {
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
     assert.equal(result.columns[result.columns.length - 1]?.id, "review-2");
+  });
+
+  it("keeps the disambiguated id within the 120-char cap when the base is at max length (Codex iter-1 #732)", () => {
+    // Regression guard: a 120-char base + "-2" naively yields a
+    // 122-char id that fails isValidSlug. uniqueId must truncate the
+    // base so the composite stays valid.
+    const longLabel = "a".repeat(150); // slugify caps to 120 chars
+    const baseId = "a".repeat(120); // what slugify returns for the above
+    const start = [...cols(), { id: baseId, label: longLabel } as StatusColumn];
+    const result = handleAddColumn(start, [], { label: longLabel });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    const newId = result.columns[result.columns.length - 1]?.id ?? "";
+    assert.ok(newId.length <= DEFAULT_MAX_LENGTH, `expected len <= 120, got ${newId.length} (${newId})`);
+    assert.ok(isValidSlug(newId), `expected valid slug, got "${newId}"`);
+    assert.match(newId, /-2$/, "should still have -2 suffix");
   });
 
   it("walks the disambiguation suffix forward through -3, -4, ...", () => {

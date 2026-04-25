@@ -11,7 +11,7 @@
 // items have somewhere to live and the legacy `completed` boolean has
 // something to map to.
 
-import { slugify as slugifyCanonical } from "../../utils/slug.js";
+import { slugify as slugifyCanonical, DEFAULT_MAX_LENGTH } from "../../utils/slug.js";
 import { isRecord } from "../../utils/types.js";
 import type { TodoItem } from "./todos.js";
 
@@ -56,12 +56,28 @@ function slugify(label: string): string {
 }
 
 // Pick an id that doesn't collide with `existingIds`. Tries the bare
-// slug first, then `-2`, `-3`, ... until something is free.
+// slug first, then `-2`, `-3`, ... until something is free. Truncates
+// the base when needed so the composed id stays within
+// `DEFAULT_MAX_LENGTH` (`isValidSlug`'s cap) — a 120-char base plus
+// "-2" would otherwise yield a 122-char id that fails validation
+// (Codex review of #732, iter 1).
 function uniqueId(base: string, existingIds: ReadonlySet<string>): string {
   if (!existingIds.has(base)) return base;
+  const composeId = (suffix: number): string => {
+    const tail = `-${suffix}`;
+    const room = DEFAULT_MAX_LENGTH - tail.length;
+    if (base.length <= room) return `${base}${tail}`;
+    // Truncate, then strip any trailing hyphen so the join doesn't
+    // produce `--` (which `isValidSlug` rejects). Manual loop instead
+    // of a regex — `sonarjs/slow-regex` flags `-+$` even though the
+    // input here is already <= 120 chars.
+    let end = room;
+    while (end > 0 && base[end - 1] === "-") end--;
+    return `${base.slice(0, end)}${tail}`;
+  };
   let suffix = 2;
-  while (existingIds.has(`${base}-${suffix}`)) suffix++;
-  return `${base}-${suffix}`;
+  while (existingIds.has(composeId(suffix))) suffix++;
+  return composeId(suffix);
 }
 
 // ── Validation helpers ────────────────────────────────────────────

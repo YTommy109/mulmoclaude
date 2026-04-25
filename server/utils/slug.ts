@@ -11,7 +11,12 @@ const NON_ASCII_HASH_LEN = 16;
 // Bumped from 64 alongside the slug-rule unification (#732) so journal /
 // todo / wiki / files can all share one rule without truncating their
 // previously-longer inputs.
-const DEFAULT_MAX_LENGTH = 120;
+//
+// Exported so callers that compose a base slug with their own suffix
+// (e.g. `${base}-2` collision avoidance) can stay inside the same cap
+// — necessary because a 120-char base + "-2" would otherwise produce a
+// 122-char id that fails `isValidSlug`.
+export const DEFAULT_MAX_LENGTH = 120;
 
 // eslint-disable-next-line no-control-regex
 const NON_ASCII_RE = /[^\x00-\x7F]/;
