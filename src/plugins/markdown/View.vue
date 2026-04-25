@@ -63,7 +63,7 @@ const { t } = useI18n();
 import type { ToolResult } from "gui-chat-protocol";
 import { isFilePath, type MarkdownToolData } from "./definition";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
-import { makeTasksInteractive, toggleTaskAt } from "../../utils/markdown/taskList";
+import { findTaskLines, makeTasksInteractive, toggleTaskAt } from "../../utils/markdown/taskList";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { apiGet, apiPut } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
@@ -301,6 +301,20 @@ function onMarkdownClick(event: MouseEvent): void {
   const taskInputs = root.querySelectorAll<HTMLInputElement>("input.md-task");
   const taskIndex = Array.from(taskInputs).indexOf(target);
   if (taskIndex < 0) return;
+
+  // Cross-check: if the source-side walker sees a different number
+  // of tasks than `marked` rendered into the DOM, the index map
+  // can't be trusted. The most common cause is a `- [ ]`-shaped line
+  // inside a 4-space indented code block (the source walker treats
+  // it as a task; marked treats it as code) — toggling source by
+  // index would corrupt the file. Refuse all clicks when this
+  // happens.
+  const sourceTasks = findTaskLines(markdownContent.value);
+  if (sourceTasks.length !== taskInputs.length) {
+    target.checked = !target.checked;
+    saveError.value = "Markdown source and rendered output disagree on the number of tasks. Refusing to toggle to avoid corruption.";
+    return;
+  }
 
   const updated = toggleTaskAt(markdownContent.value, taskIndex);
   if (updated === null) {

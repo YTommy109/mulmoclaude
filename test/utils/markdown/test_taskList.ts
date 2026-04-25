@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { toggleTaskAt, makeTasksInteractive } from "../../../src/utils/markdown/taskList.js";
+import { findTaskLines, toggleTaskAt, makeTasksInteractive } from "../../../src/utils/markdown/taskList.js";
 
 describe("toggleTaskAt", () => {
   it("toggles unchecked → checked", () => {
@@ -30,9 +30,18 @@ describe("toggleTaskAt", () => {
     assert.equal(toggleTaskAt(markdown, 0), "- [x] foo **bold** [link](#)\n");
   });
 
-  it("ignored ordered-list task syntax counts toward the index", () => {
+  it("ordered-list task syntax counts toward the index (dot marker)", () => {
     const markdown = "1. [ ] alpha\n2. [ ] beta\n";
     assert.equal(toggleTaskAt(markdown, 1), "1. [ ] alpha\n2. [x] beta\n");
+  });
+
+  it("ordered-list task syntax counts toward the index (paren marker)", () => {
+    // CommonMark / GFM also accepts `1)` style ordered markers, and
+    // marked renders them as task checkboxes — so the source walker
+    // must too.
+    const markdown = "1) [ ] alpha\n2) [x] beta\n";
+    assert.equal(toggleTaskAt(markdown, 0), "1) [x] alpha\n2) [x] beta\n");
+    assert.equal(toggleTaskAt(markdown, 1), "1) [ ] alpha\n2) [ ] beta\n");
   });
 
   it("skips fenced code blocks (``` … ```) — task-looking lines inside don't count", () => {
@@ -141,6 +150,38 @@ describe("toggleTaskAt", () => {
     const markdown = ["```", "- [ ] inside", "```   ", "- [ ] outside"].join("\n");
     const out = toggleTaskAt(markdown, 0);
     assert.equal(out, ["```", "- [ ] inside", "```   ", "- [x] outside"].join("\n"));
+  });
+});
+
+describe("findTaskLines", () => {
+  it("returns the 0-indexed line of every task", () => {
+    const markdown = ["intro", "- [ ] zero", "skip", "- [x] one", "  * [ ] two-nested"].join("\n");
+    assert.deepEqual(findTaskLines(markdown), [1, 3, 4]);
+  });
+
+  it("skips fenced code blocks", () => {
+    const markdown = ["- [ ] real-0", "```", "- [ ] fake", "```", "- [ ] real-1"].join("\n");
+    assert.deepEqual(findTaskLines(markdown), [0, 4]);
+  });
+
+  it("counts blockquoted tasks", () => {
+    const markdown = ["- [ ] top", "> - [ ] quoted", "> > - [ ] nested-quoted"].join("\n");
+    assert.deepEqual(findTaskLines(markdown), [0, 1, 2]);
+  });
+
+  it("returns an empty array when source has no tasks", () => {
+    assert.deepEqual(findTaskLines("just text\n* regular bullet\n"), []);
+  });
+
+  // Documents the known limitation called out in the docstring: a
+  // `- [ ] foo` line buried in a 4-space indented code block is still
+  // counted by the source walker. The View layer cross-checks this
+  // count against the rendered DOM and refuses to toggle on
+  // disagreement, so the corruption never reaches disk.
+  it("currently counts indented-code-block lines that LOOK like tasks (limitation)", () => {
+    // Note this test pins existing behaviour, not desired behaviour.
+    const markdown = "    - [ ] looks-like-task\n- [ ] real\n";
+    assert.deepEqual(findTaskLines(markdown), [0, 1]);
   });
 });
 

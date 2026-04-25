@@ -20,14 +20,15 @@
 // markers (`>`, possibly nested), so:
 //   - [ ] foo
 //   * [x] bar
-//   1. [ ] baz
+//   1. [ ] dot-style ordered
+//   1) [ ] paren-style ordered
 //   > - [ ] quoted
 //   > > - [ ] nested-quoted
 // all match. `marked` renders all of these as a real task checkbox,
 // so they need to be counted (and writable) by the index walker.
 //
 // Captures: prefix (indent + any `>` chains), bullet, separator, mark.
-const TASK_LINE = /^(\s*(?:>\s*)*)([-*+]|\d+\.)(\s+)\[([ xX])\]/;
+const TASK_LINE = /^(\s*(?:>\s*)*)([-*+]|\d+[.)])(\s+)\[([ xX])\]/;
 
 // Fenced code block opener/closer. CommonMark allows fences to be
 // indented up to 3 spaces; ≥ 4 leading spaces makes the line literal
@@ -87,6 +88,30 @@ function flipMark(line: string, match: RegExpMatchArray): string {
   return `${prefix}${bullet}${sep}[${flipped}]` + line.slice(whole.length);
 }
 
+/** Find the source-line index of every task-list item, in document
+ *  order, skipping content inside fenced code blocks. Returned array
+ *  length is the total task count the source-side walker sees.
+ *
+ *  Exported so callers can cross-check the count against marked's
+ *  rendered DOM (`input.md-task` element count). When the two
+ *  disagree the source has tasks that marked is treating as code
+ *  (e.g. content of a 4-space indented code block) — the only safe
+ *  reaction is to refuse the click, never blindly toggle the
+ *  source-side n-th line.
+ */
+export function findTaskLines(source: string): number[] {
+  const lines = source.split("\n");
+  const fence: FenceState = { inFence: false, marker: null };
+  const taskLines: number[] = [];
+
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx];
+    if (stepFence(line, fence)) continue;
+    if (TASK_LINE.test(line)) taskLines.push(lineIdx);
+  }
+  return taskLines;
+}
+
 /** Toggle the n-th task-list checkbox in `source`. Returns the new
  *  markdown, or `null` if the index is out of range or the matched
  *  line isn't actually a task line (defensive against source/DOM
@@ -99,31 +124,22 @@ function flipMark(line: string, match: RegExpMatchArray): string {
  *  even though `marked` renders it verbatim. Full CommonMark indented-
  *  code-block detection is context-dependent (needs blank-line
  *  history, list-continuation column, etc.); the practical workaround
- *  is to use fences for code samples that contain task syntax. The
- *  click handler short-circuits via the `null` return when the source
- *  and DOM index lists disagree, so the worst case is a no-op click,
- *  not data corruption.
+ *  is twofold: (1) prefer fenced code for samples that contain task
+ *  syntax, and (2) the caller cross-checks `findTaskLines(source).length`
+ *  against the rendered DOM's `input.md-task` count and refuses to
+ *  write when they disagree, so the worst case is a no-op click — not
+ *  data corruption.
  */
 export function toggleTaskAt(source: string, taskIndex: number): string | null {
   if (!Number.isInteger(taskIndex) || taskIndex < 0) return null;
+  const taskLines = findTaskLines(source);
+  if (taskIndex >= taskLines.length) return null;
+  const lineIdx = taskLines[taskIndex];
   const lines = source.split("\n");
-  const fence: FenceState = { inFence: false, marker: null };
-  let counter = 0;
-
-  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-    const line = lines[lineIdx];
-    if (stepFence(line, fence)) continue;
-
-    const taskMatch = line.match(TASK_LINE);
-    if (!taskMatch) continue;
-
-    if (counter === taskIndex) {
-      lines[lineIdx] = flipMark(line, taskMatch);
-      return lines.join("\n");
-    }
-    counter++;
-  }
-  return null;
+  const taskMatch = lines[lineIdx].match(TASK_LINE);
+  if (!taskMatch) return null;
+  lines[lineIdx] = flipMark(lines[lineIdx], taskMatch);
+  return lines.join("\n");
 }
 
 /** Strip `disabled=""` from rendered GFM task checkboxes and tag them
