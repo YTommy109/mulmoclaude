@@ -73,12 +73,12 @@ describe("runDailyPass — crash recovery", () => {
     // skipped rather than the whole pass crashing. The session-
     // ingest checkpoint for day 1 still commits via persistStateAfterDay.
     let dailySummarizeCalls = 0;
-    let memorySummarizeCalls = 0;
     // Match by system prompt header — DAILY_SYSTEM_PROMPT starts with
     // "You are the journal archivist", memoryExtractor's prompt starts
     // with "You are a personal-fact extractor". Day 1 succeeds, day 2
-    // throws, memory always succeeds (returning empty so nothing gets
-    // appended — keeps the test focused on per-day checkpoint behaviour).
+    // throws; memory always succeeds with an empty result so nothing
+    // gets appended — keeps the test focused on per-day checkpoint
+    // behaviour and the day count assertion stays unambiguous.
     const stubFlaky: Summarize = async (systemPrompt) => {
       if (systemPrompt.startsWith("You are the journal archivist")) {
         dailySummarizeCalls++;
@@ -87,7 +87,6 @@ describe("runDailyPass — crash recovery", () => {
         }
         throw new Error("simulated mid-pass crash");
       }
-      memorySummarizeCalls++;
       return '{"facts":[]}';
     };
 
