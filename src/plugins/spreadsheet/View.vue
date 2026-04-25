@@ -244,8 +244,11 @@ fetchSheets().then(() => {
 async function persistSheets(sheets: SpreadsheetSheet[]): Promise<void> {
   const raw = props.selectedResult.data?.sheets;
   if (isFilePath(raw)) {
-    const filename = raw.replace(/^(artifacts\/spreadsheets|spreadsheets)\//, "");
-    const result = await apiPut<unknown>(API_ROUTES.plugins.updateSpreadsheet.replace(":filename", filename), {
+    // Send the full workspace-relative path so the route doesn't have
+    // to reconstruct one from a basename — paths under
+    // `artifacts/spreadsheets/` are now sharded by YYYY/MM (#764).
+    const result = await apiPut<unknown>(API_ROUTES.plugins.updateSpreadsheet, {
+      relativePath: raw,
       sheets,
     });
     if (!result.ok) {

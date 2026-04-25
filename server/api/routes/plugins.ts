@@ -153,8 +153,13 @@ router.post(
   },
 );
 
-// Update markdown file on disk (user edits in View)
+// Update markdown file on disk (user edits in View). Body carries the
+// workspace-relative path verbatim (e.g.
+// `artifacts/documents/2026/04/abc-123.md`) so the route doesn't have
+// to reconstruct one from a basename — required after #764 sharded
+// `artifacts/documents` by YYYY/MM.
 interface UpdateMarkdownBody {
+  relativePath: string;
   markdown: string;
 }
 
@@ -168,15 +173,14 @@ interface UpdateMarkdownError {
 
 router.put(
   API_ROUTES.plugins.updateMarkdown,
-  async (req: Request<{ filename: string }, unknown, UpdateMarkdownBody>, res: Response<UpdateMarkdownResponse | UpdateMarkdownError>) => {
-    const relativePath = `${WORKSPACE_DIRS.markdowns}/${req.params.filename}`;
-    const { markdown } = req.body;
+  async (req: Request<object, unknown, UpdateMarkdownBody>, res: Response<UpdateMarkdownResponse | UpdateMarkdownError>) => {
+    const { relativePath, markdown } = req.body;
     if (!markdown) {
       badRequest(res, "markdown is required");
       return;
     }
-    if (!isMarkdownPath(relativePath)) {
-      badRequest(res, "invalid markdown path");
+    if (!relativePath || !isMarkdownPath(relativePath)) {
+      badRequest(res, "invalid markdown relativePath");
       return;
     }
     try {
@@ -208,8 +212,11 @@ router.post(
   }),
 );
 
-// Update spreadsheet file on disk (user edits in View)
+// Update spreadsheet file on disk (user edits in View). Body carries
+// the workspace-relative path so the route is symmetric with
+// updateMarkdown / image.update — see #764.
 interface UpdateSpreadsheetBody {
+  relativePath: string;
   sheets: unknown[];
 }
 
@@ -223,15 +230,14 @@ interface UpdateSpreadsheetError {
 
 router.put(
   API_ROUTES.plugins.updateSpreadsheet,
-  async (req: Request<{ filename: string }, unknown, UpdateSpreadsheetBody>, res: Response<UpdateSpreadsheetResponse | UpdateSpreadsheetError>) => {
-    const relativePath = `${WORKSPACE_DIRS.spreadsheets}/${req.params.filename}`;
-    const { sheets } = req.body;
+  async (req: Request<object, unknown, UpdateSpreadsheetBody>, res: Response<UpdateSpreadsheetResponse | UpdateSpreadsheetError>) => {
+    const { relativePath, sheets } = req.body;
     if (!Array.isArray(sheets)) {
       badRequest(res, "sheets must be an array");
       return;
     }
-    if (!isSpreadsheetPath(relativePath)) {
-      badRequest(res, "invalid spreadsheet path");
+    if (!relativePath || !isSpreadsheetPath(relativePath)) {
+      badRequest(res, "invalid spreadsheet relativePath");
       return;
     }
     try {

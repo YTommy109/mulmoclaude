@@ -50,4 +50,18 @@ describe("isMarkdownPath", () => {
   it("rejects when prefix is a substring of a longer segment", () => {
     assert.equal(isMarkdownPath("xartifacts/documents/foo.md"), false);
   });
+
+  // Path-traversal rejection — the route layer relies on this gate
+  // (overwriteMarkdown does not realpath / safeResolve internally).
+  it("rejects path-normalized traversal", () => {
+    assert.equal(isMarkdownPath("artifacts/documents/../documents/f.md"), false);
+  });
+
+  it("rejects double-dot escape attempts", () => {
+    assert.equal(isMarkdownPath("artifacts/documents/../../etc/passwd.md"), false);
+  });
+
+  it("rejects deeply-nested traversal", () => {
+    assert.equal(isMarkdownPath("artifacts/documents/2026/04/../../../outside.md"), false);
+  });
 });

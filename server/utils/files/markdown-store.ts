@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { workspacePath } from "../../workspace/workspace.js";
 import { WORKSPACE_DIRS } from "../../workspace/paths.js";
@@ -8,10 +8,16 @@ import { buildArtifactPathRandom } from "./naming.js";
  * Save markdown content as a file. Returns the workspace-relative path.
  * `prefix` is slugified; a random id is always appended to prevent
  * collisions between concurrent writers sharing the same prefix.
+ *
+ * `buildArtifactPathRandom` now injects a `YYYY/MM` partition (#764),
+ * so this function ensures the partition directory exists before
+ * writing — `writeFile` doesn't create missing parents on its own.
  */
 export async function saveMarkdown(content: string, prefix: string): Promise<string> {
   const relPath = buildArtifactPathRandom(WORKSPACE_DIRS.markdowns, prefix, ".md", "document");
-  await writeFile(path.join(workspacePath, relPath), content, "utf-8");
+  const absPath = path.join(workspacePath, relPath);
+  await mkdir(path.dirname(absPath), { recursive: true });
+  await writeFile(absPath, content, "utf-8");
   return relPath;
 }
 
@@ -27,7 +33,17 @@ export async function overwriteMarkdown(relativePath: string, content: string): 
   await writeFile(absPath, content, "utf-8");
 }
 
-/** Check if a string is a markdown file path (not inline content). */
+/** Check if a string is a markdown file path (not inline content).
+ *  Rejects traversal attempts like `artifacts/documents/../outside.md`
+ *  so callers can rely on prefix+suffix alone. Mirrors the
+ *  `isSpreadsheetPath` policy. The server-side `path.join` in
+ *  `overwriteMarkdown` does NOT normalize traversal on its own, so
+ *  this gate is the primary defence — keep it strict. */
 export function isMarkdownPath(value: string): boolean {
-  return value.startsWith(`${WORKSPACE_DIRS.markdowns}/`) && value.endsWith(".md");
+  if (!value.startsWith(`${WORKSPACE_DIRS.markdowns}/`)) return false;
+  if (!value.endsWith(".md")) return false;
+  const normalized = path.posix.normalize(value);
+  if (normalized !== value) return false;
+  if (normalized.includes("..")) return false;
+  return true;
 }
