@@ -5,6 +5,14 @@ import { createHash } from "crypto";
 // collisions are effectively impossible for any realistic workspace.
 const NON_ASCII_HASH_LEN = 16;
 
+// Max slug length used by both `slugify` (output cap) and `isValidSlug`
+// (acceptance cap). 120 leaves plenty of room for filename slugs while
+// staying well under filesystem path limits and URL-segment conventions.
+// Bumped from 64 alongside the slug-rule unification (#732) so journal /
+// todo / wiki / files can all share one rule without truncating their
+// previously-longer inputs.
+const DEFAULT_MAX_LENGTH = 120;
+
 // eslint-disable-next-line no-control-regex
 const NON_ASCII_RE = /[^\x00-\x7F]/;
 
@@ -18,18 +26,18 @@ export function hashSlug(input: string, length: number = NON_ASCII_HASH_LEN): st
   return createHash("sha256").update(input, "utf-8").digest("base64url").slice(0, length);
 }
 
-// Validates a slug: lowercase alphanumeric + hyphens, 1–64 chars,
-// no leading/trailing hyphen, no consecutive hyphens. Previously
+// Validates a slug: lowercase alphanumeric + hyphens, 1–DEFAULT_MAX_LENGTH
+// chars, no leading/trailing hyphen, no consecutive hyphens. Previously
 // duplicated in sources/paths.ts and skills/paths.ts.
 export function isValidSlug(slug: string): boolean {
   if (typeof slug !== "string") return false;
-  if (slug.length === 0 || slug.length > 64) return false;
+  if (slug.length === 0 || slug.length > DEFAULT_MAX_LENGTH) return false;
   if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(slug)) return false;
   if (slug.includes("--")) return false;
   return true;
 }
 
-export function slugify(title: string, defaultSlug = "page", maxLength = 60): string {
+export function slugify(title: string, defaultSlug = "page", maxLength = DEFAULT_MAX_LENGTH): string {
   const asciiSlug = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")

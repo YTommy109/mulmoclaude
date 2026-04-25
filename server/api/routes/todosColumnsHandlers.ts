@@ -11,7 +11,7 @@
 // items have somewhere to live and the legacy `completed` boolean has
 // something to map to.
 
-import { hasNonAscii, hashSlug } from "../../utils/slug.js";
+import { slugify as slugifyCanonical } from "../../utils/slug.js";
 import { isRecord } from "../../utils/types.js";
 import type { TodoItem } from "./todos.js";
 
@@ -27,7 +27,7 @@ export interface StatusColumn {
 export const DEFAULT_COLUMNS: StatusColumn[] = [
   { id: "backlog", label: "Backlog" },
   { id: "todo", label: "Todo" },
-  { id: "in_progress", label: "In Progress" },
+  { id: "in-progress", label: "In Progress" },
   { id: "done", label: "Done", isDone: true },
 ];
 
@@ -46,35 +46,22 @@ export type ColumnsActionResult =
 
 // ── id slug generation ────────────────────────────────────────────
 
-// Convert a free-text label into a URL-safe id. Lowercased ASCII
-// letters/numbers/underscore only; everything else collapses to "_".
-// Non-ASCII labels (e.g. Japanese) get a deterministic sha256-based
-// id so distinct labels never collapse to the same fallback "column".
+// Convert a free-text label into a URL-safe column id. Thin wrapper
+// around the canonical slugify (server/utils/slug.ts) with the
+// "column" fallback. Hyphen-separated to match wiki / files / journal
+// — the previous underscore-separated rule was the only divergent
+// slug producer in the codebase. See #732.
 function slugify(label: string): string {
-  let slug = label
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "_");
-  let start = 0;
-  let end = slug.length;
-  while (start < end && slug.charCodeAt(start) === 95) start++;
-  while (end > start && slug.charCodeAt(end - 1) === 95) end--;
-  slug = slug.slice(start, end);
-
-  if (!hasNonAscii(label)) return slug.length > 0 ? slug : "column";
-
-  const hash = hashSlug(label.trim());
-  if (slug.length >= 3) return `${slug}_${hash}`;
-  return hash;
+  return slugifyCanonical(label, "column");
 }
 
 // Pick an id that doesn't collide with `existingIds`. Tries the bare
-// slug first, then `_2`, `_3`, ... until something is free.
+// slug first, then `-2`, `-3`, ... until something is free.
 function uniqueId(base: string, existingIds: ReadonlySet<string>): string {
   if (!existingIds.has(base)) return base;
   let suffix = 2;
-  while (existingIds.has(`${base}_${suffix}`)) suffix++;
-  return `${base}_${suffix}`;
+  while (existingIds.has(`${base}-${suffix}`)) suffix++;
+  return `${base}-${suffix}`;
 }
 
 // ── Validation helpers ────────────────────────────────────────────

@@ -64,6 +64,20 @@ describe("slugify (ASCII happy path)", () => {
   it("respects maxLength", () => {
     assert.equal(slugify("a".repeat(80), "page", 10), "aaaaaaaaaa");
   });
+
+  it("uses default maxLength=120 when not specified", () => {
+    // Default cap was bumped to 120 (#732). A 200-char input gets
+    // truncated to exactly 120 — boundary check.
+    assert.equal(slugify("a".repeat(200)).length, 120);
+  });
+
+  it("does not truncate ASCII inputs at the old 60-char cap", () => {
+    // Regression guard: previously the default was 60, so an 80-char
+    // input came back as 80 chars but a 70-char input came back as 60.
+    // After #732 we want the full 70 (and full 80) preserved.
+    const seventy = "a".repeat(70);
+    assert.equal(slugify(seventy).length, 70);
+  });
 });
 
 describe("slugify (non-ASCII fallback)", () => {
@@ -120,8 +134,15 @@ describe("isValidSlug", () => {
   });
 
   it("rejects empty and too-long strings", () => {
+    // Cap is DEFAULT_MAX_LENGTH (120); 121 chars must fail. Bumped from
+    // 64→120 alongside the slug-rule unification (#732) so journal /
+    // todo / wiki / files share one rule.
     assert.equal(isValidSlug(""), false);
-    assert.equal(isValidSlug("a".repeat(65)), false);
+    assert.equal(isValidSlug("a".repeat(121)), false);
+  });
+
+  it("accepts the 120-char boundary", () => {
+    assert.equal(isValidSlug("a".repeat(120)), true);
   });
 
   it("rejects uppercase", () => {

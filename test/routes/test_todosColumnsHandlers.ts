@@ -90,21 +90,42 @@ describe("handleAddColumn", () => {
     assert.equal(result.status, 400);
   });
 
-  it("appends a slugified column", () => {
+  it("appends a slugified column (hyphen separator post #732)", () => {
+    // Previously this used "_" as the separator; #732 unified todo
+    // columns onto the canonical "-" rule shared with wiki/files/
+    // journal. Default DEFAULT_COLUMNS["in-progress"] tracks the same
+    // change.
     const result = handleAddColumn(cols(), [], { label: "In Review!" });
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
     assert.equal(result.columns.length, 5);
-    assert.equal(result.columns[4]?.id, "in_review");
+    assert.equal(result.columns[4]?.id, "in-review");
     assert.equal(result.columns[4]?.label, "In Review!");
   });
 
-  it("disambiguates colliding ids", () => {
+  it("disambiguates colliding ids with a hyphen suffix (#732)", () => {
+    // Suffix used to be `_2`; unified to `-2` to match the rest of the
+    // slug rule.
     const start = [...cols(), { id: "review", label: "Review" } as StatusColumn];
     const result = handleAddColumn(start, [], { label: "Review" });
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
-    assert.equal(result.columns[result.columns.length - 1]?.id, "review_2");
+    assert.equal(result.columns[result.columns.length - 1]?.id, "review-2");
+  });
+
+  it("walks the disambiguation suffix forward through -3, -4, ...", () => {
+    // Multi-collision walk — guards against a regression where the
+    // loop only handled the first conflict.
+    const start = [
+      ...cols(),
+      { id: "review", label: "Review" } as StatusColumn,
+      { id: "review-2", label: "Review v2" } as StatusColumn,
+      { id: "review-3", label: "Review v3" } as StatusColumn,
+    ];
+    const result = handleAddColumn(start, [], { label: "Review" });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    assert.equal(result.columns[result.columns.length - 1]?.id, "review-4");
   });
 
   it("generates distinct hash-based ids for different Japanese labels", () => {
@@ -126,12 +147,13 @@ describe("handleAddColumn", () => {
     assert.notEqual(secondId, firstId);
   });
 
-  it("preserves an ASCII prefix when a mixed label has a useful one", () => {
+  it("preserves an ASCII prefix when a mixed label has a useful one (#732 — hyphen)", () => {
     const result = handleAddColumn(cols(), [], { label: "Doing (進行中)" });
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
     const columnId = result.columns[result.columns.length - 1]?.id;
-    assert.ok(columnId?.startsWith("doing_"));
+    // Hyphen separator post #732 (was "doing_<hash>").
+    assert.ok(columnId?.startsWith("doing-"), `expected hyphenated prefix, got ${columnId}`);
   });
 
   it("is deterministic — same label always yields the same id", () => {
@@ -200,11 +222,11 @@ describe("handlePatchColumn", () => {
   });
 
   it("promoting a column to done demotes the prior done column and syncs items in BOTH directions", () => {
-    const items = [makeItem({ id: "a", status: "in_progress", completed: false }), makeItem({ id: "b", status: "done", completed: true })];
-    const result = handlePatchColumn(cols(), "in_progress", { isDone: true }, items);
+    const items = [makeItem({ id: "a", status: "in-progress", completed: false }), makeItem({ id: "b", status: "done", completed: true })];
+    const result = handlePatchColumn(cols(), "in-progress", { isDone: true }, items);
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
-    const inProgress = result.columns.find((col) => col.id === "in_progress");
+    const inProgress = result.columns.find((col) => col.id === "in-progress");
     const done = result.columns.find((col) => col.id === "done");
     assert.equal(inProgress?.isDone, true);
     assert.equal(done?.isDone, undefined);
@@ -300,22 +322,22 @@ describe("handleReorderColumns", () => {
   });
 
   it("rejects unknown ids", () => {
-    const result = handleReorderColumns(cols(), ["todo", "done", "in_progress", "ghost"]);
+    const result = handleReorderColumns(cols(), ["todo", "done", "in-progress", "ghost"]);
     assert.equal(result.kind, "error");
   });
 
   it("rejects duplicate ids", () => {
-    const result = handleReorderColumns(cols(), ["todo", "todo", "in_progress", "done"]);
+    const result = handleReorderColumns(cols(), ["todo", "todo", "in-progress", "done"]);
     assert.equal(result.kind, "error");
   });
 
   it("returns columns in the requested order", () => {
-    const result = handleReorderColumns(cols(), ["done", "in_progress", "todo", "backlog"]);
+    const result = handleReorderColumns(cols(), ["done", "in-progress", "todo", "backlog"]);
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
     assert.deepEqual(
       result.columns.map((col) => col.id),
-      ["done", "in_progress", "todo", "backlog"],
+      ["done", "in-progress", "todo", "backlog"],
     );
   });
 });

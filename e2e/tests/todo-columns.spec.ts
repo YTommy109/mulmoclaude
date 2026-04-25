@@ -82,7 +82,7 @@ test.describe("Todo column management", () => {
     // Check columns exist via data-testid (more reliable than text)
     await expect(page.locator('[data-testid="todo-column-backlog"]')).toBeVisible();
     await expect(page.locator('[data-testid="todo-column-todo"]')).toBeVisible();
-    await expect(page.locator('[data-testid="todo-column-in_progress"]')).toBeVisible();
+    await expect(page.locator('[data-testid="todo-column-in-progress"]')).toBeVisible();
     await expect(page.locator('[data-testid="todo-column-done"]')).toBeVisible();
   });
 
