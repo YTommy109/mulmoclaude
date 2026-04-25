@@ -38,18 +38,15 @@
 
     <!-- Source filter chip row (only sources with items). -->
     <div v-if="sourceChoices.length > 1" class="px-5 py-2 border-b border-gray-100 flex flex-wrap items-center gap-1 shrink-0">
-      <button
+      <FilterChip
         v-for="choice in sourceChoices"
         :key="choice.slug"
-        :class="[
-          'text-[11px] px-2 py-0.5 rounded transition-colors',
-          sourceFilter === choice.slug ? 'bg-blue-100 text-blue-700 font-medium' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-        ]"
+        :active="sourceFilter === choice.slug"
+        :label="choice.label"
+        :count="choice.count"
         :data-testid="`news-source-${choice.slug}`"
         @click="sourceFilter = choice.slug"
-      >
-        {{ choice.label }}<span class="ml-1 opacity-60">({{ choice.count }})</span>
-      </button>
+      />
     </div>
 
     <!-- Body: list (left) + detail (right). -->
@@ -136,6 +133,7 @@ import { apiGet } from "../utils/api";
 import { formatSmartTime } from "../utils/format/date";
 import { useNewsItems } from "../composables/useNewsItems";
 import { useNewsReadState } from "../composables/useNewsReadState";
+import FilterChip from "./FilterChip.vue";
 
 const { t } = useI18n();
 const route = useRoute();
