@@ -6,6 +6,16 @@ import { errorMessage } from "../../utils/errors.js";
 import { badRequest, serverError } from "../../utils/httpError.js";
 import { saveImage, overwriteImage, loadImageBase64, stripDataUri, isImagePath } from "../../utils/files/image-store.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { log } from "../../system/logger/index.js";
+
+// Image-generation routes were silent on success and on failure. When
+// the canvas showed "missing image" with no server-side trace, there
+// was nothing to grep. The new log lines surface the request
+// (prompt preview, model, optional sessionId) and the outcome.
+const PROMPT_PREVIEW_LIMIT = 120;
+function previewPrompt(prompt: string): string {
+  return prompt.length > PROMPT_PREVIEW_LIMIT ? `${prompt.slice(0, PROMPT_PREVIEW_LIMIT)}…` : prompt;
+}
 
 const router = Router();
 
@@ -87,13 +97,27 @@ interface GenerateImageBody {
 router.post(API_ROUTES.image.generate, async (req: Request<object, unknown, GenerateImageBody>, res: Response<ImageResponse>) => {
   const { prompt, model } = req.body;
   if (!prompt) {
+    log.warn("image", "generate: missing prompt");
     res.status(400).json({ success: false, message: "prompt is required" });
     return;
   }
+  log.info("image", "generate: start", { promptPreview: previewPrompt(prompt), model: model ?? "(default)" });
   try {
     const { imageData, message } = await generateGeminiImageFromPrompt(prompt, model);
+    if (!imageData) {
+      log.warn("image", "generate: gemini returned no image data", {
+        promptPreview: previewPrompt(prompt),
+        fallbackMessage: message,
+      });
+    } else {
+      log.info("image", "generate: ok", { promptPreview: previewPrompt(prompt), bytes: imageData.length });
+    }
     await respondWithImage(res, imageData, message, prompt, "generation");
   } catch (err) {
+    log.error("image", "generate: gemini call threw", {
+      promptPreview: previewPrompt(prompt),
+      error: errorMessage(err),
+    });
     res.status(500).json({ success: false, message: errorMessage(err) });
   }
 });
@@ -106,17 +130,20 @@ router.post(API_ROUTES.image.edit, async (req: Request<object, unknown, EditImag
   const { prompt } = req.body;
   const session = getOptionalStringQuery(req, "session");
   if (!prompt) {
+    log.warn("image", "edit: missing prompt", { session });
     res.status(400).json({ success: false, message: "prompt is required" });
     return;
   }
   const currentImageData = session ? getSessionImageData(session) : undefined;
   if (!currentImageData) {
+    log.warn("image", "edit: no source image selected", { session });
     res.status(400).json({
       success: false,
       message: "No image is selected. Please click an image in the sidebar first, then ask me to edit it.",
     });
     return;
   }
+  log.info("image", "edit: start", { promptPreview: previewPrompt(prompt), session, sourceKind: isImagePath(currentImageData) ? "path" : "dataUri" });
   try {
     // Resolve input image to raw base64 — supports both file paths and legacy data URIs
     const base64Data = isImagePath(currentImageData) ? await loadImageBase64(currentImageData) : stripDataUri(currentImageData);
@@ -127,8 +154,22 @@ router.post(API_ROUTES.image.edit, async (req: Request<object, unknown, EditImag
         parts: [{ inlineData: { mimeType: "image/png", data: base64Data } }, { text: prompt }],
       },
     ]);
+    if (!imageData) {
+      log.warn("image", "edit: gemini returned no image data", {
+        promptPreview: previewPrompt(prompt),
+        session,
+        fallbackMessage: message,
+      });
+    } else {
+      log.info("image", "edit: ok", { promptPreview: previewPrompt(prompt), session, bytes: imageData.length });
+    }
     await respondWithImage(res, imageData, message, prompt, "edit");
   } catch (err) {
+    log.error("image", "edit: gemini call threw", {
+      promptPreview: previewPrompt(prompt),
+      session,
+      error: errorMessage(err),
+    });
     res.status(500).json({ success: false, message: errorMessage(err) });
   }
 });

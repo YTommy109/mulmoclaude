@@ -1,5 +1,7 @@
 import { GoogleGenAI, type GenerateContentParameters } from "@google/genai";
 import { env } from "../system/env.js";
+import { log } from "../system/logger/index.js";
+import { errorMessage } from "./errors.js";
 
 export { isGeminiAvailable } from "../system/env.js";
 
@@ -32,23 +34,47 @@ export interface GeminiImageResult {
 // when you need to pass custom `contents` (e.g. text + reference
 // image for /edit-image). Pass `undefined` for `config` to omit it
 // entirely from the request.
+//
+// Per-call logging is deliberately at debug level so the route /
+// plugin call sites can decide what surfaces to info/warn at their
+// own granularity. SDK throws are caught here only to surface a
+// debug line, then re-thrown — callers are still responsible for the
+// HTTP / canvas response.
 export async function generateGeminiImageContent(
   contents: GenerateContentParameters["contents"],
   config?: GenerateContentParameters["config"],
   model: string = DEFAULT_IMAGE_MODEL,
 ): Promise<GeminiImageResult> {
   const client = getGeminiClient();
-  const response = await client.models.generateContent({
+  log.debug("gemini", "generateContent: request", {
     model,
-    contents,
-    ...(config && { config }),
+    hasConfig: !!config,
+    aspectRatio: config?.imageConfig?.aspectRatio,
   });
+  let response;
+  try {
+    response = await client.models.generateContent({
+      model,
+      contents,
+      ...(config && { config }),
+    });
+  } catch (err) {
+    log.debug("gemini", "generateContent: SDK threw", { model, error: errorMessage(err) });
+    throw err;
+  }
   const parts = response.candidates?.[0]?.content?.parts ?? [];
   const result: GeminiImageResult = {};
   for (const part of parts) {
     if (part.text) result.message = part.text;
     if (part.inlineData?.data) result.imageData = part.inlineData.data;
   }
+  log.debug("gemini", "generateContent: response", {
+    model,
+    parts: parts.length,
+    hasImage: !!result.imageData,
+    hasText: !!result.message,
+    finishReason: response.candidates?.[0]?.finishReason,
+  });
   return result;
 }
 
