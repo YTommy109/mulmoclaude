@@ -31,7 +31,7 @@ import {
 } from "./archivist.js";
 import { toIsoDate, slugify } from "./paths.js";
 import { findDirtySessions, applyProcessed, type SessionFileMeta } from "./diff.js";
-import { rewriteWorkspaceLinks } from "./linkRewrite.js";
+import { rewriteWorkspaceLinks } from "../../utils/markdown.js";
 import { writeState, type JournalState } from "./state.js";
 import { log } from "../../system/logger/index.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";

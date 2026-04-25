@@ -1,6 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { rewriteWorkspaceLinks, rewriteMarkdownLinks } from "../../server/workspace/journal/linkRewrite.js";
+// The functions tested here live in `server/utils/markdown.ts`.
+// `server/workspace/journal/linkRewrite.ts` (a 4-line re-export
+// shim) was removed in #799 PR1; this file's coverage of the
+// helpers stays valuable — it exercises edge cases like
+// fragment-preserve and self-reference that the lighter coverage
+// in `test/utils/test_markdown.ts` doesn't.
+import { rewriteWorkspaceLinks, rewriteMarkdownLinks } from "../../server/utils/markdown.js";
 
 describe("rewriteWorkspaceLinks", () => {
   it("rewrites a workspace-absolute link from a topic file", () => {

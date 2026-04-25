@@ -13,6 +13,7 @@ import {
   journalStateExists as journalStateExistsRaw,
 } from "../../utils/files/journal-io.js";
 import { ONE_HOUR_MS, ONE_DAY_MS } from "../../utils/time.js";
+import { log } from "../../system/logger/index.js";
 import { isRecord } from "../../utils/types.js";
 
 // Bump this when the schema changes in a backwards-incompatible way.
@@ -62,8 +63,17 @@ export function parseState(raw: unknown): JournalState {
   if (!isRecord(raw)) return defaultState();
   const obj = raw as Record<string, unknown>;
 
-  // Version mismatch → throw it all out. Cheap to rebuild.
-  if (obj.version !== JOURNAL_STATE_VERSION) return defaultState();
+  // Version mismatch → throw it all out. Cheap to rebuild — but
+  // surface the event in the log so a postmortem can distinguish a
+  // forced re-ingest from "first run after install" / a deleted
+  // state file. (#799 PR1)
+  if (obj.version !== JOURNAL_STATE_VERSION) {
+    log.info("journal", "state schema version mismatch — resetting", {
+      from: obj.version,
+      to: JOURNAL_STATE_VERSION,
+    });
+    return defaultState();
+  }
 
   const fallback = defaultState();
   return {

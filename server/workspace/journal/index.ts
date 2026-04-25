@@ -6,6 +6,40 @@
 //
 // All failures are caught and logged here; nothing ever bubbles
 // back to the request handler.
+//
+// ── Architecture (#799) ──────────────────────────────────────────
+//
+// Three independent pipelines run from the same entry point. Each
+// has its own cadence, its own state-machine slot, and its own
+// outputs:
+//
+//   session-end
+//     │
+//     └─> maybeRunJournal()  [this file]
+//           │   gates by interval, holds the lock, traps errors
+//           │
+//           ├─> runDailyPass         (≥ 1 h since last)
+//           │     dailyPass.ts       finds new/changed sessions via
+//           │                        mtime, buckets events by local
+//           │                        date, calls `claude` CLI once
+//           │                        per day, writes daily summaries
+//           │                        + topics + state checkpoint
+//           │
+//           ├─> runOptimizationPass  (≥ 7 d since last)
+//           │     optimizationPass.ts reads existing topics, asks
+//           │                        the LLM to merge duplicates /
+//           │                        archive stale ones, writes back
+//           │                        and updates archive/
+//           │
+//           └─> extractAndAppendMemory  (end of every daily pass)
+//                 memoryExtractor.ts  scans the new daily file for
+//                                    memory-worthy facts, appends
+//                                    to the user's global memory.md
+//
+// _index.md is rebuilt at the end of every successful pass so the
+// UI's directory listing reflects whatever was just written.
+//
+// Audit + roadmap: `plans/audit-journal-subsystem.md` (#799).
 
 import { workspacePath as defaultWorkspacePath } from "../workspace.js";
 import {
