@@ -518,10 +518,11 @@ let taskPersistChain: Promise<unknown> = Promise.resolve();
 async function persistWikiPage(pageName: string, newContent: string): Promise<void> {
   // Bail if the page navigation has changed mid-flight — saving the
   // captured snapshot to a different page would clobber unrelated
-  // state. The watcher on selectedResult / route already loads the
-  // new page; touching state here is wrong.
-  const currentPageName = props.selectedResult?.data?.pageName;
-  if (currentPageName !== pageName) return;
+  // state. The watchers on route / selectedResult already load the
+  // new page; touching state here is wrong. `currentSlug()` returns
+  // the right source for both the standalone /wiki view (route
+  // params) and the tool-result-embedded view (selectedResult).
+  if (currentSlug() !== pageName) return;
 
   const response = await apiPost<{ data?: { content?: string } }>(API_ROUTES.wiki.base, {
     action: "save",
@@ -529,7 +530,7 @@ async function persistWikiPage(pageName: string, newContent: string): Promise<vo
     content: newContent,
   });
 
-  if (props.selectedResult?.data?.pageName !== pageName) return;
+  if (currentSlug() !== pageName) return;
 
   if (!response.ok) {
     navError.value = response.status === 0 ? response.error : `Wiki save failed (${response.status}): ${response.error}`;
@@ -576,7 +577,11 @@ function onTaskCheckboxClick(event: MouseEvent, target: HTMLInputElement): void 
     target.checked = !target.checked;
     return;
   }
-  const pageName = props.selectedResult?.data?.pageName;
+  // `currentSlug()` covers both mount paths — standalone /wiki/<slug>
+  // (route param) and tool-result-embedded WikiView (selectedResult).
+  // The standalone path is the primary one; reading only from
+  // selectedResult would silently no-op every click on /wiki/<slug>.
+  const pageName = currentSlug();
   if (!pageName) {
     target.checked = !target.checked;
     return;

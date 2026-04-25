@@ -121,14 +121,13 @@ describe("POST /api/wiki — action: save", () => {
     await writeFile(filePath, original, "utf-8");
 
     const updated = "---\ntitle: Foo\ntags: [a, b]\n---\n\n- [x] task one\n- [ ] task two\n";
-    const { state } = mockRes();
-    const { res } = mockRes();
+    const { state, res } = mockRes();
     await postWikiHandler(req({ action: "save", pageName: slug, content: updated }), res);
 
+    assert.equal(state.status, 200);
     const onDisk = await readFile(filePath, "utf-8");
     assert.equal(onDisk, updated);
     assert.match(onDisk, /^---\ntitle: Foo/, "frontmatter delimiters should round-trip");
-    void state;
   });
 
   it("rejects a request with no pageName", async () => {
