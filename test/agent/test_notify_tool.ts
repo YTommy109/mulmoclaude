@@ -23,27 +23,33 @@ describe("notify MCP tool — input validation", () => {
   });
 });
 
-describe("notify MCP tool — happy path", () => {
-  it("returns a confirmation including the title", async () => {
-    const result = await notify.handler({ title: "Build done" });
-    assert.match(result, /Notification sent: Build done/);
-  });
-
-  it("appends the body line when supplied", async () => {
-    const result = await notify.handler({ title: "Build done", body: "All 12 steps green" });
-    assert.equal(result, "Notification sent: Build done\nAll 12 steps green");
-  });
-
-  it("trims surrounding whitespace from title and body", async () => {
-    const result = await notify.handler({ title: "  hi  ", body: "  there  " });
-    assert.equal(result, "Notification sent: hi\nthere");
-  });
-
-  it("treats a whitespace-only body as missing", async () => {
-    const result = await notify.handler({ title: "hi", body: "   " });
-    assert.equal(result, "Notification sent: hi");
-  });
-});
+// Happy-path tests disabled — they call the real
+// `publishNotification`, which on darwin spawns `osascript` and adds a
+// real entry to the user's Reminders.app every time `yarn test` runs
+// (#789 follow-up). Until publishNotification is injectable into the
+// notify tool, leave these commented out.
+//
+// describe("notify MCP tool — happy path", () => {
+//   it("returns a confirmation including the title", async () => {
+//     const result = await notify.handler({ title: "Build done" });
+//     assert.match(result, /Notification sent: Build done/);
+//   });
+//
+//   it("appends the body line when supplied", async () => {
+//     const result = await notify.handler({ title: "Build done", body: "All 12 steps green" });
+//     assert.equal(result, "Notification sent: Build done\nAll 12 steps green");
+//   });
+//
+//   it("trims surrounding whitespace from title and body", async () => {
+//     const result = await notify.handler({ title: "  hi  ", body: "  there  " });
+//     assert.equal(result, "Notification sent: hi\nthere");
+//   });
+//
+//   it("treats a whitespace-only body as missing", async () => {
+//     const result = await notify.handler({ title: "hi", body: "   " });
+//     assert.equal(result, "Notification sent: hi");
+//   });
+// });
 
 describe("notify MCP tool — definition shape", () => {
   it("declares title as required and body as optional", () => {
