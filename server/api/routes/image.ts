@@ -46,15 +46,17 @@ async function respondWithImage(
 ): Promise<void> {
   if (!imageData) {
     // Gemini returned text-only / no image — typically a refusal,
-    // safety filter, or a quota miss. Previously this was returned
-    // as HTTP 200 with no `data`, so both the caller and the agent
-    // saw it as success; the client rendered nothing and the LLM's
-    // instructions assumed the image was shown. Surface it as an
-    // HTTP error instead so the agent can retry or rephrase.
-    res.status(502).json({
-      success: false,
-      message: fallbackMessage ?? `no image data in Gemini ${kind} response (likely a refusal or safety filter)`,
-    });
+    // safety filter, or a quota miss. Codex flagged this branch
+    // (review of #780) for treating refusals as success; switching
+    // it to a 502 is the obvious fix, but `apiPost.extractError`
+    // only extracts `body.error` and image responses use
+    // `{ success: false, message }`, so the agent would lose the
+    // Gemini-side message and see only "Bad Gateway". Leaving
+    // behavior unchanged here until the shared error-shape
+    // (`extractError` accepting `message`, or all image responses
+    // adopting `error`) lands in a separate PR — see #783 review
+    // history.
+    res.json({ message: fallbackMessage ?? "no image data in response" });
     return;
   }
   const imagePath = await saveImage(imageData);
