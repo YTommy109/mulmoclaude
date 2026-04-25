@@ -474,7 +474,7 @@ describe("kanban field preservation", () => {
     const item = makeTodo({
       id: "a",
       text: "Old",
-      status: "in_progress",
+      status: "in-progress",
       priority: "high",
       dueDate: "2026-04-20",
       order: 2500,
@@ -484,7 +484,7 @@ describe("kanban field preservation", () => {
     if (result.kind !== "success") return;
     const updated = result.items[0];
     assert.equal(updated?.text, "New");
-    assert.equal(updated?.status, "in_progress");
+    assert.equal(updated?.status, "in-progress");
     assert.equal(updated?.priority, "high");
     assert.equal(updated?.dueDate, "2026-04-20");
     assert.equal(updated?.order, 2500);
@@ -495,7 +495,7 @@ describe("kanban field preservation", () => {
       id: "a",
       text: "x",
       completed: false,
-      status: "in_progress",
+      status: "in-progress",
       priority: "urgent",
       dueDate: "2026-05-01",
       order: 4500,
@@ -505,7 +505,7 @@ describe("kanban field preservation", () => {
     if (result.kind !== "success") return;
     const updated = result.items[0];
     assert.equal(updated?.completed, true);
-    assert.equal(updated?.status, "in_progress");
+    assert.equal(updated?.status, "in-progress");
     assert.equal(updated?.priority, "urgent");
     assert.equal(updated?.dueDate, "2026-05-01");
     assert.equal(updated?.order, 4500);
