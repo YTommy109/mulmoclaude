@@ -30,6 +30,7 @@ export const WIKI_ACTION = {
   page: "page",
   log: "log",
   lintReport: "lint_report",
+  save: "save",
 } as const;
 
 export type WikiAction = (typeof WIKI_ACTION)[keyof typeof WIKI_ACTION];

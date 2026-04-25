@@ -541,7 +541,7 @@ async function persistWikiPage(pageName: string, newContent: string, generation:
   if (currentSlug() !== pageName) return;
 
   const response = await apiPost<{ data?: { content?: string } }>(API_ROUTES.wiki.base, {
-    action: "save",
+    action: WIKI_ACTION.save,
     pageName,
     content: newContent,
   });
