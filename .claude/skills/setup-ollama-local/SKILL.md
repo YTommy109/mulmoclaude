@@ -67,9 +67,10 @@ Confirm the user's RAM and use case before recommending. Verified working models
 | 8–16GB | (Claude Code × Ollama is impractical here) | — | Cold start exceeds 10 min timeout |
 | 32GB | **`qwen3.5:9b`** | 6.6GB | Most practical, lightest fit |
 | 32GB | `qwen3.6:35b-a3b` | 23GB | MoE (3B active), heavier but works |
+| 16–32GB | `gemma4:e4b` | 3GB on disk (~10.9 GiB resident) | Verified on 32GB; thinking blocks render correctly |
 | 24GB+ (NVIDIA) | `glm-4.7-flash` | 19GB | 198k context, untested on Mac |
 
-Avoid: `qwen3:14b` (40k training limit), `qwen2.5-coder:14b` (older runner ignores `OLLAMA_CONTEXT_LENGTH`), `gemma4:*` (Content block parse errors), `gpt-oss:20b` (Ollama template bug). See findings doc for details.
+Avoid: `qwen3:14b` (40k training limit), `qwen2.5-coder:14b` (older runner ignores `OLLAMA_CONTEXT_LENGTH`), `gemma4:26b` (Content block parse errors — note: `gemma4:e4b` is fine), `gpt-oss:20b` (Ollama template bug). See findings doc for details.
 
 ```bash
 ollama pull <model>

@@ -27,16 +27,15 @@ UX 上の問題も継承される: 検証で動作確認できた最軽量モデ
 
 ### Tier 1: env と CLI フラグのパススルー（50〜100 行、半日）
 
-パワーユーザーが `settings.json` を直接編集してバックエンド切替できる最小実装。
+パワーユーザーが起動時の env でバックエンドを切り替えられる最小実装。**設定の唯一のソースは `process.env`**。`settings.json` 連携は Tier 2 で扱う（永続化と UI が必要になるため、Tier 1 で持ち込むと完了基準が曖昧になる）。これは既存の `GEMINI_API_KEY` の取り回しと同じパターン。
 
 - [server/system/env.ts](../server/system/env.ts): `ollamaBaseUrl?`、`ollamaModel?` を追加（または `llmProvider: "cloud" | "ollama"` のような discriminator）。`process.env` から読み込み。
 - [server/agent/config.ts](../server/agent/config.ts):
   - `buildCliArgs`: ローカルモード時に `"--model", ollamaModel` を追加。
   - `buildDockerSpawnArgs`: ローカルモード時に `-e ANTHROPIC_AUTH_TOKEN=ollama -e ANTHROPIC_API_KEY= -e ANTHROPIC_BASE_URL=http://host.docker.internal:11434` と `--add-host host.docker.internal:host-gateway`（Linux/Mac）を追加。
 - [server/agent/index.ts](../server/agent/index.ts) の `spawnClaude`: ローカルモード時に `env: { ...process.env, ANTHROPIC_* }` を渡す（非 Docker パスは自動継承、Docker パスは上記の `-e` で対応）。
-- [server/system/config.ts](../server/system/config.ts): settings スキーマに `llm` オブジェクト（例: `{ provider: "cloud" | "ollama", ollamaBaseUrl?, ollamaModel? }`）を追加。
 
-完了基準 = `~/mulmoclaude/config/settings.json` の手動編集でバックエンドが切り替わる。
+完了基準 = `OLLAMA_MODEL=qwen3.5:9b OLLAMA_BASE_URL=http://localhost:11434 npm run dev` のように env を渡して起動するとローカル接続される。
 
 ### Tier 2: 設定 UI と接続テスト（300〜500 行、2〜3 日）— **推奨**
 
@@ -44,6 +43,7 @@ UX 上の問題も継承される: 検証で動作確認できた最軽量モデ
 
 Tier 1 に追加で:
 
+- [server/system/config.ts](../server/system/config.ts): settings スキーマに `llm` オブジェクトを追加（例: `{ provider: "cloud" | "ollama", ollamaBaseUrl?, ollamaModel? }`）。優先順位は **env > settings.json > デフォルト（cloud）**。env が未設定なら settings.json を読み、どちらも未設定ならクラウドにフォールバック。
 - [`src/components/`](../src/components/) 配下に新しい Vue セクション（既存設定ペインと並べる）。プロバイダのラジオボタン、base URL 入力（デフォルト `http://localhost:11434`）、モデル選択ドロップダウン。
 - `GET /api/settings/ollama/models` ルート: `GET <baseUrl>/v1/models` をプロキシしてリストを返す。ドロップダウン用。
 - `POST /api/settings/ollama/test` ルート: 最小限の `/v1/messages` リクエストを投げ、`{ ok, kvSize, contextLength, error? }` を返す。「接続テスト」ボタン用。
@@ -51,7 +51,7 @@ Tier 1 に追加で:
 - chat ヘッダーにステータスインジケータを表示（**Cloud** vs **Ollama (モデル名)**）。アクティブバックエンドが曖昧にならないように。
 - UI 上に警告コピー: 速度トレードオフと、tool calling に依存する MulmoClaude プラグイン/スキルがローカルモデルでは不安定であること。
 - テスト:
-  - Unit: env パース、settings の round-trip、両モードでの CLI args 構築（既存の `test/agent/config.test.ts` 風カバレッジ）。
+  - Unit: env パース、settings の round-trip、両モードでの CLI args 構築（既存の `test/agent/test_agent_config.ts` 風カバレッジ）。
   - E2E: `localhost:11434` をモックする fixture で設定 UI フロー + 「接続テスト」パスを検証。
 
 ### Tier 3: プロダクション仕上げ（1000+ 行、1〜2 週間）
