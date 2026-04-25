@@ -12,7 +12,7 @@ import { isNonEmptyString, isRecord } from "../utils/types.js";
 import { API_ROUTES } from "../../src/config/apiRoutes.js";
 import { env } from "../system/env.js";
 import { extractFetchError, fetchWithTimeout } from "../utils/fetch.js";
-import { ONE_SECOND_MS } from "../utils/time.js";
+import { ONE_MINUTE_MS, ONE_SECOND_MS } from "../utils/time.js";
 import { safeResponseText } from "../utils/http.js";
 import { readTextSafeSync } from "../utils/files/safe.js";
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
@@ -123,6 +123,16 @@ const tools = PLUGIN_NAMES.map((name) => ALL_TOOLS[name]).filter(Boolean);
 // 30-60 s tool-call window.
 const MCP_TOOL_BRIDGE_TIMEOUT_MS = 30 * ONE_SECOND_MS;
 
+// Plugin tools (e.g. presentDocument, openCanvas) may invoke generative
+// AI — image generation routinely takes 10–30 s per call, video can run
+// for several minutes, and a single tool invocation can fan out to
+// multiple parallel generations. The bridge MUST stay out of the way:
+// set a ceiling far above any realistic completion time so the limiting
+// factor is the agent SDK's own tool-call window, never this fetch.
+// Pick 20 minutes — long enough for batch image gen + future video gen,
+// short enough that a truly wedged Express handler still surfaces.
+const PLUGIN_BRIDGE_TIMEOUT_MS = 20 * ONE_MINUTE_MS;
+
 function respond(msg: unknown): void {
   process.stdout.write(JSON.stringify(msg) + "\n");
 }
@@ -141,6 +151,34 @@ function respond(msg: unknown): void {
 // Pass `allowHttpError: true` for callers that want to inspect the
 // response themselves (e.g. /api/mcp-tools/* which has its own
 // status-aware result handling).
+//
+// =====================================================================
+// TIMEOUT POLICY — read this before adding a new bridge call
+// =====================================================================
+// The default `timeoutMs` from `fetchWithTimeout` is 10 s, sized for
+// healthy localhost round-trips. THAT IS TOO SHORT for any handler
+// that fans out to generative AI (image / video / model calls) or
+// hits a slow external API. Whenever the downstream handler can
+// legitimately take longer than ~5 s, the caller MUST pass an
+// explicit `timeoutMs` that comfortably exceeds the worst realistic
+// completion time:
+//
+//   - Generative AI plugins (presentDocument, openCanvas, …)
+//     → use `PLUGIN_BRIDGE_TIMEOUT_MS` (20 min). Image batches and
+//       future video generation MUST NOT be limited by the bridge.
+//   - External-API MCP tools (readXPost, searchX, …)
+//     → use `MCP_TOOL_BRIDGE_TIMEOUT_MS` (30 s) or a custom value
+//       larger than the inner API's own timeout.
+//   - Pure server-state RPCs (toolResult push, role switch, …)
+//     → default 10 s is fine; these are local JSON round-trips.
+//
+// On EVERY failure (timeout, abort, connection reset, HTTP 5xx) this
+// function MUST emit an error log to stderr. Silent timeouts are the
+// exact failure mode that hid the original bug — the server kept
+// generating images, the bridge gave up at 10 s, and the user saw
+// "tool failed" with no trace in the logs. If you change the catch
+// block below, keep the log emission.
+// =====================================================================
 interface PostJsonOpts {
   allowHttpError?: boolean;
   // Override the default bridge-call timeout. Needed when the
@@ -158,6 +196,7 @@ async function postJson(path: string, body: unknown, opts: PostJsonOpts = {}): P
   // The path arg is used as-is because all current call sites pass
   // hardcoded literals.
   let res: Response;
+  const startedAt = Date.now();
   try {
     res = await fetchWithTimeout(`${BASE_URL}${path}?session=${encodeURIComponent(SESSION_ID)}`, {
       method: "POST",
@@ -166,6 +205,13 @@ async function postJson(path: string, body: unknown, opts: PostJsonOpts = {}): P
       timeoutMs: opts.timeoutMs,
     });
   } catch (err) {
+    // `fetchWithTimeout` throws a DOMException("TimeoutError") when
+    // the timer fires; surface that case explicitly so the operator
+    // can tell "timeout vs. connection error" at a glance.
+    const elapsedMs = Date.now() - startedAt;
+    const isTimeout = err instanceof DOMException && err.name === "TimeoutError";
+    const kind = isTimeout ? "TIMEOUT" : "NETWORK";
+    console.error(`[mcp-bridge] ${kind} ${path} after ${elapsedMs}ms (timeoutMs=${opts.timeoutMs ?? "default"}): ${errorMessage(err)}`);
     throw new Error(`Network error calling ${path}: ${errorMessage(err)}`);
   }
   if (!opts.allowHttpError && !res.ok) {
@@ -338,7 +384,11 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   const tool = tools.find((toolDef) => toolDef.name === name);
   if (!tool) throw new Error(`Unknown tool: ${name}`);
 
-  const res = await postJson(tool.endpoint!, args);
+  // Plugin handlers can fan out to generative AI (image batches via
+  // presentDocument, future video). The bridge MUST wait long enough
+  // for the slowest realistic completion — see PLUGIN_BRIDGE_TIMEOUT_MS
+  // and the timeout-policy comment on `postJson`.
+  const res = await postJson(tool.endpoint!, args, { timeoutMs: PLUGIN_BRIDGE_TIMEOUT_MS });
   const result = await res.json();
 
   // Push visual ToolResult to the frontend via the session

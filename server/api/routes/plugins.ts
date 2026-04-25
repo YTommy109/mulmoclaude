@@ -1,4 +1,3 @@
-import path from "path";
 import { Router, Request, Response } from "express";
 import { executeMindMap } from "@gui-chat-plugin/mindmap";
 import { executeSpreadsheet, type SpreadsheetArgs } from "../../../src/plugins/spreadsheet/definition.js";
@@ -6,15 +5,13 @@ import { executeQuiz } from "@mulmochat-plugin/quiz";
 import { executeForm } from "@mulmochat-plugin/form";
 import { executeOpenCanvas } from "../../../src/plugins/canvas/definition.js";
 import { executePresent3D } from "@gui-chat-plugin/present3d";
-import { generateGeminiImageFromPrompt, isGeminiAvailable } from "../../utils/gemini.js";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, serverError } from "../../utils/httpError.js";
-import { log } from "../../system/logger/index.js";
 import { saveImage } from "../../utils/files/image-store.js";
+import { fillMarkdownImagePlaceholders } from "../../utils/files/markdown-image-fill.js";
 import { saveMarkdown, overwriteMarkdown, isMarkdownPath } from "../../utils/files/markdown-store.js";
 import { saveSpreadsheet, overwriteSpreadsheet, isSpreadsheetPath } from "../../utils/files/spreadsheet-store.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
-import { WORKSPACE_DIRS } from "../../workspace/paths.js";
 
 const router = Router();
 
@@ -46,78 +43,6 @@ function wrapPluginExecute<TBody = any, TResult = unknown>(
   };
 }
 
-const IMAGE_PLACEHOLDER = /!\[([^\]]+)\]\(\/?__too_be_replaced_image_path__\)/g;
-
-async function generateImageFile(prompt: string): Promise<string | null> {
-  if (!isGeminiAvailable()) return null;
-  try {
-    const { imageData } = await generateGeminiImageFromPrompt(prompt);
-    if (imageData) return saveImage(imageData);
-    log.warn("present-document", "Gemini returned no image data for prompt", {
-      promptPreview: prompt.slice(0, 80),
-    });
-  } catch (err) {
-    // Surface the failure so missing-image symptoms in the canvas
-    // are debuggable from the server log instead of vanishing.
-    log.warn("present-document", "Gemini image generation failed", {
-      error: errorMessage(err),
-      promptPreview: prompt.slice(0, 80),
-    });
-  }
-  return null;
-}
-
-async function fillImagePlaceholders(markdown: string): Promise<string> {
-  const matches = [...markdown.matchAll(IMAGE_PLACEHOLDER)];
-  if (matches.length === 0) return markdown;
-  // Only attempt generation when Gemini is wired up; otherwise the
-  // placeholder still gets stripped below so we don't leak a broken
-  // <img src="...__too_be_replaced_image_path__"> into the rendered
-  // document.
-  const geminiOk = isGeminiAvailable();
-  if (!geminiOk) {
-    log.warn("present-document", "GEMINI_API_KEY not set — image placeholders will render as text markers", { placeholderCount: matches.length });
-  }
-
-  const results = await Promise.all(
-    matches.map(async (match) => ({
-      full: match[0],
-      prompt: match[1],
-      url: geminiOk ? await generateImageFile(match[1]) : null,
-    })),
-  );
-
-  // Surface a single tally line so the operator can see the
-  // success rate even when most calls go through. The per-call
-  // error already lands at warn from generateImageFile's catch.
-  if (geminiOk) {
-    const failed = results.filter((result) => !result.url).length;
-    if (failed > 0) {
-      log.warn("present-document", "image generation had failures", {
-        failed,
-        total: results.length,
-      });
-    }
-  }
-
-  let filled = markdown;
-  for (const { full, prompt, url } of results) {
-    // On success → real image. On failure / no key → italic text
-    // marker so the alt prompt still surfaces but no broken image
-    // 404s through the View. The user can re-render later once
-    // GEMINI_API_KEY is set.
-    filled = filled.replace(
-      full,
-      // `url` is workspace-relative (e.g. "artifacts/images/xxx.png").
-      // The document lives at "artifacts/documents/yyy.md". Compute a
-      // relative path from the document's directory so the markdown
-      // image reference resolves correctly.
-      url ? `![${prompt}](${path.posix.relative(WORKSPACE_DIRS.markdowns, url)})` : `*🖼️ Image: ${prompt}*`,
-    );
-  }
-  return filled;
-}
-
 // presentDocument — fills image placeholders via Gemini if API key is available
 interface PresentDocumentBody {
   title: string;
@@ -143,7 +68,7 @@ router.post(
       badRequest(res, "filenamePrefix is required");
       return;
     }
-    const filledMarkdown = await fillImagePlaceholders(markdown);
+    const filledMarkdown = await fillMarkdownImagePlaceholders(markdown);
     const markdownPath = await saveMarkdown(filledMarkdown, filenamePrefix);
     res.json({
       message: `Document "${title}" is ready.`,
