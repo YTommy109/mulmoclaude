@@ -223,6 +223,31 @@ describe("disambiguateSlug", () => {
     assert.ok(result.endsWith("-2"));
   });
 
+  it("strips a trailing hyphen on the no-truncation path too (Codex iter-3 #732)", () => {
+    // Defensive boundary: a short base ending with "-" fits within
+    // `room` so the early-return path applies. Without trimming, the
+    // join would yield "abc--2" which fails `isValidSlug`.
+    // Current callers (slugify producers) never emit a trailing-
+    // hyphen base, but the helper is exported, so it must stay safe
+    // for any input.
+    const result = disambiguateSlug("abc-", new Set(["abc-"]));
+    assert.equal(result.indexOf("--"), -1, `must not contain '--', got "${result}"`);
+    assert.equal(result, "abc-2");
+    assert.ok(isValidSlug(result));
+  });
+
+  it("strips a trailing hyphen at exactly room-size (no overflow, no early return shortcut)", () => {
+    // Base length === room (118 for `-2`); the cut point falls exactly
+    // at the trailing hyphen. Both paths (overflow / no-overflow) must
+    // converge on the same trim behaviour — Codex iter-3 specifically
+    // flagged this exact-room-size boundary.
+    const base = "y".repeat(117) + "-"; // length 118 = room for `-2`
+    const result = disambiguateSlug(base, new Set([base]));
+    assert.equal(result.indexOf("--"), -1, `must not contain '--', got "${result}"`);
+    assert.ok(isValidSlug(result));
+    assert.ok(result.endsWith("-2"));
+  });
+
   it("walks the truncated suffix through -3, -4 too", () => {
     const base = "a".repeat(DEFAULT_MAX_LENGTH);
     const existing = new Set([base, disambiguateSlug(base, new Set([base])), disambiguateSlug(base, new Set([base, disambiguateSlug(base, new Set([base]))]))]);

@@ -76,10 +76,16 @@ export function disambiguateSlug(base: string, existingIds: ReadonlySet<string>)
   const compose = (suffix: number): string => {
     const tail = `-${suffix}`;
     const room = DEFAULT_MAX_LENGTH - tail.length;
-    if (base.length <= room) return `${base}${tail}`;
-    // Manual loop instead of a regex — `sonarjs/slow-regex` flags
-    // `-+$` even though the input here is already <= DEFAULT_MAX_LENGTH.
-    let end = room;
+    // Pick the cut: full base when it already fits, room-truncated
+    // otherwise. Then strip any trailing hyphen at that cut so the
+    // join never yields `--` (which `isValidSlug` rejects). The
+    // strip applies to BOTH paths — current callers (slugify
+    // producers) never pass a trailing-hyphen base, but the helper
+    // is exported so future callers must not be able to coerce it
+    // into an invalid slug. Manual loop instead of a regex —
+    // `sonarjs/slow-regex` flags `-+$` even on this bounded input.
+    const cut = base.length <= room ? base.length : room;
+    let end = cut;
     while (end > 0 && base[end - 1] === "-") end--;
     return `${base.slice(0, end)}${tail}`;
   };
