@@ -93,4 +93,41 @@ describe("buildDailyPassPlan", () => {
     });
     assert.equal(plan, null);
   });
+
+  it("returns a plan with empty buckets when every dirty session parses to zero excerpts (regression-sensitive)", async () => {
+    // A session jsonl that contains ONLY metadata entries — the
+    // parser drops them via `isMetadataEntry`, so the session is
+    // "dirty" by mtime but produces zero excerpts. The planner is
+    // documented (line 102-108) to NOT short-circuit on this case:
+    // it must still snapshot existingTopics and seed
+    // initialNextState. If a future "simplification" replaces the
+    // helper with `if (perSessionExcerpts.size === 0) return null`,
+    // this test fails loudly.
+    const sessionId = "22222222-2222-2222-2222-222222222222";
+    const sessionFile = path.join(workspaceRoot, "conversations", "chat", `${sessionId}.jsonl`);
+    await mkdir(path.dirname(sessionFile), { recursive: true });
+    // Two metadata-only lines — both filtered by isMetadataEntry,
+    // so `parseJsonlEvents` returns []. No text/tool_result entries
+    // means dayBuckets stays empty.
+    const meta1 = { type: "session_meta", roleId: "general" };
+    const meta2 = { type: "claude_session_id", id: "claude-abc" };
+    await writeFile(sessionFile, `${JSON.stringify(meta1)}\n${JSON.stringify(meta2)}\n`);
+
+    const plan = await buildDailyPassPlan(defaultState(), {
+      workspaceRoot,
+      summarize: noopSummarize,
+      activeSessionIds: new Set(),
+    });
+
+    assert.ok(plan, "plan should be non-null even when all dirty sessions parse to zero excerpts");
+    assert.equal(plan.dayBuckets.size, 0, "dayBuckets should be empty");
+    assert.equal(plan.perSessionExcerpts.size, 0, "perSessionExcerpts should be empty");
+    assert.equal(plan.orderedDays.length, 0, "no days to process");
+    // initialNextState must still be normalised so a later run sees
+    // a sorted knownTopics list.
+    assert.deepEqual(plan.initialNextState.knownTopics, []);
+    // The dirty session must still be tracked in dirtyMetaById so
+    // anything downstream could (in principle) mark it processed.
+    assert.ok(plan.dirtyMetaById.has(sessionId), "metadata-only session is still tracked as dirty");
+  });
 });
