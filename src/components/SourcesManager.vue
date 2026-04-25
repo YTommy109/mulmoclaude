@@ -146,18 +146,15 @@
           role="toolbar"
           :aria-label="t('pluginManageSource.filter.all')"
         >
-          <button
+          <FilterChip
             v-for="key in visibleFilterKeys"
             :key="key"
-            class="text-[11px] px-2 py-0.5 rounded-full border transition-colors"
-            :class="filterKey === key ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+            :active="filterKey === key"
+            :label="filterChipLabel(key)"
+            :count="filterCounts[key]"
             :data-testid="`sources-filter-chip-${key}`"
-            :aria-pressed="filterKey === key"
             @click="selectFilter(key)"
-          >
-            {{ filterChipLabel(key) }}
-            <span class="ml-1 text-[10px] opacity-80">{{ filterCounts[key] }}</span>
-          </button>
+          />
         </div>
 
         <!-- Filter-only empty state. Distinct from the no-sources
@@ -272,6 +269,7 @@ import type { ManageSourceData, RebuildSummary, Source } from "../plugins/manage
 import { apiGet, apiPost, apiDelete } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
 import { SOURCE_FILTER_KEYS, countByFilter, matchesSourceFilter, type SourceFilterKey } from "../utils/sources/filter";
+import FilterChip from "./FilterChip.vue";
 
 const { t } = useI18n();
 

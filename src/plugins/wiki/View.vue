@@ -121,30 +121,24 @@
     <!-- Index: tag filter + page card list -->
     <div v-else-if="action === 'index' && pageEntries && pageEntries.length > 0" class="flex-1 flex flex-col overflow-hidden">
       <div v-if="allTags.length > 0 || selectedTag !== null" class="shrink-0 border-b border-gray-100 px-4 py-2 flex flex-wrap gap-1">
-        <button
-          :class="['tag-chip', selectedTag === null ? 'tag-chip-active' : 'tag-chip-inactive']"
-          data-testid="wiki-tag-filter-all"
-          @click="selectedTag = null"
-        >
-          {{ t("pluginWiki.tagFilterAll") }}
-        </button>
-        <button
+        <FilterChip :active="selectedTag === null" :label="t('pluginWiki.tagFilterAll')" data-testid="wiki-tag-filter-all" @click="selectedTag = null" />
+        <FilterChip
           v-for="[tag, count] in allTags"
           :key="tag"
-          :class="['tag-chip', selectedTag === tag ? 'tag-chip-active' : 'tag-chip-inactive']"
+          :active="selectedTag === tag"
+          :label="tag"
+          :count="count"
           :data-testid="`wiki-tag-filter-${tag}`"
           @click="toggleTagFilter(tag)"
-        >
-          {{ tag }} ({{ count }})
-        </button>
-        <button
+        />
+        <FilterChip
           v-if="selectedTag !== null && !allTags.some(([tag]) => tag === selectedTag)"
-          class="tag-chip tag-chip-active"
+          :active="true"
+          :label="selectedTag"
+          :count="1"
           :data-testid="`wiki-tag-filter-${selectedTag}`"
           @click="toggleTagFilter(selectedTag)"
-        >
-          {{ `${selectedTag} (1)` }}
-        </button>
+        />
       </div>
       <div v-if="visibleEntries.length === 0 && selectedTag" class="flex-1 flex items-center justify-center text-gray-400 text-sm px-4 text-center">
         {{ t("pluginWiki.noMatches", { tag: selectedTag }) }}
@@ -240,6 +234,7 @@ import { apiPost } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { PAGE_ROUTES } from "../../router";
 import { WIKI_ACTION, WIKI_ROUTE_SECTION, buildWikiRouteParams, isSafeWikiSlug, readWikiRouteTarget, wikiActionFor, type WikiTarget } from "./route";
+import FilterChip from "../../components/FilterChip.vue";
 
 type WikiTabView = typeof WIKI_ACTION.log | typeof WIKI_ACTION.lintReport;
 
@@ -683,30 +678,6 @@ function handleContentClick(event: MouseEvent) {
 </script>
 
 <style scoped>
-.tag-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.125rem 0.5rem;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  border-radius: 9999px;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-.tag-chip-active {
-  background-color: #2563eb;
-  color: white;
-  border-color: #2563eb;
-}
-.tag-chip-inactive {
-  background-color: #f3f4f6;
-  color: #374151;
-  border-color: #e5e7eb;
-}
-.tag-chip-inactive:hover {
-  background-color: #e5e7eb;
-}
 .entry-tag-chip {
   display: inline-flex;
   align-items: center;
