@@ -122,6 +122,7 @@
             </div>
           </div>
           <PageChatComposer
+            :key="selected.id"
             :placeholder="t('pluginNews.chatPlaceholder')"
             :prepend-text="`Read this article. ${selected.url}`"
             :allow-empty="true"

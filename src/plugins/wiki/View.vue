@@ -187,6 +187,7 @@
          a nested new session from there is confusing. -->
     <PageChatComposer
       v-if="action === 'page' && content && isStandaloneWikiRoute && currentSlug() !== null"
+      :key="currentSlug() ?? ''"
       :placeholder="t('pluginWiki.chatPlaceholder')"
       :prepend-text="`Before answering, read the wiki page at data/wiki/pages/${currentSlug()}.md.`"
       test-id-prefix="wiki-page-chat"
