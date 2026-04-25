@@ -393,6 +393,7 @@ const enMessages = {
     tagFilterAll: "All",
     noMatches: "No pages tagged #{tag}",
     lintChat: "Lint My Wiki",
+    taskCountMismatch: "Wiki source and rendered output disagree on the number of tasks. Refusing to toggle to avoid corruption.",
   },
   pluginPresentHtml: {
     saveAsPdf: "Save as PDF (opens print dialog)",

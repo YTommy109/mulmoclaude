@@ -372,6 +372,7 @@ const ptBRMessages = {
     tagFilterAll: "Todas",
     noMatches: "Nenhuma página com a tag #{tag}",
     lintChat: "Revisar meu wiki",
+    taskCountMismatch: "A fonte do wiki e a saída renderizada divergem no número de tarefas. A alternância foi recusada para evitar corromper o arquivo.",
   },
   pluginPresentHtml: {
     saveAsPdf: "Salvar como PDF (abre o diálogo de impressão)",

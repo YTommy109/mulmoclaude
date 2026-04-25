@@ -379,6 +379,7 @@ const esMessages = {
     tagFilterAll: "Todas",
     noMatches: "No hay páginas con la etiqueta #{tag}",
     lintChat: "Revisar mi wiki",
+    taskCountMismatch: "La fuente del wiki y la salida renderizada difieren en el número de tareas. Se rechazó el cambio para evitar dañar el archivo.",
   },
   pluginPresentHtml: {
     saveAsPdf: "Guardar como PDF (abre el diálogo de impresión)",
