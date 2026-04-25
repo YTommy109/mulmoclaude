@@ -10,7 +10,7 @@
           data-testid="todo-search"
           type="text"
           :placeholder="t('todoExplorer.searchPlaceholder')"
-          class="h-8 px-2 text-sm border border-gray-200 rounded w-44 focus:outline-none focus:border-blue-400"
+          class="h-8 px-2.5 text-sm border border-gray-200 rounded w-44 focus:outline-none focus:border-blue-400"
         />
       </div>
       <div class="flex items-center gap-2">
