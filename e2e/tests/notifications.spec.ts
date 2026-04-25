@@ -199,7 +199,10 @@ test.describe("notification permalinks", () => {
     await mockAllApis(page, { sessions: [] });
     await installNotificationStream(page, [first, second]);
 
-    await page.goto("/");
+    // Avoid the /chat home-redirect's auto-session-create — it
+    // races with the notification click and intermittently
+    // clobbers the post-click URL.
+    await page.goto("/todos");
     await expect(page.getByTestId("notification-badge")).toHaveText("2", { timeout: 5000 });
 
     // Open the panel — badge must NOT auto-clear.
@@ -229,7 +232,7 @@ test.describe("notification permalinks", () => {
     await mockAllApis(page, { sessions: [] });
     await installNotificationStream(page, [payload]);
 
-    await page.goto("/");
+    await page.goto("/todos");
     await expect(page.getByTestId("notification-badge")).toHaveText("1", { timeout: 5000 });
 
     await page.getByTestId("notification-bell").click();
@@ -247,7 +250,13 @@ test.describe("notification permalinks", () => {
       await mockAllApis(page, { sessions: [] });
       await installNotificationStream(page, scenario.payload);
 
-      await page.goto("/");
+      // Start on /todos rather than /. The home redirect lands on
+      // /chat, where App.vue auto-creates a session if none is
+      // present — that auto-navigation races with the notification
+      // click on chat-target scenarios and intermittently clobbers
+      // the post-click URL with the freshly-created sessionId.
+      // /todos is a quiet page with no auto-navigation side effects.
+      await page.goto("/todos");
 
       // Bell badge appears only after the mock socket delivers the
       // payload — waiting on it confirms the subscription and the
