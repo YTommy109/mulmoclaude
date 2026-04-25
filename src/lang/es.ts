@@ -19,6 +19,7 @@ const esMessages = {
     saved: "Guardado",
     noResultsYet: "Aún no hay resultados",
     noImageYet: "Aún no hay imagen",
+    sendChat: "Iniciar un chat nuevo",
   },
   sessionTabBar: {
     newSession: "Nueva sesión",
@@ -371,7 +372,6 @@ const esMessages = {
     empty: "El wiki está vacío. Pide al Wiki Manager que ingiera una fuente.",
     previewMore: "+ {count} más…",
     chatPlaceholder: "Pregunta sobre esta página…",
-    chatSend: "Iniciar un chat nuevo sobre esta página",
     emptyPage: 'La página "{title}" aún no existe.',
     emptyContent: 'La página "{title}" existe pero no tiene contenido.',
     createPage: "Solicitar la creación de esta página wiki",

@@ -19,6 +19,7 @@ const koMessages = {
     saved: "저장됨",
     noResultsYet: "아직 결과가 없습니다",
     noImageYet: "아직 이미지가 없습니다",
+    sendChat: "새 채팅 시작",
   },
   sessionTabBar: {
     newSession: "새 세션",
@@ -369,7 +370,6 @@ const koMessages = {
     empty: "Wiki 가 비어 있습니다. Wiki Manager 에게 소스를 수집하도록 요청하세요.",
     previewMore: "+ {count}개 더…",
     chatPlaceholder: "이 페이지에 대해 질문…",
-    chatSend: "이 페이지에 대한 새 채팅 시작",
     emptyPage: "「{title}」 페이지가 아직 없습니다.",
     emptyContent: "「{title}」 페이지는 존재하지만 내용이 없습니다.",
     createPage: "이 Wiki 페이지 작성 요청",
