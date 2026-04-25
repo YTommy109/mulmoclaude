@@ -52,7 +52,7 @@ Example: `qwen3:14b` is trained with a 40960 (40k) limit, so it cannot fit Claud
 | `qwen3:14b` | 9GB | ✗ | Training limit 40k, 50k prompt is truncated |
 | `qwen2.5-coder:14b` | 9GB | ✗ | Old runner, 64k setting ignored, stuck at 32k |
 | `qwen3.6:35b-a3b` | 23GB | ✓ | MoE (3B active), first turn 13 min, Japanese thinking OK |
-| `gemma4:e4b` | 3GB | ✗ | Claude Code hangs for over a minute with no response |
+| `gemma4:e4b` | 3GB (actual weights ~8.9 GiB) | ✓ | Confirmed working on re-test. Earlier failure likely due to missing `OLLAMA_CONTEXT_LENGTH=65536`. Responds with thinking blocks |
 | `gemma4:26b` | 17GB | ✗ | `API Error: Content block not found` (re-verified — thinking block format is incompatible with Claude Code) |
 | `gpt-oss:20b` | 13GB | ✗ | Bug in Ollama's prompt template, 500 error parsing tool definitions |
 | **`qwen3.5:9b`** | **6.6GB** | **✓** | **First turn 10+ min (after timeout, cache reuse succeeds in ~3 min); lightest practical option** |

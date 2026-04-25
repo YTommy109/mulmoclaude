@@ -52,7 +52,7 @@ msg="requested context size too large for model" num_ctx=65536 n_ctx_train=40960
 | `qwen3:14b` | 9GB | ✗ | 訓練上限 40k、50k プロンプトが切り詰められる |
 | `qwen2.5-coder:14b` | 9GB | ✗ | 古い runner、64k 指定が反映されず 32k 固定 |
 | `qwen3.6:35b-a3b` | 23GB | ◯ | MoE（アクティブ 3B）、初回 13 分で応答・日本語 thinking OK |
-| `gemma4:e4b` | 3GB | ✗ | Claude Code が 1 分以上応答なし |
+| `gemma4:e4b` | 3GB（実 weights 約 8.9 GiB） | ◯ | 再検証で動作確認。前回失敗は `OLLAMA_CONTEXT_LENGTH=65536` 未設定が原因と推測。thinking 付きで応答 |
 | `gemma4:26b` | 17GB | ✗ | `API Error: Content block not found`（再検証でも同じ。thinking ブロックの形式が Claude Code と非互換） |
 | `gpt-oss:20b` | 13GB | ✗ | Ollama のテンプレートにバグ、ツール定義パース失敗で 500 エラー |
 | **`qwen3.5:9b`** | **6.6GB** | **◯** | **初回 10 分超（タイムアウト後 cache 再利用で 3 分強で成功）、軽量で最も実用的** |
