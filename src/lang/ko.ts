@@ -377,6 +377,7 @@ const koMessages = {
     tagFilterAll: "전체",
     noMatches: "#{tag} 태그가 달린 페이지가 없습니다",
     lintChat: "Wiki 점검",
+    taskCountMismatch: "Wiki 원본과 렌더링 결과의 작업 수가 일치하지 않아, 파일 손상을 방지하기 위해 토글이 거부되었습니다.",
   },
   pluginPresentHtml: {
     saveAsPdf: "PDF 로 저장 (인쇄 대화 상자 열기)",

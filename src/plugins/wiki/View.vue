@@ -589,7 +589,7 @@ function computeToggledContent(target: HTMLInputElement, root: HTMLElement): str
   const { prefix, body } = splitFrontmatter();
   const sourceTasks = findTaskLines(body);
   if (sourceTasks.length !== taskInputs.length) {
-    navError.value = "Wiki source and rendered output disagree on the number of tasks. Refusing to toggle to avoid corruption.";
+    navError.value = t("pluginWiki.taskCountMismatch");
     return null;
   }
   const updatedBody = toggleTaskAt(body, taskIndex);

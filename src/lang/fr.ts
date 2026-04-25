@@ -373,6 +373,7 @@ const frMessages = {
     tagFilterAll: "Toutes",
     noMatches: "Aucune page avec le tag #{tag}",
     lintChat: "Vérifier mon wiki",
+    taskCountMismatch: "La source du wiki et le rendu diffèrent sur le nombre de tâches. La modification a été refusée pour éviter de corrompre le fichier.",
   },
   pluginPresentHtml: {
     saveAsPdf: "Enregistrer en PDF (ouvre la boîte de dialogue d'impression)",
