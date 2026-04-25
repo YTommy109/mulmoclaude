@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Router, Request, Response } from "express";
 import { getOptionalStringQuery } from "../../utils/request.js";
 import { getSessionImageData } from "../../events/session-store/index.js";
@@ -10,11 +11,22 @@ import { log } from "../../system/logger/index.js";
 
 // Image-generation routes were silent on success and on failure. When
 // the canvas showed "missing image" with no server-side trace, there
-// was nothing to grep. The new log lines surface the request
-// (prompt preview, model, optional sessionId) and the outcome.
-const PROMPT_PREVIEW_LIMIT = 120;
-function previewPrompt(prompt: string): string {
-  return prompt.length > PROMPT_PREVIEW_LIMIT ? `${prompt.slice(0, PROMPT_PREVIEW_LIMIT)}…` : prompt;
+// was nothing to grep. Log lines now carry a prompt fingerprint
+// (`{ length, sha256 }`) instead of the raw text — image prompts are
+// user-controlled and commonly contain pasted URLs, emails, or even
+// credentials, and structured logs are persisted. The sha256 prefix
+// is enough to correlate retries / duplicate requests without leaking
+// content.
+const PROMPT_SHA256_PREFIX_CHARS = 12;
+interface PromptMeta {
+  length: number;
+  sha256: string;
+}
+function promptMeta(prompt: string): PromptMeta {
+  return {
+    length: prompt.length,
+    sha256: createHash("sha256").update(prompt).digest("hex").slice(0, PROMPT_SHA256_PREFIX_CHARS),
+  };
 }
 
 const router = Router();
@@ -47,7 +59,16 @@ async function respondWithImage(
   kind: "generation" | "edit",
 ): Promise<void> {
   if (!imageData) {
-    res.json({ message: fallbackMessage ?? "no image data in response" });
+    // Gemini returned text-only / no image — typically a refusal,
+    // safety filter, or a quota miss. Previously this was returned
+    // as HTTP 200 with no `data`, so both the caller and the agent
+    // saw it as success; the client rendered nothing and the LLM's
+    // instructions assumed the image was shown. Surface it as an
+    // HTTP error instead so the agent can retry or rephrase.
+    res.status(502).json({
+      success: false,
+      message: fallbackMessage ?? `no image data in Gemini ${kind} response (likely a refusal or safety filter)`,
+    });
     return;
   }
   const imagePath = await saveImage(imageData);
@@ -101,21 +122,21 @@ router.post(API_ROUTES.image.generate, async (req: Request<object, unknown, Gene
     res.status(400).json({ success: false, message: "prompt is required" });
     return;
   }
-  log.info("image", "generate: start", { promptPreview: previewPrompt(prompt), model: model ?? "(default)" });
+  log.info("image", "generate: start", { prompt: promptMeta(prompt), model: model ?? "(default)" });
   try {
     const { imageData, message } = await generateGeminiImageFromPrompt(prompt, model);
     if (!imageData) {
       log.warn("image", "generate: gemini returned no image data", {
-        promptPreview: previewPrompt(prompt),
+        prompt: promptMeta(prompt),
         fallbackMessage: message,
       });
     } else {
-      log.info("image", "generate: ok", { promptPreview: previewPrompt(prompt), bytes: imageData.length });
+      log.info("image", "generate: ok", { prompt: promptMeta(prompt), bytes: imageData.length });
     }
     await respondWithImage(res, imageData, message, prompt, "generation");
   } catch (err) {
     log.error("image", "generate: gemini call threw", {
-      promptPreview: previewPrompt(prompt),
+      prompt: promptMeta(prompt),
       error: errorMessage(err),
     });
     res.status(500).json({ success: false, message: errorMessage(err) });
@@ -143,7 +164,7 @@ router.post(API_ROUTES.image.edit, async (req: Request<object, unknown, EditImag
     });
     return;
   }
-  log.info("image", "edit: start", { promptPreview: previewPrompt(prompt), session, sourceKind: isImagePath(currentImageData) ? "path" : "dataUri" });
+  log.info("image", "edit: start", { prompt: promptMeta(prompt), session, sourceKind: isImagePath(currentImageData) ? "path" : "dataUri" });
   try {
     // Resolve input image to raw base64 — supports both file paths and legacy data URIs
     const base64Data = isImagePath(currentImageData) ? await loadImageBase64(currentImageData) : stripDataUri(currentImageData);
@@ -156,17 +177,17 @@ router.post(API_ROUTES.image.edit, async (req: Request<object, unknown, EditImag
     ]);
     if (!imageData) {
       log.warn("image", "edit: gemini returned no image data", {
-        promptPreview: previewPrompt(prompt),
+        prompt: promptMeta(prompt),
         session,
         fallbackMessage: message,
       });
     } else {
-      log.info("image", "edit: ok", { promptPreview: previewPrompt(prompt), session, bytes: imageData.length });
+      log.info("image", "edit: ok", { prompt: promptMeta(prompt), session, bytes: imageData.length });
     }
     await respondWithImage(res, imageData, message, prompt, "edit");
   } catch (err) {
     log.error("image", "edit: gemini call threw", {
-      promptPreview: previewPrompt(prompt),
+      prompt: promptMeta(prompt),
       session,
       error: errorMessage(err),
     });

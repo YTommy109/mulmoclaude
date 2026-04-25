@@ -217,6 +217,12 @@ async function postJson(path: string, body: unknown, opts: PostJsonOpts = {}): P
   if (!opts.allowHttpError && !res.ok) {
     const errBody = await safeResponseText(res, 500);
     const detail = errBody ? `: ${errBody}` : "";
+    // Mirror the network/timeout error path above — log to stderr so
+    // an HTTP 4xx/5xx from the server never hides from the bridge
+    // operator. Without this, the thrown Error propagates silently
+    // to the MCP caller and the log stream shows nothing.
+    const elapsedMs = Date.now() - startedAt;
+    console.error(`[mcp-bridge] HTTP ${res.status} ${path} after ${elapsedMs}ms${detail}`);
     throw new Error(`HTTP ${res.status} calling ${path}${detail}`);
   }
   return res;

@@ -14,7 +14,7 @@ import { errorMessage } from "../errors.js";
 import { log } from "../../system/logger/index.js";
 import { saveImage } from "./image-store.js";
 
-const IMAGE_PLACEHOLDER = /!\[([^\]]+)\]\(\/?__too_be_replaced_image_path__\)/g;
+export const IMAGE_PLACEHOLDER = /!\[([^\]]+)\]\(\/?__too_be_replaced_image_path__\)/g;
 const PROMPT_PREVIEW_CHARS = 80;
 const LOG_PREFIX = "present-document";
 
@@ -66,7 +66,7 @@ function logBatchTally(results: PlaceholderResult[], total: number, batchStarted
   log[level](LOG_PREFIX, "image batch done", { succeeded, failed, total, elapsedMs });
 }
 
-function buildReplacement(prompt: string, url: string | null): string {
+export function buildReplacement(prompt: string, url: string | null): string {
   // `url` is workspace-relative (e.g. "artifacts/images/2026/04/x.png").
   // Emit a workspace-root absolute ref ("/...") so the resolution is
   // independent of where the markdown file itself lands on disk.
