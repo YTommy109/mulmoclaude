@@ -1,156 +1,174 @@
 ---
 name: setup-ollama-local
-description: Interactively guide Claude Code + Ollama local LLM setup on Mac — install, model pull, env switch, and verification. Respond in the user's language.
+description: Interactively guide setup for connecting the Claude Code CLI to a local Ollama LLM on Mac. NOTE — This is for the standalone Claude Code CLI itself, NOT MulmoClaude (MulmoClaude does not currently support Ollama as a backend). Covers Ollama install, model pull, env switching, and verification. Respond in the user's language.
 allowed-tools: Read, Bash, Glob, Grep
 ---
 
-# Setup Claude Code × Ollama（ローカル LLM）
+# Setup Claude Code × Ollama (local LLM)
 
-Mac 上で Claude Code を Ollama のローカル LLM に接続するセットアップをガイドする。普段はクラウド Claude（Subscription）を使い、必要な時だけローカルに切り替える運用を前提とする。
+> **Scope / 適用範囲**
+>
+> This skill sets up the **standalone `claude` CLI** to talk to a local Ollama server. It is **independent of MulmoClaude**; MulmoClaude itself does not currently support Ollama (see `plans/feat-mulmoclaude-ollama-support.md` for a tentative plan).
+>
+> このスキルは **`claude` CLI 単体**をローカルの Ollama サーバに接続するセットアップです。**MulmoClaude とは独立**しており、MulmoClaude 本体は現在 Ollama 接続をサポートしていません（実装案は `plans/feat-mulmoclaude-ollama-support.md` を参照）。
 
-## 重要な前提知識
+For detailed findings and pitfalls, see [`docs/tips/claude-code-ollama.md`](../../../docs/tips/claude-code-ollama.md) (Japanese) / [`docs/tips/claude-code-ollama.en.md`](../../../docs/tips/claude-code-ollama.en.md) (English).
 
-- Ollama **v0.14.0 以降**で Anthropic Messages API 互換が追加された
-- 3B クラスの小型モデルではテキスト出力のみ可能（ツール呼び出しは動かない）
-- Function Calling 対応モデル（Gemma 4、gpt-oss 等）なら一定レベルのエージェント動作が期待できる
+## Prerequisites / 前提知識
 
-## Step 1: Ollama の確認・インストール
+- Ollama **v0.14.0 or later** is required (Anthropic Messages API compatibility was added in that version).
+- Claude Code sends roughly **50,000–57,000 tokens per request**, so the model needs **at least a 64k context window**.
+- 3B-class small models effectively cannot drive Claude Code (no tool calling, broken templates).
+- Even on supported models, the first turn often takes **10+ minutes** on a MacBook Air; subsequent turns benefit from KV cache and drop to 1–3 minutes.
 
-### 1-1. インストール済みかチェック
+## Step 1: Verify / install Ollama
+
+### 1-1. Check existing install
 
 ```bash
 which ollama && ollama --version
 ```
 
-- **インストール済み**: バージョンが **v0.14.0 以上**であることを確認。古い場合はアップデートを案内
-- **未インストール**: 以下のいずれかを案内
-  - 公式インストーラー（推奨）: https://ollama.com/download/mac
+- **Installed and v0.14.0+**: proceed to 1-2.
+- **Older version**: `brew upgrade ollama` and then `brew services restart ollama` (Homebrew installs).
+- **Not installed**: suggest one of:
+  - Official installer (recommended): https://ollama.com/download/mac
   - Homebrew: `brew install ollama`
 
-### 1-2. Ollama サーバの起動確認
+### 1-2. Verify the server is running
 
 ```bash
 curl -s http://localhost:11434/api/tags | head -c 200
 ```
 
-- **応答あり**: サーバ起動済み → Step 2 へ
-- **応答なし**: 起動方法を案内
-  - 公式インストーラー版: メニューバーの Ollama アイコンをクリック
-  - Homebrew 版: `brew services start ollama` または `ollama serve`
+- **Got JSON back**: server is up, go to Step 2.
+- **Empty / connection refused**: start it.
+  - Official app: click the Ollama menu-bar icon.
+  - Homebrew: `brew services start ollama` or `ollama serve`.
 
-## Step 2: Claude Code の確認
+## Step 2: Verify Claude Code
 
 ```bash
 which claude && claude --version
 ```
 
-- **インストール済み**: Step 3 へ
-- **未インストール**: インストール方法を案内（npm / 公式スクリプト / Homebrew）
-  - npm（推奨）: `npm install -g @anthropic-ai/claude-code`
-  - 公式スクリプト: `curl -fsSL https://claude.ai/install.sh | sh`
-  - Homebrew: `brew install anthropic/tap/claude-code`
+- **Installed**: continue to Step 3.
+- **Not installed**: install via npm (recommended), the official script, or Homebrew:
+  - `npm install -g @anthropic-ai/claude-code`
+  - `curl -fsSL https://claude.ai/install.sh | sh`
+  - `brew install anthropic/tap/claude-code`
 
-## Step 3: モデルの選択とダウンロード
+## Step 3: Choose and pull a model
 
-ユーザーの Mac のメモリ量と用途を確認してから推奨モデルを提示する。
+Confirm the user's RAM and use case before recommending. Verified working models on a MacBook Air M4 32GB are summarized in [`docs/tips/claude-code-ollama.md`](../../../docs/tips/claude-code-ollama.md). Quick picks:
 
-### メモリ別おすすめ
+| RAM | Recommended | Size | Notes |
+|-----|-------------|------|-------|
+| 8–16GB | (Claude Code × Ollama is impractical here) | — | Cold start exceeds 10 min timeout |
+| 32GB | **`qwen3.5:9b`** | 6.6GB | Most practical, lightest fit |
+| 32GB | `qwen3.6:35b-a3b` | 23GB | MoE (3B active), heavier but works |
+| 24GB+ (NVIDIA) | `glm-4.7-flash` | 19GB | 198k context, untested on Mac |
 
-| メモリ | おすすめモデル | サイズ | Tool Calling | 用途 |
-|--------|---------------|--------|-------------|------|
-| 8-16GB | `qwen2.5-coder:7b` | 4.7GB | ○ | コード生成の相棒 |
-| 16GB | `qwen2.5-coder:14b` | 9GB | ○ | コーディング上位 |
-| 16GB | `gemma4:e4b` | ~3GB | ◎ | 軽量エージェント実験 |
-| 24GB+ | `gemma4:26b` | ~15GB | ◎ | **Function Calling 強、バランス良** |
-| 24GB+ | `gpt-oss:20b` | 13GB | ◎ | OpenAI オープンウェイト、推論系 |
-
-> ポイント: エージェント機能（Skill / MCP / ツール呼び出し）を試すなら `gemma4:26b` か `gpt-oss:20b` が第一候補。3B クラスでは Skill はほぼ動かない。
-
-### ダウンロード
-
-ユーザーが選んだモデルを pull する。まずは軽量版で動作確認するのも推奨。
+Avoid: `qwen3:14b` (40k training limit), `qwen2.5-coder:14b` (older runner ignores `OLLAMA_CONTEXT_LENGTH`), `gemma4:*` (Content block parse errors), `gpt-oss:20b` (Ollama template bug). See findings doc for details.
 
 ```bash
-ollama pull <選択したモデル>
-```
-
-確認:
-
-```bash
+ollama pull <model>
 ollama list
 ```
 
-## Step 4: ローカル接続テスト
+## Step 4: Start Ollama with the right context window
 
-### 4-1. 環境変数セット（一時的）
+Claude Code requires ≥64k context. The default is 32k, so **always extend it** when launching Ollama for Claude Code:
 
-**このターミナルセッションだけ**の一時切り替え。ウィンドウを閉じればクラウドに戻る。
+```bash
+brew services stop ollama   # if running under brew services
+OLLAMA_CONTEXT_LENGTH=65536 ollama serve
+```
+
+This terminal must stay open for the duration of the session. For longer sessions add `OLLAMA_KEEP_ALIVE=30m` so the KV cache survives idle gaps.
+
+## Step 5: Warm up the model
+
+In a second terminal, load the model into memory and confirm it responds at all:
+
+```bash
+ollama run <model> "hello"
+```
+
+Expect a response within a few seconds. If this hangs, the model is unsuitable for Claude Code.
+
+## Step 6: Run Claude Code against Ollama
+
+In a third terminal, set the env vars and launch:
 
 ```bash
 export ANTHROPIC_AUTH_TOKEN="ollama"
 export ANTHROPIC_API_KEY=""
 export ANTHROPIC_BASE_URL="http://localhost:11434"
+claude --verbose --model <model>
 ```
 
-各環境変数の役割:
+Role of each variable:
 
-| 環境変数 | 値 | 目的 |
-|----------|-----|------|
-| `ANTHROPIC_AUTH_TOKEN` | `"ollama"` | Ollama モードを有効化 |
-| `ANTHROPIC_API_KEY` | `""`（空） | クラウド用キーを無効化（干渉防止） |
-| `ANTHROPIC_BASE_URL` | `http://localhost:11434` | 接続先をローカルに変更 |
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `ANTHROPIC_AUTH_TOKEN` | `"ollama"` | Enables Ollama mode |
+| `ANTHROPIC_API_KEY` | `""` (empty) | Disables the cloud API key (prevents collision) |
+| `ANTHROPIC_BASE_URL` | `http://localhost:11434` | Routes API calls to the local server |
 
-### 4-2. Claude Code をローカルモデルで起動
+Send a simple message (e.g. "Hello, what model are you?") to confirm. **The first turn can take 10+ minutes**; subsequent turns drop to 1–3 minutes once the KV cache is warm.
 
-ユーザーに別ターミナルで以下を実行してもらう（`!` プレフィックスを使う）:
+While waiting, watch the Ollama log in another terminal to see what's happening:
 
+```bash
+tail -f /opt/homebrew/var/log/ollama.log    # Homebrew install
+# or just watch the terminal where `ollama serve` is running
 ```
-! ANTHROPIC_AUTH_TOKEN="ollama" ANTHROPIC_API_KEY="" ANTHROPIC_BASE_URL="http://localhost:11434" claude --model <選択したモデル>
-```
 
-起動できたら簡単な質問（例: 「Hello, what model are you?」）で動作確認する。
+Key log signals:
+- `KvSize:65536` ✓ — context is correctly extended
+- `truncating input prompt limit=XXXXX` ✗ — model/runner ignores the env var; switch model
+- `POST /v1/messages 200` ✓ — successful turn
+- `POST /v1/messages 500` ✗ — template incompatibility; switch model
 
-## Step 5: クラウドへの戻し方を案内
+## Step 7: Switching back to cloud Claude
 
-ローカルモードは **そのターミナルだけ** なので:
+The local mode is scoped to the terminal where the env vars were set:
 
-1. **ターミナルを閉じて開き直す**だけで OK
-2. または明示的に環境変数を削除:
+1. **Easiest**: close that terminal and open a fresh one — back to cloud.
+2. Or unset explicitly:
    ```bash
    unset ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY ANTHROPIC_BASE_URL
    ```
 
-## Step 6: エイリアス設定（オプション）
+## Step 8 (optional): Convenience alias
 
-ユーザーが希望する場合、`~/.zshrc` にエイリアスを追加する提案をする。
+If the user wants a one-liner, suggest an alias in `~/.zshrc`. **Do not** put bare `export ANTHROPIC_BASE_URL=...` lines in a startup file — that breaks normal cloud usage everywhere.
 
 ```bash
-# ローカル Ollama に切り替え
 alias claude-local='ANTHROPIC_AUTH_TOKEN="ollama" ANTHROPIC_API_KEY="" ANTHROPIC_BASE_URL="http://localhost:11434" claude'
 ```
 
-追加後:
-```bash
-source ~/.zshrc
-```
+After `source ~/.zshrc`, usage is:
 
-使い方:
 ```bash
-claude-local --model gemma4:26b   # ローカル
-claude                            # 通常はクラウド
+claude-local --model qwen3.5:9b   # local
+claude                            # cloud, unchanged
 ```
 
 ## Key pitfalls to highlight
 
-- Ollama のバージョンが **v0.14.0 未満**だと Anthropic API 互換がない — 必ずバージョン確認
-- `ANTHROPIC_API_KEY` を空にしないと既存のクラウド用キーが干渉する場合がある
-- 3B クラスのモデルでは JSON 形式のツール呼び出しを正しく生成できず、ファイル作成等が失敗する
-- Function Calling 対応モデルでも Anthropic の tool use 形式に完全最適化されてはいないため、複雑な Skill チェーンは不安定
-- 大きいモデル（20B+）はメモリを圧迫する — `ps aux | grep ollama` や Activity Monitor でモニタリングを案内
-- `.zshrc` や `.bashrc` に `export ANTHROPIC_BASE_URL=...` を恒久的に書くと通常のクラウド利用が壊れる — エイリアスのみ推奨
+- **Ollama < v0.14.0** has no Anthropic API compatibility — always check the version first.
+- `ANTHROPIC_API_KEY` must be **explicitly empty**; otherwise an existing cloud key may collide.
+- 3B-class models cannot reliably emit Claude's tool-use JSON, so file edits and shell commands fail.
+- Even tool-capable open models (Gemma 4, gpt-oss) are not fully aligned with Anthropic's response format — complex skill chains misbehave.
+- Large models (20B+) eat memory; watch with `vm_stat` or Activity Monitor.
+- Permanent `export ANTHROPIC_BASE_URL=...` in `.zshrc` / `.bashrc` will silently break normal cloud Claude usage. Use an alias instead.
+- The first-turn 10-minute Claude Code timeout is unavoidable, but Ollama keeps processing in the background, so a retry usually succeeds via cache reuse.
 
-## 参考リンク（ユーザーに共有してよいもの）
+## Reference links
 
-- Ollama Claude Code 連携: https://docs.ollama.com/integrations/claude-code
-- Ollama Anthropic 互換ブログ: https://ollama.com/blog/claude
-- Claude Code 公式: https://code.claude.com/docs/en/overview
+- Ollama Claude Code integration: https://docs.ollama.com/integrations/claude-code
+- Ollama Anthropic compatibility blog: https://ollama.com/blog/claude
+- Claude Code official docs: https://code.claude.com/docs/en/overview
+- Local findings: [`docs/tips/claude-code-ollama.md`](../../../docs/tips/claude-code-ollama.md) (ja) / [`.en.md`](../../../docs/tips/claude-code-ollama.en.md) (en)
