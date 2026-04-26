@@ -4,8 +4,16 @@ import { getSessionImageData } from "../../events/session-store/index.js";
 import { generateGeminiImageContent, generateGeminiImageFromPrompt } from "../../utils/gemini.js";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, serverError } from "../../utils/httpError.js";
-import { saveImage, overwriteImage, loadImageBase64, stripDataUri, isImagePath, imagePathFromFilename } from "../../utils/files/image-store.js";
+import { saveImage, overwriteImage, loadImageBase64, stripDataUri, isImagePath } from "../../utils/files/image-store.js";
+import { promptMeta } from "../../utils/promptMeta.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { log } from "../../system/logger/index.js";
+
+// Image-generation routes were silent on success and on failure. When
+// the canvas showed "missing image" with no server-side trace, there
+// was nothing to grep. Log lines now carry a prompt fingerprint
+// (`{ length, sha256 }`) via `promptMeta()` instead of the raw text —
+// see `server/utils/promptMeta.ts` for why.
 
 const router = Router();
 
@@ -37,6 +45,17 @@ async function respondWithImage(
   kind: "generation" | "edit",
 ): Promise<void> {
   if (!imageData) {
+    // Gemini returned text-only / no image — typically a refusal,
+    // safety filter, or a quota miss. Codex flagged this branch
+    // (review of #780) for treating refusals as success; switching
+    // it to a 502 is the obvious fix, but `apiPost.extractError`
+    // only extracts `body.error` and image responses use
+    // `{ success: false, message }`, so the agent would lose the
+    // Gemini-side message and see only "Bad Gateway". Leaving
+    // behavior unchanged here until the shared error-shape
+    // (`extractError` accepting `message`, or all image responses
+    // adopting `error`) lands in a separate PR — see #783 review
+    // history.
     res.json({ message: fallbackMessage ?? "no image data in response" });
     return;
   }
@@ -87,13 +106,27 @@ interface GenerateImageBody {
 router.post(API_ROUTES.image.generate, async (req: Request<object, unknown, GenerateImageBody>, res: Response<ImageResponse>) => {
   const { prompt, model } = req.body;
   if (!prompt) {
+    log.warn("image", "generate: missing prompt");
     res.status(400).json({ success: false, message: "prompt is required" });
     return;
   }
+  log.info("image", "generate: start", { prompt: promptMeta(prompt), model: model ?? "(default)" });
   try {
     const { imageData, message } = await generateGeminiImageFromPrompt(prompt, model);
+    if (!imageData) {
+      log.warn("image", "generate: gemini returned no image data", {
+        prompt: promptMeta(prompt),
+        fallbackMessage: message,
+      });
+    } else {
+      log.info("image", "generate: ok", { prompt: promptMeta(prompt), bytes: imageData.length });
+    }
     await respondWithImage(res, imageData, message, prompt, "generation");
   } catch (err) {
+    log.error("image", "generate: gemini call threw", {
+      prompt: promptMeta(prompt),
+      error: errorMessage(err),
+    });
     res.status(500).json({ success: false, message: errorMessage(err) });
   }
 });
@@ -106,17 +139,20 @@ router.post(API_ROUTES.image.edit, async (req: Request<object, unknown, EditImag
   const { prompt } = req.body;
   const session = getOptionalStringQuery(req, "session");
   if (!prompt) {
+    log.warn("image", "edit: missing prompt", { session });
     res.status(400).json({ success: false, message: "prompt is required" });
     return;
   }
   const currentImageData = session ? getSessionImageData(session) : undefined;
   if (!currentImageData) {
+    log.warn("image", "edit: no source image selected", { session });
     res.status(400).json({
       success: false,
       message: "No image is selected. Please click an image in the sidebar first, then ask me to edit it.",
     });
     return;
   }
+  log.info("image", "edit: start", { prompt: promptMeta(prompt), session, sourceKind: isImagePath(currentImageData) ? "path" : "dataUri" });
   try {
     // Resolve input image to raw base64 — supports both file paths and legacy data URIs
     const base64Data = isImagePath(currentImageData) ? await loadImageBase64(currentImageData) : stripDataUri(currentImageData);
@@ -127,8 +163,22 @@ router.post(API_ROUTES.image.edit, async (req: Request<object, unknown, EditImag
         parts: [{ inlineData: { mimeType: "image/png", data: base64Data } }, { text: prompt }],
       },
     ]);
+    if (!imageData) {
+      log.warn("image", "edit: gemini returned no image data", {
+        prompt: promptMeta(prompt),
+        session,
+        fallbackMessage: message,
+      });
+    } else {
+      log.info("image", "edit: ok", { prompt: promptMeta(prompt), session, bytes: imageData.length });
+    }
     await respondWithImage(res, imageData, message, prompt, "edit");
   } catch (err) {
+    log.error("image", "edit: gemini call threw", {
+      prompt: promptMeta(prompt),
+      session,
+      error: errorMessage(err),
+    });
     res.status(500).json({ success: false, message: errorMessage(err) });
   }
 });
@@ -145,25 +195,30 @@ router.post(API_ROUTES.image.upload, async (req: Request<object, unknown, Canvas
   await saveCanvasImage(res, base64, async (b64) => saveImage(b64));
 });
 
-router.put(
-  API_ROUTES.image.update,
-  async (req: Request<{ filename: string }, unknown, CanvasImageBody>, res: Response<CanvasImageResponse | CanvasImageError>) => {
-    const relativePath = imagePathFromFilename(req.params.filename);
-    if (!relativePath) {
-      badRequest(res, "invalid image filename");
-      return;
-    }
-    const { imageData } = req.body;
-    if (!imageData) {
-      badRequest(res, "imageData is required");
-      return;
-    }
-    const base64 = stripDataUri(imageData);
-    await saveCanvasImage(res, base64, async (b64) => {
-      await overwriteImage(relativePath, b64);
-      return relativePath;
-    });
-  },
-);
+interface UpdateImageBody extends CanvasImageBody {
+  relativePath: string;
+}
+
+// Canvas saves come in with the workspace-relative path the file
+// already lives at (returned at canvas creation), so the client never
+// has to know how `saveImage` shards by YYYY/MM. The server validates
+// the prefix + extension via `isImagePath`; `safeResolve` inside
+// `overwriteImage` blocks any traversal.
+router.put(API_ROUTES.image.update, async (req: Request<object, unknown, UpdateImageBody>, res: Response<CanvasImageResponse | CanvasImageError>) => {
+  const { relativePath, imageData } = req.body;
+  if (!relativePath || !isImagePath(relativePath)) {
+    badRequest(res, "invalid image relativePath");
+    return;
+  }
+  if (!imageData) {
+    badRequest(res, "imageData is required");
+    return;
+  }
+  const base64 = stripDataUri(imageData);
+  await saveCanvasImage(res, base64, async (b64) => {
+    await overwriteImage(relativePath, b64);
+    return relativePath;
+  });
+});
 
 export default router;

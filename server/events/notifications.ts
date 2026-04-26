@@ -20,8 +20,10 @@ import {
   type NotificationAction,
   type NotificationPriority,
 } from "../../src/types/notification.js";
-import { MAX_NOTIFICATION_DELAY_SEC } from "../utils/time.js";
+import { MAX_NOTIFICATION_DELAY_SEC, ONE_SECOND_MS } from "../utils/time.js";
 import { log } from "../system/logger/index.js";
+import { makeUuid } from "../utils/id.js";
+import { pushToMacosReminder } from "../system/macosNotify.js";
 
 // ── Dependencies (injected at startup) ──────────────────────────
 
@@ -60,7 +62,7 @@ export interface PublishNotificationOpts {
 export function publishNotification(opts: PublishNotificationOpts): void {
   try {
     const payload: NotificationPayload = {
-      id: crypto.randomUUID(),
+      id: makeUuid(),
       kind: opts.kind,
       title: opts.title,
       body: opts.body,
@@ -85,6 +87,11 @@ export function publishNotification(opts: PublishNotificationOpts): void {
     if (deps && opts.transportId) {
       deps.pushToBridge(opts.transportId, "notifications", formatBridgeMessage(payload));
     }
+
+    // Push to macOS Reminders (#789). No-op unless
+    // MACOS_REMINDER_NOTIFICATIONS=1 + darwin. Fire-and-forget so a
+    // slow / failing osascript can't block the bell update.
+    void pushToMacosReminder(payload.title, payload.body);
 
     log.info("notifications", "published", {
       kind: payload.kind,
@@ -112,9 +119,19 @@ export const DEFAULT_NOTIFICATION_CHAT_ID = "notifications";
 
 export interface ScheduleNotificationOptions {
   message?: string;
+  body?: string;
   delaySeconds?: number;
   transportId?: string;
   chatId?: string;
+  // Optional deep-link action — lets dev-side callers fire a
+  // notification that navigates to a specific permalink when
+  // clicked. Without this the fired notification has no click
+  // behaviour (same as before #762).
+  action?: NotificationAction;
+  // Optional kind override — lets the manual-test helper fire a
+  // representative notification for every NotificationKind (todo,
+  // scheduler, agent, …) so the bell's icons can be eyeballed.
+  kind?: NotificationKind;
 }
 
 export interface ScheduledNotification {
@@ -128,15 +145,22 @@ export function scheduleTestNotification(opts: ScheduleNotificationOptions, lega
   const transportId = opts.transportId ?? DEFAULT_NOTIFICATION_TRANSPORT_ID;
   const chatId = opts.chatId ?? DEFAULT_NOTIFICATION_CHAT_ID;
   const delaySeconds = clampDelay(opts.delaySeconds);
-  const delayMs = delaySeconds * 1_000;
+  const delayMs = delaySeconds * ONE_SECOND_MS;
+  const kind = opts.kind ?? NOTIFICATION_KINDS.push;
 
   const firesAt = new Date(Date.now() + delayMs).toISOString();
 
   const timer = setTimeout(() => {
     publishNotification({
-      kind: NOTIFICATION_KINDS.push,
+      kind,
       title: message,
+      body: opts.body,
       priority: NOTIFICATION_PRIORITIES.normal,
+      // When the caller supplied an action, pass it through so the
+      // bell clicks into the requested permalink. Otherwise leave
+      // it undefined so publishNotification falls back to the
+      // "navigate: none" default.
+      action: opts.action,
     });
     legacyDeps.pushToBridge(transportId, chatId, message);
   }, delayMs);

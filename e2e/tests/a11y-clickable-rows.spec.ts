@@ -2,22 +2,28 @@
 // in #684: non-<button> elements with @click= handlers must be
 // keyboard-activatable via Enter / Space.
 //
-// Scoped to one representative site (the /history session-row div)
-// to keep the suite cheap. The same contract is applied to four
-// other sites (todo list/table/kanban); those share the code path
-// and are covered by manual verification.
+// Scoped to one representative site (the session-history side panel's
+// session-row div) to keep the suite cheap. The same contract is
+// applied to four other sites (todo list/table/kanban); those share
+// the code path and are covered by manual verification.
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
 import { SESSION_A } from "../fixtures/sessions";
+
+async function openSidePanel(page: Page): Promise<void> {
+  await page.goto("/chat");
+  await page.getByTestId("session-history-toggle-off").click();
+  await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
+}
 
 test.describe("clickable-region a11y", () => {
   test.beforeEach(async ({ page }) => {
     await mockAllApis(page);
   });
 
-  test("Enter on a focused /history session row loads the session", async ({ page }) => {
-    await page.goto("/history");
+  test("Enter on a focused session-history row loads the session", async ({ page }) => {
+    await openSidePanel(page);
     const row = page.getByTestId(`session-item-${SESSION_A.id}`);
     await expect(row).toBeVisible();
 
@@ -29,8 +35,8 @@ test.describe("clickable-region a11y", () => {
     await expect(page).toHaveURL(new RegExp(`/chat/${SESSION_A.id}`));
   });
 
-  test("Space on a focused /history session row loads the session", async ({ page }) => {
-    await page.goto("/history");
+  test("Space on a focused session-history row loads the session", async ({ page }) => {
+    await openSidePanel(page);
     const row = page.getByTestId(`session-item-${SESSION_A.id}`);
     await expect(row).toBeVisible();
 
@@ -40,8 +46,8 @@ test.describe("clickable-region a11y", () => {
     await expect(page).toHaveURL(new RegExp(`/chat/${SESSION_A.id}`));
   });
 
-  test("/history session row advertises role=button and an aria-label", async ({ page }) => {
-    await page.goto("/history");
+  test("session-history row advertises role=button and an aria-label", async ({ page }) => {
+    await openSidePanel(page);
     const row = page.getByTestId(`session-item-${SESSION_A.id}`);
     await expect(row).toBeVisible();
     await expect(row).toHaveAttribute("role", "button");
@@ -56,7 +62,7 @@ test.describe("clickable-region a11y", () => {
     // Held Space / Enter on a native <button> activates once per
     // physical press, not per OS auto-repeat tick. Mirror that by
     // ignoring events where `event.repeat === true`.
-    await page.goto("/history");
+    await openSidePanel(page);
     const row = page.getByTestId(`session-item-${SESSION_A.id}`);
     await expect(row).toBeVisible();
     const startUrl = page.url();
@@ -69,7 +75,7 @@ test.describe("clickable-region a11y", () => {
     expect(page.url()).toBe(startUrl);
   });
 
-  test("focused /history session row does not fire activation when Space is pressed on a non-self target", async ({ page }) => {
+  test("focused session-history row does not fire activation when Space is pressed on a non-self target", async ({ page }) => {
     // Regression guard for the `.self` modifier added to keydown
     // handlers. The session row currently has no inner interactive
     // control, but future additions (e.g., a menu button) could
@@ -77,7 +83,7 @@ test.describe("clickable-region a11y", () => {
     // Simulate that by programmatically dispatching a Space keydown
     // with a non-self target on the row, then confirming no
     // navigation occurred.
-    await page.goto("/history");
+    await openSidePanel(page);
     const row = page.getByTestId(`session-item-${SESSION_A.id}`);
     await expect(row).toBeVisible();
     const startUrl = page.url();

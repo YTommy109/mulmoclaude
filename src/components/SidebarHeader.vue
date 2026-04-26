@@ -13,7 +13,7 @@
            the brand label here is a clickable logo, not a page heading. -->
       <span data-testid="app-title" class="text-sm font-semibold text-gray-800 mr-1" :style="titleStyle">MulmoClaude</span>
     </button>
-    <div class="flex gap-2">
+    <div class="flex gap-0.5">
       <LockStatusPopup
         ref="lockPopup"
         :sandbox-enabled="sandboxEnabled"
@@ -23,10 +23,10 @@
       />
       <NotificationBell :force-close="lockPopupOpen" @navigate="(action) => emit('notificationNavigate', action)" @update:open="onNotificationOpen" />
       <button
-        class="relative text-gray-400 hover:text-gray-700"
+        class="relative h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-gray-700"
         data-testid="settings-btn"
-        :title="t('sidebarHeader.settings')"
-        :aria-label="t('sidebarHeader.settings')"
+        :title="settingsLabel"
+        :aria-label="settingsLabel"
         @click="emit('openSettings')"
       >
         <span class="material-icons">settings</span>
@@ -52,7 +52,7 @@ import logoUrl from "../assets/mulmo_bw.png";
 
 const { t } = useI18n();
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     sandboxEnabled: boolean;
     geminiAvailable?: boolean;
@@ -67,6 +67,13 @@ const emit = defineEmits<{
   openSettings: [];
   home: [];
 }>();
+
+// Settings button accessible name has to convey the `!` badge's
+// meaning (missing API key) to screen-reader users — the badge
+// itself is decorative (aria-hidden), so without this the a11y
+// tree just announces "Settings" and the whole point of the
+// attention signal is lost.
+const settingsLabel = computed(() => (props.geminiAvailable ? t("sidebarHeader.settings") : t("sidebarHeader.settingsGeminiMissing")));
 
 const lockPopupOpen = ref(false);
 const lockPopup = ref<{

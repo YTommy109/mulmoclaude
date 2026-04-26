@@ -11,6 +11,7 @@ import { log } from "../../system/logger/index.js";
 import { SCHEDULER_ACTIONS, TASK_ACTIONS } from "../../../src/config/schedulerActions.js";
 import { badRequest, notFound, serverError } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
+import { makeUuid } from "../../utils/id.js";
 
 const router = Router();
 
@@ -65,11 +66,13 @@ router.post(
 );
 
 async function handleTaskAction(action: string, input: Record<string, unknown>, res: Response): Promise<void> {
+  log.info("scheduler", "task action: start", { action });
   try {
     if (action === SCHEDULER_ACTIONS.listTasks) {
       const tasks = loadUserTasks();
+      log.info("scheduler", "task action: listTasks ok", { tasks: tasks.length });
       res.json({
-        uuid: crypto.randomUUID(),
+        uuid: makeUuid(),
         message: `${tasks.length} scheduled task(s) found.`,
         data: { tasks },
       });
@@ -79,6 +82,7 @@ async function handleTaskAction(action: string, input: Record<string, unknown>, 
     if (action === SCHEDULER_ACTIONS.createTask) {
       const result = validateAndCreate(input);
       if (result.kind === "error") {
+        log.warn("scheduler", "task action: createTask validation failed", { error: result.error });
         badRequest(res, result.error);
         return;
       }
@@ -86,8 +90,9 @@ async function handleTaskAction(action: string, input: Record<string, unknown>, 
       tasks.push(result.task);
       await saveUserTasks(tasks);
       await refreshUserTasks();
+      log.info("scheduler", "task action: createTask ok", { id: result.task.id, name: result.task.name });
       res.json({
-        uuid: crypto.randomUUID(),
+        uuid: makeUuid(),
         message: `Task "${result.task.name}" created and scheduled.`,
         data: { task: result.task },
       });
@@ -99,6 +104,7 @@ async function handleTaskAction(action: string, input: Record<string, unknown>, 
       const tasks = loadUserTasks();
       const idx = tasks.findIndex((task) => task.id === taskId);
       if (idx === -1) {
+        log.warn("scheduler", "task action: deleteTask not found", { taskId });
         notFound(res, `task not found: ${taskId}`);
         return;
       }
@@ -106,8 +112,9 @@ async function handleTaskAction(action: string, input: Record<string, unknown>, 
       tasks.splice(idx, 1);
       await saveUserTasks(tasks);
       await refreshUserTasks();
+      log.info("scheduler", "task action: deleteTask ok", { taskId, name });
       res.json({
-        uuid: crypto.randomUUID(),
+        uuid: makeUuid(),
         message: `Task "${name}" deleted.`,
         data: { deleted: taskId },
       });
@@ -122,7 +129,7 @@ async function handleTaskAction(action: string, input: Record<string, unknown>, 
         notFound(res, `task not found: ${taskId}`);
         return;
       }
-      const chatSessionId = crypto.randomUUID();
+      const chatSessionId = makeUuid();
       log.info("scheduler", "manual run via MCP", {
         name: task.name,
         chatSessionId,
@@ -138,7 +145,7 @@ async function handleTaskAction(action: string, input: Record<string, unknown>, 
         });
       });
       res.json({
-        uuid: crypto.randomUUID(),
+        uuid: makeUuid(),
         message: `Task "${task.name}" triggered.`,
         data: { triggered: taskId, chatSessionId },
       });

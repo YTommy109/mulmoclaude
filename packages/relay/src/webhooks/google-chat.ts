@@ -15,6 +15,7 @@ import { chunkText } from "@mulmobridge/client/text";
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
 import { ONE_HOUR_MS, ONE_HOUR_S, TEN_SECONDS_MS, FIFTEEN_SECONDS_MS } from "../time.js";
+import { makeUuid } from "../utils/id.js";
 
 const GOOGLE_CHAT_ISSUER = "chat@system.gserviceaccount.com";
 const JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/chat@system.gserviceaccount.com";
@@ -192,7 +193,7 @@ const googleChatPlugin: PlatformPlugin = {
 
     return [
       {
-        id: crypto.randomUUID(),
+        id: makeUuid(),
         platform: PLATFORMS.googleChat,
         senderId: parsed.spaceName,
         chatId: parsed.spaceName,

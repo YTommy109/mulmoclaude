@@ -126,12 +126,11 @@ test.describe("session selection", () => {
     });
   });
 
-  test("history panel shows session previews", async ({ page }) => {
+  test("side panel shows session previews", async ({ page }) => {
     await page.goto("/");
 
-    // Open history panel.
-    const historyBtn = page.getByTestId("history-btn");
-    await historyBtn.click();
+    // Open the session-history side panel.
+    await page.getByTestId("session-history-toggle-off").click();
 
     // Session previews from fixtures should appear.
     await expect(page.locator("text=Hello from session A").first()).toBeVisible();

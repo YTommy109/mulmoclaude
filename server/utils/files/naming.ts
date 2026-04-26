@@ -6,13 +6,24 @@
 // slugification and timestamp suffixing.
 
 import path from "node:path";
-import crypto from "node:crypto";
+import { shortId } from "../id.js";
 import { slugify } from "../slug.js";
 
-// Length of the random hex suffix appended by `buildArtifactPathRandom`.
-// 16 chars = 64 bits ≈ birthday-collision at 2^32 entries — effectively
-// impossible for any realistic per-workspace artifact volume.
-const RANDOM_SUFFIX_LEN = 16;
+/**
+ * UTC-based `YYYY/MM` partition segment for new artifacts (#764).
+ * Keeps each artifact directory from accumulating a flat list of
+ * thousands of files. UTC is used (rather than local time) so a
+ * workspace synced across machines / timezones still groups files
+ * into the same bucket.
+ *
+ * Exported for unit tests and callers that need the partition without
+ * also generating a filename (e.g. saveImage / saveSpreadsheet).
+ */
+export function yearMonthUtc(now: Date = new Date()): string {
+  const year = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+  return `${year}/${month}`;
+}
 
 /**
  * Build a workspace-relative path for a new artifact file.
@@ -21,12 +32,12 @@ const RANDOM_SUFFIX_LEN = 16;
  * @param title  Human-readable title (slugified for the filename)
  * @param ext  File extension with leading dot (e.g. ".html", ".json")
  * @param fallbackSlug  Slug to use when title is empty/undefined
- * @returns  Workspace-relative path like "artifacts/charts/sales-1776135210389.chart.json"
+ * @returns  Workspace-relative path like "artifacts/charts/2026/04/sales-1776135210389.chart.json"
  */
 export function buildArtifactPath(dir: string, title: string | undefined, ext: string, fallbackSlug = "file"): string {
   const slug = title ? slugify(title) || fallbackSlug : fallbackSlug;
   const fname = `${slug}-${Date.now()}${ext}`;
-  return path.posix.join(dir, fname);
+  return path.posix.join(dir, yearMonthUtc(), fname);
 }
 
 /**
@@ -44,7 +55,6 @@ export function buildArtifactPathRandom(dir: string, prefix: string, ext: string
   // Pass fallbackSlug as slugify's default so it overrides slugify's
   // built-in "page" default when `prefix` sanitizes to empty.
   const slug = slugify(prefix, fallbackSlug);
-  const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, RANDOM_SUFFIX_LEN);
-  const fname = `${slug}-${suffix}${ext}`;
-  return path.posix.join(dir, fname);
+  const fname = `${slug}-${shortId()}${ext}`;
+  return path.posix.join(dir, yearMonthUtc(), fname);
 }

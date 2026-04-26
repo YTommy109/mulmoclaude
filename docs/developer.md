@@ -273,12 +273,15 @@ curl -X POST http://localhost:3001/api/notifications/test \
 
 Body fields (all optional):
 
-| Field          | Default                | Effect                                                                                                |
-| -------------- | ---------------------- | ----------------------------------------------------------------------------------------------------- |
-| `message`      | `"Test notification"`  | Text delivered to both targets.                                                                       |
-| `delaySeconds` | `60`, capped at `3600` | Timer length. Non-numeric / NaN falls back to the default; negative clamps to `0`; fractional floors. |
-| `transportId`  | `"cli"`                | Bridge target for `chatService.pushToBridge`.                                                         |
-| `chatId`       | `"notifications"`      | Bridge chat slot.                                                                                     |
+| Field          | Default                | Effect                                                                                                                                  |
+| -------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `message`      | `"Test notification"`  | Title delivered to both targets.                                                                                                        |
+| `body`         | _(none)_               | Optional second-line body in the bell panel.                                                                                            |
+| `delaySeconds` | `60`, capped at `3600` | Timer length. Non-numeric / NaN falls back to the default; negative clamps to `0`; fractional floors.                                   |
+| `transportId`  | `"cli"`                | Bridge target for `chatService.pushToBridge`.                                                                                           |
+| `chatId`       | `"notifications"`      | Bridge chat slot.                                                                                                                       |
+| `kind`         | `"push"`               | One of `todo` / `scheduler` / `agent` / `journal` / `push` / `bridge`. Drives the bell-panel icon — see `NOTIFICATION_ICONS`.           |
+| `action`       | `{ type: "none" }`     | Permalink target — see [Notification permalinks](#notification-permalinks-762) below. Without this the click in the bell does nothing. |
 
 ### Fan-out at fire time
 
@@ -304,7 +307,53 @@ Web subscribers listen on `PUBSUB_CHANNELS.notifications` (`src/config/pubsubCha
 - **One bridge per call**: `pushToBridge` targets a single `transportId`. Fan-out to every connected bridge is deferred until a caller needs it.
 - **One-shot only**: no repeat / snooze / dedup. Production triggers should go through the notification center once #144 lands.
 
-Full motivation + file plan: `plans/feat-notification-push-scaffold.md`. Implementation: `server/events/notifications.ts` (scheduler) + `server/api/routes/notifications.ts` (HTTP wrapper) + `src/composables/useNotifications.ts` + `src/components/NotificationToast.vue`.
+Full motivation + file plan: `plans/done/feat-notification-push-scaffold.md`. Implementation: `server/events/notifications.ts` (scheduler) + `server/api/routes/notifications.ts` (HTTP wrapper) + `src/composables/useNotifications.ts` + `src/components/NotificationToast.vue`.
+
+### Notification permalinks (#762)
+
+Clicking a bell entry calls `router.push` with whatever its `action.target` resolves to. Targets are typed per feature page so the dispatcher and the page components agree on identifier semantics:
+
+| `target.view` | Identifier(s)                        | Resolves to URL                                       |
+| ------------- | ------------------------------------ | ----------------------------------------------------- |
+| `chat`        | `sessionId` (required), `resultUuid` | `/chat/:sessionId` (`?result=:resultUuid` if set)     |
+| `todos`       | `itemId?`                            | `/todos` or `/todos/:itemId` (scrolls + flashes card) |
+| `calendar`    | _none_                               | `/calendar`                                           |
+| `automations` | `taskId?`                            | `/automations` or `/automations/:taskId`              |
+| `sources`     | `slug?`                              | `/sources` or `/sources/:slug`                        |
+| `files`       | `path?`                              | `/files/<segments>` (catch-all)                       |
+| `wiki`        | `slug?`, `anchor?`                   | `/wiki/pages/:slug` (`#:anchor` if set)               |
+
+Pure dispatcher: `src/utils/notification/dispatch.ts`. App.vue feeds the result straight into `router.push(target)`.
+
+#### Manual testing
+
+`scripts/dev/fire-sample-notifications.sh` POSTs eight representative notifications — one per target variant — through the test endpoint. Useful for confirming every permalink lands on the right page after a UI change.
+
+```bash
+# Server + Vite
+yarn dev
+
+# In another terminal
+./scripts/dev/fire-sample-notifications.sh
+# (optional flags) --host http://127.0.0.1:3001  --delay 0.5
+```
+
+The script reads the bearer token from `MULMOCLAUDE_AUTH_TOKEN` first, then falls back to `~/mulmoclaude/.session-token`. **Stale-token gotcha**: a long-running server's in-memory token can drift from the on-disk file if a different server process overwrote it. If every call returns `401`, restart `yarn dev` so memory + file resync, or pin a token across restarts:
+
+```bash
+MULMOCLAUDE_AUTH_TOKEN=$(openssl rand -hex 32) yarn dev
+# In another terminal — must use the same value
+MULMOCLAUDE_AUTH_TOKEN=<same value> ./scripts/dev/fire-sample-notifications.sh
+```
+
+After firing, open the bell in the Web UI and click each entry; every click should land on the URL noted in the script's `→` output line. The `automations`, `sources`, and `todos` rows additionally scroll + flash the matching item via `scrollIntoViewByTestId` (`src/utils/dom/`).
+
+#### Automated coverage
+
+- **Unit**: `test/utils/notification/test_dispatch.ts` — every target variant + edge cases (missing sessionId, file path splitting, wiki anchor hash).
+- **E2E**: `e2e/tests/notifications.spec.ts` — boots the app with a mocked pub-sub socket that delivers one canned payload per scenario, clicks bell + item, asserts the resulting URL. Run via `yarn test:e2e notifications`.
+
+Plan doc: `plans/done/feat-notification-permalinks.md`. Implementation lives in `src/types/notification.ts` (typed targets), `src/utils/notification/dispatch.ts` (dispatcher), `src/router/pageRoutes.ts` (route names), and per-page mount-time scroll handlers (`TodoExplorer.vue`, `SourcesView.vue`, `TasksTab.vue`).
 
 ---
 
@@ -388,7 +437,7 @@ Set `VITE_LOCALE=ja` (or `en`) in `.env` and restart `yarn dev`. Vite inlines en
 
 ### Scope today vs. plans
 
-`src/lang/*.ts` currently holds only a seed (`common.save` / `common.cancel`). Existing hard-coded strings across `src/**/*.vue` will be extracted incrementally in follow-up PRs. See `plans/feat-vue-i18n-setup.md` for the rationale and [issue #559](https://github.com/receptron/mulmoclaude/issues/559).
+`src/lang/*.ts` currently holds only a seed (`common.save` / `common.cancel`). Existing hard-coded strings across `src/**/*.vue` will be extracted incrementally in follow-up PRs. See `plans/done/feat-vue-i18n-setup.md` for the rationale and [issue #559](https://github.com/receptron/mulmoclaude/issues/559).
 
 ---
 
@@ -440,7 +489,32 @@ Full reference: [`docs/logging.md`](logging.md). Two rules to keep in mind when 
 1. **Never call `console.*` outside `server/system/logger/`.** Import and use `log.{error,warn,info,debug}(prefix, msg, data?)` instead. The structured payload powers JSON file shipping and grep-friendly text output. The only sanctioned `console.error` is the file-sink fallback inside the logger itself.
 2. **Prefix is lowercase, hyphenated, no brackets.** The text formatter wraps it in `[ ]`. Keep payload values scalar; nested objects are JSON-stringified.
 
-Existing prefixes in use: `agent`, `agent-stderr`, `server`, `workspace`, `sandbox`, `mcp`, `task-manager`, `journal`, `chat-index`, `pdf`, `config`.
+Existing prefixes in use: `agent`, `agent-stderr`, `server`, `workspace`, `sandbox`, `mcp`, `task-manager`, `journal`, `chat-index`, `pdf`, `config`, `image`, `wiki`, `pipeline`, `pipeline.fetch`, `scheduler`, `scheduler-tasks`, `sources`, `notifications`, `auth`.
+
+### Layered logging template (#779)
+
+Routes that do anything more than echo state should follow this shape, mirroring [`server/api/routes/image.ts`](../server/api/routes/image.ts) (PR #780) and [`server/api/routes/wiki.ts`](../server/api/routes/wiki.ts):
+
+| Stage | Level | Required payload |
+|---|---|---|
+| Entry, after input validation | `info` | route name + key id (sessionId / slug / path) + `promptMeta(prompt)` for freeform user input, or `previewSnippet(slug)` for identifier-shaped fields |
+| Success | `info` | bytes / item count / generated id |
+| External SDK / fetch returned no data | `warn` | input fingerprint + reason |
+| Internal exception (we threw, not the SDK) | `error` | input fingerprint + `errorMessage(err)` |
+| External SDK request/response shape | `debug` | only inside the SDK wrapper (`server/utils/gemini.ts` etc.); never inside route files |
+
+The "input fingerprint" in the warn / error rows is whichever helper the entry log used — `promptMeta` for freeform prompts, `previewSnippet` for identifiers. Pick by call-site shape, per the table below:
+
+| Helper | Use for | Output |
+|---|---|---|
+| [`promptMeta`](../server/utils/promptMeta.ts) | freeform user-supplied prompts / pasted text — anything that could carry credentials, URLs, or PII | `{ length, sha256: <12-hex> }` — fingerprint only |
+| [`previewSnippet`](../server/utils/logPreview.ts) | identifier-shaped fields with grep value (slug, page name, action verb) | first 120 chars + `…` |
+
+Default to `promptMeta` for any field a user types or pastes freely; reserve `previewSnippet` for fields the user picks from a closed set (a slug, an action name) or that the system already constrains (a page name routed through a slugifier). **Never log** API keys, bearer tokens, cookies, full prompts, full markdown bodies, or absolute paths that include `/Users/<name>` (use the workspace-relative path instead).
+
+### Operational note: hard-to-reproduce error reports
+
+When a user reports "this failed with no UI feedback" and you can't reproduce it, **start by auditing the relevant route's log coverage**. If the file has zero `log.*` calls (or only catch-block logs without an entry log), there's nothing to grep against — the first move is to add the layered logging template above and ship it as its own PR before continuing the bug hunt. The current state of every route is tracked in [`plans/log-audit/findings.md`](../plans/log-audit/findings.md); if the route you're touching is marked "none" or "partial", upgrading it counts as in-scope groundwork.
 
 ---
 
@@ -512,7 +586,7 @@ See [`packages/README.md`](../packages/README.md) for the MulmoBridge architectu
 
 ## Common gotchas
 
-- **Vite `reuseExistingServer: true`** in `e2e/playwright.config.ts` — if a stale `vite` process is already serving `:5173` (e.g. from a different working tree), Playwright happily talks to _that_ one. Symptom: tests fail because UI changes "haven't landed". Kill the stray process: `lsof -i :5173 | grep LISTEN`.
+- **Playwright uses its own port `:45173`** (`dev:client:e2e` in `package.json` + `webServer` in `e2e/playwright.config.ts`), so it doesn't collide with a running `yarn dev` on `:5173`. `reuseExistingServer: true` is still on for that port — if a stale `vite` process from a different working tree is already serving `:45173`, Playwright will happily talk to _that_ one. Symptom: tests fail because UI changes "haven't landed". Kill the stray process: `lsof -i :45173 | grep LISTEN`.
 - **CSRF guard is strict.** `requireSameOrigin` (`server/api/csrfGuard.ts`) rejects state-changing requests from non-localhost origins. Requests with no `Origin` header (CLI tools, server-to-server) are allowed because the listener is bound to `127.0.0.1`. If you ever expose the listener publicly, tighten this middleware first.
 - **Workspace is git-init'd.** The first server start creates `~/mulmoclaude/.git`. Don't be surprised when journal / wiki edits show up in `git log`.
 - **`.vue` cognitive-complexity is warn-only.** A few legacy components exceed 15. The override demotes the rule to warn so CI isn't blocked. Each fix should re-raise to error in `eslint.config.mjs`.

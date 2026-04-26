@@ -29,7 +29,7 @@ export const TODO_ITEMS: TodoFixture[] = [
     labels: ["work"],
     completed: false,
     createdAt: 1775901000000,
-    status: "in_progress",
+    status: "in-progress",
     order: 1000,
     priority: "high",
   },
@@ -66,7 +66,7 @@ export const TODO_ITEMS: TodoFixture[] = [
 export const TODO_COLUMNS = [
   { id: "backlog", label: "Backlog" },
   { id: "todo", label: "Todo" },
-  { id: "in_progress", label: "In Progress" },
+  { id: "in-progress", label: "In Progress" },
   { id: "done", label: "Done", isDone: true },
 ];
 

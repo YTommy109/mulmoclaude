@@ -29,6 +29,7 @@ import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
 import { ONE_HOUR_MS, ONE_HOUR_S, TEN_SECONDS_MS, FIFTEEN_SECONDS_MS } from "../time.js";
 import { validateTokenClaims, validateJwkEndorsement, isAllowedSender, type AppType } from "./teams-verify.js";
+import { makeUuid } from "../utils/id.js";
 
 const MULTITENANT_ISSUER = "https://api.botframework.com";
 const MULTITENANT_JWKS_URL = "https://login.botframework.com/v1/.well-known/keys";
@@ -313,7 +314,7 @@ const teamsPlugin: PlatformPlugin = {
 
     return [
       {
-        id: crypto.randomUUID(),
+        id: makeUuid(),
         platform: PLATFORMS.teams,
         senderId: activity.senderAadObjectId || activity.senderId,
         chatId: activity.conversationId,

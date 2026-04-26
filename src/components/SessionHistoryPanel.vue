@@ -1,23 +1,21 @@
 <template>
   <!-- Rendered as the canvas-column content for the /history route
-       (see plans/feat-history-url-route.md). Previously this was an
+       (see plans/done/feat-history-url-route.md). Previously this was an
        absolute-positioned overlay; the `h-full overflow-y-auto` root
        plus inline flow replaces the z-index + topOffset plumbing. -->
-  <div ref="root" class="h-full overflow-y-auto bg-white">
-    <div class="p-2 space-y-1">
+  <div ref="root" class="h-full overflow-y-auto bg-white select-none">
+    <div class="p-2 space-y-2">
       <!-- Origin filter bar -->
-      <div class="flex gap-1 mb-1 flex-wrap" data-testid="session-filter-bar">
-        <button
+      <div class="flex gap-1 mb-3 flex-wrap" data-testid="session-filter-bar">
+        <FilterChip
           v-for="f in HISTORY_FILTER_ORDER"
           :key="f"
-          class="px-2 py-0.5 text-[10px] rounded-full border transition-colors"
-          :class="activeFilter === f ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'"
+          :active="activeFilter === f"
+          :label="t(`sessionHistoryPanel.filters.${f}`)"
+          :count="f === HISTORY_FILTERS.all ? undefined : countByOrigin(f)"
           :data-testid="`session-filter-${f}`"
           @click="activeFilter = f"
-        >
-          {{ t(`sessionHistoryPanel.filters.${f}`) }}
-          <span v-if="f !== HISTORY_FILTERS.all" class="ml-0.5 opacity-70">{{ countByOrigin(f) }}</span>
-        </button>
+        />
       </div>
 
       <div
@@ -38,35 +36,30 @@
         tabindex="0"
         role="button"
         :aria-label="t('sessionHistoryPanel.openRowAria', { preview: session.preview || t('sessionHistoryPanel.noMessages') })"
-        class="cursor-pointer rounded border p-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+        class="relative cursor-pointer rounded p-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
         :class="rowClasses(session)"
         :data-testid="`session-item-${session.id}`"
         @click="emit('loadSession', session.id)"
         @keydown.enter.prevent.self="(e) => !e.repeat && emit('loadSession', session.id)"
         @keydown.space.prevent.self="(e) => !e.repeat && emit('loadSession', session.id)"
       >
-        <div class="flex items-center gap-1 text-xs text-gray-500 mb-1">
-          <span class="material-icons text-xs">{{ roleIconFor(session.roleId) }}</span>
-          <span>{{ roleNameFor(session.roleId) }}</span>
-          <span
-            v-if="originOf(session) !== 'human'"
-            class="material-icons text-[10px] ml-0.5"
-            :class="originColor(originOf(session))"
-            :title="originOf(session)"
-            >{{ originIcon(originOf(session)) }}</span
-          >
-          <span class="ml-auto flex items-center gap-1.5">
-            <span v-if="isSessionRunning(session)" class="flex items-center gap-0.5 text-yellow-600 font-medium">
-              <span class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
-              {{ t("sessionHistoryPanel.running") }}
-            </span>
-            <span v-else-if="isSessionUnread(session)" class="flex items-center gap-0.5 text-gray-900 font-bold">{{ t("sessionHistoryPanel.unread") }}</span>
-            <span v-else>{{ formatDate(session.updatedAt) }}</span>
+        <!-- Timestamp pill straddling the top border, mirroring the
+             ToolResultsPanel card design. The running indicator
+             still renders inline in the meta line below (it's a
+             status, not a time); unread is signalled solely through
+             previewClasses (bold text). -->
+        <span class="absolute top-0 right-2 -translate-y-1/2 bg-white px-1 text-[10px] text-gray-400 leading-none pointer-events-none">
+          {{ formatDate(session.updatedAt) }}
+        </span>
+        <div class="flex items-center gap-1.5">
+          <SessionRoleIcon :session="session" :roles="roles" size="sm" />
+          <p class="truncate flex-1 min-w-0" :class="previewClasses(session)">
+            {{ session.preview || t("sessionHistoryPanel.noMessages") }}
+          </p>
+          <span v-if="isSessionRunning(session)" class="flex-shrink-0 flex items-center" :aria-label="t('sessionHistoryPanel.running')">
+            <span class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
           </span>
         </div>
-        <p class="truncate" :class="previewClasses(session)">
-          {{ session.preview || t("sessionHistoryPanel.noMessages") }}
-        </p>
         <!-- Optional second line: AI-generated summary of the
              session, populated by the chat indexer (#123). -->
         <p v-if="session.summary" class="text-xs text-gray-500 truncate mt-0.5">
@@ -80,37 +73,20 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRoute, useRouter } from "vue-router";
 import type { Role } from "../config/roles";
 import type { SessionSummary, SessionOrigin } from "../types/session";
 import { SESSION_ORIGINS } from "../types/session";
-import { HISTORY_FILTERS, HISTORY_FILTER_ORDER, isHistoryFilter, type HistoryFilter } from "../config/historyFilters";
-import { PAGE_ROUTES } from "../router";
+import { HISTORY_FILTERS, HISTORY_FILTER_ORDER, type HistoryFilter } from "../config/historyFilters";
 import { formatDate } from "../utils/format/date";
-import { roleIcon, roleName } from "../utils/role/icon";
+import SessionRoleIcon from "./SessionRoleIcon.vue";
+import FilterChip from "./FilterChip.vue";
 
 const { t } = useI18n();
-const route = useRoute();
-const router = useRouter();
 
 // `unread` is mutually exclusive with origin pills — selecting it
 // shows every unread-flagged session regardless of origin, matching
 // the user expectation that "unread" is the primary question ("what
 // needs my attention?") rather than an origin sub-filter.
-
-const ORIGIN_ICONS: Record<string, string> = {
-  human: "person",
-  scheduler: "event",
-  skill: "auto_fix_high",
-  bridge: "chat",
-};
-
-const ORIGIN_COLORS: Record<string, string> = {
-  human: "text-gray-400",
-  scheduler: "text-blue-500",
-  skill: "text-purple-500",
-  bridge: "text-green-500",
-};
 
 const props = defineProps<{
   sessions: SessionSummary[];
@@ -129,18 +105,11 @@ defineExpose({ root });
 
 // ── Filter ──────────────────────────────────────────────────
 
-// Backed by the /history/:filter? path param so browser back/forward
-// restores prior filter states and deep links like /history/unread work.
-const activeFilter = computed<HistoryFilter>({
-  get: () => {
-    const raw = route.params.filter;
-    return typeof raw === "string" && isHistoryFilter(raw) ? raw : HISTORY_FILTERS.all;
-  },
-  set: (value) => {
-    const params = value === HISTORY_FILTERS.all ? {} : { filter: value };
-    router.push({ name: PAGE_ROUTES.history, params });
-  },
-});
+// Panel-local state. Resets to `all` when the panel unmounts —
+// persisting across mounts didn't earn its keep (no deep-link story
+// now that /history is gone), and keeping it local avoids leaking
+// panel UI state into a global store.
+const activeFilter = ref<HistoryFilter>(HISTORY_FILTERS.all);
 
 function originOf(session: SessionSummary): SessionOrigin {
   return session.origin ?? SESSION_ORIGINS.human;
@@ -158,23 +127,6 @@ function countByOrigin(filterKey: HistoryFilter): number {
   return props.sessions.filter((session) => originOf(session) === filterKey).length;
 }
 
-function originIcon(origin: string): string {
-  return ORIGIN_ICONS[origin] ?? "person";
-}
-
-function originColor(origin: string): string {
-  return ORIGIN_COLORS[origin] ?? "text-gray-400";
-}
-
-// ── Role helpers ────────────────────────────────────────────
-
-function roleIconFor(roleId: string): string {
-  return roleIcon(props.roles, roleId);
-}
-function roleNameFor(roleId: string): string {
-  return roleName(props.roles, roleId);
-}
-
 function isSessionRunning(session: SessionSummary): boolean {
   return session.isRunning ?? false;
 }
@@ -184,14 +136,11 @@ function isSessionUnread(session: SessionSummary): boolean {
 }
 
 function rowClasses(session: SessionSummary): string {
-  if (isSessionRunning(session)) return "border-yellow-400 bg-yellow-50 hover:bg-yellow-100";
-  if (isSessionUnread(session)) return "border-sky-300 bg-sky-50 hover:bg-sky-100";
-  if (session.id === props.currentSessionId) return "border-blue-400 bg-blue-50 hover:bg-blue-100";
-  return "border-gray-200 hover:bg-gray-50";
+  if (session.id === props.currentSessionId) return "border-2 border-blue-500 hover:bg-gray-50";
+  return "border border-gray-200 hover:bg-gray-50";
 }
 
 function previewClasses(session: SessionSummary): string {
-  if (isSessionRunning(session)) return "text-yellow-800";
   if (isSessionUnread(session)) return "text-gray-900 font-bold";
   return "text-gray-700";
 }

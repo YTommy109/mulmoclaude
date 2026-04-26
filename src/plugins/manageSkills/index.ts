@@ -4,6 +4,7 @@ import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiGet } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
+import { makeUuid } from "../../utils/id";
 
 export interface SkillSummary {
   name: string;
@@ -25,7 +26,7 @@ const manageSkillsPlugin: ToolPlugin<ManageSkillsData> = {
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,
-        uuid: crypto.randomUUID(),
+        uuid: makeUuid(),
         message: `Failed to load skills: ${result.error}`,
         error: `Failed to load skills: ${result.error}`,
       };
@@ -33,7 +34,7 @@ const manageSkillsPlugin: ToolPlugin<ManageSkillsData> = {
     const skills = result.data.skills;
     return {
       toolName: TOOL_NAME,
-      uuid: crypto.randomUUID(),
+      uuid: makeUuid(),
       title: "Skills",
       message: `Found ${skills.length} skill${skills.length === 1 ? "" : "s"}.`,
       data: { skills },

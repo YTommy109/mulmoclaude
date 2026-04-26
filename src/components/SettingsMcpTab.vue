@@ -340,7 +340,19 @@ function flushDraft(): boolean {
   return !adding.value;
 }
 
-defineExpose({ flushDraft });
+// Returns true while the add form is open AND has user-entered
+// content. Lets the parent ask "will closing the modal discard
+// typed text?" — an empty-open draft is fine to silently drop.
+function hasPendingDraft(): boolean {
+  if (!adding.value) return false;
+  return (
+    draft.value.id.trim().length > 0 ||
+    draft.value.url.trim().length > 0 ||
+    (draft.value.type === "stdio" && (draft.value.command.trim().length > 0 || draft.value.argsText.trim().length > 0))
+  );
+}
+
+defineExpose({ flushDraft, hasPendingDraft });
 
 function onToggleEnabled(index: number, event: Event): void {
   const target = event.target as HTMLInputElement;

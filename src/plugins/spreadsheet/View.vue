@@ -16,12 +16,16 @@
             <h1 class="title">
               {{ selectedResult.title || t("pluginSpreadsheet.untitled") }}
             </h1>
-            <div class="button-group">
-              <button class="download-btn excel-btn" @click="downloadExcel">
-                <span class="material-icons">download</span>
-                {{ t("pluginSpreadsheet.excel") }}
-              </button>
-            </div>
+            <!-- `download-btn` class kept as a name hook — referenced by
+                 e2e/tests/spreadsheet.spec.ts via `button.download-btn`.
+                 Styling is inline Tailwind; the class has no CSS rules. -->
+            <button
+              class="download-btn h-8 px-2.5 flex items-center gap-1 rounded bg-[#217346] hover:bg-[#1e6a3f] active:bg-[#1a5c36] text-white text-sm transition-colors"
+              @click="downloadExcel"
+            >
+              <span class="material-icons text-base">download</span>
+              {{ t("pluginSpreadsheet.excel") }}
+            </button>
           </div>
 
           <!-- Sheet tabs (if multiple sheets) -->
@@ -191,8 +195,11 @@ const loading = ref(false);
 const errorMessage = ref("");
 const resolvedSheets = ref<SpreadsheetSheet[]>([]);
 
+// Accepts only the canonical prefix. Any legacy `spreadsheets/*.json`
+// references in old session JSONL must be migrated via
+// `scripts/migrate-legacy-artifact-paths.ts` (#773).
 function isFilePath(value: unknown): value is string {
-  return typeof value === "string" && (value.startsWith("artifacts/spreadsheets/") || value.startsWith("spreadsheets/")) && value.endsWith(".json");
+  return typeof value === "string" && value.startsWith("artifacts/spreadsheets/") && value.endsWith(".json");
 }
 
 async function fetchSheets(): Promise<void> {
@@ -240,8 +247,11 @@ fetchSheets().then(() => {
 async function persistSheets(sheets: SpreadsheetSheet[]): Promise<void> {
   const raw = props.selectedResult.data?.sheets;
   if (isFilePath(raw)) {
-    const filename = raw.replace(/^(artifacts\/spreadsheets|spreadsheets)\//, "");
-    const result = await apiPut<unknown>(API_ROUTES.plugins.updateSpreadsheet.replace(":filename", filename), {
+    // Send the full workspace-relative path so the route doesn't have
+    // to reconstruct one from a basename — paths under
+    // `artifacts/spreadsheets/` are now sharded by YYYY/MM (#764).
+    const result = await apiPut<unknown>(API_ROUTES.plugins.updateSpreadsheet, {
+      relativePath: raw,
       sheets,
     });
     if (!result.ok) {
@@ -702,40 +712,6 @@ onUnmounted(() => {
   font-size: 2em;
   margin: 0;
   font-weight: bold;
-}
-
-.button-group {
-  display: flex;
-  gap: 0.5em;
-}
-
-.download-btn {
-  padding: 0.5em 1em;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9em;
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  transition: background-color 0.2s;
-}
-
-.excel-btn {
-  background-color: #217346;
-}
-
-.excel-btn:hover {
-  background-color: #1e6a3f;
-}
-
-.excel-btn:active {
-  background-color: #1a5c36;
-}
-
-.download-btn .material-icons {
-  font-size: 1.2em;
 }
 
 /* Sheet tabs */

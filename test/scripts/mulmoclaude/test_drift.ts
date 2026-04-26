@@ -149,6 +149,8 @@ describe("checkPackageDrift", () => {
     const result = await drift.checkPackageDrift({
       root: path.join(FIXTURES, "drift-clean"),
       packageBaseName: "protocol",
+      // drift-clean/packages/protocol/package.json is 0.1.3 — match it
+      // so the version compare resolves to "equal" (= not bumped).
       fetchPublishedSource: registryReturning(publishedOldDist, "0.1.3"),
     });
     assert.equal(result.status, "drifted");
@@ -156,6 +158,26 @@ describe("checkPackageDrift", () => {
     assert.equal(result.distCount, 2);
     assert.equal(result.publishedVersion, "0.1.3");
     assert.equal(result.fallbackReason, undefined, "must not use local fallback when registry succeeded");
+  });
+
+  it("downgrades drift to 'pending-publish' when local version is ahead of registry", async () => {
+    // Same shape as the drifted test above, but the registry stub
+    // reports an OLDER version than what's in the local
+    // package.json. That means the developer has already bumped
+    // the workspace version to acknowledge the new exports — the
+    // cascade publish just hasn't landed yet. Smoke should let
+    // the PR through.
+    const publishedOldDist = `export { a } from "./a.js";\nexport { b } from "./b.js";\n`;
+    const result = await drift.checkPackageDrift({
+      root: path.join(FIXTURES, "drift-clean"),
+      packageBaseName: "protocol",
+      fetchPublishedSource: registryReturning(publishedOldDist, "0.1.2"),
+    });
+    assert.equal(result.status, "pending-publish");
+    assert.equal(result.localCount, 3);
+    assert.equal(result.distCount, 2);
+    assert.equal(result.localVersion, "0.1.3");
+    assert.equal(result.publishedVersion, "0.1.2");
   });
 
   it("falls back to local installed dist when the registry fetch returns no source", async () => {
@@ -168,6 +190,36 @@ describe("checkPackageDrift", () => {
     });
     assert.equal(result.status, "ok");
     assert.match(result.fallbackReason ?? "", /registry unreachable/);
+  });
+});
+
+describe("isLocalVersionAhead", () => {
+  it("returns true when any component is strictly greater", () => {
+    assert.equal(drift.isLocalVersionAhead("0.1.3", "0.1.2"), true);
+    assert.equal(drift.isLocalVersionAhead("0.2.0", "0.1.99"), true);
+    assert.equal(drift.isLocalVersionAhead("1.0.0", "0.99.99"), true);
+  });
+
+  it("returns false when versions are equal or local is behind", () => {
+    assert.equal(drift.isLocalVersionAhead("0.1.2", "0.1.2"), false);
+    assert.equal(drift.isLocalVersionAhead("0.1.2", "0.1.3"), false);
+    assert.equal(drift.isLocalVersionAhead("0.1.2", "0.2.0"), false);
+  });
+
+  it("ignores prerelease / build suffixes", () => {
+    // Treating "0.1.3-rc.1" as "0.1.3" is intentional — any
+    // prerelease of a bumped version still counts as a deliberate
+    // bump for the drift check.
+    assert.equal(drift.isLocalVersionAhead("0.1.3-rc.1", "0.1.2"), true);
+    assert.equal(drift.isLocalVersionAhead("0.1.3+build.5", "0.1.3"), false);
+  });
+
+  it("returns false for malformed / missing input", () => {
+    assert.equal(drift.isLocalVersionAhead("", "0.1.2"), false);
+    assert.equal(drift.isLocalVersionAhead("0.1", "0.1.2"), false);
+    assert.equal(drift.isLocalVersionAhead("abc", "0.1.2"), false);
+    assert.equal(drift.isLocalVersionAhead(null, "0.1.2"), false);
+    assert.equal(drift.isLocalVersionAhead("0.1.2", undefined), false);
   });
 });
 

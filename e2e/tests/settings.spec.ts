@@ -106,13 +106,13 @@ test.describe("Settings modal", () => {
     const textarea = page.locator('[data-testid="settings-tools-textarea"]');
     await textarea.fill("mcp__claude_ai_Gmail\nmcp__claude_ai_Google_Calendar");
 
-    await page.locator('[data-testid="settings-save-btn"]').click();
+    // Tools tab has its own Save button — Save does not auto-close
+    // the modal anymore; the user closes it explicitly.
+    await page.locator('[data-testid="settings-tools-save-btn"]').click();
+    await expect.poll(() => state.settings.extraAllowedTools).toEqual(["mcp__claude_ai_Gmail", "mcp__claude_ai_Google_Calendar"]);
 
-    // Save auto-closes the modal on success.
+    await page.locator('[data-testid="settings-close-btn"]').click();
     await expect(page.locator('[data-testid="settings-modal"]')).not.toBeVisible();
-
-    // Verify that the server-side state reflects the submission.
-    expect(state.settings.extraAllowedTools).toEqual(["mcp__claude_ai_Gmail", "mcp__claude_ai_Google_Calendar"]);
 
     // Reopen → textarea must repopulate from the mocked server.
     await openSettingsModal(page);
@@ -157,11 +157,13 @@ test.describe("Settings MCP tab — HTTP servers (Phase 2a)", () => {
 
     await expect(page.locator('[data-testid="mcp-server-gmail"]')).toBeVisible();
 
-    await page.locator('[data-testid="settings-save-btn"]').click();
-    await expect(page.locator('[data-testid="settings-modal"]')).not.toBeVisible();
-    expect(state.mcp.servers.length).toBe(1);
+    // MCP mutations auto-persist — no Save button required.
+    await expect.poll(() => state.mcp.servers.length).toBe(1);
     expect(state.mcp.servers[0]?.id).toBe("gmail");
     expect(state.mcp.servers[0]?.spec.type).toBe("http");
+
+    await page.locator('[data-testid="settings-close-btn"]').click();
+    await expect(page.locator('[data-testid="settings-modal"]')).not.toBeVisible();
   });
 
   test("rejects an invalid server id", async ({ page }) => {
@@ -221,9 +223,10 @@ test.describe("Settings MCP tab — HTTP servers (Phase 2a)", () => {
     await openSettingsModal(page);
     await page.locator('[data-testid="settings-tab-mcp"]').click();
     await page.locator('[data-testid="mcp-remove-gmail"]').click();
-    await page.locator('[data-testid="settings-save-btn"]').click();
+    // MCP mutations auto-persist — no Save button required.
+    await expect.poll(() => state.mcp.servers.length).toBe(0);
+    await page.locator('[data-testid="settings-close-btn"]').click();
     await expect(page.locator('[data-testid="settings-modal"]')).not.toBeVisible();
-    expect(state.mcp.servers.length).toBe(0);
   });
 });
 
@@ -242,8 +245,9 @@ test.describe("Settings MCP tab — stdio + Docker warnings (Phase 2b)", () => {
     await page.locator('[data-testid="mcp-draft-add"]').click();
 
     await expect(page.locator('[data-testid="mcp-server-files"]')).toBeVisible();
-    await page.locator('[data-testid="settings-save-btn"]').click();
+    // MCP mutations auto-persist — no Save button required.
+    await expect.poll(() => state.mcp.servers[0]?.spec.type).toBe("stdio");
+    await page.locator('[data-testid="settings-close-btn"]').click();
     await expect(page.locator('[data-testid="settings-modal"]')).not.toBeVisible();
-    expect(state.mcp.servers[0]?.spec.type).toBe("stdio");
   });
 });

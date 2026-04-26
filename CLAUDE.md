@@ -55,6 +55,17 @@ NEVER use raw `fs.readFile` / `fs.writeFile` in route handlers. Use `server/util
 
 NEVER escape backticks with `\`` in `gh` commands. Use single-quoted heredoc (`<<'EOF'`).
 
+### UI controls — standard height and spacing
+
+Top-bar and panel-header controls share one sizing language. Use these exact classes when adding or editing a control that sits in a chrome row (anything outside the canvas itself):
+
+- **Icon-only button** (bell, settings, lock, toggle, `+`): `h-8 w-8 flex items-center justify-center rounded` — 32px square.
+- **Icon + label pill** (launcher buttons, role selector, tabs): `h-8 px-2.5 flex items-center gap-1` — 32px tall with 10px horizontal padding and 4px icon-to-label gap.
+- **Row container** (outer wrapper holding multiple control groups): `flex items-center gap-2 px-3 py-2` — 8px between groups, 12/8 outer padding.
+- **Icon-cluster group** (a run of adjacent icon-only buttons like lock/bell/settings): `flex gap-0.5` — 2px gap, tight but still visibly separated.
+
+Do NOT introduce new heights (`h-7`, `h-9`, `py-1.5`, etc.) or new gap values for chrome controls. The logo in `SidebarHeader` is the one sanctioned exception — it escapes row padding via negative margins (`-my-3.5`) because it's a brand mark, not a control.
+
 ### i18n — all 8 locales in lockstep
 
 Supported UI locales live under `src/lang/`: `en.ts`, `ja.ts`, `zh.ts`, `ko.ts`, `es.ts`, `pt-BR.ts`, `fr.ts`, `de.ts`. `src/lang/en.ts` is the schema source of truth; `typeof enMessages` is threaded through `createI18n` in `src/lib/vue-i18n.ts`, so `vue-tsc` treats every missing or extra key as a type error.

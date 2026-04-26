@@ -1,6 +1,6 @@
 {
   "name": "@mulmobridge/signal",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Signal bridge for MulmoBridge — talks to a signal-cli-rest-api daemon via WebSocket + REST",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,8 +21,8 @@
   "license": "MIT",
   "author": "Receptron Team",
   "dependencies": {
-    "@mulmobridge/client": "^0.1.0",
-    "@mulmobridge/protocol": "^0.1.0",
+    "@mulmobridge/client": "^0.1.4",
+    "@mulmobridge/protocol": "^0.1.4",
     "dotenv": "^17.0.0",
     "ws": "^8.20.0"
   },

@@ -12,7 +12,7 @@
 // **Express params**: patterns like `:id` / `:filename` are kept as
 // Express-compatible strings. Client-side URL builders (e.g. a
 // `todoItem(id)` helper) are deliberately NOT added here until the
-// frontend migration lands — see plans/refactor-api-routes-constants.md.
+// frontend migration lands — see plans/done/refactor-api-routes-constants.md.
 //
 // **Adding a new endpoint**: add it here first, then reference the
 // constant from the router file. Keep the nesting shallow and the
@@ -41,7 +41,7 @@ export const API_ROUTES = {
     rebuild: "/api/chat-index/rebuild",
   },
 
-  // Single source of truth: @mulmobridge/protocol. See plans/messaging_transports.md.
+  // Single source of truth: @mulmobridge/protocol. See plans/done/messaging_transports.md.
   chatService: CHAT_SERVICE_ROUTES,
 
   config: {
@@ -71,7 +71,10 @@ export const API_ROUTES = {
     generate: "/api/generate-image",
     edit: "/api/edit-image",
     upload: "/api/images",
-    update: "/api/images/:filename",
+    // Body carries the workspace-relative path so the route doesn't
+    // have to reconstruct one from a basename — required after #764
+    // sharded image storage by YYYY/MM.
+    update: "/api/images/update",
   },
 
   mcpTools: {
@@ -81,7 +84,7 @@ export const API_ROUTES = {
 
   notifications: {
     // PoC endpoint for scheduled push fan-out (Web pub-sub + bridge).
-    // Scaffolding for #144 / #142 — see plans/feat-notification-push-scaffold.md.
+    // Scaffolding for #144 / #142 — see plans/done/feat-notification-push-scaffold.md.
     test: "/api/notifications/test",
   },
 
@@ -110,9 +113,13 @@ export const API_ROUTES = {
   // Names match the plugin tool name or the short verb the plugin uses.
   plugins: {
     presentDocument: "/api/present-document",
-    updateMarkdown: "/api/markdowns/:filename",
+    // Body carries the workspace-relative path so the route doesn't
+    // have to reconstruct one from a basename — required after #764
+    // sharded artifact storage by YYYY/MM. Same shape as
+    // image.update.
+    updateMarkdown: "/api/markdowns/update",
     presentSpreadsheet: "/api/present-spreadsheet",
-    updateSpreadsheet: "/api/spreadsheets/:filename",
+    updateSpreadsheet: "/api/spreadsheets/update",
     mindmap: "/api/mindmap",
     quiz: "/api/quiz",
     form: "/api/form",
@@ -154,6 +161,12 @@ export const API_ROUTES = {
     remove: "/api/sources/:slug",
     rebuild: "/api/sources/rebuild",
     manage: "/api/sources/manage",
+  },
+
+  news: {
+    items: "/api/news/items",
+    itemBody: "/api/news/items/:id/body",
+    readState: "/api/news/read-state",
   },
 
   todos: {

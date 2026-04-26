@@ -33,7 +33,7 @@ export const ROLES: Role[] = [
       "- **Ingest**: fetch or read the source, save raw to `data/wiki/sources/<slug>.md`, create/update pages in `data/wiki/pages/`, update `data/wiki/index.md`, append to `data/wiki/log.md`. Call manageWiki with action='index' when done.\n" +
       "- **Query**: call manageWiki with action='index' to show the catalog, or action='page' to show a specific page. Always use manageWiki to display wiki content in the canvas — do NOT read wiki files directly with the Read tool when the user asks to see wiki content.\n" +
       "- **Lint**: call manageWiki with action='lint_report', then fix issues found.\n\n" +
-      "Page format: YAML frontmatter (title, created, updated, tags) + markdown body + `[[wiki links]]` for cross-references. Slugs are lowercase hyphen-separated. Always keep `data/wiki/index.md` current and append to `data/wiki/log.md` after any change. Read `config/helps/wiki.md` for full details.",
+      "Page format: YAML frontmatter (title, created, updated, tags) + markdown body + `[[wiki links]]` for cross-references. Slugs are lowercase hyphen-separated. Always keep `data/wiki/index.md` current and append to `data/wiki/log.md` after any change. The page-list section of `index.md` is a flat, recency-ordered log: prepend new pages at the top, and when a page is updated (content, description, tags, or rename) move its entry to the top — don't group by category. The Tags section (if present) still needs its per-tag page lists updated on add / rename / delete, but the tag order itself is not reordered by recency. Read `config/helps/wiki.md` for full details.",
     availablePlugins: [
       "manageTodoList",
       "manageScheduler",
@@ -46,6 +46,7 @@ export const ROLES: Role[] = [
       "presentChart",
       "readXPost",
       "searchX",
+      "notify",
       "switchRole",
     ],
     queries: [
@@ -57,7 +58,8 @@ export const ROLES: Role[] = [
       "Show my wiki index",
       "Lint my wiki",
       "Show my todo list",
-      "Show me the scheduler",
+      "Show me my calendar",
+      "Show my scheduled actions",
     ],
   },
   {
@@ -81,6 +83,7 @@ export const ROLES: Role[] = [
       "presentChart",
       "readXPost",
       "searchX",
+      "notify",
       "manageSkills",
       "manageSource",
       "switchRole",

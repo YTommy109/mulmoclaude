@@ -27,7 +27,18 @@ import { logBackgroundError } from "../../utils/logBackgroundError.js";
 import { createArgsCache, recordToolEvent } from "../../workspace/tool-trace/index.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
-import { isSessionOrigin } from "../../../src/types/session.js";
+import { isSessionOrigin, type SessionOrigin } from "../../../src/types/session.js";
+// Imports kept commented (instead of deleted) alongside the
+// publishNotification call below — see the duplicate-notification
+// comment near `endRun()` in `runAgentInBackground` for context.
+// `SESSION_ORIGINS` is dragged into this same commented block
+// because every remaining live reference to it lived inside the
+// commented helper / call site; once those went, leaving the value
+// import un-commented would trip the unused-import lint rule.
+// (by snakajima)
+// import { SESSION_ORIGINS } from "../../../src/types/session.js";
+// import { NOTIFICATION_KINDS } from "../../../src/types/notification.js";
+// import { publishNotification } from "../../events/notifications.js";
 import { env } from "../../system/env.js";
 import type { Attachment } from "@mulmobridge/protocol";
 import { parseDataUrl } from "@mulmobridge/client";
@@ -84,10 +95,15 @@ interface CancelBody {
 router.post(API_ROUTES.agent.cancel, (req: Request<object, unknown, CancelBody>, res: Response<OkResponse>) => {
   const { chatSessionId } = req.body;
   if (!chatSessionId) {
+    log.warn("agent", "cancel rejected — missing chatSessionId");
     res.json({ ok: false });
     return;
   }
   const ok = cancelRun(chatSessionId);
+  // `ok=false` here means the session id wasn't tracked as running —
+  // benign on duplicate clicks or after a natural finish, but still
+  // worth distinguishing in logs from a successful abort.
+  log.info("agent", ok ? "cancel issued" : "cancel no-op (no run in flight)", { chatSessionId });
   res.json({ ok });
 });
 
@@ -109,6 +125,13 @@ export interface StartChatParams {
    *  Validated server-side before it reaches the system prompt — an
    *  invalid or missing value falls back to server-local time. */
   userTimezone?: string;
+  /** Flat primitive bag forwarded from the bridge handshake, string
+   *  / number / boolean values only (see plans/feat-bridge-options-
+   *  passthrough.md). The session-level `defaultRole` override is
+   *  already applied upstream in chat-service; MulmoClaude doesn't
+   *  read any other keys today. Accepted here so the typing matches
+   *  `StartChatFn` exported by chat-service. */
+  bridgeOptions?: Readonly<Record<string, string | number | boolean>>;
 }
 
 export type StartChatResult = { kind: "started"; chatSessionId: string } | { kind: "error"; error: string; status?: number };
@@ -208,6 +231,7 @@ export async function startChat(params: StartChatParams): Promise<StartChatResul
     toolArgsCache: createArgsCache(),
     attachments: mergeAttachments(selectedImageData, attachments),
     userTimezone,
+    origin: validOrigin,
   });
 
   return { kind: "started", chatSessionId };
@@ -278,6 +302,11 @@ interface BackgroundRunParams {
   toolArgsCache: ReturnType<typeof createArgsCache>;
   attachments: Attachment[] | undefined;
   userTimezone: string | undefined;
+  // Where this run was triggered from. Used to decide whether to
+  // fire a completion notification: human-initiated runs don't (the
+  // user is right there in the UI), but scheduler / bridge / skill
+  // runs do (the user is probably away from the keyboard).
+  origin: SessionOrigin | undefined;
 }
 
 // Per-event side-effect context passed to `handleAgentEvent`.
@@ -364,6 +393,27 @@ async function flushTextAccumulator(ctx: EventContext): Promise<void> {
   );
 }
 
+// Helper kept commented (instead of deleted) alongside the
+// publishNotification call below — see the duplicate-notification
+// comment near `endRun()` in `runAgentInBackground` for context.
+// (by snakajima)
+//
+// // Build the title used for the agent-completion notification on
+// // non-human runs. Surfaces both the role name and the trigger so
+// // the user can read it in passing on a phone lock screen.
+// function completionNotificationTitle(roleName: string, origin: SessionOrigin): string {
+//   switch (origin) {
+//     case SESSION_ORIGINS.scheduler:
+//       return `✅ ${roleName} (scheduler) finished`;
+//     case SESSION_ORIGINS.skill:
+//       return `✅ ${roleName} (skill) finished`;
+//     case SESSION_ORIGINS.bridge:
+//       return `✅ ${roleName} reply ready`;
+//     default:
+//       return `✅ ${roleName} finished`;
+//   }
+// }
+
 async function runAgentInBackground(params: BackgroundRunParams): Promise<void> {
   const { decoratedMessage, role, chatSessionId, claudeSessionId, abortSignal, resultsFilePath, requestStartedAt, toolArgsCache, attachments, userTimezone } =
     params;
@@ -449,6 +499,38 @@ async function runAgentInBackground(params: BackgroundRunParams): Promise<void> 
     });
   } finally {
     endRun(chatSessionId);
+    // Commented out: this would create a duplicate notification.
+    //
+    // `endRun(chatSessionId)` above flips `session.hasUnread = true`
+    // for every chat-session turn completion regardless of origin,
+    // which already lights up the red unread-count badge on the
+    // Session History Panel toggle button (driven by `hasUnread` →
+    // `useSessionDerived.unreadCount` →
+    // `SessionHistoryToggleButton.vue`). Firing
+    // `publishNotification` here adds a *second* red badge — on the
+    // notification bell — for the exact same event, in the same
+    // chrome row. Two indicators, one event = noise.
+    //
+    // The duplicate occurs whenever a chat session receives a new
+    // message, which is exactly what every code path through this
+    // `finally` represents. The initiator of the turn (human, bridge
+    // user, scheduled job, skill chain, another agent) does not
+    // change this — both badges flip together.
+    //
+    // Other `publishNotification` call sites (news pipeline, `notify`
+    // MCP tool, scheduled-test endpoint) do not post a chat-session
+    // message at the same time, so they are not duplicates and
+    // remain enabled.
+    //
+    // (by snakajima)
+    //
+    // if (params.origin && params.origin !== SESSION_ORIGINS.human) {
+    //   publishNotification({
+    //     kind: NOTIFICATION_KINDS.agent,
+    //     title: completionNotificationTitle(params.role.name, params.origin),
+    //     sessionId: chatSessionId,
+    //   });
+    // }
     // Fire-and-forget: journal + chat-index post-processing
     maybeRunJournal({ activeSessionIds: getActiveSessionIds() }).catch(logBackgroundError("journal"));
     maybeIndexSession({

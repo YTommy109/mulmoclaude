@@ -17,10 +17,10 @@
 //     that only exercise items skip the column dispatcher. Missing
 //     dispatchers return the current state unchanged for that verb.
 
-import { createHash } from "node:crypto";
 import type { Page, Route } from "@playwright/test";
 import { TODO_COLUMNS, TODO_ITEMS, type TodoFixture } from "./todos";
 import { WORKSPACE_FILES } from "../../src/config/workspacePaths";
+import { slugify as slugifyCanonical } from "../../server/utils/slug";
 
 export interface StatusColumnFixture {
   id: string;
@@ -53,25 +53,14 @@ export interface MutableTodoOptions {
   dispatchColumn?: ColumnDispatcher;
 }
 
-// Mirror of server/utils/slug.ts used when the column dispatcher needs
-// to derive an id from a human label. Kept inline to avoid a
-// Vite/server import boundary; the server-side helper is unit-tested.
+// Derive a column id from a human label using the canonical slug
+// rule (`server/utils/slug.ts`). Pre-#732 this was an inline
+// reimplementation that diverged on the separator (`_` vs `-`) — see
+// the slug-rule unification PR #787 for why the duplicate is now a
+// thin wrapper instead. Playwright specs run in Node so we can import
+// the canonical helper directly.
 export function mockSlugifyColumnId(label: string): string {
-  let slug = label
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "_");
-  let start = 0;
-  while (start < slug.length && slug[start] === "_") start++;
-  let end = slug.length;
-  while (end > start && slug[end - 1] === "_") end--;
-  slug = slug.slice(start, end);
-  // eslint-disable-next-line no-control-regex
-  const hasNonAscii = /[^\x00-\x7F]/.test(label);
-  if (!hasNonAscii) return slug.length > 0 ? slug : "column";
-  const hash = createHash("sha256").update(label.trim(), "utf-8").digest("base64url").slice(0, 16);
-  if (slug.length >= 3) return `${slug}_${hash}`;
-  return hash;
+  return slugifyCanonical(label, "column");
 }
 
 /**
