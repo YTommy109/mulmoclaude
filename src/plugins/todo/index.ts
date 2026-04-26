@@ -5,6 +5,7 @@ import Preview from "./Preview.vue";
 import toolDefinition from "./definition";
 import { apiPost } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
+import { makeUuid } from "../../utils/id";
 
 export type TodoPriority = "low" | "medium" | "high" | "urgent";
 
@@ -41,14 +42,14 @@ const todoPlugin: ToolPlugin<TodoData> = {
     if (!result.ok) {
       return {
         toolName: "manageTodoList",
-        uuid: crypto.randomUUID(),
+        uuid: makeUuid(),
         message: result.error,
       };
     }
     return {
       ...result.data,
       toolName: "manageTodoList",
-      uuid: result.data.uuid ?? crypto.randomUUID(),
+      uuid: result.data.uuid ?? makeUuid(),
     };
   },
 

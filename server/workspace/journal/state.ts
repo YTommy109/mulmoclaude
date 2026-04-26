@@ -12,6 +12,8 @@ import {
   writeJournalState as writeJournalStateRaw,
   journalStateExists as journalStateExistsRaw,
 } from "../../utils/files/journal-io.js";
+import { ONE_HOUR_MS, ONE_DAY_MS } from "../../utils/time.js";
+import { log } from "../../system/logger/index.js";
 import { isRecord } from "../../utils/types.js";
 
 // Bump this when the schema changes in a backwards-incompatible way.
@@ -61,8 +63,17 @@ export function parseState(raw: unknown): JournalState {
   if (!isRecord(raw)) return defaultState();
   const obj = raw as Record<string, unknown>;
 
-  // Version mismatch → throw it all out. Cheap to rebuild.
-  if (obj.version !== JOURNAL_STATE_VERSION) return defaultState();
+  // Version mismatch → throw it all out. Cheap to rebuild — but
+  // surface the event in the log so a postmortem can distinguish a
+  // forced re-ingest from "first run after install" / a deleted
+  // state file. (#799 PR1)
+  if (obj.version !== JOURNAL_STATE_VERSION) {
+    log.info("journal", "state schema version mismatch — resetting", {
+      from: obj.version,
+      to: JOURNAL_STATE_VERSION,
+    });
+    return defaultState();
+  }
 
   const fallback = defaultState();
   return {
@@ -96,7 +107,7 @@ export function isDailyDue(state: JournalState, nowMs: number): boolean {
   if (state.lastDailyRunAt === null) return true;
   const last = Date.parse(state.lastDailyRunAt);
   if (Number.isNaN(last)) return true;
-  const intervalMs = state.dailyIntervalHours * 60 * 60 * 1000;
+  const intervalMs = state.dailyIntervalHours * ONE_HOUR_MS;
   return nowMs - last >= intervalMs;
 }
 
@@ -104,7 +115,7 @@ export function isOptimizationDue(state: JournalState, nowMs: number): boolean {
   if (state.lastOptimizationRunAt === null) return true;
   const last = Date.parse(state.lastOptimizationRunAt);
   if (Number.isNaN(last)) return true;
-  const intervalMs = state.optimizationIntervalDays * 24 * 60 * 60 * 1000;
+  const intervalMs = state.optimizationIntervalDays * ONE_DAY_MS;
   return nowMs - last >= intervalMs;
 }
 

@@ -5,6 +5,7 @@
 import path from "node:path";
 import { WORKSPACE_DIRS } from "../paths.js";
 import { isValidIsoDate } from "../../utils/date.js";
+import { slugify as slugifyCanonical } from "../../utils/slug.js";
 
 // Directory layout under workspace/conversations/summaries/ is an
 // implementation detail of the journal module; keep it centralised
@@ -48,29 +49,12 @@ export function archivedTopicPathFor(workspaceRoot: string, slug: string): strin
 // toIsoDate from journal/paths keep working.
 export { toLocalIsoDate as toIsoDate } from "../../utils/date.js";
 
-// Convert a free-form topic name into a filesystem-safe slug.
-// Rules:
-//   - Lowercase ASCII letters, digits, and hyphens only
-//   - Whitespace and punctuation collapse to a single hyphen
-//   - Non-ASCII characters (Japanese, emoji) are dropped; if the
-//     result is empty we fall back to "topic" so we always yield a
-//     valid filename (LLMs occasionally emit pure-Japanese topic
-//     names; the markdown body still holds the original title for
-//     display, this slug is only the filesystem key)
-//   - Leading/trailing hyphens stripped
-//   - Empty-string input yields "topic"
+// Convert a free-form topic name into a filesystem-safe slug. Thin
+// wrapper around the canonical `slugify` (server/utils/slug.ts) with
+// the journal-specific fallback "topic". See #732 for why journal
+// stopped using its own ASCII-only impl: pure-non-ASCII topic names
+// (e.g. "プロジェクトA" / "プロジェクトB") all collapsed to "topic"
+// and silently overwrote each other's summary files.
 export function slugify(raw: string): string {
-  const lowered = raw.toLowerCase();
-  // Replace runs of non-ASCII-alnum with a single hyphen. Because
-  // we use `+` on a character class, this single pass already
-  // collapses runs — no second dedupe pass needed.
-  const hyphenated = lowered.replace(/[^a-z0-9]+/g, "-");
-  // Trim leading/trailing hyphens without a regex — sonarjs/slow-regex
-  // flags `^-+` / `-+$` patterns even though these inputs are tiny.
-  let start = 0;
-  let end = hyphenated.length;
-  while (start < end && hyphenated[start] === "-") start++;
-  while (end > start && hyphenated[end - 1] === "-") end--;
-  const trimmed = hyphenated.slice(start, end);
-  return trimmed.length > 0 ? trimmed : "topic";
+  return slugifyCanonical(raw, "topic");
 }

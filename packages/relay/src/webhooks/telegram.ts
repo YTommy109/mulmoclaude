@@ -2,6 +2,7 @@
 
 import { PLATFORMS, type RelayMessage, type Env } from "../types.js";
 import { registerPlatform, CONNECTION_MODES, type PlatformPlugin } from "../platform.js";
+import { makeUuid } from "../utils/id.js";
 
 interface TelegramUpdate {
   message?: {
@@ -40,7 +41,7 @@ const telegramPlugin: PlatformPlugin = {
 
     return [
       {
-        id: crypto.randomUUID(),
+        id: makeUuid(),
         platform: PLATFORMS.telegram,
         senderId: String(msg.from?.id ?? "unknown"),
         chatId: String(msg.chat.id),

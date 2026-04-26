@@ -3,7 +3,7 @@
     <!-- Global top bar — shown in every view mode -->
     <div class="shrink-0 bg-white text-gray-900">
       <!-- Row 1: title + plugin launcher -->
-      <div class="flex items-center gap-3 px-3 py-2 border-b border-gray-200">
+      <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-200">
         <SidebarHeader
           :sandbox-enabled="sandboxEnabled"
           :gemini-available="geminiAvailable"
@@ -17,41 +17,82 @@
           <PluginLauncher :active-tool-name="selectedResult?.toolName ?? null" :active-view-mode="currentPage" @navigate="onPluginNavigate" />
         </div>
       </div>
-      <!-- Row 2: role selector + session tabs -->
-      <div class="flex items-center gap-3 px-3 py-2 border-b border-gray-100">
-        <RoleSelector v-model:current-role-id="currentRoleId" :roles="roles" @change="onRoleChange" />
-        <SessionTabBar
-          :sessions="tabSessions"
-          :current-session-id="displayedCurrentSessionId"
-          :is-chat-page="isChatPage"
-          :roles="roles"
-          :active-session-count="activeSessionCount"
-          :unread-count="unreadCount"
-          :history-open="currentPage === 'history'"
-          @new-session="handleNewSessionClick"
-          @load-session="handleSessionSelect"
-          @toggle-history="handleHistoryClick"
-        />
+      <!-- Row 2: role selector + session tabs. Shown whenever the
+           side panel is hidden — Row 2 and the side panel are
+           mutually exclusive. The header-controls wrapper is pinned
+           to 264px (w-72 minus px-3 padding on each side) so that
+           RoleSelector / + / toggle occupy the exact same x-range as
+           they do inside the open side panel — toggling the panel
+           therefore doesn't shift those controls. -->
+      <div v-if="!sidePanelVisible" class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
+        <div class="w-[264px] shrink-0">
+          <SessionHeaderControls
+            :roles="roles"
+            :side-panel-visible="sidePanelVisible"
+            :active-session-count="activeSessionCount"
+            :unread-count="unreadCount"
+            @role-change="onRoleChange"
+            @new-session="handleNewSessionClick"
+            @update:side-panel-visible="setSidePanelVisible"
+          />
+        </div>
+        <SessionTabBar :sessions="tabSessions" :current-session-id="currentSessionId" :roles="roles" @load-session="handleSessionSelect" />
       </div>
     </div>
 
-    <!-- Session history is now a canvas-column view rendered under
-         the `/history` route (see plans/feat-history-url-route.md).
-         The old absolute-positioned overlay is gone — browser
-         back/forward drives open/close instead. -->
-
-    <!-- Body: sidebar (Single only) + canvas column + right sidebar -->
+    <!-- Body: optional session-history column + sidebar (Single only) + canvas column + right sidebar -->
     <div class="flex flex-1 min-h-0">
+      <!-- Session-history side panel. Opt-in column to the left of
+           the chat sidebar / canvas, toggled via
+           SessionHistoryToggleButton. Renders on every page when
+           `sidePanelVisible` is true. Row 2 of the top bar hides when
+           the panel is open — the panel's own header supplies the
+           role selector + new-session button instead. -->
+      <div
+        v-if="sidePanelVisible"
+        class="relative border-r border-gray-200 bg-white text-gray-900 flex flex-col min-w-0 overflow-hidden"
+        :class="sidePanelExpanded ? 'flex-1' : 'w-72 flex-shrink-0'"
+        data-testid="session-history-side-panel"
+      >
+        <!-- Single-row panel header. RoleSelector flexes to share the
+             w-72 width with the new-session button and the side-panel
+             close toggle. The expand affordance lives on the panel's
+             right edge as a hover-reveal handle instead of a header
+             button, so no second row is needed. -->
+        <div class="flex items-center px-3 py-2 border-b border-gray-100">
+          <SessionHeaderControls
+            :roles="roles"
+            :side-panel-visible="sidePanelVisible"
+            :active-session-count="activeSessionCount"
+            :unread-count="unreadCount"
+            @role-change="onRoleChange"
+            @new-session="handleNewSessionClick"
+            @update:side-panel-visible="setSidePanelVisibleAndCollapse"
+          />
+        </div>
+        <div class="group relative flex-1 min-h-0">
+          <SessionHistoryPanel
+            :sessions="mergedSessions"
+            :current-session-id="currentSessionId"
+            :roles="roles"
+            :error-message="historyError"
+            @load-session="handleSessionSelect"
+          />
+          <SessionHistoryExpandButton :model-value="sidePanelExpanded" @update:model-value="(value: boolean) => (sidePanelExpanded = value)" />
+        </div>
+      </div>
+
       <!-- Sidebar (Single layout only) -->
-      <div v-if="!isStackLayout" class="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-white text-gray-900 relative">
+      <div v-if="!isStackLayout && !sidePanelExpanded" class="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-white text-gray-900 relative">
         <!-- Tool result previews -->
         <ToolResultsPanel
           ref="toolResultsPanelRef"
           :results="sidebarResults"
           :selected-uuid="selectedResultUuid"
           :result-timestamps="activeSession?.resultTimestamps ?? new Map()"
-          :is-running="isRunning"
+          :is-running="activeSessionRunning"
           :status-message="statusMessage"
+          :run-elapsed-ms="runElapsedMs"
           :pending-calls="pendingCalls"
           :session-role-name="sessionRoleName"
           :session-role-icon="sessionRoleIcon"
@@ -64,14 +105,21 @@
         />
 
         <!-- Sample queries (expandable pane) -->
-        <SuggestionsPanel ref="suggestionsPanelRef" :queries="currentRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
+        <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
 
         <!-- Text input -->
-        <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="isRunning" @send="sendMessage()" />
+        <ChatInput
+          ref="chatInputRef"
+          v-model="userInput"
+          v-model:pasted-file="pastedFile"
+          :is-running="activeSessionRunning"
+          @send="sendMessage()"
+          @cancel="cancelActiveRun"
+        />
       </div>
 
       <!-- Canvas column -->
-      <div class="flex-1 flex flex-col bg-white text-gray-900 min-w-0 overflow-hidden relative">
+      <div v-if="!sidePanelExpanded" class="flex-1 flex flex-col bg-white text-gray-900 min-w-0 overflow-hidden relative">
         <div ref="canvasRef" class="flex-1 overflow-hidden outline-none min-h-0" tabindex="0" @mousedown="activePane = 'main'" @keydown="handleCanvasKeydown">
           <!-- Chat page: single or stack layout -->
           <template v-if="isChatPage && layoutMode === 'single'">
@@ -107,26 +155,27 @@
           <!-- Distinct pages -->
           <FilesView v-else-if="currentPage === 'files'" :refresh-token="filesRefreshToken" @load-session="handleSessionSelect" />
           <TodoExplorer v-else-if="currentPage === 'todos'" />
-          <SchedulerView v-else-if="currentPage === 'scheduler'" />
+          <CalendarView v-else-if="currentPage === 'calendar'" />
+          <AutomationsView v-else-if="currentPage === 'automations'" />
           <WikiView v-else-if="currentPage === 'wiki'" />
           <SkillsView v-else-if="currentPage === 'skills'" />
           <RolesView v-else-if="currentPage === 'roles'" />
           <SourcesView v-else-if="currentPage === 'sources'" />
-          <SessionHistoryPanel
-            v-else-if="currentPage === 'history'"
-            :sessions="mergedSessions"
-            :current-session-id="currentSessionId"
-            :roles="roles"
-            :error-message="historyError"
-            @load-session="handleSessionSelect"
-          />
+          <NewsView v-else-if="currentPage === 'news'" />
         </div>
 
         <!-- Bottom bar (Stack chat only — plugin views have no
              session context, so no chat input is shown) -->
         <div v-if="isChatPage && layoutMode === 'stack'" class="border-t border-gray-200 bg-white shrink-0">
-          <SuggestionsPanel ref="suggestionsPanelRef" :queries="currentRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
-          <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="isRunning" @send="sendMessage()" />
+          <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
+          <ChatInput
+            ref="chatInputRef"
+            v-model="userInput"
+            v-model:pasted-file="pastedFile"
+            :is-running="activeSessionRunning"
+            @send="sendMessage()"
+            @cancel="cancelActiveRun"
+          />
         </div>
       </div>
 
@@ -134,11 +183,11 @@
            page — system prompt / tools / tool-call history are all
            agent-context and have no meaning on plugin views. -->
       <RightSidebar
-        v-if="showRightSidebar && isChatPage"
+        v-if="showRightSidebar && isChatPage && !sidePanelExpanded"
         ref="rightSidebarRef"
         :tool-call-history="toolCallHistory"
         :available-tools="availableTools"
-        :role-prompt="currentRole.prompt"
+        :role-prompt="sessionRole.prompt"
         :tool-descriptions="toolDescriptions"
       />
     </div>
@@ -166,22 +215,25 @@ import { getPlugin } from "./tools";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import RightSidebar from "./components/RightSidebar.vue";
 import SidebarHeader from "./components/SidebarHeader.vue";
-import RoleSelector from "./components/RoleSelector.vue";
+import SessionHeaderControls from "./components/SessionHeaderControls.vue";
 import SessionTabBar from "./components/SessionTabBar.vue";
 import SuggestionsPanel from "./components/SuggestionsPanel.vue";
 import ChatInput, { type PastedFile } from "./components/ChatInput.vue";
+import SessionHistoryExpandButton from "./components/SessionHistoryExpandButton.vue";
 import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
 import ToolResultsPanel from "./components/ToolResultsPanel.vue";
 import PluginLauncher from "./components/PluginLauncher.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
 import TodoExplorer from "./components/TodoExplorer.vue";
-import SchedulerView from "./plugins/scheduler/View.vue";
+import CalendarView from "./plugins/scheduler/CalendarView.vue";
+import AutomationsView from "./plugins/scheduler/AutomationsView.vue";
 import WikiView from "./plugins/wiki/View.vue";
 import { buildWikiRouteParams } from "./plugins/wiki/route";
 import SkillsView from "./plugins/manageSkills/View.vue";
 import RolesView from "./plugins/manageRoles/View.vue";
 import SourcesView from "./components/SourcesView.vue";
+import NewsView from "./components/NewsView.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import NotificationToast from "./components/NotificationToast.vue";
 import type { NotificationAction } from "./types/notification";
@@ -199,6 +251,7 @@ import { createEmptySession } from "./utils/session/sessionFactory";
 import { buildLoadedSession, parseSessionEntries } from "./utils/session/sessionEntries";
 import { resolveNotificationTarget } from "./utils/notification/dispatch";
 import { usePendingCalls } from "./composables/usePendingCalls";
+import { useRunElapsed } from "./composables/useRunElapsed";
 import { useKeyNavigation } from "./composables/useKeyNavigation";
 import { useDebugBeat } from "./composables/useDebugBeat";
 import { useChatScroll } from "./composables/useChatScroll";
@@ -208,11 +261,12 @@ import { useSessionDerived } from "./composables/useSessionDerived";
 import { useFaviconState } from "./composables/useFaviconState";
 import { useMergedSessions } from "./composables/useMergedSessions";
 import { useLayoutMode } from "./composables/useLayoutMode";
-import { useHistoryEntrance } from "./composables/useHistoryEntrance";
+import { useSidePanelVisible } from "./composables/useSidePanelVisible";
 import { useSelectedResult } from "./composables/useSelectedResult";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
-import { BUILTIN_ROLE_IDS } from "./config/roles";
+import { useCurrentRole } from "./composables/useCurrentRole";
+import { BUILTIN_ROLE_IDS, type Role } from "./config/roles";
 import { usePubSub } from "./composables/usePubSub";
 import { sessionChannel } from "./config/pubsubChannels";
 import { useHealth } from "./composables/useHealth";
@@ -222,7 +276,7 @@ import { useEventListeners } from "./composables/useEventListeners";
 import { provideAppApi } from "./composables/useAppApi";
 import { provideActiveSession } from "./composables/useActiveSession";
 import { useRoute, useRouter } from "vue-router";
-import { apiGet } from "./utils/api";
+import { apiGet, apiPost } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
 
@@ -237,11 +291,14 @@ const sessionMap = reactive(new Map<string, ActiveSession>());
 // subscription so events arrive via WebSocket.
 const sessionSubscriptions = new Map<string, () => void>();
 
-// currentSessionId is a plain ref so that synchronous writes (e.g.
-// inside createNewSession, which is called right before sendMessage
-// might run) take effect immediately. The URL is kept in sync via
-// navigateToSession, and external URL changes (back button, typed
-// URL) feed back into the ref via the route watcher below.
+// currentSessionId is "the session currently displayed on /chat" —
+// it's `""` whenever the user is on any other page. A plain ref (not
+// a computed) so synchronous writes (e.g. inside createNewSession,
+// which is called right before sendMessage might run) take effect
+// immediately. The URL is kept in sync via navigateToSession, and
+// external URL changes (back button, typed URL) feed back into the
+// ref via the route watcher below. An `isChatPage` watcher clears
+// it when the user leaves /chat.
 const currentSessionId = ref("");
 
 // --- Debug beat (pub/sub) ---
@@ -253,20 +310,12 @@ const { subscribe: pubsubSubscribe } = usePubSub();
 const route = useRoute();
 const router = useRouter();
 
-// Omit ?role= for the default role to keep URLs clean.
-function buildRoleQuery(): Record<string, string> {
-  const roleId = currentRoleId.value;
-  if (!roleId || roles.value.length === 0 || roleId === roles.value[0]?.id) return {};
-  return { role: roleId };
-}
-
 function navigateToSession(sessionId: string, replace = false): void {
   currentSessionId.value = sessionId;
   const method = replace ? router.replace : router.push;
   method({
     name: PAGE_ROUTES.chat,
     params: { sessionId },
-    query: buildRoleQuery(),
   }).catch((err) => {
     if (err?.type !== 16) {
       console.error("[navigateToSession] push failed:", err);
@@ -277,11 +326,12 @@ function navigateToSession(sessionId: string, replace = false): void {
 function handleNotificationNavigate(action: NotificationAction): void {
   const target = resolveNotificationTarget(action);
   if (!target) return;
-  if (target.kind === "session") {
-    navigateToSession(target.sessionId);
-  } else {
-    router.push({ name: target.view }).catch(() => {});
-  }
+  // No special-casing for chat targets: PR #774 moved the role
+  // selector's state into the `useCurrentRole` singleton, so the
+  // role no longer needs to be pinned via `?role=` on every
+  // session-navigate. router.push(target) keeps the user's
+  // current role choice across the navigation automatically.
+  router.push(target).catch(() => {});
 }
 
 // External URL changes (back/forward button, typed URL) → update ref.
@@ -301,7 +351,17 @@ watch(
 );
 
 // --- Global state ---
-const { roles, currentRoleId, currentRole, refreshRoles } = useRoles();
+// `roles` is the merged list (built-in + custom). `currentRoleId`
+// is the role-selector dropdown's current pick — App.vue reads it
+// as the fallback in createNewSession() so plugin callers like
+// wiki's `appApi.startNewChat(message)` (no roleId) start their
+// chat in whatever role the user last selected, instead of silently
+// reverting to the first built-in role. Writes to `currentRoleId`
+// happen only inside SessionHeaderControls (the dropdown owner).
+// Code that needs "the role of the conversation in progress" reads
+// `sessionRole` below, which derives from the active session.
+const { roles, refreshRoles } = useRoles();
+const { currentRoleId } = useCurrentRole(roles);
 
 const userInput = ref("");
 const pastedFile = ref<PastedFile | null>(null);
@@ -315,7 +375,7 @@ const { markSessionRead } = useSessionSync({
 });
 const { geminiAvailable, sandboxEnabled, cpuLoadRatio, fetchHealth } = useHealth();
 
-const { activeSession, toolResults, sidebarResults, currentSummary, isRunning, statusMessage, toolCallHistory, activeSessionCount, unreadCount } =
+const { activeSession, toolResults, sidebarResults, isRunning, activeSessionRunning, statusMessage, toolCallHistory, activeSessionCount, unreadCount } =
   useSessionDerived({ sessionMap, currentSessionId, sessions });
 
 const { selectedResultUuid } = useSelectedResult({
@@ -338,11 +398,37 @@ const sessionRoleIcon = computed(() => {
   return roleIcon(roles.value, roleId);
 });
 
+// Role of the conversation in progress. Drives the suggested-query
+// list, the right-sidebar role-prompt, and the MCP tool filter so
+// they all match the active session (not the role-selector
+// dropdown — which is owned by SessionHeaderControls and whose
+// selection only matters at "+" / role-change time).
+const sessionRole = computed<Role>(() => {
+  const sessionRoleId = activeSession.value?.roleId;
+  if (sessionRoleId) {
+    const match = roles.value.find((role) => role.id === sessionRoleId);
+    if (match) return match;
+  }
+  return roles.value[0];
+});
+
+const { mergedSessions, tabSessions } = useMergedSessions({
+  sessionMap,
+  sessions,
+});
+
 // ── Dynamic favicon (#470) ──────────────────────────────────
-// `unreadCount` covers every session (not just the active tab), so
-// the favicon badge lights up when a background session gets a new
-// reply even though the user is looking at a different session.
-useFaviconState({ isRunning, currentSummary, activeSession, sessionsUnreadCount: unreadCount, cpuLoadRatio });
+// Every input here is global, not per-on-screen-session: the user
+// is often on /files or other non-chat views, so the favicon has
+// to react to the whole session list rather than `activeSession`.
+//
+// `isRunning` is the global scan from useSessionDerived (sessionMap +
+// server summaries), and `mergedSessions` folds the in-memory
+// `updatedAt` / `pendingGenerations` over server summaries — so the
+// runningLong clock picks up `beginUserTurn`'s local stamp on the
+// very same tick as `isRunning` flips, without waiting for the next
+// /api/sessions refetch.
+useFaviconState({ isRunning, sessions: mergedSessions, sessionsUnreadCount: unreadCount, cpuLoadRatio });
 
 const toolResultsPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
@@ -350,15 +436,23 @@ const chatInputRef = ref<{ focus: () => void } | null>(null);
 const { focusChatInput } = useChatScroll({
   toolResultsPanelRef,
   toolResults,
-  isRunning,
+  isRunning: activeSessionRunning,
   chatInputRef,
 });
 
 const { showRightSidebar, toggleRightSidebar } = useRightSidebar();
 const showSettings = ref(false);
 
-const { layoutMode, setLayoutMode, toggleLayoutMode } = useLayoutMode();
-const { preHistoryUrl } = useHistoryEntrance();
+const { layoutMode, setLayoutMode } = useLayoutMode();
+const { sidePanelVisible, setSidePanelVisible } = useSidePanelVisible();
+// Transient full-width mode for the session-history side panel.
+// Not persisted: reopening the panel should always start collapsed.
+const sidePanelExpanded = ref(false);
+
+function setSidePanelVisibleAndCollapse(value: boolean): void {
+  setSidePanelVisible(value);
+  if (!value) sidePanelExpanded.value = false;
+}
 
 // Current page derives from the route. The chat page has a layout
 // preference on top (single vs. stack); other pages are distinct
@@ -376,38 +470,14 @@ watch(isRunning, (running, prev) => {
   if (prev && !running) filesRefreshToken.value++;
 });
 
-// Cmd/Ctrl + 1 toggles layout when on /chat; on any other page it
-// navigates to /chat (layout flip requires a second press). Cmd+2–7
-// navigate directly to the matching page.
-const PAGE_SHORTCUT_KEYS: Record<string, PageRouteName> = {
-  "2": PAGE_ROUTES.files,
-  "3": PAGE_ROUTES.todos,
-  "4": PAGE_ROUTES.scheduler,
-  "5": PAGE_ROUTES.wiki,
-  "6": PAGE_ROUTES.skills,
-  "7": PAGE_ROUTES.roles,
-};
-
-function handleViewModeShortcut(event: KeyboardEvent): void {
-  if (!(event.metaKey || event.ctrlKey)) return;
-  if (event.altKey || event.shiftKey) return;
-
-  if (event.key === "1") {
-    event.preventDefault();
-    if (route.name === PAGE_ROUTES.chat) {
-      toggleLayoutMode();
-    } else {
-      resumeOrCreateChatSession().catch((err) => console.error("[Cmd+1] resume failed:", err));
-    }
-    return;
+// Opening the side panel refreshes the session list so stale entries
+// don't linger after long idle periods. `fetchSessions` is diff-based
+// (cursor-aware) so the extra call is cheap when nothing changed.
+watch(sidePanelVisible, (visible, prev) => {
+  if (!prev && visible) {
+    fetchSessions().catch((err) => console.error("[side-panel] session fetch failed:", err));
   }
-
-  const page = PAGE_SHORTCUT_KEYS[event.key];
-  if (page) {
-    event.preventDefault();
-    router.push({ name: page }).catch(() => {});
-  }
-}
+});
 
 function onPluginNavigate(target: { key: string }): void {
   if (isPageRouteName(target.key)) {
@@ -420,19 +490,33 @@ function isPageRouteName(value: string): value is PageRouteName {
 }
 
 // Layout only matters on /chat; other pages are full-width by design.
-const { isStackLayout, displayedCurrentSessionId } = useViewLayout({
+const { isStackLayout } = useViewLayout({
   layoutMode,
   isChatPage,
-  currentSessionId,
   activePane,
 });
 
+// Clear currentSessionId when the user leaves /chat so downstream
+// consumers (history-panel border, mark-read, unread dot, session-
+// state sync) see "nothing selected" instead of the stale last-viewed
+// session. Also prune any empty session that was never sent to — we
+// don't persist empty sessions on the server. Fires true → false only;
+// an empty → /chat transition is handled by the route-params watcher
+// and onMounted.
+watch(isChatPage, (isChat, wasChat) => {
+  if (!(wasChat && !isChat)) return;
+  removeCurrentIfEmpty();
+  currentSessionId.value = "";
+});
+
 function handleSessionSelect(sessionId: string): void {
+  sidePanelExpanded.value = false;
   loadSession(sessionId);
 }
 
-function handleNewSessionClick(): void {
-  createNewSession();
+function handleNewSessionClick(roleId: string): void {
+  sidePanelExpanded.value = false;
+  createNewSession(roleId);
 }
 
 function handleHomeClick(): void {
@@ -442,21 +526,23 @@ function handleHomeClick(): void {
 const rightSidebarRef = ref<InstanceType<typeof RightSidebar> | null>(null);
 
 const { availableTools, toolDescriptions, mcpToolsError, fetchMcpToolsStatus } = useMcpTools({
-  currentRole,
+  currentRole: sessionRole,
   getDefinition: (name) => getPlugin(name)?.toolDefinition ?? null,
 });
 
 const { pendingCalls, teardown: teardownPendingCalls } = usePendingCalls({
-  isRunning,
+  isRunning: activeSessionRunning,
   toolCallHistory,
 });
 
-const selectedResult = computed(() => toolResults.value.find((result) => result.uuid === selectedResultUuid.value) ?? null);
-
-const { mergedSessions, tabSessions } = useMergedSessions({
-  sessionMap,
-  sessions,
+// Run-level elapsed time for the Thinking indicator (#731 PR2).
+// Pure UI: ticks once per second while the active session is running,
+// flips back to null on completion. No backend or schema changes.
+const { elapsedMs: runElapsedMs, teardown: teardownRunElapsed } = useRunElapsed({
+  isRunning: activeSessionRunning,
 });
+
+const selectedResult = computed(() => toolResults.value.find((result) => result.uuid === selectedResultUuid.value) ?? null);
 
 // Centralised session-switch handler: subscribe to the current session's
 // pub/sub channel so we receive real-time events even if the session is
@@ -539,7 +625,13 @@ function removeCurrentIfEmpty(): boolean {
 function createNewSession(roleId?: string): ActiveSession {
   const removedEmpty = removeCurrentIfEmpty();
   const replace = removedEmpty && isChatPage.value;
-  const rId = roleId ?? currentRoleId.value;
+  // The "+" button and role-change handler always supply roleId
+  // (read from SessionHeaderControls). When omitted (plugin-driven
+  // startNewChat, initial bootstrap, post-failure recovery) inherit
+  // the dropdown's current selection so the new chat uses the role
+  // the user last picked. Final fallback to roles[0] only matters
+  // before the dropdown has seeded (very early bootstrap).
+  const rId = roleId ?? (currentRoleId.value || roles.value[0]?.id || "");
   const session = createEmptySession(uuidv4(), rId);
   sessionMap.set(session.id, session);
   navigateToSession(session.id, replace);
@@ -548,30 +640,25 @@ function createNewSession(roleId?: string): ActiveSession {
   return sessionMap.get(session.id)!;
 }
 
-function onRoleChange() {
+function onRoleChange(roleId: string) {
   // On non-chat pages (wiki, files, etc.) the user is just picking
   // the role that future new-chat actions should use — don't yank
-  // them onto /chat by creating a session here. currentRoleId is
-  // already updated by RoleSelector's v-model, so future "+" clicks
-  // or composer sends will pick it up.
+  // them onto /chat by creating a session here. The new selection
+  // is preserved inside SessionHeaderControls (useCurrentRole) and
+  // future "+" clicks will read it from there.
   if (!isChatPage.value) return;
-  const session = createNewSession(currentRoleId.value);
+  const session = createNewSession(roleId);
   maybeSeedRoleDefault(session);
 }
 
-// Land on /chat with no specific session in mind (initial load, Cmd+1
-// from another page). Prefer the most-recent session so the user
+// Land on /chat with no specific session in mind (initial load or
+// home-button click). Prefer the most-recent session so the user
 // resumes where they left off; only create a fresh session when they
 // have no chat history at all. Explicit "+" clicks and role switches
 // still create a new session via createNewSession() directly.
 async function resumeOrCreateChatSession(): Promise<void> {
   const topId = mergedSessions.value[0]?.id;
   if (!topId) {
-    const currentSession = sessionMap.get(currentSessionId.value);
-    if (currentSession && currentSession.toolResults.length === 0) {
-      navigateToSession(currentSession.id);
-      return;
-    }
     createNewSession();
     return;
   }
@@ -591,25 +678,34 @@ async function resumeOrCreateChatSession(): Promise<void> {
 function activateSession(sessionId: string, replace: boolean): void {
   const reactiveSession = sessionMap.get(sessionId);
   if (reactiveSession) ensureSessionSubscription(reactiveSession);
-  navigateToSession(sessionId, replace);
+  // Skip the redundant navigateToSession when we're already on the
+  // matching /chat/:sessionId URL. The route-watcher path arrives
+  // here AFTER the URL has changed (notification permalink, browser
+  // back/forward, manual paste), and re-pushing the same path would
+  // strip query strings — `?result=<uuid>` for the
+  // notification-permalink case (#762) — because navigateToSession
+  // builds the location object with `params` only.
+  const onTargetSession = route.name === PAGE_ROUTES.chat && route.params.sessionId === sessionId;
+  if (!onTargetSession) {
+    navigateToSession(sessionId, replace);
+  }
   // Closing the history popup is no longer explicit — navigating to
   // /chat/:id via navigateToSession changes the route, and the
   // canvas-column branches away from SessionHistoryPanel naturally.
 }
 
 async function loadSession(sessionId: string) {
-  // currentSessionId tracks "last active chat session" and is NOT
-  // reset when the user navigates to a non-chat page (/wiki, /files,
-  // …). Also checking the URL ensures that clicking the same session
-  // in the tab bar from /wiki still triggers a /chat navigation
-  // instead of silently no-opping.
-  const alreadyOnThatChat = sessionId === currentSessionId.value && sessionMap.has(sessionId) && route.params.sessionId === sessionId;
+  // currentSessionId is `""` on non-chat pages, so clicking a session
+  // in the history panel from /wiki never matches and always navigates
+  // to /chat. On /chat this guard just avoids re-navigating to the
+  // session we're already displaying.
+  const alreadyOnThatChat = sessionId === currentSessionId.value && sessionMap.has(sessionId);
   if (alreadyOnThatChat) return;
   // Mirror createNewSession: only replace when we just discarded an
-  // empty session AND we're on that /chat/:emptyId URL. On /history
-  // (or any non-chat page) selecting a session must push, otherwise
-  // the /history entry would be skipped when the last chat happened
-  // to be empty.
+  // empty session AND we're on that /chat/:emptyId URL. On any
+  // non-chat page selecting a session must push, otherwise the
+  // current entry would be skipped when the last chat happened to
+  // be empty.
   const removedEmpty = removeCurrentIfEmpty();
   const replaced = removedEmpty && isChatPage.value;
 
@@ -625,7 +721,7 @@ async function loadSession(sessionId: string) {
   const newSession = buildLoadedSession({
     id: sessionId,
     entries: response.data,
-    defaultRoleId: currentRoleId.value,
+    defaultRoleId: roles.value[0]?.id ?? "",
     urlResult: typeof route.query.result === "string" ? route.query.result : null,
     serverSummary: sessions.value.find((summary) => summary.id === sessionId),
     nowIso: new Date().toISOString(),
@@ -714,9 +810,31 @@ function unsubscribeSession(chatSessionId: string): void {
   }
 }
 
+// Stop the in-flight agent run for the currently displayed session.
+// Backend (POST /api/agent/cancel) flips the run's AbortController,
+// which closes the SSE stream and resets `isRunning`. We don't
+// optimistically flip local state — the SSE close handler does that
+// uniformly whether the cancel came from us or anywhere else (#731).
+async function cancelActiveRun(): Promise<void> {
+  const sessionId = currentSessionId.value;
+  if (!sessionId) return;
+  console.info("[agent] cancel requested", { chatSessionId: sessionId });
+  const result = await apiPost<{ ok: boolean }>(API_ROUTES.agent.cancel, { chatSessionId: sessionId });
+  if (!result.ok) {
+    console.warn("[agent] cancel POST failed", { chatSessionId: sessionId, error: result.error });
+    return;
+  }
+  // Backend's `ok: false` means the session wasn't in-flight (already
+  // finished, or duplicate Stop click). Benign, but distinct from a
+  // network failure — surface separately in the console.
+  if (!result.data?.ok) {
+    console.info("[agent] cancel was a no-op (no run in flight)", { chatSessionId: sessionId });
+  }
+}
+
 async function sendMessage(text?: string) {
   const message = typeof text === "string" ? text : userInput.value.trim();
-  if (!message || isRunning.value) return;
+  if (!message || activeSessionRunning.value) return;
   userInput.value = "";
   const fileSnapshot = pastedFile.value;
   pastedFile.value = null;
@@ -725,7 +843,6 @@ async function sendMessage(text?: string) {
   if (!session) return;
 
   beginUserTurn(session, message);
-  const sessionRole = roles.value.find((role) => role.id === session.roleId) ?? roles.value[0];
   const selectedRes = session.toolResults.find((result) => result.uuid === session.selectedResultUuid) ?? undefined;
 
   ensureSessionSubscription(session);
@@ -733,7 +850,7 @@ async function sendMessage(text?: string) {
   const result = await postAgentRun(
     buildAgentRequestBody({
       message,
-      role: sessionRole,
+      role: sessionRole.value,
       chatSessionId: session.id,
       selectedImageData: fileSnapshot?.dataUrl ?? extractImageData(selectedRes),
     }),
@@ -743,38 +860,6 @@ async function sendMessage(text?: string) {
     unsubscribeSession(session.id);
   }
 }
-
-// History is a page route (/history) now — no click-outside handling
-// needed. Clicking the history button from elsewhere opens /history;
-// clicking it while on /history "closes" by pushing forward to the
-// page the user came from (remembered by useHistoryEntrance). Close
-// is an explicit user intent — it should create a new history entry,
-// not rewind, so browser-back from the target still reveals the last
-// /history/<filter> the user was looking at.
-function handleHistoryClick(): void {
-  if (currentPage.value !== PAGE_ROUTES.history) {
-    router.push({ name: PAGE_ROUTES.history }).catch(() => {});
-    return;
-  }
-  const target = preHistoryUrl.value ?? { name: PAGE_ROUTES.chat };
-  router.push(target).catch(() => {});
-}
-
-// Fetch the session list when entering /history. Not `immediate` on
-// purpose: onMounted() already fires fetchSessions() unconditionally,
-// so the direct-link /history case is already covered — adding an
-// immediate watcher would race two initial fetches against each other
-// (fetchSessions picks snapshot-vs-diff from the mutable cursor at
-// response time, and a late-arriving full snapshot could be misread
-// as a diff, leaving stale deleted sessions in the list).
-watch(
-  () => currentPage.value,
-  (page) => {
-    if (page === PAGE_ROUTES.history) {
-      fetchSessions().catch((err) => console.error("[history] fetch failed:", err));
-    }
-  },
-);
 
 // Route workspace-internal links (wiki pages, files, sessions) to the
 // appropriate page. Called from plugin Views via AppApi.
@@ -787,7 +872,7 @@ function navigateToWorkspacePath(href: string): void {
       router.push({ name: PAGE_ROUTES.wiki, params: buildWikiRouteParams({ kind: "page", slug: target.slug }) }).catch(() => {});
       break;
     case "file":
-      // Path-based files URL (see plans/feat-files-path-url.md) — pass
+      // Path-based files URL (see plans/done/feat-files-path-url.md) — pass
       // segments as an array so each piece is url-encoded independently
       // and slashes stay as path separators.
       router.push({ name: PAGE_ROUTES.files, params: { pathMatch: target.path.split("/") } }).catch(() => {});
@@ -825,8 +910,10 @@ provideActiveSession(activeSession);
 
 useEventListeners({
   onKeyNavigation: handleKeyNavigation,
-  onViewModeShortcut: handleViewModeShortcut,
-  onTeardown: teardownPendingCalls,
+  onTeardown: () => {
+    teardownPendingCalls();
+    teardownRunElapsed();
+  },
 });
 
 onMounted(async () => {

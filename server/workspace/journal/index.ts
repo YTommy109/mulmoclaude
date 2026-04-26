@@ -6,6 +6,45 @@
 //
 // All failures are caught and logged here; nothing ever bubbles
 // back to the request handler.
+//
+// ── Architecture (#799) ──────────────────────────────────────────
+//
+// Two top-level passes hang off `maybeRunJournal()`, each with its
+// own cadence and its own state-machine slot. Memory extraction is
+// a sub-step of the daily pass, not a peer pipeline.
+//
+//   session-end
+//     │
+//     └─> maybeRunJournal()  [this file]
+//           │   gates by interval, holds the lock, traps errors
+//           │
+//           ├─> runDailyPass         (≥ 1 h since last)
+//           │     dailyPass.ts       finds new/changed sessions via
+//           │                        mtime, buckets events by local
+//           │                        date, calls `claude` CLI once
+//           │                        per day, writes daily summaries
+//           │                        + topics + state checkpoint.
+//           │     │
+//           │     │  early-returns when no dirty sessions; otherwise
+//           │     │  at the end of the per-day loop:
+//           │     │
+//           │     └─> extractAndAppendMemory
+//           │           memoryExtractor.ts  scans the day's new
+//           │                              daily file for memory-
+//           │                              worthy facts, appends to
+//           │                              the user's ~/.claude/
+//           │                              memory.md.
+//           │
+//           └─> runOptimizationPass  (≥ 7 d since last)
+//                 optimizationPass.ts reads existing topics, asks
+//                                    the LLM to merge duplicates /
+//                                    archive stale ones, writes back
+//                                    and updates archive/.
+//
+// _index.md is rebuilt at the end of every successful pass so the
+// UI's directory listing reflects whatever was just written.
+//
+// Audit + roadmap: `plans/audit-journal-subsystem.md` (#799).
 
 import { workspacePath as defaultWorkspacePath } from "../workspace.js";
 import {
@@ -19,7 +58,7 @@ import { readState, writeState, isDailyDue, isOptimizationDue } from "./state.js
 import { runDailyPass } from "./dailyPass.js";
 import { runOptimizationPass } from "./optimizationPass.js";
 import { buildIndexMarkdown, type IndexTopicEntry, type IndexDailyEntry } from "./indexFile.js";
-import { runClaudeCli, ClaudeCliNotFoundError, type Summarize } from "./archivist.js";
+import { runClaudeCli, ClaudeCliNotFoundError, type Summarize } from "./archivist-cli.js";
 import { extractFirstH1 } from "../../../src/utils/markdown/extractFirstH1.js";
 import { log } from "../../system/logger/index.js";
 
@@ -34,6 +73,18 @@ let running = false;
 // for the rest of the server lifetime to avoid spamming warnings
 // on every session-end. Reset on server restart.
 let disabled = false;
+
+// Test-only reset for the module-level flags. The lock + disable
+// flags are intentionally module-scoped so a fresh server start
+// always begins from "neither running nor disabled"; a unit test
+// that exercises maybeRunJournal across multiple call sequences
+// needs a way to reproduce that fresh-start condition without
+// re-importing the module. Not exported via index — only consumers
+// importing this file directly should reach for it.
+export function __resetForTests(): void {
+  running = false;
+  disabled = false;
+}
 
 // The agent route calls this as `maybeRunJournal().catch(...)`.
 export interface MaybeRunJournalOptions {

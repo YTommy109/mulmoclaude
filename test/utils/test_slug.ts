@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "crypto";
-import { hasNonAscii, hashSlug, isValidSlug, slugify } from "../../server/utils/slug.js";
+import { DEFAULT_MAX_LENGTH, disambiguateSlug, hasNonAscii, hashSlug, isValidSlug, slugify } from "../../server/utils/slug.js";
 
 const HASH_LEN = 16;
 
@@ -64,6 +64,20 @@ describe("slugify (ASCII happy path)", () => {
   it("respects maxLength", () => {
     assert.equal(slugify("a".repeat(80), "page", 10), "aaaaaaaaaa");
   });
+
+  it("uses default maxLength=120 when not specified", () => {
+    // Default cap was bumped to 120 (#732). A 200-char input gets
+    // truncated to exactly 120 — boundary check.
+    assert.equal(slugify("a".repeat(200)).length, 120);
+  });
+
+  it("does not truncate ASCII inputs at the old 60-char cap", () => {
+    // Regression guard: previously the default was 60, so an 80-char
+    // input came back as 80 chars but a 70-char input came back as 60.
+    // After #732 we want the full 70 (and full 80) preserved.
+    const seventy = "a".repeat(70);
+    assert.equal(slugify(seventy).length, 70);
+  });
 });
 
 describe("slugify (non-ASCII fallback)", () => {
@@ -120,8 +134,15 @@ describe("isValidSlug", () => {
   });
 
   it("rejects empty and too-long strings", () => {
+    // Cap is DEFAULT_MAX_LENGTH (120); 121 chars must fail. Bumped from
+    // 64→120 alongside the slug-rule unification (#732) so journal /
+    // todo / wiki / files share one rule.
     assert.equal(isValidSlug(""), false);
-    assert.equal(isValidSlug("a".repeat(65)), false);
+    assert.equal(isValidSlug("a".repeat(121)), false);
+  });
+
+  it("accepts the 120-char boundary", () => {
+    assert.equal(isValidSlug("a".repeat(120)), true);
   });
 
   it("rejects uppercase", () => {
@@ -159,5 +180,98 @@ describe("isValidSlug", () => {
     assert.equal(isValidSlug(42 as any), false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     assert.equal(isValidSlug(undefined as any), false);
+  });
+});
+
+describe("disambiguateSlug", () => {
+  it("returns the base unchanged when no collision exists", () => {
+    assert.equal(disambiguateSlug("review", new Set()), "review");
+    assert.equal(disambiguateSlug("review", new Set(["other", "another"])), "review");
+  });
+
+  it("appends -2 on the first collision", () => {
+    assert.equal(disambiguateSlug("review", new Set(["review"])), "review-2");
+  });
+
+  it("walks forward through -3, -4, ...", () => {
+    assert.equal(disambiguateSlug("review", new Set(["review", "review-2", "review-3"])), "review-4");
+  });
+
+  it("preserves a hyphen-prefix base (no double hyphen)", () => {
+    // base ends with non-hyphen; suffix join is single hyphen.
+    const result = disambiguateSlug("doing-abc", new Set(["doing-abc"]));
+    assert.equal(result, "doing-abc-2");
+    assert.ok(isValidSlug(result));
+  });
+
+  it("truncates when base + suffix would exceed DEFAULT_MAX_LENGTH (Codex iter-1 #732)", () => {
+    // 120-char base + "-2" naively yields 122 chars, failing isValidSlug.
+    const base = "a".repeat(DEFAULT_MAX_LENGTH);
+    const result = disambiguateSlug(base, new Set([base]));
+    assert.ok(result.length <= DEFAULT_MAX_LENGTH, `expected length <= ${DEFAULT_MAX_LENGTH}, got ${result.length}`);
+    assert.ok(isValidSlug(result), `expected valid slug, got "${result}"`);
+    assert.ok(result.endsWith("-2"));
+  });
+
+  it("strips a trailing hyphen revealed by truncation so the join doesn't yield '--'", () => {
+    // 120-char base where slice(0, 118) ends with "-"; without the
+    // trailing-hyphen trim the disambiguation would emit "...--2".
+    const tricky = "x".repeat(117) + "-aa";
+    const result = disambiguateSlug(tricky, new Set([tricky]));
+    assert.equal(result.indexOf("--"), -1, `must not contain '--', got "${result}"`);
+    assert.ok(isValidSlug(result));
+    assert.ok(result.endsWith("-2"));
+  });
+
+  it("strips a trailing hyphen on the no-truncation path too (Codex iter-3 #732)", () => {
+    // Defensive boundary: a short base ending with "-" fits within
+    // `room` so the early-return path applies. Without trimming, the
+    // join would yield "abc--2" which fails `isValidSlug`.
+    // Current callers (slugify producers) never emit a trailing-
+    // hyphen base, but the helper is exported, so it must stay safe
+    // for any input.
+    const result = disambiguateSlug("abc-", new Set(["abc-"]));
+    assert.equal(result.indexOf("--"), -1, `must not contain '--', got "${result}"`);
+    assert.equal(result, "abc-2");
+    assert.ok(isValidSlug(result));
+  });
+
+  it("short-circuits on an empty base instead of fabricating '-2' (Codex iter-4 #732)", () => {
+    // Precondition: base must be a canonical slug. Empty and all-
+    // hyphen inputs can't produce a valid disambiguation, so the
+    // helper returns them unchanged rather than emitting an invalid
+    // leading-hyphen slug like "-2". Production callers (slugify
+    // producers) never pass these, but the contract guarantees that
+    // invalid base in => invalid base out (never invalid base in =>
+    // *new* invalid slug out).
+    assert.equal(disambiguateSlug("", new Set([""])), "");
+    assert.equal(disambiguateSlug("", new Set()), "");
+  });
+
+  it("short-circuits on all-hyphen bases ('-', '--', '---')", () => {
+    assert.equal(disambiguateSlug("-", new Set(["-"])), "-");
+    assert.equal(disambiguateSlug("--", new Set(["--"])), "--");
+    assert.equal(disambiguateSlug("---", new Set()), "---");
+  });
+
+  it("strips a trailing hyphen at exactly room-size (no overflow, no early return shortcut)", () => {
+    // Base length === room (118 for `-2`); the cut point falls exactly
+    // at the trailing hyphen. Both paths (overflow / no-overflow) must
+    // converge on the same trim behaviour — Codex iter-3 specifically
+    // flagged this exact-room-size boundary.
+    const base = "y".repeat(117) + "-"; // length 118 = room for `-2`
+    const result = disambiguateSlug(base, new Set([base]));
+    assert.equal(result.indexOf("--"), -1, `must not contain '--', got "${result}"`);
+    assert.ok(isValidSlug(result));
+    assert.ok(result.endsWith("-2"));
+  });
+
+  it("walks the truncated suffix through -3, -4 too", () => {
+    const base = "a".repeat(DEFAULT_MAX_LENGTH);
+    const existing = new Set([base, disambiguateSlug(base, new Set([base])), disambiguateSlug(base, new Set([base, disambiguateSlug(base, new Set([base]))]))]);
+    const result = disambiguateSlug(base, existing);
+    assert.ok(result.length <= DEFAULT_MAX_LENGTH);
+    assert.ok(isValidSlug(result));
+    assert.ok(result.endsWith("-4"), `expected -4 suffix, got "${result}"`);
   });
 });

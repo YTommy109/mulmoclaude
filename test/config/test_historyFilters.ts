@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { HISTORY_FILTERS, HISTORY_FILTER_ORDER, HISTORY_FILTER_ROUTE_PATTERN, isHistoryFilter } from "../../src/config/historyFilters.js";
+import { HISTORY_FILTERS, HISTORY_FILTER_ORDER } from "../../src/config/historyFilters.js";
 import { SESSION_ORIGINS } from "../../src/types/session.js";
 
 describe("HISTORY_FILTERS", () => {
@@ -26,41 +26,5 @@ describe("HISTORY_FILTER_ORDER", () => {
 
   it("starts with `all` so the pill row renders it first", () => {
     assert.equal(HISTORY_FILTER_ORDER[0], HISTORY_FILTERS.all);
-  });
-});
-
-describe("HISTORY_FILTER_ROUTE_PATTERN", () => {
-  it("excludes `all` (represented by the bare /history URL)", () => {
-    const parts = HISTORY_FILTER_ROUTE_PATTERN.split("|");
-    assert.ok(!parts.includes(HISTORY_FILTERS.all));
-  });
-
-  it("includes every non-default filter value", () => {
-    const parts = HISTORY_FILTER_ROUTE_PATTERN.split("|");
-    const expected = Object.values(HISTORY_FILTERS).filter((value) => value !== HISTORY_FILTERS.all);
-    assert.deepEqual(parts.sort(), expected.sort());
-  });
-});
-
-describe("isHistoryFilter", () => {
-  it("accepts every known filter value", () => {
-    for (const value of HISTORY_FILTER_ORDER) {
-      assert.equal(isHistoryFilter(value), true, `expected ${value} to be accepted`);
-    }
-  });
-
-  it("rejects unknown strings", () => {
-    assert.equal(isHistoryFilter("bogus"), false);
-    assert.equal(isHistoryFilter(""), false);
-    assert.equal(isHistoryFilter("ALL"), false);
-    assert.equal(isHistoryFilter(" all"), false);
-  });
-
-  it("rejects non-string values", () => {
-    assert.equal(isHistoryFilter(undefined), false);
-    assert.equal(isHistoryFilter(null), false);
-    assert.equal(isHistoryFilter(42), false);
-    assert.equal(isHistoryFilter({}), false);
-    assert.equal(isHistoryFilter([]), false);
   });
 });

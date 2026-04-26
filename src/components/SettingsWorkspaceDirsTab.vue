@@ -12,16 +12,14 @@ interface DirEntry {
   structure: "flat" | "by-name" | "by-date";
 }
 
-// Typed save status so the template can drive colour off `kind`
-// instead of string-comparing a localised "Saved" — previously the
-// green-on-success styling was coupled to the English literal.
-type SaveStatus = { kind: "ok" } | { kind: "error"; message: string };
-
+// Append + remove only — every mutation persists immediately. No
+// draft/save split: there was nothing to edit in place, so the old
+// Save button just risked silent data loss when a user added an
+// entry and forgot to confirm.
 const dirs = ref<DirEntry[]>([]);
 const loading = ref(true);
 const error = ref("");
-const saving = ref(false);
-const saveStatus = ref<SaveStatus | null>(null);
+const persistError = ref("");
 
 // Draft for new entry
 const draftPath = ref("");
@@ -41,23 +39,41 @@ async function load(): Promise<void> {
   dirs.value = result.data.dirs;
 }
 
-async function save(): Promise<void> {
-  saving.value = true;
-  saveStatus.value = null;
-  const result = await apiPut<{ dirs: DirEntry[] }>(API_ROUTES.config.workspaceDirs, { dirs: dirs.value });
-  saving.value = false;
-  if (!result.ok) {
-    saveStatus.value = { kind: "error", message: result.error };
-    return;
-  }
-  dirs.value = result.data.dirs;
-  saveStatus.value = { kind: "ok" };
-  setTimeout(() => {
-    saveStatus.value = null;
-  }, 2000);
+// Concurrency: user can click Add then Remove (or two Adds) before
+// the first PUT returns, and any of those mutations can be rejected
+// server-side (e.g. a path outside data/ / artifacts/). We serialize
+// via an `inflight` chain and deliberately do NOT apply optimistic
+// updates — a rejected entry would otherwise linger in `dirs.value`
+// and cascade-corrupt every subsequent PUT. Each queued task derives
+// its payload from the current (last server-confirmed) `dirs.value`
+// at execute time, so prior successful mutations compose but
+// failures don't poison later work.
+//
+// `let inflight` is scoped to the setup block (per-instance), so it
+// GCs naturally when the tab unmounts on a switch away.
+let inflight: Promise<unknown> = Promise.resolve();
+
+type DirProducer = (current: DirEntry[]) => DirEntry[];
+
+async function persist(produce: DirProducer): Promise<boolean> {
+  const task: Promise<boolean> = inflight
+    .catch(() => undefined)
+    .then(async () => {
+      const next = produce(dirs.value);
+      const result = await apiPut<{ dirs: DirEntry[] }>(API_ROUTES.config.workspaceDirs, { dirs: next });
+      if (!result.ok) {
+        persistError.value = result.error;
+        return false;
+      }
+      dirs.value = result.data.dirs;
+      persistError.value = "";
+      return true;
+    });
+  inflight = task;
+  return task;
 }
 
-function addEntry(): void {
+async function addEntry(): Promise<void> {
   draftError.value = "";
   const path = draftPath.value.trim();
   if (!path) {
@@ -72,18 +88,25 @@ function addEntry(): void {
     draftError.value = t("settingsWorkspaceDirs.errAlreadyExists");
     return;
   }
-  dirs.value.push({
+  const entry: DirEntry = {
     path,
     description: draftDescription.value.trim(),
     structure: draftStructure.value,
-  });
-  draftPath.value = "";
-  draftDescription.value = "";
-  draftStructure.value = "flat";
+  };
+  const ok = await persist((current) => [...current, entry]);
+  if (ok) {
+    draftPath.value = "";
+    draftDescription.value = "";
+    draftStructure.value = "flat";
+  }
 }
 
-function removeEntry(index: number): void {
-  dirs.value.splice(index, 1);
+async function removeEntry(index: number): Promise<void> {
+  // Capture identity at click time so the remove lands on the same
+  // logical row even after earlier queued mutations shift indices.
+  const target = dirs.value[index];
+  if (!target) return;
+  await persist((current) => current.filter((dir) => dir !== target));
 }
 
 onMounted(load);
@@ -165,19 +188,9 @@ onMounted(load);
         </div>
       </div>
 
-      <!-- Save -->
-      <div class="flex items-center gap-2">
-        <button
-          class="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-300"
-          :disabled="saving"
-          data-testid="workspace-dirs-save-btn"
-          @click="save"
-        >
-          {{ saving ? t("common.saving") : t("common.save") }}
-        </button>
-        <span v-if="saveStatus" class="text-xs" :class="saveStatus.kind === 'ok' ? 'text-green-600' : 'text-red-600'">
-          {{ saveStatus.kind === "ok" ? t("common.saved") : saveStatus.message }}
-        </span>
+      <!-- Persist error (from the most recent add/remove PUT) -->
+      <div v-if="persistError" class="text-xs text-red-600 bg-red-50 rounded px-3 py-1.5" data-testid="workspace-dirs-persist-error">
+        {{ persistError }}
       </div>
     </template>
   </div>

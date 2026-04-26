@@ -45,6 +45,14 @@ export interface StartChatParams {
   attachments?: Attachment[];
   /** Session origin — application-defined (e.g. "human", "bridge") */
   origin?: string;
+  /** Flat primitive bag forwarded from the bridge handshake. Chat-
+   *  service sanitises to string / number / boolean values only
+   *  before this point — nested objects are dropped at the socket
+   *  boundary so a downstream merge can't reintroduce prototype-
+   *  pollution. The host app is free to look up its own keys
+   *  (e.g. `defaultRole`). Empty object when the bridge didn't
+   *  send any. */
+  bridgeOptions?: Readonly<Record<string, string | number | boolean>>;
 }
 
 export type StartChatResult = { kind: "started"; chatSessionId: string } | { kind: "error"; error: string; status?: number };

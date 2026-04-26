@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildPageResponseData,
   buildTableColumnMap,
   extractHashTags,
   extractSlugFromBulletHref,
@@ -11,6 +12,7 @@ import {
   formatLintReport,
   parseIndexEntries,
   parseTagsCell,
+  toPageResponse,
   wikiSlugify,
   type WikiPageEntry,
 } from "../../server/api/routes/wiki.js";
@@ -513,5 +515,144 @@ describe("findTagDrift", () => {
     const entries = [entry("MyPage", ["a"])];
     const frontmatter = new Map<string, string[]>([["mypage", ["a", "b"]]]);
     assert.equal(findTagDrift(entries, frontmatter).length, 1);
+  });
+});
+
+// Regression pin for #744 / #678: the GET and POST handlers now share
+// buildPageResponseData so the missing-vs-empty-vs-has-content
+// distinction is enforced in one place. These tests assert the three
+// branches directly — without them, a future refactor could collapse
+// empty-but-existing back into "Page not found" and only e2e copy
+// would catch it (or miss it entirely, since e2e mocks return the
+// expected shape regardless of server logic).
+describe("buildPageResponseData", () => {
+  it("missing page → error + not-found instructions + pageExists:false", () => {
+    const response = buildPageResponseData({
+      action: "page",
+      pageName: "NonExistent",
+      resolvedTitle: "NonExistent",
+      content: "",
+      exists: false,
+    });
+    assert.equal(response.data.pageExists, false);
+    assert.equal(response.data.error, "Page not found: NonExistent");
+    assert.equal(response.message, "Page not found: NonExistent");
+    assert.match(response.instructions, /does not exist/);
+    assert.match(response.instructions, /You can create it/);
+  });
+
+  it("empty existing page → page-is-empty error + update instructions + pageExists:true", () => {
+    const response = buildPageResponseData({
+      action: "page",
+      pageName: "empty-file",
+      resolvedTitle: "empty-file",
+      content: "",
+      exists: true,
+    });
+    assert.equal(response.data.pageExists, true);
+    assert.equal(response.data.error, "Page is empty: empty-file");
+    assert.equal(response.message, "Page exists but is empty: empty-file");
+    assert.match(response.instructions, /has no content yet/);
+    assert.match(response.instructions, /Research the topic/);
+  });
+
+  it("populated page → no error + normal instructions + pageExists:true", () => {
+    const response = buildPageResponseData({
+      action: "page",
+      pageName: "existing",
+      resolvedTitle: "Existing",
+      content: "# Existing\n\nThis page has content.",
+      exists: true,
+    });
+    assert.equal(response.data.pageExists, true);
+    assert.equal(response.data.error, undefined);
+    assert.equal(response.message, "Showing page: Existing");
+    assert.match(response.instructions, /displayed on the canvas/);
+    assert.equal(response.data.content, "# Existing\n\nThis page has content.");
+  });
+
+  it("reflects resolved title (fuzzy match) in message, but uses pageName in error", () => {
+    // resolvePagePath is fuzzy: asking for "Foo" can resolve to the
+    // file "foo-bar.md" → resolvedTitle "foo-bar". The error echoes
+    // what the caller asked for (pageName) so they can recognise the
+    // mismatch; message/title use the resolved name.
+    const response = buildPageResponseData({
+      action: "page",
+      pageName: "Foo",
+      resolvedTitle: "foo-bar",
+      content: "",
+      exists: true,
+    });
+    assert.equal(response.data.error, "Page is empty: Foo");
+    assert.equal(response.message, "Page exists but is empty: foo-bar");
+    assert.equal(response.title, "foo-bar");
+  });
+
+  it("slugifies pageName for the filesystem hint in instructions", () => {
+    const response = buildPageResponseData({
+      action: "page",
+      pageName: "Video Generation",
+      resolvedTitle: "Video Generation",
+      content: "",
+      exists: false,
+    });
+    assert.match(response.instructions, /wiki\/pages\/video-generation\.md/);
+  });
+});
+
+// Pin the wrapper layer that sits between resolvePagePath (I/O) and
+// buildPageResponseData (shape). The original bug this PR fixes was
+// exactly this layer conflating `content` with `exists` in the old
+// inline GET handler, so tests here guard against re-introducing that
+// conflation in a future refactor of the wrapper.
+describe("toPageResponse", () => {
+  it("filePath=null → exists:false + resolvedTitle falls back to pageName", () => {
+    const response = toPageResponse({
+      action: "page",
+      pageName: "Viverse",
+      filePath: null,
+      content: "",
+    });
+    assert.equal(response.data.pageExists, false);
+    assert.equal(response.title, "Viverse");
+    assert.equal(response.data.error, "Page not found: Viverse");
+  });
+
+  it("filePath set with empty content → exists:true + empty-state response", () => {
+    // Regression guard for the #678 / #744 bug: filePath present
+    // (page file exists) AND content empty (zero-byte file) must
+    // yield pageExists:true + "Page is empty" — NOT "Page not found".
+    const response = toPageResponse({
+      action: "page",
+      pageName: "empty-file",
+      filePath: "/some/abs/wiki/pages/empty-file.md",
+      content: "",
+    });
+    assert.equal(response.data.pageExists, true);
+    assert.equal(response.data.error, "Page is empty: empty-file");
+    assert.match(response.instructions, /has no content yet/);
+  });
+
+  it("filePath set with content → exists:true + populated response", () => {
+    const response = toPageResponse({
+      action: "page",
+      pageName: "existing",
+      filePath: "/some/abs/wiki/pages/existing.md",
+      content: "# Existing\n\nBody.",
+    });
+    assert.equal(response.data.pageExists, true);
+    assert.equal(response.data.error, undefined);
+    assert.equal(response.data.content, "# Existing\n\nBody.");
+  });
+
+  it("derives resolvedTitle from filePath basename, dropping the .md extension", () => {
+    const response = toPageResponse({
+      action: "page",
+      pageName: "Foo",
+      filePath: "/some/abs/wiki/pages/foo-bar.md",
+      content: "body",
+    });
+    assert.equal(response.title, "foo-bar");
+    assert.equal(response.data.pageName, "foo-bar");
   });
 });

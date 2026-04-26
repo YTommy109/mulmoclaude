@@ -1,0 +1,127 @@
+// E2E for the session-history side-panel toggle (#707).
+//
+// Covers:
+// - Toggle button visible in both Single and Stack canvas views
+// - Clicking the toggle adds SessionHistoryPanel as the leftmost
+//   column (w-80) next to the existing chat sidebar / canvas
+// - State persists in localStorage across reloads
+// - Panel renders the session list fetched via /api/sessions
+// - Panel only appears on /chat — navigating to /files etc. hides it
+//   even when the preference is on
+
+import { test, expect } from "@playwright/test";
+import { mockAllApis } from "../fixtures/api";
+import { SESSION_A, SESSION_B } from "../fixtures/sessions";
+
+test.describe("session-history side-panel toggle", () => {
+  test.beforeEach(async ({ page }) => {
+    await mockAllApis(page, { sessions: [SESSION_A, SESSION_B] });
+    // Each Playwright test gets a fresh browser context with empty
+    // localStorage by default, so the side-panel preference starts
+    // OFF without needing an init-script reset. Tests that want the
+    // panel pre-enabled set it up inline before `page.goto`.
+  });
+
+  test("Single view: toggle button hidden → visible shows the left session-history column", async ({ page }) => {
+    await page.goto("/chat");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+
+    // Off by default — side-panel DOM is absent.
+    await expect(page.getByTestId("session-history-side-panel")).toBeHidden();
+    await expect(page.getByTestId("session-history-toggle-off")).toBeVisible();
+
+    // Click the toggle — SessionTabBar disappears, panel appears with
+    // its own toggle in the header.
+    await page.getByTestId("session-history-toggle-off").click();
+    await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
+    // Only one toggle-on button (in the panel) — the SessionTabBar is
+    // unmounted so its toggle is gone too.
+    await expect(page.getByTestId("session-history-toggle-on")).toHaveCount(1);
+
+    const sidePanel = page.getByTestId("session-history-side-panel");
+    await expect(sidePanel.getByTestId(`session-item-${SESSION_A.id}`)).toBeVisible();
+    await expect(sidePanel.getByTestId(`session-item-${SESSION_B.id}`)).toBeVisible();
+  });
+
+  test("Stack view: toggle button (lives in SessionTabBar) controls the side-panel", async ({ page }) => {
+    // Preset localStorage to Stack layout so we don't have to flip
+    // it via the UI first.
+    await page.addInitScript(() => {
+      localStorage.setItem("canvas_layout_mode", "stack");
+    });
+
+    await page.goto("/chat");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+
+    // Side panel off initially in Stack too.
+    await expect(page.getByTestId("session-history-side-panel")).toBeHidden();
+
+    // Toggle lives in SessionTabBar (top bar Row 2) — the same
+    // button is used regardless of Single / Stack layout. Flipping
+    // it reveals the leftmost session-history column, which Stack
+    // normally has no sidebar for at all.
+    await page.getByTestId("session-history-toggle-off").click();
+    await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
+    await expect(page.getByTestId("session-history-side-panel").getByTestId(`session-item-${SESSION_A.id}`)).toBeVisible();
+  });
+
+  test("preference persists in localStorage across reloads", async ({ page }) => {
+    await page.goto("/chat");
+    await page.getByTestId("session-history-toggle-off").click();
+    await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
+
+    const stored = await page.evaluate(() => localStorage.getItem("side_panel_visible"));
+    expect(stored).toBe("1");
+
+    // Reload — panel should still be visible without clicking again.
+    await page.reload();
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+    await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
+  });
+
+  test("clicking a session in the side panel navigates to /chat/:id", async ({ page }) => {
+    await page.goto("/chat");
+    await page.getByTestId("session-history-toggle-off").click();
+    await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
+
+    // The panel uses the shared SessionHistoryPanel component, so
+    // clicking a session item triggers the load-session handler
+    // that drives /chat navigation.
+    await page.getByTestId("session-history-side-panel").getByTestId(`session-item-${SESSION_A.id}`).click();
+    await expect(page).toHaveURL(new RegExp(`/chat/${SESSION_A.id}`));
+  });
+
+  test("opening the side panel replaces the SessionTabBar entirely", async ({ page }) => {
+    await page.goto("/chat");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+
+    // SessionTabBar is present with its tabs and toggle when the panel is off.
+    await expect(page.getByTestId(`session-tab-${SESSION_A.id}`)).toBeVisible();
+    await expect(page.getByTestId("session-history-toggle-off")).toBeVisible();
+
+    // Click the toggle — SessionTabBar unmounts completely; the panel
+    // takes over and carries its own toggle in the header.
+    await page.getByTestId("session-history-toggle-off").click();
+    await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
+    await expect(page.getByTestId(`session-tab-${SESSION_A.id}`)).toBeHidden();
+    await expect(page.getByTestId("session-history-toggle-off")).toBeHidden();
+
+    // The in-panel toggle returns to the tabs-on-top layout.
+    await page.getByTestId("session-history-toggle-on").click();
+    await expect(page.getByTestId("session-history-side-panel")).toBeHidden();
+    await expect(page.getByTestId(`session-tab-${SESSION_A.id}`)).toBeVisible();
+  });
+
+  test("side panel stays visible across page navigation", async ({ page }) => {
+    // Enable the toggle on /chat first so the preference is on.
+    await page.goto("/chat");
+    await page.getByTestId("session-history-toggle-off").click();
+    await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
+
+    // Navigate off chat — panel stays up. `sidePanelVisible` is the
+    // single flag driving the column; it does not depend on the
+    // current route, so Files / Wiki / etc. render alongside it.
+    await page.goto("/files");
+    await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
+  });
+});

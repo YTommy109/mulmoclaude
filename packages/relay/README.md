@@ -141,6 +141,23 @@ RELAY_TOKEN=<same token as step 2>
 | POST   | `/webhook/telegram`    | Telegram webhook (secret token verified)                                                                                       |
 | POST   | `/webhook/teams`       | Microsoft Teams webhook (Azure AD JWT verified, aud = `MICROSOFT_APP_ID`; non-message activities acked 200 without forwarding) |
 
+## Per-platform default role (host-app side)
+
+The MulmoClaude server can pin a different default role per relay platform. Set these env vars on the **host app** (the MulmoClaude process that connects to this Worker — _not_ on the Worker itself):
+
+| Variable                          | Effect                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------- |
+| `RELAY_DEFAULT_ROLE`              | Blanket fallback applied to every relay-routed platform                 |
+| `RELAY_LINE_DEFAULT_ROLE`         | LINE-only override                                                      |
+| `RELAY_WHATSAPP_DEFAULT_ROLE`     | WhatsApp-only override                                                  |
+| `RELAY_MESSENGER_DEFAULT_ROLE`    | Messenger-only override                                                 |
+| `RELAY_GOOGLE_CHAT_DEFAULT_ROLE`  | Google Chat-only override (note `_GOOGLE_CHAT_`, not `_GOOGLE-CHAT_`)   |
+| `RELAY_TEAMS_DEFAULT_ROLE`        | Microsoft Teams-only override                                           |
+
+Per-platform overrides win over the blanket form on conflict. A new chat session opened via a relay-forwarded message starts in the resolved role; existing sessions keep whatever role they were created with. See [#739](https://github.com/receptron/mulmoclaude/issues/739) for the design and `server/events/resolveRelayBridgeOptions.ts` for the implementation.
+
+For symmetry: native bridge processes (e.g. `yarn slack`) use `<TRANSPORT>_BRIDGE_DEFAULT_ROLE` instead — that scrape lives in `@mulmobridge/client`. The two schemes are intentionally parallel; pick the one matching your deployment topology.
+
 ## Security
 
 - **Webhook verification**: Each platform's signature is verified before processing
@@ -190,6 +207,47 @@ Three connection modes are defined in `CONNECTION_MODES`; today only `webhook` i
 | Multi-platform | One relay          | One process each          |
 
 Both can coexist. Some platforms via Relay, others via local Bridge.
+
+## Ecosystem
+
+Part of the [`@mulmobridge/*`](https://www.npmjs.com/~mulmobridge) package family.
+
+**Shared libraries:**
+
+- [`@mulmobridge/client`](https://www.npmjs.com/package/@mulmobridge/client) — socket.io client library used by every bridge below
+- [`@mulmobridge/protocol`](https://www.npmjs.com/package/@mulmobridge/protocol) — wire types and constants
+- [`@mulmobridge/chat-service`](https://www.npmjs.com/package/@mulmobridge/chat-service) — server-side relay + session store
+- [`@mulmobridge/relay`](https://www.npmjs.com/package/@mulmobridge/relay) — Cloudflare Workers webhook proxy  ← **this package**
+- [`@mulmobridge/mock-server`](https://www.npmjs.com/package/@mulmobridge/mock-server) — mock server for local bridge development
+
+**Bridges** (one npm package per platform):
+
+- [`@mulmobridge/bluesky`](https://www.npmjs.com/package/@mulmobridge/bluesky) — Bluesky DMs over atproto
+- [`@mulmobridge/chatwork`](https://www.npmjs.com/package/@mulmobridge/chatwork) — Chatwork (Japanese business chat)
+- [`@mulmobridge/cli`](https://www.npmjs.com/package/@mulmobridge/cli) — interactive terminal bridge
+- [`@mulmobridge/discord`](https://www.npmjs.com/package/@mulmobridge/discord) — Discord bot via Gateway
+- [`@mulmobridge/email`](https://www.npmjs.com/package/@mulmobridge/email) — IMAP poll + SMTP reply, threading preserved
+- [`@mulmobridge/google-chat`](https://www.npmjs.com/package/@mulmobridge/google-chat) — Google Chat via MulmoBridge relay
+- [`@mulmobridge/irc`](https://www.npmjs.com/package/@mulmobridge/irc) — IRC (Libera, Freenode, custom)
+- [`@mulmobridge/line`](https://www.npmjs.com/package/@mulmobridge/line) — LINE Messaging API via MulmoBridge relay
+- [`@mulmobridge/line-works`](https://www.npmjs.com/package/@mulmobridge/line-works) — LINE Works (enterprise LINE)
+- [`@mulmobridge/mastodon`](https://www.npmjs.com/package/@mulmobridge/mastodon) — Mastodon DMs + mentions
+- [`@mulmobridge/matrix`](https://www.npmjs.com/package/@mulmobridge/matrix) — Matrix / Element
+- [`@mulmobridge/mattermost`](https://www.npmjs.com/package/@mulmobridge/mattermost) — Mattermost
+- [`@mulmobridge/messenger`](https://www.npmjs.com/package/@mulmobridge/messenger) — Facebook Messenger via MulmoBridge relay
+- [`@mulmobridge/nostr`](https://www.npmjs.com/package/@mulmobridge/nostr) — Nostr NIP-04 encrypted DMs
+- [`@mulmobridge/rocketchat`](https://www.npmjs.com/package/@mulmobridge/rocketchat) — Rocket.Chat
+- [`@mulmobridge/signal`](https://www.npmjs.com/package/@mulmobridge/signal) — Signal via signal-cli-rest-api
+- [`@mulmobridge/slack`](https://www.npmjs.com/package/@mulmobridge/slack) — Slack Socket Mode
+- [`@mulmobridge/teams`](https://www.npmjs.com/package/@mulmobridge/teams) — Microsoft Teams via Bot Framework
+- [`@mulmobridge/telegram`](https://www.npmjs.com/package/@mulmobridge/telegram) — Telegram bot
+- [`@mulmobridge/twilio-sms`](https://www.npmjs.com/package/@mulmobridge/twilio-sms) — SMS via Twilio Programmable Messaging
+- [`@mulmobridge/viber`](https://www.npmjs.com/package/@mulmobridge/viber) — Viber Public Account bots
+- [`@mulmobridge/webhook`](https://www.npmjs.com/package/@mulmobridge/webhook) — generic HTTP webhook bridge
+- [`@mulmobridge/whatsapp`](https://www.npmjs.com/package/@mulmobridge/whatsapp) — WhatsApp Cloud API via MulmoBridge relay
+- [`@mulmobridge/xmpp`](https://www.npmjs.com/package/@mulmobridge/xmpp) — XMPP / Jabber
+- [`@mulmobridge/zulip`](https://www.npmjs.com/package/@mulmobridge/zulip) — Zulip
+
 
 ## License
 

@@ -1,4 +1,3 @@
-import path from "path";
 import { Router, Request, Response } from "express";
 import { executeMindMap } from "@gui-chat-plugin/mindmap";
 import { executeSpreadsheet, type SpreadsheetArgs } from "../../../src/plugins/spreadsheet/definition.js";
@@ -6,15 +5,15 @@ import { executeQuiz } from "@mulmochat-plugin/quiz";
 import { executeForm } from "@mulmochat-plugin/form";
 import { executeOpenCanvas } from "../../../src/plugins/canvas/definition.js";
 import { executePresent3D } from "@gui-chat-plugin/present3d";
-import { generateGeminiImageFromPrompt, isGeminiAvailable } from "../../utils/gemini.js";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, serverError } from "../../utils/httpError.js";
-import { log } from "../../system/logger/index.js";
 import { saveImage } from "../../utils/files/image-store.js";
+import { fillMarkdownImagePlaceholders } from "../../utils/files/markdown-image-fill.js";
 import { saveMarkdown, overwriteMarkdown, isMarkdownPath } from "../../utils/files/markdown-store.js";
 import { saveSpreadsheet, overwriteSpreadsheet, isSpreadsheetPath } from "../../utils/files/spreadsheet-store.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
-import { WORKSPACE_DIRS } from "../../workspace/paths.js";
+import { log } from "../../system/logger/index.js";
+import { previewSnippet } from "../../utils/logPreview.js";
 
 const router = Router();
 
@@ -32,90 +31,30 @@ interface PluginErrorResponse {
 // default and each plugin's execute function does its own runtime
 // validation — matching the behavior of the inline handlers this
 // replaces.
+//
+// Logging policy (#779): a single entry/success/error log here covers
+// every route that adopts this wrapper (mindmap / quiz / form /
+// canvas / present3d / presentSpreadsheet). Without it, plugin
+// errors used to land as a generic 500 response with no server-log
+// trace — exactly the silent-failure pattern the audit is closing.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function wrapPluginExecute<TBody = any, TResult = unknown>(
   execute: (req: Request<object, unknown, TBody>) => Promise<TResult>,
 ): (req: Request<object, unknown, TBody>, res: Response<TResult | PluginErrorResponse>) => Promise<void> {
   return async (req, res) => {
+    // `req.path` here is the absolute path under the router's mount —
+    // useful as a per-call identifier without having to thread the
+    // plugin name through every call site.
+    log.info("plugins", "execute: start", { route: req.path });
     try {
       const result = await execute(req);
+      log.info("plugins", "execute: ok", { route: req.path });
       res.json(result);
     } catch (err) {
+      log.error("plugins", "execute: threw", { route: req.path, error: errorMessage(err) });
       res.status(500).json({ message: errorMessage(err) });
     }
   };
-}
-
-const IMAGE_PLACEHOLDER = /!\[([^\]]+)\]\(\/?__too_be_replaced_image_path__\)/g;
-
-async function generateImageFile(prompt: string): Promise<string | null> {
-  if (!isGeminiAvailable()) return null;
-  try {
-    const { imageData } = await generateGeminiImageFromPrompt(prompt);
-    if (imageData) return saveImage(imageData);
-    log.warn("present-document", "Gemini returned no image data for prompt", {
-      promptPreview: prompt.slice(0, 80),
-    });
-  } catch (err) {
-    // Surface the failure so missing-image symptoms in the canvas
-    // are debuggable from the server log instead of vanishing.
-    log.warn("present-document", "Gemini image generation failed", {
-      error: errorMessage(err),
-      promptPreview: prompt.slice(0, 80),
-    });
-  }
-  return null;
-}
-
-async function fillImagePlaceholders(markdown: string): Promise<string> {
-  const matches = [...markdown.matchAll(IMAGE_PLACEHOLDER)];
-  if (matches.length === 0) return markdown;
-  // Only attempt generation when Gemini is wired up; otherwise the
-  // placeholder still gets stripped below so we don't leak a broken
-  // <img src="...__too_be_replaced_image_path__"> into the rendered
-  // document.
-  const geminiOk = isGeminiAvailable();
-  if (!geminiOk) {
-    log.warn("present-document", "GEMINI_API_KEY not set — image placeholders will render as text markers", { placeholderCount: matches.length });
-  }
-
-  const results = await Promise.all(
-    matches.map(async (match) => ({
-      full: match[0],
-      prompt: match[1],
-      url: geminiOk ? await generateImageFile(match[1]) : null,
-    })),
-  );
-
-  // Surface a single tally line so the operator can see the
-  // success rate even when most calls go through. The per-call
-  // error already lands at warn from generateImageFile's catch.
-  if (geminiOk) {
-    const failed = results.filter((result) => !result.url).length;
-    if (failed > 0) {
-      log.warn("present-document", "image generation had failures", {
-        failed,
-        total: results.length,
-      });
-    }
-  }
-
-  let filled = markdown;
-  for (const { full, prompt, url } of results) {
-    // On success → real image. On failure / no key → italic text
-    // marker so the alt prompt still surfaces but no broken image
-    // 404s through the View. The user can re-render later once
-    // GEMINI_API_KEY is set.
-    filled = filled.replace(
-      full,
-      // `url` is workspace-relative (e.g. "artifacts/images/xxx.png").
-      // The document lives at "artifacts/documents/yyy.md". Compute a
-      // relative path from the document's directory so the markdown
-      // image reference resolves correctly.
-      url ? `![${prompt}](${path.posix.relative(WORKSPACE_DIRS.markdowns, url)})` : `*🖼️ Image: ${prompt}*`,
-    );
-  }
-  return filled;
 }
 
 // presentDocument — fills image placeholders via Gemini if API key is available
@@ -139,12 +78,19 @@ router.post(
   API_ROUTES.plugins.presentDocument,
   async (req: Request<object, unknown, PresentDocumentBody>, res: Response<PresentDocumentSuccess | PresentDocumentError>) => {
     const { title, markdown, filenamePrefix } = req.body;
+    log.info("plugins", "presentDocument: start", {
+      titlePreview: typeof title === "string" ? previewSnippet(title) : undefined,
+      prefixPreview: typeof filenamePrefix === "string" ? previewSnippet(filenamePrefix) : undefined,
+      markdownBytes: typeof markdown === "string" ? markdown.length : undefined,
+    });
     if (typeof filenamePrefix !== "string" || filenamePrefix.trim().length === 0) {
+      log.warn("plugins", "presentDocument: missing filenamePrefix");
       badRequest(res, "filenamePrefix is required");
       return;
     }
-    const filledMarkdown = await fillImagePlaceholders(markdown);
+    const filledMarkdown = await fillMarkdownImagePlaceholders(markdown);
     const markdownPath = await saveMarkdown(filledMarkdown, filenamePrefix);
+    log.info("plugins", "presentDocument: ok", { markdownPath, bytes: filledMarkdown.length });
     res.json({
       message: `Document "${title}" is ready.`,
       title,
@@ -153,8 +99,13 @@ router.post(
   },
 );
 
-// Update markdown file on disk (user edits in View)
+// Update markdown file on disk (user edits in View). Body carries the
+// workspace-relative path verbatim (e.g.
+// `artifacts/documents/2026/04/abc-123.md`) so the route doesn't have
+// to reconstruct one from a basename — required after #764 sharded
+// `artifacts/documents` by YYYY/MM.
 interface UpdateMarkdownBody {
+  relativePath: string;
   markdown: string;
 }
 
@@ -168,21 +119,30 @@ interface UpdateMarkdownError {
 
 router.put(
   API_ROUTES.plugins.updateMarkdown,
-  async (req: Request<{ filename: string }, unknown, UpdateMarkdownBody>, res: Response<UpdateMarkdownResponse | UpdateMarkdownError>) => {
-    const relativePath = `${WORKSPACE_DIRS.markdowns}/${req.params.filename}`;
-    const { markdown } = req.body;
+  async (req: Request<object, unknown, UpdateMarkdownBody>, res: Response<UpdateMarkdownResponse | UpdateMarkdownError>) => {
+    const { relativePath, markdown } = req.body;
+    log.info("plugins", "updateMarkdown: start", {
+      pathPreview: typeof relativePath === "string" ? previewSnippet(relativePath) : undefined,
+      bytes: typeof markdown === "string" ? markdown.length : undefined,
+    });
     if (!markdown) {
+      log.warn("plugins", "updateMarkdown: missing markdown");
       badRequest(res, "markdown is required");
       return;
     }
-    if (!isMarkdownPath(relativePath)) {
-      badRequest(res, "invalid markdown path");
+    if (!relativePath || !isMarkdownPath(relativePath)) {
+      log.warn("plugins", "updateMarkdown: invalid relativePath", {
+        pathPreview: typeof relativePath === "string" ? previewSnippet(relativePath) : undefined,
+      });
+      badRequest(res, "invalid markdown relativePath");
       return;
     }
     try {
       await overwriteMarkdown(relativePath, markdown);
+      log.info("plugins", "updateMarkdown: ok", { pathPreview: previewSnippet(relativePath), bytes: markdown.length });
       res.json({ path: relativePath });
     } catch (err) {
+      log.error("plugins", "updateMarkdown: threw", { pathPreview: previewSnippet(relativePath), error: errorMessage(err) });
       serverError(res, errorMessage(err));
     }
   },
@@ -208,8 +168,11 @@ router.post(
   }),
 );
 
-// Update spreadsheet file on disk (user edits in View)
+// Update spreadsheet file on disk (user edits in View). Body carries
+// the workspace-relative path so the route is symmetric with
+// updateMarkdown / image.update — see #764.
 interface UpdateSpreadsheetBody {
+  relativePath: string;
   sheets: unknown[];
 }
 
@@ -223,21 +186,30 @@ interface UpdateSpreadsheetError {
 
 router.put(
   API_ROUTES.plugins.updateSpreadsheet,
-  async (req: Request<{ filename: string }, unknown, UpdateSpreadsheetBody>, res: Response<UpdateSpreadsheetResponse | UpdateSpreadsheetError>) => {
-    const relativePath = `${WORKSPACE_DIRS.spreadsheets}/${req.params.filename}`;
-    const { sheets } = req.body;
+  async (req: Request<object, unknown, UpdateSpreadsheetBody>, res: Response<UpdateSpreadsheetResponse | UpdateSpreadsheetError>) => {
+    const { relativePath, sheets } = req.body;
+    log.info("plugins", "updateSpreadsheet: start", {
+      pathPreview: typeof relativePath === "string" ? previewSnippet(relativePath) : undefined,
+      sheetCount: Array.isArray(sheets) ? sheets.length : undefined,
+    });
     if (!Array.isArray(sheets)) {
+      log.warn("plugins", "updateSpreadsheet: sheets not an array");
       badRequest(res, "sheets must be an array");
       return;
     }
-    if (!isSpreadsheetPath(relativePath)) {
-      badRequest(res, "invalid spreadsheet path");
+    if (!relativePath || !isSpreadsheetPath(relativePath)) {
+      log.warn("plugins", "updateSpreadsheet: invalid relativePath", {
+        pathPreview: typeof relativePath === "string" ? previewSnippet(relativePath) : undefined,
+      });
+      badRequest(res, "invalid spreadsheet relativePath");
       return;
     }
     try {
       await overwriteSpreadsheet(relativePath, sheets);
+      log.info("plugins", "updateSpreadsheet: ok", { pathPreview: previewSnippet(relativePath), sheetCount: sheets.length });
       res.json({ path: relativePath });
     } catch (err) {
+      log.error("plugins", "updateSpreadsheet: threw", { pathPreview: previewSnippet(relativePath), error: errorMessage(err) });
       serverError(res, errorMessage(err));
     }
   },

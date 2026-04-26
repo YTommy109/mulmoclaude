@@ -1,8 +1,8 @@
 <template>
   <div class="h-full bg-white flex flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-2 border-b border-gray-100 shrink-0 gap-3">
-      <div class="flex items-center gap-3 min-w-0">
+    <div class="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
+      <div class="flex items-center gap-2 min-w-0">
         <h2 class="text-base font-semibold text-gray-800 shrink-0">{{ t("todoExplorer.heading") }}</h2>
         <span class="text-xs text-gray-500 shrink-0">{{ t("todoExplorer.doneRatio", { done: completedCount, total: items.length }) }}</span>
         <input
@@ -10,29 +10,33 @@
           data-testid="todo-search"
           type="text"
           :placeholder="t('todoExplorer.searchPlaceholder')"
-          class="px-2 py-1 text-xs border border-gray-200 rounded w-44 focus:outline-none focus:border-blue-400"
+          class="h-8 px-2.5 text-sm border border-gray-200 rounded w-44 focus:outline-none focus:border-blue-400"
         />
       </div>
       <div class="flex items-center gap-2">
         <!-- Add button -->
-        <button data-testid="todo-add-btn" class="px-2 py-1 text-xs rounded bg-blue-500 text-white hover:bg-blue-600" @click="addOpen = true">
+        <button
+          data-testid="todo-add-btn"
+          class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600"
+          @click="addOpen = true"
+        >
           {{ t("todoExplorer.addButton") }}
         </button>
         <!-- Add column button (kanban only) -->
         <button
           v-if="viewMode === TODO_VIEW.kanban"
           data-testid="todo-column-add-btn"
-          class="px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+          class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
           @click="addColumnOpen = true"
         >
           {{ t("todoExplorer.addColumnButton") }}
         </button>
         <!-- View mode toggle -->
-        <div class="flex border border-gray-300 rounded overflow-hidden text-xs">
+        <div class="flex border border-gray-300 rounded overflow-hidden">
           <button
             v-for="mode in VIEW_MODES"
             :key="mode.key"
-            class="px-2.5 py-1"
+            class="h-8 w-8 flex items-center justify-center"
             :class="viewMode === mode.key ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
             :data-testid="`todo-view-${mode.key}`"
             :title="mode.label"
@@ -152,8 +156,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
+import { scrollIntoViewByTestId } from "../utils/dom/scrollIntoViewByTestId";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TodoData, TodoItem } from "../plugins/todo/index";
 import { colorForLabel, filterByLabels, listLabelsWithCount } from "../plugins/todo/labels";
@@ -285,6 +291,39 @@ function onExplorerKeydown(event: KeyboardEvent): void {
 }
 onMounted(() => document.addEventListener("keydown", onExplorerKeydown));
 onUnmounted(() => document.removeEventListener("keydown", onExplorerKeydown));
+
+// Permalink support (#762): arrivals on /todos/:itemId scroll and
+// flash the matching card. Safe to run unconditionally — when the
+// explorer is embedded in FilesView the URL has no :itemId and
+// scrollIntoViewByTestId is a no-op. Retry a handful of times to
+// cover the window between mount and the first items fetch landing.
+const TODO_FOCUS_MAX_RETRIES = 10;
+const TODO_FOCUS_RETRY_MS = 150;
+const route = useRoute();
+
+async function focusUrlItem(itemId: string): Promise<void> {
+  for (let attempt = 0; attempt < TODO_FOCUS_MAX_RETRIES; attempt++) {
+    await nextTick();
+    if (scrollIntoViewByTestId(`todo-card-${itemId}`)) return;
+    await new Promise((resolve) => window.setTimeout(resolve, TODO_FOCUS_RETRY_MS));
+  }
+}
+
+onMounted(() => {
+  const itemId = route.params.itemId;
+  if (typeof itemId === "string" && itemId) {
+    void focusUrlItem(itemId);
+  }
+});
+
+watch(
+  () => route.params.itemId,
+  (itemId) => {
+    if (typeof itemId === "string" && itemId) {
+      void focusUrlItem(itemId);
+    }
+  },
+);
 
 // ── Item handlers ──────────────────────────────────────────────
 

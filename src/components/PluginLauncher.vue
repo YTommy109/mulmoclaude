@@ -5,7 +5,7 @@
       <div v-if="idx === SEPARATOR_AFTER_INDEX" class="w-px bg-gray-300 my-0.5" />
       <button
         :class="[
-          'px-2.5 py-1 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
+          'h-8 px-2.5 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
           isActive(target) ? 'bg-blue-50 text-blue-600 font-medium' : 'bg-white text-gray-600 hover:bg-gray-50',
         ]"
         :title="t(`pluginLauncher.${target.key}.title`)"
@@ -43,7 +43,7 @@ export type PluginLauncherKind = "view"; // Switch the canvas to a dedicated vie
 // strings out of this file avoids duplication across locales.
 export interface PluginLauncherTarget {
   /** Stable key for testid + dispatch in App.vue. */
-  key: "todos" | "scheduler" | "wiki" | "sources" | "skills" | "roles" | "files";
+  key: "todos" | "calendar" | "automations" | "wiki" | "sources" | "news" | "skills" | "roles" | "files";
   kind: PluginLauncherKind;
   /** Material-icons glyph. */
   icon: string;
@@ -52,9 +52,17 @@ export interface PluginLauncherTarget {
 const TARGETS: PluginLauncherTarget[] = [
   // ─── Data plugins ───
   { key: "todos", kind: "view", icon: "checklist" },
-  { key: "scheduler", kind: "view", icon: "event" },
+  // Calendar + Automations were a single "Scheduler" entry until
+  // #758 split them. Calendar keeps the former ⌘4 shortcut; the
+  // Automations entry picks up ⌘9 (the first unused number).
+  { key: "calendar", kind: "view", icon: "calendar_month" },
+  { key: "automations", kind: "view", icon: "schedule" },
   { key: "wiki", kind: "view", icon: "menu_book" },
   { key: "sources", kind: "view", icon: "rss_feed" },
+  // News viewer (#761) — a reader UI for items aggregated by the
+  // sources pipeline. Sits next to the source-registry button so the
+  // pair reads as "manage sources" → "read what they fetched".
+  { key: "news", kind: "view", icon: "newspaper" },
   // ─── Management / navigation ───
   { key: "skills", kind: "view", icon: "psychology" },
   { key: "roles", kind: "view", icon: "manage_accounts" },
@@ -62,8 +70,10 @@ const TARGETS: PluginLauncherTarget[] = [
 ];
 
 // Index AFTER which the visual separator is inserted (between data
-// plugins on the left and management on the right).
-const SEPARATOR_AFTER_INDEX = 4;
+// plugins on the left and management on the right). Data plugins are
+// todos / calendar / automations / wiki / sources / news (indices
+// 0-5), so the divider renders before index 6 (skills).
+const SEPARATOR_AFTER_INDEX = 6;
 
 function isActive(target: PluginLauncherTarget): boolean {
   return props.activeViewMode === target.key;

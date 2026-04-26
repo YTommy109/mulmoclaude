@@ -8,6 +8,7 @@ import schedulerRoutes from "./api/routes/scheduler.js";
 import sessionsRoutes from "./api/routes/sessions.js";
 import chatIndexRoutes from "./api/routes/chat-index.js";
 import sourcesRoutes from "./api/routes/sources.js";
+import newsRoutes from "./api/routes/news.js";
 import pluginsRoutes from "./api/routes/plugins.js";
 import imageRoutes from "./api/routes/image.js";
 import presentHtmlRoutes from "./api/routes/presentHtml.js";
@@ -29,6 +30,7 @@ import { onSessionEvent } from "./events/session-store/index.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";
 import { WORKSPACE_PATHS } from "./workspace/paths.js";
 import { serverError } from "./utils/httpError.js";
+import { makeUuid } from "./utils/id.js";
 import { mcpToolsRouter, mcpTools, isMcpToolEnabled } from "./agent/mcp-tools/index.js";
 import { initWorkspace, workspacePath } from "./workspace/workspace.js";
 import { env, isGeminiAvailable } from "./system/env.js";
@@ -101,7 +103,7 @@ app.use(requireSameOrigin);
 // Layered *on top of* CSRF guard so we catch both cross-origin
 // browser attacks (origin check) and local sibling processes that
 // bypass browser CORS (bearer check). See #272 and
-// plans/feat-bearer-token-auth.md.
+// plans/done/feat-bearer-token-auth.md.
 //
 // /api/files/* is exempt because <img src="/api/files/raw?path=...">
 // tags in rendered markdown can't attach Authorization headers.
@@ -153,6 +155,7 @@ app.use(schedulerRoutes);
 app.use(sessionsRoutes);
 app.use(chatIndexRoutes);
 app.use(sourcesRoutes);
+app.use(newsRoutes);
 app.use(pluginsRoutes);
 app.use(imageRoutes);
 app.use(presentHtmlRoutes);
@@ -499,7 +502,7 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
 // Graceful shutdown: best-effort cleanup of the auth token file so
 // other readers (Vite plugin, future bridges) don't latch onto a
 // dead token. Crashes that skip this are harmless — see
-// plans/feat-bearer-token-auth.md; the next startup overwrites and
+// plans/done/feat-bearer-token-auth.md; the next startup overwrites and
 // the stale file's token no longer matches the live in-memory one.
 let isShuttingDown = false;
 async function gracefulShutdown(signal: string): Promise<void> {
@@ -576,7 +579,7 @@ function registerDebugTasks(taskManager: ITaskManager, pubsub: IPubSub) {
       if (!last) return;
 
       taskManager.removeTask("debug.auto-chat");
-      const chatSessionId = crypto.randomUUID();
+      const chatSessionId = makeUuid();
       log.info("debug", "starting auto-chat", { chatSessionId });
       const result = await startChat({
         message: "Tell me about this app, MulmoClaude.",

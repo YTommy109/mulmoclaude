@@ -11,10 +11,12 @@ import { errorMessage } from "../utils/errors.js";
 import { isNonEmptyString, isRecord } from "../utils/types.js";
 import { API_ROUTES } from "../../src/config/apiRoutes.js";
 import { env } from "../system/env.js";
-import { extractFetchError } from "../utils/fetch.js";
+import { extractFetchError, fetchWithTimeout } from "../utils/fetch.js";
+import { ONE_MINUTE_MS, ONE_SECOND_MS } from "../utils/time.js";
 import { safeResponseText } from "../utils/http.js";
 import { readTextSafeSync } from "../utils/files/safe.js";
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
+import { makeUuid } from "../utils/id.js";
 
 type JsonRpcId = string | number | null;
 
@@ -112,6 +114,25 @@ const ALL_TOOLS: Record<string, ToolDef> = {
 
 const tools = PLUGIN_NAMES.map((name) => ALL_TOOLS[name]).filter(Boolean);
 
+// MCP tools (e.g. readXPost, searchX) call external APIs through their
+// own handlers. The bridge timeout must exceed those inner timeouts
+// plus a small buffer for JSON parsing / HTTP round-trip, otherwise the
+// bridge aborts before the handler can return a formatted error.
+// Currently the slowest inner timeout is the X API (20 s); 30 s gives
+// 10 s of headroom and still lands well inside the MCP client's own
+// 30-60 s tool-call window.
+const MCP_TOOL_BRIDGE_TIMEOUT_MS = 30 * ONE_SECOND_MS;
+
+// Plugin tools (e.g. presentDocument, openCanvas) may invoke generative
+// AI — image generation routinely takes 10–30 s per call, video can run
+// for several minutes, and a single tool invocation can fan out to
+// multiple parallel generations. The bridge MUST stay out of the way:
+// set a ceiling far above any realistic completion time so the limiting
+// factor is the agent SDK's own tool-call window, never this fetch.
+// Pick 20 minutes — long enough for batch image gen + future video gen,
+// short enough that a truly wedged Express handler still surfaces.
+const PLUGIN_BRIDGE_TIMEOUT_MS = 20 * ONE_MINUTE_MS;
+
 function respond(msg: unknown): void {
   process.stdout.write(JSON.stringify(msg) + "\n");
 }
@@ -130,8 +151,42 @@ function respond(msg: unknown): void {
 // Pass `allowHttpError: true` for callers that want to inspect the
 // response themselves (e.g. /api/mcp-tools/* which has its own
 // status-aware result handling).
+//
+// =====================================================================
+// TIMEOUT POLICY — read this before adding a new bridge call
+// =====================================================================
+// The default `timeoutMs` from `fetchWithTimeout` is 10 s, sized for
+// healthy localhost round-trips. THAT IS TOO SHORT for any handler
+// that fans out to generative AI (image / video / model calls) or
+// hits a slow external API. Whenever the downstream handler can
+// legitimately take longer than ~5 s, the caller MUST pass an
+// explicit `timeoutMs` that comfortably exceeds the worst realistic
+// completion time:
+//
+//   - Generative AI plugins (presentDocument, openCanvas, …)
+//     → use `PLUGIN_BRIDGE_TIMEOUT_MS` (20 min). Image batches and
+//       future video generation MUST NOT be limited by the bridge.
+//   - External-API MCP tools (readXPost, searchX, …)
+//     → use `MCP_TOOL_BRIDGE_TIMEOUT_MS` (30 s) or a custom value
+//       larger than the inner API's own timeout.
+//   - Pure server-state RPCs (toolResult push, role switch, …)
+//     → default 10 s is fine; these are local JSON round-trips.
+//
+// On EVERY failure (timeout, abort, connection reset, HTTP 5xx) this
+// function MUST emit an error log to stderr. Silent timeouts are the
+// exact failure mode that hid the original bug — the server kept
+// generating images, the bridge gave up at 10 s, and the user saw
+// "tool failed" with no trace in the logs. If you change the catch
+// block below, keep the log emission.
+// =====================================================================
 interface PostJsonOpts {
   allowHttpError?: boolean;
+  // Override the default bridge-call timeout. Needed when the
+  // downstream handler itself does slow work (e.g. /api/mcp-tools/*
+  // that hits an external API): the bridge must wait long enough for
+  // the handler's own timeout to fire, otherwise the outer abort
+  // preempts a formatted error.
+  timeoutMs?: number;
 }
 
 async function postJson(path: string, body: unknown, opts: PostJsonOpts = {}): Promise<Response> {
@@ -141,18 +196,33 @@ async function postJson(path: string, body: unknown, opts: PostJsonOpts = {}): P
   // The path arg is used as-is because all current call sites pass
   // hardcoded literals.
   let res: Response;
+  const startedAt = Date.now();
   try {
-    res = await fetch(`${BASE_URL}${path}?session=${encodeURIComponent(SESSION_ID)}`, {
+    res = await fetchWithTimeout(`${BASE_URL}${path}?session=${encodeURIComponent(SESSION_ID)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...AUTH_HEADER },
       body: JSON.stringify(body),
+      timeoutMs: opts.timeoutMs,
     });
   } catch (err) {
+    // `fetchWithTimeout` throws a DOMException("TimeoutError") when
+    // the timer fires; surface that case explicitly so the operator
+    // can tell "timeout vs. connection error" at a glance.
+    const elapsedMs = Date.now() - startedAt;
+    const isTimeout = err instanceof DOMException && err.name === "TimeoutError";
+    const kind = isTimeout ? "TIMEOUT" : "NETWORK";
+    console.error(`[mcp-bridge] ${kind} ${path} after ${elapsedMs}ms (timeoutMs=${opts.timeoutMs ?? "default"}): ${errorMessage(err)}`);
     throw new Error(`Network error calling ${path}: ${errorMessage(err)}`);
   }
   if (!opts.allowHttpError && !res.ok) {
     const errBody = await safeResponseText(res, 500);
     const detail = errBody ? `: ${errBody}` : "";
+    // Mirror the network/timeout error path above — log to stderr so
+    // an HTTP 4xx/5xx from the server never hides from the bridge
+    // operator. Without this, the thrown Error propagates silently
+    // to the MCP caller and the log stream shows nothing.
+    const elapsedMs = Date.now() - startedAt;
+    console.error(`[mcp-bridge] HTTP ${res.status} ${path} after ${elapsedMs}ms${detail}`);
     throw new Error(`HTTP ${res.status} calling ${path}${detail}`);
   }
   return res;
@@ -176,7 +246,7 @@ async function fetchSkillsList(): Promise<{ name: string }[]> {
   const url = `${BASE_URL}/api/skills?session=${encodeURIComponent(SESSION_ID)}`;
   let res: Response;
   try {
-    res = await fetch(url, { headers: AUTH_HEADER });
+    res = await fetchWithTimeout(url, { headers: AUTH_HEADER });
   } catch (err) {
     throw new Error(`Network error calling /api/skills: ${errorMessage(err)}`);
   }
@@ -192,7 +262,7 @@ async function pushSkillsListResult(message: string): Promise<void> {
   const skills = await fetchSkillsList();
   await postJson(API_ROUTES.agent.internal.toolResult, {
     toolName: "manageSkills",
-    uuid: crypto.randomUUID(),
+    uuid: makeUuid(),
     title: "Skills",
     message,
     data: { skills },
@@ -204,7 +274,7 @@ async function handleManageSkillsList(): Promise<string> {
   const suffix = skills.length === 1 ? "" : "s";
   await postJson(API_ROUTES.agent.internal.toolResult, {
     toolName: "manageSkills",
-    uuid: crypto.randomUUID(),
+    uuid: makeUuid(),
     title: "Skills",
     message: `Found ${skills.length} skill${suffix}.`,
     data: { skills },
@@ -237,7 +307,7 @@ async function handleManageSkillsUpdate(args: Record<string, unknown>): Promise<
   const url = `${BASE_URL}/api/skills/${encodeURIComponent(name)}?session=${encodeURIComponent(SESSION_ID)}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetchWithTimeout(url, {
       method: "PUT",
       headers: { ...AUTH_HEADER, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -260,7 +330,7 @@ async function handleManageSkillsDelete(args: Record<string, unknown>): Promise<
   const url = `/api/skills/${encodeURIComponent(name)}?session=${encodeURIComponent(SESSION_ID)}`;
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}${url}`, {
+    res = await fetchWithTimeout(`${BASE_URL}${url}`, {
       method: "DELETE",
       headers: AUTH_HEADER,
     });
@@ -290,7 +360,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
     if (args.action === "list" && result.success) {
       await postJson(API_ROUTES.agent.internal.toolResult, {
         toolName: "manageRoles",
-        uuid: crypto.randomUUID(),
+        uuid: makeUuid(),
         ...result,
       });
     }
@@ -303,10 +373,14 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   // Pure MCP tools — call via /api/mcp-tools/:tool, return text directly
   // (no frontend push). Opt out of postJson's HTTP error throw because
   // we want to surface the JSON error body to the caller as a string.
+  // The tool handler may hit a slow external API (e.g. X), so pass a
+  // longer bridge timeout than the default 10 s used for localhost
+  // roundtrips — see MCP_TOOL_BRIDGE_TIMEOUT_MS.
   const mcpTool = mcpTools.find((toolDef) => toolDef.definition.name === name);
   if (mcpTool) {
     const res = await postJson(`/api/mcp-tools/${name}`, args, {
       allowHttpError: true,
+      timeoutMs: MCP_TOOL_BRIDGE_TIMEOUT_MS,
     });
     const json = await res.json();
     if (!res.ok) return `Error: ${json.error ?? res.status}`;
@@ -316,13 +390,17 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   const tool = tools.find((toolDef) => toolDef.name === name);
   if (!tool) throw new Error(`Unknown tool: ${name}`);
 
-  const res = await postJson(tool.endpoint!, args);
+  // Plugin handlers can fan out to generative AI (image batches via
+  // presentDocument, future video). The bridge MUST wait long enough
+  // for the slowest realistic completion — see PLUGIN_BRIDGE_TIMEOUT_MS
+  // and the timeout-policy comment on `postJson`.
+  const res = await postJson(tool.endpoint!, args, { timeoutMs: PLUGIN_BRIDGE_TIMEOUT_MS });
   const result = await res.json();
 
   // Push visual ToolResult to the frontend via the session
   await postJson(API_ROUTES.agent.internal.toolResult, {
     toolName: name,
-    uuid: crypto.randomUUID(),
+    uuid: makeUuid(),
     ...result,
   });
 

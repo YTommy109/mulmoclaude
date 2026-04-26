@@ -24,7 +24,7 @@ const DEFAULT_TODOS = {
     columns: [
       { id: "backlog", label: "Backlog" },
       { id: "todo", label: "Todo" },
-      { id: "in_progress", label: "In Progress" },
+      { id: "in-progress", label: "In Progress" },
       { id: "done", label: "Done", isDone: true },
     ],
   },

@@ -1,7 +1,8 @@
 import { mkdir, realpath, writeFile } from "fs/promises";
 import path from "path";
-import crypto from "crypto";
 import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../../workspace/paths.js";
+import { shortId } from "../id.js";
+import { yearMonthUtc } from "./naming.js";
 import { resolveWithinRoot } from "./safe.js";
 
 const SPREADSHEETS_DIR = WORKSPACE_PATHS.spreadsheets;
@@ -33,13 +34,17 @@ async function safeResolve(relativePath: string): Promise<string> {
   return result;
 }
 
-/** Save sheets array as a JSON file. Returns the workspace-relative path. */
+/** Save sheets array as a JSON file. New files land under
+ *  `spreadsheets/YYYY/MM/` (UTC) so the dir doesn't accumulate
+ *  unbounded — see #764. Returns the workspace-relative path. */
 export async function saveSpreadsheet(sheets: unknown[]): Promise<string> {
   await ensureSpreadsheetsDir();
-  const sheetId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
-  const filename = `${sheetId}.json`;
-  await writeFile(path.join(SPREADSHEETS_DIR, filename), JSON.stringify(sheets), "utf-8");
-  return path.posix.join(WORKSPACE_DIRS.spreadsheets, filename);
+  const partition = yearMonthUtc();
+  const parentAbs = path.join(SPREADSHEETS_DIR, partition);
+  await mkdir(parentAbs, { recursive: true });
+  const filename = `${shortId()}.json`;
+  await writeFile(path.join(parentAbs, filename), JSON.stringify(sheets), "utf-8");
+  return path.posix.join(WORKSPACE_DIRS.spreadsheets, partition, filename);
 }
 
 /** Overwrite an existing spreadsheet file. */

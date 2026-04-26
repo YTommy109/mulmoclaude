@@ -24,7 +24,7 @@
     "test": "tsx --test test/test_*.ts"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260422.1",
+    "@cloudflare/workers-types": "^4.20260424.1",
     "typescript": "^6.0.3",
     "wrangler": "^4.84.1"
   },
@@ -33,6 +33,6 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@mulmobridge/client": "^0.1.1"
+    "@mulmobridge/client": "^0.1.3"
   }
 }

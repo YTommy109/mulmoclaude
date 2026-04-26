@@ -6,6 +6,7 @@ import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
+import { makeUuid } from "../../utils/id";
 
 const markdownPlugin: ToolPlugin<MarkdownToolData> = {
   toolDefinition,
@@ -15,14 +16,14 @@ const markdownPlugin: ToolPlugin<MarkdownToolData> = {
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,
-        uuid: crypto.randomUUID(),
+        uuid: makeUuid(),
         message: result.error,
       };
     }
     return {
       ...result.data,
       toolName: TOOL_NAME,
-      uuid: crypto.randomUUID(),
+      uuid: makeUuid(),
     };
   },
 
