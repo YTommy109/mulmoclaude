@@ -466,6 +466,18 @@ const enMessages = {
     lintChat: "Lint My Wiki",
     taskCountMismatch: "Wiki source and rendered output disagree on the number of tasks. Refusing to toggle to avoid corruption.",
   },
+  pluginPresentForm: {
+    fallbackTitle: "Form",
+    fieldCount: "{count} field | {count} fields",
+    submitted: "Submitted",
+    errorSummary: "Please fix the following errors",
+    requiredMarker: "*",
+    selectOption: "Select an option",
+    charactersCount: "{current} / {max} characters",
+    charactersCountNoMax: "{current} characters",
+    submit: "Submit",
+    progress: "{filled} of {total} required fields completed",
+  },
   pluginPresentHtml: {
     saveAsPdf: "Save as PDF (opens print dialog)",
     pdf: "PDF",

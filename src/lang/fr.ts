@@ -446,6 +446,18 @@ const frMessages = {
     lintChat: "Vérifier mon wiki",
     taskCountMismatch: "La source du wiki et le rendu diffèrent sur le nombre de tâches. La modification a été refusée pour éviter de corrompre le fichier.",
   },
+  pluginPresentForm: {
+    fallbackTitle: "Formulaire",
+    fieldCount: "{count} champ | {count} champs",
+    submitted: "Envoyé",
+    errorSummary: "Veuillez corriger les erreurs suivantes",
+    requiredMarker: "*",
+    selectOption: "Sélectionnez une option",
+    charactersCount: "{current} / {max} caractères",
+    charactersCountNoMax: "{current} caractères",
+    submit: "Envoyer",
+    progress: "{filled} sur {total} champs obligatoires remplis",
+  },
   pluginPresentHtml: {
     saveAsPdf: "Enregistrer en PDF (ouvre la boîte de dialogue d'impression)",
     pdf: "PDF",

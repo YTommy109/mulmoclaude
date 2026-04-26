@@ -447,6 +447,18 @@ const deMessages = {
     taskCountMismatch:
       "Wiki-Quelle und gerendertes Ergebnis stimmen in der Anzahl der Aufgaben nicht überein. Die Umschaltung wurde abgelehnt, um eine Beschädigung der Datei zu vermeiden.",
   },
+  pluginPresentForm: {
+    fallbackTitle: "Formular",
+    fieldCount: "{count} Feld | {count} Felder",
+    submitted: "Gesendet",
+    errorSummary: "Bitte korrigieren Sie die folgenden Fehler",
+    requiredMarker: "*",
+    selectOption: "Bitte auswählen",
+    charactersCount: "{current} / {max} Zeichen",
+    charactersCountNoMax: "{current} Zeichen",
+    submit: "Senden",
+    progress: "{filled} von {total} Pflichtfeldern ausgefüllt",
+  },
   pluginPresentHtml: {
     saveAsPdf: "Als PDF speichern (öffnet Druckdialog)",
     pdf: "PDF",

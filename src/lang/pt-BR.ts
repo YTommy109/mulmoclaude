@@ -445,6 +445,18 @@ const ptBRMessages = {
     lintChat: "Revisar meu wiki",
     taskCountMismatch: "A fonte do wiki e a saída renderizada divergem no número de tarefas. A alternância foi recusada para evitar corromper o arquivo.",
   },
+  pluginPresentForm: {
+    fallbackTitle: "Formulário",
+    fieldCount: "{count} campo | {count} campos",
+    submitted: "Enviado",
+    errorSummary: "Por favor, corrija os seguintes erros",
+    requiredMarker: "*",
+    selectOption: "Selecione uma opção",
+    charactersCount: "{current} / {max} caracteres",
+    charactersCountNoMax: "{current} caracteres",
+    submit: "Enviar",
+    progress: "{filled} de {total} campos obrigatórios preenchidos",
+  },
   pluginPresentHtml: {
     saveAsPdf: "Salvar como PDF (abre o diálogo de impressão)",
     pdf: "PDF",

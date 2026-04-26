@@ -450,6 +450,18 @@ const jaMessages = {
     lintChat: "Wiki を Lint",
     taskCountMismatch: "Wiki ソースと描画結果でタスク数が一致しないため、ファイル破損を避けるためトグル操作を中止しました。",
   },
+  pluginPresentForm: {
+    fallbackTitle: "フォーム",
+    fieldCount: "{count} 項目",
+    submitted: "送信済み",
+    errorSummary: "次のエラーを修正してください",
+    requiredMarker: "*",
+    selectOption: "選択してください",
+    charactersCount: "{current} / {max} 文字",
+    charactersCountNoMax: "{current} 文字",
+    submit: "送信",
+    progress: "必須項目 {total} 件中 {filled} 件入力済み",
+  },
   pluginPresentHtml: {
     saveAsPdf: "PDF として保存（印刷ダイアログを開きます）",
     pdf: "PDF",
