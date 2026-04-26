@@ -35,6 +35,7 @@
             class="rounded w-8 h-8 flex items-center justify-center"
             :class="suggestionsExpanded ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:text-gray-600'"
             :title="t('suggestionsPanel.suggestions')"
+            :aria-label="t('suggestionsPanel.suggestions')"
             @click="suggestionsExpanded = !suggestionsExpanded"
           >
             <span class="material-icons text-base leading-none">lightbulb</span>
