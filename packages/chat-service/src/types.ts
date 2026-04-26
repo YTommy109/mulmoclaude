@@ -109,4 +109,13 @@ export interface ChatServiceDeps {
     messages: Array<{ source: string; text: string }>;
     total: number;
   }>;
+  /**
+   * Decide whether an unknown bridge slash command (e.g. `/foo` from
+   * Telegram) names a registered skill the agent should run. Only
+   * true → the text is forwarded to startChat() so the Claude CLI's
+   * slash-command resolver picks it up. False → the bridge replies
+   * "Unknown command" without ever invoking the agent. When omitted
+   * the command handler treats every unknown slash as unknown.
+   */
+  isRegisteredSkill?: (name: string) => boolean | Promise<boolean>;
 }

@@ -49,8 +49,16 @@ export function createCommandHandler(opts: {
     messages: Array<{ source: string; text: string }>;
     total: number;
   }>;
+  /** Predicate the bridge command handler uses to decide whether an
+   *  unknown slash command (e.g. `/release-app`) names a registered
+   *  skill — when true the text is forwarded to the agent so the
+   *  Claude CLI's slash-command resolver can run the skill. When
+   *  omitted (or it returns false) the command is rejected with the
+   *  standard "Unknown command" reply, so an unknown bridge slash
+   *  never silently reaches the agent. */
+  isRegisteredSkill?: (name: string) => boolean | Promise<boolean>;
 }): CommandHandler {
-  const { loadAllRoles, getRole, resetChatState, connectSession, listSessions, getSessionHistory } = opts;
+  const { loadAllRoles, getRole, resetChatState, connectSession, listSessions, getSessionHistory, isRegisteredSkill } = opts;
 
   // Cache /sessions results per chat so /switch resolves to the correct list.
   // Key: "transportId:externalChatId". Bounded with max entries + TTL.
@@ -273,10 +281,19 @@ export function createCommandHandler(opts: {
         return handleRole(transportId, chatState, args[0]);
       case "/status":
         return handleStatus(chatState);
-      case "/":
+      default: {
+        // Forward to the agent only if the command names a registered
+        // skill; otherwise reply with the standard "Unknown command"
+        // help. We deliberately do NOT pass arbitrary slash text
+        // through, so a typo can't accidentally invoke the agent and
+        // a slash that doesn't match anything stays a transport-level
+        // error.
+        const skillName = command.slice(1);
+        if (skillName && isRegisteredSkill && (await isRegisteredSkill(skillName))) {
+          return null;
+        }
         return { reply: `Unknown command: ${command}\n\n${getHelpText()}` };
-      default:
-        return null;
+      }
     }
   };
 

@@ -181,3 +181,68 @@ describe("/history command", () => {
     assert.ok(page2.reply.includes("welcome"));
   });
 });
+
+describe("unknown slash command", () => {
+  it("rejects an unknown slash with help text when no skill predicate is wired", async () => {
+    const handler = createCommandHandler({
+      loadAllRoles: () => roles,
+      getRole: () => roles[0],
+      resetChatState: async (_t, _c, roleId) => makeState({ roleId }),
+      connectSession: async () => makeState(),
+    });
+    const result = await handler("/foo", "telegram", makeState());
+    assert.ok(result);
+    assert.ok(result.reply.includes("Unknown command: /foo"));
+  });
+
+  it("forwards to the agent (returns null) when the slash names a registered skill", async () => {
+    const handler = createCommandHandler({
+      loadAllRoles: () => roles,
+      getRole: () => roles[0],
+      resetChatState: async (_t, _c, roleId) => makeState({ roleId }),
+      connectSession: async () => makeState(),
+      isRegisteredSkill: (name) => name === "review",
+    });
+    const result = await handler("/review", "telegram", makeState());
+    assert.equal(result, null);
+  });
+
+  it("rejects an unregistered slash even when a skill predicate is wired", async () => {
+    const handler = createCommandHandler({
+      loadAllRoles: () => roles,
+      getRole: () => roles[0],
+      resetChatState: async (_t, _c, roleId) => makeState({ roleId }),
+      connectSession: async () => makeState(),
+      isRegisteredSkill: (name) => name === "review",
+    });
+    const result = await handler("/notaskill", "telegram", makeState());
+    assert.ok(result);
+    assert.ok(result.reply.includes("Unknown command: /notaskill"));
+  });
+
+  it("treats bare `/` as unknown (slice produces empty string, predicate skipped)", async () => {
+    const handler = createCommandHandler({
+      loadAllRoles: () => roles,
+      getRole: () => roles[0],
+      resetChatState: async (_t, _c, roleId) => makeState({ roleId }),
+      connectSession: async () => makeState(),
+      // Even a permissive predicate must NOT match the empty skill name.
+      isRegisteredSkill: () => true,
+    });
+    const result = await handler("/", "telegram", makeState());
+    assert.ok(result);
+    assert.ok(result.reply.includes("Unknown command: /"));
+  });
+
+  it("supports an async predicate", async () => {
+    const handler = createCommandHandler({
+      loadAllRoles: () => roles,
+      getRole: () => roles[0],
+      resetChatState: async (_t, _c, roleId) => makeState({ roleId }),
+      connectSession: async () => makeState(),
+      isRegisteredSkill: async (name) => name === "review",
+    });
+    const result = await handler("/review", "telegram", makeState());
+    assert.equal(result, null);
+  });
+});

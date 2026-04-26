@@ -28,6 +28,7 @@ import { loadAllSessions } from "./api/routes/sessions.js";
 import { readSessionJsonl } from "./utils/files/session-io.js";
 import { onSessionEvent } from "./events/session-store/index.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";
+import { discoverSkills } from "./workspace/skills/index.js";
 import { WORKSPACE_PATHS } from "./workspace/paths.js";
 import { serverError } from "./utils/httpError.js";
 import { makeUuid } from "./utils/id.js";
@@ -202,6 +203,18 @@ async function getSessionHistoryForBridge(sessionId: string, opts: { limit: numb
   const messages = allMessages.slice(opts.offset, opts.offset + opts.limit);
   return { messages, total };
 }
+// Allowlist used by the bridge command handler: a slash command
+// from a bridge (e.g. `/release-app` from Telegram) is forwarded to
+// the agent only if it names a discoverable skill under
+// ~/.claude/skills/ or <workspace>/.claude/skills/. fs is hit on
+// every unknown bridge slash, which is fine because bridge slashes
+// are infrequent and the workspace skill directory is small. Stays
+// fresh against skill add/remove without any cache invalidation.
+async function isRegisteredSkill(name: string): Promise<boolean> {
+  const skills = await discoverSkills({ workspaceRoot: workspacePath });
+  return skills.some((skill) => skill.name === name);
+}
+
 const chatService = createChatService({
   startChat,
   onSessionEvent,
@@ -215,6 +228,7 @@ const chatService = createChatService({
   tokenProvider: getCurrentToken,
   listSessions: listSessionsForBridge,
   getSessionHistory: getSessionHistoryForBridge,
+  isRegisteredSkill,
 });
 app.use(chatService.router);
 

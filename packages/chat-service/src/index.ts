@@ -84,6 +84,7 @@ export function createChatService(deps: ChatServiceDeps): ChatService {
     connectSession: store.connectSession,
     listSessions: deps.listSessions,
     getSessionHistory: deps.getSessionHistory,
+    isRegisteredSkill: deps.isRegisteredSkill,
   });
   const relay = createRelay({
     store,
