@@ -546,6 +546,11 @@ const esMessages = {
     beatCount: "{count} beat | {count} beats",
     movie: "Vídeo",
     generating: "Generando…",
+    statusThinking: "Pensando…",
+    statusGeneratingMovie: "Generando vídeo…",
+    statusGeneratingBeats: "Renderizando diapositivas…",
+    statusGeneratingCharacters: "Generando imágenes de personajes…",
+    statusGeneratingAudio: "Generando audio…",
     rendering: "Renderizando…",
     saving: "Guardando…",
     update: "Actualizar",
@@ -613,6 +618,7 @@ const esMessages = {
   },
   app: {
     startConversation: "Inicia una conversación",
+    thinking: "Pensando…",
   },
   suggestionsPanel: {
     suggestions: "Sugerencias",

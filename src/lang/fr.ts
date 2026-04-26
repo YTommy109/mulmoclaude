@@ -538,6 +538,11 @@ const frMessages = {
     beatCount: "{count} beat | {count} beats",
     movie: "Film",
     generating: "Génération…",
+    statusThinking: "Réflexion…",
+    statusGeneratingMovie: "Génération de la vidéo…",
+    statusGeneratingBeats: "Rendu des diapositives…",
+    statusGeneratingCharacters: "Génération des images de personnages…",
+    statusGeneratingAudio: "Génération de l'audio…",
     rendering: "Rendu…",
     saving: "Enregistrement…",
     update: "Mettre à jour",
@@ -605,6 +610,7 @@ const frMessages = {
   },
   app: {
     startConversation: "Démarrer une conversation",
+    thinking: "Réflexion…",
   },
   suggestionsPanel: {
     suggestions: "Suggestions",

@@ -83,17 +83,17 @@
       </div>
 
       <!-- Sidebar (Single layout only) -->
-      <div v-if="!isStackLayout && !sidePanelExpanded" class="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-white text-gray-900 relative">
+      <div
+        v-if="!isStackLayout && !sidePanelExpanded"
+        class="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-white text-gray-900 relative"
+        data-testid="chat-sidebar"
+      >
         <!-- Tool result previews -->
         <ToolResultsPanel
           ref="toolResultsPanelRef"
           :results="sidebarResults"
           :selected-uuid="selectedResultUuid"
           :result-timestamps="activeSession?.resultTimestamps ?? new Map()"
-          :is-running="activeSessionRunning"
-          :status-message="statusMessage"
-          :run-elapsed-ms="runElapsedMs"
-          :pending-calls="pendingCalls"
           :session-role-name="sessionRoleName"
           :session-role-icon="sessionRoleIcon"
           :layout-mode="layoutMode"
@@ -106,6 +106,19 @@
 
         <!-- Sample queries (expandable pane) -->
         <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
+
+        <!-- Shared Thinking indicator. Sits between the suggestions
+             panel and the chat input so the user gets the same
+             "still alive" cue regardless of which plugin view fills
+             the canvas (the sidebar copy inside ToolResultsPanel
+             scrolls with results and can fall below the fold). -->
+        <ThinkingIndicator
+          v-if="activeSessionRunning"
+          :status-message="statusMessage || t('app.thinking')"
+          :run-elapsed-ms="runElapsedMs"
+          :pending-calls="pendingCalls"
+          class="border-t border-gray-100"
+        />
 
         <!-- Text input -->
         <ChatInput
@@ -168,6 +181,13 @@
              session context, so no chat input is shown) -->
         <div v-if="isChatPage && layoutMode === 'stack'" class="border-t border-gray-200 bg-white shrink-0">
           <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
+          <ThinkingIndicator
+            v-if="activeSessionRunning"
+            :status-message="statusMessage || t('app.thinking')"
+            :run-elapsed-ms="runElapsedMs"
+            :pending-calls="pendingCalls"
+            class="border-t border-gray-100"
+          />
           <ChatInput
             ref="chatInputRef"
             v-model="userInput"
@@ -222,6 +242,7 @@ import ChatInput, { type PastedFile } from "./components/ChatInput.vue";
 import SessionHistoryExpandButton from "./components/SessionHistoryExpandButton.vue";
 import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
 import ToolResultsPanel from "./components/ToolResultsPanel.vue";
+import ThinkingIndicator from "./components/ThinkingIndicator.vue";
 import PluginLauncher from "./components/PluginLauncher.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
@@ -274,7 +295,7 @@ import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
 import { useEventListeners } from "./composables/useEventListeners";
 import { provideAppApi } from "./composables/useAppApi";
-import { provideActiveSession } from "./composables/useActiveSession";
+import { provideActiveSession, provideActiveSessionRunning } from "./composables/useActiveSession";
 import { useRoute, useRouter } from "vue-router";
 import { apiGet, apiPost } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
@@ -908,6 +929,11 @@ provideAppApi({
 // Plugin Views that need to tag background work with the current
 // session (e.g. MulmoScript generations) inject this.
 provideActiveSession(activeSession);
+// Same audience: a reactive "is the active session busy?" flag,
+// exposed so the slide view's ThinkingIndicator can light up the
+// instant a chat turn starts (well before the pubsub round-trip
+// that flips ActiveSession.isRunning).
+provideActiveSessionRunning(activeSessionRunning);
 
 useEventListeners({
   onKeyNavigation: handleKeyNavigation,

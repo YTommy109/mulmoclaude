@@ -544,6 +544,11 @@ const koMessages = {
     beatCount: "{count}개 비트",
     movie: "영상",
     generating: "생성 중…",
+    statusThinking: "생각 중…",
+    statusGeneratingMovie: "동영상 생성 중…",
+    statusGeneratingBeats: "슬라이드 렌더링 중…",
+    statusGeneratingCharacters: "캐릭터 이미지 생성 중…",
+    statusGeneratingAudio: "오디오 생성 중…",
     rendering: "렌더링 중…",
     saving: "저장 중…",
     update: "업데이트",
@@ -611,6 +616,7 @@ const koMessages = {
   },
   app: {
     startConversation: "대화 시작",
+    thinking: "생각 중…",
   },
   suggestionsPanel: {
     suggestions: "추천",

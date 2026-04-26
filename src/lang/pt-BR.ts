@@ -536,6 +536,11 @@ const ptBRMessages = {
     beatCount: "{count} beat | {count} beats",
     movie: "Vídeo",
     generating: "Gerando…",
+    statusThinking: "Pensando…",
+    statusGeneratingMovie: "Gerando vídeo…",
+    statusGeneratingBeats: "Renderizando slides…",
+    statusGeneratingCharacters: "Gerando imagens de personagens…",
+    statusGeneratingAudio: "Gerando áudio…",
     rendering: "Renderizando…",
     saving: "Salvando…",
     update: "Atualizar",
@@ -603,6 +608,7 @@ const ptBRMessages = {
   },
   app: {
     startConversation: "Iniciar uma conversa",
+    thinking: "Pensando…",
   },
   suggestionsPanel: {
     suggestions: "Sugestões",

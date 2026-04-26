@@ -539,6 +539,11 @@ const deMessages = {
     beatCount: "{count} Beat | {count} Beats",
     movie: "Video",
     generating: "Wird generiert…",
+    statusThinking: "Denkt nach…",
+    statusGeneratingMovie: "Video wird generiert…",
+    statusGeneratingBeats: "Folien werden gerendert…",
+    statusGeneratingCharacters: "Charakterbilder werden generiert…",
+    statusGeneratingAudio: "Audio wird generiert…",
     rendering: "Wird gerendert…",
     saving: "Wird gespeichert…",
     update: "Aktualisieren",
@@ -607,6 +612,7 @@ const deMessages = {
   },
   app: {
     startConversation: "Gespräch beginnen",
+    thinking: "Denkt nach…",
   },
   suggestionsPanel: {
     suggestions: "Vorschläge",

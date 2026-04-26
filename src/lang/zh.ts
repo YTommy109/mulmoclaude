@@ -540,6 +540,11 @@ const zhMessages = {
     beatCount: "{count} 个 beat",
     movie: "视频",
     generating: "生成中…",
+    statusThinking: "思考中…",
+    statusGeneratingMovie: "正在生成视频…",
+    statusGeneratingBeats: "正在渲染幻灯片…",
+    statusGeneratingCharacters: "正在生成角色图像…",
+    statusGeneratingAudio: "正在生成音频…",
     rendering: "渲染中…",
     saving: "保存中…",
     update: "更新",
@@ -607,6 +612,7 @@ const zhMessages = {
   },
   app: {
     startConversation: "开始对话",
+    thinking: "思考中…",
   },
   suggestionsPanel: {
     suggestions: "建议",
