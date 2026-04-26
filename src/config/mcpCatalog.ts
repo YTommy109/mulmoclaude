@@ -144,10 +144,13 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     riskLevel: "low",
   },
 
-  // Notion workspace access. Official Notion MCP server uses an
-  // OPENAPI_MCP_HEADERS env var that wraps the bearer token in
-  // JSON; the user only fills the bare API key and we build the
-  // header here. See https://github.com/makenotion/notion-mcp-server.
+  // Notion workspace access. The official Notion MCP server's
+  // README marks `NOTION_TOKEN` as the recommended env shape (the
+  // older `OPENAPI_MCP_HEADERS` JSON-string form is kept for
+  // "advanced use cases"). Switching to NOTION_TOKEN also stops
+  // pinning a stale Notion-Version — the server falls back to the
+  // current API (2025-09-03 at time of writing) on its own. See
+  // https://github.com/makenotion/notion-mcp-server.
   {
     id: "notion",
     displayName: "settingsMcpTab.catalog.entry.notion.displayName",
@@ -160,7 +163,7 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
       command: "npx",
       args: ["-y", "@notionhq/notion-mcp-server"],
       env: {
-        OPENAPI_MCP_HEADERS: '{"Authorization":"Bearer ${NOTION_API_KEY}","Notion-Version":"2022-06-28"}',
+        NOTION_TOKEN: "${NOTION_API_KEY}",
       },
     },
     configSchema: [
