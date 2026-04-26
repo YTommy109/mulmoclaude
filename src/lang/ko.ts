@@ -36,9 +36,6 @@ const koMessages = {
   },
   chatInput: {
     placeholder: "작업을 입력하거나 파일을 드래그 / 붙여넣기 / 첨부하세요…",
-    expandEditor: "에디터 확장",
-    composeMessage: "메시지 작성",
-    sendHint: "Cmd+Enter 로 전송",
     send: "전송",
     attachFile: "파일 첨부",
     fileTooLarge: "파일이 너무 큽니다 ({sizeMB} MB). 최대 30 MB 까지 가능합니다.",

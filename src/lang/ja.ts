@@ -36,9 +36,6 @@ const jaMessages = {
   },
   chatInput: {
     placeholder: "タスクを入力、またはファイルをドロップ・ペースト・添付…",
-    expandEditor: "エディタを広げる",
-    composeMessage: "メッセージを作成",
-    sendHint: "Cmd+Enter で送信",
     send: "送信",
     attachFile: "ファイルを添付",
     fileTooLarge: "ファイルが大きすぎます（{sizeMB} MB）。上限は 30 MB です。",

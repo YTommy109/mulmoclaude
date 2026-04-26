@@ -29,9 +29,6 @@ const ptBRMessages = {
   },
   chatInput: {
     placeholder: "Digite uma tarefa ou arraste / cole / anexe um arquivo…",
-    expandEditor: "Expandir editor",
-    composeMessage: "Escrever mensagem",
-    sendHint: "Cmd+Enter para enviar",
     send: "Enviar",
     attachFile: "Anexar arquivo",
     fileTooLarge: "Arquivo muito grande ({sizeMB} MB). O limite é 30 MB.",

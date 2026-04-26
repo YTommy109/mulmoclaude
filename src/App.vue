@@ -104,14 +104,11 @@
           @toggle-right-sidebar="toggleRightSidebar"
         />
 
-        <!-- Sample queries (expandable pane) -->
-        <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
-
-        <!-- Shared Thinking indicator. Sits between the suggestions
-             panel and the chat input so the user gets the same
-             "still alive" cue regardless of which plugin view fills
-             the canvas (the sidebar copy inside SessionSidebar
-             scrolls with results and can fall below the fold). -->
+        <!-- Shared Thinking indicator. Sits between the sidebar and
+             the chat input so the user gets the same "still alive"
+             cue regardless of which plugin view fills the canvas
+             (the sidebar copy inside SessionSidebar scrolls with
+             results and can fall below the fold). -->
         <ThinkingIndicator
           v-if="activeSessionRunning"
           :status-message="statusMessage || t('app.thinking')"
@@ -121,7 +118,15 @@
         />
 
         <!-- Text input -->
-        <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="activeSessionRunning" @send="sendMessage()" />
+        <ChatInput
+          ref="chatInputRef"
+          v-model="userInput"
+          v-model:pasted-file="pastedFile"
+          :is-running="activeSessionRunning"
+          :queries="sessionRole.queries ?? []"
+          @send="sendMessage()"
+          @suggestion-send="(q) => sendMessage(q)"
+        />
       </div>
 
       <!-- Canvas column -->
@@ -173,7 +178,6 @@
         <!-- Bottom bar (Stack chat only — plugin views have no
              session context, so no chat input is shown) -->
         <div v-if="isChatPage && layoutMode === 'stack'" class="border-t border-gray-200 bg-white shrink-0">
-          <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
           <ThinkingIndicator
             v-if="activeSessionRunning"
             :status-message="statusMessage || t('app.thinking')"
@@ -181,7 +185,15 @@
             :pending-calls="pendingCalls"
             class="border-t border-gray-100"
           />
-          <ChatInput ref="chatInputRef" v-model="userInput" v-model:pasted-file="pastedFile" :is-running="activeSessionRunning" @send="sendMessage()" />
+          <ChatInput
+            ref="chatInputRef"
+            v-model="userInput"
+            v-model:pasted-file="pastedFile"
+            :is-running="activeSessionRunning"
+            :queries="sessionRole.queries ?? []"
+            @send="sendMessage()"
+            @suggestion-send="(q) => sendMessage(q)"
+          />
         </div>
       </div>
 
@@ -223,7 +235,6 @@ import RightSidebar from "./components/RightSidebar.vue";
 import SidebarHeader from "./components/SidebarHeader.vue";
 import SessionHeaderControls from "./components/SessionHeaderControls.vue";
 import SessionTabBar from "./components/SessionTabBar.vue";
-import SuggestionsPanel from "./components/SuggestionsPanel.vue";
 import ChatInput, { type PastedFile } from "./components/ChatInput.vue";
 import SessionHistoryExpandButton from "./components/SessionHistoryExpandButton.vue";
 import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
@@ -438,7 +449,7 @@ useFaviconState({ isRunning, sessions: mergedSessions, sessionsUnreadCount: unre
 
 const sessionSidebarRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
-const chatInputRef = ref<{ focus: () => void } | null>(null);
+const chatInputRef = ref<{ focus: () => void; collapseSuggestions: () => void } | null>(null);
 const { focusChatInput } = useChatScroll({
   sessionSidebarRef,
   toolResults,
@@ -593,13 +604,6 @@ const { handleCanvasKeydown, handleKeyNavigation } = useKeyNavigation({
   selectedResultUuid,
 });
 
-const suggestionsPanelRef = ref<{ collapse: () => void } | null>(null);
-
-function onQueryEdit(query: string): void {
-  userInput.value = query;
-  nextTick(() => focusChatInput());
-}
-
 function handleUpdateResult(updatedResult: ToolResultComplete) {
   if (activeSession.value) updateResult(activeSession.value, updatedResult);
 }
@@ -641,7 +645,7 @@ function createNewSession(roleId?: string): ActiveSession {
   const session = createEmptySession(uuidv4(), rId);
   sessionMap.set(session.id, session);
   navigateToSession(session.id, replace);
-  suggestionsPanelRef.value?.collapse();
+  chatInputRef.value?.collapseSuggestions();
   nextTick(() => focusChatInput());
   return sessionMap.get(session.id)!;
 }

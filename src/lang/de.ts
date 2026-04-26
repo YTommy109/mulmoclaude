@@ -29,9 +29,6 @@ const deMessages = {
   },
   chatInput: {
     placeholder: "Aufgabe eingeben oder Datei ziehen / einfügen / anhängen…",
-    expandEditor: "Editor erweitern",
-    composeMessage: "Nachricht verfassen",
-    sendHint: "Cmd+Eingabe zum Senden",
     send: "Senden",
     attachFile: "Datei anhängen",
     fileTooLarge: "Datei zu groß ({sizeMB} MB). Das Maximum beträgt 30 MB.",

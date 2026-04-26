@@ -1,6 +1,12 @@
 <template>
   <div class="border-t border-gray-200 shrink-0 bg-gray-50">
-    <SuggestionsPanel v-if="suggestions && suggestions.length > 0" :queries="suggestions" @send="onSuggestionSend" @edit="onSuggestionEdit" />
+    <SuggestionsPanel
+      v-if="suggestions && suggestions.length > 0"
+      v-model:expanded="suggestionsExpanded"
+      :queries="suggestions"
+      @send="onSuggestionSend"
+      @edit="onSuggestionEdit"
+    />
     <div class="px-4 py-3 flex gap-2">
       <textarea
         ref="textareaRef"
@@ -14,15 +20,29 @@
         @keydown="imeEnter.onKeydown"
         @blur="imeEnter.onBlur"
       />
-      <button
-        :data-testid="`${testIdPrefix}-send`"
-        class="bg-blue-600 hover:bg-blue-700 text-white rounded w-8 h-8 flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed self-start"
-        :title="t('common.sendChat')"
-        :disabled="!canSend"
-        @click="submit"
-      >
-        <span class="material-icons text-base leading-none">send</span>
-      </button>
+      <div class="flex flex-col gap-1 shrink-0">
+        <button
+          v-if="suggestions && suggestions.length > 0"
+          :data-testid="`${testIdPrefix}-suggestions`"
+          class="rounded w-8 h-8 flex items-center justify-center"
+          :class="suggestionsExpanded ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:text-gray-600'"
+          :title="t('suggestionsPanel.suggestions')"
+          :aria-label="t('suggestionsPanel.suggestions')"
+          @click="suggestionsExpanded = !suggestionsExpanded"
+        >
+          <span class="material-icons text-base leading-none">lightbulb</span>
+        </button>
+        <button
+          :data-testid="`${testIdPrefix}-send`"
+          class="bg-blue-600 hover:bg-blue-700 text-white rounded w-8 h-8 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+          :title="t('common.sendChat')"
+          :aria-label="t('common.sendChat')"
+          :disabled="!canSend"
+          @click="submit"
+        >
+          <span class="material-icons text-base leading-none">send</span>
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -50,6 +70,7 @@ const { t } = useI18n();
 const appApi = useAppApi();
 const draft = ref("");
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const suggestionsExpanded = ref(false);
 
 const canSend = computed(() => !props.disabled && (props.allowEmpty || draft.value.trim().length > 0));
 

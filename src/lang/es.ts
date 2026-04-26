@@ -34,9 +34,6 @@ const esMessages = {
   },
   chatInput: {
     placeholder: "Escribe una tarea, o arrastra / pega / adjunta un archivo…",
-    expandEditor: "Ampliar el editor",
-    composeMessage: "Redactar mensaje",
-    sendHint: "Cmd+Enter para enviar",
     send: "Enviar",
     attachFile: "Adjuntar archivo",
     fileTooLarge: "El archivo es demasiado grande ({sizeMB} MB). El máximo es 30 MB.",
