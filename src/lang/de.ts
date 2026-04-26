@@ -269,6 +269,59 @@ const deMessages = {
           displayName: "Bildschirmfoto",
           description: "Bildschirm als Bild aufnehmen, das Claude lesen kann.",
         },
+        context7: {
+          displayName: "Context7 (Bibliotheksdokumentation)",
+          description: "Aktuelle Dokumentation gängiger Bibliotheken — geht über das Trainings-Cutoff des Modells hinaus.",
+        },
+        deepwiki: {
+          displayName: "DeepWiki (Wiki für GitHub-Repositories)",
+          description: "Stelle Fragen zu beliebigen GitHub-Repositories und erhalte eine strukturierte Antwort im Wiki-Stil.",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "Lese und schreibe in deinem Notion-Workspace — Seiten, Datenbanken und Suche.",
+          field: {
+            apiKey: {
+              label: "Notion-Integrationstoken",
+              help: "Erstelle eine Notion-Integration und kopiere das Internal Integration Secret. 🔑 öffnet die Integrationen-Seite.",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "Kanäle auflisten, Nachrichten senden und den Verlauf deines Slack-Workspaces durchsuchen.",
+          field: {
+            botToken: {
+              label: "Bot-Token",
+              help: "Slack-App → OAuth & Permissions → Bot User OAuth Token. Beginnt mit xoxb-.",
+            },
+            teamId: {
+              label: "Team- / Workspace-ID",
+              help: "Rufe team.info auf oder prüfe die Workspace-URL — etwa T01ABC23DEF.",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "Orte suchen, Routen berechnen und Standortdetails abrufen.",
+          field: {
+            apiKey: {
+              label: "Google-Maps-API-Key",
+              help: "Google Cloud Console → APIs & Services → Credentials → API-Key erstellen. Aktiviere Places + Directions.",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "Wetter (Open-Meteo)",
+          description: "Kostenlose Wettervorhersagen und aktuelle Bedingungen weltweit — ohne API-Key.",
+        },
+      },
+      config: {
+        howToGet: "So erhältst du den Wert",
+        install: "Installieren",
+        errMissingRequired: "Pflichtfelder fehlen: {fields}",
+        requiredMarker: "*",
+        requiredAria: "Pflichtfeld",
       },
     },
   },

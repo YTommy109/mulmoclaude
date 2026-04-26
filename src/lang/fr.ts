@@ -269,6 +269,59 @@ const frMessages = {
           displayName: "Capture d'écran",
           description: "Capturer l'écran comme une image que Claude peut lire.",
         },
+        context7: {
+          displayName: "Context7 (docs de bibliothèques)",
+          description: "Documentation à jour des bibliothèques populaires — au-delà de la date de coupure d'entraînement du modèle.",
+        },
+        deepwiki: {
+          displayName: "DeepWiki (wiki de dépôts GitHub)",
+          description: "Posez des questions sur n'importe quel dépôt GitHub et obtenez une réponse structurée style wiki.",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "Lire et écrire dans votre espace Notion — pages, bases de données et recherche.",
+          field: {
+            apiKey: {
+              label: "Jeton d'intégration Notion",
+              help: "Créez une intégration Notion et copiez l'Internal Integration Secret. Cliquez sur 🔑 pour ouvrir la page des intégrations.",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "Lister les canaux, envoyer des messages et rechercher l'historique de votre espace Slack.",
+          field: {
+            botToken: {
+              label: "Jeton bot",
+              help: "App Slack → OAuth & Permissions → Bot User OAuth Token. Commence par xoxb-.",
+            },
+            teamId: {
+              label: "ID d'équipe / espace de travail",
+              help: "Exécutez team.info ou consultez l'URL de l'espace — du type T01ABC23DEF.",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "Rechercher des lieux, obtenir des itinéraires et consulter les détails d'une position.",
+          field: {
+            apiKey: {
+              label: "Clé d'API Google Maps",
+              help: "Google Cloud Console → APIs & Services → Credentials → Créer une clé d'API. Activez Places + Directions.",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "Météo (Open-Meteo)",
+          description: "Prévisions météo gratuites et conditions actuelles dans le monde entier — sans clé d'API.",
+        },
+      },
+      config: {
+        howToGet: "Comment l'obtenir",
+        install: "Installer",
+        errMissingRequired: "Champs obligatoires manquants : {fields}",
+        requiredMarker: "*",
+        requiredAria: "obligatoire",
       },
     },
   },

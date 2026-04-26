@@ -269,6 +269,59 @@ const zhMessages = {
           displayName: "截图",
           description: "捕获屏幕为 Claude 可读取的图像。",
         },
+        context7: {
+          displayName: "Context7（库文档）",
+          description: "获取主流库的最新文档 — 超越模型训练截止日期的信息源。",
+        },
+        deepwiki: {
+          displayName: "DeepWiki（GitHub 仓库 Wiki）",
+          description: "向任意 GitHub 仓库提问，获得 Wiki 风格的结构化答案。",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "读写 Notion 工作区 — 支持页面、数据库与搜索。",
+          field: {
+            apiKey: {
+              label: "Notion 集成令牌",
+              help: "创建一个 Notion 集成并复制 Internal Integration Secret。点击 🔑 打开集成页面。",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "列出频道、发送消息、搜索 Slack 工作区历史。",
+          field: {
+            botToken: {
+              label: "Bot 令牌",
+              help: "Slack 应用 → OAuth & Permissions → Bot User OAuth Token。以 xoxb- 开头。",
+            },
+            teamId: {
+              label: "团队 / 工作区 ID",
+              help: "运行 team.info 或查看工作区 URL — 形如 T01ABC23DEF。",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "搜索地点、查询路线、获取位置详情。",
+          field: {
+            apiKey: {
+              label: "Google Maps API 密钥",
+              help: "Google Cloud Console → APIs & Services → Credentials → 创建 API 密钥。启用 Places + Directions。",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "天气（Open-Meteo）",
+          description: "全球免费天气预报和当前气象 — 无需 API 密钥。",
+        },
+      },
+      config: {
+        howToGet: "获取方式",
+        install: "安装",
+        errMissingRequired: "缺少必填字段：{fields}",
+        requiredMarker: "*",
+        requiredAria: "必填",
       },
     },
   },

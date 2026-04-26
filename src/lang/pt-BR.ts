@@ -268,6 +268,59 @@ const ptBRMessages = {
           displayName: "Captura de tela",
           description: "Capturar a tela como imagem que o Claude pode ler.",
         },
+        context7: {
+          displayName: "Context7 (documentação de bibliotecas)",
+          description: "Documentação atualizada de bibliotecas populares — supera o corte de treinamento do modelo.",
+        },
+        deepwiki: {
+          displayName: "DeepWiki (wiki de repos do GitHub)",
+          description: "Pergunte sobre qualquer repositório do GitHub e receba uma resposta estruturada estilo wiki.",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "Leia e escreva no seu workspace do Notion — páginas, bancos de dados e busca.",
+          field: {
+            apiKey: {
+              label: "Token de integração do Notion",
+              help: "Crie uma integração no Notion e copie o Internal Integration Secret. Clique em 🔑 para abrir a página de integrações.",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "Liste canais, envie mensagens e busque o histórico do seu workspace do Slack.",
+          field: {
+            botToken: {
+              label: "Token do bot",
+              help: "App do Slack → OAuth & Permissions → Bot User OAuth Token. Começa com xoxb-.",
+            },
+            teamId: {
+              label: "ID do team / workspace",
+              help: "Execute team.info ou veja a URL do workspace — algo como T01ABC23DEF.",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "Buscar lugares, obter rotas e consultar detalhes de localização.",
+          field: {
+            apiKey: {
+              label: "Chave de API do Google Maps",
+              help: "Google Cloud Console → APIs & Services → Credentials → Criar chave de API. Habilite Places + Directions.",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "Clima (Open-Meteo)",
+          description: "Previsão do tempo gratuita e condições atuais no mundo todo — sem chave de API.",
+        },
+      },
+      config: {
+        howToGet: "Como obter",
+        install: "Instalar",
+        errMissingRequired: "Campos obrigatórios faltando: {fields}",
+        requiredMarker: "*",
+        requiredAria: "obrigatório",
       },
     },
   },

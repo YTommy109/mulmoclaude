@@ -272,6 +272,59 @@ const jaMessages = {
           displayName: "スクリーンショット",
           description: "画面を Claude が読める画像としてキャプチャ。",
         },
+        context7: {
+          displayName: "Context7（ライブラリドキュメント）",
+          description: "主要ライブラリの最新ドキュメントを取得 — モデルの学習データ時点を超える情報源。",
+        },
+        deepwiki: {
+          displayName: "DeepWiki（GitHub リポジトリ Wiki）",
+          description: "GitHub リポジトリについて質問すると、Wiki スタイルの構造化された回答が返ります。",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "Notion ワークスペースを読み書き — ページ・データベース・検索に対応。",
+          field: {
+            apiKey: {
+              label: "Notion インテグレーショントークン",
+              help: "Notion インテグレーションを作成し Internal Integration Secret をコピーしてください。🔑 でインテグレーション設定ページを開けます。",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "Slack ワークスペースのチャンネル一覧、メッセージ送信、履歴検索。",
+          field: {
+            botToken: {
+              label: "Bot トークン",
+              help: "Slack App → OAuth & Permissions → Bot User OAuth Token。xoxb- で始まります。",
+            },
+            teamId: {
+              label: "チーム / ワークスペース ID",
+              help: "team.info を呼び出すかワークスペース URL から確認 — T01ABC23DEF のような形式です。",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "場所の検索、ルート案内、位置情報の詳細取得。",
+          field: {
+            apiKey: {
+              label: "Google Maps API キー",
+              help: "Google Cloud Console → APIs & Services → Credentials → API キー作成。Places + Directions を有効化してください。",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "天気予報（Open-Meteo）",
+          description: "世界各地の天気予報と現在の気象情報 — API キー不要で無料利用可能。",
+        },
+      },
+      config: {
+        howToGet: "取得方法",
+        install: "インストール",
+        errMissingRequired: "必須項目が未入力です: {fields}",
+        requiredMarker: "*",
+        requiredAria: "必須",
       },
     },
   },

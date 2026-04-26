@@ -289,6 +289,59 @@ const enMessages = {
           displayName: "Screenshot",
           description: "Capture the screen as an image Claude can read.",
         },
+        context7: {
+          displayName: "Context7 (library docs)",
+          description: "Up-to-date documentation for popular libraries — beats the model's training-cutoff memory.",
+        },
+        deepwiki: {
+          displayName: "DeepWiki (GitHub repo wiki)",
+          description: "Ask questions about any GitHub repository and get a structured wiki-style answer.",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "Read and write your Notion workspace — pages, databases, and search.",
+          field: {
+            apiKey: {
+              label: "Notion integration token",
+              help: "Create a Notion integration and copy the Internal Integration Secret. Click 🔑 to open the integrations page.",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "List channels, post messages, and search history in your Slack workspace.",
+          field: {
+            botToken: {
+              label: "Bot token",
+              help: "Slack app → OAuth & Permissions → Bot User OAuth Token. Starts with xoxb-.",
+            },
+            teamId: {
+              label: "Team / workspace ID",
+              help: "Run team.info or check the workspace URL — looks like T01ABC23DEF.",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "Search places, get directions, and look up location details.",
+          field: {
+            apiKey: {
+              label: "Google Maps API key",
+              help: "Google Cloud Console → APIs & Services → Credentials → Create API key. Enable Places + Directions.",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "Weather (Open-Meteo)",
+          description: "Free weather forecasts and current conditions worldwide — no API key needed.",
+        },
+      },
+      config: {
+        howToGet: "How to get this",
+        install: "Install",
+        errMissingRequired: "Required field(s) missing: {fields}",
+        requiredMarker: "*",
+        requiredAria: "required",
       },
     },
   },

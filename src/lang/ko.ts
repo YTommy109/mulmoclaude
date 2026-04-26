@@ -273,6 +273,59 @@ const koMessages = {
           displayName: "스크린샷",
           description: "화면을 Claude 가 읽을 수 있는 이미지로 캡처합니다.",
         },
+        context7: {
+          displayName: "Context7 (라이브러리 문서)",
+          description: "주요 라이브러리의 최신 문서를 가져옵니다 — 모델의 학습 시점을 넘어선 정보원.",
+        },
+        deepwiki: {
+          displayName: "DeepWiki (GitHub 저장소 위키)",
+          description: "임의의 GitHub 저장소에 질문하여 위키 스타일의 구조화된 답변을 받습니다.",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "Notion 워크스페이스 읽기·쓰기 — 페이지, 데이터베이스, 검색 지원.",
+          field: {
+            apiKey: {
+              label: "Notion 통합 토큰",
+              help: "Notion 통합을 만들고 Internal Integration Secret 을 복사하세요. 🔑 로 통합 페이지를 열 수 있습니다.",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "Slack 워크스페이스 채널 목록, 메시지 전송, 기록 검색.",
+          field: {
+            botToken: {
+              label: "Bot 토큰",
+              help: "Slack 앱 → OAuth & Permissions → Bot User OAuth Token. xoxb- 로 시작합니다.",
+            },
+            teamId: {
+              label: "팀 / 워크스페이스 ID",
+              help: "team.info 호출 또는 워크스페이스 URL 에서 확인 — T01ABC23DEF 형식입니다.",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "장소 검색, 경로 안내, 위치 정보 조회.",
+          field: {
+            apiKey: {
+              label: "Google Maps API 키",
+              help: "Google Cloud Console → APIs & Services → Credentials → API 키 만들기. Places + Directions 활성화.",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "날씨 (Open-Meteo)",
+          description: "전 세계 무료 일기예보와 현재 기상 정보 — API 키 불필요.",
+        },
+      },
+      config: {
+        howToGet: "발급 방법",
+        install: "설치",
+        errMissingRequired: "필수 항목 누락: {fields}",
+        requiredMarker: "*",
+        requiredAria: "필수",
       },
     },
   },
