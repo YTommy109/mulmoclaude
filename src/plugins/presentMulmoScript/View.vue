@@ -45,11 +45,6 @@
       </div>
     </div>
 
-    <!-- Shared Thinking indicator. TEMPORARY: always-on to verify
-         placement; revert to v-if="busyStatus" once the user
-         confirms the location is correct. -->
-    <ThinkingIndicator :status-message="busyStatus ?? 'DEBUG: always-on placement check'" class="px-6 border-b border-gray-100 shrink-0 bg-yellow-50" />
-
     <!-- Characters section -->
     <div v-if="characterKeys.length > 0" class="border-b border-gray-100 shrink-0 px-4 py-3">
       <div class="flex items-center justify-between mb-2">
@@ -358,7 +353,6 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-import ThinkingIndicator from "../../components/ThinkingIndicator.vue";
 
 const { t } = useI18n();
 import type { MulmoScriptData } from "./index";
@@ -368,7 +362,7 @@ import { apiGet, apiPost, apiFetchRaw } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { errorMessage } from "../../utils/errors";
 import { useClipboardCopy } from "../../composables/useClipboardCopy";
-import { useActiveSession, useActiveSessionRunning } from "../../composables/useActiveSession";
+import { useActiveSession } from "../../composables/useActiveSession";
 import { GENERATION_KINDS, type PendingGeneration } from "../../types/events";
 
 interface Beat {
@@ -448,23 +442,6 @@ const charDragOver = reactive<Record<string, boolean>>({});
 const beatDragOver = reactive<Record<number, boolean>>({});
 
 const anyBeatRendering = computed(() => Object.values(renderState).some((state) => state === "rendering"));
-const anyCharRendering = computed(() => Object.values(charRenderState).some((state) => state === "rendering"));
-const anyAudioGenerating = computed(() => Object.values(audioState).some((state) => state === "generating"));
-
-// Drives the shared ThinkingIndicator. Picks the most specific
-// label so the user can tell *what* is in flight rather than just
-// "busy" — order mirrors how long each operation typically takes.
-// The agent-thinking branch (`isAgentRunning`) is the catch-all so a
-// plain text turn from the chat input also lights up the indicator,
-// matching the chat sidebar's behaviour.
-const busyStatus = computed<string | null>(() => {
-  if (movieGenerating.value) return t("pluginMulmoScript.statusGeneratingMovie");
-  if (anyBeatRendering.value) return t("pluginMulmoScript.statusGeneratingBeats");
-  if (anyCharRendering.value) return t("pluginMulmoScript.statusGeneratingCharacters");
-  if (anyAudioGenerating.value) return t("pluginMulmoScript.statusGeneratingAudio");
-  if (activeSessionRunningRef?.value) return t("pluginMulmoScript.statusThinking");
-  return null;
-});
 
 const characterKeys = computed(() => {
   const imgs = script.value.imageParams?.images ?? {};
@@ -475,7 +452,6 @@ const characterKeys = computed(() => {
 // unmount/remount and tags new generations on the correct session
 // channel so the cross-session sidebar indicator stays lit.
 const activeSessionRef = useActiveSession();
-const activeSessionRunningRef = useActiveSessionRunning();
 const chatSessionId = computed(() => activeSessionRef?.value?.id);
 
 const pendingForThisScript = computed(() => {

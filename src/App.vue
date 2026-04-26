@@ -104,6 +104,11 @@
           @toggle-right-sidebar="toggleRightSidebar"
         />
 
+        <!-- DEBUG: always-on Thinking indicator above the chat input
+             so the user can confirm the placement is correct. Switch
+             to v-if="activeSessionRunning" once verified. -->
+        <ThinkingIndicator :status-message="'DEBUG: always-on (single layout)'" class="border-t border-gray-100 bg-yellow-50" />
+
         <!-- Sample queries (expandable pane) -->
         <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
 
@@ -167,6 +172,7 @@
         <!-- Bottom bar (Stack chat only — plugin views have no
              session context, so no chat input is shown) -->
         <div v-if="isChatPage && layoutMode === 'stack'" class="border-t border-gray-200 bg-white shrink-0">
+          <ThinkingIndicator :status-message="'DEBUG: always-on (stack layout)'" class="bg-yellow-50" />
           <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
           <ChatInput
             ref="chatInputRef"
@@ -222,6 +228,7 @@ import ChatInput, { type PastedFile } from "./components/ChatInput.vue";
 import SessionHistoryExpandButton from "./components/SessionHistoryExpandButton.vue";
 import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
 import ToolResultsPanel from "./components/ToolResultsPanel.vue";
+import ThinkingIndicator from "./components/ThinkingIndicator.vue";
 import PluginLauncher from "./components/PluginLauncher.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
