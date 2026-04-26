@@ -44,12 +44,6 @@
         <component :is="getPlugin(result.toolName)?.previewComponent" v-if="getPlugin(result.toolName)?.previewComponent" :result="result" />
         <span v-else class="block truncate p-2">{{ result.title || result.toolName }}</span>
       </div>
-
-      <!-- Thinking indicator. Shared with the slide view via
-           ThinkingIndicator.vue. `role=status` + polite live region
-           inside the component so screen readers announce status
-           updates without yanking focus. Codex iter-1 #798 follow-up. -->
-      <ThinkingIndicator v-if="isRunning" :status-message="statusMessage" :run-elapsed-ms="runElapsedMs" :pending-calls="pendingCalls" />
     </div>
   </div>
 </template>
@@ -61,7 +55,6 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { getPlugin } from "../tools";
 import { formatSmartTime } from "../utils/format/date";
 import CanvasViewToggle from "./CanvasViewToggle.vue";
-import ThinkingIndicator from "./ThinkingIndicator.vue";
 import type { LayoutMode } from "../utils/canvas/layoutMode";
 
 const { t } = useI18n();
@@ -71,29 +64,10 @@ function sourceLabel(result: ToolResultComplete): string {
   return result.toolName;
 }
 
-interface PendingCall {
-  toolUseId: string;
-  toolName: string;
-  // Milliseconds since the call started — driven by the 50ms tick in
-  // `usePendingCalls`, so the rendered "· 2.3s" badge updates without
-  // the consumer needing its own ticker.
-  elapsedMs: number;
-}
-
 defineProps<{
   results: ToolResultComplete[];
   selectedUuid: string | null;
   resultTimestamps: Map<string, number>;
-  isRunning: boolean;
-  statusMessage: string;
-  /**
-   * How long the active agent run has been going. `null` while idle
-   * (or for the first <1s, gated in the template so the badge appears
-   * only after a meaningful delay). Updates once per second via
-   * `useRunElapsed`.
-   */
-  runElapsedMs: number | null;
-  pendingCalls: PendingCall[];
   sessionRoleName?: string;
   sessionRoleIcon?: string;
   layoutMode: LayoutMode;

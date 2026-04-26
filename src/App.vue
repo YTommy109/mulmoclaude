@@ -90,10 +90,6 @@
           :results="sidebarResults"
           :selected-uuid="selectedResultUuid"
           :result-timestamps="activeSession?.resultTimestamps ?? new Map()"
-          :is-running="activeSessionRunning"
-          :status-message="statusMessage"
-          :run-elapsed-ms="runElapsedMs"
-          :pending-calls="pendingCalls"
           :session-role-name="sessionRoleName"
           :session-role-icon="sessionRoleIcon"
           :layout-mode="layoutMode"
@@ -112,7 +108,13 @@
              "still alive" cue regardless of which plugin view fills
              the canvas (the sidebar copy inside ToolResultsPanel
              scrolls with results and can fall below the fold). -->
-        <ThinkingIndicator v-if="activeSessionRunning" :status-message="t('app.thinking')" class="border-t border-gray-100" />
+        <ThinkingIndicator
+          v-if="activeSessionRunning"
+          :status-message="statusMessage || t('app.thinking')"
+          :run-elapsed-ms="runElapsedMs"
+          :pending-calls="pendingCalls"
+          class="border-t border-gray-100"
+        />
 
         <!-- Text input -->
         <ChatInput
@@ -175,7 +177,13 @@
              session context, so no chat input is shown) -->
         <div v-if="isChatPage && layoutMode === 'stack'" class="border-t border-gray-200 bg-white shrink-0">
           <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
-          <ThinkingIndicator v-if="activeSessionRunning" :status-message="t('app.thinking')" class="border-t border-gray-100" />
+          <ThinkingIndicator
+            v-if="activeSessionRunning"
+            :status-message="statusMessage || t('app.thinking')"
+            :run-elapsed-ms="runElapsedMs"
+            :pending-calls="pendingCalls"
+            class="border-t border-gray-100"
+          />
           <ChatInput
             ref="chatInputRef"
             v-model="userInput"

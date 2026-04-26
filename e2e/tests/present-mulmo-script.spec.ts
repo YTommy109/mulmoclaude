@@ -233,11 +233,13 @@ test.describe("presentMulmoScript plugin", () => {
     await page.getByText(SCRIPT_TITLE).first().click();
     await expect(page.getByRole("heading", { name: SCRIPT_TITLE, level: 2 })).toBeVisible();
 
-    // Indicator inside the slide view (not the sidebar one). Scope
-    // by the canvas column so the assertion can't be satisfied by
-    // the chat-sidebar copy.
-    const canvasIndicator = page.locator('[data-testid="thinking-indicator"]').last();
-    await expect(canvasIndicator).toBeVisible();
-    await expect(canvasIndicator).toContainText("Thinking");
+    // Pin to the single canonical indicator that App.vue mounts
+    // above ChatInput. `toHaveCount(1)` guards against future
+    // regressions where a second copy creeps back in (Codex iter-1
+    // flagged exactly that — duplicate role=status announcements).
+    const indicators = page.locator('[data-testid="thinking-indicator"]');
+    await expect(indicators).toHaveCount(1);
+    await expect(indicators).toBeVisible();
+    await expect(indicators).toContainText("Thinking");
   });
 });
