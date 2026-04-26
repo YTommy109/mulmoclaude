@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ## [Unreleased]
 
+### Fixed
+
+- **MCP catalog Notion entry** — switched from the legacy `OPENAPI_MCP_HEADERS` JSON-string form (with a hardcoded `Notion-Version: 2022-06-28`, three years stale) to the official `NOTION_TOKEN` env var, which the upstream README marks as recommended. Users who installed Notion via the catalog before this change still work, but their `~/mulmoclaude/config/mcp.json` keeps the old shape — re-install from Settings → MCP to pick up the new env shape and access the 2025-09-03 API features (data sources, 7 new tools).
+
 ---
 
 ## [0.5.0] - 2026-04-27
@@ -23,7 +27,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 - **Wiki**: tag-based filtering on the index, "Create this wiki page" empty-state CTA, "Lint My Wiki" button, interactive GFM task checkboxes that round-trip to disk, Unicode hashtags accepted in index bullets.
 - **Session history side panel** (#728) — independent toggle (canvas and history can coexist), expand-to-full-width, badge moved onto the toggle button. The standalone `/history` route is retired in favor of the panel.
 - **Files view** (#832) — system-managed file description banner; file-tree icons tinted by edit policy (read-only / system-managed / writable).
-- **Thinking… indicator** (#839, #731 PR2) — shared across slide and stack views, per-tool elapsed time, gated on whether *this* session is running rather than the global isRunning.
+- **Thinking… indicator** (#839, #731 PR2) — shared across slide and stack views, per-tool elapsed time, gated on whether _this_ session is running rather than the global isRunning.
 - **Server observability** (#779) — structured `log.{error,warn,info,debug}` audit; layered logging on 10+ routes (plugin / files / todos / chart / config / html / roles / sessions / skills / image).
 - **Smoke-tested `mulmoclaude` tarball in CI** (#667) — pre-publish smoke workflow verifies the npm package boots before release.
 - **Slack ack reaction** (`@mulmobridge/slack@0.4.0`) — `SLACK_ACK_REACTION=1` adds 👀 on receive so the user sees the bot saw the message before the agent finishes (#695).
