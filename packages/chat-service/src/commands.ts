@@ -5,7 +5,7 @@
 // reset arrive via the factory so this file has zero imports from
 // the host app — only sibling module types.
 
-import type { Role, SessionSummary } from "./types.js";
+import type { BridgeSkillSummary, Role, SessionSummary } from "./types.js";
 import type { ChatStateStore, TransportChatState } from "./chat-state.js";
 
 // ── Types ────────────────────────────────────────────────────
@@ -49,16 +49,14 @@ export function createCommandHandler(opts: {
     messages: Array<{ source: string; text: string }>;
     total: number;
   }>;
-  /** Predicate the bridge command handler uses to decide whether an
-   *  unknown slash command (e.g. `/release-app`) names a registered
-   *  skill — when true the text is forwarded to the agent so the
-   *  Claude CLI's slash-command resolver can run the skill. When
-   *  omitted (or it returns false) the command is rejected with the
-   *  standard "Unknown command" reply, so an unknown bridge slash
-   *  never silently reaches the agent. */
-  isRegisteredSkill?: (name: string) => boolean | Promise<boolean>;
+  /** Lists the skills the bridge command handler should expose.
+   *  Drives both the slash-command allowlist (only matching names
+   *  are forwarded to the agent) and the "Skills:" section in the
+   *  `/help` reply. When omitted, every unknown slash is rejected
+   *  and `/help` shows only the built-in commands. */
+  listRegisteredSkills?: () => Promise<BridgeSkillSummary[]>;
 }): CommandHandler {
-  const { loadAllRoles, getRole, resetChatState, connectSession, listSessions, getSessionHistory, isRegisteredSkill } = opts;
+  const { loadAllRoles, getRole, resetChatState, connectSession, listSessions, getSessionHistory, listRegisteredSkills } = opts;
 
   // Cache /sessions results per chat so /switch resolves to the correct list.
   // Key: "transportId:externalChatId". Bounded with max entries + TTL.
@@ -93,8 +91,12 @@ export function createCommandHandler(opts: {
 
   const getRolesText = (): string => ["Available roles:", ...loadAllRoles().map((r) => `  ${r.id} — ${r.name}`)].join("\n");
 
-  const getHelpText = (): string =>
-    [
+  // Built each time so `/help` reflects the live skill list. The
+  // `skills` argument is fetched once per command turn (see the
+  // `default:` branch and `case "/help"`) so we don't fs-scan twice
+  // when the handler both checks membership and renders help.
+  const buildHelpText = (skills: BridgeSkillSummary[]): string => {
+    const lines = [
       "Commands:",
       "  /reset  — Start a new session",
       "  /sessions [page] — List recent sessions (e.g. /sessions 2)",
@@ -104,9 +106,15 @@ export function createCommandHandler(opts: {
       "  /roles  — List available roles",
       "  /role <id> — Switch role",
       "  /status — Show current session info",
-      "",
-      "Send any other text to chat with the assistant.",
-    ].join("\n");
+    ];
+    if (skills.length > 0) {
+      lines.push("", "Skills:", ...skills.map((s) => `  /${s.name} — ${s.description}`));
+    }
+    lines.push("", "Send any other text to chat with the assistant.");
+    return lines.join("\n");
+  };
+
+  const fetchSkills = async (): Promise<BridgeSkillSummary[]> => (listRegisteredSkills ? await listRegisteredSkills() : []);
 
   const handleReset = async (transportId: string, chatState: TransportChatState): Promise<CommandResult> => {
     const nextState = await resetChatState(transportId, chatState.externalChatId, chatState.roleId);
@@ -274,7 +282,7 @@ export function createCommandHandler(opts: {
       case "/history":
         return handleHistory(chatState, args[0]);
       case "/help":
-        return { reply: getHelpText() };
+        return { reply: buildHelpText(await fetchSkills()) };
       case "/roles":
         return { reply: getRolesText() };
       case "/role":
@@ -287,12 +295,12 @@ export function createCommandHandler(opts: {
         // help. We deliberately do NOT pass arbitrary slash text
         // through, so a typo can't accidentally invoke the agent and
         // a slash that doesn't match anything stays a transport-level
-        // error.
+        // error. Reuse the same skill list for the membership check
+        // and the help text to avoid scanning the skills dir twice.
+        const skills = await fetchSkills();
         const skillName = command.slice(1);
-        if (skillName && isRegisteredSkill && (await isRegisteredSkill(skillName))) {
-          return null;
-        }
-        return { reply: `Unknown command: ${command}\n\n${getHelpText()}` };
+        if (skillName && skills.some((s) => s.name === skillName)) return null;
+        return { reply: `Unknown command: ${command}\n\n${buildHelpText(skills)}` };
       }
     }
   };

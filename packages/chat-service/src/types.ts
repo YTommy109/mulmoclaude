@@ -110,12 +110,26 @@ export interface ChatServiceDeps {
     total: number;
   }>;
   /**
-   * Decide whether an unknown bridge slash command (e.g. `/foo` from
-   * Telegram) names a registered skill the agent should run. Only
-   * true → the text is forwarded to startChat() so the Claude CLI's
-   * slash-command resolver picks it up. False → the bridge replies
-   * "Unknown command" without ever invoking the agent. When omitted
-   * the command handler treats every unknown slash as unknown.
+   * Return the skills the bridge command handler should expose. The
+   * handler uses the result for two things:
+   *   (1) Decide whether an unknown bridge slash command (e.g. `/foo`
+   *       from Telegram) names a registered skill — only matching
+   *       names are forwarded to the agent so the Claude CLI's
+   *       slash-command resolver runs the skill. Non-matches stay a
+   *       transport-level "Unknown command" reply.
+   *   (2) Render a "Skills:" section in the bridge `/help` text and
+   *       in the "Unknown command" fallback so a bridge user can
+   *       discover what skills exist without leaving the chat.
+   * When omitted, every unknown slash is rejected and `/help` shows
+   * only the built-in commands.
    */
-  isRegisteredSkill?: (name: string) => boolean | Promise<boolean>;
+  listRegisteredSkills?: () => Promise<BridgeSkillSummary[]>;
+}
+
+/** Minimal skill info the bridge command handler needs to render the
+ *  `/help` text and decide whether a slash command should be forwarded
+ *  to the agent. Sourced from SKILL.md frontmatter on the host side. */
+export interface BridgeSkillSummary {
+  name: string;
+  description: string;
 }
