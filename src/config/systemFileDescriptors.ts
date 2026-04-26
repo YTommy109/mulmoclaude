@@ -154,3 +154,17 @@ export function descriptorForPath(filePath: string): SystemFileDescriptor | null
   }
   return null;
 }
+
+// Tailwind text colors used to tint a file-icon (or any single-color
+// glyph) according to the system file's edit policy. Same hue as the
+// banner's chip but text-only (no background) — the chip uses a
+// bg + text combo for emphasis; the icon only needs the foreground.
+// Kept here next to the EditPolicy type so adding a policy can't
+// drift past one without the other.
+export const EDIT_POLICY_ICON_COLOR: Record<EditPolicy, string> = {
+  "agent-managed-but-hand-editable": "text-emerald-500",
+  "user-editable": "text-blue-500",
+  "agent-managed": "text-amber-500",
+  "fragile-format": "text-orange-500",
+  ephemeral: "text-gray-400",
+};
