@@ -347,6 +347,24 @@ const frMessages = {
     errIdExists: 'L\'identifiant de serveur "{id}" existe déjà.',
     errBadHttpUrl: "L'URL HTTP doit commencer par http:// ou https://",
     pendingEntryWarning: "Terminez ou annulez d'abord l'entrée de serveur MCP en attente.",
+    customHeading: "Serveurs personnalisés",
+    catalog: {
+      heading: "Serveurs MCP préconfigurés",
+      audience: { general: "🟢 Général", developer: "🔵 Développeur" },
+      risk: { low: "faible", medium: "moyen", high: "élevé" },
+      upstream: "📦 Source",
+      setupGuide: "📚 Configuration",
+      entry: {
+        memory: {
+          displayName: "Mémoire",
+          description: "Permet à Claude de se souvenir du contexte entre les sessions.",
+        },
+        sequentialThinking: {
+          displayName: "Pensée séquentielle",
+          description: "Aide Claude à aborder les problèmes complexes étape par étape.",
+        },
+      },
+    },
   },
   pluginScheduler: {
     prev: "Précédent",

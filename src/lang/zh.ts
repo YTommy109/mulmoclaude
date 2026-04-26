@@ -330,6 +330,24 @@ const zhMessages = {
     errIdExists: '服务器 id "{id}" 已存在。',
     errBadHttpUrl: "HTTP URL 必须以 http:// 或 https:// 开头",
     pendingEntryWarning: "请先完成或取消待处理的 MCP 服务器条目。",
+    customHeading: "自定义服务器",
+    catalog: {
+      heading: "预设 MCP 服务器",
+      audience: { general: "🟢 通用", developer: "🔵 开发者" },
+      risk: { low: "低", medium: "中", high: "高" },
+      upstream: "📦 源",
+      setupGuide: "📚 设置",
+      entry: {
+        memory: {
+          displayName: "记忆",
+          description: "让 Claude 在会话之间记住对话内容。",
+        },
+        sequentialThinking: {
+          displayName: "顺序思考",
+          description: "帮助 Claude 一步一步地解决复杂问题。",
+        },
+      },
+    },
   },
   pluginScheduler: {
     prev: "上一个",

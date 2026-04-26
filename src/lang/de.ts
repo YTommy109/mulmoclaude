@@ -346,6 +346,24 @@ const deMessages = {
     errIdExists: 'Die Server-ID "{id}" existiert bereits.',
     errBadHttpUrl: "Die HTTP-URL muss mit http:// oder https:// beginnen",
     pendingEntryWarning: "Schließen Sie den ausstehenden MCP-Servereintrag zuerst ab oder brechen Sie ihn ab.",
+    customHeading: "Benutzerdefinierte Server",
+    catalog: {
+      heading: "Vorkonfigurierte MCP-Server",
+      audience: { general: "🟢 Allgemein", developer: "🔵 Entwickler" },
+      risk: { low: "niedrig", medium: "mittel", high: "hoch" },
+      upstream: "📦 Quelle",
+      setupGuide: "📚 Einrichtung",
+      entry: {
+        memory: {
+          displayName: "Memory",
+          description: "Lässt Claude den Gesprächskontext über Sitzungen hinweg merken.",
+        },
+        sequentialThinking: {
+          displayName: "Sequenzielles Denken",
+          description: "Hilft Claude, komplexe Probleme schrittweise zu lösen.",
+        },
+      },
+    },
   },
   pluginScheduler: {
     prev: "Zurück",

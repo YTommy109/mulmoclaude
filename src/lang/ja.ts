@@ -341,6 +341,24 @@ const jaMessages = {
     errIdExists: "サーバ ID「{id}」は既に存在します。",
     errBadHttpUrl: "HTTP URL は http:// または https:// で始める必要があります",
     pendingEntryWarning: "保留中の MCP サーバ設定を確定またはキャンセルしてください。",
+    customHeading: "カスタムサーバ",
+    catalog: {
+      heading: "登録済み MCP サーバ",
+      audience: { general: "🟢 一般用途", developer: "🔵 開発者向け" },
+      risk: { low: "低", medium: "中", high: "高" },
+      upstream: "📦 ソース",
+      setupGuide: "📚 セットアップ",
+      entry: {
+        memory: {
+          displayName: "メモリ",
+          description: "セッションを跨いで会話の内容を覚えます。",
+        },
+        sequentialThinking: {
+          displayName: "順序立てた思考",
+          description: "複雑な問題を段階的に考える支援。",
+        },
+      },
+    },
   },
   pluginScheduler: {
     prev: "前へ",

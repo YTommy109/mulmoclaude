@@ -361,6 +361,24 @@ const enMessages = {
     errIdExists: 'Server id "{id}" already exists.',
     errBadHttpUrl: "HTTP URL must start with http:// or https://",
     pendingEntryWarning: "Finish or cancel the pending MCP server entry first.",
+    customHeading: "Custom servers",
+    catalog: {
+      heading: "Pre-configured MCP servers",
+      audience: { general: "🟢 General", developer: "🔵 Developer" },
+      risk: { low: "low", medium: "medium", high: "high" },
+      upstream: "📦 Source",
+      setupGuide: "📚 Setup",
+      entry: {
+        memory: {
+          displayName: "Memory",
+          description: "Lets Claude remember conversation context across sessions.",
+        },
+        sequentialThinking: {
+          displayName: "Sequential Thinking",
+          description: "Helps Claude work through multi-step problems by thinking step by step.",
+        },
+      },
+    },
   },
   pluginScheduler: {
     prev: "Previous",

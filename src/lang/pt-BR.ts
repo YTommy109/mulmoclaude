@@ -342,6 +342,24 @@ const ptBRMessages = {
     errIdExists: 'O id de servidor "{id}" já existe.',
     errBadHttpUrl: "A URL HTTP deve começar com http:// ou https://",
     pendingEntryWarning: "Conclua ou cancele primeiro a entrada de servidor MCP pendente.",
+    customHeading: "Servidores personalizados",
+    catalog: {
+      heading: "Servidores MCP pré-configurados",
+      audience: { general: "🟢 Geral", developer: "🔵 Desenvolvedor" },
+      risk: { low: "baixo", medium: "médio", high: "alto" },
+      upstream: "📦 Origem",
+      setupGuide: "📚 Configuração",
+      entry: {
+        memory: {
+          displayName: "Memória",
+          description: "Permite que o Claude lembre o contexto entre sessões.",
+        },
+        sequentialThinking: {
+          displayName: "Pensamento sequencial",
+          description: "Ajuda o Claude a resolver problemas complexos passo a passo.",
+        },
+      },
+    },
   },
   pluginScheduler: {
     prev: "Anterior",
