@@ -83,7 +83,11 @@
       </div>
 
       <!-- Sidebar (Single layout only) -->
-      <div v-if="!isStackLayout && !sidePanelExpanded" class="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-white text-gray-900 relative">
+      <div
+        v-if="!isStackLayout && !sidePanelExpanded"
+        class="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-white text-gray-900 relative"
+        data-testid="chat-sidebar"
+      >
         <!-- Tool result previews -->
         <ToolResultsPanel
           ref="toolResultsPanelRef"
