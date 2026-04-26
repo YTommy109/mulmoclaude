@@ -1,7 +1,7 @@
 <template>
   <div class="h-full bg-white flex flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between gap-2 px-6 py-2 border-b border-gray-100 shrink-0">
+    <div class="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
       <div class="flex items-center gap-2 min-w-0">
         <button
           v-if="action !== 'index'"
@@ -34,7 +34,7 @@
           <span class="material-icons text-base">rule</span>
           {{ t("pluginWiki.lintChat") }}
         </button>
-        <div class="flex border border-gray-300 rounded overflow-hidden text-xs">
+        <div class="flex border border-gray-300 rounded overflow-hidden">
           <button
             :class="[
               'h-8 px-2.5 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
@@ -121,30 +121,24 @@
     <!-- Index: tag filter + page card list -->
     <div v-else-if="action === 'index' && pageEntries && pageEntries.length > 0" class="flex-1 flex flex-col overflow-hidden">
       <div v-if="allTags.length > 0 || selectedTag !== null" class="shrink-0 border-b border-gray-100 px-4 py-2 flex flex-wrap gap-1">
-        <button
-          :class="['tag-chip', selectedTag === null ? 'tag-chip-active' : 'tag-chip-inactive']"
-          data-testid="wiki-tag-filter-all"
-          @click="selectedTag = null"
-        >
-          {{ t("pluginWiki.tagFilterAll") }}
-        </button>
-        <button
+        <FilterChip :active="selectedTag === null" :label="t('pluginWiki.tagFilterAll')" data-testid="wiki-tag-filter-all" @click="selectedTag = null" />
+        <FilterChip
           v-for="[tag, count] in allTags"
           :key="tag"
-          :class="['tag-chip', selectedTag === tag ? 'tag-chip-active' : 'tag-chip-inactive']"
+          :active="selectedTag === tag"
+          :label="tag"
+          :count="count"
           :data-testid="`wiki-tag-filter-${tag}`"
           @click="toggleTagFilter(tag)"
-        >
-          {{ tag }} ({{ count }})
-        </button>
-        <button
+        />
+        <FilterChip
           v-if="selectedTag !== null && !allTags.some(([tag]) => tag === selectedTag)"
-          class="tag-chip tag-chip-active"
+          :active="true"
+          :label="selectedTag"
+          :count="1"
           :data-testid="`wiki-tag-filter-${selectedTag}`"
           @click="toggleTagFilter(selectedTag)"
-        >
-          {{ `${selectedTag} (1)` }}
-        </button>
+        />
       </div>
       <div v-if="visibleEntries.length === 0 && selectedTag" class="flex-1 flex items-center justify-center text-gray-400 text-sm px-4 text-center">
         {{ t("pluginWiki.noMatches", { tag: selectedTag }) }}
@@ -167,7 +161,7 @@
               :key="tag"
               class="entry-tag-chip"
               :data-testid="`wiki-entry-tag-${entry.slug}-${tag}`"
-              @click.stop="toggleTagFilter(tag)"
+              @click.stop="setTagFilter(tag)"
             >
               {{ `#${tag}` }}
             </button>
@@ -191,30 +185,13 @@
          WikiView is mounted as a manageWiki tool result inside /chat:
          the enclosing chat already has its own composer, and spawning
          a nested new session from there is confusing. -->
-    <div v-if="action === 'page' && content && isStandaloneWikiRoute" class="border-t border-gray-200 px-4 py-3 shrink-0 bg-gray-50">
-      <div class="flex gap-2">
-        <textarea
-          v-model="chatDraft"
-          data-testid="wiki-page-chat-input"
-          :placeholder="t('pluginWiki.chatPlaceholder')"
-          rows="2"
-          class="flex-1 bg-white border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400 resize-none"
-          @compositionstart="imeEnter.onCompositionStart"
-          @compositionend="imeEnter.onCompositionEnd"
-          @keydown="imeEnter.onKeydown"
-          @blur="imeEnter.onBlur"
-        />
-        <button
-          data-testid="wiki-page-chat-send"
-          class="bg-blue-600 hover:bg-blue-700 text-white rounded w-8 h-8 flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed self-start"
-          :title="t('pluginWiki.chatSend')"
-          :disabled="!canSendChat"
-          @click="submitChat"
-        >
-          <span class="material-icons text-base leading-none">send</span>
-        </button>
-      </div>
-    </div>
+    <PageChatComposer
+      v-if="action === 'page' && content && isStandaloneWikiRoute && currentSlug() !== null"
+      :key="currentSlug() ?? ''"
+      :placeholder="t('pluginWiki.chatPlaceholder')"
+      :prepend-text="`Before answering, read the wiki page at data/wiki/pages/${currentSlug()}.md.`"
+      test-id-prefix="wiki-page-chat"
+    />
   </div>
 </template>
 
@@ -228,10 +205,11 @@ import type { WikiData, WikiPageEntry } from "./index";
 import { handleExternalLinkClick } from "../../utils/dom/externalLink";
 import { classifyWorkspacePath, resolveWikiHref } from "../../utils/path/workspaceLinkRouter";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
-import { useImeAwareEnter } from "../../composables/useImeAwareEnter";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { useAppApi } from "../../composables/useAppApi";
+import { buildPdfFilename } from "../../utils/files/filename";
 import { renderWikiLinks } from "./helpers";
+import PageChatComposer from "../../components/PageChatComposer.vue";
 import { BUILTIN_ROLE_IDS } from "../../config/roles";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { extractFrontmatter } from "../../utils/format/frontmatter";
@@ -240,6 +218,7 @@ import { apiPost } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { PAGE_ROUTES } from "../../router";
 import { WIKI_ACTION, WIKI_ROUTE_SECTION, buildWikiRouteParams, isSafeWikiSlug, readWikiRouteTarget, wikiActionFor, type WikiTarget } from "./route";
+import FilterChip from "../../components/FilterChip.vue";
 
 type WikiTabView = typeof WIKI_ACTION.log | typeof WIKI_ACTION.lintReport;
 
@@ -361,6 +340,18 @@ function toggleTagFilter(tag: string) {
   selectedTag.value = selectedTag.value === tag ? null : tag;
 }
 
+// Per-entry tag chips set the filter unconditionally — clicking a
+// `#javascript` chip on a page row should always filter the index to
+// that tag, even when the user is already viewing the same filter.
+// Using `toggleTagFilter` here was unintuitive: clicking a `#tag`
+// chip on a row that's already in the active filter would clear the
+// filter, surprising the user. The filter chips at the top of the
+// list still toggle (so users have an obvious "click again to clear"
+// affordance there).
+function setTagFilter(tag: string) {
+  selectedTag.value = tag;
+}
+
 // Spawn a new chat under the General role (which owns the wiki
 // tooling) regardless of the role the user is currently viewing the
 // wiki under. "lint my wiki" is a direct instruction to the agent,
@@ -387,6 +378,9 @@ watch(content, async () => {
   if (scrollRef.value) scrollRef.value.scrollTop = 0;
 });
 
+/** Base directory for wiki content, adjusted by the current view. */
+const WIKI_BASE_DIR = computed(() => (action.value === "page" ? "data/wiki/pages" : "data/wiki"));
+
 const renderedContent = computed(() => {
   if (!content.value) return "";
   // Strip YAML frontmatter before rendering — marked doesn't parse
@@ -397,10 +391,9 @@ const renderedContent = computed(() => {
   // Rewrite workspace-relative image refs (`![alt](images/foo.png)`)
   // to `/api/files/raw?path=...` BEFORE marked parses them — without
   // this, the browser tries to fetch against the SPA route URL
-  // (/chat/…/images/foo.png) and 404s. basePath = wiki/pages for
-  // individual pages so `../images/foo.png` resolves correctly.
-  const basePath = action.value === "page" ? "wiki/pages" : "wiki";
-  const withImages = rewriteMarkdownImageRefs(body, basePath);
+  // (/chat/…/images/foo.png) and 404s. Reuse WIKI_BASE_DIR so a
+  // page's `../images/foo.png` resolves under `data/wiki/`.
+  const withImages = rewriteMarkdownImageRefs(body, WIKI_BASE_DIR.value);
   // Strip marked's `disabled=""` from GFM task checkboxes and tag
   // them with `class="md-task"` so `handleContentClick` can find
   // them via DOM delegation (#775). Other view modes (index / log /
@@ -412,7 +405,13 @@ const renderedContent = computed(() => {
 const { pdfDownloading, pdfError, downloadPdf: rawDownloadPdf } = usePdfDownload();
 
 async function downloadPdf() {
-  await rawDownloadPdf(content.value, `${title.value}.pdf`);
+  const uuid = props.selectedResult?.uuid;
+  const filename = buildPdfFilename({
+    name: title.value,
+    fallback: "wiki",
+    timestampMs: uuid ? appApi.getResultTimestamp(uuid) : undefined,
+  });
+  await rawDownloadPdf(content.value, filename);
 }
 
 async function callApi(body: Record<string, unknown>) {
@@ -464,10 +463,8 @@ function navigatePage(pageName: string) {
 
 // --- Per-page chat composer ---
 const appApi = useAppApi();
-const chatDraft = ref("");
 
 const isStandaloneWikiRoute = computed(() => route.name === PAGE_ROUTES.wiki);
-const canSendChat = computed(() => chatDraft.value.trim().length > 0 && currentSlug() !== null);
 
 // Always route wiki create/update CTAs through BUILTIN_ROLE_IDS.general
 // (the wiki-capable role) so the new chat has the tools needed to
@@ -501,20 +498,6 @@ function currentSlug(): string | null {
       : (props.selectedResult?.data?.pageName ?? null);
   return isSafeWikiSlug(raw) ? raw : null;
 }
-
-function submitChat() {
-  const text = chatDraft.value.trim();
-  const slug = currentSlug();
-  if (!text || !slug) return;
-  const prompt = `Before answering, read the wiki page at data/wiki/pages/${slug}.md.\n\n${text}`;
-  chatDraft.value = "";
-  appApi.startNewChat(prompt);
-}
-
-const imeEnter = useImeAwareEnter(submitChat);
-
-/** Base directory for wiki content, adjusted by the current view. */
-const WIKI_BASE_DIR = computed(() => (action.value === "page" ? "data/wiki/pages" : "data/wiki"));
 
 // Serialised POST chain for rapid task-checkbox clicks (#775). Each
 // click queues onto the previous so a slower network can't reorder
@@ -683,30 +666,6 @@ function handleContentClick(event: MouseEvent) {
 </script>
 
 <style scoped>
-.tag-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.125rem 0.5rem;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  border-radius: 9999px;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-.tag-chip-active {
-  background-color: #2563eb;
-  color: white;
-  border-color: #2563eb;
-}
-.tag-chip-inactive {
-  background-color: #f3f4f6;
-  color: #374151;
-  border-color: #e5e7eb;
-}
-.tag-chip-inactive:hover {
-  background-color: #e5e7eb;
-}
 .entry-tag-chip {
   display: inline-flex;
   align-items: center;

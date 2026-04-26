@@ -18,6 +18,7 @@ const zhMessages = {
     saved: "已保存",
     noResultsYet: "暂无结果",
     noImageYet: "暂无图片",
+    sendChat: "开启新对话",
   },
   sessionTabBar: {
     newSession: "新建会话",
@@ -205,6 +206,103 @@ const zhMessages = {
     pdfPreview: "PDF 预览",
     parseError: "解析错误",
   },
+  systemFiles: {
+    showDetails: "详情",
+    hideDetails: "收起",
+    schemaLabel: "架构",
+    editPolicy: {
+      "agent-managed-but-hand-editable": "Agent 维护（可手工编辑）",
+      "user-editable": "用户可编辑",
+      "agent-managed": "Agent 维护",
+      "fragile-format": "格式敏感",
+      ephemeral: "运行时状态 — 请勿编辑",
+    },
+    interests: {
+      title: "新闻通知过滤档案",
+      summary: "供通知铃过滤文章的相关性评分文件。当你在聊天中提到关心的话题时，Agent 会更新此文件。也支持手工编辑；校验较宽松，格式不正确的条目会被静默丢弃。",
+    },
+    mcp: {
+      title: "MCP 服务器注册表",
+      summary:
+        "暴露给 Agent 的外部 MCP 服务器配置。可通过 设置 → MCP 编辑，也可直接修改 JSON。Stdio 服务器在沙箱镜像中运行，启用 Docker 时路径必须相对于工作区。",
+    },
+    settings: {
+      title: "应用设置",
+      summary: "工作区级别的应用配置，每次 Agent 启动时重新加载。当前保存的是 extra allowed-tools 等条目（例如 Claude Code 内置 MCP 前缀）。",
+    },
+    schedulerTasks: {
+      title: "用户定义的自动化任务",
+      summary: "由 Agent 创建或你自己编写的计划任务。建议通过 Automations 页面编辑；也支持直接修改 JSON，但变更会被 Agent 重写。",
+    },
+    schedulerOverrides: {
+      title: "任务调度的手动覆盖",
+      summary: "在 tasks.json 之上的手动 disable/snooze 标记。从 UI 切换自动化时由 Agent 更新。",
+    },
+    newsReadState: {
+      title: "通知已读状态",
+      summary: "记录已查看的新闻项，避免重复提醒。纯运行时状态；删除是安全的，只会让你重新看到一轮通知。",
+    },
+    schedulerItems: {
+      title: "日历项",
+      summary: "Calendar 视图中显示的日历事件。由 Agent 从聊天中写入；可手工编辑 JSON，但 Agent 重写时会丢失变更。",
+    },
+    todosItems: {
+      title: "Todo 看板项",
+      summary: "Todos 页面显示的任务。Agent 会根据聊天指令读写此文件；也支持手工编辑。",
+    },
+    todosColumns: {
+      title: "Todo 看板列定义",
+      summary: "Todo 看板的列定义（id、标题、颜色）。这是你的文件，可自由编辑以重塑看板。",
+    },
+    wikiIndex: {
+      title: "Wiki 目录",
+      summary: "Wiki 自动生成的目录。Agent 会从页面集合重建此文件；手工编辑会在下一次索引时被覆盖。",
+    },
+    wikiLog: {
+      title: "Wiki 编辑日志",
+      summary: "仅追加的 Wiki 编辑日志。Agent 自动追加新条目。新逻辑依赖按时间排列的顺序，请勿重排或删除已有条目。",
+    },
+    wikiSummary: {
+      title: "Wiki 概要",
+      summary: "由 AI 生成的 Wiki 整体话题概要。Agent 按需重新生成。",
+    },
+    wikiSchema: {
+      title: "Wiki 架构定义",
+      summary: "Agent 用于保持 Wiki 内部一致性的结构架构。格式敏感，小幅修改可能导致索引器无法工作。",
+    },
+    memory: {
+      title: "长期记忆",
+      summary: "从对话中提炼的长期事实。可手工编辑：删除已经过时的条目，或添加你希望 Agent 记住的事实。",
+    },
+    summariesIndex: {
+      title: "摘要索引",
+      summary: "conversations/summaries/ 下的日 / 主题摘要索引。由日志索引器再生成；手工编辑会被覆盖。",
+    },
+    rolesJson: {
+      title: "角色配置（config）",
+      summary: "角色选择器使用的角色配置 — 显示名、图标、默认模型、插件启用状态。这是你的文件，可手工编辑自定义角色。",
+    },
+    rolesMd: {
+      title: "角色系统提示",
+      summary: "选中此角色时发送给 Claude 的 Markdown 系统提示。可自由编辑，下次聊天时生效。",
+    },
+    sourceFeed: {
+      title: "信息源订阅注册",
+      summary: "描述一个新闻 / 文章源的 Markdown frontmatter（URL、slug、分类）。这是你的文件，源管线每次运行都会读取。",
+    },
+    sourceState: {
+      title: "信息源管线运行时状态",
+      summary: "每个源的内部记录（最近抓取游标、去重哈希、错误计数）。纯运行时状态；删除会触发重新抓取，但是安全的。",
+    },
+    journalDaily: {
+      title: "每日摘要",
+      summary: "由 AI 生成的当日对话摘要。日志子系统会按计划重新生成；手工编辑在下次重写时丢失。",
+    },
+    journalTopic: {
+      title: "主题摘要",
+      summary: "跨多日单一主题的 AI 摘要。由日志索引器再生成；手工编辑不会保留。",
+    },
+  },
   settingsMcpTab: {
     explanation:
       "添加外部 MCP 服务器。HTTP 服务器在所有模式下都可用。Stdio 服务器使用沙箱镜像中的 {npx} / {node} / {tsx};启用 Docker 时,路径必须位于工作区内。",
@@ -231,6 +329,24 @@ const zhMessages = {
     errIdExists: '服务器 id "{id}" 已存在。',
     errBadHttpUrl: "HTTP URL 必须以 http:// 或 https:// 开头",
     pendingEntryWarning: "请先完成或取消待处理的 MCP 服务器条目。",
+    customHeading: "自定义服务器",
+    catalog: {
+      heading: "预设 MCP 服务器",
+      audience: { general: "🟢 通用", developer: "🔵 开发者" },
+      risk: { low: "低", medium: "中", high: "高" },
+      upstream: "📦 源",
+      setupGuide: "📚 设置",
+      entry: {
+        memory: {
+          displayName: "记忆",
+          description: "让 Claude 在会话之间记住对话内容。",
+        },
+        sequentialThinking: {
+          displayName: "顺序思考",
+          description: "帮助 Claude 一步一步地解决复杂问题。",
+        },
+      },
+    },
   },
   pluginScheduler: {
     prev: "上一个",
@@ -273,12 +389,28 @@ const zhMessages = {
     runFailed: "运行失败: {error}",
     toggleFailed: "切换失败: {error}",
     deleteFailed: "删除失败: {error}",
+    detailsToggle: "显示详情",
+    promptLabel: "提示词",
+    roleLabel: "角色",
   },
   pluginCanvas: {
     undo: "撤销",
     redo: "重做",
     clear: "清除",
     styleLabel: "样式:",
+  },
+  pluginPresentForm: {
+    fallbackTitle: "表单",
+    fieldCount: "{count} 个字段",
+    errorSummary: "请修复以下错误:",
+    requiredMarker: "*",
+    selectOption: "请选择...",
+    submit: "提交",
+    submitted: "已提交",
+    progress: "已完成 {filled} / {total} 个必填字段",
+    charactersCount: "{current} / {max} 字符",
+    charactersCountNoMax: "{current} 字符",
+    noneValue: "(无)",
   },
   pluginChart: {
     untitled: "图表",
@@ -364,7 +496,6 @@ const zhMessages = {
     empty: "Wiki 为空。请让 Wiki 管理器采集一个数据源。",
     previewMore: "+ 还有 {count} 项…",
     chatPlaceholder: "就本页提问…",
-    chatSend: "就本页开启新对话",
     emptyPage: "页面「{title}」尚不存在。",
     emptyContent: "页面「{title}」已存在，但没有内容。",
     createPage: "请求创建此 Wiki 页面",
@@ -395,6 +526,7 @@ const zhMessages = {
     noBody: "无正文 — 请打开原文。",
     bodyError: "加载正文失败: {error}",
     loadError: "加载新闻失败: {error}",
+    chatPlaceholder: "就本文章随意提问",
   },
   pluginManageSource: {
     titlePlaceholder: "标题(可选)",
@@ -602,6 +734,7 @@ const zhMessages = {
   },
   app: {
     startConversation: "开始对话",
+    thinking: "思考中…",
   },
   suggestionsPanel: {
     suggestions: "建议",

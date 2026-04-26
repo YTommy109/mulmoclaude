@@ -16,7 +16,6 @@ import { writeDailySummary, readDailySummary, readTopicFile, writeTopicFile, app
 import { readSessionMeta as readSessionMetaIO, readSessionJsonl as readSessionJsonlIO } from "../../utils/files/session-io.js";
 import { statUnder } from "../../utils/files/workspace-io.js";
 import {
-  type Summarize,
   type SessionExcerpt,
   type SessionEventExcerpt,
   type ExistingTopicSnapshot,
@@ -27,8 +26,8 @@ import {
   buildDailyUserPrompt,
   extractJsonObject,
   isDailyArchivistOutput,
-  ClaudeCliNotFoundError,
-} from "./archivist.js";
+} from "./archivist-schemas.js";
+import { type Summarize, ClaudeCliNotFoundError } from "./archivist-cli.js";
 import { toIsoDate, slugify } from "./paths.js";
 import { findDirtySessions, applyProcessed, type SessionFileMeta } from "./diff.js";
 import { rewriteWorkspaceLinks } from "../../utils/markdown.js";
