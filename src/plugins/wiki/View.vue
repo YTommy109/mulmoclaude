@@ -147,7 +147,7 @@
         <div
           v-for="entry in visibleEntries"
           :key="entry.slug"
-          class="flex items-baseline gap-2 px-4 py-1 cursor-pointer hover:bg-blue-50 transition-colors"
+          class="group flex items-baseline gap-2 px-4 py-1 cursor-pointer hover:bg-blue-50 transition-colors"
           :data-testid="`wiki-page-entry-${entry.slug || entry.title}`"
           @click="navigatePage(entry.slug || entry.title)"
         >
@@ -155,7 +155,7 @@
           <span v-if="entry.description" class="text-xs text-gray-500 truncate">
             {{ entry.description }}
           </span>
-          <span v-if="entry.tags && entry.tags.length > 0" class="flex gap-1 flex-wrap shrink-0">
+          <span v-if="entry.tags && entry.tags.length > 0" class="flex gap-1 flex-wrap shrink-0 opacity-20 group-hover:opacity-100 transition-opacity">
             <button
               v-for="tag in entry.tags"
               :key="tag"
@@ -323,13 +323,23 @@ watch(
 // tags stay in deterministic order. Singletons are dropped: a tag
 // used on a single page adds no filtering value, just visual noise.
 // Per-entry `#tag` chips still render every tag, so singletons stay
-// clickable from the row itself.
+// clickable from the row itself. Beyond singletons, the minimum count
+// is raised adaptively so the chip row stays around TARGET_FILTER_CHIPS
+// even on wikis with hundreds of pages — the cutoff is the count of
+// the tag at the target position, which keeps tied-popularity tags
+// grouped together rather than slicing them arbitrarily.
+const TARGET_FILTER_CHIPS = 20;
 const allTags = computed<[string, number][]>(() => {
   const counts = new Map<string, number>();
   for (const entry of pageEntries.value) {
     for (const tag of entry.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
   }
-  return [...counts.entries()].filter(([, count]) => count > 1).sort(([tagA, countA], [tagB, countB]) => countB - countA || tagA.localeCompare(tagB));
+  const meaningful = [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .sort(([tagA, countA], [tagB, countB]) => countB - countA || tagA.localeCompare(tagB));
+  if (meaningful.length <= TARGET_FILTER_CHIPS) return meaningful;
+  const cutoff = meaningful[TARGET_FILTER_CHIPS - 1][1];
+  return meaningful.filter(([, count]) => count >= cutoff);
 });
 
 const visibleEntries = computed(() =>
