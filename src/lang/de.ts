@@ -275,6 +275,9 @@ const deMessages = {
     runFailed: "Ausführung fehlgeschlagen: {error}",
     toggleFailed: "Umschalten fehlgeschlagen: {error}",
     deleteFailed: "Löschen fehlgeschlagen: {error}",
+    detailsToggle: "Details anzeigen",
+    promptLabel: "Prompt",
+    roleLabel: "Rolle",
   },
   pluginCanvas: {
     undo: "Rückgängig",
@@ -617,6 +620,7 @@ const deMessages = {
   },
   app: {
     startConversation: "Gespräch beginnen",
+    thinking: "Denkt nach…",
   },
   suggestionsPanel: {
     suggestions: "Vorschläge",

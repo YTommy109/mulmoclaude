@@ -279,6 +279,9 @@ const koMessages = {
     runFailed: "실행 실패: {error}",
     toggleFailed: "토글 실패: {error}",
     deleteFailed: "삭제 실패: {error}",
+    detailsToggle: "상세 보기",
+    promptLabel: "프롬프트",
+    roleLabel: "역할",
   },
   pluginCanvas: {
     undo: "실행 취소",
@@ -621,6 +624,7 @@ const koMessages = {
   },
   app: {
     startConversation: "대화 시작",
+    thinking: "생각 중…",
   },
   suggestionsPanel: {
     suggestions: "추천",

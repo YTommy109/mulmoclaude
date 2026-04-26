@@ -274,6 +274,9 @@ const ptBRMessages = {
     runFailed: "Falha na execução: {error}",
     toggleFailed: "Falha ao alternar: {error}",
     deleteFailed: "Falha ao excluir: {error}",
+    detailsToggle: "Mostrar detalhes",
+    promptLabel: "Prompt",
+    roleLabel: "Função",
   },
   pluginCanvas: {
     undo: "Desfazer",
@@ -613,6 +616,7 @@ const ptBRMessages = {
   },
   app: {
     startConversation: "Iniciar uma conversa",
+    thinking: "Pensando…",
   },
   suggestionsPanel: {
     suggestions: "Sugestões",

@@ -275,6 +275,9 @@ const zhMessages = {
     runFailed: "运行失败: {error}",
     toggleFailed: "切换失败: {error}",
     deleteFailed: "删除失败: {error}",
+    detailsToggle: "显示详情",
+    promptLabel: "提示词",
+    roleLabel: "角色",
   },
   pluginCanvas: {
     undo: "撤销",
@@ -617,6 +620,7 @@ const zhMessages = {
   },
   app: {
     startConversation: "开始对话",
+    thinking: "思考中…",
   },
   suggestionsPanel: {
     suggestions: "建议",

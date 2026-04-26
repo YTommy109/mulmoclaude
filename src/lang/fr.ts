@@ -275,6 +275,9 @@ const frMessages = {
     runFailed: "Échec de l'exécution : {error}",
     toggleFailed: "Échec du basculement : {error}",
     deleteFailed: "Échec de la suppression : {error}",
+    detailsToggle: "Afficher les détails",
+    promptLabel: "Prompt",
+    roleLabel: "Rôle",
   },
   pluginCanvas: {
     undo: "Annuler",
@@ -615,6 +618,7 @@ const frMessages = {
   },
   app: {
     startConversation: "Démarrer une conversation",
+    thinking: "Réflexion…",
   },
   suggestionsPanel: {
     suggestions: "Suggestions",

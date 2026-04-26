@@ -161,7 +161,7 @@
               :key="tag"
               class="entry-tag-chip"
               :data-testid="`wiki-entry-tag-${entry.slug}-${tag}`"
-              @click.stop="toggleTagFilter(tag)"
+              @click.stop="setTagFilter(tag)"
             >
               {{ `#${tag}` }}
             </button>
@@ -207,6 +207,7 @@ import { classifyWorkspacePath, resolveWikiHref } from "../../utils/path/workspa
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { useAppApi } from "../../composables/useAppApi";
+import { buildPdfFilename } from "../../utils/files/filename";
 import { renderWikiLinks } from "./helpers";
 import PageChatComposer from "../../components/PageChatComposer.vue";
 import { BUILTIN_ROLE_IDS } from "../../config/roles";
@@ -339,6 +340,18 @@ function toggleTagFilter(tag: string) {
   selectedTag.value = selectedTag.value === tag ? null : tag;
 }
 
+// Per-entry tag chips set the filter unconditionally — clicking a
+// `#javascript` chip on a page row should always filter the index to
+// that tag, even when the user is already viewing the same filter.
+// Using `toggleTagFilter` here was unintuitive: clicking a `#tag`
+// chip on a row that's already in the active filter would clear the
+// filter, surprising the user. The filter chips at the top of the
+// list still toggle (so users have an obvious "click again to clear"
+// affordance there).
+function setTagFilter(tag: string) {
+  selectedTag.value = tag;
+}
+
 // Spawn a new chat under the General role (which owns the wiki
 // tooling) regardless of the role the user is currently viewing the
 // wiki under. "lint my wiki" is a direct instruction to the agent,
@@ -390,7 +403,13 @@ const renderedContent = computed(() => {
 const { pdfDownloading, pdfError, downloadPdf: rawDownloadPdf } = usePdfDownload();
 
 async function downloadPdf() {
-  await rawDownloadPdf(content.value, `${title.value}.pdf`);
+  const uuid = props.selectedResult?.uuid;
+  const filename = buildPdfFilename({
+    name: title.value,
+    fallback: "wiki",
+    timestampMs: uuid ? appApi.getResultTimestamp(uuid) : undefined,
+  });
+  await rawDownloadPdf(content.value, filename);
 }
 
 async function callApi(body: Record<string, unknown>) {

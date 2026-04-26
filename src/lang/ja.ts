@@ -279,6 +279,9 @@ const jaMessages = {
     runFailed: "実行失敗: {error}",
     toggleFailed: "切替失敗: {error}",
     deleteFailed: "削除失敗: {error}",
+    detailsToggle: "詳細を表示",
+    promptLabel: "プロンプト",
+    roleLabel: "ロール",
   },
   pluginCanvas: {
     undo: "元に戻す",
@@ -621,6 +624,7 @@ const jaMessages = {
   },
   app: {
     startConversation: "会話を開始してください",
+    thinking: "考え中…",
   },
   suggestionsPanel: {
     suggestions: "候補",
