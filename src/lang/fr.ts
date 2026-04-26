@@ -206,120 +206,6 @@ const frMessages = {
     pdfPreview: "Aperçu PDF",
     parseError: "erreur d'analyse",
   },
-  systemFiles: {
-    showDetails: "Détails",
-    hideDetails: "Masquer",
-    schemaLabel: "Schéma",
-    editPolicy: {
-      "agent-managed-but-hand-editable": "Géré par l'agent (modifiable à la main)",
-      "user-editable": "Modifiable par l'utilisateur",
-      "agent-managed": "Géré par l'agent",
-      "fragile-format": "Format fragile",
-      ephemeral: "État runtime — ne pas modifier",
-    },
-    interests: {
-      title: "Profil de filtrage des notifications d'actualités",
-      summary:
-        "Note les articles pour la cloche de notifications. L'agent met à jour ce fichier lorsque vous mentionnez des centres d'intérêt en chat ; vous pouvez aussi le modifier à la main. Validation souple : les entrées mal formées sont ignorées en silence.",
-    },
-    mcp: {
-      title: "Registre des serveurs MCP",
-      summary:
-        "Serveurs MCP externes exposés à l'agent. Modifiable depuis Paramètres → MCP, ou directement dans le JSON. Les serveurs stdio s'exécutent dans le sandbox ; les chemins doivent être relatifs au workspace lorsque Docker est activé.",
-    },
-    settings: {
-      title: "Paramètres de l'app",
-      summary:
-        "Configuration de l'app au niveau du workspace, rechargée à chaque invocation de l'agent. Contient actuellement les entrées extra-allowed-tools (par ex. les préfixes MCP intégrés de Claude Code).",
-    },
-    schedulerTasks: {
-      title: "Automatisations définies par l'utilisateur",
-      summary:
-        "Tâches planifiées créées par l'agent ou par vous. Édition recommandée via la page Automations ; l'édition JSON directe est aussi prise en charge, mais le fichier est réécrit lorsque l'agent change quelque chose.",
-    },
-    schedulerOverrides: {
-      title: "Surcharges d'ordonnancement par tâche",
-      summary:
-        "Drapeaux manuels disable / snooze appliqués au-dessus des définitions de tasks.json. L'agent met cela à jour quand vous basculez les automatisations depuis l'UI.",
-    },
-    newsReadState: {
-      title: "État de lecture des notifications",
-      summary:
-        "Suit les actualités déjà vues pour que la cloche n'alerte pas à nouveau. Pur état runtime — la suppression est sûre : vous reverrez simplement un cycle de re-notifications.",
-    },
-    schedulerItems: {
-      title: "Événements du calendrier",
-      summary:
-        "Événements affichés dans la vue Calendar. Écrit par l'agent depuis le chat ; l'édition manuelle du JSON fonctionne mais vous perdez vos changements si l'agent réécrit le fichier.",
-    },
-    todosItems: {
-      title: "Kanban Todos",
-      summary:
-        "Tâches affichées dans la page Todos. L'agent lit et écrit ce fichier d'après les instructions du chat ; l'édition manuelle est prise en charge.",
-    },
-    todosColumns: {
-      title: "Colonnes du kanban Todos",
-      summary: "Définitions des colonnes du kanban (id, titre, couleur). Ce fichier vous appartient — éditez librement pour réorganiser le tableau.",
-    },
-    wikiIndex: {
-      title: "Index du wiki",
-      summary:
-        "Sommaire généré automatiquement pour votre wiki. L'agent le reconstruit depuis l'ensemble des pages ; les modifications manuelles sont écrasées au prochain passage de l'index.",
-    },
-    wikiLog: {
-      title: "Journal d'édition du wiki",
-      summary:
-        "Journal append-only des éditions du wiki. L'agent y ajoute des entrées automatiquement. La nouvelle logique dépend de l'ordre chronologique — ne réordonnez ni ne supprimez les anciennes entrées.",
-    },
-    wikiSummary: {
-      title: "Résumé du wiki",
-      summary: "Résumé global des sujets du wiki, généré par IA. L'agent le régénère à la demande.",
-    },
-    wikiSchema: {
-      title: "Définition du schéma du wiki",
-      summary:
-        "Schéma structurel que l'agent utilise pour garder les pages du wiki internement cohérentes. Sensible au format — de petites modifications peuvent désynchroniser l'indexeur.",
-    },
-    memory: {
-      title: "Mémoire à long terme",
-      summary:
-        "Faits durables que l'agent extrait de vos conversations. Modifiable à la main : élaguez les entrées obsolètes ou ajoutez des faits à mémoriser pour l'agent.",
-    },
-    summariesIndex: {
-      title: "Index des résumés",
-      summary:
-        "Index des résumés journaliers et par sujet sous conversations/summaries/. Régénéré par l'indexeur du journal ; les modifications manuelles sont écrasées.",
-    },
-    rolesJson: {
-      title: "Définition de rôle (config)",
-      summary:
-        "Configuration par rôle utilisée par le sélecteur de rôles — nom affiché, icône, modèle par défaut, plugins activés. Ce fichier vous appartient ; modifiez à la main pour personnaliser un rôle.",
-    },
-    rolesMd: {
-      title: "System prompt du rôle",
-      summary:
-        "Le system prompt Markdown envoyé à Claude lorsque vous sélectionnez ce rôle. Modifiez librement — les changements prennent effet à la prochaine exécution du chat.",
-    },
-    sourceFeed: {
-      title: "Inscription de flux source",
-      summary:
-        "Frontmatter Markdown décrivant une source d'actualités / d'articles (URL, slug, catégorie). Ce fichier vous appartient ; le pipeline des sources le lit à chaque exécution.",
-    },
-    sourceState: {
-      title: "État runtime du pipeline des sources",
-      summary:
-        "Comptabilité par source (curseur de dernière collecte, hachages de déduplication, compteurs d'erreurs). État purement runtime — la suppression force une re-collecte, mais reste sûre.",
-    },
-    journalDaily: {
-      title: "Résumé quotidien",
-      summary:
-        "Résumé IA des conversations d'une journée. Le sous-système journal le régénère sur planification ; les modifications manuelles sont perdues au prochain passage.",
-    },
-    journalTopic: {
-      title: "Résumé par sujet",
-      summary: "Résumé IA limité à un sujet sur plusieurs jours. Régénéré par l'indexeur du journal — les modifications manuelles ne survivent pas.",
-    },
-  },
   settingsMcpTab: {
     explanation:
       "Ajoutez des serveurs MCP externes. Les serveurs HTTP fonctionnent dans tous les modes. Les serveurs Stdio utilisent le {npx} / {node} / {tsx} de l'image du sandbox ; lorsque Docker est activé, les chemins doivent se trouver dans l'espace de travail.",
@@ -363,6 +249,59 @@ const frMessages = {
           displayName: "Pensée séquentielle",
           description: "Aide Claude à aborder les problèmes complexes étape par étape.",
         },
+        context7: {
+          displayName: "Context7 (docs de bibliothèques)",
+          description: "Documentation à jour des bibliothèques populaires — au-delà de la date de coupure d'entraînement du modèle.",
+        },
+        deepwiki: {
+          displayName: "DeepWiki (wiki de dépôts GitHub)",
+          description: "Posez des questions sur n'importe quel dépôt GitHub et obtenez une réponse structurée style wiki.",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "Lire et écrire dans votre espace Notion — pages, bases de données et recherche.",
+          field: {
+            apiKey: {
+              label: "Jeton d'intégration Notion",
+              help: "Créez une intégration Notion et copiez l'Internal Integration Secret. Cliquez sur 🔑 pour ouvrir la page des intégrations.",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "Lister les canaux, envoyer des messages et rechercher l'historique de votre espace Slack.",
+          field: {
+            botToken: {
+              label: "Jeton bot",
+              help: "App Slack → OAuth & Permissions → Bot User OAuth Token. Commence par xoxb-.",
+            },
+            teamId: {
+              label: "ID d'équipe / espace de travail",
+              help: "Exécutez team.info ou consultez l'URL de l'espace — du type T01ABC23DEF.",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "Rechercher des lieux, obtenir des itinéraires et consulter les détails d'une position.",
+          field: {
+            apiKey: {
+              label: "Clé d'API Google Maps",
+              help: "Google Cloud Console → APIs & Services → Credentials → Créer une clé d'API. Activez Places + Directions.",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "Météo (Open-Meteo)",
+          description: "Prévisions météo gratuites et conditions actuelles dans le monde entier — sans clé d'API.",
+        },
+      },
+      config: {
+        howToGet: "Comment l'obtenir",
+        install: "Installer",
+        errMissingRequired: "Champs obligatoires manquants : {fields}",
+        requiredMarker: "*",
+        requiredAria: "obligatoire",
       },
     },
   },
@@ -416,19 +355,6 @@ const frMessages = {
     redo: "Rétablir",
     clear: "Effacer",
     styleLabel: "Style :",
-  },
-  pluginPresentForm: {
-    fallbackTitle: "Formulaire",
-    fieldCount: "{count} champ | {count} champs",
-    errorSummary: "Veuillez corriger les erreurs suivantes :",
-    requiredMarker: "*",
-    selectOption: "Sélectionnez une option...",
-    submit: "Envoyer",
-    submitted: "Envoyé",
-    progress: "{filled} / {total} champs obligatoires remplis",
-    charactersCount: "{current} / {max} caractères",
-    charactersCountNoMax: "{current} caractères",
-    noneValue: "(aucun)",
   },
   pluginChart: {
     untitled: "Graphique",

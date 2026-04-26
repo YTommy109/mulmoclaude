@@ -3,44 +3,56 @@ import assert from "node:assert/strict";
 import { MCP_CATALOG, findCatalogEntry } from "../../src/config/mcpCatalog.js";
 import type { McpServerSpec } from "../../src/config/mcpTypes.js";
 
-// Catalog smoke tests for #823 Phase 1. The Settings → MCP tab and
-// the eventual Phase 2 form-driven entries both consume MCP_CATALOG;
-// a typo in a package name or audience tag would silently ship to
-// production unless we pin the data shape here. Codex-cross-review of
-// PR #825 flagged the catalog as untested; these tests close that gap
-// for the metadata side. UI-flow regressions (checkbox toggle →
-// mcp.json round-trip) live in the Vue component test suite.
+// Catalog smoke tests for #823. Phase 1 (#825) shipped the two
+// upstream-pinned entries; Phase 2 (#852) adds 6 community-packaged
+// entries with `configSchema` form-driven setup. The Settings → MCP
+// tab consumes MCP_CATALOG; a typo in a package name or audience
+// tag would silently ship to production unless we pin the data
+// shape here. UI-flow regressions (checkbox toggle → mcp.json
+// round-trip) live in the Vue component test suite.
 
-describe("MCP_CATALOG (Phase 1)", () => {
-  it("ships exactly the two verified, pinned entries", () => {
-    // Phase 1 explicitly excludes Apple-native + screenshot (no
-    // stable community package to pin). If a new entry lands here,
-    // bump the count AND verify the package is published & maintained.
+describe("MCP_CATALOG", () => {
+  it("includes both Phase 1 upstream-pinned entries", () => {
+    // memory and sequential-thinking are the only entries the
+    // upstream Anthropic team owns directly. Any future repackaging
+    // / rename has to land in the catalog deliberately, so freeze
+    // the ids here.
     const ids = MCP_CATALOG.map((entry) => entry.id);
-    assert.deepEqual(ids, ["memory", "sequential-thinking"]);
+    assert.ok(ids.includes("memory"), "memory entry missing");
+    assert.ok(ids.includes("sequential-thinking"), "sequential-thinking entry missing");
   });
 
-  it("every entry uses the pinned `@modelcontextprotocol/*` namespace", () => {
-    // Guards against a regression where a community package gets
-    // re-introduced without proper verification. If a non-`@modelcontextprotocol`
-    // package needs to land, update this test alongside the catalog
-    // and document the verification (last commit, downloads).
+  it("Phase 1 entries (`memory` / `sequential-thinking`) stay pinned to the @modelcontextprotocol/* namespace", () => {
+    // Phase 2 adds community packages on purpose, so the namespace
+    // pin only applies to the two upstream-owned entries — but it
+    // must apply *strictly* to those: a regression that swaps
+    // `@modelcontextprotocol/server-memory` for a community fork
+    // would silently ship a different supply-chain dependency.
+    const PHASE_1_IDS = new Set(["memory", "sequential-thinking"]);
     for (const entry of MCP_CATALOG) {
-      assert.equal(entry.spec.type, "stdio", `entry ${entry.id} must be stdio in Phase 1`);
+      if (!PHASE_1_IDS.has(entry.id)) continue;
+      assert.equal(entry.spec.type, "stdio", `phase-1 entry ${entry.id} must be stdio`);
       if (entry.spec.type === "stdio") {
-        assert.equal(entry.spec.command, "npx", `entry ${entry.id} must spawn via npx`);
+        assert.equal(entry.spec.command, "npx", `phase-1 entry ${entry.id} must spawn via npx`);
         const pkg = entry.spec.args?.find((arg) => arg.startsWith("@modelcontextprotocol/"));
-        assert.ok(pkg, `entry ${entry.id} must reference @modelcontextprotocol/* package`);
+        assert.ok(pkg, `phase-1 entry ${entry.id} must reference @modelcontextprotocol/* package`);
       }
     }
   });
 
-  it("every entry has a non-empty configSchema array (Phase 1 is config-free)", () => {
-    // Phase 1 contract: configSchema = []. Phase 2 grows the array;
-    // until then any non-empty schema means a half-implemented entry
-    // slipped in.
+  it("every entry has a runnable spec (stdio with command+args, or http with url)", () => {
+    // Replaces the Phase-1-only "configSchema must be empty" check.
+    // Phase 2 entries can carry configSchema, but the spec template
+    // must always be invocable on its own (or with field
+    // interpolation) — empty command / url here would ship a dead
+    // checkbox.
     for (const entry of MCP_CATALOG) {
-      assert.deepEqual(entry.configSchema, [], `entry ${entry.id} must have empty configSchema in Phase 1`);
+      if (entry.spec.type === "stdio") {
+        assert.ok(entry.spec.command && entry.spec.command.length > 0, `entry ${entry.id} stdio command must be non-empty`);
+        assert.ok(Array.isArray(entry.spec.args) && entry.spec.args.length > 0, `entry ${entry.id} stdio args must be non-empty`);
+      } else {
+        assert.ok(entry.spec.url && entry.spec.url.length > 0, `entry ${entry.id} http url must be non-empty`);
+      }
     }
   });
 
@@ -53,18 +65,48 @@ describe("MCP_CATALOG (Phase 1)", () => {
     }
   });
 
-  it("every entry has a populated upstreamUrl pointing at github.com or npmjs.com", () => {
+  it("every entry has a populated upstreamUrl over https", () => {
     // The Settings UI links this so a curious user can read the
-    // package's README before flipping the toggle. An empty / broken
-    // URL would deadlink the install row.
+    // package's README before flipping the toggle. An empty URL
+    // would deadlink the install row. Phase 2 introduces non-
+    // github.com / non-npmjs domains (e.g. provider docs sites
+    // like docs.devin.ai, open-meteo.com), so the check is just
+    // "is it https" rather than a domain allow-list.
     for (const entry of MCP_CATALOG) {
-      assert.match(entry.upstreamUrl, /^https:\/\/(github\.com|www\.npmjs\.com)\//, `entry ${entry.id} upstreamUrl must point at GitHub or npmjs`);
+      assert.match(entry.upstreamUrl, /^https:\/\/.+/, `entry ${entry.id} upstreamUrl must be a https:// URL`);
     }
   });
 
   it("ids are unique (no two entries collide in the install map)", () => {
     const ids = MCP_CATALOG.map((entry) => entry.id);
     assert.equal(new Set(ids).size, ids.length, "duplicate id in MCP_CATALOG");
+  });
+
+  it("configSchema fields use i18n keys for label, and helpText when present", () => {
+    // Phase 2 contract: every form-field's user-visible string must
+    // route through vue-i18n. A regression that hardcoded English
+    // copy here would ship un-translatable strings in Settings.
+    for (const entry of MCP_CATALOG) {
+      for (const field of entry.configSchema) {
+        assert.match(field.label, /^settingsMcpTab\.catalog\.entry\..+\.field\..+\.label$/, `entry ${entry.id} field ${field.key} label must be an i18n key`);
+        if (field.helpText !== undefined) {
+          assert.match(
+            field.helpText,
+            /^settingsMcpTab\.catalog\.entry\..+\.field\..+\.help$/,
+            `entry ${entry.id} field ${field.key} helpText must be an i18n key`,
+          );
+        }
+      }
+    }
+  });
+
+  it("configSchema field keys are unique within an entry", () => {
+    // Two fields with the same key would silently overwrite each
+    // other when interpolating into the spec template.
+    for (const entry of MCP_CATALOG) {
+      const keys = entry.configSchema.map((field) => field.key);
+      assert.equal(new Set(keys).size, keys.length, `entry ${entry.id} has duplicate field keys`);
+    }
   });
 
   // Type-level mirror check between src/config/mcpTypes.ts and the
