@@ -273,8 +273,10 @@ export function createCommandHandler(opts: {
         return handleRole(transportId, chatState, args[0]);
       case "/status":
         return handleStatus(chatState);
-      default:
+      case "/":
         return { reply: `Unknown command: ${command}\n\n${getHelpText()}` };
+      default:
+        return null;
     }
   };
 
