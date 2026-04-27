@@ -31,9 +31,25 @@ async function refresh(): Promise<void> {
       if (result.ok && Array.isArray(result.data.skills)) {
         skills.value = result.data.skills;
         error.value = null;
-      } else if (!result.ok) {
-        error.value = result.error || "Failed to load skills";
+        return;
       }
+      // Both branches below leave `skills` untouched (stale list
+      // is preferable to wiping it on transient blips) but we
+      // surface the failure on `error` AND log it so it's
+      // visible in DevTools — the prior version was silent on
+      // the non-ok path, which made "skills tab won't refresh"
+      // hard to diagnose without breakpoints.
+      const message = !result.ok ? result.error || "Failed to load skills" : "Skills response missing `skills` array";
+      error.value = message;
+      console.warn("[useSkillsList] refresh failed:", message);
+    } catch (err) {
+      // apiGet normally returns a discriminated union, but a
+      // runtime exception (network layer, unexpected await
+      // failure) must not become an unhandled rejection that the
+      // bootstrap caller (`void refresh()`) drops on the floor.
+      const message = err instanceof Error ? err.message : String(err);
+      error.value = message;
+      console.warn("[useSkillsList] refresh threw:", err);
     } finally {
       inflight = null;
     }
