@@ -109,9 +109,15 @@ app.use(requireSameOrigin);
 //
 // /api/files/* is exempt because <img src="/api/files/raw?path=...">
 // tags in rendered markdown can't attach Authorization headers.
-// The CSRF origin check + loopback-only binding still apply.
+// /api/mulmo-script/download-movie is exempt for the same reason —
+// the presentMulmoScript canvas surfaces the rendered movie via an
+// `<a href download>`, and a plain anchor click can't attach a
+// bearer header. The route still validates moviePath through
+// resolveStoryPath (realpath confinement to the stories directory),
+// and the CSRF origin check + loopback-only binding still apply.
 app.use("/api", (req, res, next) => {
   if (req.path.startsWith("/files/")) return next();
+  if (req.path === "/mulmo-script/download-movie") return next();
   bearerAuth(req, res, next);
 });
 
