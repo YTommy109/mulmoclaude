@@ -666,21 +666,6 @@ async function applySource() {
     return;
   }
 
-  // Snapshot the per-beat visual source BEFORE we re-initialize so we
-  // can identify which beats had their image / imagePrompt change in
-  // the source edit. initializeScript() prefers the on-disk PNG by
-  // default; for these changed beats that PNG is now stale, so we
-  // mark them invalidated and force a fresh render.
-  const oldImageSources = beats.value.map((beat, i) => beatImageSource(localOverrides[i] ?? beat));
-  const newBeats = (parsed.beats ?? []) as Beat[];
-  const invalidatedImageIndices = new Set<number>();
-  newBeats.forEach((newBeat, i) => {
-    if (i >= oldImageSources.length) return;
-    if (oldImageSources[i] !== beatImageSource(newBeat)) {
-      invalidatedImageIndices.add(i);
-    }
-  });
-
   // Update the UI with the new script.
   // Note: the parent's handleUpdateResult uses Object.assign (in-place
   // mutation), so the watcher on props.selectedResult won't fire.
@@ -692,15 +677,7 @@ async function applySource() {
   });
 
   if (sourceDetails.value) sourceDetails.value.open = false;
-  await initializeScript({ invalidatedImageIndices });
-}
-
-// Stable string key over the visual-source fields of a beat — `image`
-// (deterministic types) and `imagePrompt` (AI-generated). Used by
-// applySource to diff old vs new beats so a stale on-disk PNG doesn't
-// linger after a source edit.
-function beatImageSource(beat: Beat): string {
-  return JSON.stringify({ image: beat.image, imagePrompt: beat.imagePrompt });
+  await initializeScript();
 }
 
 async function copyText() {
@@ -1014,40 +991,7 @@ async function generateAllCharacters() {
   await Promise.all(characterKeys.value.filter((key) => charRenderState[key] !== "rendering").map((key) => renderCharacter(key, false)));
 }
 
-// Mount-time policy: prefer the cached PNG on disk over re-rendering.
-// Deterministic beat types (textSlide/markdown/chart/mermaid/html_tailwind)
-// are cheap to render but not free — every renderBeat round-trips,
-// flips renderState to "rendering", and emits publishGeneration
-// start/finish events that flicker the global busy indicator. So if
-// the image already exists (e.g. after a movie generation, or a
-// previous mount of the same result), we just load it. Only fall
-// through to renderBeat when the disk has nothing yet AND the type is
-// safe to auto-render (deterministic content, no characters waiting).
-//
-// `forceRefresh` skips the disk-load branch entirely — used by
-// applySource() so beats whose visual source changed in the source
-// edit get a fresh render instead of the now-stale cached PNG.
-async function hydrateBeatImage(beat: Beat, index: number, hasCharacters: boolean, autoRenderTypes: readonly string[], forceRefresh: boolean): Promise<void> {
-  if (!forceRefresh) {
-    await loadExistingBeatImage(index);
-    if (renderedImages[index]) return;
-  }
-  if (shouldAutoRenderBeat(beat, hasCharacters, autoRenderTypes)) {
-    await renderBeat(index);
-  }
-}
-
-interface InitializeScriptOptions {
-  /**
-   * Beat indices whose visual source changed since the last mount.
-   * Used by applySource() to invalidate stale on-disk PNGs after a
-   * source edit; mount-time callers leave this empty and rely on the
-   * disk cache.
-   */
-  invalidatedImageIndices?: ReadonlySet<number>;
-}
-
-async function initializeScript(opts: InitializeScriptOptions = {}) {
+async function initializeScript() {
   // Reset scroll position so new results start at the top
   if (beatListEl.value) beatListEl.value.scrollTop = 0;
   // Reset per-script state
@@ -1069,11 +1013,26 @@ async function initializeScript(opts: InitializeScriptOptions = {}) {
   moviePath.value = null;
   if (sourceDetails.value) sourceDetails.value.open = false;
 
+  // Mount-time policy: deterministic beat types
+  // (textSlide/markdown/chart/mermaid/html_tailwind) re-render every
+  // mount so a script edit always reflects the current source — the
+  // cached PNG on disk could be stale, and tracking every invalidation
+  // path (applySource, hasCharacters flips, beat additions) added more
+  // complexity than the brief mount-time spinner saves. mulmocast
+  // hashes by content server-side, so unchanged beats short-circuit
+  // without doing real work.
+  //
+  // imagePrompt beats stay on the load-existing path because their
+  // re-render is a paid AI call — users explicitly trigger refresh via
+  // the per-beat ↺. Same for audio (paid TTS).
   const AUTO_RENDER_TYPES = ["textSlide", "markdown", "chart", "mermaid", "html_tailwind"] as const;
   const hasCharacters = characterKeys.value.length > 0;
-  const invalidated = opts.invalidatedImageIndices;
   beats.value.forEach((beat, index) => {
-    void hydrateBeatImage(beat, index, hasCharacters, AUTO_RENDER_TYPES, invalidated?.has(index) ?? false);
+    if (shouldAutoRenderBeat(beat, hasCharacters, AUTO_RENDER_TYPES)) {
+      renderBeat(index);
+    } else if (beat.imagePrompt) {
+      loadExistingBeatImage(index);
+    }
     if (beat.text) loadExistingBeatAudio(index);
   });
 
@@ -1094,13 +1053,8 @@ async function initializeScript(opts: InitializeScriptOptions = {}) {
   }
 }
 
-onMounted(() => initializeScript());
-// Wrap in arrow so Vue's (newVal, oldVal) watcher args don't collide
-// with the new `InitializeScriptOptions` parameter signature.
-watch(
-  () => props.selectedResult,
-  () => initializeScript(),
-);
+onMounted(initializeScript);
+watch(() => props.selectedResult, initializeScript);
 
 // Keep the view in sync with generations that started from a different
 // view mount or a parallel tab. When a generation for this script
