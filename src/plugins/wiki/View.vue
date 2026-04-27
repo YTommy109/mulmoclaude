@@ -212,7 +212,7 @@ import { renderWikiLinks } from "./helpers";
 import PageChatComposer from "../../components/PageChatComposer.vue";
 import { BUILTIN_ROLE_IDS } from "../../config/roles";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
-import { extractFrontmatter } from "../../utils/format/frontmatter";
+import { parseFrontmatter } from "../../utils/markdown/frontmatter";
 import { findTaskLines, makeTasksInteractive, toggleTaskAt } from "../../utils/markdown/taskList";
 import { apiPost } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
@@ -413,7 +413,7 @@ const renderedContent = computed(() => {
   // Strip YAML frontmatter before rendering — marked doesn't parse
   // it, so the `---` fences turn into <hr>s and the inner keys
   // render as plain text (title / created / updated / tags / source).
-  const body = extractFrontmatter(content.value).body;
+  const body = parseFrontmatter(content.value).body;
   if (!body) return "";
   // Rewrite workspace-relative image refs (`![alt](images/foo.png)`)
   // to `/api/files/raw?path=...` BEFORE marked parses them — without
@@ -583,8 +583,8 @@ async function persistWikiPage(pageName: string, newContent: string, generation:
 // `prefix + body` round-trips byte-for-byte regardless of
 // frontmatter shape — the body length is always exact.
 function splitFrontmatter(): { prefix: string; body: string } {
-  const frontmatter = extractFrontmatter(content.value);
-  const body = frontmatter.body;
+  const parsed = parseFrontmatter(content.value);
+  const body = parsed.body;
   const prefix = content.value.slice(0, content.value.length - body.length);
   return { prefix, body };
 }
