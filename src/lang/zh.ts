@@ -860,6 +860,11 @@ const zhMessages = {
   },
   suggestionsPanel: {
     suggestions: "建议",
+    skills: "技能",
+    tooltip: "建议和技能",
+    emptySuggestions: "没有建议。",
+    emptySkills: "未安装任何技能。",
+    skillsError: "加载技能失败：{error}",
     sendEditHint: "点击发送 · shift+点击可编辑",
   },
   settingsToolsTab: {

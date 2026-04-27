@@ -889,6 +889,11 @@ const enMessages = {
   },
   suggestionsPanel: {
     suggestions: "Suggestions",
+    skills: "Skills",
+    tooltip: "Suggestions and Skills",
+    emptySuggestions: "No suggestions.",
+    emptySkills: "No skills installed.",
+    skillsError: "Failed to load skills: {error}",
     sendEditHint: "click to send · shift+click to edit",
   },
   settingsToolsTab: {

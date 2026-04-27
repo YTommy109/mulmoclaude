@@ -864,6 +864,11 @@ const jaMessages = {
   },
   suggestionsPanel: {
     suggestions: "候補",
+    skills: "スキル",
+    tooltip: "候補とスキル",
+    emptySuggestions: "候補はありません。",
+    emptySkills: "スキルがインストールされていません。",
+    skillsError: "スキルの読み込みに失敗しました: {error}",
     sendEditHint: "クリックで送信 · Shift+クリックで編集",
   },
   settingsToolsTab: {
