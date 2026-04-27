@@ -41,8 +41,8 @@
             data-testid="suggestions-btn"
             class="rounded w-8 h-8 flex items-center justify-center"
             :class="suggestionsExpanded ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:text-gray-600'"
-            :title="t('suggestionsPanel.suggestions')"
-            :aria-label="t('suggestionsPanel.suggestions')"
+            :title="t('suggestionsPanel.tooltip')"
+            :aria-label="t('suggestionsPanel.tooltip')"
             @click="suggestionsExpanded = !suggestionsExpanded"
           >
             <span class="material-icons text-base leading-none">lightbulb</span>

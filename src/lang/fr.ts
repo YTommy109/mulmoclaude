@@ -866,6 +866,7 @@ const frMessages = {
   suggestionsPanel: {
     suggestions: "Suggestions",
     skills: "Compétences",
+    tooltip: "Suggestions et compétences",
     emptySuggestions: "Aucune suggestion.",
     emptySkills: "Aucune compétence installée.",
     sendEditHint: "cliquez pour envoyer · shift+clic pour modifier",
