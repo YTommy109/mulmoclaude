@@ -86,6 +86,7 @@ const enMessages = {
     settingsGeminiMissing: "Settings — Gemini API key missing",
     todayJournal: "Today's journal",
     todayJournalNotFound: "No journal summary yet — chat for a while and the journal will generate one.",
+    todayJournalLoadFailed: "Failed to load journal (status {status}): {error}",
   },
   rightSidebar: {
     toggleSystemPrompt: "Toggle system prompt",

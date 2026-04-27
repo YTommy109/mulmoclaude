@@ -64,6 +64,7 @@ const frMessages = {
     settingsGeminiMissing: "Paramètres — Clé API Gemini manquante",
     todayJournal: "Résumé du jour",
     todayJournalNotFound: "Pas encore de résumé — discutez un peu et le journal en générera un.",
+    todayJournalLoadFailed: "Échec du chargement du journal (status {status}) : {error}",
   },
   rightSidebar: {
     toggleSystemPrompt: "Basculer le system prompt",

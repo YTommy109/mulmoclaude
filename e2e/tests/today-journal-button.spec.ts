@@ -55,8 +55,40 @@ test.describe("today-journal-btn — top bar shortcut", () => {
     await page.getByTestId("today-journal-btn").click();
 
     await expect.poll(() => alertMessage).not.toBeNull();
+    // Empty-state copy should mention the empty state, not a status
+    // code — that's how the user can tell "no journal yet" from a
+    // real failure.
     expect(alertMessage).toMatch(/journal/i);
+    expect(alertMessage).not.toMatch(/status \d/i);
     // Must NOT have navigated.
+    expect(page.url()).toBe(startUrl);
+  });
+
+  test("shows a load-failed alert when latest-daily returns 500", async ({ page }) => {
+    // Codex iter 1 finding: a real backend / auth / network failure
+    // must not be silently misreported as "no journal yet". Confirm
+    // the error path surfaces a status code (so the user can tell
+    // the two states apart) and does not navigate.
+    await mockAllApis(page);
+    await page.route(
+      (url) => url.pathname === "/api/journal/latest-daily",
+      (route) => route.fulfill({ status: 500, body: "boom" }),
+    );
+
+    let alertMessage: string | null = null;
+    page.on("dialog", async (dialog) => {
+      alertMessage = dialog.message();
+      await dialog.dismiss();
+    });
+
+    await page.goto("/chat");
+    const startUrl = page.url();
+    await page.getByTestId("today-journal-btn").click();
+
+    await expect.poll(() => alertMessage).not.toBeNull();
+    // Status code surfaced so the user can distinguish from the
+    // legitimate "no journal yet" state.
+    expect(alertMessage).toMatch(/500/);
     expect(page.url()).toBe(startUrl);
   });
 });

@@ -71,6 +71,7 @@ const jaMessages = {
     settingsGeminiMissing: "設定 — Gemini API キー未設定",
     todayJournal: "今日のまとめ",
     todayJournalNotFound: "まだまとめがありません — しばらく会話するとjournalが生成します。",
+    todayJournalLoadFailed: "journal の読み込みに失敗しました (status {status}): {error}",
   },
   rightSidebar: {
     toggleSystemPrompt: "システムプロンプトの表示切替",
