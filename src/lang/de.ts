@@ -291,6 +291,37 @@ const deMessages = {
           displayName: "Native Apple-Apps (macOS)",
           description: "Liest und schreibt Erinnerungen, Kalender, Notizen, Mail und Karten via AppleScript. Nur macOS — keine Zugangsdaten nötig.",
         },
+        gmail: {
+          displayName: "Gmail",
+          description:
+            "Liest, sendet und beschriftet dein Gmail. Nutzt einen Google-OAuth-Client, den du selbst in deinem eigenen Google-Cloud-Projekt erstellst (keine App-Verifizierung nötig).",
+          field: {
+            credentials: {
+              label: "Pfad zu credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth-Client-ID (Desktop app). Lade credentials.json herunter und füge den absoluten Pfad ein.",
+            },
+          },
+        },
+        googleCalendar: {
+          displayName: "Google Kalender",
+          description: "Liest und erstellt Termine im Google Kalender. Gleiches BYO-credentials.json-Muster wie Gmail.",
+          field: {
+            credentials: {
+              label: "Pfad zu credentials.json",
+              help: "Verwende denselben Google-Cloud-OAuth-Client wie Gmail, oder erstelle einen separaten nur für Calendar.",
+            },
+          },
+        },
+        googleDrive: {
+          displayName: "Google Drive",
+          description: "Sucht und liest Google-Drive-Dateien. BYO Google-OAuth-Zugangsdaten — Token wird lokal neben der Datei zwischengespeichert.",
+          field: {
+            credentials: {
+              label: "Pfad zu credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth-Client-ID (Desktop app). Aktiviere die Google-Drive-API im selben Projekt.",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "Wetter (Open-Meteo)",
           description: "Kostenlose Wettervorhersagen und aktuelle Bedingungen weltweit — ohne API-Key.",

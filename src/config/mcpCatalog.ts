@@ -284,6 +284,115 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     riskLevel: "medium",
   },
 
+  // Gmail read / send / label via a community MCP server. BYO OAuth
+  // credentials: the user creates an OAuth client in their own Google
+  // Cloud project, downloads `credentials.json`, and points the entry
+  // at it. Avoids the verified-app / CASA-audit cost — see plan
+  // `plans/feat-mcp-catalog-community-expansion.md`.
+  //
+  // TODO(reviewer): pin the most-active Gmail MCP — as of 2026-04
+  // `@gongrzhe/server-gmail-autoauth-mcp` is widely used; alternatives
+  // include `mcp-gmail` and Smithery-hosted variants.
+  {
+    id: "gmail",
+    displayName: "settingsMcpTab.catalog.entry.gmail.displayName",
+    description: "settingsMcpTab.catalog.entry.gmail.description",
+    audience: "general",
+    upstreamUrl: "https://github.com/GongRzhe/Gmail-MCP-Server",
+    setupGuideUrl: "https://developers.google.com/workspace/guides/create-credentials#desktop-app",
+    spec: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@gongrzhe/server-gmail-autoauth-mcp"],
+      env: {
+        GMAIL_OAUTH_PATH: "${GMAIL_OAUTH_PATH}",
+      },
+    },
+    configSchema: [
+      {
+        key: "GMAIL_OAUTH_PATH",
+        label: "settingsMcpTab.catalog.entry.gmail.field.credentials.label",
+        kind: "path",
+        placeholder: "~/.gmail-mcp/credentials.json",
+        required: true,
+        helpUrl: "https://console.cloud.google.com/apis/credentials",
+        helpText: "settingsMcpTab.catalog.entry.gmail.field.credentials.help",
+      },
+    ],
+    // Full mailbox access if the OAuth scope is broad — high.
+    riskLevel: "high",
+  },
+
+  // Google Calendar via a community MCP server. Same BYO-credentials
+  // pattern as Gmail above.
+  //
+  // TODO(reviewer): pin the most-active GCal MCP — as of 2026-04
+  // `@cocal/google-calendar-mcp` is a candidate.
+  {
+    id: "google-calendar",
+    displayName: "settingsMcpTab.catalog.entry.googleCalendar.displayName",
+    description: "settingsMcpTab.catalog.entry.googleCalendar.description",
+    audience: "general",
+    upstreamUrl: "https://github.com/nspady/google-calendar-mcp",
+    setupGuideUrl: "https://developers.google.com/workspace/guides/create-credentials#desktop-app",
+    spec: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@cocal/google-calendar-mcp"],
+      env: {
+        GOOGLE_OAUTH_CREDENTIALS: "${GOOGLE_OAUTH_CREDENTIALS}",
+      },
+    },
+    configSchema: [
+      {
+        key: "GOOGLE_OAUTH_CREDENTIALS",
+        label: "settingsMcpTab.catalog.entry.googleCalendar.field.credentials.label",
+        kind: "path",
+        placeholder: "~/.gcal-mcp/credentials.json",
+        required: true,
+        helpUrl: "https://console.cloud.google.com/apis/credentials",
+        helpText: "settingsMcpTab.catalog.entry.googleCalendar.field.credentials.help",
+      },
+    ],
+    riskLevel: "medium",
+  },
+
+  // Google Drive via the official-style MCP server. Token-cached
+  // OAuth — the package writes a refresh token next to the
+  // credentials file on first auth.
+  //
+  // TODO(reviewer): the upstream `@modelcontextprotocol/server-gdrive`
+  // was archived; double-check whether to point at the maintained
+  // fork or another community package.
+  {
+    id: "google-drive",
+    displayName: "settingsMcpTab.catalog.entry.googleDrive.displayName",
+    description: "settingsMcpTab.catalog.entry.googleDrive.description",
+    audience: "general",
+    upstreamUrl: "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/gdrive",
+    setupGuideUrl: "https://developers.google.com/workspace/guides/create-credentials#desktop-app",
+    spec: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@modelcontextprotocol/server-gdrive"],
+      env: {
+        GDRIVE_CREDENTIALS_PATH: "${GDRIVE_CREDENTIALS_PATH}",
+      },
+    },
+    configSchema: [
+      {
+        key: "GDRIVE_CREDENTIALS_PATH",
+        label: "settingsMcpTab.catalog.entry.googleDrive.field.credentials.label",
+        kind: "path",
+        placeholder: "~/.gdrive-mcp/credentials.json",
+        required: true,
+        helpUrl: "https://console.cloud.google.com/apis/credentials",
+        helpText: "settingsMcpTab.catalog.entry.googleDrive.field.credentials.help",
+      },
+    ],
+    riskLevel: "medium",
+  },
+
   // TODO(reviewer): pick the most-active community package — as of
   // 2026-04 candidates include `mcp-server-open-meteo` and
   // `@cloud-rocket/mcp-server-open-meteo`.
