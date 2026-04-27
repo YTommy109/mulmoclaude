@@ -311,6 +311,36 @@ const enMessages = {
           displayName: "Apple Native Apps (macOS)",
           description: "Read and write Reminders, Calendar, Notes, Mail and Maps via AppleScript. macOS only — no credentials needed.",
         },
+        gmail: {
+          displayName: "Gmail",
+          description: "Read, send, and label your Gmail. Uses a Google OAuth client you create in your own Google Cloud project (no app verification needed).",
+          field: {
+            credentials: {
+              label: "Path to credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth client ID (Desktop app). Download credentials.json and paste its absolute path.",
+            },
+          },
+        },
+        googleCalendar: {
+          displayName: "Google Calendar",
+          description: "Read and create Google Calendar events. Same BYO Google OAuth credentials.json pattern as Gmail.",
+          field: {
+            credentials: {
+              label: "Path to credentials.json",
+              help: "Same Google Cloud OAuth client as Gmail. Reuse the file or create a separate Calendar-scoped one.",
+            },
+          },
+        },
+        googleDrive: {
+          displayName: "Google Drive",
+          description: "Search and read Google Drive files. BYO Google OAuth credentials — token is cached locally next to the file.",
+          field: {
+            credentials: {
+              label: "Path to credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth client ID (Desktop app). Enable the Google Drive API in the same project.",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "Weather (Open-Meteo)",
           description: "Free weather forecasts and current conditions worldwide — no API key needed.",

@@ -291,6 +291,36 @@ const zhMessages = {
           displayName: "Apple 原生应用（macOS）",
           description: "通过 AppleScript 读写 提醒事项 / 日历 / 备忘录 / 邮件 / 地图。仅限 macOS — 无需凭证。",
         },
+        gmail: {
+          displayName: "Gmail",
+          description: "读取、发送和标记 Gmail 邮件。使用您自己 Google Cloud 项目中创建的 OAuth 客户端（无需应用审核）。",
+          field: {
+            credentials: {
+              label: "credentials.json 路径",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth 客户端 ID（Desktop app）。下载 credentials.json 并粘贴其绝对路径。",
+            },
+          },
+        },
+        googleCalendar: {
+          displayName: "Google 日历",
+          description: "读取和创建 Google 日历事件。与 Gmail 相同的 BYO credentials.json 模式。",
+          field: {
+            credentials: {
+              label: "credentials.json 路径",
+              help: "可复用与 Gmail 相同的 Google Cloud OAuth 客户端，或单独创建一个仅供 Calendar 使用的客户端。",
+            },
+          },
+        },
+        googleDrive: {
+          displayName: "Google 云端硬盘",
+          description: "搜索和读取 Google 云端硬盘文件。BYO Google OAuth 凭证 — 令牌缓存在本地凭证文件旁。",
+          field: {
+            credentials: {
+              label: "credentials.json 路径",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth 客户端 ID（Desktop app）。在同一项目中启用 Google Drive API。",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "天气（Open-Meteo）",
           description: "全球免费天气预报和当前气象 — 无需 API 密钥。",

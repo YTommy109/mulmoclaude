@@ -291,6 +291,37 @@ const frMessages = {
           displayName: "Apps natives Apple (macOS)",
           description: "Lit et écrit Rappels, Calendrier, Notes, Mail et Plans via AppleScript. macOS uniquement — sans identifiants.",
         },
+        gmail: {
+          displayName: "Gmail",
+          description:
+            "Lit, envoie et étiquette votre Gmail. Utilise un client OAuth Google que vous créez dans votre propre projet Google Cloud (sans vérification d'app).",
+          field: {
+            credentials: {
+              label: "Chemin vers credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → ID client OAuth (Desktop app). Téléchargez credentials.json et collez son chemin absolu.",
+            },
+          },
+        },
+        googleCalendar: {
+          displayName: "Google Agenda",
+          description: "Lit et crée des événements Google Agenda. Même modèle BYO credentials.json que Gmail.",
+          field: {
+            credentials: {
+              label: "Chemin vers credentials.json",
+              help: "Réutilisez le même client OAuth Google Cloud que Gmail, ou créez-en un séparé pour le Calendar.",
+            },
+          },
+        },
+        googleDrive: {
+          displayName: "Google Drive",
+          description: "Recherche et lit les fichiers Google Drive. BYO identifiants OAuth Google — le jeton est mis en cache localement à côté du fichier.",
+          field: {
+            credentials: {
+              label: "Chemin vers credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → ID client OAuth (Desktop app). Activez l'API Google Drive dans le même projet.",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "Météo (Open-Meteo)",
           description: "Prévisions météo gratuites et conditions actuelles dans le monde entier — sans clé d'API.",

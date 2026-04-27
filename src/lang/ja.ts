@@ -294,6 +294,36 @@ const jaMessages = {
           displayName: "Apple ネイティブアプリ（macOS）",
           description: "AppleScript 経由で リマインダー / カレンダー / メモ / メール / マップ を読み書き。macOS 限定 — 認証情報不要。",
         },
+        gmail: {
+          displayName: "Gmail",
+          description: "Gmail の読み取り・送信・ラベル付け。自身の Google Cloud プロジェクトで OAuth クライアントを発行して利用（アプリ審査不要）。",
+          field: {
+            credentials: {
+              label: "credentials.json のパス",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth クライアント ID（Desktop app）。credentials.json をダウンロードして絶対パスを貼ってください。",
+            },
+          },
+        },
+        googleCalendar: {
+          displayName: "Google カレンダー",
+          description: "Google カレンダーの読み取り・予定作成。Gmail と同じ BYO 方式の credentials.json を使います。",
+          field: {
+            credentials: {
+              label: "credentials.json のパス",
+              help: "Gmail と同じ Google Cloud OAuth クライアントを使い回すか、Calendar 専用に別途作成してください。",
+            },
+          },
+        },
+        googleDrive: {
+          displayName: "Google ドライブ",
+          description: "Google ドライブのファイル検索・読み取り。BYO Google OAuth credentials を使い、リフレッシュトークンはローカルに保存されます。",
+          field: {
+            credentials: {
+              label: "credentials.json のパス",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth クライアント ID（Desktop app）。同じプロジェクトで Google Drive API を有効化してください。",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "天気予報（Open-Meteo）",
           description: "世界各地の天気予報と現在の気象情報 — API キー不要で無料利用可能。",

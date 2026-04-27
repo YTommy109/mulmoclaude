@@ -290,6 +290,37 @@ const ptBRMessages = {
           displayName: "Apps nativos da Apple (macOS)",
           description: "Lê e escreve em Lembretes, Calendário, Notas, Mail e Mapas via AppleScript. Apenas macOS — sem credenciais.",
         },
+        gmail: {
+          displayName: "Gmail",
+          description:
+            "Lê, envia e etiqueta seu Gmail. Usa um cliente OAuth do Google criado por você no seu próprio projeto do Google Cloud (sem verificação de app).",
+          field: {
+            credentials: {
+              label: "Caminho para credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → ID do cliente OAuth (Desktop app). Baixe credentials.json e cole o caminho absoluto.",
+            },
+          },
+        },
+        googleCalendar: {
+          displayName: "Google Agenda",
+          description: "Lê e cria eventos no Google Agenda. Mesmo padrão BYO credentials.json do Gmail.",
+          field: {
+            credentials: {
+              label: "Caminho para credentials.json",
+              help: "Reutilize o mesmo cliente OAuth do Google Cloud usado no Gmail, ou crie um separado para o Calendar.",
+            },
+          },
+        },
+        googleDrive: {
+          displayName: "Google Drive",
+          description: "Pesquisa e lê arquivos do Google Drive. BYO credenciais OAuth do Google — o token é armazenado localmente ao lado do arquivo.",
+          field: {
+            credentials: {
+              label: "Caminho para credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → ID do cliente OAuth (Desktop app). Habilite a API do Google Drive no mesmo projeto.",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "Clima (Open-Meteo)",
           description: "Previsão do tempo gratuita e condições atuais no mundo todo — sem chave de API.",
