@@ -15,30 +15,30 @@
           <span v-if="filePath" class="truncate">{{ filePath }}</span>
         </div>
       </div>
-      <div class="ml-4 shrink-0 flex gap-2">
+      <div class="ml-4 shrink-0 flex items-center gap-2">
         <!-- Download Movie -->
         <a
           v-if="moviePath && !movieGenerating"
           :href="`${downloadMovieBase}?moviePath=${encodeURIComponent(moviePath)}`"
           download
-          class="px-3 py-1 text-xs rounded-full border transition-colors border-gray-200 text-gray-500 hover:bg-gray-50 flex items-center justify-center gap-1"
+          class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
         >
-          <span class="material-icons text-sm leading-none">download</span>
+          <span class="material-icons text-sm">download</span>
           <span>{{ t("pluginMulmoScript.movie") }}</span>
         </a>
         <!-- Generate / Regenerate Movie -->
         <button
-          class="px-3 py-1 text-xs rounded-full border transition-colors border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 flex items-center justify-center gap-1"
+          class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           :disabled="movieGenerating"
           @click="generateMovie"
         >
-          <svg v-if="movieGenerating" class="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none">
+          <svg v-if="movieGenerating" class="animate-spin w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
           </svg>
           <span v-if="movieGenerating">{{ t("pluginMulmoScript.generating") }}</span>
           <template v-else>
-            <span class="material-icons text-sm leading-none">refresh</span>
+            <span class="material-icons text-sm">refresh</span>
             <span>{{ t("pluginMulmoScript.movie") }}</span>
           </template>
         </button>
