@@ -21,26 +21,37 @@
              been generated, which is our proxy for "every beat has both
              an image and audio on disk". Green outline + green icon
              share the visual idiom with the (filled) Download button so
-             both completed-artifact actions read as the same family. -->
+             both completed-artifact actions read as the same family.
+             `isPlayReady` ensures we don't open the lightbox before the
+             first beat's image (and audio, if it has text) finish their
+             async load — moviePath can be set while loadExistingBeatImage
+             is still in flight. -->
         <button
           v-if="moviePath && !movieGenerating"
-          class="h-8 w-8 flex items-center justify-center rounded border border-green-600 text-green-600 hover:bg-green-50 transition-colors"
+          class="h-8 w-8 flex items-center justify-center rounded border border-green-600 text-green-600 hover:bg-green-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          :disabled="!isPlayReady"
           :title="t('pluginMulmoScript.playPresentation')"
           :aria-label="t('pluginMulmoScript.playPresentation')"
           @click="playPresentation"
         >
           <span class="material-icons text-base">play_arrow</span>
         </button>
-        <!-- Download Movie -->
-        <a
+        <!-- Download Movie: bearer-authenticated blob fetch, then a
+             synthetic <a download> click. The natural <a href download>
+             approach can't attach the Authorization header, which would
+             have forced a bearer-auth exemption on the route — the
+             reviewer's P1 was that any sibling process could then read
+             a caller-controlled movie path. Going through apiFetchRaw
+             (auto-attaches bearer) keeps the auth boundary intact. -->
+        <button
           v-if="moviePath && !movieGenerating"
-          :href="`${downloadMovieBase}?moviePath=${encodeURIComponent(moviePath)}`"
-          download
-          class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm transition-colors"
+          class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          :disabled="movieDownloading"
+          @click="downloadMovie"
         >
           <span class="material-icons text-base">download</span>
           <span>{{ t("pluginMulmoScript.movie") }}</span>
-        </a>
+        </button>
         <!-- Regenerate Movie (icon-only): collapses to a square once a
              movie exists — the adjacent Download / Play already make
              the subject clear, so the "Movie" label only adds noise. -->
@@ -431,10 +442,6 @@ const script = computed<MulmoScript>(() => data.value?.script ?? {});
 const filePath = computed(() => data.value?.filePath ?? "");
 const beats = computed<Beat[]>(() => script.value.beats ?? []);
 
-// Exposed to the template so the `<a :href="...">` download button
-// can compose a query-string URL without inlining the API path.
-const downloadMovieBase = API_ROUTES.mulmoScript.downloadMovie;
-
 // Per-beat render state
 type RenderState = "idle" | "rendering" | "done" | "error";
 const renderState = reactive<Record<number, RenderState>>({});
@@ -451,6 +458,7 @@ const beatSaveErrors = reactive<Record<number, BeatSaveError>>({});
 const beatSaving = reactive<Record<number, boolean>>({});
 const localOverrides = reactive<Record<number, Beat>>({});
 const movieGenerating = ref(false);
+const movieDownloading = ref(false);
 const moviePath = ref<string | null>(null);
 const beatAudios = reactive<Record<number, string>>({});
 const audioState = reactive<Record<number, "generating" | "done" | "error">>({});
@@ -534,8 +542,25 @@ function closeLightbox() {
 // beat has audio), so one click runs the whole presentation. Only wired
 // to the toolbar button when moviePath is set, which is our proxy for
 // "every beat has both image and audio on disk".
+//
+// `moviePath` arrives synchronously from /movie-status, but the per-beat
+// image and audio data URIs are populated asynchronously by
+// loadExistingBeatImage / loadExistingBeatAudio in initializeScript().
+// The Play button can therefore become visible before beat 0's assets
+// hydrate — `isPlayReady` gates the click so the lightbox never opens
+// with an undefined src or silent narration on a beat that does have
+// text.
+const isPlayReady = computed<boolean>(() => {
+  if (beats.value.length === 0) return false;
+  if (!renderedImages[0]) return false;
+  // Audio is only required when the beat has text (the source of TTS).
+  // Beats without text are valid; they just play silently.
+  if (effectiveBeat(0).text && !beatAudios[0]) return false;
+  return true;
+});
+
 function playPresentation() {
-  if (beats.value.length === 0) return;
+  if (!isPlayReady.value) return;
   openLightbox(0);
   if (beatAudios[0]) playAudio(0);
 }
@@ -966,21 +991,11 @@ async function generateAllCharacters() {
   await Promise.all(characterKeys.value.filter((key) => charRenderState[key] !== "rendering").map((key) => renderCharacter(key, false)));
 }
 
-// Mount-time policy: prefer the cached PNG on disk over re-rendering.
-// Deterministic beat types (textSlide/markdown/chart/mermaid/html_tailwind)
-// are cheap to render but not free — every renderBeat round-trips,
-// flips renderState to "rendering", and emits publishGeneration
-// start/finish events that flicker the global busy indicator. So if
-// the image already exists (e.g. after a movie generation, or a
-// previous mount of the same result), we just load it. Only fall
-// through to renderBeat when the disk has nothing yet AND the type is
-// safe to auto-render (deterministic content, no characters waiting).
-//
-// Edits invalidate cached PNGs through other paths: per-beat saves
-// already do `delete renderedImages[index]; renderBeat(index)` on
-// image change in updateBeat(), and the per-beat ↺ regenerate button
-// is always available — so a stale PNG is one click away from being
-// refreshed.
+// Probe the server for an existing beat PNG before triggering any
+// generation. Only auto-renders when the disk is empty AND the beat
+// is a deterministic type — imagePrompt beats are left empty so the
+// user clicks Generate explicitly (avoids surprise paid text2image
+// calls on every page refresh).
 async function hydrateBeatImage(beat: Beat, index: number, hasCharacters: boolean, autoRenderTypes: readonly string[]): Promise<void> {
   await loadExistingBeatImage(index);
   if (renderedImages[index]) return;
@@ -1011,6 +1026,19 @@ async function initializeScript() {
   moviePath.value = null;
   if (sourceDetails.value) sourceDetails.value.open = false;
 
+  // Mount-time policy: prefer the existing PNG on the server. Every
+  // beat — deterministic AND imagePrompt — first probes /beat-image,
+  // and we only fall through to renderBeat() when the disk has nothing
+  // yet AND the type is safe to auto-render (deterministic content,
+  // no characters waiting). Without this probe a refresh would re-fire
+  // generateBeatImage for every beat, and for imagePrompt beats that
+  // means a paid text2image call against an image we already have.
+  //
+  // Stale-after-edit: if the user edits the script source the on-disk
+  // PNG is no longer in sync with the new content, but we don't try to
+  // detect that here — the per-beat ↺ button is one click away and a
+  // page refresh re-runs this same probe, so the user can opt back into
+  // a fresh render whenever they need to.
   const AUTO_RENDER_TYPES = ["textSlide", "markdown", "chart", "mermaid", "html_tailwind"] as const;
   const hasCharacters = characterKeys.value.length > 0;
   beats.value.forEach((beat, index) => {
@@ -1127,6 +1155,40 @@ async function generateMovie() {
     alert(extractErrorMessage(err));
   } finally {
     movieGenerating.value = false;
+  }
+}
+
+// Bearer-authenticated movie download. apiFetchRaw auto-attaches the
+// Authorization header (which a plain `<a href download>` cannot), so
+// the route stays behind the standard /api/* bearer guard. The blob
+// is hooked to a synthetic anchor whose `download` attribute carries
+// the filename — the browser still surfaces a native save dialog.
+async function downloadMovie() {
+  if (!moviePath.value || movieDownloading.value) return;
+  movieDownloading.value = true;
+  let objectUrl: string | null = null;
+  try {
+    const res = await apiFetchRaw(API_ROUTES.mulmoScript.downloadMovie, {
+      method: "GET",
+      query: { moviePath: moviePath.value },
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    objectUrl = URL.createObjectURL(blob);
+    const filename = moviePath.value.split("/").pop() ?? "movie.mp4";
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  } catch (err) {
+    alert(extractErrorMessage(err));
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    movieDownloading.value = false;
   }
 }
 </script>
