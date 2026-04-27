@@ -135,7 +135,7 @@
           v-if="selectedTag !== null && !allTags.some(([tag]) => tag === selectedTag)"
           :active="true"
           :label="selectedTag"
-          :count="1"
+          :count="tagCounts.get(selectedTag) ?? 1"
           :data-testid="`wiki-tag-filter-${selectedTag}`"
           @click="toggleTagFilter(selectedTag)"
         />
@@ -147,7 +147,7 @@
         <div
           v-for="entry in visibleEntries"
           :key="entry.slug"
-          class="flex items-baseline gap-2 px-4 py-1 cursor-pointer hover:bg-blue-50 transition-colors"
+          class="group flex items-baseline gap-2 px-4 py-1 cursor-pointer hover:bg-blue-50 transition-colors"
           :data-testid="`wiki-page-entry-${entry.slug || entry.title}`"
           @click="navigatePage(entry.slug || entry.title)"
         >
@@ -155,7 +155,7 @@
           <span v-if="entry.description" class="text-xs text-gray-500 truncate">
             {{ entry.description }}
           </span>
-          <span v-if="entry.tags && entry.tags.length > 0" class="flex gap-1 flex-wrap shrink-0">
+          <span v-if="entry.tags && entry.tags.length > 0" class="flex gap-1 flex-wrap shrink-0 opacity-20 group-hover:opacity-100 transition-opacity">
             <button
               v-for="tag in entry.tags"
               :key="tag"
@@ -323,13 +323,32 @@ watch(
 // tags stay in deterministic order. Singletons are dropped: a tag
 // used on a single page adds no filtering value, just visual noise.
 // Per-entry `#tag` chips still render every tag, so singletons stay
-// clickable from the row itself.
-const allTags = computed<[string, number][]>(() => {
+// clickable from the row itself. Beyond singletons, the minimum count
+// is raised adaptively so the chip row stays around TARGET_FILTER_CHIPS
+// even on wikis with hundreds of pages — the cutoff is the count of
+// the tag at the target position, which keeps tied-popularity tags
+// grouped together rather than slicing them arbitrarily.
+const TARGET_FILTER_CHIPS = 20;
+// Full per-tag count map. Kept as its own computed (rather than
+// folded into `allTags`) so the fallback chip below — rendered when
+// the active filter is a tag the cutoff hides — can look up the
+// real count instead of falling back to a hardcoded 1, which would
+// understate the count of any non-singleton tag the adaptive cutoff
+// drops from the chip row.
+const tagCounts = computed<Map<string, number>>(() => {
   const counts = new Map<string, number>();
   for (const entry of pageEntries.value) {
     for (const tag of entry.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
   }
-  return [...counts.entries()].filter(([, count]) => count > 1).sort(([tagA, countA], [tagB, countB]) => countB - countA || tagA.localeCompare(tagB));
+  return counts;
+});
+const allTags = computed<[string, number][]>(() => {
+  const meaningful = [...tagCounts.value.entries()]
+    .filter(([, count]) => count > 1)
+    .sort(([tagA, countA], [tagB, countB]) => countB - countA || tagA.localeCompare(tagB));
+  if (meaningful.length <= TARGET_FILTER_CHIPS) return meaningful;
+  const cutoff = meaningful[TARGET_FILTER_CHIPS - 1][1];
+  return meaningful.filter(([, count]) => count >= cutoff);
 });
 
 const visibleEntries = computed(() =>
