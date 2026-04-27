@@ -494,16 +494,28 @@ const hasPageMeta = computed(() => {
   return meta.created !== null || meta.updated !== null || meta.editor !== null || meta.tags.length > 0;
 });
 
-/** Render `updated` ISO timestamp as `YYYY-MM-DD HH:MM` for
- *  display. Falls back to the raw value if it doesn't look like
- *  an ISO timestamp (defensive — user-supplied frontmatter may
- *  have any string here). */
+/** Render `updated` ISO timestamp as `YYYY-MM-DD HH:MM` in the
+ *  user's local timezone. The on-disk value is UTC ISO
+ *  (`2026-04-27T14:32:56.789Z`) — showing the raw `14:32` would
+ *  read like local wall time on a non-UTC machine and mislead
+ *  the user (codex review iter-1 #905). Falls back to the raw
+ *  value if it doesn't parse as a Date (defensive — user-supplied
+ *  frontmatter may have any string here). */
 function formatUpdated(raw: string): string {
-  // Match ISO 8601 `YYYY-MM-DDTHH:MM[:SS][.fff]Z?`. Anything else
-  // is shown verbatim.
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(raw);
-  if (!match) return raw;
-  return `${match[1]} ${match[2]}`;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  // `sv-SE` locale gives ISO-like `YYYY-MM-DD HH:MM` (with a
+  // space, no `T`) which matches the original format intent.
+  // `hour12: false` defends against locales that would otherwise
+  // emit AM/PM.
+  return new Intl.DateTimeFormat("sv-SE", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(parsed);
 }
 
 const renderedContent = computed(() => {

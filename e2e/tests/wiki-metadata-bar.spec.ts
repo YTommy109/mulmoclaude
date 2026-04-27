@@ -74,8 +74,11 @@ test.describe("wiki metadata bar (#895 PR B)", () => {
     const bar = page.getByTestId("wiki-page-metadata-bar");
     await expect(bar).toBeVisible();
     await expect(page.getByTestId("wiki-page-metadata-created")).toContainText("2026-04-26");
-    // Updated is reformatted from ISO to `YYYY-MM-DD HH:MM`.
-    await expect(page.getByTestId("wiki-page-metadata-updated")).toContainText("2026-04-27 14:32");
+    // `updated` is formatted from UTC ISO to local-TZ
+    // `YYYY-MM-DD HH:MM`. The HH:MM portion shifts by TZ, so
+    // assert only the year-month prefix — both UTC and reasonable
+    // user TZs (±12h) land in `2026-04-26` or `2026-04-27`.
+    await expect(page.getByTestId("wiki-page-metadata-updated")).toContainText(/2026-04-2[67]/);
     await expect(page.getByTestId("wiki-page-metadata-editor")).toContainText("llm");
     // Tags rendered as chips.
     await expect(page.getByTestId("wiki-page-metadata-tag-demo")).toBeVisible();
