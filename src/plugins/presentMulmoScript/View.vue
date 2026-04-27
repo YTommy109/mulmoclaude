@@ -21,9 +21,9 @@
           v-if="moviePath && !movieGenerating"
           :href="`${downloadMovieBase}?moviePath=${encodeURIComponent(moviePath)}`"
           download
-          class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+          class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm transition-colors"
         >
-          <span class="material-icons text-sm">download</span>
+          <span class="material-icons text-base">download</span>
           <span>{{ t("pluginMulmoScript.movie") }}</span>
         </a>
         <!-- Generate / Regenerate Movie -->
