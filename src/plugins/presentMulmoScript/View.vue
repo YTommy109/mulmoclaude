@@ -21,10 +21,15 @@
              been generated, which is our proxy for "every beat has both
              an image and audio on disk". Green outline + green icon
              share the visual idiom with the (filled) Download button so
-             both completed-artifact actions read as the same family. -->
+             both completed-artifact actions read as the same family.
+             `isPlayReady` ensures we don't open the lightbox before the
+             first beat's image (and audio, if it has text) finish their
+             async load — moviePath can be set while loadExistingBeatImage
+             is still in flight. -->
         <button
           v-if="moviePath && !movieGenerating"
-          class="h-8 w-8 flex items-center justify-center rounded border border-green-600 text-green-600 hover:bg-green-50 transition-colors"
+          class="h-8 w-8 flex items-center justify-center rounded border border-green-600 text-green-600 hover:bg-green-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          :disabled="!isPlayReady"
           :title="t('pluginMulmoScript.playPresentation')"
           :aria-label="t('pluginMulmoScript.playPresentation')"
           @click="playPresentation"
@@ -534,8 +539,25 @@ function closeLightbox() {
 // beat has audio), so one click runs the whole presentation. Only wired
 // to the toolbar button when moviePath is set, which is our proxy for
 // "every beat has both image and audio on disk".
+//
+// `moviePath` arrives synchronously from /movie-status, but the per-beat
+// image and audio data URIs are populated asynchronously by
+// loadExistingBeatImage / loadExistingBeatAudio in initializeScript().
+// The Play button can therefore become visible before beat 0's assets
+// hydrate — `isPlayReady` gates the click so the lightbox never opens
+// with an undefined src or silent narration on a beat that does have
+// text.
+const isPlayReady = computed<boolean>(() => {
+  if (beats.value.length === 0) return false;
+  if (!renderedImages[0]) return false;
+  // Audio is only required when the beat has text (the source of TTS).
+  // Beats without text are valid; they just play silently.
+  if (effectiveBeat(0).text && !beatAudios[0]) return false;
+  return true;
+});
+
 function playPresentation() {
-  if (beats.value.length === 0) return;
+  if (!isPlayReady.value) return;
   openLightbox(0);
   if (beatAudios[0]) playAudio(0);
 }
