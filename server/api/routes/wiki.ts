@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import path from "path";
 import { WORKSPACE_PATHS } from "../../workspace/paths.js";
 import { readTextSafeSync, readTextSafe } from "../../utils/files/safe.js";
-import { writeFileAtomic } from "../../utils/files/atomic.js";
+import { writeWikiPage } from "../../workspace/wiki-pages/io.js";
 import { getPageIndex } from "./wiki/pageIndex.js";
 import { parseFrontmatterTags } from "./wiki/frontmatter.js";
 import { badRequest, notFound } from "../../utils/httpError.js";
@@ -508,9 +508,14 @@ type SaveOutcome = { ok: true; absPath: string } | { ok: false; reason: "not-fou
 async function saveExistingPage(pageName: string, content: string): Promise<SaveOutcome> {
   const absPath = await resolvePagePath(pageName);
   if (!absPath) return { ok: false, reason: "not-found" };
-  // Atomic write: tmp file alongside the destination, fsync, rename.
-  // Prevents a crashed write from leaving the wiki page truncated.
-  await writeFileAtomic(absPath, content);
+  // Funnel through the wiki-page write helper. Atomic write is
+  // guaranteed inside; the helper also routes the (old, new) pair
+  // to the snapshot pipeline (#763 PR 2 — currently a no-op stub).
+  // Editor identity defaults to "user" here because the route is
+  // hit by both LLM (`manageWiki` MCP) and frontend saves; PR 2
+  // disambiguates them via a request-side flag.
+  const slug = path.basename(absPath, ".md");
+  await writeWikiPage(slug, content, { editor: "user" });
   return { ok: true, absPath };
 }
 
