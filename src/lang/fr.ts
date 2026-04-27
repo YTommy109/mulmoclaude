@@ -29,11 +29,7 @@ const frMessages = {
   },
   chatInput: {
     placeholder: "Saisissez une tâche, ou glissez / collez / joignez un fichier…",
-    expandEditor: "Agrandir l'éditeur",
-    composeMessage: "Rédiger un message",
-    sendHint: "Cmd+Entrée pour envoyer",
     send: "Envoyer",
-    stop: "Arrêter",
     attachFile: "Joindre un fichier",
     fileTooLarge: "Fichier trop volumineux ({sizeMB} Mo). La limite est de 30 Mo.",
     unsupportedFileType: "Type de fichier non pris en charge. Acceptés : images, PDF, DOCX, XLSX, PPTX, fichiers texte.",
@@ -233,6 +229,77 @@ const frMessages = {
     errIdExists: 'L\'identifiant de serveur "{id}" existe déjà.',
     errBadHttpUrl: "L'URL HTTP doit commencer par http:// ou https://",
     pendingEntryWarning: "Terminez ou annulez d'abord l'entrée de serveur MCP en attente.",
+    customHeading: "Serveurs personnalisés",
+    catalog: {
+      heading: "Serveurs MCP préconfigurés",
+      audience: { general: "🟢 Général", developer: "🔵 Développeur" },
+      risk: { low: "faible", medium: "moyen", high: "élevé" },
+      upstream: "📦 Source",
+      setupGuide: "📚 Configuration",
+      entry: {
+        memory: {
+          displayName: "Mémoire",
+          description: "Permet à Claude de se souvenir du contexte entre les sessions.",
+        },
+        sequentialThinking: {
+          displayName: "Pensée séquentielle",
+          description: "Aide Claude à aborder les problèmes complexes étape par étape.",
+        },
+        context7: {
+          displayName: "Context7 (docs de bibliothèques)",
+          description: "Documentation à jour des bibliothèques populaires — au-delà de la date de coupure d'entraînement du modèle.",
+        },
+        deepwiki: {
+          displayName: "DeepWiki (wiki de dépôts GitHub)",
+          description: "Posez des questions sur n'importe quel dépôt GitHub et obtenez une réponse structurée style wiki.",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "Lire et écrire dans votre espace Notion — pages, bases de données et recherche.",
+          field: {
+            apiKey: {
+              label: "Jeton d'intégration Notion",
+              help: "Créez une intégration Notion et copiez l'Internal Integration Secret. Cliquez sur 🔑 pour ouvrir la page des intégrations.",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "Lister les canaux, envoyer des messages et rechercher l'historique de votre espace Slack.",
+          field: {
+            botToken: {
+              label: "Jeton bot",
+              help: "App Slack → OAuth & Permissions → Bot User OAuth Token. Commence par xoxb-.",
+            },
+            teamId: {
+              label: "ID d'équipe / espace de travail",
+              help: "Exécutez team.info ou consultez l'URL de l'espace — du type T01ABC23DEF.",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "Rechercher des lieux, obtenir des itinéraires et consulter les détails d'une position.",
+          field: {
+            apiKey: {
+              label: "Clé d'API Google Maps",
+              help: "Google Cloud Console → APIs & Services → Credentials → Créer une clé d'API. Activez Places + Directions.",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "Météo (Open-Meteo)",
+          description: "Prévisions météo gratuites et conditions actuelles dans le monde entier — sans clé d'API.",
+        },
+      },
+      config: {
+        howToGet: "Comment l'obtenir",
+        install: "Installer",
+        errMissingRequired: "Champs obligatoires manquants : {fields}",
+        requiredMarker: "*",
+        requiredAria: "obligatoire",
+      },
+    },
   },
   pluginScheduler: {
     prev: "Précédent",
@@ -257,6 +324,7 @@ const frMessages = {
     moreCount: "+{count} de plus",
     previewIcon: "📅",
     previewUpcoming: "{count} à venir",
+    previewAutomations: "{count} automatisation | {count} automatisations",
     previewMore: "+ {count} de plus…",
   },
   pluginSchedulerTasks: {
@@ -275,6 +343,9 @@ const frMessages = {
     runFailed: "Échec de l'exécution : {error}",
     toggleFailed: "Échec du basculement : {error}",
     deleteFailed: "Échec de la suppression : {error}",
+    detailsToggle: "Afficher les détails",
+    promptLabel: "Prompt",
+    roleLabel: "Rôle",
   },
   pluginCanvas: {
     undo: "Annuler",
@@ -375,6 +446,18 @@ const frMessages = {
     lintChat: "Vérifier mon wiki",
     taskCountMismatch: "La source du wiki et le rendu diffèrent sur le nombre de tâches. La modification a été refusée pour éviter de corrompre le fichier.",
   },
+  pluginPresentForm: {
+    fallbackTitle: "Formulaire",
+    fieldCount: "{count} champ | {count} champs",
+    submitted: "Envoyé",
+    errorSummary: "Veuillez corriger les erreurs suivantes",
+    requiredMarker: "*",
+    selectOption: "Sélectionnez une option",
+    charactersCount: "{current} / {max} caractères",
+    charactersCountNoMax: "{current} caractères",
+    submit: "Envoyer",
+    progress: "{filled} sur {total} champs obligatoires remplis",
+  },
   pluginPresentHtml: {
     saveAsPdf: "Enregistrer en PDF (ouvre la boîte de dialogue d'impression)",
     pdf: "PDF",
@@ -401,6 +484,7 @@ const frMessages = {
   pluginManageSource: {
     titlePlaceholder: "Titre (facultatif)",
     heading: "Sources d'information",
+    chatPlaceholder: "Posez une question sur vos sources d'information…",
     sourceCount: "{count} source | {count} sources",
     addButton: "Ajouter",
     rebuildNow: "Reconstruire maintenant",
@@ -602,6 +686,7 @@ const frMessages = {
   },
   app: {
     startConversation: "Démarrer une conversation",
+    thinking: "Réflexion…",
   },
   suggestionsPanel: {
     suggestions: "Suggestions",

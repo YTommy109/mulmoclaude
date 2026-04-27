@@ -34,11 +34,7 @@ const esMessages = {
   },
   chatInput: {
     placeholder: "Escribe una tarea, o arrastra / pega / adjunta un archivo…",
-    expandEditor: "Ampliar el editor",
-    composeMessage: "Redactar mensaje",
-    sendHint: "Cmd+Enter para enviar",
     send: "Enviar",
-    stop: "Detener",
     attachFile: "Adjuntar archivo",
     fileTooLarge: "El archivo es demasiado grande ({sizeMB} MB). El máximo es 30 MB.",
     unsupportedFileType: "Tipo de archivo no admitido. Se aceptan: imágenes, PDF, DOCX, XLSX, PPTX y archivos de texto.",
@@ -239,6 +235,77 @@ const esMessages = {
     errIdExists: 'El id de servidor "{id}" ya existe.',
     errBadHttpUrl: "La URL HTTP debe comenzar con http:// o https://",
     pendingEntryWarning: "Finaliza o cancela primero la entrada de servidor MCP pendiente.",
+    customHeading: "Servidores personalizados",
+    catalog: {
+      heading: "Servidores MCP preconfigurados",
+      audience: { general: "🟢 General", developer: "🔵 Desarrollador" },
+      risk: { low: "bajo", medium: "medio", high: "alto" },
+      upstream: "📦 Fuente",
+      setupGuide: "📚 Configuración",
+      entry: {
+        memory: {
+          displayName: "Memoria",
+          description: "Permite que Claude recuerde el contexto entre sesiones.",
+        },
+        sequentialThinking: {
+          displayName: "Pensamiento secuencial",
+          description: "Ayuda a Claude a abordar problemas complejos paso a paso.",
+        },
+        context7: {
+          displayName: "Context7 (documentación de librerías)",
+          description: "Documentación al día de librerías populares — supera el corte de entrenamiento del modelo.",
+        },
+        deepwiki: {
+          displayName: "DeepWiki (wiki de repos de GitHub)",
+          description: "Pregunta sobre cualquier repositorio de GitHub y obtén una respuesta estructurada estilo wiki.",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "Lee y escribe en tu workspace de Notion — páginas, bases de datos y búsqueda.",
+          field: {
+            apiKey: {
+              label: "Token de integración de Notion",
+              help: "Crea una integración en Notion y copia el Internal Integration Secret. Pulsa 🔑 para abrir la página de integraciones.",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "Lista canales, envía mensajes y busca en el historial de tu workspace de Slack.",
+          field: {
+            botToken: {
+              label: "Token de bot",
+              help: "App de Slack → OAuth & Permissions → Bot User OAuth Token. Empieza por xoxb-.",
+            },
+            teamId: {
+              label: "ID del equipo / workspace",
+              help: "Ejecuta team.info o consulta la URL del workspace — algo como T01ABC23DEF.",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "Buscar lugares, obtener rutas y consultar detalles de ubicación.",
+          field: {
+            apiKey: {
+              label: "Clave API de Google Maps",
+              help: "Google Cloud Console → APIs & Services → Credentials → Crear clave API. Habilita Places + Directions.",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "Clima (Open-Meteo)",
+          description: "Pronósticos meteorológicos gratuitos y condiciones actuales en todo el mundo — sin clave API.",
+        },
+      },
+      config: {
+        howToGet: "Cómo obtenerlo",
+        install: "Instalar",
+        errMissingRequired: "Faltan campos obligatorios: {fields}",
+        requiredMarker: "*",
+        requiredAria: "obligatorio",
+      },
+    },
   },
   pluginScheduler: {
     prev: "Anterior",
@@ -263,6 +330,7 @@ const esMessages = {
     moreCount: "+{count} más",
     previewIcon: "📅",
     previewUpcoming: "{count} próximos",
+    previewAutomations: "{count} automatización | {count} automatizaciones",
     previewMore: "+ {count} más…",
   },
   pluginSchedulerTasks: {
@@ -281,6 +349,9 @@ const esMessages = {
     runFailed: "Error al ejecutar: {error}",
     toggleFailed: "Error al alternar: {error}",
     deleteFailed: "Error al eliminar: {error}",
+    detailsToggle: "Mostrar detalles",
+    promptLabel: "Prompt",
+    roleLabel: "Rol",
   },
   pluginCanvas: {
     undo: "Deshacer",
@@ -381,6 +452,18 @@ const esMessages = {
     lintChat: "Revisar mi wiki",
     taskCountMismatch: "La fuente del wiki y la salida renderizada difieren en el número de tareas. Se rechazó el cambio para evitar dañar el archivo.",
   },
+  pluginPresentForm: {
+    fallbackTitle: "Formulario",
+    fieldCount: "{count} campo | {count} campos",
+    submitted: "Enviado",
+    errorSummary: "Por favor, corrija los siguientes errores",
+    requiredMarker: "*",
+    selectOption: "Seleccione una opción",
+    charactersCount: "{current} / {max} caracteres",
+    charactersCountNoMax: "{current} caracteres",
+    submit: "Enviar",
+    progress: "{filled} de {total} campos obligatorios completados",
+  },
   pluginPresentHtml: {
     saveAsPdf: "Guardar como PDF (abre el diálogo de impresión)",
     pdf: "PDF",
@@ -407,6 +490,7 @@ const esMessages = {
   pluginManageSource: {
     titlePlaceholder: "Título (opcional)",
     heading: "Fuentes de información",
+    chatPlaceholder: "Pregunta sobre tus fuentes de información…",
     sourceCount: "{count} fuente | {count} fuentes",
     addButton: "Añadir",
     rebuildNow: "Reconstruir ahora",
@@ -610,6 +694,7 @@ const esMessages = {
   },
   app: {
     startConversation: "Inicia una conversación",
+    thinking: "Pensando…",
   },
   suggestionsPanel: {
     suggestions: "Sugerencias",

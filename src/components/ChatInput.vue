@@ -1,121 +1,72 @@
 <template>
-  <div class="p-2 border-t border-gray-200" @dragover.prevent @drop="onDropFile">
-    <div v-if="fileError" class="mb-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-1.5" data-testid="file-error">
-      {{ fileError }}
-    </div>
-    <ChatAttachmentPreview
-      v-if="pastedFile"
-      :data-url="pastedFile.dataUrl"
-      :filename="pastedFile.name"
-      :mime="pastedFile.mime"
-      @remove="emit('update:pastedFile', null)"
-    />
-    <div class="flex gap-2" :class="{ 'mt-2': pastedFile }">
-      <textarea
-        ref="textarea"
-        :value="modelValue"
-        data-testid="user-input"
-        :placeholder="t('chatInput.placeholder')"
-        rows="2"
-        class="flex-1 bg-white border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
-        :disabled="isRunning"
-        @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
-        @compositionstart="imeEnter.onCompositionStart"
-        @compositionend="imeEnter.onCompositionEnd"
-        @keydown="imeEnter.onKeydown"
-        @blur="imeEnter.onBlur"
-        @paste="onPasteFile"
-      />
-      <div class="flex flex-col gap-1">
-        <!-- Swap Send → Stop while a run is in flight (#731). Same
-             slot / same dimensions so the column doesn't jump. -->
-        <button
-          v-if="isRunning"
-          data-testid="stop-btn"
-          class="bg-red-600 hover:bg-red-700 text-white rounded w-8 h-8 flex items-center justify-center"
-          :title="t('chatInput.stop')"
-          @click="emit('cancel')"
-        >
-          <span class="material-icons text-base leading-none">stop</span>
-        </button>
-        <button
-          v-else
-          data-testid="send-btn"
-          class="bg-blue-600 hover:bg-blue-700 text-white rounded w-8 h-8 flex items-center justify-center"
-          @click="emit('send')"
-        >
-          <span class="material-icons text-base leading-none">send</span>
-        </button>
-        <button
-          data-testid="attach-file-btn"
-          class="text-gray-400 hover:text-gray-600 rounded w-8 h-8 flex items-center justify-center"
-          :title="t('chatInput.attachFile')"
-          @click="openFilePicker"
-        >
-          <span class="material-icons text-base leading-none">attach_file</span>
-        </button>
-        <button
-          data-testid="expand-input-btn"
-          class="text-gray-400 hover:text-gray-600 rounded w-8 h-8 flex items-center justify-center"
-          :title="t('chatInput.expandEditor')"
-          @click="openExpandedEditor"
-        >
-          <span class="material-icons text-base leading-none">open_in_full</span>
-        </button>
+  <div class="border-t border-gray-200" @dragover.prevent @drop="onDropFile">
+    <SuggestionsPanel v-model:expanded="suggestionsExpanded" :queries="queries" @send="onSuggestionSend" @edit="onSuggestionEdit" />
+    <div class="p-2">
+      <div v-if="fileError" class="mb-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-1.5" data-testid="file-error">
+        {{ fileError }}
       </div>
-    </div>
-
-    <!-- Hidden file input driven by the attach button. The `accept`
-         filter matches ACCEPTED_MIME_PREFIXES/_EXACT below; the change
-         handler routes through the same readAttachmentFile() used by
-         drop + paste, so all three paths behave identically. -->
-    <input ref="fileInput" type="file" class="hidden" :accept="fileInputAccept" data-testid="file-input" @change="onFilePicked" />
-
-    <div v-if="expandedEditorOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="closeExpandedEditor">
-      <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 flex flex-col" style="max-height: 80vh">
-        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-          <h3 class="text-sm font-semibold text-gray-700">{{ t("chatInput.composeMessage") }}</h3>
-          <button class="text-gray-400 hover:text-gray-600" @click="closeExpandedEditor">
-            <span class="material-icons text-base">close</span>
+      <ChatAttachmentPreview
+        v-if="pastedFile"
+        :data-url="pastedFile.dataUrl"
+        :filename="pastedFile.name"
+        :mime="pastedFile.mime"
+        @remove="emit('update:pastedFile', null)"
+      />
+      <div class="flex gap-2" :class="{ 'mt-2': pastedFile }">
+        <textarea
+          ref="textarea"
+          :value="modelValue"
+          data-testid="user-input"
+          :placeholder="t('chatInput.placeholder')"
+          rows="2"
+          class="flex-1 bg-white border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
+          :disabled="isRunning"
+          @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
+          @compositionstart="imeEnter.onCompositionStart"
+          @compositionend="imeEnter.onCompositionEnd"
+          @keydown="imeEnter.onKeydown"
+          @blur="imeEnter.onBlur"
+          @paste="onPasteFile"
+        />
+        <div class="flex flex-col gap-1">
+          <button
+            v-if="queries.length > 0"
+            data-testid="suggestions-btn"
+            class="rounded w-8 h-8 flex items-center justify-center"
+            :class="suggestionsExpanded ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:text-gray-600'"
+            :title="t('suggestionsPanel.suggestions')"
+            :aria-label="t('suggestionsPanel.suggestions')"
+            @click="suggestionsExpanded = !suggestionsExpanded"
+          >
+            <span class="material-icons text-base leading-none">lightbulb</span>
+          </button>
+          <button
+            data-testid="send-btn"
+            class="bg-blue-600 hover:bg-blue-700 text-white rounded w-8 h-8 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            :title="t('chatInput.send')"
+            :aria-label="t('chatInput.send')"
+            :disabled="isRunning"
+            @click="emit('send')"
+          >
+            <span class="material-icons text-base leading-none">send</span>
+          </button>
+          <button
+            data-testid="attach-file-btn"
+            class="text-gray-400 hover:text-gray-600 rounded w-8 h-8 flex items-center justify-center"
+            :title="t('chatInput.attachFile')"
+            :aria-label="t('chatInput.attachFile')"
+            @click="openFilePicker"
+          >
+            <span class="material-icons text-base leading-none">attach_file</span>
           </button>
         </div>
-        <textarea
-          ref="expandedTextarea"
-          :value="modelValue"
-          data-testid="expanded-input"
-          :placeholder="t('chatInput.placeholder')"
-          class="flex-1 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 resize-none focus:outline-none"
-          style="min-height: 300px"
-          @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
-          @keydown.meta.enter="sendFromExpanded"
-          @keydown.ctrl.enter="sendFromExpanded"
-        ></textarea>
-        <div class="flex items-center justify-between px-4 py-3 border-t border-gray-200">
-          <p class="text-xs text-gray-400">{{ t("chatInput.sendHint") }}</p>
-          <div class="flex gap-2">
-            <button class="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50" @click="closeExpandedEditor">
-              {{ t("common.cancel") }}
-            </button>
-            <!-- Same Send → Stop swap as the inline button (#731). -->
-            <button
-              v-if="isRunning"
-              class="px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 text-white"
-              data-testid="expanded-stop-btn"
-              @click="cancelFromExpanded"
-            >
-              {{ t("chatInput.stop") }}
-            </button>
-            <button
-              v-else
-              class="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white"
-              data-testid="expanded-send-btn"
-              @click="sendFromExpanded"
-            >
-              {{ t("chatInput.send") }}
-            </button>
-          </div>
-        </div>
       </div>
+
+      <!-- Hidden file input driven by the attach button. The `accept`
+           filter matches ACCEPTED_MIME_PREFIXES/_EXACT below; the change
+           handler routes through the same readAttachmentFile() used by
+           drop + paste, so all three paths behave identically. -->
+      <input ref="fileInput" type="file" class="hidden" :accept="fileInputAccept" data-testid="file-input" @change="onFilePicked" />
     </div>
   </div>
 </template>
@@ -124,6 +75,7 @@
 import { nextTick, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import ChatAttachmentPreview from "./ChatAttachmentPreview.vue";
+import SuggestionsPanel from "./SuggestionsPanel.vue";
 import { useImeAwareEnter } from "../composables/useImeAwareEnter";
 
 const { t } = useI18n();
@@ -134,24 +86,27 @@ export interface PastedFile {
   mime: string;
 }
 
-const props = defineProps<{
-  modelValue: string;
-  pastedFile: PastedFile | null;
-  isRunning: boolean;
-}>();
+withDefaults(
+  defineProps<{
+    modelValue: string;
+    pastedFile: PastedFile | null;
+    isRunning: boolean;
+    queries?: string[];
+  }>(),
+  { queries: () => [] },
+);
 
 const emit = defineEmits<{
   "update:modelValue": [value: string];
   "update:pastedFile": [file: PastedFile | null];
   send: [];
-  cancel: [];
+  "suggestion-send": [query: string];
 }>();
 
 const textarea = ref<HTMLTextAreaElement | null>(null);
-const expandedTextarea = ref<HTMLTextAreaElement | null>(null);
-const expandedEditorOpen = ref(false);
 const fileError = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
+const suggestionsExpanded = ref(false);
 
 const MAX_ATTACH_BYTES = 30 * 1024 * 1024;
 
@@ -239,32 +194,22 @@ function onFilePicked(event: Event): void {
 
 const imeEnter = useImeAwareEnter(() => emit("send"));
 
-function openExpandedEditor(): void {
-  expandedEditorOpen.value = true;
-  nextTick(() => expandedTextarea.value?.focus());
+function onSuggestionSend(query: string): void {
+  emit("suggestion-send", query);
 }
 
-function closeExpandedEditor(): void {
-  expandedEditorOpen.value = false;
+function onSuggestionEdit(query: string): void {
+  emit("update:modelValue", query);
   nextTick(() => textarea.value?.focus());
-}
-
-function sendFromExpanded(): void {
-  if (props.isRunning) return;
-  closeExpandedEditor();
-  emit("send");
-}
-
-function cancelFromExpanded(): void {
-  // Mirror sendFromExpanded — close the modal so the running state
-  // stays visible in the chat area while the cancel propagates.
-  closeExpandedEditor();
-  emit("cancel");
 }
 
 function focus(): void {
   textarea.value?.focus();
 }
 
-defineExpose({ focus });
+function collapseSuggestions(): void {
+  suggestionsExpanded.value = false;
+}
+
+defineExpose({ focus, collapseSuggestions });
 </script>

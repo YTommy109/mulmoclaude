@@ -6,11 +6,19 @@
     </div>
     <div v-else-if="contentLoading" class="p-4 text-sm text-gray-400">{{ t("common.loading") }}</div>
     <template v-else-if="content">
+      <!-- System-managed file? Show description banner above the
+           body so the user knows what the file is for, who writes
+           it, and whether hand-editing is safe (#832). -->
+      <SystemFileBanner v-if="systemDescriptor && selectedPath" :descriptor="systemDescriptor" :path="selectedPath" />
       <template v-if="content.kind === 'text'">
-        <!-- Scheduler items.json: render with the scheduler plugin's
-             calendar/list view by synthesizing a fake tool result. -->
+        <!-- Scheduler items.json holds calendar items only — task /
+             automation entries live in config/scheduler/tasks.json
+             with a different shape, so the file preview routes
+             through CalendarView (force-tab="calendar") to keep the
+             dual-tab bar from showing an empty Tasks panel (#828
+             follow-up). -->
         <div v-if="schedulerResult" class="h-full">
-          <SchedulerView :selected-result="schedulerResult" />
+          <CalendarView :selected-result="schedulerResult" />
         </div>
         <!-- Todos todos.json: full kanban / table / list explorer. -->
         <div v-else-if="todoExplorerResult" class="h-full">
@@ -111,10 +119,12 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import TextResponseView from "../plugins/textResponse/View.vue";
-import SchedulerView from "../plugins/scheduler/View.vue";
+import CalendarView from "../plugins/scheduler/CalendarView.vue";
 import TodoExplorer from "./TodoExplorer.vue";
+import SystemFileBanner from "./SystemFileBanner.vue";
 import type { FileContent } from "../composables/useFileSelection";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TextResponseData } from "../plugins/textResponse/types";
@@ -125,6 +135,7 @@ import type { JsonToken, JsonlLine } from "../utils/format/jsonSyntax";
 import type { Frontmatter } from "../utils/format/frontmatter";
 import { rewriteMarkdownImageRefs } from "../utils/image/rewriteMarkdownImageRefs";
 import { API_ROUTES } from "../config/apiRoutes";
+import { descriptorForPath } from "../config/systemFileDescriptors";
 
 const { t } = useI18n();
 
@@ -151,6 +162,8 @@ const emit = defineEmits<{
   markdownLinkClick: [event: MouseEvent];
   updateSource: [newSource: string];
 }>();
+
+const systemDescriptor = computed(() => (props.selectedPath ? descriptorForPath(props.selectedPath) : null));
 
 function rawUrl(filePath: string): string {
   return `${API_ROUTES.files.raw}?path=${encodeURIComponent(filePath)}`;

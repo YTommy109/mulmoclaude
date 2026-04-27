@@ -34,11 +34,7 @@ const zhMessages = {
   },
   chatInput: {
     placeholder: "输入任务,或拖放 / 粘贴 / 附加文件…",
-    expandEditor: "展开编辑器",
-    composeMessage: "撰写消息",
-    sendHint: "Cmd+Enter 发送",
     send: "发送",
-    stop: "停止",
     attachFile: "附加文件",
     fileTooLarge: "文件过大（{sizeMB} MB）。上限为 30 MB。",
     unsupportedFileType: "不支持的文件类型。支持:图像、PDF、DOCX、XLSX、PPTX、文本文件。",
@@ -233,6 +229,77 @@ const zhMessages = {
     errIdExists: '服务器 id "{id}" 已存在。',
     errBadHttpUrl: "HTTP URL 必须以 http:// 或 https:// 开头",
     pendingEntryWarning: "请先完成或取消待处理的 MCP 服务器条目。",
+    customHeading: "自定义服务器",
+    catalog: {
+      heading: "预设 MCP 服务器",
+      audience: { general: "🟢 通用", developer: "🔵 开发者" },
+      risk: { low: "低", medium: "中", high: "高" },
+      upstream: "📦 源",
+      setupGuide: "📚 设置",
+      entry: {
+        memory: {
+          displayName: "记忆",
+          description: "让 Claude 在会话之间记住对话内容。",
+        },
+        sequentialThinking: {
+          displayName: "顺序思考",
+          description: "帮助 Claude 一步一步地解决复杂问题。",
+        },
+        context7: {
+          displayName: "Context7（库文档）",
+          description: "获取主流库的最新文档 — 超越模型训练截止日期的信息源。",
+        },
+        deepwiki: {
+          displayName: "DeepWiki（GitHub 仓库 Wiki）",
+          description: "向任意 GitHub 仓库提问，获得 Wiki 风格的结构化答案。",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "读写 Notion 工作区 — 支持页面、数据库与搜索。",
+          field: {
+            apiKey: {
+              label: "Notion 集成令牌",
+              help: "创建一个 Notion 集成并复制 Internal Integration Secret。点击 🔑 打开集成页面。",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "列出频道、发送消息、搜索 Slack 工作区历史。",
+          field: {
+            botToken: {
+              label: "Bot 令牌",
+              help: "Slack 应用 → OAuth & Permissions → Bot User OAuth Token。以 xoxb- 开头。",
+            },
+            teamId: {
+              label: "团队 / 工作区 ID",
+              help: "运行 team.info 或查看工作区 URL — 形如 T01ABC23DEF。",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "搜索地点、查询路线、获取位置详情。",
+          field: {
+            apiKey: {
+              label: "Google Maps API 密钥",
+              help: "Google Cloud Console → APIs & Services → Credentials → 创建 API 密钥。启用 Places + Directions。",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "天气（Open-Meteo）",
+          description: "全球免费天气预报和当前气象 — 无需 API 密钥。",
+        },
+      },
+      config: {
+        howToGet: "获取方式",
+        install: "安装",
+        errMissingRequired: "缺少必填字段：{fields}",
+        requiredMarker: "*",
+        requiredAria: "必填",
+      },
+    },
   },
   pluginScheduler: {
     prev: "上一个",
@@ -257,6 +324,7 @@ const zhMessages = {
     moreCount: "+还有 {count} 个",
     previewIcon: "📅",
     previewUpcoming: "即将 {count} 个",
+    previewAutomations: "{count} 个自动化",
     previewMore: "+ 还有 {count} 个…",
   },
   pluginSchedulerTasks: {
@@ -275,6 +343,9 @@ const zhMessages = {
     runFailed: "运行失败: {error}",
     toggleFailed: "切换失败: {error}",
     deleteFailed: "删除失败: {error}",
+    detailsToggle: "显示详情",
+    promptLabel: "提示词",
+    roleLabel: "角色",
   },
   pluginCanvas: {
     undo: "撤销",
@@ -375,6 +446,18 @@ const zhMessages = {
     lintChat: "检查 Wiki",
     taskCountMismatch: "Wiki 源与渲染输出的任务数不一致，为避免文件损坏，已拒绝切换。",
   },
+  pluginPresentForm: {
+    fallbackTitle: "表单",
+    fieldCount: "{count} 个字段",
+    submitted: "已提交",
+    errorSummary: "请修正以下错误",
+    requiredMarker: "*",
+    selectOption: "请选择",
+    charactersCount: "{current} / {max} 字符",
+    charactersCountNoMax: "{current} 字符",
+    submit: "提交",
+    progress: "已填写 {filled} / {total} 个必填字段",
+  },
   pluginPresentHtml: {
     saveAsPdf: "另存为 PDF(打开打印对话框)",
     pdf: "PDF",
@@ -401,6 +484,7 @@ const zhMessages = {
   pluginManageSource: {
     titlePlaceholder: "标题(可选)",
     heading: "信息源",
+    chatPlaceholder: "询问关于您的信息源…",
     sourceCount: "{count} 个信息源",
     addButton: "添加",
     rebuildNow: "立即重建",
@@ -604,6 +688,7 @@ const zhMessages = {
   },
   app: {
     startConversation: "开始对话",
+    thinking: "思考中…",
   },
   suggestionsPanel: {
     suggestions: "建议",

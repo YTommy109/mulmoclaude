@@ -83,17 +83,17 @@
       </div>
 
       <!-- Sidebar (Single layout only) -->
-      <div v-if="!isStackLayout && !sidePanelExpanded" class="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-white text-gray-900 relative">
-        <!-- Tool result previews -->
-        <ToolResultsPanel
-          ref="toolResultsPanelRef"
+      <div
+        v-if="!isStackLayout && !sidePanelExpanded"
+        class="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-white text-gray-900 relative"
+        data-testid="chat-sidebar"
+      >
+        <!-- Tool result previews + role header (#842) -->
+        <SessionSidebar
+          ref="sessionSidebarRef"
           :results="sidebarResults"
           :selected-uuid="selectedResultUuid"
           :result-timestamps="activeSession?.resultTimestamps ?? new Map()"
-          :is-running="activeSessionRunning"
-          :status-message="statusMessage"
-          :run-elapsed-ms="runElapsedMs"
-          :pending-calls="pendingCalls"
           :session-role-name="sessionRoleName"
           :session-role-icon="sessionRoleIcon"
           :layout-mode="layoutMode"
@@ -104,8 +104,18 @@
           @toggle-right-sidebar="toggleRightSidebar"
         />
 
-        <!-- Sample queries (expandable pane) -->
-        <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
+        <!-- Shared Thinking indicator. Sits between the sidebar and
+             the chat input so the user gets the same "still alive"
+             cue regardless of which plugin view fills the canvas
+             (the sidebar copy inside SessionSidebar scrolls with
+             results and can fall below the fold). -->
+        <ThinkingIndicator
+          v-if="activeSessionRunning"
+          :status-message="statusMessage || t('app.thinking')"
+          :run-elapsed-ms="runElapsedMs"
+          :pending-calls="pendingCalls"
+          class="border-t border-gray-100"
+        />
 
         <!-- Text input -->
         <ChatInput
@@ -113,8 +123,9 @@
           v-model="userInput"
           v-model:pasted-file="pastedFile"
           :is-running="activeSessionRunning"
+          :queries="sessionRole.queries ?? []"
           @send="sendMessage()"
-          @cancel="cancelActiveRun"
+          @suggestion-send="(q) => sendMessage(q)"
         />
       </div>
 
@@ -167,14 +178,21 @@
         <!-- Bottom bar (Stack chat only — plugin views have no
              session context, so no chat input is shown) -->
         <div v-if="isChatPage && layoutMode === 'stack'" class="border-t border-gray-200 bg-white shrink-0">
-          <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
+          <ThinkingIndicator
+            v-if="activeSessionRunning"
+            :status-message="statusMessage || t('app.thinking')"
+            :run-elapsed-ms="runElapsedMs"
+            :pending-calls="pendingCalls"
+            class="border-t border-gray-100"
+          />
           <ChatInput
             ref="chatInputRef"
             v-model="userInput"
             v-model:pasted-file="pastedFile"
             :is-running="activeSessionRunning"
+            :queries="sessionRole.queries ?? []"
             @send="sendMessage()"
-            @cancel="cancelActiveRun"
+            @suggestion-send="(q) => sendMessage(q)"
           />
         </div>
       </div>
@@ -217,11 +235,11 @@ import RightSidebar from "./components/RightSidebar.vue";
 import SidebarHeader from "./components/SidebarHeader.vue";
 import SessionHeaderControls from "./components/SessionHeaderControls.vue";
 import SessionTabBar from "./components/SessionTabBar.vue";
-import SuggestionsPanel from "./components/SuggestionsPanel.vue";
 import ChatInput, { type PastedFile } from "./components/ChatInput.vue";
 import SessionHistoryExpandButton from "./components/SessionHistoryExpandButton.vue";
 import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
-import ToolResultsPanel from "./components/ToolResultsPanel.vue";
+import SessionSidebar from "./components/SessionSidebar.vue";
+import ThinkingIndicator from "./components/ThinkingIndicator.vue";
 import PluginLauncher from "./components/PluginLauncher.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
@@ -245,7 +263,6 @@ import { extractImageData } from "./utils/tools/result";
 import { buildAgentRequestBody, postAgentRun } from "./utils/agent/request";
 import { applyAgentEvent, type AgentEventContext } from "./utils/agent/eventDispatch";
 import { pushErrorMessage, beginUserTurn, updateResult } from "./utils/session/sessionHelpers";
-import { maybeSeedRoleDefault } from "./utils/session/seedRoleDefault";
 import { roleName, roleIcon } from "./utils/role/icon";
 import { createEmptySession } from "./utils/session/sessionFactory";
 import { buildLoadedSession, parseSessionEntries } from "./utils/session/sessionEntries";
@@ -276,7 +293,7 @@ import { useEventListeners } from "./composables/useEventListeners";
 import { provideAppApi } from "./composables/useAppApi";
 import { provideActiveSession } from "./composables/useActiveSession";
 import { useRoute, useRouter } from "vue-router";
-import { apiGet, apiPost } from "./utils/api";
+import { apiGet } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
 
@@ -430,11 +447,11 @@ const { mergedSessions, tabSessions } = useMergedSessions({
 // /api/sessions refetch.
 useFaviconState({ isRunning, sessions: mergedSessions, sessionsUnreadCount: unreadCount, cpuLoadRatio });
 
-const toolResultsPanelRef = ref<{ root: HTMLDivElement | null } | null>(null);
+const sessionSidebarRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
-const chatInputRef = ref<{ focus: () => void } | null>(null);
+const chatInputRef = ref<{ focus: () => void; collapseSuggestions: () => void } | null>(null);
 const { focusChatInput } = useChatScroll({
-  toolResultsPanelRef,
+  sessionSidebarRef,
   toolResults,
   isRunning: activeSessionRunning,
   chatInputRef,
@@ -587,13 +604,6 @@ const { handleCanvasKeydown, handleKeyNavigation } = useKeyNavigation({
   selectedResultUuid,
 });
 
-const suggestionsPanelRef = ref<{ collapse: () => void } | null>(null);
-
-function onQueryEdit(query: string): void {
-  userInput.value = query;
-  nextTick(() => focusChatInput());
-}
-
 function handleUpdateResult(updatedResult: ToolResultComplete) {
   if (activeSession.value) updateResult(activeSession.value, updatedResult);
 }
@@ -635,7 +645,7 @@ function createNewSession(roleId?: string): ActiveSession {
   const session = createEmptySession(uuidv4(), rId);
   sessionMap.set(session.id, session);
   navigateToSession(session.id, replace);
-  suggestionsPanelRef.value?.collapse();
+  chatInputRef.value?.collapseSuggestions();
   nextTick(() => focusChatInput());
   return sessionMap.get(session.id)!;
 }
@@ -647,8 +657,7 @@ function onRoleChange(roleId: string) {
   // is preserved inside SessionHeaderControls (useCurrentRole) and
   // future "+" clicks will read it from there.
   if (!isChatPage.value) return;
-  const session = createNewSession(roleId);
-  maybeSeedRoleDefault(session);
+  createNewSession(roleId);
 }
 
 // Land on /chat with no specific session in mind (initial load or
@@ -810,28 +819,6 @@ function unsubscribeSession(chatSessionId: string): void {
   }
 }
 
-// Stop the in-flight agent run for the currently displayed session.
-// Backend (POST /api/agent/cancel) flips the run's AbortController,
-// which closes the SSE stream and resets `isRunning`. We don't
-// optimistically flip local state — the SSE close handler does that
-// uniformly whether the cancel came from us or anywhere else (#731).
-async function cancelActiveRun(): Promise<void> {
-  const sessionId = currentSessionId.value;
-  if (!sessionId) return;
-  console.info("[agent] cancel requested", { chatSessionId: sessionId });
-  const result = await apiPost<{ ok: boolean }>(API_ROUTES.agent.cancel, { chatSessionId: sessionId });
-  if (!result.ok) {
-    console.warn("[agent] cancel POST failed", { chatSessionId: sessionId, error: result.error });
-    return;
-  }
-  // Backend's `ok: false` means the session wasn't in-flight (already
-  // finished, or duplicate Stop click). Benign, but distinct from a
-  // network failure — surface separately in the console.
-  if (!result.data?.ok) {
-    console.info("[agent] cancel was a no-op (no run in flight)", { chatSessionId: sessionId });
-  }
-}
-
 async function sendMessage(text?: string) {
   const message = typeof text === "string" ? text : userInput.value.trim();
   if (!message || activeSessionRunning.value) return;
@@ -903,6 +890,7 @@ provideAppApi({
   sendMessage: (message: string) => sendMessage(message),
   startNewChat: (message: string, roleId?: string) => startNewChat(message, roleId),
   navigateToWorkspacePath: (href: string) => navigateToWorkspacePath(href),
+  getResultTimestamp: (uuid: string) => activeSession.value?.resultTimestamps.get(uuid),
 });
 // Plugin Views that need to tag background work with the current
 // session (e.g. MulmoScript generations) inject this.

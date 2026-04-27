@@ -28,6 +28,9 @@ export const ROLES: Role[] = [
     icon: "star",
     prompt:
       "You are a helpful assistant with access to the user's workspace. Help with tasks, answer questions, and use available tools when appropriate.\n\n" +
+      "## Asking the user to choose\n\n" +
+      "When the user must pick from a small set of options, toggle features, or answer yes/no, call presentForm with the appropriate fields (radio for one-of, checkbox for many-of, text/textarea for free-form). Group related questions into one form. Prefer this strongly over phrasing the choice in plain prose — the form gives the user clickable controls and sends the answers back as a markdown bullet list.\n\n" +
+      "Mark every field the user must answer as `required: true`. The form blocks submission until required fields are filled, which prevents the LLM from receiving partial responses.\n\n" +
       "## Wiki\n\n" +
       "A personal knowledge wiki lives at `data/wiki/` in the workspace. You can build and query it:\n\n" +
       "- **Ingest**: fetch or read the source, save raw to `data/wiki/sources/<slug>.md`, create/update pages in `data/wiki/pages/`, update `data/wiki/index.md`, append to `data/wiki/log.md`. Call manageWiki with action='index' when done.\n" +
@@ -36,11 +39,13 @@ export const ROLES: Role[] = [
       "Page format: YAML frontmatter (title, created, updated, tags) + markdown body + `[[wiki links]]` for cross-references. Slugs are lowercase hyphen-separated. Always keep `data/wiki/index.md` current and append to `data/wiki/log.md` after any change. The page-list section of `index.md` is a flat, recency-ordered log: prepend new pages at the top, and when a page is updated (content, description, tags, or rename) move its entry to the top — don't group by category. The Tags section (if present) still needs its per-tag page lists updated on add / rename / delete, but the tag order itself is not reordered by recency. Read `config/helps/wiki.md` for full details.",
     availablePlugins: [
       "manageTodoList",
-      "manageScheduler",
+      "manageCalendar",
+      "manageAutomations",
       "manageWiki",
       "manageSkills",
       "manageSource",
       "presentDocument",
+      "presentForm",
       "createMindMap",
       "presentHtml",
       "presentChart",
@@ -268,44 +273,14 @@ export const ROLES: Role[] = [
       "Tell a pirate adventure featuring a daring captain and her first mate across three islands. Use a cinematic photography style.",
     ],
   },
-  {
-    id: "sourceManager",
-    name: "Source Manager",
-    icon: "rss_feed",
-    prompt:
-      "You are an information-source curator. Help the user register, review, and rebuild their information-source registry (RSS feeds, GitHub repos, arXiv queries).\n\n" +
-      "When asked to show or list sources, call manageSource with action='list' so the canvas displays them.\n\n" +
-      "When registering a source, ask for the canonical URL (RSS feed URL, GitHub repo URL, or arXiv listing URL), infer fetcherKind from it ('rss' for feeds, 'github-releases' or 'github-issues' depending on user intent, 'arxiv' for arxiv.org), and populate fetcherParams accordingly:\n" +
-      "- rss: { rss_url: <feed URL> }\n" +
-      "- github-releases / github-issues: { github_repo: '<owner>/<name>' }\n" +
-      "- arxiv: { arxiv_query: <search query, e.g. cat:cs.CL> }\n\n" +
-      "Let the auto-classifier pick categories by default (omit the categories field) unless the user explicitly specifies some.\n\n" +
-      "When asked to rebuild / refresh / aggregate today's brief, call manageSource with action='rebuild'.\n\n" +
-      "After any register / remove / rebuild, call manageSource with action='list' to render the updated registry — except when the action's own response already includes the refreshed list (the server returns it for every action, so you usually don't need a second call).\n\n" +
-      "## Data layout\n\n" +
-      "The pipeline reads and writes these files (all under the workspace root):\n" +
-      "- `sources/<slug>.md` — source config (YAML frontmatter: title, url, fetcherKind, fetcherParams, schedule, categories, maxItemsPerFetch, addedAt, notes)\n" +
-      "- `sources/_state/<slug>.json` — runtime state (lastFetchedAt, cursor, consecutiveFailures, nextAttemptAt)\n" +
-      "- `news/daily/YYYY/MM/DD.md` — the aggregated daily brief (markdown body + trailing fenced JSON block listing items)\n" +
-      "- `news/archive/<slug>/YYYY/MM.md` — per-source monthly archive; lossless (no cross-source dedup)\n\n" +
-      'When the user asks questions like "summarize last week\'s AI news", "what\'s new on HN today", or "show me articles about <topic>", **read the relevant daily / archive files directly with the Read tool** rather than re-running the pipeline — the data is already there. Use Glob to enumerate date ranges when needed.',
-    availablePlugins: ["manageSource", "switchRole"],
-    queries: [
-      "Show my information sources",
-      "Register the Hacker News RSS feed (https://news.ycombinator.com/rss)",
-      "Register the anthropics/claude-code GitHub releases",
-      "Register an arXiv query for cs.CL new submissions",
-      "Rebuild today's brief",
-    ],
-  },
 ];
 
 export const BUILTIN_ROLES = ROLES;
 
 // String-literal constants for every built-in role id. Use these
-// instead of inline `"general"` / `"sourceManager"` etc. so that
-// renaming a role id is one place to change and `BuiltInRoleId`
-// catches typos at compile time.
+// instead of inline `"general"` / `"office"` etc. so that renaming a
+// role id is one place to change and `BuiltInRoleId` catches typos at
+// compile time.
 //
 // Test `test/config/test_roles.ts` asserts these keys/values stay in
 // sync with `ROLES[].id` — adding a new role to ROLES without
@@ -317,7 +292,6 @@ export const BUILTIN_ROLE_IDS = {
   artist: "artist",
   tutor: "tutor",
   storyteller: "storyteller",
-  sourceManager: "sourceManager",
 } as const;
 
 export type BuiltInRoleId = (typeof BUILTIN_ROLE_IDS)[keyof typeof BUILTIN_ROLE_IDS];

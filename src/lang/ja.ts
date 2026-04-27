@@ -36,11 +36,7 @@ const jaMessages = {
   },
   chatInput: {
     placeholder: "タスクを入力、またはファイルをドロップ・ペースト・添付…",
-    expandEditor: "エディタを広げる",
-    composeMessage: "メッセージを作成",
-    sendHint: "Cmd+Enter で送信",
     send: "送信",
-    stop: "停止",
     attachFile: "ファイルを添付",
     fileTooLarge: "ファイルが大きすぎます（{sizeMB} MB）。上限は 30 MB です。",
     unsupportedFileType: "対応していないファイル形式です。画像・PDF・DOCX・XLSX・PPTX・テキストファイルを使用してください。",
@@ -236,6 +232,77 @@ const jaMessages = {
     errIdExists: "サーバ ID「{id}」は既に存在します。",
     errBadHttpUrl: "HTTP URL は http:// または https:// で始める必要があります",
     pendingEntryWarning: "保留中の MCP サーバ設定を確定またはキャンセルしてください。",
+    customHeading: "カスタムサーバ",
+    catalog: {
+      heading: "登録済み MCP サーバ",
+      audience: { general: "🟢 一般用途", developer: "🔵 開発者向け" },
+      risk: { low: "低", medium: "中", high: "高" },
+      upstream: "📦 ソース",
+      setupGuide: "📚 セットアップ",
+      entry: {
+        memory: {
+          displayName: "メモリ",
+          description: "セッションを跨いで会話の内容を覚えます。",
+        },
+        sequentialThinking: {
+          displayName: "順序立てた思考",
+          description: "複雑な問題を段階的に考える支援。",
+        },
+        context7: {
+          displayName: "Context7（ライブラリドキュメント）",
+          description: "主要ライブラリの最新ドキュメントを取得 — モデルの学習データ時点を超える情報源。",
+        },
+        deepwiki: {
+          displayName: "DeepWiki（GitHub リポジトリ Wiki）",
+          description: "GitHub リポジトリについて質問すると、Wiki スタイルの構造化された回答が返ります。",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "Notion ワークスペースを読み書き — ページ・データベース・検索に対応。",
+          field: {
+            apiKey: {
+              label: "Notion インテグレーショントークン",
+              help: "Notion インテグレーションを作成し Internal Integration Secret をコピーしてください。🔑 でインテグレーション設定ページを開けます。",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "Slack ワークスペースのチャンネル一覧、メッセージ送信、履歴検索。",
+          field: {
+            botToken: {
+              label: "Bot トークン",
+              help: "Slack App → OAuth & Permissions → Bot User OAuth Token。xoxb- で始まります。",
+            },
+            teamId: {
+              label: "チーム / ワークスペース ID",
+              help: "team.info を呼び出すかワークスペース URL から確認 — T01ABC23DEF のような形式です。",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "場所の検索、ルート案内、位置情報の詳細取得。",
+          field: {
+            apiKey: {
+              label: "Google Maps API キー",
+              help: "Google Cloud Console → APIs & Services → Credentials → API キー作成。Places + Directions を有効化してください。",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "天気予報（Open-Meteo）",
+          description: "世界各地の天気予報と現在の気象情報 — API キー不要で無料利用可能。",
+        },
+      },
+      config: {
+        howToGet: "取得方法",
+        install: "インストール",
+        errMissingRequired: "必須項目が未入力です: {fields}",
+        requiredMarker: "*",
+        requiredAria: "必須",
+      },
+    },
   },
   pluginScheduler: {
     prev: "前へ",
@@ -261,6 +328,7 @@ const jaMessages = {
     moreCount: "他 {count} 件",
     previewIcon: "📅",
     previewUpcoming: "今後 {count} 件",
+    previewAutomations: "オートメーション {count} 件",
     previewMore: "+ {count} 件…",
   },
   pluginSchedulerTasks: {
@@ -279,6 +347,9 @@ const jaMessages = {
     runFailed: "実行失敗: {error}",
     toggleFailed: "切替失敗: {error}",
     deleteFailed: "削除失敗: {error}",
+    detailsToggle: "詳細を表示",
+    promptLabel: "プロンプト",
+    roleLabel: "ロール",
   },
   pluginCanvas: {
     undo: "元に戻す",
@@ -379,6 +450,18 @@ const jaMessages = {
     lintChat: "Wiki を Lint",
     taskCountMismatch: "Wiki ソースと描画結果でタスク数が一致しないため、ファイル破損を避けるためトグル操作を中止しました。",
   },
+  pluginPresentForm: {
+    fallbackTitle: "フォーム",
+    fieldCount: "{count} 項目",
+    submitted: "送信済み",
+    errorSummary: "次のエラーを修正してください",
+    requiredMarker: "*",
+    selectOption: "選択してください",
+    charactersCount: "{current} / {max} 文字",
+    charactersCountNoMax: "{current} 文字",
+    submit: "送信",
+    progress: "必須項目 {total} 件中 {filled} 件入力済み",
+  },
   pluginPresentHtml: {
     saveAsPdf: "PDF として保存（印刷ダイアログを開きます）",
     pdf: "PDF",
@@ -405,6 +488,7 @@ const jaMessages = {
   pluginManageSource: {
     titlePlaceholder: "タイトル（省略可）",
     heading: "情報ソース",
+    chatPlaceholder: "情報ソースについて質問…",
     sourceCount: "{count} 件",
     addButton: "追加",
     rebuildNow: "今すぐ再構築",
@@ -608,6 +692,7 @@ const jaMessages = {
   },
   app: {
     startConversation: "会話を開始してください",
+    thinking: "考え中…",
   },
   suggestionsPanel: {
     suggestions: "候補",
