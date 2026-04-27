@@ -322,6 +322,27 @@ const deMessages = {
             },
           },
         },
+        github: {
+          displayName: "GitHub",
+          description:
+            "Liest Repos, Issues, PRs und führt Suchen mit einem Personal Access Token aus. Begrenze den Token-Scope — Schreibrechte (z.B. `repo`) erlauben dem Agenten Pushes auf jeden zugänglichen Repo.",
+          field: {
+            token: {
+              label: "Personal Access Token",
+              help: "GitHub → Settings → Developer settings → Personal access tokens. Bevorzuge fine-grained tokens, die nur auf Repos beschränkt sind, in denen der Agent arbeiten soll.",
+            },
+          },
+        },
+        linear: {
+          displayName: "Linear",
+          description: "Liest und aktualisiert Linear-Issues, -Projekte und -Cycles mit einem persönlichen API-Key.",
+          field: {
+            apiKey: {
+              label: "Linear-API-Key",
+              help: "Linear → Settings → API → Personal API keys. Klicke auf 🔑, um die Seite zu öffnen, und dann auf Create key.",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "Wetter (Open-Meteo)",
           description: "Kostenlose Wettervorhersagen und aktuelle Bedingungen weltweit — ohne API-Key.",

@@ -325,6 +325,27 @@ const koMessages = {
             },
           },
         },
+        github: {
+          displayName: "GitHub",
+          description:
+            "Personal Access Token으로 리포지토리 / 이슈 / PR / 검색 액세스. 토큰 범위를 좁게 설정하세요 — 쓰기 범위(`repo` 등)를 부여하면 에이전트가 접근 가능한 모든 리포지토리에 push할 수 있습니다.",
+          field: {
+            token: {
+              label: "Personal Access Token",
+              help: "GitHub → Settings → Developer settings → Personal access tokens. 에이전트가 다룰 리포지토리만 지정하는 fine-grained token을 권장합니다.",
+            },
+          },
+        },
+        linear: {
+          displayName: "Linear",
+          description: "Personal API key로 Linear의 이슈 / 프로젝트 / 사이클 읽기·쓰기.",
+          field: {
+            apiKey: {
+              label: "Linear API 키",
+              help: "Linear → Settings → API → Personal API keys. 🔑 를 눌러 페이지를 열고 Create key 를 클릭하세요.",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "날씨 (Open-Meteo)",
           description: "전 세계 무료 일기예보와 현재 기상 정보 — API 키 불필요.",

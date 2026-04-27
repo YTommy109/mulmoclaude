@@ -321,6 +321,27 @@ const ptBRMessages = {
             },
           },
         },
+        github: {
+          displayName: "GitHub",
+          description:
+            "Lê repos, issues, PRs e executa buscas com um Personal Access Token. Limite o escopo — permissões de escrita (`repo`) deixam o agente fazer push em qualquer repo acessível.",
+          field: {
+            token: {
+              label: "Personal Access Token",
+              help: "GitHub → Settings → Developer settings → Personal access tokens. Prefira fine-grained tokens limitados aos repos onde o agente deve atuar.",
+            },
+          },
+        },
+        linear: {
+          displayName: "Linear",
+          description: "Lê e atualiza issues, projetos e ciclos do Linear com uma chave de API pessoal.",
+          field: {
+            apiKey: {
+              label: "Chave de API do Linear",
+              help: "Linear → Settings → API → Personal API keys. Clique em 🔑 para abrir a página e em Create key.",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "Clima (Open-Meteo)",
           description: "Previsão do tempo gratuita e condições atuais no mundo todo — sem chave de API.",

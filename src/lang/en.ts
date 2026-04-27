@@ -341,6 +341,27 @@ const enMessages = {
             },
           },
         },
+        github: {
+          displayName: "GitHub",
+          description:
+            "Read repos, issues, PRs and run searches with a Personal Access Token. Scope the token narrowly — write scopes (e.g. `repo`) let the agent push to any repo you can access.",
+          field: {
+            token: {
+              label: "Personal Access Token",
+              help: "GitHub → Settings → Developer settings → Personal access tokens. Prefer fine-grained tokens limited to the repos you want the agent to touch.",
+            },
+          },
+        },
+        linear: {
+          displayName: "Linear",
+          description: "Read and update Linear issues, projects and cycles via a personal API key.",
+          field: {
+            apiKey: {
+              label: "Linear API key",
+              help: "Linear → Settings → API → Personal API keys. Click 🔑 to open the page and click Create key.",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "Weather (Open-Meteo)",
           description: "Free weather forecasts and current conditions worldwide — no API key needed.",

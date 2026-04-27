@@ -393,6 +393,80 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     riskLevel: "medium",
   },
 
+  // GitHub repos / issues / PRs / search via the official MCP server.
+  // Auth is a single Personal Access Token (classic or fine-grained).
+  // Token scope dictates the risk: a `repo` scope can write to any
+  // repository the user has access to, so we flag this medium-to-high
+  // and tell users to scope down in the help text.
+  //
+  // TODO(reviewer): pin version. The package has been actively
+  // maintained as of 2026-04.
+  {
+    id: "github",
+    displayName: "settingsMcpTab.catalog.entry.github.displayName",
+    description: "settingsMcpTab.catalog.entry.github.description",
+    audience: "general",
+    upstreamUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/github",
+    setupGuideUrl: "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens",
+    spec: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@modelcontextprotocol/server-github"],
+      env: {
+        GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_PERSONAL_ACCESS_TOKEN}",
+      },
+    },
+    configSchema: [
+      {
+        key: "GITHUB_PERSONAL_ACCESS_TOKEN",
+        label: "settingsMcpTab.catalog.entry.github.field.token.label",
+        kind: "secret",
+        placeholder: "ghp_…",
+        required: true,
+        helpUrl: "https://github.com/settings/tokens",
+        helpText: "settingsMcpTab.catalog.entry.github.field.token.help",
+      },
+    ],
+    // Token scope is on the user — high if `repo` is granted, low if
+    // it's read-only public. Default to medium.
+    riskLevel: "medium",
+  },
+
+  // Linear issues / projects / cycles via a community MCP server.
+  // Auth is a single Linear API key from the user's Linear settings.
+  //
+  // TODO(reviewer): pin the most-active Linear MCP — as of 2026-04
+  // candidates include `@tacticlaunch/mcp-linear` and various
+  // smithery-hosted variants.
+  {
+    id: "linear",
+    displayName: "settingsMcpTab.catalog.entry.linear.displayName",
+    description: "settingsMcpTab.catalog.entry.linear.description",
+    audience: "general",
+    upstreamUrl: "https://github.com/tacticlaunch/mcp-linear",
+    setupGuideUrl: "https://linear.app/docs/personal-api-keys",
+    spec: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@tacticlaunch/mcp-linear"],
+      env: {
+        LINEAR_API_KEY: "${LINEAR_API_KEY}",
+      },
+    },
+    configSchema: [
+      {
+        key: "LINEAR_API_KEY",
+        label: "settingsMcpTab.catalog.entry.linear.field.apiKey.label",
+        kind: "secret",
+        placeholder: "lin_api_…",
+        required: true,
+        helpUrl: "https://linear.app/settings/api",
+        helpText: "settingsMcpTab.catalog.entry.linear.field.apiKey.help",
+      },
+    ],
+    riskLevel: "medium",
+  },
+
   // TODO(reviewer): pick the most-active community package — as of
   // 2026-04 candidates include `mcp-server-open-meteo` and
   // `@cloud-rocket/mcp-server-open-meteo`.

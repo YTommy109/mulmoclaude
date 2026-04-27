@@ -324,6 +324,27 @@ const jaMessages = {
             },
           },
         },
+        github: {
+          displayName: "GitHub",
+          description:
+            "Personal Access Token でリポジトリ / Issue / PR / 検索にアクセス。スコープは絞ってください — 書き込み権限（`repo` 等）を渡すとアクセス可能な全リポジトリに push できてしまいます。",
+          field: {
+            token: {
+              label: "Personal Access Token",
+              help: "GitHub → Settings → Developer settings → Personal access tokens。エージェントに触らせたいリポジトリだけ指定する fine-grained token を推奨。",
+            },
+          },
+        },
+        linear: {
+          displayName: "Linear",
+          description: "Personal API key で Linear の Issue / プロジェクト / サイクルを読み書き。",
+          field: {
+            apiKey: {
+              label: "Linear API キー",
+              help: "Linear → Settings → API → Personal API keys。🔑 から発行ページを開き Create key を押してください。",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "天気予報（Open-Meteo）",
           description: "世界各地の天気予報と現在の気象情報 — API キー不要で無料利用可能。",

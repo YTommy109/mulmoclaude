@@ -322,6 +322,27 @@ const frMessages = {
             },
           },
         },
+        github: {
+          displayName: "GitHub",
+          description:
+            "Lit les repos, issues, PRs et exécute des recherches avec un Personal Access Token. Limitez la portée du token — les permissions d'écriture (`repo`) laissent l'agent push sur n'importe quel repo accessible.",
+          field: {
+            token: {
+              label: "Personal Access Token",
+              help: "GitHub → Settings → Developer settings → Personal access tokens. Préférez les fine-grained tokens limités aux repos où l'agent doit agir.",
+            },
+          },
+        },
+        linear: {
+          displayName: "Linear",
+          description: "Lit et met à jour les issues, projets et cycles Linear avec une clé d'API personnelle.",
+          field: {
+            apiKey: {
+              label: "Clé d'API Linear",
+              help: "Linear → Settings → API → Personal API keys. Cliquez sur 🔑 pour ouvrir la page et sur Create key.",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "Météo (Open-Meteo)",
           description: "Prévisions météo gratuites et conditions actuelles dans le monde entier — sans clé d'API.",

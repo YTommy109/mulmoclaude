@@ -321,6 +321,27 @@ const zhMessages = {
             },
           },
         },
+        github: {
+          displayName: "GitHub",
+          description:
+            "通过 Personal Access Token 读取仓库 / Issues / PRs 并执行搜索。请窄化 token 权限 — 写权限（如 `repo`）允许 agent 推送到任何可访问的仓库。",
+          field: {
+            token: {
+              label: "Personal Access Token",
+              help: "GitHub → Settings → Developer settings → Personal access tokens。建议使用 fine-grained token 仅限于希望 agent 操作的仓库。",
+            },
+          },
+        },
+        linear: {
+          displayName: "Linear",
+          description: "通过 Personal API key 读写 Linear 的 Issue / 项目 / 周期。",
+          field: {
+            apiKey: {
+              label: "Linear API 密钥",
+              help: "Linear → Settings → API → Personal API keys。点击 🔑 打开页面并点击 Create key。",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "天气（Open-Meteo）",
           description: "全球免费天气预报和当前气象 — 无需 API 密钥。",
