@@ -8,11 +8,17 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Português (BR)](README.pt-BR.md) · **Français** · [Deutsch](README.de.md)
 
-Chat graphique avec Claude Code — avec mémoire à long terme, outils visuels et accès aux applications de messagerie.
+Chat graphique avec Claude Code — mémoire à long terme, sortie visuelle riche, exécution en sandbox et accès distant depuis n'importe où.
 
-Discutez avec Claude Code et recevez non seulement du texte, mais aussi une **sortie visuelle interactive** : documents, feuilles de calcul, cartes mentales, graphiques, images, formulaires, scènes 3D et plus encore. Un wiki personnel intégré donne à Claude des **connaissances persistantes** qui s'enrichissent à chaque conversation.
+**Mémoire à long terme** : un wiki personnel intégré — inspiré de l'idée d'Andrej Karpathy de donner à un LLM un carnet qui s'étoffe avec le temps — apporte à Claude des **connaissances persistantes** qui s'enrichissent à chaque conversation.
+
+Discutez avec Claude Code et recevez non seulement du texte, mais aussi une **sortie visuelle interactive** : documents, feuilles de calcul, cartes mentales, graphiques, images, formulaires, scènes 3D et plus encore.
+
+**Exécution en sandbox** : Claude Code s'exécute dans un sandbox, ce qui protège votre système contre les attaques par injection de prompt.
 
 **Accédez depuis n'importe où** : connectez Telegram, Slack, LINE, Discord ou [10 autres applications de messagerie](#messaging-bridges) pour dialoguer avec votre agent IA depuis votre téléphone.
+
+**Tâches planifiées** : déléguez les tâches récurrentes — résumés quotidiens, vérifications périodiques, rappels programmés — au planificateur intégré, qui exécute votre agent via cron.
 
 ## Démarrage rapide
 
