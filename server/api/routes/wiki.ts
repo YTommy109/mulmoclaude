@@ -48,7 +48,12 @@ const TABLE_SEPARATOR_PATTERN = /^\|[\s|:-]+\|$/;
 // derive the slug from the file name instead of re-slugifying the
 // title. This matters for non-ASCII titles like "さくらインターネット"
 // where `wikiSlugify` returns "" and the slug would otherwise be lost.
+// Each `[^x]+` runs over a fixed exclusion set with a hard delimiter
+// (`]`, `)`) — no nested-quantifier overlap, no ReDoS pathology even
+// on adversarial line input.
+// eslint-disable-next-line security/detect-unsafe-regex -- bullet-link parser; bounded captures with hard delimiters
 const BULLET_LINK_PATTERN = /^[-*]\s+\[([^\]]+)\]\(([^)]*)\)(?:\s*[—–-]\s*(.*))?/;
+// eslint-disable-next-line security/detect-unsafe-regex -- same shape as BULLET_LINK_PATTERN
 const BULLET_WIKI_LINK_PATTERN = /^[-*]\s+\[\[([^\]]+)\]\](?:\s*[—–-]\s*(.*))?/;
 // Unicode-aware tag body: any letter or number in any script
 // (so Japanese / Chinese / Korean tags like `#クラウド` or `#可視化`

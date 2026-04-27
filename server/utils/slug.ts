@@ -37,6 +37,10 @@ export function hashSlug(input: string, length: number = NON_ASCII_HASH_LEN): st
 export function isValidSlug(slug: string): boolean {
   if (typeof slug !== "string") return false;
   if (slug.length === 0 || slug.length > DEFAULT_MAX_LENGTH) return false;
+  // Linear-time validator — `[a-z0-9-]*` and `[a-z0-9]` don't overlap,
+  // and the input length is hard-capped above. Safe against ReDoS;
+  // safe-regex flags the `(?:...)?` shape generically.
+  // eslint-disable-next-line security/detect-unsafe-regex -- bounded slug validator, length capped above
   if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(slug)) return false;
   if (slug.includes("--")) return false;
   return true;

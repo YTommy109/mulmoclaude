@@ -129,6 +129,10 @@ export function parseSkillFrontmatter(raw: string): ParsedSkill | null {
   const body = lines
     .slice(closeIdx + 1)
     .join("\n")
+    // Strip leading blank lines. `\s*\n` consumes one line with
+    // optional leading whitespace; outer `+` repeats over distinct
+    // lines so no overlap → linear in input length.
+    // eslint-disable-next-line security/detect-unsafe-regex -- linear blank-line stripper, no nested-quantifier overlap
     .replace(/^(?:\s*\n)+/, "")
     .trimEnd();
 
