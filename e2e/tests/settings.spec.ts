@@ -254,10 +254,12 @@ test.describe("Settings MCP tab — stdio + Docker warnings (Phase 2b)", () => {
 });
 
 // Catalog config form (#823 Phase 2). Notion is the canonical
-// example: 1 secret field (NOTION_API_KEY) wrapped into the
-// OPENAPI_MCP_HEADERS env var. Walks the full toggle → form →
-// validate → install round-trip and asserts the env arrives at
-// the persistence layer with the placeholder resolved.
+// example: 1 secret field (NOTION_API_KEY) interpolated into
+// the recommended `NOTION_TOKEN` env var (per the official
+// @notionhq/notion-mcp-server README). Walks the full
+// toggle → form → validate → install round-trip and asserts
+// the env arrives at the persistence layer with the
+// placeholder resolved.
 test.describe("Settings MCP tab — catalog config (Phase 2)", () => {
   test("config-required entry shows form, validates, and installs with resolved env", async ({ page }) => {
     const { state } = await mockConfigApi(page);
@@ -278,7 +280,7 @@ test.describe("Settings MCP tab — catalog config (Phase 2)", () => {
     await expect(page.locator('[data-testid="mcp-catalog-config-error-notion"]')).toContainText("NOTION_API_KEY");
 
     // Fill the key and install → server appears, env carries the
-    // resolved bearer token wrapped in the OPENAPI_MCP_HEADERS JSON.
+    // resolved token under NOTION_TOKEN (the recommended shape).
     await page.locator('[data-testid="mcp-catalog-config-input-notion-NOTION_API_KEY"]').fill("secret_test_token_xyz");
     await page.locator('[data-testid="mcp-catalog-config-install-notion"]').click();
     await expect(page.locator('[data-testid="mcp-catalog-config-form-notion"]')).not.toBeVisible();
@@ -287,7 +289,7 @@ test.describe("Settings MCP tab — catalog config (Phase 2)", () => {
     await expect.poll(() => state.mcp.servers.find((entry) => entry.id === "notion")?.spec.type).toBe("stdio");
     const installed = state.mcp.servers.find((entry) => entry.id === "notion");
     if (!installed || installed.spec.type !== "stdio") throw new Error("notion server not persisted as stdio");
-    expect(installed.spec.env?.OPENAPI_MCP_HEADERS).toContain("Bearer secret_test_token_xyz");
+    expect(installed.spec.env?.NOTION_TOKEN).toBe("secret_test_token_xyz");
 
     // Toggle off → server is removed.
     await page.locator('[data-testid="mcp-catalog-toggle-notion"]').uncheck();

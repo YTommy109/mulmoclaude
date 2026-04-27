@@ -8,11 +8,17 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Português (BR)](README.pt-BR.md) · [Français](README.fr.md) · **Deutsch**
 
-GUI-Chat mit Claude Code — zusätzlich mit Langzeitgedächtnis, visuellen Werkzeugen und Zugang zu Messaging-Apps.
+GUI-Chat mit Claude Code — Langzeitgedächtnis, reichhaltige visuelle Ausgaben, Sandbox-Ausführung und Fernzugriff von überall.
 
-Chatten Sie mit Claude Code und erhalten Sie nicht nur Text, sondern **interaktive visuelle Ausgaben**: Dokumente, Tabellenkalkulationen, Mindmaps, Diagramme, Bilder, Formulare, 3D-Szenen und vieles mehr. Ein integriertes persönliches Wiki gibt Claude ein **beständiges Wissen**, das mit jedem Gespräch wächst.
+**Langzeitgedächtnis**: Ein integriertes persönliches Wiki — inspiriert von Andrej Karpathys Idee, einem LLM ein mit der Zeit wachsendes Notizbuch zu geben — verleiht Claude **beständiges Wissen**, das mit jedem Gespräch wächst.
+
+Chatten Sie mit Claude Code und erhalten Sie nicht nur Text, sondern **interaktive visuelle Ausgaben**: Dokumente, Tabellenkalkulationen, Mindmaps, Diagramme, Bilder, Formulare, 3D-Szenen und vieles mehr.
+
+**Sandbox-Ausführung**: Claude Code läuft innerhalb einer Sandbox und schützt Ihr System so vor Prompt-Injection-Angriffen.
 
 **Zugriff von überall**: Verbinden Sie Telegram, Slack, LINE, Discord oder [10 weitere Messaging-Apps](#messaging-bridges), um vom Handy aus mit Ihrem KI-Agenten zu sprechen.
+
+**Geplante Aufgaben**: Übergeben Sie wiederkehrende Arbeit — tägliche Zusammenfassungen, regelmäßige Prüfungen, geplante Erinnerungen — an den integrierten Scheduler, der Ihren Agenten per Cron ausführt.
 
 ## Schnellstart
 
