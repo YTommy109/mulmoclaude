@@ -41,8 +41,32 @@ export interface WikiPageWriteOptions {
   workspaceRoot?: string;
 }
 
-/** Absolute path for a slug. Does not check existence. */
+/** Reject slugs that would escape `data/wiki/pages/` once joined.
+ *  The chokepoint must defend itself against careless callers — a
+ *  raw `path.join(root, dir, '${slug}.md')` happily resolves
+ *  `../../etc/passwd` outside the wiki tree. Today's three callers
+ *  derive slugs from `path.basename(...)` so they're already safe;
+ *  this guard keeps that property even if a future caller forgets. */
+function isSafeSlug(slug: string): boolean {
+  if (slug.length === 0) return false;
+  // Empty / dot-only / starts-with-dot would either resolve to the
+  // pages dir itself, hide the file (`.foo.md`), or risk collisions
+  // with VCS / OS metadata. Reject as a class.
+  if (slug.startsWith(".")) return false;
+  // Any path separator (forward slash, backslash on Windows, or the
+  // literal `..` segment) means the slug spans directories — not
+  // allowed at the page-write layer.
+  if (slug.includes("/") || slug.includes("\\")) return false;
+  if (slug.includes("\0")) return false;
+  return true;
+}
+
+/** Absolute path for a slug. Throws on slugs that would escape
+ *  `data/wiki/pages/`. Does not check existence. */
 export function wikiPagePath(slug: string, opts: WikiPageWriteOptions = {}): string {
+  if (!isSafeSlug(slug)) {
+    throw new Error(`wiki-pages: refusing unsafe slug ${JSON.stringify(slug)}`);
+  }
   const root = opts.workspaceRoot ?? defaultWorkspacePath;
   return path.join(root, WORKSPACE_DIRS.wikiPages, `${slug}.md`);
 }
@@ -56,22 +80,35 @@ export async function readWikiPage(slug: string, opts: WikiPageWriteOptions = {}
 
 /** Write a wiki page atomically and forward (old, new) to the
  *  snapshot pipeline. The snapshot call is currently a no-op stub
- *  (#763 PR 2). */
+ *  (#763 PR 2). `uniqueTmp: true` matches what the generic
+ *  `/api/files/content` PUT used pre-consolidation — without it
+ *  two simultaneous writes to the same page collide on the shared
+ *  `.tmp` staging file (the file-content PUT and the wiki-backlinks
+ *  driver are independent and may target the same page in the same
+ *  millisecond). */
 export async function writeWikiPage(slug: string, content: string, meta: WikiWriteMeta, opts: WikiPageWriteOptions = {}): Promise<void> {
   const absPath = wikiPagePath(slug, opts);
   const oldContent = await readTextSafe(absPath);
-  await writeFileAtomic(absPath, content);
+  await writeFileAtomic(absPath, content, { uniqueTmp: true });
   if (oldContent !== content) {
     await appendSnapshot(slug, oldContent, content, meta);
   }
 }
 
 /** Routing helper for the generic `/api/files/content` PUT.
- *  Returns `{ wiki: true, slug }` when the absolute path resolves
- *  inside `data/wiki/pages/` AND has a `.md` extension. Anything
- *  outside that exact shape (index.md, sources/, non-md, traversal
- *  attempts after symlink resolution) is `{ wiki: false }` and
- *  should fall back to the generic atomic write. */
+ *  Returns `{ wiki: true, slug }` when `absPath` resolves directly
+ *  under `data/wiki/pages/` AND ends in `.md`. Anything outside
+ *  that exact shape (index.md, sources/, non-md, nested subdirs,
+ *  paths that escape pagesDir via `..`) is `{ wiki: false }` and
+ *  should fall back to the generic atomic write.
+ *
+ *  This function is **pure path-string math** — it does no symlink
+ *  resolution. Callers MUST pass an already-realpath'd `absPath`
+ *  AND an already-realpath'd `workspaceRoot` (or rely on the
+ *  default, which mirrors `defaultWorkspacePath`). Mixing one
+ *  realpath'd side with a symlinked other side is the trap that
+ *  caused #883 review-iter-1 — a symlinked workspace would have
+ *  silently routed wiki writes through the generic writer. */
 export function classifyAsWikiPage(absPath: string, opts: WikiPageWriteOptions = {}): { wiki: true; slug: string } | { wiki: false } {
   const root = opts.workspaceRoot ?? defaultWorkspacePath;
   const pagesDir = path.join(root, WORKSPACE_DIRS.wikiPages);

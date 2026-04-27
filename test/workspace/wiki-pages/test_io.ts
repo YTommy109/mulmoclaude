@@ -26,6 +26,39 @@ describe("wiki-pages/io — wikiPagePath", () => {
     const expected = path.join(root, WORKSPACE_DIRS.wikiPages, "my-page.md");
     assert.equal(out, expected);
   });
+
+  it("accepts unicode slugs (e.g. CJK page names)", () => {
+    // Wiki has Japanese page slugs in production — the safety guard
+    // must not over-reject the legitimate ones.
+    const out = wikiPagePath("さくらインターネット", { workspaceRoot: "/tmp/ws" });
+    assert.equal(out, path.join("/tmp/ws", WORKSPACE_DIRS.wikiPages, "さくらインターネット.md"));
+  });
+
+  it("throws on path-traversal slugs (..)", () => {
+    // Defensive — today's callers all use path.basename so they're
+    // safe, but the chokepoint must reject if a future caller forgets.
+    assert.throws(() => wikiPagePath("../../etc/passwd", { workspaceRoot: "/tmp/ws" }), /unsafe slug/);
+  });
+
+  it("throws on slugs containing forward slashes", () => {
+    assert.throws(() => wikiPagePath("nested/page", { workspaceRoot: "/tmp/ws" }), /unsafe slug/);
+  });
+
+  it("throws on slugs containing backslashes (Windows traversal)", () => {
+    assert.throws(() => wikiPagePath("evil\\..\\foo", { workspaceRoot: "/tmp/ws" }), /unsafe slug/);
+  });
+
+  it("throws on dot-prefixed slugs (hidden files / VCS metadata)", () => {
+    assert.throws(() => wikiPagePath(".gitignore", { workspaceRoot: "/tmp/ws" }), /unsafe slug/);
+  });
+
+  it("throws on the empty slug", () => {
+    assert.throws(() => wikiPagePath("", { workspaceRoot: "/tmp/ws" }), /unsafe slug/);
+  });
+
+  it("throws on slugs with NUL bytes", () => {
+    assert.throws(() => wikiPagePath("foo\0bar", { workspaceRoot: "/tmp/ws" }), /unsafe slug/);
+  });
 });
 
 describe("wiki-pages/io — readWikiPage", () => {
@@ -87,6 +120,24 @@ describe("wiki-pages/io — writeWikiPage", () => {
     const entries = await readdir(pagesDir);
     const stragglers = entries.filter((name) => name.endsWith(".tmp"));
     assert.deepEqual(stragglers, []);
+  });
+
+  it("isolates concurrent writes via uniqueTmp (no .tmp collision)", async () => {
+    // Two concurrent writes to the same slug must each use a
+    // different staging filename, otherwise one will fail with
+    // ENOENT mid-rename. The test for uniqueTmp is observable as
+    // "both writes complete without throwing".
+    const writes = Promise.all([
+      writeWikiPage("race", "writer-a\n", { editor: "user" }, { workspaceRoot }),
+      writeWikiPage("race", "writer-b\n", { editor: "system", sessionId: "s" }, { workspaceRoot }),
+    ]);
+    await assert.doesNotReject(writes);
+
+    // The final content is one of the two — we don't assert which,
+    // because rename order is racey and the test asserts isolation,
+    // not last-write-wins semantics.
+    const final = await readFile(wikiPagePath("race", { workspaceRoot }), "utf-8");
+    assert.ok(final === "writer-a\n" || final === "writer-b\n", `unexpected content: ${final}`);
   });
 
   it("accepts every editor identity without distinction (PR 1 no-op)", async () => {

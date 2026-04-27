@@ -764,13 +764,20 @@ router.put(API_ROUTES.files.content, async (req: Request<object, unknown, WriteC
     // Wiki pages have their own choke-point write helper that
     // captures (old, new) for the edit-history pipeline (#763).
     // Anything else falls back to the generic atomic write.
-    // `uniqueTmp: true` (generic branch) appends a randomUUID to
-    // the tmp filename so two simultaneous PUTs to the same path
-    // can't clobber each other's staging file and race through
-    // the rename.
-    const wikiClass = classifyAsWikiPage(absPath);
+    // `uniqueTmp: true` appends a randomUUID to the tmp filename so
+    // two simultaneous PUTs to the same path can't clobber each
+    // other's staging file and race through the rename
+    // (writeWikiPage applies it internally).
+    //
+    // Pass the already-realpath'd `workspaceReal` to the classifier:
+    // `resolveSafe()` returns a realpath'd `absPath`, so the root
+    // we compare against MUST also be realpath'd. Otherwise a
+    // symlinked workspace (e.g. `~/mulmoclaude` → some real path
+    // elsewhere) silently routes wiki writes through the generic
+    // branch and bypasses the chokepoint.
+    const wikiClass = classifyAsWikiPage(absPath, { workspaceRoot: workspaceReal });
     if (wikiClass.wiki) {
-      await writeWikiPage(wikiClass.slug, contentRaw, { editor: "user" });
+      await writeWikiPage(wikiClass.slug, contentRaw, { editor: "user" }, { workspaceRoot: workspaceReal });
     } else {
       await writeFileAtomic(absPath, contentRaw, { uniqueTmp: true });
     }
