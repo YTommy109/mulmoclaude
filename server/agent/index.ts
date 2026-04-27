@@ -8,6 +8,7 @@ import type { Role } from "../../src/config/roles.js";
 import { loadAllRoles } from "../workspace/roles.js";
 import { buildSystemPrompt } from "./prompt.js";
 import { CONTAINER_WORKSPACE_PATH, buildMcpConfig, getActivePlugins, prepareUserServers, resolveMcpConfigPaths, userServerAllowedToolNames } from "./config.js";
+import { validateStdioPackages } from "./mcpHealth.js";
 import type { Attachment } from "@mulmobridge/protocol";
 import type { AgentEvent } from "./stream.js";
 import { log } from "../system/logger/index.js";
@@ -46,6 +47,14 @@ export async function* runAgent(
   const userServers = prepareUserServers(userMcpRaw, useDocker, workspacePath);
   const hasUserServers = Object.keys(userServers).length > 0;
   const hasMcp = activePlugins.length > 0 || hasUserServers;
+
+  // Fire-and-forget pre-flight check: warn (don't block) when an
+  // npx-style stdio server points at a package npm doesn't resolve.
+  // Catches the "catalog entry pinned to a non-existent name" failure
+  // mode where Claude silently falls back to WebSearch because the
+  // MCP subprocess never starts. Cached per-package within the
+  // process lifetime — first invocation pays the network round-trip.
+  validateStdioPackages(userServers).catch(() => {});
 
   // On macOS sandbox, always refresh credentials from Keychain before each
   // agent run so that expired OAuth tokens are replaced transparently.
