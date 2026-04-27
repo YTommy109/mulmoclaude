@@ -36,16 +36,22 @@
         >
           <span class="material-icons text-base">play_arrow</span>
         </button>
-        <!-- Download Movie -->
-        <a
+        <!-- Download Movie: bearer-authenticated blob fetch, then a
+             synthetic <a download> click. The natural <a href download>
+             approach can't attach the Authorization header, which would
+             have forced a bearer-auth exemption on the route — the
+             reviewer's P1 was that any sibling process could then read
+             a caller-controlled movie path. Going through apiFetchRaw
+             (auto-attaches bearer) keeps the auth boundary intact. -->
+        <button
           v-if="moviePath && !movieGenerating"
-          :href="`${downloadMovieBase}?moviePath=${encodeURIComponent(moviePath)}`"
-          download
-          class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm transition-colors"
+          class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          :disabled="movieDownloading"
+          @click="downloadMovie"
         >
           <span class="material-icons text-base">download</span>
           <span>{{ t("pluginMulmoScript.movie") }}</span>
-        </a>
+        </button>
         <!-- Regenerate Movie (icon-only): collapses to a square once a
              movie exists — the adjacent Download / Play already make
              the subject clear, so the "Movie" label only adds noise. -->
@@ -436,10 +442,6 @@ const script = computed<MulmoScript>(() => data.value?.script ?? {});
 const filePath = computed(() => data.value?.filePath ?? "");
 const beats = computed<Beat[]>(() => script.value.beats ?? []);
 
-// Exposed to the template so the `<a :href="...">` download button
-// can compose a query-string URL without inlining the API path.
-const downloadMovieBase = API_ROUTES.mulmoScript.downloadMovie;
-
 // Per-beat render state
 type RenderState = "idle" | "rendering" | "done" | "error";
 const renderState = reactive<Record<number, RenderState>>({});
@@ -456,6 +458,7 @@ const beatSaveErrors = reactive<Record<number, BeatSaveError>>({});
 const beatSaving = reactive<Record<number, boolean>>({});
 const localOverrides = reactive<Record<number, Beat>>({});
 const movieGenerating = ref(false);
+const movieDownloading = ref(false);
 const moviePath = ref<string | null>(null);
 const beatAudios = reactive<Record<number, string>>({});
 const audioState = reactive<Record<number, "generating" | "done" | "error">>({});
@@ -1188,6 +1191,40 @@ async function generateMovie() {
     alert(extractErrorMessage(err));
   } finally {
     movieGenerating.value = false;
+  }
+}
+
+// Bearer-authenticated movie download. apiFetchRaw auto-attaches the
+// Authorization header (which a plain `<a href download>` cannot), so
+// the route stays behind the standard /api/* bearer guard. The blob
+// is hooked to a synthetic anchor whose `download` attribute carries
+// the filename — the browser still surfaces a native save dialog.
+async function downloadMovie() {
+  if (!moviePath.value || movieDownloading.value) return;
+  movieDownloading.value = true;
+  let objectUrl: string | null = null;
+  try {
+    const res = await apiFetchRaw(API_ROUTES.mulmoScript.downloadMovie, {
+      method: "GET",
+      query: { moviePath: moviePath.value },
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    objectUrl = URL.createObjectURL(blob);
+    const filename = moviePath.value.split("/").pop() ?? "movie.mp4";
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  } catch (err) {
+    alert(extractErrorMessage(err));
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    movieDownloading.value = false;
   }
 }
 </script>
