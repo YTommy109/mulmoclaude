@@ -458,7 +458,7 @@ const frMessages = {
           field: {
             clientId: {
               label: "Client ID",
-              help: "Spotify Developer Dashboard → Create app, configure la Redirect URI à http://127.0.0.1:8888/callback, copie le Client ID. Puis exécute une fois dans le terminal `SPOTIFY_CLIENT_ID=<id> npx spotify-mcp@latest auth` pour se connecter (refresh token mis en cache dans ~/.spotify-mcp/tokens.json).",
+              help: "Spotify Developer Dashboard → Create app, configurez la Redirect URI à http://127.0.0.1:8888/callback, copiez le Client ID. Puis exécutez une fois dans le terminal `SPOTIFY_CLIENT_ID=<id> npx spotify-mcp@latest auth` pour vous connecter (refresh token mis en cache dans ~/.spotify-mcp/tokens.json).",
             },
           },
         },
