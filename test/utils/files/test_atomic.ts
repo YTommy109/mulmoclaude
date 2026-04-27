@@ -128,4 +128,23 @@ describe("writeFileAtomic — binary content (#881 v1)", () => {
     assert.equal(read.length, 4);
     assert.deepEqual([...read], [0x80, 0x81, 0xfe, 0xff]);
   });
+
+  it("applies file mode for Buffer content", async () => {
+    if (process.platform === "win32") return; // chmod no-op on Windows
+    const file = path.join(tmpDir, "bin-mode.bin");
+    await writeFileAtomic(file, Buffer.from([1, 2, 3]), { mode: 0o600 });
+    const stat = statSync(file);
+    assert.equal(stat.mode & 0o777, 0o600);
+  });
+
+  it("cleans up tmp file on Buffer write failure", async () => {
+    // Targeting a directory forces writeFile to reject regardless
+    // of content type — same shape as the string failure test, just
+    // pinning that the binary path also unlinks the tmp.
+    const dir = path.join(tmpDir, "bin-is-a-dir");
+    mkdirSync(dir, { recursive: true });
+    await assert.rejects(() => writeFileAtomic(dir, Buffer.from([1, 2, 3])));
+    const siblings = readdirSync(path.dirname(dir));
+    assert.equal(siblings.filter((file) => file.endsWith(".tmp")).length, 0);
+  });
 });
