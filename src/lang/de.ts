@@ -873,6 +873,11 @@ const deMessages = {
   },
   suggestionsPanel: {
     suggestions: "Vorschläge",
+    skills: "Skills",
+    tooltip: "Vorschläge und Skills",
+    emptySuggestions: "Keine Vorschläge.",
+    emptySkills: "Keine Skills installiert.",
+    skillsError: "Fehler beim Laden der Skills: {error}",
     sendEditHint: "klicken zum Senden · Shift+Klick zum Bearbeiten",
   },
   settingsToolsTab: {
