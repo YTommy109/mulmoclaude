@@ -7,11 +7,12 @@ interface Settings {
 interface McpEntry {
   id: string;
   spec:
-    | { type: "http"; url: string; enabled?: boolean }
+    | { type: "http"; url: string; headers?: Record<string, string>; enabled?: boolean }
     | {
         type: "stdio";
         command: string;
         args?: string[];
+        env?: Record<string, string>;
         enabled?: boolean;
       };
 }
@@ -249,5 +250,69 @@ test.describe("Settings MCP tab — stdio + Docker warnings (Phase 2b)", () => {
     await expect.poll(() => state.mcp.servers[0]?.spec.type).toBe("stdio");
     await page.locator('[data-testid="settings-close-btn"]').click();
     await expect(page.locator('[data-testid="settings-modal"]')).not.toBeVisible();
+  });
+});
+
+// Catalog config form (#823 Phase 2). Notion is the canonical
+// example: 1 secret field (NOTION_API_KEY) interpolated into
+// the recommended `NOTION_TOKEN` env var (per the official
+// @notionhq/notion-mcp-server README). Walks the full
+// toggle → form → validate → install round-trip and asserts
+// the env arrives at the persistence layer with the
+// placeholder resolved.
+test.describe("Settings MCP tab — catalog config (Phase 2)", () => {
+  test("config-required entry shows form, validates, and installs with resolved env", async ({ page }) => {
+    const { state } = await mockConfigApi(page);
+    await page.goto("/chat");
+    await openSettingsModal(page);
+    await page.locator('[data-testid="settings-tab-mcp"]').click();
+
+    // Toggle Notion on — form opens, server is NOT yet installed
+    // (the toggle stays unchecked until the form submits, so we
+    // use click() rather than check() — the latter asserts the
+    // post-action checked state and would fail intentionally here).
+    await page.locator('[data-testid="mcp-catalog-toggle-notion"]').click();
+    await expect(page.locator('[data-testid="mcp-catalog-config-form-notion"]')).toBeVisible();
+    await expect(page.locator('[data-testid="mcp-server-notion"]')).not.toBeVisible();
+
+    // Submit empty → required-field error highlights the missing key.
+    await page.locator('[data-testid="mcp-catalog-config-install-notion"]').click();
+    await expect(page.locator('[data-testid="mcp-catalog-config-error-notion"]')).toContainText("NOTION_API_KEY");
+
+    // Fill the key and install → server appears, env carries the
+    // resolved token under NOTION_TOKEN (the recommended shape).
+    await page.locator('[data-testid="mcp-catalog-config-input-notion-NOTION_API_KEY"]').fill("secret_test_token_xyz");
+    await page.locator('[data-testid="mcp-catalog-config-install-notion"]').click();
+    await expect(page.locator('[data-testid="mcp-catalog-config-form-notion"]')).not.toBeVisible();
+    await expect(page.locator('[data-testid="mcp-server-notion"]')).toBeVisible();
+
+    await expect.poll(() => state.mcp.servers.find((entry) => entry.id === "notion")?.spec.type).toBe("stdio");
+    const installed = state.mcp.servers.find((entry) => entry.id === "notion");
+    if (!installed || installed.spec.type !== "stdio") throw new Error("notion server not persisted as stdio");
+    expect(installed.spec.env?.NOTION_TOKEN).toBe("secret_test_token_xyz");
+
+    // Toggle off → server is removed.
+    await page.locator('[data-testid="mcp-catalog-toggle-notion"]').uncheck();
+    await expect(page.locator('[data-testid="mcp-server-notion"]')).not.toBeVisible();
+    await expect.poll(() => state.mcp.servers.length).toBe(0);
+
+    await page.locator('[data-testid="settings-close-btn"]').click();
+  });
+
+  test("config-free catalog entry installs immediately on toggle (regression check)", async ({ page }) => {
+    // Phase 1 entries with empty configSchema must still install
+    // synchronously — Phase 2 should not have regressed that path.
+    const { state } = await mockConfigApi(page);
+    await page.goto("/chat");
+    await openSettingsModal(page);
+    await page.locator('[data-testid="settings-tab-mcp"]').click();
+
+    await page.locator('[data-testid="mcp-catalog-toggle-memory"]').check();
+    // No form rendered for config-free entries.
+    await expect(page.locator('[data-testid="mcp-catalog-config-form-memory"]')).not.toBeVisible();
+    await expect(page.locator('[data-testid="mcp-server-memory"]')).toBeVisible();
+    await expect.poll(() => state.mcp.servers.length).toBe(1);
+
+    await page.locator('[data-testid="settings-close-btn"]').click();
   });
 });

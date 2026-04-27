@@ -161,7 +161,7 @@
               :key="tag"
               class="entry-tag-chip"
               :data-testid="`wiki-entry-tag-${entry.slug}-${tag}`"
-              @click.stop="toggleTagFilter(tag)"
+              @click.stop="setTagFilter(tag)"
             >
               {{ `#${tag}` }}
             </button>
@@ -207,6 +207,7 @@ import { classifyWorkspacePath, resolveWikiHref } from "../../utils/path/workspa
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { useAppApi } from "../../composables/useAppApi";
+import { buildPdfFilename } from "../../utils/files/filename";
 import { renderWikiLinks } from "./helpers";
 import PageChatComposer from "../../components/PageChatComposer.vue";
 import { BUILTIN_ROLE_IDS } from "../../config/roles";
@@ -339,6 +340,18 @@ function toggleTagFilter(tag: string) {
   selectedTag.value = selectedTag.value === tag ? null : tag;
 }
 
+// Per-entry tag chips set the filter unconditionally — clicking a
+// `#javascript` chip on a page row should always filter the index to
+// that tag, even when the user is already viewing the same filter.
+// Using `toggleTagFilter` here was unintuitive: clicking a `#tag`
+// chip on a row that's already in the active filter would clear the
+// filter, surprising the user. The filter chips at the top of the
+// list still toggle (so users have an obvious "click again to clear"
+// affordance there).
+function setTagFilter(tag: string) {
+  selectedTag.value = tag;
+}
+
 // Spawn a new chat under the General role (which owns the wiki
 // tooling) regardless of the role the user is currently viewing the
 // wiki under. "lint my wiki" is a direct instruction to the agent,
@@ -365,6 +378,9 @@ watch(content, async () => {
   if (scrollRef.value) scrollRef.value.scrollTop = 0;
 });
 
+/** Base directory for wiki content, adjusted by the current view. */
+const WIKI_BASE_DIR = computed(() => (action.value === "page" ? "data/wiki/pages" : "data/wiki"));
+
 const renderedContent = computed(() => {
   if (!content.value) return "";
   // Strip YAML frontmatter before rendering — marked doesn't parse
@@ -375,10 +391,9 @@ const renderedContent = computed(() => {
   // Rewrite workspace-relative image refs (`![alt](images/foo.png)`)
   // to `/api/files/raw?path=...` BEFORE marked parses them — without
   // this, the browser tries to fetch against the SPA route URL
-  // (/chat/…/images/foo.png) and 404s. basePath = wiki/pages for
-  // individual pages so `../images/foo.png` resolves correctly.
-  const basePath = action.value === "page" ? "wiki/pages" : "wiki";
-  const withImages = rewriteMarkdownImageRefs(body, basePath);
+  // (/chat/…/images/foo.png) and 404s. Reuse WIKI_BASE_DIR so a
+  // page's `../images/foo.png` resolves under `data/wiki/`.
+  const withImages = rewriteMarkdownImageRefs(body, WIKI_BASE_DIR.value);
   // Strip marked's `disabled=""` from GFM task checkboxes and tag
   // them with `class="md-task"` so `handleContentClick` can find
   // them via DOM delegation (#775). Other view modes (index / log /
@@ -390,7 +405,13 @@ const renderedContent = computed(() => {
 const { pdfDownloading, pdfError, downloadPdf: rawDownloadPdf } = usePdfDownload();
 
 async function downloadPdf() {
-  await rawDownloadPdf(content.value, `${title.value}.pdf`);
+  const uuid = props.selectedResult?.uuid;
+  const filename = buildPdfFilename({
+    name: title.value,
+    fallback: "wiki",
+    timestampMs: uuid ? appApi.getResultTimestamp(uuid) : undefined,
+  });
+  await rawDownloadPdf(content.value, filename);
 }
 
 async function callApi(body: Record<string, unknown>) {
@@ -477,9 +498,6 @@ function currentSlug(): string | null {
       : (props.selectedResult?.data?.pageName ?? null);
   return isSafeWikiSlug(raw) ? raw : null;
 }
-
-/** Base directory for wiki content, adjusted by the current view. */
-const WIKI_BASE_DIR = computed(() => (action.value === "page" ? "data/wiki/pages" : "data/wiki"));
 
 // Serialised POST chain for rapid task-checkbox clicks (#775). Each
 // click queues onto the previous so a slower network can't reorder

@@ -51,11 +51,7 @@ const enMessages = {
   },
   chatInput: {
     placeholder: "Type a task, or drop / paste / attach a file…",
-    expandEditor: "Expand editor",
-    composeMessage: "Compose message",
-    sendHint: "Cmd+Enter to send",
     send: "Send",
-    stop: "Stop",
     attachFile: "Attach file",
     fileTooLarge: "File too large ({sizeMB} MB). Maximum is 30 MB.",
     unsupportedFileType: "File type not supported. Accepted: images, PDF, DOCX, XLSX, PPTX, text files.",
@@ -253,6 +249,77 @@ const enMessages = {
     errIdExists: 'Server id "{id}" already exists.',
     errBadHttpUrl: "HTTP URL must start with http:// or https://",
     pendingEntryWarning: "Finish or cancel the pending MCP server entry first.",
+    customHeading: "Custom servers",
+    catalog: {
+      heading: "Pre-configured MCP servers",
+      audience: { general: "🟢 General", developer: "🔵 Developer" },
+      risk: { low: "low", medium: "medium", high: "high" },
+      upstream: "📦 Source",
+      setupGuide: "📚 Setup",
+      entry: {
+        memory: {
+          displayName: "Memory",
+          description: "Lets Claude remember conversation context across sessions.",
+        },
+        sequentialThinking: {
+          displayName: "Sequential Thinking",
+          description: "Helps Claude work through multi-step problems by thinking step by step.",
+        },
+        context7: {
+          displayName: "Context7 (library docs)",
+          description: "Up-to-date documentation for popular libraries — beats the model's training-cutoff memory.",
+        },
+        deepwiki: {
+          displayName: "DeepWiki (GitHub repo wiki)",
+          description: "Ask questions about any GitHub repository and get a structured wiki-style answer.",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "Read and write your Notion workspace — pages, databases, and search.",
+          field: {
+            apiKey: {
+              label: "Notion integration token",
+              help: "Create a Notion integration and copy the Internal Integration Secret. Click 🔑 to open the integrations page.",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "List channels, post messages, and search history in your Slack workspace.",
+          field: {
+            botToken: {
+              label: "Bot token",
+              help: "Slack app → OAuth & Permissions → Bot User OAuth Token. Starts with xoxb-.",
+            },
+            teamId: {
+              label: "Team / workspace ID",
+              help: "Run team.info or check the workspace URL — looks like T01ABC23DEF.",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "Search places, get directions, and look up location details.",
+          field: {
+            apiKey: {
+              label: "Google Maps API key",
+              help: "Google Cloud Console → APIs & Services → Credentials → Create API key. Enable Places + Directions.",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "Weather (Open-Meteo)",
+          description: "Free weather forecasts and current conditions worldwide — no API key needed.",
+        },
+      },
+      config: {
+        howToGet: "How to get this",
+        install: "Install",
+        errMissingRequired: "Required field(s) missing: {fields}",
+        requiredMarker: "*",
+        requiredAria: "required",
+      },
+    },
   },
   pluginScheduler: {
     prev: "Previous",
@@ -277,6 +344,7 @@ const enMessages = {
     moreCount: "+{count} more",
     previewIcon: "📅",
     previewUpcoming: "{count} upcoming",
+    previewAutomations: "{count} automation | {count} automations",
     previewMore: "+ {count} more…",
   },
   pluginSchedulerTasks: {
@@ -295,6 +363,9 @@ const enMessages = {
     runFailed: "Run failed: {error}",
     toggleFailed: "Toggle failed: {error}",
     deleteFailed: "Delete failed: {error}",
+    detailsToggle: "Show details",
+    promptLabel: "Prompt",
+    roleLabel: "Role",
   },
   pluginCanvas: {
     undo: "Undo",
@@ -395,6 +466,18 @@ const enMessages = {
     lintChat: "Lint My Wiki",
     taskCountMismatch: "Wiki source and rendered output disagree on the number of tasks. Refusing to toggle to avoid corruption.",
   },
+  pluginPresentForm: {
+    fallbackTitle: "Form",
+    fieldCount: "{count} field | {count} fields",
+    submitted: "Submitted",
+    errorSummary: "Please fix the following errors",
+    requiredMarker: "*",
+    selectOption: "Select an option",
+    charactersCount: "{current} / {max} characters",
+    charactersCountNoMax: "{current} characters",
+    submit: "Submit",
+    progress: "{filled} of {total} required fields completed",
+  },
   pluginPresentHtml: {
     saveAsPdf: "Save as PDF (opens print dialog)",
     pdf: "PDF",
@@ -421,6 +504,7 @@ const enMessages = {
   pluginManageSource: {
     titlePlaceholder: "Title (optional)",
     heading: "Information sources",
+    chatPlaceholder: "Ask about your information sources…",
     sourceCount: "{count} source | {count} sources",
     addButton: "Add",
     rebuildNow: "Rebuild now",
@@ -624,6 +708,7 @@ const enMessages = {
   },
   app: {
     startConversation: "Start a conversation",
+    thinking: "Thinking…",
   },
   suggestionsPanel: {
     suggestions: "Suggestions",

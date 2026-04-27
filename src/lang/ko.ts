@@ -36,11 +36,7 @@ const koMessages = {
   },
   chatInput: {
     placeholder: "작업을 입력하거나 파일을 드래그 / 붙여넣기 / 첨부하세요…",
-    expandEditor: "에디터 확장",
-    composeMessage: "메시지 작성",
-    sendHint: "Cmd+Enter 로 전송",
     send: "전송",
-    stop: "정지",
     attachFile: "파일 첨부",
     fileTooLarge: "파일이 너무 큽니다 ({sizeMB} MB). 최대 30 MB 까지 가능합니다.",
     unsupportedFileType: "지원되지 않는 파일 형식입니다. 이미지, PDF, DOCX, XLSX, PPTX, 텍스트 파일만 지원됩니다.",
@@ -237,6 +233,77 @@ const koMessages = {
     errIdExists: '서버 id "{id}" 는 이미 존재합니다.',
     errBadHttpUrl: "HTTP URL 은 http:// 또는 https:// 로 시작해야 합니다",
     pendingEntryWarning: "대기 중인 MCP 서버 항목을 완료하거나 취소하세요.",
+    customHeading: "사용자 정의 서버",
+    catalog: {
+      heading: "사전 설정된 MCP 서버",
+      audience: { general: "🟢 일반", developer: "🔵 개발자" },
+      risk: { low: "낮음", medium: "중간", high: "높음" },
+      upstream: "📦 소스",
+      setupGuide: "📚 설정",
+      entry: {
+        memory: {
+          displayName: "메모리",
+          description: "Claude 가 세션을 넘어 대화 내용을 기억합니다.",
+        },
+        sequentialThinking: {
+          displayName: "단계별 사고",
+          description: "복잡한 문제를 단계별로 해결하도록 돕습니다.",
+        },
+        context7: {
+          displayName: "Context7 (라이브러리 문서)",
+          description: "주요 라이브러리의 최신 문서를 가져옵니다 — 모델의 학습 시점을 넘어선 정보원.",
+        },
+        deepwiki: {
+          displayName: "DeepWiki (GitHub 저장소 위키)",
+          description: "임의의 GitHub 저장소에 질문하여 위키 스타일의 구조화된 답변을 받습니다.",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "Notion 워크스페이스 읽기·쓰기 — 페이지, 데이터베이스, 검색 지원.",
+          field: {
+            apiKey: {
+              label: "Notion 통합 토큰",
+              help: "Notion 통합을 만들고 Internal Integration Secret 을 복사하세요. 🔑 로 통합 페이지를 열 수 있습니다.",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "Slack 워크스페이스 채널 목록, 메시지 전송, 기록 검색.",
+          field: {
+            botToken: {
+              label: "Bot 토큰",
+              help: "Slack 앱 → OAuth & Permissions → Bot User OAuth Token. xoxb- 로 시작합니다.",
+            },
+            teamId: {
+              label: "팀 / 워크스페이스 ID",
+              help: "team.info 호출 또는 워크스페이스 URL 에서 확인 — T01ABC23DEF 형식입니다.",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "장소 검색, 경로 안내, 위치 정보 조회.",
+          field: {
+            apiKey: {
+              label: "Google Maps API 키",
+              help: "Google Cloud Console → APIs & Services → Credentials → API 키 만들기. Places + Directions 활성화.",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "날씨 (Open-Meteo)",
+          description: "전 세계 무료 일기예보와 현재 기상 정보 — API 키 불필요.",
+        },
+      },
+      config: {
+        howToGet: "발급 방법",
+        install: "설치",
+        errMissingRequired: "필수 항목 누락: {fields}",
+        requiredMarker: "*",
+        requiredAria: "필수",
+      },
+    },
   },
   pluginScheduler: {
     prev: "이전",
@@ -261,6 +328,7 @@ const koMessages = {
     moreCount: "+{count}개 더",
     previewIcon: "📅",
     previewUpcoming: "예정 {count}개",
+    previewAutomations: "자동화 {count}개",
     previewMore: "+ {count}개 더…",
   },
   pluginSchedulerTasks: {
@@ -279,6 +347,9 @@ const koMessages = {
     runFailed: "실행 실패: {error}",
     toggleFailed: "토글 실패: {error}",
     deleteFailed: "삭제 실패: {error}",
+    detailsToggle: "상세 보기",
+    promptLabel: "프롬프트",
+    roleLabel: "역할",
   },
   pluginCanvas: {
     undo: "실행 취소",
@@ -379,6 +450,18 @@ const koMessages = {
     lintChat: "Wiki 점검",
     taskCountMismatch: "Wiki 원본과 렌더링 결과의 작업 수가 일치하지 않아, 파일 손상을 방지하기 위해 토글이 거부되었습니다.",
   },
+  pluginPresentForm: {
+    fallbackTitle: "양식",
+    fieldCount: "{count}개 항목",
+    submitted: "제출됨",
+    errorSummary: "다음 오류를 수정해주세요",
+    requiredMarker: "*",
+    selectOption: "선택하세요",
+    charactersCount: "{current} / {max} 자",
+    charactersCountNoMax: "{current} 자",
+    submit: "제출",
+    progress: "필수 항목 {total}개 중 {filled}개 입력됨",
+  },
   pluginPresentHtml: {
     saveAsPdf: "PDF 로 저장 (인쇄 대화 상자 열기)",
     pdf: "PDF",
@@ -405,6 +488,7 @@ const koMessages = {
   pluginManageSource: {
     titlePlaceholder: "제목 (선택)",
     heading: "정보 소스",
+    chatPlaceholder: "정보 소스에 대해 질문하기…",
     sourceCount: "{count}개 소스",
     addButton: "추가",
     rebuildNow: "지금 재빌드",
@@ -608,6 +692,7 @@ const koMessages = {
   },
   app: {
     startConversation: "대화 시작",
+    thinking: "생각 중…",
   },
   suggestionsPanel: {
     suggestions: "추천",
