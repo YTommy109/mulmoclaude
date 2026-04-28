@@ -67,6 +67,9 @@ const esMessages = {
     toolCallHistory: "Historial de llamadas a herramientas",
     settings: "Ajustes",
     settingsGeminiMissing: "Ajustes — Falta la clave API de Gemini",
+    todayJournal: "Resumen de hoy",
+    todayJournalNotFound: "Aún no hay resumen — chatea un rato y el journal lo generará.",
+    todayJournalLoadFailed: "Error al cargar el journal (status {status}): {error}",
   },
   rightSidebar: {
     toggleSystemPrompt: "Alternar system prompt",
@@ -208,6 +211,107 @@ const esMessages = {
     pdfPreview: "Vista previa PDF",
     parseError: "error al analizar",
   },
+  systemFiles: {
+    schemaLabel: "Esquema",
+    showDetails: "Mostrar detalles",
+    hideDetails: "Ocultar detalles",
+    editPolicy: {
+      "agent-managed-but-hand-editable": "Gestionado por el agente (edición manual permitida)",
+      "user-editable": "Editable por el usuario",
+      "agent-managed": "Gestionado por el agente",
+      "fragile-format": "Formato frágil",
+      ephemeral: "Efímero",
+    },
+    interests: {
+      title: "Configuración de intereses",
+      summary: "Temas que la canalización de noticias / fuentes monitoriza y puntúa. Editable a mano; el agente también lo actualiza desde el chat.",
+    },
+    mcp: {
+      title: "Servidores MCP",
+      summary: "Servidores externos del Model Context Protocol conectados al agente. Añade servidores HTTP o stdio para ampliar las herramientas disponibles.",
+    },
+    settings: {
+      title: "Ajustes de la app",
+      summary: "Preferencias de comportamiento editables — clave API de Gemini, herramientas permitidas, configuración del sandbox, etc.",
+    },
+    schedulerTasks: {
+      title: "Tareas del programador",
+      summary:
+        "Automatizaciones recurrentes del agente que se disparan en un horario. Se gestionan desde la UI Automations; este archivo es la fuente en disco.",
+    },
+    schedulerOverrides: {
+      title: "Sobrescrituras del programador",
+      summary:
+        "Sobrescrituras de hora / intervalo por tarea aplicadas sobre el horario del sistema. El agente las edita cuando pides cambiar la franja de una tarea recurrente.",
+    },
+    newsReadState: {
+      title: "Estado de lectura de noticias",
+      summary: "Seguimiento local de qué noticias has visto. Efímero — puedes eliminarlo; se regenerará a medida que leas.",
+    },
+    schedulerItems: {
+      title: "Cola de elementos del programador",
+      summary: "Invocaciones programadas listas para dispararse. Gestionado por el agente; no edites a mano salvo que entiendas cada campo.",
+    },
+    todosItems: {
+      title: "Tareas pendientes",
+      summary: "Tus tareas en todas las columnas del tablero kanban. El agente escribe aquí cuando dices «añade una tarea»; también puedes editar a mano.",
+    },
+    todosColumns: {
+      title: "Columnas de pendientes",
+      summary: "Disposición de columnas del tablero kanban (títulos, orden, ids). Editable por el usuario — renombra o reordena libremente.",
+    },
+    wikiIndex: {
+      title: "Índice de la wiki",
+      summary: "Índice autogenerado de cada página de la wiki. Se refresca con cada edición — no edites a mano (tus cambios serán sobrescritos).",
+    },
+    wikiLog: {
+      title: "Registro de edición de la wiki",
+      summary: "Registro de actividades de creación y edición de páginas. Gestionado por el agente y solo añade — útil como feed de cambios recientes.",
+    },
+    wikiSummary: {
+      title: "Resumen de la wiki",
+      summary: "Visión general autogenerada de la wiki — clústeres temáticos, recuento de páginas, actividad reciente. Refrescado por el agente.",
+    },
+    wikiSchema: {
+      title: "Esquema de la wiki",
+      summary:
+        "Especificación de formato que el agente lee para mantener las páginas consistentes. Frágil — espera una estructura concreta; prefiere ediciones del agente.",
+    },
+    memory: {
+      title: "Memoria",
+      summary:
+        "Hechos destilados sobre ti, cargados siempre como contexto en conversaciones nuevas. El extractor del journal añade automáticamente; también puedes editar a mano.",
+    },
+    summariesIndex: {
+      title: "Índice de resúmenes",
+      summary: "Índice navegable que enlaza los resúmenes diarios y por tema generados por el journal. Gestionado por el agente; refrescado en cada pasada.",
+    },
+    rolesJson: {
+      title: "Definición del rol (JSON)",
+      summary: "Configuración del rol — elección de modelo, servidores MCP, plugins permitidos, sugerencias de consulta. Editable, sin reinicio.",
+    },
+    rolesMd: {
+      title: "Descripción del rol (Markdown)",
+      summary: "Persona y system prompt del rol, cargado como contexto cuando este rol está activo. Editable; los cambios aplican en el siguiente mensaje.",
+    },
+    sourceFeed: {
+      title: "Fuente suscrita",
+      summary: "Una fuente suscrita (RSS, releases / issues de GitHub, arXiv, etc.). Editable; la canalización de fuentes la consulta según horario.",
+    },
+    sourceState: {
+      title: "Estado de la fuente",
+      summary:
+        "Estado efímero de la canalización para una fuente — últimos ids vistos, ETags, errores de descarga. Puedes eliminarlo; se regenerará en la siguiente ejecución.",
+    },
+    journalDaily: {
+      title: "Resumen diario del journal",
+      summary: "Recapitulación autogenerada de tu actividad para un día natural, destilada por el journal a partir de las sesiones de chat.",
+    },
+    journalTopic: {
+      title: "Journal por tema",
+      summary: "Notas a largo plazo sobre un tema concreto, acumuladas y revisadas conforme sigues hablando de él. Gestionado por el agente.",
+    },
+  },
   settingsMcpTab: {
     explanation:
       "Añade servidores MCP externos. Los servidores HTTP funcionan en todos los modos. Los servidores Stdio usan el {npx} / {node} / {tsx} de la imagen del sandbox; cuando Docker está activo las rutas deben estar dentro del área de trabajo.",
@@ -293,9 +397,80 @@ const esMessages = {
             },
           },
         },
+        appleNative: {
+          displayName: "Apps nativas de Apple (macOS)",
+          description: "Lee y escribe Recordatorios, Calendario, Notas, Mail y Mapas vía AppleScript. Solo macOS — sin credenciales.",
+        },
+        gmail: {
+          displayName: "Gmail",
+          description:
+            "Lee, envía y etiqueta tu Gmail. Usa un cliente OAuth de Google que tú mismo creas en tu propio proyecto de Google Cloud (sin verificación de app).",
+          field: {
+            credentials: {
+              label: "Ruta a credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → ID de cliente OAuth (Desktop app). Descarga credentials.json y pega su ruta absoluta.",
+            },
+          },
+        },
+        googleCalendar: {
+          displayName: "Google Calendar",
+          description: "Lee y crea eventos en Google Calendar. Mismo patrón BYO credentials.json que Gmail.",
+          field: {
+            credentials: {
+              label: "Ruta a credentials.json",
+              help: "Reutiliza el mismo cliente OAuth de Google Cloud que Gmail, o crea uno separado para Calendar.",
+            },
+          },
+        },
+        googleDrive: {
+          displayName: "Google Drive",
+          description: "Busca y lee archivos de Google Drive. BYO credenciales OAuth de Google — el token se guarda localmente junto al archivo.",
+          field: {
+            credentials: {
+              label: "Ruta a credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → ID de cliente OAuth (Desktop app). Habilita la API de Google Drive en el mismo proyecto.",
+            },
+          },
+        },
+        github: {
+          displayName: "GitHub",
+          description:
+            "Lee repos, issues, PRs y ejecuta búsquedas con un Personal Access Token. Limita el alcance del token — los permisos de escritura (`repo`) dejan al agente hacer push a cualquier repo accesible.",
+          field: {
+            token: {
+              label: "Personal Access Token",
+              help: "GitHub → Settings → Developer settings → Personal access tokens. Se recomienda usar fine-grained tokens limitados a los repos donde quieras que el agente actúe.",
+            },
+          },
+        },
+        linear: {
+          displayName: "Linear",
+          description: "Lee y actualiza issues, proyectos y ciclos de Linear con una clave API personal.",
+          field: {
+            apiKey: {
+              label: "Clave API de Linear",
+              help: "Linear → Settings → API → Personal API keys. Pulsa 🔑 para abrir la página y haz clic en Create key.",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "Clima (Open-Meteo)",
           description: "Pronósticos meteorológicos gratuitos y condiciones actuales en todo el mundo — sin clave API.",
+        },
+        spotify: {
+          displayName: "Spotify",
+          description:
+            "Busca canciones, gestiona playlists y controla la reproducción. BYO app de desarrollador de Spotify — solo Client ID (flujo PKCE, sin client secret).",
+          field: {
+            clientId: {
+              label: "Client ID",
+              help: "Spotify Developer Dashboard → Create app, configura la Redirect URI como http://127.0.0.1:8888/callback, copia el Client ID. Luego ejecuta una vez en la terminal `SPOTIFY_CLIENT_ID=<id> npx spotify-mcp@latest auth` para iniciar sesión (el refresh token se guarda en ~/.spotify-mcp/tokens.json).",
+            },
+          },
+        },
+        youtubeTranscript: {
+          displayName: "Transcripción de YouTube",
+          description: "Obtén los subtítulos de cualquier vídeo público de YouTube por URL. Sin credenciales.",
         },
       },
       config: {
@@ -451,6 +626,9 @@ const esMessages = {
     noMatches: "No hay páginas con la etiqueta #{tag}",
     lintChat: "Revisar mi wiki",
     taskCountMismatch: "La fuente del wiki y la salida renderizada difieren en el número de tareas. Se rechazó el cambio para evitar dañar el archivo.",
+    metadataCreated: "Creado",
+    metadataUpdated: "Actualizado",
+    metadataEditor: "Editor",
   },
   pluginPresentForm: {
     fallbackTitle: "Formulario",
@@ -635,6 +813,8 @@ const esMessages = {
     gen: "Generar",
     play: "▶ Reproducir",
     stop: "■ Detener",
+    playPresentation: "Reproducir presentación",
+    regenerateMovie: "Regenerar vídeo",
     errPrefix: "⚠ Error",
     noBeats: "No se encontraron beats en el script",
     editSource: "Editar fuente del script",
@@ -698,6 +878,11 @@ const esMessages = {
   },
   suggestionsPanel: {
     suggestions: "Sugerencias",
+    skills: "Habilidades",
+    tooltip: "Sugerencias y habilidades",
+    emptySuggestions: "No hay sugerencias.",
+    emptySkills: "No hay habilidades instaladas.",
+    skillsError: "Error al cargar las habilidades: {error}",
     sendEditHint: "clic para enviar · shift+clic para editar",
   },
   settingsToolsTab: {

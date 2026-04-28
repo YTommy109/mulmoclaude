@@ -69,6 +69,9 @@ const jaMessages = {
     toolCallHistory: "ツール呼び出し履歴",
     settings: "設定",
     settingsGeminiMissing: "設定 — Gemini API キー未設定",
+    todayJournal: "今日のまとめ",
+    todayJournalNotFound: "まだまとめがありません — しばらく会話するとjournalが生成します。",
+    todayJournalLoadFailed: "journal の読み込みに失敗しました (status {status}): {error}",
   },
   rightSidebar: {
     toggleSystemPrompt: "システムプロンプトの表示切替",
@@ -206,6 +209,102 @@ const jaMessages = {
     pdfPreview: "PDF プレビュー",
     parseError: "パースエラー",
   },
+  systemFiles: {
+    schemaLabel: "スキーマ",
+    showDetails: "詳細を表示",
+    hideDetails: "詳細を隠す",
+    editPolicy: {
+      "agent-managed-but-hand-editable": "エージェント管理（手動編集可）",
+      "user-editable": "ユーザー編集可",
+      "agent-managed": "エージェント管理",
+      "fragile-format": "壊れやすい書式",
+      ephemeral: "一時ファイル",
+    },
+    interests: {
+      title: "Interests 設定",
+      summary: "ニュース／ソースのパイプラインが監視・スコアリングする話題を定義します。手動編集可能で、エージェントも会話から自動更新します。",
+    },
+    mcp: {
+      title: "MCP サーバ",
+      summary: "エージェントに接続される外部の Model Context Protocol サーバ。HTTP / stdio サーバを追加してツールを拡張できます。",
+    },
+    settings: {
+      title: "アプリ設定",
+      summary: "ユーザー編集可能な動作設定 — Gemini API キー、許可ツール、サンドボックス設定など。",
+    },
+    schedulerTasks: {
+      title: "スケジューラタスク",
+      summary: "定期実行されるエージェント自動化。Automations UI から管理し、このファイルがディスク上の正本です。",
+    },
+    schedulerOverrides: {
+      title: "スケジューラオーバーライド",
+      summary: "システム既定スケジュールに上書きするタスクごとの時刻 / 間隔の上書き。会話で「このタスクの時刻を変えて」と頼むとエージェントが書き換えます。",
+    },
+    newsReadState: {
+      title: "ニュース既読状態",
+      summary: "閲覧済みニュースのローカル追跡。一時ファイル — 削除しても再読み込みで再生成されます。",
+    },
+    schedulerItems: {
+      title: "スケジューラアイテムキュー",
+      summary: "発火待ちの予約済み実行キュー。エージェント管理 — 各フィールドの意味を理解していなければ手動編集しないでください。",
+    },
+    todosItems: {
+      title: "Todo アイテム",
+      summary: "カンバン全列にまたがるタスク一覧。「Todo を追加して」と言うとエージェントがここに書き込みます。手動編集も可能です。",
+    },
+    todosColumns: {
+      title: "Todo 列定義",
+      summary: "カンバンの列レイアウト（タイトル・順序・ID）。ユーザー編集可 — 自由に名前変更や並び替えができます。",
+    },
+    wikiIndex: {
+      title: "Wiki インデックス",
+      summary: "全 Wiki ページの自動生成インデックス。Wiki 編集ごとに更新されます — 手動編集すると上書きされます。",
+    },
+    wikiLog: {
+      title: "Wiki 編集ログ",
+      summary: "Wiki ページ作成・編集の活動ログ。エージェント管理の追記専用 — 直近変更フィードとして便利です。",
+    },
+    wikiSummary: {
+      title: "Wiki サマリ",
+      summary: "Wiki の自動生成概要 — トピッククラスタ、ページ数、最近の活動。エージェントが定期的に更新します。",
+    },
+    wikiSchema: {
+      title: "Wiki スキーマ",
+      summary: "Wiki ページの一貫性を保つためにエージェントが参照する書式仕様。壊れやすい — 特定の構造を期待するため、エージェント主導の編集を推奨します。",
+    },
+    memory: {
+      title: "メモリ",
+      summary: "新しい会話のコンテキストとして常に読み込まれる、あなたに関する蒸留された事実。journal の抽出器が自動追記し、手動編集も可能です。",
+    },
+    summariesIndex: {
+      title: "サマリインデックス",
+      summary: "journal が生成する日次・トピックサマリへのリンク集。エージェント管理 — journal 実行ごとに更新されます。",
+    },
+    rolesJson: {
+      title: "ロール定義 (JSON)",
+      summary: "ロール設定 — モデル選択、MCP サーバ、利用可能プラグイン、クエリ候補。ユーザー編集可、再起動不要。",
+    },
+    rolesMd: {
+      title: "ロール説明 (Markdown)",
+      summary: "ロールのペルソナとシステムプロンプト本文。このロール選択時にコンテキストとして読み込まれます。次のメッセージから反映されます。",
+    },
+    sourceFeed: {
+      title: "ソースフィード",
+      summary: "購読中の1ソース（RSS、GitHub リリース/Issue、arXiv 等）。ユーザー編集可 — sources パイプラインが定期的にポーリングします。",
+    },
+    sourceState: {
+      title: "ソース状態",
+      summary: "1ソース分の一時的なパイプライン状態 — 最終既読 ID、ETag、fetch エラー等。削除可 — 次回実行時に再生成されます。",
+    },
+    journalDaily: {
+      title: "日次 journal まとめ",
+      summary: "1日分のあなたの活動を、journal パスがチャットセッションから蒸留して自動生成した要約です。",
+    },
+    journalTopic: {
+      title: "トピック journal",
+      summary: "1つの特定トピックに関する長期的なメモ。話題が継続するたびに蓄積・更新されます。エージェント管理。",
+    },
+  },
   settingsMcpTab: {
     explanation:
       "外部 MCP サーバを追加します。HTTP サーバはすべてのモードで動作します。Stdio サーバはサンドボックスイメージの {npx} / {node} / {tsx} を使用します。Docker 有効時はパスはワークスペース内である必要があります。",
@@ -290,9 +389,78 @@ const jaMessages = {
             },
           },
         },
+        appleNative: {
+          displayName: "Apple ネイティブアプリ（macOS）",
+          description: "AppleScript 経由で リマインダー / カレンダー / メモ / メール / マップ を読み書き。macOS 限定 — 認証情報不要。",
+        },
+        gmail: {
+          displayName: "Gmail",
+          description: "Gmail の読み取り・送信・ラベル付け。自身の Google Cloud プロジェクトで OAuth クライアントを発行して利用（アプリ審査不要）。",
+          field: {
+            credentials: {
+              label: "credentials.json のパス",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth クライアント ID（Desktop app）。credentials.json をダウンロードして絶対パスを貼ってください。",
+            },
+          },
+        },
+        googleCalendar: {
+          displayName: "Google カレンダー",
+          description: "Google カレンダーの読み取り・予定作成。Gmail と同じ BYO 方式の credentials.json を使います。",
+          field: {
+            credentials: {
+              label: "credentials.json のパス",
+              help: "Gmail と同じ Google Cloud OAuth クライアントを使い回すか、Calendar 専用に別途作成してください。",
+            },
+          },
+        },
+        googleDrive: {
+          displayName: "Google ドライブ",
+          description: "Google ドライブのファイル検索・読み取り。BYO Google OAuth credentials を使い、リフレッシュトークンはローカルに保存されます。",
+          field: {
+            credentials: {
+              label: "credentials.json のパス",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth クライアント ID（Desktop app）。同じプロジェクトで Google Drive API を有効化してください。",
+            },
+          },
+        },
+        github: {
+          displayName: "GitHub",
+          description:
+            "Personal Access Token でリポジトリ / Issue / PR / 検索にアクセス。スコープは絞ってください — 書き込み権限（`repo` 等）を渡すとアクセス可能な全リポジトリに push できてしまいます。",
+          field: {
+            token: {
+              label: "Personal Access Token",
+              help: "GitHub → Settings → Developer settings → Personal access tokens。エージェントに触らせたいリポジトリだけ指定する fine-grained token を推奨。",
+            },
+          },
+        },
+        linear: {
+          displayName: "Linear",
+          description: "Personal API key で Linear の Issue / プロジェクト / サイクルを読み書き。",
+          field: {
+            apiKey: {
+              label: "Linear API キー",
+              help: "Linear → Settings → API → Personal API keys。🔑 から発行ページを開き Create key を押してください。",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "天気予報（Open-Meteo）",
           description: "世界各地の天気予報と現在の気象情報 — API キー不要で無料利用可能。",
+        },
+        spotify: {
+          displayName: "Spotify",
+          description: "曲の検索、プレイリスト管理、再生操作。BYO Spotify Developer アプリ — Client ID のみ（PKCE フローのため Client Secret 不要）。",
+          field: {
+            clientId: {
+              label: "Client ID",
+              help: "Spotify Developer Dashboard → Create app、Redirect URI に http://127.0.0.1:8888/callback を設定、Client ID をコピー。その後ターミナルで一度 `SPOTIFY_CLIENT_ID=<id> npx spotify-mcp@latest auth` を実行してログイン（リフレッシュトークンは ~/.spotify-mcp/tokens.json にキャッシュ）。",
+            },
+          },
+        },
+        youtubeTranscript: {
+          displayName: "YouTube 字幕",
+          description: "公開 YouTube 動画の URL から字幕を取得。認証情報不要。",
         },
       },
       config: {
@@ -449,6 +617,9 @@ const jaMessages = {
     noMatches: "#{tag} タグのページがありません",
     lintChat: "Wiki を Lint",
     taskCountMismatch: "Wiki ソースと描画結果でタスク数が一致しないため、ファイル破損を避けるためトグル操作を中止しました。",
+    metadataCreated: "作成",
+    metadataUpdated: "更新",
+    metadataEditor: "編集者",
   },
   pluginPresentForm: {
     fallbackTitle: "フォーム",
@@ -633,6 +804,8 @@ const jaMessages = {
     gen: "生成",
     play: "▶ 再生",
     stop: "■ 停止",
+    playPresentation: "プレゼンテーション再生",
+    regenerateMovie: "動画を再生成",
     errPrefix: "⚠ エラー",
     noBeats: "スクリプトにビートが見つかりません",
     editSource: "スクリプトソースを編集",
@@ -696,6 +869,11 @@ const jaMessages = {
   },
   suggestionsPanel: {
     suggestions: "候補",
+    skills: "スキル",
+    tooltip: "候補とスキル",
+    emptySuggestions: "候補はありません。",
+    emptySkills: "スキルがインストールされていません。",
+    skillsError: "スキルの読み込みに失敗しました: {error}",
     sendEditHint: "クリックで送信 · Shift+クリックで編集",
   },
   settingsToolsTab: {

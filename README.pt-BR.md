@@ -8,11 +8,17 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh.md) · [한국어](README.ko.md) · [Español](README.es.md) · **Português (BR)** · [Français](README.fr.md) · [Deutsch](README.de.md)
 
-Chat GUI com Claude Code — com memória de longo prazo, ferramentas visuais e acesso a aplicativos de mensagens.
+Chat GUI com Claude Code — memória de longo prazo, saída visual rica, execução em sandbox e acesso remoto de qualquer lugar.
 
-Converse com o Claude Code e receba de volta não apenas texto, mas **saída visual interativa**: documentos, planilhas, mapas mentais, gráficos, imagens, formulários, cenas 3D e muito mais. Um wiki pessoal integrado dá ao Claude **conhecimento persistente** que cresce a cada conversa.
+**Memória de longo prazo**: um wiki pessoal integrado — inspirado na ideia de Andrej Karpathy de dar a um LLM um caderno que cresce com o tempo — dá ao Claude **conhecimento persistente** que se acumula a cada conversa.
+
+Converse com o Claude Code e receba de volta não apenas texto, mas **saída visual interativa**: documentos, planilhas, mapas mentais, gráficos, imagens, formulários, cenas 3D e muito mais.
+
+**Execução em sandbox**: o Claude Code é executado dentro de um sandbox, protegendo seu sistema contra ataques de injeção de prompt.
 
 **Acesso de qualquer lugar**: conecte Telegram, Slack, LINE, Discord ou [10 outros aplicativos de mensagens](#messaging-bridges) para conversar com seu agente de IA pelo celular.
+
+**Tarefas agendadas**: delegue trabalhos recorrentes — resumos diários, verificações periódicas, lembretes programados — ao agendador integrado, que executa seu agente via cron.
 
 ## Início Rápido
 

@@ -67,6 +67,9 @@ const zhMessages = {
     toolCallHistory: "工具调用历史",
     settings: "设置",
     settingsGeminiMissing: "设置 — 缺少 Gemini API 密钥",
+    todayJournal: "今日总结",
+    todayJournalNotFound: "暂无总结 — 多聊一会儿，journal 会自动生成。",
+    todayJournalLoadFailed: "加载 journal 失败 (status {status}): {error}",
   },
   rightSidebar: {
     toggleSystemPrompt: "切换系统提示词",
@@ -203,6 +206,102 @@ const zhMessages = {
     pdfPreview: "PDF 预览",
     parseError: "解析错误",
   },
+  systemFiles: {
+    schemaLabel: "架构",
+    showDetails: "显示详情",
+    hideDetails: "隐藏详情",
+    editPolicy: {
+      "agent-managed-but-hand-editable": "代理管理（可手动编辑）",
+      "user-editable": "用户可编辑",
+      "agent-managed": "代理管理",
+      "fragile-format": "脆弱格式",
+      ephemeral: "临时文件",
+    },
+    interests: {
+      title: "Interests 配置",
+      summary: "新闻 / 信息源管线监控并打分的话题。可手动编辑，代理也会从对话中自动更新。",
+    },
+    mcp: {
+      title: "MCP 服务器",
+      summary: "附加到代理的外部 Model Context Protocol 服务器。添加 HTTP 或 stdio 服务器以扩展代理工具。",
+    },
+    settings: {
+      title: "应用设置",
+      summary: "用户可编辑的行为偏好 — Gemini API 密钥、允许的工具、沙箱配置等。",
+    },
+    schedulerTasks: {
+      title: "调度器任务",
+      summary: "按计划触发的定期代理自动化。通过 Automations UI 管理，本文件是磁盘上的权威来源。",
+    },
+    schedulerOverrides: {
+      title: "调度器覆盖",
+      summary: "在系统调度之上叠加的每任务时间 / 间隔覆盖。当你要求修改某个定期任务的时间时，代理会写入此文件。",
+    },
+    newsReadState: {
+      title: "新闻已读状态",
+      summary: "本地仅记录的已读追踪。临时文件 — 删除后阅读时会重新生成。",
+    },
+    schedulerItems: {
+      title: "调度器条目队列",
+      summary: "等待触发的预定调用队列。代理管理；除非你清楚每个字段的含义，否则不要手动编辑。",
+    },
+    todosItems: {
+      title: "待办事项",
+      summary: "看板各列中的所有任务。当你说「添加待办」时代理会写入此文件，也可以手动编辑。",
+    },
+    todosColumns: {
+      title: "待办列定义",
+      summary: "看板的列布局（标题、顺序、ID）。用户可编辑 — 可自由重命名或重排。",
+    },
+    wikiIndex: {
+      title: "Wiki 索引",
+      summary: "所有 Wiki 页面的自动生成索引。每次 Wiki 编辑后刷新；请勿手动编辑（更改会被覆盖）。",
+    },
+    wikiLog: {
+      title: "Wiki 编辑日志",
+      summary: "Wiki 页面创建与编辑的活动日志。代理管理且仅追加；适合作为最近变更动态。",
+    },
+    wikiSummary: {
+      title: "Wiki 总览",
+      summary: "Wiki 的自动生成概览 — 主题聚类、页面数量、近期活动。由代理刷新。",
+    },
+    wikiSchema: {
+      title: "Wiki 架构",
+      summary: "代理用于保持 Wiki 页面一致性的格式规范。脆弱 — 代理期望特定结构，建议交由代理编辑。",
+    },
+    memory: {
+      title: "记忆",
+      summary: "关于你的精炼事实，作为新对话的上下文始终加载。journal 提取器会自动追加，也可手动编辑。",
+    },
+    summariesIndex: {
+      title: "总结索引",
+      summary: "可浏览的索引，链接 journal 生成的日次与主题总结。代理管理；每次 journal 运行时刷新。",
+    },
+    rolesJson: {
+      title: "角色定义 (JSON)",
+      summary: "角色配置 — 模型选择、MCP 服务器、允许的插件、查询建议。用户可编辑，无需重启。",
+    },
+    rolesMd: {
+      title: "角色描述 (Markdown)",
+      summary: "角色的人设与系统提示正文，激活该角色时作为上下文加载。用户可编辑，下一条消息生效。",
+    },
+    sourceFeed: {
+      title: "信息源订阅",
+      summary: "一个订阅的信息源（RSS、GitHub 发布 / Issue、arXiv 等）。用户可编辑；信息源管线按计划轮询。",
+    },
+    sourceState: {
+      title: "信息源状态",
+      summary: "单个信息源的临时管线状态 — 已见 ID、ETag、抓取错误等。可删除 — 下次运行时会重新生成。",
+    },
+    journalDaily: {
+      title: "日次 journal 总结",
+      summary: "由 journal 流程从聊天会话中提炼出的当日活动自动生成回顾。",
+    },
+    journalTopic: {
+      title: "主题 journal",
+      summary: "围绕某个特定主题的长期笔记，随该主题的持续讨论而累积和修订。代理管理。",
+    },
+  },
   settingsMcpTab: {
     explanation:
       "添加外部 MCP 服务器。HTTP 服务器在所有模式下都可用。Stdio 服务器使用沙箱镜像中的 {npx} / {node} / {tsx};启用 Docker 时,路径必须位于工作区内。",
@@ -287,9 +386,78 @@ const zhMessages = {
             },
           },
         },
+        appleNative: {
+          displayName: "Apple 原生应用（macOS）",
+          description: "通过 AppleScript 读写 提醒事项 / 日历 / 备忘录 / 邮件 / 地图。仅限 macOS — 无需凭证。",
+        },
+        gmail: {
+          displayName: "Gmail",
+          description: "读取、发送和标记 Gmail 邮件。使用您自己 Google Cloud 项目中创建的 OAuth 客户端（无需应用审核）。",
+          field: {
+            credentials: {
+              label: "credentials.json 路径",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth 客户端 ID（Desktop app）。下载 credentials.json 并粘贴其绝对路径。",
+            },
+          },
+        },
+        googleCalendar: {
+          displayName: "Google 日历",
+          description: "读取和创建 Google 日历事件。与 Gmail 相同的 BYO credentials.json 模式。",
+          field: {
+            credentials: {
+              label: "credentials.json 路径",
+              help: "可复用与 Gmail 相同的 Google Cloud OAuth 客户端，或单独创建一个仅供 Calendar 使用的客户端。",
+            },
+          },
+        },
+        googleDrive: {
+          displayName: "Google 云端硬盘",
+          description: "搜索和读取 Google 云端硬盘文件。BYO Google OAuth 凭证 — 令牌缓存在本地凭证文件旁。",
+          field: {
+            credentials: {
+              label: "credentials.json 路径",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth 客户端 ID（Desktop app）。在同一项目中启用 Google Drive API。",
+            },
+          },
+        },
+        github: {
+          displayName: "GitHub",
+          description:
+            "通过 Personal Access Token 读取仓库 / Issues / PRs 并执行搜索。请窄化 token 权限 — 写权限（如 `repo`）允许 agent 推送到任何可访问的仓库。",
+          field: {
+            token: {
+              label: "Personal Access Token",
+              help: "GitHub → Settings → Developer settings → Personal access tokens。建议使用 fine-grained token 仅限于希望 agent 操作的仓库。",
+            },
+          },
+        },
+        linear: {
+          displayName: "Linear",
+          description: "通过 Personal API key 读写 Linear 的 Issue / 项目 / 周期。",
+          field: {
+            apiKey: {
+              label: "Linear API 密钥",
+              help: "Linear → Settings → API → Personal API keys。点击 🔑 打开页面并点击 Create key。",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "天气（Open-Meteo）",
           description: "全球免费天气预报和当前气象 — 无需 API 密钥。",
+        },
+        spotify: {
+          displayName: "Spotify",
+          description: "搜索曲目、管理播放列表、控制播放。BYO Spotify 开发者应用 — 仅需 Client ID（PKCE 流程，不需要 Client Secret）。",
+          field: {
+            clientId: {
+              label: "Client ID",
+              help: "Spotify Developer Dashboard → Create app，将 Redirect URI 设为 http://127.0.0.1:8888/callback，复制 Client ID。然后在终端运行一次 `SPOTIFY_CLIENT_ID=<id> npx spotify-mcp@latest auth` 登录（刷新令牌缓存在 ~/.spotify-mcp/tokens.json）。",
+            },
+          },
+        },
+        youtubeTranscript: {
+          displayName: "YouTube 字幕",
+          description: "通过 URL 获取任意公开 YouTube 视频的字幕。无需凭证。",
         },
       },
       config: {
@@ -445,6 +613,9 @@ const zhMessages = {
     noMatches: "没有带 #{tag} 标签的页面",
     lintChat: "检查 Wiki",
     taskCountMismatch: "Wiki 源与渲染输出的任务数不一致，为避免文件损坏，已拒绝切换。",
+    metadataCreated: "创建",
+    metadataUpdated: "更新",
+    metadataEditor: "编辑者",
   },
   pluginPresentForm: {
     fallbackTitle: "表单",
@@ -629,6 +800,8 @@ const zhMessages = {
     gen: "生成",
     play: "▶ 播放",
     stop: "■ 停止",
+    playPresentation: "播放演示",
+    regenerateMovie: "重新生成视频",
     errPrefix: "⚠ 错误",
     noBeats: "脚本中没有找到 beat",
     editSource: "编辑脚本源",
@@ -692,6 +865,11 @@ const zhMessages = {
   },
   suggestionsPanel: {
     suggestions: "建议",
+    skills: "技能",
+    tooltip: "建议和技能",
+    emptySuggestions: "没有建议。",
+    emptySkills: "未安装任何技能。",
+    skillsError: "加载技能失败：{error}",
     sendEditHint: "点击发送 · shift+点击可编辑",
   },
   settingsToolsTab: {

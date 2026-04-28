@@ -5,7 +5,8 @@
 // Minimal YAML: we only care about a few keys, so rather than
 // pulling in a YAML parser we do line-by-line extraction.
 
-import { TIME_UNIT_MS } from "../../utils/time.js";
+import { TIME_UNIT_MS, ONE_SECOND_MS } from "../../utils/time.js";
+import { LEADING_BLANK_LINES_PATTERN } from "../../utils/regex.js";
 import { SCHEDULE_TYPES } from "@receptron/task-scheduler";
 
 export interface SkillSchedule {
@@ -48,7 +49,7 @@ function parseScalar(raw: string): string {
  *   "interval 300s"    → { type: "interval", intervalMs: 300000 }
  */
 // Minimum interval to prevent accidental runaway scheduling.
-const MIN_INTERVAL_MS = 10_000; // 10 seconds
+const MIN_INTERVAL_MS = 10 * ONE_SECOND_MS;
 
 function parseScheduleValue(raw: string): SkillSchedule["parsed"] {
   const trimmed = raw.trim();
@@ -129,7 +130,8 @@ export function parseSkillFrontmatter(raw: string): ParsedSkill | null {
   const body = lines
     .slice(closeIdx + 1)
     .join("\n")
-    .replace(/^(?:\s*\n)+/, "")
+    // Pattern + ReDoS-safety rationale lives in `server/utils/regex.ts`.
+    .replace(LEADING_BLANK_LINES_PATTERN, "")
     .trimEnd();
 
   const result: ParsedSkill = { description, body };
