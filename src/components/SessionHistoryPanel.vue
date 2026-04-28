@@ -14,7 +14,7 @@
           :label="t(`sessionHistoryPanel.filters.${f}`)"
           :count="f === HISTORY_FILTERS.all ? undefined : countByOrigin(f)"
           :data-testid="`session-filter-${f}`"
-          @click="activeFilter = f"
+          @click="toggleFilter(f)"
         />
       </div>
 
@@ -166,6 +166,13 @@ function matchesFilter(session: SessionSummary, filter: HistoryFilter): boolean 
 }
 
 const filteredSessions = computed(() => props.sessions.filter((session) => matchesFilter(session, activeFilter.value)));
+
+// Mirror Wiki's toggleTagFilter (plugins/wiki/View.vue): clicking the
+// already-active chip resets to `all`. The `all` chip itself is a
+// no-op when active — there's nothing to "deselect" back to.
+function toggleFilter(filter: HistoryFilter): void {
+  activeFilter.value = activeFilter.value === filter ? HISTORY_FILTERS.all : filter;
+}
 
 function countByOrigin(filterKey: HistoryFilter): number {
   if (filterKey === HISTORY_FILTERS.all) return props.sessions.length;
