@@ -282,6 +282,7 @@ import { API_ROUTES } from "../../config/apiRoutes";
 import TasksTab from "./TasksTab.vue";
 import { isToday } from "../../utils/format/date";
 import { errorMessage } from "../../utils/errors";
+import { SCHEDULER_VIEW, SCHEDULER_VIEW_MODES as VIEW_MODES, SCHEDULER_TAB, type SchedulerViewMode as ViewMode, type SchedulerTab } from "./viewModes";
 
 const { t } = useI18n();
 
@@ -337,8 +338,6 @@ watch(
 );
 
 // ── View mode ──────────────────────────────────────────────────────────────
-
-import { SCHEDULER_VIEW, SCHEDULER_VIEW_MODES as VIEW_MODES, SCHEDULER_TAB, type SchedulerViewMode as ViewMode, type SchedulerTab } from "./viewModes";
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MAX_MONTH_ITEMS = 3;
@@ -516,6 +515,10 @@ function parseYaml(text: string): {
 const selectedId = ref<string | null>(null);
 const yamlText = ref("");
 const yamlError = ref("");
+// JSON source editor state (used by the watcher below as well, so
+// declared up here to avoid TDZ ordering with the items-watch handler).
+const editorText = ref("");
+const parseError = ref("");
 
 function selectItem(item: ScheduledItem) {
   if (selectedId.value === item.id) {
@@ -562,8 +565,10 @@ function toJson(its: ScheduledItem[]) {
   return JSON.stringify(its, null, 2);
 }
 
-const editorText = ref(toJson(items.value));
-const parseError = ref("");
+// Seed the editor text now that toJson is in scope (the ref itself
+// was declared earlier so the watcher above can reference it).
+editorText.value = toJson(items.value);
+
 // Last POST /api/scheduler failure. Cleared on the next successful call
 // so the banner disappears as soon as things recover.
 const apiError = ref<string | null>(null);
