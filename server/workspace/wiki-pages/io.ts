@@ -22,6 +22,7 @@ import path from "node:path";
 import { readTextSafe } from "../../utils/files/safe.js";
 import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { mergeFrontmatter, parseFrontmatter, serializeWithFrontmatter } from "../../utils/markdown/frontmatter.js";
+import { isSafeSlug, wikiSlugFromAbsPath } from "../../../src/lib/wiki-page/slug.js";
 import { workspacePath as defaultWorkspacePath } from "../workspace.js";
 import { WORKSPACE_DIRS } from "../paths.js";
 import { appendSnapshot } from "./snapshot.js";
@@ -53,30 +54,6 @@ export interface WikiPageWriteOptions {
    *  injection. Tests pass a fixed `Date` so the round-trip is
    *  deterministic; production uses the wall clock. */
   now?: () => Date;
-}
-
-/** Reject slugs that would escape `data/wiki/pages/` once joined.
- *  The chokepoint must defend itself against careless callers — a
- *  raw `path.join(root, dir, '${slug}.md')` happily resolves
- *  `../../etc/passwd` outside the wiki tree. Today's three callers
- *  derive slugs from `path.basename(...)` so they're already safe;
- *  this guard keeps that property even if a future caller forgets.
- *
- *  The rule is intentionally narrow — separators / `..` / NUL /
- *  empty — so it only rejects unambiguous security violations.
- *  Aesthetic concerns (e.g. dot-prefixed "hidden" filenames) are
- *  out of scope: a pre-existing `data/wiki/pages/.foo.md` should
- *  remain writable through the chokepoint, and over-rejection here
- *  would turn that into a 500 (codex review iter-2 #883). */
-function isSafeSlug(slug: string): boolean {
-  if (slug.length === 0) return false;
-  if (slug === "." || slug === "..") return false;
-  // Any path separator (forward slash, backslash on Windows) or
-  // literal `..` segment means the slug spans directories — not
-  // allowed at the page-write layer.
-  if (slug.includes("/") || slug.includes("\\")) return false;
-  if (slug.includes("\0")) return false;
-  return true;
 }
 
 /** Absolute path for a slug. Throws on slugs that would escape
@@ -225,32 +202,8 @@ function toIsoDate(date: Date): string {
 export function classifyAsWikiPage(absPath: string, opts: WikiPageWriteOptions = {}): { wiki: true; slug: string } | { wiki: false } {
   const root = opts.workspaceRoot ?? defaultWorkspacePath;
   const pagesDir = path.join(root, WORKSPACE_DIRS.wikiPages);
-  // `path.relative` returns "" for equal paths, a "../"-prefixed
-  // string when `absPath` is outside `pagesDir`, and an absolute
-  // path on Windows when the two are on different drives.
-  const rel = path.relative(pagesDir, absPath);
-  if (rel.length === 0) return { wiki: false };
-  if (path.isAbsolute(rel)) return { wiki: false };
-  // The file must live directly in `pages/`, not in a subdirectory
-  // (no nested wiki layout today). Any separator means the path
-  // either escapes (`../secret.md`) or descends (`subdir/foo.md`)
-  // — both rejected. NOTE: a literal page name like `..foo.md` is
-  // a single segment without a separator and is allowed (codex
-  // review iter-3 #883 — the prior `startsWith("..")` rule
-  // wrongly rejected it).
-  if (rel.includes(path.sep)) return { wiki: false };
-  if (!rel.endsWith(".md")) return { wiki: false };
-  const slug = rel.slice(0, -".md".length);
-  // Mirror isSafeSlug at the classifier so any path the classifier
-  // accepts is one writeWikiPage can actually handle. The two
-  // documented escapes are `<pagesDir>/.md` (rel = ".md", slug = "")
-  // and the literal "." / ".." filenames (`.md.md` is fine, `..md`
-  // is fine too — those are valid filenames). Without this check,
-  // writeWikiPage's wikiPagePath() throws "refusing unsafe slug" and
-  // the caller (files PUT) bubbles a 500 instead of falling through
-  // to the generic writeFileAtomic path. Coderabbit review #883.
-  if (!isSafeSlug(slug)) return { wiki: false };
-  return { wiki: true, slug };
+  const slug = wikiSlugFromAbsPath(absPath, pagesDir);
+  return slug === null ? { wiki: false } : { wiki: true, slug };
 }
 
 // Snapshot pipeline lives in `./snapshot.ts` (#763 PR 2). The

@@ -32,6 +32,12 @@ export default [
       // import-extraction regex in scripts/mulmoclaude/deps.mjs.
       // They're inputs to a parser test, not production code.
       "test/scripts/mulmoclaude/fixtures",
+      // esbuild output committed to git (`yarn build:hooks`
+      // regenerates from server/workspace/wiki-history/hook/snapshot.ts).
+      // Linting the bundle is meaningless — it's machine-formatted
+      // and would force formatter-friendly output options on
+      // esbuild for no real win.
+      "server/workspace/wiki-history/hook/snapshot.mjs",
     ],
   },
   eslint.configs.recommended,

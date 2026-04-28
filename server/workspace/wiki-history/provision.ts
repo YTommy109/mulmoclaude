@@ -12,12 +12,37 @@
 // (identified by a `mulmoclaudeWikiHistory: true` marker on the
 // hook descriptor).
 
+import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { readTextOrNull } from "../../utils/files/safe.js";
 import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { workspacePath as defaultWorkspacePath } from "../workspace.js";
 import { log } from "../../system/logger/index.js";
-import { WIKI_SNAPSHOT_HOOK_SCRIPT } from "./hookScript.js";
+
+// The esbuild-built bundle is the source of truth for the hook
+// script written into `<workspace>/.claude/hooks/`. Source TS is
+// `hook/snapshot.ts`; `yarn build:hooks` (chained from
+// `yarn build`) regenerates `hook/snapshot.mjs`, and CI fails
+// when the committed bundle drifts from the source. The read
+// happens inside `provisionWikiHistoryHook` (not at module load)
+// so a missing / unreadable bundle degrades to a logged warning
+// without breaking server startup — provisioning is best-effort
+// and the rest of the server still functions (codex review
+// iter-1 #955).
+const HOOK_BUNDLE_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "hook", "snapshot.mjs");
+
+function readHookBundle(): string | null {
+  try {
+    return readFileSync(HOOK_BUNDLE_PATH, "utf-8");
+  } catch (err) {
+    log.warn("wiki-history", "hook bundle unreadable, skipping provisioning", {
+      bundlePath: HOOK_BUNDLE_PATH,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
 
 const SETTINGS_REL = path.join(".claude", "settings.json");
 const HOOK_SCRIPT_REL = path.join(".claude", "hooks", "wiki-snapshot.mjs");
@@ -60,24 +85,30 @@ export interface ProvisionOptions {
 
 /** Ensure the hook script + `.claude/settings.json` are up to date.
  *  Safe to call on every startup. Logs a one-line info on first
- *  install, debug-only on subsequent no-op runs. */
+ *  install, debug-only on subsequent no-op runs. Skips quietly
+ *  (with a warning) when the bundled hook script can't be read
+ *  — provisioning is best-effort and the rest of the server is
+ *  still functional. */
 export async function provisionWikiHistoryHook(opts: ProvisionOptions = {}): Promise<void> {
+  const bundle = readHookBundle();
+  if (bundle === null) return;
+
   const root = opts.workspaceRoot ?? defaultWorkspacePath;
   const scriptPath = path.join(root, HOOK_SCRIPT_REL);
   const settingsPath = path.join(root, SETTINGS_REL);
 
-  await writeHookScript(scriptPath);
+  await writeHookScript(scriptPath, bundle);
   const changed = await mergeHookIntoSettings(settingsPath);
   if (changed) {
     log.info("wiki-history", "provisioned wiki-snapshot hook", { settingsPath, scriptPath });
   }
 }
 
-async function writeHookScript(absPath: string): Promise<void> {
-  // Always overwrite — the constant in `hookScript.ts` is the
-  // source of truth, and rewriting on every startup means a
-  // mulmoclaude update propagates without per-workspace migration.
-  await writeFileAtomic(absPath, WIKI_SNAPSHOT_HOOK_SCRIPT, { mode: 0o700 });
+async function writeHookScript(absPath: string, bundle: string): Promise<void> {
+  // Always overwrite — the esbuild bundle on disk is the source of
+  // truth, and rewriting on every startup means a mulmoclaude
+  // update propagates without per-workspace migration.
+  await writeFileAtomic(absPath, bundle, { mode: 0o700 });
 }
 
 async function mergeHookIntoSettings(settingsPath: string): Promise<boolean> {
