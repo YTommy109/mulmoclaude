@@ -32,6 +32,18 @@ export default [
       // import-extraction regex in scripts/mulmoclaude/deps.mjs.
       // They're inputs to a parser test, not production code.
       "test/scripts/mulmoclaude/fixtures",
+      // Project tsconfig files — eslint shouldn't lint these but
+      // some preset block ends up pulling them in via glob expansion.
+      // Explicit ignore unblocks the type-checked rule chain.
+      "**/tsconfig*.json",
+      // Files outside any tsconfig's `include` array — the type-
+      // checked parser services can't resolve them. They are linted
+      // by their own package-local lint config when published, or
+      // checked by `yarn typecheck:packages` for compile errors.
+      // Excluded here so the type-checked rule chain doesn't fail
+      // with "not found by the project service" parsing errors.
+      "packages/relay/**",
+      "packages/bridges/slack/test/**",
     ],
   },
   eslint.configs.recommended,
@@ -101,6 +113,38 @@ export default [
       globals: {
         ...globals.browser,
       },
+    },
+  },
+  {
+    // Type-checked rules need tsc-backed parser services. Scope this
+    // block to files that are in a tsconfig — excludes `.mjs`/`.cjs`/
+    // `.cts` which are not part of any project's `include` array. Vue
+    // SFCs get parserOptions set in their own block at the bottom.
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
+    // Rules block — applies to both TS and Vue files. Type-checked
+    // rules are demoted to warn pending dedicated cleanup PRs
+    // (analogous to #925's no-non-null-assertion handling).
+    files: ["**/*.{ts,tsx,vue}"],
+    rules: {
+      "@typescript-eslint/no-floating-promises": "warn",
+      // SonarJS type-checked rules — woke up alongside projectService.
+      "sonarjs/no-alphabetical-sort": "warn",
+      "sonarjs/different-types-comparison": "warn",
+      "sonarjs/no-misleading-array-reverse": "warn",
+      "sonarjs/prefer-regexp-exec": "warn",
+      "sonarjs/no-undefined-argument": "warn",
+      "sonarjs/function-return-type": "warn",
+      "sonarjs/no-redundant-optional": "warn",
+      "sonarjs/no-selector-parameter": "warn",
+      "sonarjs/deprecation": "warn",
     },
   },
   {
@@ -279,6 +323,8 @@ export default [
         parser: tseslint.parser,
         sourceType: "module",
         extraFileExtensions: [".vue"],
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
       },
       globals: {
         // Vue SFCs run in the browser; add globals so `document`,
