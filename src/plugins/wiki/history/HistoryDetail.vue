@@ -66,7 +66,15 @@ watch(
   },
 );
 
-watch(compareTarget, async (target) => {
+watch(compareTarget, async (target, prevTarget) => {
+  // Switching away from "previous" must invalidate any in-flight
+  // previous-snapshot load — otherwise its late failure would
+  // surface as `fetchError` and take over the detail pane even
+  // though the user is now looking at the (valid) current
+  // comparison (codex iter-3 #946).
+  if (prevTarget === COMPARE_TARGET.previous && target !== COMPARE_TARGET.previous) {
+    previousLoadToken += 1;
+  }
   if (target === COMPARE_TARGET.previous && previousSnapshot.value === null && props.previousSummary !== null) {
     await loadPreviousSnapshot();
   }
