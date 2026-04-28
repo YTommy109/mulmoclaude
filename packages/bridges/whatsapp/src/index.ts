@@ -28,7 +28,7 @@ const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
 const appSecret = process.env.WHATSAPP_APP_SECRET;
 if (!accessToken || !phoneNumberId || !verifyToken || !appSecret) {
   console.error(
-    "WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN, and WHATSAPP_APP_SECRET are required.\n" + "See README for setup instructions.",
+    "WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN, and WHATSAPP_APP_SECRET are required.\nSee README for setup instructions.",
   );
   process.exit(1);
 }
@@ -108,7 +108,7 @@ function parseOneMessage(msg: unknown): WhatsAppTextMessage | null {
   if (!isObj(msg)) return null;
   if (msg.type !== "text" || typeof msg.from !== "string") return null;
   if (!isObj(msg.text)) return null;
-  const body = msg.text.body;
+  const { body } = msg.text;
   if (typeof body !== "string" || !body.trim()) return null;
   return { from: msg.from, text: { body } };
 }
@@ -120,7 +120,7 @@ function collectRawMessages(body: unknown): unknown[] {
     if (!isObj(entry) || !Array.isArray(entry.changes)) continue;
     for (const change of entry.changes) {
       if (!isObj(change) || !isObj(change.value)) continue;
-      const messages = change.value.messages;
+      const { messages } = change.value;
       if (Array.isArray(messages)) raw.push(...messages);
     }
   }

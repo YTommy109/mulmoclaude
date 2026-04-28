@@ -411,6 +411,7 @@ function isValidEmail(email: string): boolean {
 
 function isValidUrl(url: string): boolean {
   try {
+    // eslint-disable-next-line no-new -- side-effect probe to validate URL syntax
     new URL(url);
     return true;
   } catch {
@@ -530,15 +531,13 @@ function showCharCount(field: FormField): boolean {
 
 function isNearLimit(field: FormField): boolean {
   if (field.type !== "text" && field.type !== "textarea") return false;
-  const maxLength = (field as TextField | TextareaField).maxLength;
+  const { maxLength } = field as TextField | TextareaField;
   if (!maxLength) return false;
   const currentLength = (formValues.value[field.id] || "").length;
   return currentLength / maxLength > 0.9;
 }
 
-const requiredFieldsCount = computed(() => {
-  return formData.value?.fields.filter((field) => field.required).length || 0;
-});
+const requiredFieldsCount = computed(() => formData.value?.fields.filter((field) => field.required).length || 0);
 
 const filledRequiredCount = computed(() => {
   if (!formData.value) return 0;
@@ -598,7 +597,7 @@ function renderValue(field: FormField, value: any): string {
   if (field.type === "checkbox") {
     const items: string[] = (value || []).map((idx: number) => singleLine(field.choices[idx]));
     if (items.length === 0) return empty;
-    return "\n  - " + items.join("\n  - ");
+    return `\n  - ${items.join("\n  - ")}`;
   }
   if (typeof value === "string") {
     const trimmed = value.trim();

@@ -428,8 +428,6 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-
-const { t } = useI18n();
 import type { MulmoScriptData } from "./index";
 import { mulmoBeatSchema, mulmoScriptSchema } from "@mulmocast/types";
 import { extractErrorMessage, getMissingCharacterKeys, shouldAutoRenderBeat, streamMovieEvents, validateBeatJSON } from "./helpers";
@@ -439,6 +437,8 @@ import { errorMessage } from "../../utils/errors";
 import { useClipboardCopy } from "../../composables/useClipboardCopy";
 import { useActiveSession } from "../../composables/useActiveSession";
 import { GENERATION_KINDS, type PendingGeneration } from "../../types/events";
+
+const { t } = useI18n();
 
 interface Beat {
   speaker?: string;
@@ -487,7 +487,10 @@ const sourceText = reactive<Record<number, string>>({});
 // the Update button. Cleared on next successful save or editor close.
 // Store raw error + kind tag so the template picks a localized key,
 // instead of pre-composing an English-prefixed string here.
-type BeatSaveError = { kind: "invalidJson" | "saveFailed"; error: string };
+interface BeatSaveError {
+  kind: "invalidJson" | "saveFailed";
+  error: string;
+}
 const beatSaveErrors = reactive<Record<number, BeatSaveError>>({});
 const beatSaving = reactive<Record<number, boolean>>({});
 const localOverrides = reactive<Record<number, Beat>>({});

@@ -229,8 +229,6 @@
 import { ref, computed, watch, nextTick, onMounted, reactive } from "vue";
 import { useI18n } from "vue-i18n";
 import { v4 as uuidv4 } from "uuid";
-
-const { t } = useI18n();
 import { getPlugin } from "./tools";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import RightSidebar from "./components/RightSidebar.vue";
@@ -251,7 +249,7 @@ import AutomationsView from "./plugins/scheduler/AutomationsView.vue";
 import WikiView from "./plugins/wiki/View.vue";
 import { buildWikiRouteParams } from "./plugins/wiki/route";
 import SkillsView from "./plugins/manageSkills/View.vue";
-import RolesView from "./plugins/manageRoles/View.vue";
+import RolesView from "./components/RolesView.vue";
 import SourcesView from "./components/SourcesView.vue";
 import NewsView from "./components/NewsView.vue";
 import SettingsModal from "./components/SettingsModal.vue";
@@ -259,7 +257,7 @@ import NotificationToast from "./components/NotificationToast.vue";
 import type { NotificationAction } from "./types/notification";
 import { PAGE_ROUTES, type PageRouteName } from "./router";
 import type { SseEvent } from "./types/sse";
-import { type SessionEntry, type ActiveSession } from "./types/session";
+import type { SessionEntry, ActiveSession } from "./types/session";
 import { EVENT_TYPES } from "./types/events";
 import { extractImageData } from "./utils/tools/result";
 import { buildAgentRequestBody, postAgentRun } from "./utils/agent/request";
@@ -298,6 +296,8 @@ import { useRoute, useRouter } from "vue-router";
 import { apiGet } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
+
+const { t } = useI18n();
 
 // --- Per-session state ---
 // Declared early so that pub/sub callbacks and function declarations
@@ -484,7 +484,7 @@ function setSidePanelVisibleAndCollapse(value: boolean): void {
 // full-width views.
 const isChatPage = computed(() => route.name === PAGE_ROUTES.chat);
 const currentPage = computed<PageRouteName | null>(() => {
-  const name = route.name;
+  const { name } = route;
   return typeof name === "string" && isPageRouteName(name) ? name : null;
 });
 

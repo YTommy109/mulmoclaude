@@ -17,7 +17,7 @@ type Handler = (req: Request, res: Response) => Promise<void> | void;
 interface StackFrame {
   route?: {
     path: string;
-    stack: Array<{ method: string; handle: Handler }>;
+    stack: { method: string; handle: Handler }[];
   };
 }
 interface RouterInternals {
@@ -36,7 +36,7 @@ function extractRouteHandler(mod: { default: unknown }, routePath: string, metho
 
 interface ResBody {
   slug?: string;
-  snapshots?: Array<{ stamp: string; reason?: string; editor?: string }>;
+  snapshots?: { stamp: string; reason?: string; editor?: string }[];
   snapshot?: { stamp: string; body?: string; meta?: Record<string, unknown> };
   restored?: { fromStamp: string };
   error?: string;
@@ -166,7 +166,7 @@ describe("GET /api/wiki/pages/:slug/history/:stamp", () => {
     await writeWikiPage(slug, "hello body\n", { editor: "user", reason: "first" });
     const snapshots = await listSnapshots(slug);
     assert.ok(snapshots.length >= 1);
-    const stamp = snapshots[0].stamp;
+    const { stamp } = snapshots[0];
 
     const { state, res } = mockRes();
     await readHandler(makeReq({ slug, stamp }), res);

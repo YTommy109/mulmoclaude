@@ -295,7 +295,7 @@ const miniEditorFormula = ref("");
 const miniEditorFormat = ref("");
 
 // Referenced cells state (for formula highlighting)
-const referencedCells = ref<Array<{ row: number; col: number }>>([]);
+const referencedCells = ref<{ row: number; col: number }[]>([]);
 
 // Check if spreadsheet data has been modified
 const hasChanges = computed(() => {
@@ -534,7 +534,7 @@ function handleTableClick(event: MouseEvent) {
   const row = cell.parentElement as HTMLTableRowElement;
 
   const colIndex = cell.cellIndex;
-  const rowIndex = row.rowIndex;
+  const { rowIndex } = row;
 
   // Check if the main editor details is open
   const isEditorOpen = editorDetails.value?.open ?? false;

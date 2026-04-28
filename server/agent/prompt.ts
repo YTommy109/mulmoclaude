@@ -328,6 +328,7 @@ function sanitizeUserTimezone(zoneId: string | undefined): string | undefined {
   try {
     // Throws a RangeError if the zone isn't recognized by the ICU
     // data on this runtime.
+    // eslint-disable-next-line no-new -- side-effect probe to validate the time zone
     new Intl.DateTimeFormat("en-US", { timeZone: zoneId });
     return zoneId;
   } catch {
@@ -412,7 +413,7 @@ export function summarizeHelpContent(content: string): string {
     if (paragraph.length >= HELP_SUMMARY_PARAGRAPH_CAP) break;
   }
   if (paragraph.length > HELP_SUMMARY_PARAGRAPH_CAP) {
-    paragraph = paragraph.slice(0, HELP_SUMMARY_PARAGRAPH_CAP).trimEnd() + "…";
+    paragraph = `${paragraph.slice(0, HELP_SUMMARY_PARAGRAPH_CAP).trimEnd()}…`;
   }
 
   const parts: string[] = [];

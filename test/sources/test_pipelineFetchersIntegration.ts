@@ -78,7 +78,7 @@ function makeSource(over: Partial<Source> & Pick<Source, "slug">): Source {
 // Minimal HTTP deps with a URL-keyed response table. Any URL not in
 // the table fails the test immediately (better than silently fetching
 // the real network).
-function makeHttpDeps(routes: Array<{ url: RegExp | string; body: string; contentType?: string }>): HttpFetcherDeps {
+function makeHttpDeps(routes: { url: RegExp | string; body: string; contentType?: string }[]): HttpFetcherDeps {
   const clock = controllableClock();
   const fetchImpl: typeof fetch = async (input) => {
     const url = String(input);
@@ -259,6 +259,7 @@ const CASES: FixtureCase[] = [
 
 describe("pipeline integration with real fetchers", () => {
   for (const testCase of CASES) {
+    // eslint-disable-next-line no-loop-func -- `workspace` is set once per `before`, not mutated across iterations
     it(`${testCase.kind} source produces items end-to-end`, async () => {
       await writeSource(
         workspace,

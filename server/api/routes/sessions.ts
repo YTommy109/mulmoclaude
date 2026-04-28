@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { realpathSync } from "fs";
 import { readdir, stat } from "fs/promises";
-import { readTextSafe } from "../../utils/files/safe.js";
+import { readTextSafe, resolveWithinRoot } from "../../utils/files/safe.js";
 import path from "path";
 import { workspacePath } from "../../workspace/workspace.js";
 import { WORKSPACE_PATHS } from "../../workspace/paths.js";
@@ -14,7 +14,6 @@ import {
   deleteSessionFiles,
 } from "../../utils/files/session-io.js";
 import { readManifest, removeSessionFromIndex } from "../../workspace/chat-index/indexer.js";
-import { resolveWithinRoot } from "../../utils/files/safe.js";
 import type { ChatIndexEntry } from "../../workspace/chat-index/types.js";
 import { markRead, getSession, evictSession, publishSessionsChanged } from "../../events/session-store/index.js";
 import { notFound } from "../../utils/httpError.js";

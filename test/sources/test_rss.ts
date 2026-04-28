@@ -39,14 +39,14 @@ function makeState(over: Partial<SourceState> = {}): SourceState {
 }
 
 function makeFeed(
-  items: Array<{
+  items: {
     title: string;
     link: string | null;
     publishedAt?: string | null;
     summary?: string | null;
     content?: string | null;
     feedId?: string | null;
-  }>,
+  }[],
 ): ParsedFeed {
   return {
     kind: "rss",
@@ -366,6 +366,6 @@ describe("rssFetcher.fetch", () => {
     const { getFetcher } = await import("../../server/workspace/sources/fetchers/index.js");
     const fetcher = getFetcher("rss");
     assert.ok(fetcher);
-    assert.equal(fetcher!.kind, "rss");
+    assert.equal(fetcher.kind, "rss");
   });
 });

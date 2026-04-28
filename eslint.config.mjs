@@ -32,24 +32,19 @@ export default [
       // import-extraction regex in scripts/mulmoclaude/deps.mjs.
       // They're inputs to a parser test, not production code.
       "test/scripts/mulmoclaude/fixtures",
-      // Project tsconfig files — eslint shouldn't lint these but
-      // some preset block ends up pulling them in via glob expansion.
-      // Explicit ignore unblocks the type-checked rule chain.
-      "**/tsconfig*.json",
-      // Files outside any tsconfig's `include` array — the type-
-      // checked parser services can't resolve them. They are linted
-      // by their own package-local lint config when published, or
-      // checked by `yarn typecheck:packages` for compile errors.
-      // Excluded here so the type-checked rule chain doesn't fail
-      // with "not found by the project service" parsing errors.
-      "packages/relay/**",
-      "packages/bridges/slack/test/**",
+      // esbuild output committed to git (`yarn build:hooks`
+      // regenerates from server/workspace/wiki-history/hook/snapshot.ts).
+      // Linting the bundle is meaningless — it's machine-formatted
+      // and would force formatter-friendly output options on
+      // esbuild for no real win.
+      "server/workspace/wiki-history/hook/snapshot.mjs",
     ],
   },
   eslint.configs.recommended,
   sonarjs.configs.recommended,
   securityPlugin.configs.recommended,
   ...tseslint.configs.strict,
+  ...tseslint.configs.stylistic,
   ...vuePlugin.configs["flat/recommended"],
   ...vueI18n.configs.recommended,
   {
@@ -113,42 +108,6 @@ export default [
       globals: {
         ...globals.browser,
       },
-    },
-  },
-  {
-    // Type-checked rules need tsc-backed parser services. Scope this
-    // block to files that are in a tsconfig — excludes `.mjs`/`.cjs`/
-    // `.cts` which are not part of any project's `include` array. Vue
-    // SFCs get parserOptions set in their own block at the bottom.
-    // Type-checked rules need tsc-backed parser services. Vue SFCs
-    // get parserOptions in their own block at the bottom.
-    files: ["**/*.{ts,tsx}"],
-    languageOptions: {
-      parserOptions: {
-        projectService: true,
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-  },
-  {
-    // Rules block — applies to both TS and Vue files. Type-checked
-    // rules are demoted to warn pending dedicated cleanup PRs
-    // (analogous to #925's no-non-null-assertion handling).
-    files: ["**/*.{ts,tsx,vue}"],
-    rules: {
-      "@typescript-eslint/no-floating-promises": "warn",
-      // Bug-detection-signal-positive sonarjs type-checked rules.
-      "sonarjs/different-types-comparison": "warn",
-      "sonarjs/no-misleading-array-reverse": "warn",
-      "sonarjs/deprecation": "warn",
-      // Stylistic / preference rules with low real-bug signal —
-      // disabled to cut warning noise + lint cost.
-      "sonarjs/no-alphabetical-sort": "off",
-      "sonarjs/prefer-regexp-exec": "off",
-      "sonarjs/no-undefined-argument": "off",
-      "sonarjs/function-return-type": "off",
-      "sonarjs/no-redundant-optional": "off",
-      "sonarjs/no-selector-parameter": "off",
     },
   },
   {
@@ -223,6 +182,64 @@ export default [
       "no-else-return": ["error", { allowElseIf: false }],
       "@typescript-eslint/no-non-null-assertion": "warn",
       "@typescript-eslint/no-dynamic-delete": "warn",
+      "@typescript-eslint/no-empty-function": "off",
+      "@typescript-eslint/no-import-type-side-effects": "error",
+      "@typescript-eslint/no-useless-empty-export": "error",
+      "@typescript-eslint/method-signature-style": ["error", "property"],
+      "default-case-last": "error",
+      "prefer-template": "error",
+      "prefer-arrow-callback": "error",
+      "arrow-body-style": ["error", "as-needed"],
+      "no-multi-assign": "error",
+      "prefer-rest-params": "error",
+      "prefer-spread": "error",
+      "no-self-compare": "error",
+      "no-unmodified-loop-condition": "error",
+      "no-constructor-return": "error",
+      "import/no-duplicates": "error",
+      "array-callback-return": "error",
+      "default-param-last": "error",
+      "no-new-wrappers": "error",
+      "no-octal-escape": "error",
+      "no-proto": "error",
+      "no-script-url": "error",
+      "no-useless-call": "error",
+      "no-useless-concat": "error",
+      "no-useless-rename": "error",
+      radix: "error",
+      "prefer-object-spread": "error",
+      "prefer-numeric-literals": "error",
+      "prefer-promise-reject-errors": "error",
+      "no-lonely-if": "error",
+      "no-floating-decimal": "error",
+      "no-unused-private-class-members": "error",
+      // `require-await` (and the type-checked variant) misfires on
+      // Playwright route handlers, Express middleware, and any
+      // framework-imposed async contract that returns a Promise
+      // without `await`-ing inside. Off — signal-to-noise too low
+      // without type information.
+      "require-await": "off",
+      "no-loop-func": "error",
+      "no-new": "error",
+      "no-undef-init": "error",
+      "no-useless-return": "error",
+      "prefer-regex-literals": "error",
+      "prefer-exponentiation-operator": "error",
+      "@typescript-eslint/consistent-type-assertions": "error",
+      "@typescript-eslint/no-require-imports": "error",
+      "@typescript-eslint/prefer-enum-initializers": "error",
+      "import/first": "error",
+      "import/newline-after-import": "error",
+      "import/no-anonymous-default-export": "error",
+      "import/no-mutable-exports": "error",
+      "import/no-self-import": "error",
+      "import/no-useless-path-segments": "error",
+      "consistent-return": "warn",
+      "class-methods-use-this": "warn",
+      "prefer-destructuring": "warn",
+      complexity: ["warn", { max: 15 }],
+      "max-depth": ["warn", { max: 4 }],
+      "max-params": ["warn", { max: 6 }],
       quotes: "off",
       "no-shadow": "error",
       "no-param-reassign": "error",
@@ -329,8 +346,6 @@ export default [
         parser: tseslint.parser,
         sourceType: "module",
         extraFileExtensions: [".vue"],
-        projectService: true,
-        tsconfigRootDir: import.meta.dirname,
       },
       globals: {
         // Vue SFCs run in the browser; add globals so `document`,
@@ -349,6 +364,10 @@ export default [
       // sanitised markdown. Warn so the justified usage doesn't
       // block CI — audit per-use at review time.
       "vue/no-v-html": "warn",
+      "vue/no-useless-mustaches": "error",
+      "vue/no-useless-v-bind": "error",
+      "vue/prefer-true-attribute-shorthand": "error",
+      "vue/no-empty-component-block": "error",
     },
   },
   eslintConfigPrettier,
