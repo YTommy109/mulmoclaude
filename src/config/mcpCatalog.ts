@@ -257,19 +257,291 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
 
   // Weather forecast / current conditions via Open-Meteo. Open-Meteo
   // is keyless for non-commercial use, so this entry is config-free.
-  // TODO(reviewer): pick the most-active community package — as of
-  // 2026-04 candidates include `mcp-server-open-meteo` and
-  // `@cloud-rocket/mcp-server-open-meteo`.
+  // Apple native apps (macOS only) — bundles Reminders / Calendar /
+  // Notes / Mail / Maps / Messages via AppleScript bridges. No
+  // credentials needed since it talks to the local system apps; the
+  // package no-ops on Linux/Windows. Bundle entry keeps install simple;
+  // if per-app granularity is wanted later, split into separate ids.
+  //
+  // TODO(reviewer): pin the most-active bundle package — as of 2026-04
+  // candidates include `apple-mcp` (Dhravya) and per-app variants like
+  // `mcp-server-apple-reminders` / `apple-notes-mcp`.
+  {
+    id: "apple-native",
+    displayName: "settingsMcpTab.catalog.entry.appleNative.displayName",
+    description: "settingsMcpTab.catalog.entry.appleNative.description",
+    audience: "general",
+    upstreamUrl: "https://github.com/Dhravya/apple-mcp",
+    spec: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@dhravya/apple-mcp"],
+    },
+    configSchema: [],
+    // Reads + writes Reminders / Notes / Calendar etc. — flagged
+    // medium because the agent can modify the user's data, even
+    // though no auth secret leaves the box.
+    riskLevel: "medium",
+  },
+
+  // Gmail read / send / label via a community MCP server. BYO OAuth
+  // credentials: the user creates an OAuth client in their own Google
+  // Cloud project, downloads `credentials.json`, and points the entry
+  // at it. Avoids the verified-app / CASA-audit cost — see plan
+  // `plans/feat-mcp-catalog-community-expansion.md`.
+  //
+  // TODO(reviewer): pin the most-active Gmail MCP — as of 2026-04
+  // `@gongrzhe/server-gmail-autoauth-mcp` is widely used; alternatives
+  // include `mcp-gmail` and Smithery-hosted variants.
+  {
+    id: "gmail",
+    displayName: "settingsMcpTab.catalog.entry.gmail.displayName",
+    description: "settingsMcpTab.catalog.entry.gmail.description",
+    audience: "general",
+    upstreamUrl: "https://github.com/GongRzhe/Gmail-MCP-Server",
+    setupGuideUrl: "https://developers.google.com/workspace/guides/create-credentials#desktop-app",
+    spec: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@gongrzhe/server-gmail-autoauth-mcp"],
+      env: {
+        GMAIL_OAUTH_PATH: "${GMAIL_OAUTH_PATH}",
+      },
+    },
+    configSchema: [
+      {
+        key: "GMAIL_OAUTH_PATH",
+        label: "settingsMcpTab.catalog.entry.gmail.field.credentials.label",
+        kind: "path",
+        placeholder: "~/.gmail-mcp/credentials.json",
+        required: true,
+        helpUrl: "https://console.cloud.google.com/apis/credentials",
+        helpText: "settingsMcpTab.catalog.entry.gmail.field.credentials.help",
+      },
+    ],
+    // Full mailbox access if the OAuth scope is broad — high.
+    riskLevel: "high",
+  },
+
+  // Google Calendar via a community MCP server. Same BYO-credentials
+  // pattern as Gmail above.
+  //
+  // TODO(reviewer): pin the most-active GCal MCP — as of 2026-04
+  // `@cocal/google-calendar-mcp` is a candidate.
+  {
+    id: "google-calendar",
+    displayName: "settingsMcpTab.catalog.entry.googleCalendar.displayName",
+    description: "settingsMcpTab.catalog.entry.googleCalendar.description",
+    audience: "general",
+    upstreamUrl: "https://github.com/nspady/google-calendar-mcp",
+    setupGuideUrl: "https://developers.google.com/workspace/guides/create-credentials#desktop-app",
+    spec: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@cocal/google-calendar-mcp"],
+      env: {
+        GOOGLE_OAUTH_CREDENTIALS: "${GOOGLE_OAUTH_CREDENTIALS}",
+      },
+    },
+    configSchema: [
+      {
+        key: "GOOGLE_OAUTH_CREDENTIALS",
+        label: "settingsMcpTab.catalog.entry.googleCalendar.field.credentials.label",
+        kind: "path",
+        placeholder: "~/.gcal-mcp/credentials.json",
+        required: true,
+        helpUrl: "https://console.cloud.google.com/apis/credentials",
+        helpText: "settingsMcpTab.catalog.entry.googleCalendar.field.credentials.help",
+      },
+    ],
+    riskLevel: "medium",
+  },
+
+  // Google Drive via the official-style MCP server. Token-cached
+  // OAuth — the package writes a refresh token next to the
+  // credentials file on first auth.
+  //
+  // TODO(reviewer): the upstream `@modelcontextprotocol/server-gdrive`
+  // was archived; double-check whether to point at the maintained
+  // fork or another community package.
+  {
+    id: "google-drive",
+    displayName: "settingsMcpTab.catalog.entry.googleDrive.displayName",
+    description: "settingsMcpTab.catalog.entry.googleDrive.description",
+    audience: "general",
+    upstreamUrl: "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/gdrive",
+    setupGuideUrl: "https://developers.google.com/workspace/guides/create-credentials#desktop-app",
+    spec: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@modelcontextprotocol/server-gdrive"],
+      env: {
+        GDRIVE_CREDENTIALS_PATH: "${GDRIVE_CREDENTIALS_PATH}",
+      },
+    },
+    configSchema: [
+      {
+        key: "GDRIVE_CREDENTIALS_PATH",
+        label: "settingsMcpTab.catalog.entry.googleDrive.field.credentials.label",
+        kind: "path",
+        placeholder: "~/.gdrive-mcp/credentials.json",
+        required: true,
+        helpUrl: "https://console.cloud.google.com/apis/credentials",
+        helpText: "settingsMcpTab.catalog.entry.googleDrive.field.credentials.help",
+      },
+    ],
+    riskLevel: "medium",
+  },
+
+  // GitHub repos / issues / PRs / search via the official MCP server.
+  // Auth is a single Personal Access Token (classic or fine-grained).
+  // Token scope dictates the risk: a `repo` scope can write to any
+  // repository the user has access to, so we flag this medium-to-high
+  // and tell users to scope down in the help text.
+  //
+  // TODO(reviewer): pin version. The package has been actively
+  // maintained as of 2026-04.
+  {
+    id: "github",
+    displayName: "settingsMcpTab.catalog.entry.github.displayName",
+    description: "settingsMcpTab.catalog.entry.github.description",
+    audience: "general",
+    upstreamUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/github",
+    setupGuideUrl: "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens",
+    spec: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@modelcontextprotocol/server-github"],
+      env: {
+        GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_PERSONAL_ACCESS_TOKEN}",
+      },
+    },
+    configSchema: [
+      {
+        key: "GITHUB_PERSONAL_ACCESS_TOKEN",
+        label: "settingsMcpTab.catalog.entry.github.field.token.label",
+        kind: "secret",
+        placeholder: "ghp_…",
+        required: true,
+        helpUrl: "https://github.com/settings/tokens",
+        helpText: "settingsMcpTab.catalog.entry.github.field.token.help",
+      },
+    ],
+    // Token scope is on the user — high if `repo` is granted, low if
+    // it's read-only public. Default to medium.
+    riskLevel: "medium",
+  },
+
+  // Linear issues / projects / cycles via a community MCP server.
+  // Auth is a single Linear API key from the user's Linear settings.
+  //
+  // TODO(reviewer): pin the most-active Linear MCP — as of 2026-04
+  // candidates include `@tacticlaunch/mcp-linear` and various
+  // smithery-hosted variants.
+  {
+    id: "linear",
+    displayName: "settingsMcpTab.catalog.entry.linear.displayName",
+    description: "settingsMcpTab.catalog.entry.linear.description",
+    audience: "general",
+    upstreamUrl: "https://github.com/tacticlaunch/mcp-linear",
+    setupGuideUrl: "https://linear.app/docs/personal-api-keys",
+    spec: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@tacticlaunch/mcp-linear"],
+      env: {
+        LINEAR_API_KEY: "${LINEAR_API_KEY}",
+      },
+    },
+    configSchema: [
+      {
+        key: "LINEAR_API_KEY",
+        label: "settingsMcpTab.catalog.entry.linear.field.apiKey.label",
+        kind: "secret",
+        placeholder: "lin_api_…",
+        required: true,
+        helpUrl: "https://linear.app/settings/api",
+        helpText: "settingsMcpTab.catalog.entry.linear.field.apiKey.help",
+      },
+    ],
+    riskLevel: "medium",
+  },
+
+  // Open-Meteo weather forecasts. Package switched from the
+  // (non-existent on npm) `mcp-server-open-meteo` to `open-meteo-mcp`,
+  // verified via `npm view` 2026-04-27. No API key required —
+  // Open-Meteo is keyless for non-commercial use.
   {
     id: "weather-open-meteo",
     displayName: "settingsMcpTab.catalog.entry.weatherOpenMeteo.displayName",
     description: "settingsMcpTab.catalog.entry.weatherOpenMeteo.description",
     audience: "general",
-    upstreamUrl: "https://open-meteo.com/",
+    upstreamUrl: "https://www.npmjs.com/package/open-meteo-mcp",
     spec: {
       type: "stdio",
       command: "npx",
-      args: ["-y", "mcp-server-open-meteo"],
+      args: ["-y", "open-meteo-mcp"],
+    },
+    configSchema: [],
+    riskLevel: "low",
+  },
+
+  // Spotify Web API access — search tracks, manage playlists, control
+  // playback. Switched from the (non-existent on npm) package
+  // `@superseoworld/mcp-spotify` to `spotify-mcp` (calebWei/SpotifyMCP),
+  // verified via `npm view` 2026-04-27. Uses PKCE flow — no client
+  // secret needed; just a Client ID. Users must run a one-time
+  // `npx spotify-mcp@latest auth` to log in (browser window opens, the
+  // refresh token is cached at `~/.spotify-mcp/tokens.json`). The
+  // help text below points users at that step.
+  {
+    id: "spotify",
+    displayName: "settingsMcpTab.catalog.entry.spotify.displayName",
+    description: "settingsMcpTab.catalog.entry.spotify.description",
+    audience: "general",
+    upstreamUrl: "https://github.com/calebWei/SpotifyMCP",
+    setupGuideUrl: "https://developer.spotify.com/documentation/web-api/concepts/apps",
+    spec: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "spotify-mcp@latest"],
+      env: {
+        SPOTIFY_CLIENT_ID: "${SPOTIFY_CLIENT_ID}",
+      },
+    },
+    configSchema: [
+      {
+        key: "SPOTIFY_CLIENT_ID",
+        label: "settingsMcpTab.catalog.entry.spotify.field.clientId.label",
+        kind: "secret",
+        placeholder: "spotify-client-id",
+        required: true,
+        helpUrl: "https://developer.spotify.com/dashboard",
+        helpText: "settingsMcpTab.catalog.entry.spotify.field.clientId.help",
+      },
+    ],
+    riskLevel: "medium",
+  },
+
+  // YouTube transcript fetcher — give it a video URL and it returns
+  // the captions. No auth needed; the package scrapes the public
+  // transcript endpoint. Useful for "summarise this YouTube video"
+  // workflows where Claude Code's built-in WebFetch can't reach the
+  // separate transcript subresource.
+  //
+  // TODO(reviewer): pin the most-active package — as of 2026-04
+  // candidates include `@kimtaeyoon83/mcp-server-youtube-transcript`
+  // and `mcp-youtube-transcript`.
+  {
+    id: "youtube-transcript",
+    displayName: "settingsMcpTab.catalog.entry.youtubeTranscript.displayName",
+    description: "settingsMcpTab.catalog.entry.youtubeTranscript.description",
+    audience: "general",
+    upstreamUrl: "https://github.com/kimtaeyoon83/mcp-server-youtube-transcript",
+    spec: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@kimtaeyoon83/mcp-server-youtube-transcript"],
     },
     configSchema: [],
     riskLevel: "low",

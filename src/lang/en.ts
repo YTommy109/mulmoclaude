@@ -84,6 +84,9 @@ const enMessages = {
     toolCallHistory: "Tool call history",
     settings: "Settings",
     settingsGeminiMissing: "Settings — Gemini API key missing",
+    todayJournal: "Today's journal",
+    todayJournalNotFound: "No journal summary yet — chat for a while and the journal will generate one.",
+    todayJournalLoadFailed: "Failed to load journal (status {status}): {error}",
   },
   rightSidebar: {
     toggleSystemPrompt: "Toggle system prompt",
@@ -223,6 +226,111 @@ const enMessages = {
     pdfPreview: "PDF preview",
     parseError: "parse error",
   },
+  // SystemFileBanner copy. Each id matches a descriptor in
+  // src/config/systemFileDescriptors.ts. `title` is the chip-style
+  // headline above the file body; `summary` is one or two sentences
+  // explaining what the file is, who edits it, and why the banner is
+  // showing. Edit-policy chip labels go under `editPolicy`; the
+  // remaining keys (schemaLabel, showDetails, hideDetails) are
+  // banner chrome.
+  systemFiles: {
+    schemaLabel: "Schema",
+    showDetails: "Show details",
+    hideDetails: "Hide details",
+    editPolicy: {
+      "agent-managed-but-hand-editable": "Agent-managed (hand-edit OK)",
+      "user-editable": "User-editable",
+      "agent-managed": "Agent-managed",
+      "fragile-format": "Fragile format",
+      ephemeral: "Ephemeral",
+    },
+    interests: {
+      title: "Interests config",
+      summary: "Topics that the news / sources pipeline watches and ranks for you. Editable by hand; the agent also updates it from chat.",
+    },
+    mcp: {
+      title: "MCP servers",
+      summary: "External Model Context Protocol servers attached to the agent. Add HTTP or stdio servers to expand the agent's tool surface.",
+    },
+    settings: {
+      title: "App settings",
+      summary: "User-editable behavioural preferences for the app — Gemini API key, allowed tools, sandbox config, and similar.",
+    },
+    schedulerTasks: {
+      title: "Scheduler tasks",
+      summary: "Recurring agent automations that fire on a schedule. Managed via the Automations UI; this file is the on-disk source of truth.",
+    },
+    schedulerOverrides: {
+      title: "Scheduler overrides",
+      summary:
+        "Per-task time / interval overrides applied on top of the system schedule. The agent edits this when you ask to change a recurring task's timing.",
+    },
+    newsReadState: {
+      title: "News read state",
+      summary: "Local-only tracking of which news items you've seen. Ephemeral — safe to delete; will be regenerated as you read.",
+    },
+    schedulerItems: {
+      title: "Scheduler items queue",
+      summary: "Active scheduled invocations ready to fire. Agent-managed; do not hand-edit unless you know exactly what each field means.",
+    },
+    todosItems: {
+      title: "Todo items",
+      summary: 'Your tasks across all columns of the kanban board. The agent writes here when you say things like "add a todo"; you can also hand-edit.',
+    },
+    todosColumns: {
+      title: "Todo columns",
+      summary: "Column layout of the kanban board (titles, order, ids). User-editable — rename or reorder freely.",
+    },
+    wikiIndex: {
+      title: "Wiki index",
+      summary: "Auto-generated index of every wiki page. Refreshed on each wiki edit; do not hand-edit (your changes will be overwritten).",
+    },
+    wikiLog: {
+      title: "Wiki edit log",
+      summary: "Activity log of wiki page creates and edits. Agent-managed and append-only; useful as a recent-changes feed.",
+    },
+    wikiSummary: {
+      title: "Wiki summary",
+      summary: "Auto-generated overview of the wiki — topic clusters, page counts, recent activity. Refreshed by the agent.",
+    },
+    wikiSchema: {
+      title: "Wiki schema",
+      summary: "The format spec the agent reads to keep wiki pages consistent. Fragile — the agent expects a specific structure, so prefer agent-driven edits.",
+    },
+    memory: {
+      title: "Memory",
+      summary:
+        "Distilled facts about you, always loaded as context for new conversations. The journal extractor appends here automatically; you can also hand-edit.",
+    },
+    summariesIndex: {
+      title: "Summaries index",
+      summary: "Browseable index linking the daily and topic summaries the journal generates. Agent-managed; refreshed on each journal pass.",
+    },
+    rolesJson: {
+      title: "Role definition (JSON)",
+      summary: "Role configuration — model choice, MCP servers, allowed plugins, query suggestions. User-editable; restart not required.",
+    },
+    rolesMd: {
+      title: "Role description (Markdown)",
+      summary: "The role's persona and system-prompt prose, loaded as context when this role is active. User-editable; changes apply on the next message.",
+    },
+    sourceFeed: {
+      title: "Source feed",
+      summary: "One subscribed source (RSS, GitHub releases / issues, arXiv, etc.). User-editable; the sources pipeline polls these on schedule.",
+    },
+    sourceState: {
+      title: "Source state",
+      summary: "Ephemeral pipeline state for one source — last-seen ids, ETags, fetch errors. Safe to delete; will be regenerated on the next pipeline run.",
+    },
+    journalDaily: {
+      title: "Daily journal summary",
+      summary: "Auto-generated recap of your activity for one calendar day, distilled from chat sessions by the journal pass.",
+    },
+    journalTopic: {
+      title: "Topic journal",
+      summary: "Long-running notes for one specific topic, accumulated and revised as you keep talking about it. Agent-managed.",
+    },
+  },
   settingsMcpTab: {
     explanation:
       "Add external MCP servers. HTTP servers work in every mode. Stdio servers use the sandbox image's {npx} / {node} / {tsx}; paths must live under the workspace when Docker is enabled.",
@@ -307,9 +415,78 @@ const enMessages = {
             },
           },
         },
+        appleNative: {
+          displayName: "Apple Native Apps (macOS)",
+          description: "Read and write Reminders, Calendar, Notes, Mail and Maps via AppleScript. macOS only — no credentials needed.",
+        },
+        gmail: {
+          displayName: "Gmail",
+          description: "Read, send, and label your Gmail. Uses a Google OAuth client you create in your own Google Cloud project (no app verification needed).",
+          field: {
+            credentials: {
+              label: "Path to credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth client ID (Desktop app). Download credentials.json and paste its absolute path.",
+            },
+          },
+        },
+        googleCalendar: {
+          displayName: "Google Calendar",
+          description: "Read and create Google Calendar events. Same BYO Google OAuth credentials.json pattern as Gmail.",
+          field: {
+            credentials: {
+              label: "Path to credentials.json",
+              help: "Same Google Cloud OAuth client as Gmail. Reuse the file or create a separate Calendar-scoped one.",
+            },
+          },
+        },
+        googleDrive: {
+          displayName: "Google Drive",
+          description: "Search and read Google Drive files. BYO Google OAuth credentials — token is cached locally next to the file.",
+          field: {
+            credentials: {
+              label: "Path to credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth client ID (Desktop app). Enable the Google Drive API in the same project.",
+            },
+          },
+        },
+        github: {
+          displayName: "GitHub",
+          description:
+            "Read repos, issues, PRs and run searches with a Personal Access Token. Scope the token narrowly — write scopes (e.g. `repo`) let the agent push to any repo you can access.",
+          field: {
+            token: {
+              label: "Personal Access Token",
+              help: "GitHub → Settings → Developer settings → Personal access tokens. Prefer fine-grained tokens limited to the repos you want the agent to touch.",
+            },
+          },
+        },
+        linear: {
+          displayName: "Linear",
+          description: "Read and update Linear issues, projects and cycles via a personal API key.",
+          field: {
+            apiKey: {
+              label: "Linear API key",
+              help: "Linear → Settings → API → Personal API keys. Click 🔑 to open the page and click Create key.",
+            },
+          },
+        },
         weatherOpenMeteo: {
           displayName: "Weather (Open-Meteo)",
           description: "Free weather forecasts and current conditions worldwide — no API key needed.",
+        },
+        spotify: {
+          displayName: "Spotify",
+          description: "Search tracks, manage playlists, control playback. BYO Spotify developer app — Client ID only (PKCE flow, no client secret).",
+          field: {
+            clientId: {
+              label: "Client ID",
+              help: "Spotify Developer Dashboard → Create app, set Redirect URI to http://127.0.0.1:8888/callback, copy the Client ID. Then run `SPOTIFY_CLIENT_ID=<id> npx spotify-mcp@latest auth` once in your terminal to log in (refresh token is cached at ~/.spotify-mcp/tokens.json).",
+            },
+          },
+        },
+        youtubeTranscript: {
+          displayName: "YouTube transcript",
+          description: "Fetch the captions for any public YouTube video by URL. No credentials needed.",
         },
       },
       config: {
@@ -465,6 +642,9 @@ const enMessages = {
     noMatches: "No pages tagged #{tag}",
     lintChat: "Lint My Wiki",
     taskCountMismatch: "Wiki source and rendered output disagree on the number of tasks. Refusing to toggle to avoid corruption.",
+    metadataCreated: "Created",
+    metadataUpdated: "Updated",
+    metadataEditor: "Editor",
   },
   pluginPresentForm: {
     fallbackTitle: "Form",
@@ -649,6 +829,8 @@ const enMessages = {
     gen: "Gen",
     play: "▶ Play",
     stop: "■ Stop",
+    playPresentation: "Play presentation",
+    regenerateMovie: "Regenerate movie",
     errPrefix: "⚠ Error",
     noBeats: "No beats found in script",
     editSource: "Edit Script Source",
@@ -712,6 +894,11 @@ const enMessages = {
   },
   suggestionsPanel: {
     suggestions: "Suggestions",
+    skills: "Skills",
+    tooltip: "Suggestions and Skills",
+    emptySuggestions: "No suggestions.",
+    emptySkills: "No skills installed.",
+    skillsError: "Failed to load skills: {error}",
     sendEditHint: "click to send · shift+click to edit",
   },
   settingsToolsTab: {
