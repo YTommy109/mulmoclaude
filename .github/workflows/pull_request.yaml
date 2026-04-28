@@ -108,6 +108,35 @@ jobs:
     - run: yarn run build
     - run: yarn run test:coverage
 
+  # Single Yarn 4 cell — Yarn 1 stays the primary tool for the lint_test
+  # matrix, but this guards against duplicate-workspace-name (Yarn 4 is
+  # strict where v1 was lenient) and pre-script removal regressions
+  # (Berry doesn't run pre*/post* hooks; #956). Linux + Node 24 only.
+  yarn4_smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+      - name: Enable Yarn 4 via Corepack
+        run: |
+          corepack enable
+          corepack prepare yarn@4.14.1 --activate
+          yarn --version
+      # No --immutable: yarn.lock is v1 format (yarn 1 is the primary
+      # tool); Yarn 4 migrates in-memory. The smoke goal is "does the
+      # workspace install at all", not lockfile-format drift.
+      - name: yarn install (Yarn 4)
+        run: yarn install
+      - name: yarn build:packages (verifies the dev/build script chain has no pre* dependency)
+        run: yarn build:packages
+      - name: yarn typecheck
+        run: yarn typecheck
+      - name: yarn build
+        run: yarn build
+
   e2e:
     needs: changes
     if: needs.changes.outputs.run_e2e == 'true'
