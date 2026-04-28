@@ -7,6 +7,7 @@
 
 import { TIME_UNIT_MS, ONE_SECOND_MS } from "../../utils/time.js";
 import { LEADING_BLANK_LINES_PATTERN } from "../../utils/regex.js";
+import { parseFrontmatter } from "../../utils/markdown/frontmatter.js";
 import { SCHEDULE_TYPES } from "@receptron/task-scheduler";
 
 export interface SkillSchedule {
@@ -23,21 +24,6 @@ export interface ParsedSkill {
   schedule?: SkillSchedule;
   /** Role to use when running the scheduled skill (default: "general") */
   roleId?: string;
-}
-
-// Match a YAML scalar value on a single line:
-//   description: Enable CI for a repository
-//   description: "Quoted with colons: inside"
-// Leading/trailing whitespace trimmed. Quoted values have their
-// outer quotes stripped but inner JSON-style escapes are NOT
-// reversed — SKILL.md descriptions in the wild are plain text.
-function parseScalar(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) return "";
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
 }
 
 /**
@@ -81,6 +67,16 @@ function parseScheduleValue(raw: string): SkillSchedule["parsed"] {
   return null;
 }
 
+/** Type guard — only string scalars are usable for the
+ *  description / schedule / roleId fields. The shared util
+ *  parses with FAILSAFE_SCHEMA so YAML ambiguous values (`true`,
+ *  `2026-04-27`) arrive as strings, but a structured value
+ *  (array / nested object) would still be unusable here. */
+function metaString(meta: Record<string, unknown>, key: string): string | null {
+  const value = meta[key];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
 /**
  * Parse a SKILL.md file. Returns null when:
  *  - the file has no frontmatter (no leading `---` fence)
@@ -88,51 +84,26 @@ function parseScheduleValue(raw: string): SkillSchedule["parsed"] {
  *  - there is no `description:` key
  *
  * An empty body is allowed (the skill may be just metadata for now).
+ *
+ * Built on the shared `parseFrontmatter` helper (#895 PR C) so the
+ * envelope / scalar / quote handling matches the rest of the
+ * codebase. Only `description`, `schedule`, and `roleId` are
+ * extracted — extra keys in a SKILL.md file are silently ignored.
  */
-// Extract key-value pairs from YAML frontmatter lines. Returns a
-// map of key → scalar value. Keeps parseSkillFrontmatter under the
-// cognitive-complexity threshold.
-function extractFrontmatterFields(lines: string[], startIdx: number, endIdx: number): Map<string, string> {
-  const fields = new Map<string, string>();
-  for (let i = startIdx; i < endIdx; i++) {
-    const line = lines[i];
-    const colonIdx = line.indexOf(":");
-    if (colonIdx === -1) continue;
-    const key = line.slice(0, colonIdx).trim();
-    const value = parseScalar(line.slice(colonIdx + 1));
-    fields.set(key, value);
-  }
-  return fields;
-}
-
 export function parseSkillFrontmatter(raw: string): ParsedSkill | null {
-  const lines = raw.split(/\r?\n/);
-  if (lines.length === 0 || lines[0].trim() !== "---") return null;
+  const parsed = parseFrontmatter(raw);
+  if (!parsed.hasHeader) return null;
 
-  let closeIdx = -1;
-  for (let i = 1; i < lines.length; i++) {
-    if (lines[i].trim() === "---") {
-      closeIdx = i;
-      break;
-    }
-  }
-  if (closeIdx === -1) return null;
-
-  const fields = extractFrontmatterFields(lines, 1, closeIdx);
-  const description = fields.get("description") ?? null;
+  const description = metaString(parsed.meta, "description");
   if (description === null) return null;
 
-  const scheduleRaw = fields.get("schedule") ?? null;
-  const roleId = fields.get("roleId") ?? null;
+  const scheduleRaw = metaString(parsed.meta, "schedule");
+  const roleId = metaString(parsed.meta, "roleId");
 
-  // Body starts after the closing fence. Trim leading blank lines so
-  // the UI doesn't render an awkward gap above the first heading.
-  const body = lines
-    .slice(closeIdx + 1)
-    .join("\n")
-    // Pattern + ReDoS-safety rationale lives in `server/utils/regex.ts`.
-    .replace(LEADING_BLANK_LINES_PATTERN, "")
-    .trimEnd();
+  // Trim leading blank lines so the UI doesn't render an awkward
+  // gap above the first heading. Pattern + ReDoS-safety rationale
+  // lives in `server/utils/regex.ts`.
+  const body = parsed.body.replace(LEADING_BLANK_LINES_PATTERN, "").trimEnd();
 
   const result: ParsedSkill = { description, body };
   if (scheduleRaw) {
