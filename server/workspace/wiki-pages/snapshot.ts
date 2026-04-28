@@ -223,6 +223,20 @@ interface SnapshotEntry {
 }
 
 async function readSnapshotEntries(dir: string): Promise<SnapshotEntry[]> {
+  // Defence in depth: refuse to read if the directory itself is a
+  // symlink. Filtering symlinked files (below) is not enough — a
+  // planted directory symlink (e.g. `.history/<slug> -> /etc`)
+  // would redirect the readdir wholesale, and entries inside the
+  // target that happen to match FILENAME_RE would be served as
+  // snapshots. lstat reports the link (not the target), so a
+  // symlink fails `isDirectory()` (codex review iter-3 #917).
+  try {
+    const stat = await fsp.lstat(dir);
+    if (!stat.isDirectory()) return [];
+  } catch {
+    return [];
+  }
+
   let dirents: Dirent[];
   try {
     dirents = await fsp.readdir(dir, { withFileTypes: true });

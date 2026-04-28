@@ -25,6 +25,7 @@ import { mergeFrontmatter, parseFrontmatter, serializeWithFrontmatter } from "..
 import { workspacePath as defaultWorkspacePath } from "../workspace.js";
 import { WORKSPACE_DIRS } from "../paths.js";
 import { appendSnapshot } from "./snapshot.js";
+import { logBackgroundError } from "../../utils/logBackgroundError.js";
 
 export type WikiPageEditor = "llm" | "user" | "system";
 
@@ -124,10 +125,18 @@ export async function writeWikiPage(slug: string, content: string, meta: WikiWri
   // Compare bodies after parsing so a frontmatter-only diff in
   // auto-stamped fields doesn't trip the trigger.
   if (meta.forceSnapshot === true || oldContent === null || hasMeaningfulChange(oldContent, finalContent)) {
-    await appendSnapshot(slug, oldContent, finalContent, meta, {
-      workspaceRoot: opts.workspaceRoot,
-      now: opts.now,
-    });
+    // Snapshot failures must NOT fail the page write — the file is
+    // already on disk, so surfacing a 500 to the caller would be
+    // misleading. Log and move on; the next save will record the
+    // next state. Codex review iter-3 #917.
+    try {
+      await appendSnapshot(slug, oldContent, finalContent, meta, {
+        workspaceRoot: opts.workspaceRoot,
+        now: opts.now,
+      });
+    } catch (err) {
+      logBackgroundError("wiki-snapshot")(err);
+    }
   }
 }
 

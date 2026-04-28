@@ -12,7 +12,7 @@
 
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, rm, symlink, writeFile } from "fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import { writeWikiPage } from "../../../server/workspace/wiki-pages/io.js";
@@ -345,6 +345,32 @@ describe("snapshot reads — symlink protection", () => {
     await rm(workspaceRoot, { recursive: true, force: true });
   });
 
+  it("returns an empty list when the slug's history dir is itself a symlink", async () => {
+    // A directory-level symlink would otherwise redirect the readdir
+    // wholesale; per-entry isFile() filtering wouldn't help because
+    // a regular file inside the symlink target that happens to match
+    // FILENAME_RE would be served as a snapshot (codex review iter-3
+    // #917).
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), "snap-symlink-dir-"));
+    const slug = "evil-page";
+    const historyParent = path.join(workspaceRoot, WORKSPACE_DIRS.wikiHistory);
+    await mkdir(historyParent, { recursive: true });
+
+    // Build a real directory elsewhere with a snapshot-shaped file.
+    const decoy = path.join(workspaceRoot, "decoy");
+    await mkdir(decoy, { recursive: true });
+    const decoyStamp = dateToFilenameStamp(new Date("2026-04-28T07:00:00.000Z"));
+    await writeFile(path.join(decoy, `${decoyStamp}-decoy000.md`), "secret-content\n", "utf-8");
+
+    // Plant the slug's history dir as a symlink pointing at decoy.
+    await symlink(decoy, path.join(historyParent, slug));
+
+    const summaries = await listSnapshots(slug, { workspaceRoot });
+    assert.deepEqual(summaries, [], "symlinked history dir must not surface its target's contents");
+
+    await rm(workspaceRoot, { recursive: true, force: true });
+  });
+
   it("readSnapshot returns null for a symlink that matches the stamp pattern", async () => {
     const workspaceRoot = await mkdtemp(path.join(tmpdir(), "snap-symlink-read-"));
     const slug = "evil-page";
@@ -387,6 +413,29 @@ describe("appendSnapshot via writeWikiPage — integration", () => {
     const newest = await readSnapshot("hello", snapshots[0].stamp, { workspaceRoot });
     assert.ok(newest);
     assert.equal(newest.body, "updated body\n");
+
+    await rm(workspaceRoot, { recursive: true, force: true });
+  });
+
+  it("succeeds when snapshot append fails (page write must not surface the error)", async () => {
+    // Codex review iter-3 #917: a snapshot failure must NOT fail the
+    // page write — the file is already on disk, so propagating a 500
+    // to the caller would be misleading. We provoke a snapshot
+    // failure by pre-creating the slug's history dir as a regular
+    // file: appendSnapshot will then fail to mkdir/write inside it.
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), "wiki-snap-fail-"));
+    await mkdir(path.join(workspaceRoot, WORKSPACE_DIRS.wikiPages), { recursive: true });
+    const historyParent = path.join(workspaceRoot, WORKSPACE_DIRS.wikiHistory);
+    await mkdir(historyParent, { recursive: true });
+    // The slug's "history dir" is now a file, not a dir.
+    await writeFile(path.join(historyParent, "broken"), "not a dir\n", "utf-8");
+
+    await assert.doesNotReject(writeWikiPage("broken", "page body\n", { editor: "user" }, { workspaceRoot }), "writeWikiPage must swallow snapshot errors");
+
+    // The page itself was written.
+    const pageFile = path.join(workspaceRoot, WORKSPACE_DIRS.wikiPages, "broken.md");
+    const pageBody = await readFile(pageFile, "utf-8");
+    assert.match(pageBody, /page body/);
 
     await rm(workspaceRoot, { recursive: true, force: true });
   });
