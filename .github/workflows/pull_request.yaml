@@ -143,10 +143,11 @@ jobs:
         run: yarn install
       - name: yarn build:packages (verifies the dev/build script chain has no pre* dependency)
         run: yarn build:packages
-      - name: yarn typecheck
-        run: yarn typecheck
       - name: yarn build
         run: yarn build
+      # `yarn typecheck` deliberately omitted — `typecheck:packages` uses
+      # `yarn workspaces run` (Yarn 1 syntax); Yarn 4 needs `workspaces
+      # foreach`. The lint_test matrix covers typecheck under Yarn 1.
 
   e2e:
     needs: changes
