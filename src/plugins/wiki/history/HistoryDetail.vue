@@ -40,6 +40,11 @@ const loading = ref(true);
 const fetchError = ref<string | null>(null);
 const snapshot = ref<SnapshotContent | null>(null);
 const previousSnapshot = ref<SnapshotContent | null>(null);
+// Separate error channel for the previous-compare fetch (codex
+// iter-4 #946). Folding it into `fetchError` made a failed previous
+// load take over the whole detail pane even after the user
+// switched back to "current" — kept blocking valid state.
+const previousFetchError = ref<string | null>(null);
 
 const compareTarget = ref<CompareTarget>(COMPARE_TARGET.current);
 const restoring = ref(false);
@@ -91,6 +96,7 @@ async function loadThisSnapshot(): Promise<void> {
   previousLoadToken += 1;
   loading.value = true;
   fetchError.value = null;
+  previousFetchError.value = null;
   snapshot.value = null;
   previousSnapshot.value = null;
   compareTarget.value = COMPARE_TARGET.current;
@@ -108,10 +114,11 @@ async function loadThisSnapshot(): Promise<void> {
 async function loadPreviousSnapshot(): Promise<void> {
   if (props.previousSummary === null) return;
   const myToken = ++previousLoadToken;
+  previousFetchError.value = null;
   const result = await fetchHistorySnapshot(props.slug, props.previousSummary.stamp);
   if (myToken !== previousLoadToken) return;
   if (!result.ok) {
-    fetchError.value = result.error;
+    previousFetchError.value = result.error;
     return;
   }
   previousSnapshot.value = result.data.snapshot;
@@ -154,6 +161,7 @@ const hunks = computed<DiffHunk[]>(() => {
 });
 
 const showNoPreviousMessage = computed(() => compareTarget.value === COMPARE_TARGET.previous && props.previousSummary === null);
+const showPreviousFetchError = computed(() => compareTarget.value === COMPARE_TARGET.previous && previousFetchError.value !== null);
 const showNoChangesMessage = computed(() => {
   if (loading.value) return false;
   if (snapshot.value === null) return false;
@@ -276,6 +284,7 @@ async function performRestore(): Promise<void> {
       </div>
       <div v-else-if="fetchError" class="text-red-600">{{ fetchError }}</div>
       <div v-else-if="showNoPreviousMessage" class="text-gray-500">{{ t("pluginWiki.history.diffNoPrevious") }}</div>
+      <div v-else-if="showPreviousFetchError" class="text-red-600">{{ previousFetchError }}</div>
       <div v-else-if="showNoChangesMessage" class="text-gray-500">{{ t("pluginWiki.history.diffNoChanges") }}</div>
       <div v-else>
         <template v-for="(hunk, hunkIdx) in hunks" :key="hunkIdx">
