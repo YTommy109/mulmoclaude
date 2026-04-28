@@ -49,7 +49,7 @@ function parseScalar(raw: string): string {
  *   "interval 300s"    → { type: "interval", intervalMs: 300000 }
  */
 // Minimum interval to prevent accidental runaway scheduling.
-const MIN_INTERVAL_MS = 10_000; // 10 seconds
+const MIN_INTERVAL_MS = 10 * ONE_SECOND_MS;
 
 function parseScheduleValue(raw: string): SkillSchedule["parsed"] {
   const trimmed = raw.trim();
