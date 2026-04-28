@@ -97,6 +97,32 @@ describe("provisionWikiHistoryHook — preserves user-set keys", () => {
     await rm(root, { recursive: true, force: true });
   });
 
+  it("survives a settings.json where PostToolUse is not an array", async () => {
+    // Codex iter-2 #917: a workspace with malformed/legacy settings
+    // (object or string under `hooks.PostToolUse`) used to crash
+    // provisioning at `findIndex`. Provisioning must normalise the
+    // bad value and still install our entry as a sole array member.
+    const root = await mkdtemp(path.join(tmpdir(), "wiki-prov-malformed-"));
+    await mkdir(path.join(root, ".claude"), { recursive: true });
+    const malformed = {
+      hooks: {
+        PostToolUse: { matcher: "Bash", hooks: [] },
+      },
+    };
+    await writeFile(path.join(root, ".claude", "settings.json"), JSON.stringify(malformed, null, 2), "utf-8");
+
+    await provisionWikiHistoryHook({ workspaceRoot: root });
+    const settings = await readSettings(root);
+    const entries = settings.hooks?.PostToolUse ?? [];
+    assert.ok(Array.isArray(entries), "PostToolUse should be normalised to an array");
+    assert.equal(entries.length, 1, "our entry should be the sole entry after normalisation");
+    const ours = entries[0] as { matcher?: string; hooks?: Array<{ mulmoclaudeWikiHistory?: boolean }> };
+    assert.equal(ours.matcher, "Write|Edit");
+    assert.equal(ours.hooks?.[0]?.mulmoclaudeWikiHistory, true);
+
+    await rm(root, { recursive: true, force: true });
+  });
+
   it("replaces an existing owned entry rather than duplicating it", async () => {
     // Simulate a stale install with the marker but a different
     // command — provisioning should overwrite rather than append.

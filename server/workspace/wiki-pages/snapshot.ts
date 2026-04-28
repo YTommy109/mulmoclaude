@@ -18,7 +18,7 @@
 // BOTH conditions get unlinked. There is no hard cap.
 
 import path from "node:path";
-import { promises as fsp } from "node:fs";
+import { promises as fsp, type Dirent } from "node:fs";
 import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { mergeFrontmatter, parseFrontmatter, serializeWithFrontmatter } from "../../utils/markdown/frontmatter.js";
 import { shortId } from "../../utils/id.js";
@@ -223,14 +223,21 @@ interface SnapshotEntry {
 }
 
 async function readSnapshotEntries(dir: string): Promise<SnapshotEntry[]> {
-  let names: string[];
+  let dirents: Dirent[];
   try {
-    names = await fsp.readdir(dir);
+    dirents = await fsp.readdir(dir, { withFileTypes: true });
   } catch {
     return [];
   }
   const out: SnapshotEntry[] = [];
-  for (const name of names) {
+  for (const dirent of dirents) {
+    // Reject anything that isn't a regular file. Symlinks especially —
+    // a malicious actor with workspace write access could plant
+    // `<stamp>-<id>.md` as a symlink to /etc/passwd, and history
+    // reads would then surface the target through the bearer-authed
+    // GET routes (codex review iter-2 #917).
+    if (!dirent.isFile()) continue;
+    const name = dirent.name;
     const match = FILENAME_RE.exec(name);
     if (!match?.groups) continue;
     out.push({

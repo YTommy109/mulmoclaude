@@ -115,7 +115,12 @@ function safeParse(raw: string): SettingsShape {
 
 function upsertOurHook(settings: SettingsShape, desiredHook: HookCommandEntry): SettingsShape {
   const hooks = settings.hooks ?? {};
-  const postToolUse = hooks.PostToolUse ?? [];
+  // Normalise to [] when an unexpected shape sits under `PostToolUse`
+  // (object, string, etc.). The `?? []` form only handles
+  // null/undefined; without this guard, `findIndex` throws and the
+  // hook silently fails to install for the session (codex iter-2 #917).
+  const rawPostToolUse = hooks.PostToolUse;
+  const postToolUse = Array.isArray(rawPostToolUse) ? rawPostToolUse : [];
 
   const ownedIndex = postToolUse.findIndex((entry) => entryHasOwnedHook(entry));
   const desiredEntry: HookMatcher = {

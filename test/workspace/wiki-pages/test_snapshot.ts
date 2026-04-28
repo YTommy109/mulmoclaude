@@ -12,7 +12,7 @@
 
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "fs/promises";
+import { mkdir, mkdtemp, readdir, rm, symlink, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import { writeWikiPage } from "../../../server/workspace/wiki-pages/io.js";
@@ -314,6 +314,53 @@ describe("gcSnapshots — retention rule", () => {
     assert.ok(remaining.includes("notes.txt"));
     // The ancient real snapshot was GC'd.
     assert.ok(!remaining.some((name) => name.startsWith("2024-01-01T")));
+  });
+});
+
+describe("snapshot reads — symlink protection", () => {
+  // Defence in depth: even if something with workspace write access
+  // plants a symlink under `.history/<slug>/` whose name matches
+  // FILENAME_RE, the read paths must NOT follow it. Otherwise the
+  // bearer-authed history GET routes would surface arbitrary file
+  // contents from outside the wiki tree (codex review iter-2 #917).
+  it("listSnapshots ignores symlink entries even when they match the filename pattern", async () => {
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), "snap-symlink-list-"));
+    const slug = "evil-page";
+    const dir = historyDir(slug, { workspaceRoot });
+    await mkdir(dir, { recursive: true });
+
+    const realStamp = dateToFilenameStamp(new Date("2026-04-28T05:00:00.000Z"));
+    await writeRawSnapshot(workspaceRoot, slug, realStamp, "real body", { _snapshot_editor: "user" }, "real0000");
+
+    const secret = path.join(workspaceRoot, "secret.txt");
+    await writeFile(secret, "TOP-SECRET\n", "utf-8");
+    const evilStamp = dateToFilenameStamp(new Date("2026-04-28T06:00:00.000Z"));
+    const evilFile = path.join(dir, `${evilStamp}-evil0000.md`);
+    await symlink(secret, evilFile);
+
+    const summaries = await listSnapshots(slug, { workspaceRoot });
+    assert.equal(summaries.length, 1, "symlink should be filtered out");
+    assert.equal(summaries[0].stamp, `${realStamp}-real0000`);
+
+    await rm(workspaceRoot, { recursive: true, force: true });
+  });
+
+  it("readSnapshot returns null for a symlink that matches the stamp pattern", async () => {
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), "snap-symlink-read-"));
+    const slug = "evil-page";
+    const dir = historyDir(slug, { workspaceRoot });
+    await mkdir(dir, { recursive: true });
+
+    const secret = path.join(workspaceRoot, "secret.txt");
+    await writeFile(secret, "TOP-SECRET\n", "utf-8");
+    const evilStamp = dateToFilenameStamp(new Date("2026-04-28T06:00:00.000Z"));
+    const evilFullStamp = `${evilStamp}-evil0000`;
+    await symlink(secret, path.join(dir, `${evilFullStamp}.md`));
+
+    const result = await readSnapshot(slug, evilFullStamp, { workspaceRoot });
+    assert.equal(result, null, "symlink-backed stamp must not be readable");
+
+    await rm(workspaceRoot, { recursive: true, force: true });
   });
 });
 
