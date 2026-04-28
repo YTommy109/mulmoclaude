@@ -1,6 +1,6 @@
 // #205: send the server's last cursor as ?since=<cursor> so the server replies with a diff. First call has no cursor.
 
-import { onScopeDispose, ref, type Ref } from "vue";
+import { getCurrentScope, onScopeDispose, ref, type Ref } from "vue";
 import { API_ROUTES } from "../config/apiRoutes";
 import { PUBSUB_CHANNELS, type SessionsChannelPayload } from "../config/pubsubChannels";
 import type { SessionSummary } from "../types/session";
@@ -86,14 +86,21 @@ export function useSessionHistory(): UseSessionHistory {
   // Cross-tab cache pruning: cursor diffs don't carry deletions
   // (deletedIds is always [] in the REST response — see #205 comments
   // in routes/sessions.ts), so we rely on the channel payload.
-  const { subscribe } = usePubSub();
-  const unsubscribe = subscribe(PUBSUB_CHANNELS.sessions, (data) => {
-    const ids = readDeletedIds(data);
-    if (ids.length === 0) return;
-    const drop = new Set(ids);
-    sessions.value = sessions.value.filter((session) => !drop.has(session.id));
-  });
-  if (typeof unsubscribe === "function") onScopeDispose(unsubscribe);
+  //
+  // Gated on getCurrentScope() so unit tests that instantiate the
+  // composable outside a Vue setup don't open a real socket.io
+  // connection (which would keep node's event loop alive and hang
+  // the test process).
+  if (getCurrentScope()) {
+    const { subscribe } = usePubSub();
+    const unsubscribe = subscribe(PUBSUB_CHANNELS.sessions, (data) => {
+      const ids = readDeletedIds(data);
+      if (ids.length === 0) return;
+      const drop = new Set(ids);
+      sessions.value = sessions.value.filter((session) => !drop.has(session.id));
+    });
+    if (typeof unsubscribe === "function") onScopeDispose(unsubscribe);
+  }
 
   return {
     sessions,
