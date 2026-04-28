@@ -51,10 +51,11 @@
              (it's a status, not a time); unread is signalled through
              previewClasses (bold text); bookmark state is signalled
              via the green role icon. -->
-        <div class="absolute top-0 right-2 -translate-y-1/2 flex items-center gap-1 bg-white px-1 leading-none">
+        <div class="absolute top-0 right-6 -translate-y-1/2 flex items-center gap-1 bg-white px-1 leading-none">
+          <span class="text-[10px] text-gray-400 pointer-events-none">{{ formatDate(session.updatedAt) }}</span>
           <button
             type="button"
-            class="flex items-center justify-center text-gray-400 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400 rounded"
+            class="flex items-center justify-center px-0.5 border border-gray-300 rounded-md text-gray-400 hover:text-gray-700 hover:border-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400"
             :aria-label="t('sessionHistoryPanel.rowMenuAria')"
             :data-testid="`session-row-menu-${session.id}`"
             @click.stop="toggleMenu(session.id)"
@@ -63,7 +64,6 @@
           >
             <span class="material-icons !text-[14px] leading-none" aria-hidden="true">more_horiz</span>
           </button>
-          <span class="text-[10px] text-gray-400 pointer-events-none">{{ formatDate(session.updatedAt) }}</span>
         </div>
         <div
           v-if="openMenuId === session.id"
