@@ -171,6 +171,8 @@ export default [
       eqeqeq: ["error", "smart"],
       "no-throw-literal": "error",
       "no-implicit-coercion": ["error", { boolean: true, number: true, string: true, disallowTemplateShorthand: false }],
+      "no-unneeded-ternary": ["error", { defaultAssignment: false }],
+      "no-else-return": ["error", { allowElseIf: false }],
       quotes: "off",
       "no-shadow": "error",
       "no-param-reassign": "error",
