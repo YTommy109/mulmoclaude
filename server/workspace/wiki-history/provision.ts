@@ -12,12 +12,23 @@
 // (identified by a `mulmoclaudeWikiHistory: true` marker on the
 // hook descriptor).
 
+import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { readTextOrNull } from "../../utils/files/safe.js";
 import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { workspacePath as defaultWorkspacePath } from "../workspace.js";
 import { log } from "../../system/logger/index.js";
-import { WIKI_SNAPSHOT_HOOK_SCRIPT } from "./hookScript.js";
+
+// Read the esbuild-built bundle once at module load. Source TS
+// is `hook/snapshot.ts`; `yarn build:hooks` (chained from
+// `yarn build`) regenerates `hook/snapshot.mjs`. The bundle is
+// committed to git so server startup has zero esbuild cost.
+// Pre-#951 the bundle was a JS-as-string template literal in
+// `hookScript.ts` — see scripts/build-hooks.mjs for context.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const HOOK_BUNDLE_PATH = path.join(__dirname, "hook", "snapshot.mjs");
+const WIKI_SNAPSHOT_HOOK_SCRIPT = readFileSync(HOOK_BUNDLE_PATH, "utf-8");
 
 const SETTINGS_REL = path.join(".claude", "settings.json");
 const HOOK_SCRIPT_REL = path.join(".claude", "hooks", "wiki-snapshot.mjs");
