@@ -162,6 +162,51 @@ describe("POST /api/wiki — action: save", () => {
     assert.match(header, /\bb\b/);
   });
 
+  it("end-to-end: header-less page → save → reload shows frontmatter, body unchanged (#895 完了条件)", async () => {
+    // The issue body's last unchecked completion item:
+    //   "header の無い既存 md を書き込む → 自動で minimal header 付与"
+    //   "e2e: 既存 header なし wiki page を編集 → 次回読み込みで
+    //   header あり / body は変わらない"
+    //
+    // This is the route-level integration test for that flow:
+    //   1. Seed a header-less page on disk (legacy wiki content shape).
+    //   2. POST /api/wiki { action: "save", content: <new body> } —
+    //      same call shape the frontend's task-checkbox toggler uses.
+    //   3. Read the file back and assert (a) frontmatter envelope
+    //      now wraps the body and (b) the body bytes are byte-
+    //      identical to what the caller sent.
+    const slug = "lazy-on-write";
+    const filePath = path.join(pagesDir, `${slug}.md`);
+    const headerlessOriginal = "# Lazy\n\nA pre-existing page that has no frontmatter yet.\n";
+    await writeFile(filePath, headerlessOriginal, "utf-8");
+
+    const newBody = "# Lazy\n\nUpdated body — same shape, different prose.\n";
+    const { state, res } = mockRes();
+    await postWikiHandler(req({ action: "save", pageName: slug, content: newBody }), res);
+
+    assert.equal(state.status, 200);
+
+    // Read back as the user would on a reload.
+    const reloaded = await readFile(filePath, "utf-8");
+
+    // Header now exists with the auto-stamped minimum.
+    assert.match(reloaded, /^---\n/);
+    assert.match(reloaded, /\ncreated: /);
+    assert.match(reloaded, /\nupdated: /);
+    assert.match(reloaded, /\neditor: user\n/);
+    assert.match(reloaded, /\n---\n\n/);
+
+    // Body byte-identical to what the caller sent.
+    const headerEnd = reloaded.indexOf("\n---\n", 4);
+    const bodyAfter = reloaded.slice(headerEnd + "\n---\n".length).trimStart();
+    assert.equal(bodyAfter, newBody);
+
+    // The route's response carries the same canonical content the
+    // next reload would render — so the optimistic update on the
+    // client matches what a fresh reload would show.
+    assert.equal(state.body?.data?.content, reloaded);
+  });
+
   it("rejects a request with no pageName", async () => {
     const { state, res } = mockRes();
     await postWikiHandler(req({ action: "save", content: "anything" }), res);
