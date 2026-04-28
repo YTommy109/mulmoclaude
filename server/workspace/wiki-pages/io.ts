@@ -24,6 +24,8 @@ import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { mergeFrontmatter, parseFrontmatter, serializeWithFrontmatter } from "../../utils/markdown/frontmatter.js";
 import { workspacePath as defaultWorkspacePath } from "../workspace.js";
 import { WORKSPACE_DIRS } from "../paths.js";
+import { appendSnapshot } from "./snapshot.js";
+import { logBackgroundError } from "../../utils/logBackgroundError.js";
 
 export type WikiPageEditor = "llm" | "user" | "system";
 
@@ -34,6 +36,13 @@ export interface WikiWriteMeta {
   sessionId?: string;
   /** Free-form short reason. LLM-supplied or user-supplied. */
   reason?: string;
+  /** Force a snapshot to be recorded even when the body and
+   *  user-supplied meta haven't changed. Used by the restore
+   *  route so a "restore to current version" still leaves an
+   *  audit trail entry — without this the `hasMeaningfulChange`
+   *  gate would silently swallow the restore (codex iter-1
+   *  finding). Default: false. */
+  forceSnapshot?: boolean;
 }
 
 export interface WikiPageWriteOptions {
@@ -115,8 +124,19 @@ export async function writeWikiPage(slug: string, content: string, meta: WikiWri
   // saves where nothing the user cares about actually changed.
   // Compare bodies after parsing so a frontmatter-only diff in
   // auto-stamped fields doesn't trip the trigger.
-  if (oldContent === null || hasMeaningfulChange(oldContent, finalContent)) {
-    await appendSnapshot(slug, oldContent, finalContent, meta);
+  if (meta.forceSnapshot === true || oldContent === null || hasMeaningfulChange(oldContent, finalContent)) {
+    // Snapshot failures must NOT fail the page write — the file is
+    // already on disk, so surfacing a 500 to the caller would be
+    // misleading. Log and move on; the next save will record the
+    // next state. Codex review iter-3 #917.
+    try {
+      await appendSnapshot(slug, oldContent, finalContent, meta, {
+        workspaceRoot: opts.workspaceRoot,
+        now: opts.now,
+      });
+    } catch (err) {
+      logBackgroundError("wiki-snapshot")(err);
+    }
   }
 }
 
@@ -233,18 +253,7 @@ export function classifyAsWikiPage(absPath: string, opts: WikiPageWriteOptions =
   return { wiki: true, slug };
 }
 
-// ── Internal: snapshot stub ────────────────────────────────────
-//
-// Filled in by #763 PR 2. Kept here as a no-op so the call site is
-// already wired up and PR 2 is a pure internal change.
-//
-// Signature note: takes both old and new content so the snapshot
-// store can emit a diff or store the prior version directly. Meta
-// carries editor identity / session / reason so the snapshot can
-// be attributed.
-
-async function appendSnapshot(__slug: string, __oldContent: string | null, __newContent: string, __meta: WikiWriteMeta): Promise<void> {
-  // Intentionally empty — PR 2 (#763) replaces this with the
-  // actual snapshot pipeline. The wiring is in place so PR 2 is
-  // purely an internal change.
-}
+// Snapshot pipeline lives in `./snapshot.ts` (#763 PR 2). The
+// indirection keeps `io.ts` focused on the page write contract;
+// snapshot.ts owns retention policy, frontmatter shape, and the
+// history dir layout.

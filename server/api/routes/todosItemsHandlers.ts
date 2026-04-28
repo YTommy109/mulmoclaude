@@ -208,19 +208,23 @@ function applyTextPatch(updated: TodoItem, input: PatchInput): ItemsActionResult
   return null;
 }
 
-function applyNotePatch(updated: TodoItem, input: PatchInput): void {
+// eslint-disable-next-line sonarjs/no-invariant-returns
+function applyNotePatch(updated: TodoItem, input: PatchInput): ItemsActionResult | null {
   if (input.note === null || input.note === "") {
     delete updated.note;
-    return;
+    return null;
   }
   if (typeof input.note === "string") updated.note = input.note;
+  return null;
 }
 
-function applyLabelsPatch(updated: TodoItem, input: PatchInput): void {
-  if (!Array.isArray(input.labels)) return;
+// eslint-disable-next-line sonarjs/no-invariant-returns
+function applyLabelsPatch(updated: TodoItem, input: PatchInput): ItemsActionResult | null {
+  if (!Array.isArray(input.labels)) return null;
   const merged = mergeLabels([], input.labels);
   if (merged.length > 0) updated.labels = merged;
   else delete updated.labels;
+  return null;
 }
 
 function applyPriorityPatch(updated: TodoItem, input: PatchInput): ItemsActionResult | null {
@@ -270,15 +274,17 @@ function applyStatusPatch(updated: TodoItem, target: TodoItem, items: TodoItem[]
 // Explicit `completed` toggle without changing status: lets the user
 // check / uncheck a card and have item move between the done column and
 // a default open column the obvious way.
-function applyCompletedPatch(updated: TodoItem, items: TodoItem[], columns: StatusColumn[], input: PatchInput): void {
-  if (typeof input.completed !== "boolean") return;
-  if (input.completed === updated.completed) return;
+// eslint-disable-next-line sonarjs/no-invariant-returns
+function applyCompletedPatch(updated: TodoItem, items: TodoItem[], columns: StatusColumn[], input: PatchInput): ItemsActionResult | null {
+  if (typeof input.completed !== "boolean") return null;
+  if (input.completed === updated.completed) return null;
   updated.completed = input.completed;
   const targetStatus = input.completed ? doneColumnId(columns) : defaultStatusId(columns);
   if (targetStatus !== updated.status) {
     updated.status = targetStatus;
     updated.order = nextOrder(items, targetStatus);
   }
+  return null;
 }
 
 export function handlePatch(items: TodoItem[], columns: StatusColumn[], itemId: string, input: PatchInput): ItemsActionResult {
@@ -291,7 +297,7 @@ export function handlePatch(items: TodoItem[], columns: StatusColumn[], itemId: 
   // Each step short-circuits on validation failure. Order matters:
   // status changes happen before completed-toggling so an explicit
   // completed: true alongside a non-done status doesn't fight itself.
-  const steps: Array<() => ItemsActionResult | null | void> = [
+  const steps: Array<() => ItemsActionResult | null | undefined> = [
     () => applyTextPatch(updated, input),
     () => applyNotePatch(updated, input),
     () => applyLabelsPatch(updated, input),
