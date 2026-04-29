@@ -261,18 +261,28 @@
             </div>
           </div>
           <!-- Rendered markdown body. -->
-          <div v-else ref="scrollRef" class="flex-1 px-6 py-4 prose prose-sm max-w-none wiki-content" @click="handleContentClick" v-html="renderedContent" />
+          <WikiPageBody
+            v-else
+            :body="mdDoc.body"
+            :base-dir="WIKI_BASE_DIR"
+            class="flex-1"
+            @task-checkbox-click="onTaskCheckboxClick"
+            @wiki-link-click="navigatePage"
+            @workspace-link-click="(path) => appApi.navigateToWorkspacePath(path)"
+          />
         </div>
       </template>
 
       <!-- Non-page action: log / lint_report — single-pane render. -->
-      <div
-        v-else
-        ref="scrollRef"
-        class="flex-1 overflow-y-auto px-6 py-4 prose prose-sm max-w-none wiki-content"
-        @click="handleContentClick"
-        v-html="renderedContent"
-      />
+      <div v-else ref="scrollRef" class="flex-1 overflow-y-auto">
+        <WikiPageBody
+          :body="mdDoc.body"
+          :base-dir="WIKI_BASE_DIR"
+          @task-checkbox-click="onTaskCheckboxClick"
+          @wiki-link-click="navigatePage"
+          @workspace-link-click="(path) => appApi.navigateToWorkspacePath(path)"
+        />
+      </div>
 
       <!-- History tab body (kept mounted across tab toggles for state
            persistence, Q15=B). Mount whenever we have a slug — list /
@@ -308,28 +318,24 @@
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { marked } from "marked";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { WikiData, WikiPageEntry } from "./index";
-import { handleExternalLinkClick } from "../../utils/dom/externalLink";
-import { classifyWorkspacePath, resolveWikiHref } from "../../utils/path/workspaceLinkRouter";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { useAppApi } from "../../composables/useAppApi";
 import { buildPdfFilename } from "../../utils/files/filename";
-import { renderWikiLinks } from "./helpers";
 import PageChatComposer from "../../components/PageChatComposer.vue";
 import { BUILTIN_ROLE_IDS } from "../../config/roles";
-import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { parseFrontmatter } from "../../utils/markdown/frontmatter";
 import { useMarkdownDoc } from "../../composables/useMarkdownDoc";
-import { findTaskLines, makeTasksInteractive, toggleTaskAt } from "../../utils/markdown/taskList";
+import { findTaskLines, toggleTaskAt } from "../../utils/markdown/taskList";
 import { apiPost } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { PAGE_ROUTES } from "../../router";
 import { WIKI_ACTION, WIKI_ROUTE_SECTION, buildWikiRouteParams, isSafeWikiSlug, readWikiRouteTarget, wikiActionFor, type WikiTarget } from "./route";
 import FilterChip from "../../components/FilterChip.vue";
 import HistoryTab from "./history/HistoryTab.vue";
+import WikiPageBody from "./components/WikiPageBody.vue";
 
 type WikiTabView = typeof WIKI_ACTION.log | typeof WIKI_ACTION.lintReport;
 
@@ -648,27 +654,6 @@ function formatUpdated(raw: string): string {
   }).format(parsed);
 }
 
-const renderedContent = computed(() => {
-  if (!content.value) return "";
-  // Strip YAML frontmatter before rendering — marked doesn't parse
-  // it, so the `---` fences turn into <hr>s and the inner keys
-  // render as plain text (title / created / updated / tags / source).
-  const body = parseFrontmatter(content.value).body;
-  if (!body) return "";
-  // Rewrite workspace-relative image refs (`![alt](images/foo.png)`)
-  // to `/api/files/raw?path=...` BEFORE marked parses them — without
-  // this, the browser tries to fetch against the SPA route URL
-  // (/chat/…/images/foo.png) and 404s. Reuse WIKI_BASE_DIR so a
-  // page's `../images/foo.png` resolves under `data/wiki/`.
-  const withImages = rewriteMarkdownImageRefs(body, WIKI_BASE_DIR.value);
-  // Strip marked's `disabled=""` from GFM task checkboxes and tag
-  // them with `class="md-task"` so `handleContentClick` can find
-  // them via DOM delegation (#775). Other view modes (index / log /
-  // lint_report) get the same transform — it's a no-op when no
-  // checkboxes are present.
-  return makeTasksInteractive(marked.parse(renderWikiLinks(withImages)) as string);
-});
-
 const { pdfDownloading, pdfError, downloadPdf: rawDownloadPdf } = usePdfDownload();
 
 async function downloadPdf() {
@@ -893,45 +878,6 @@ function onTaskCheckboxClick(event: MouseEvent, target: HTMLInputElement): void 
   // `navError` inside `persistWikiPage`'s `!response.ok` branch.
   taskPersistChain = taskPersistChain.then(() => persistWikiPage(pageName, newContent, generation)).catch(() => undefined);
 }
-
-function handleContentClick(event: MouseEvent) {
-  // 0. GFM task checkbox toggle (#775). Tagged by `makeTasksInteractive`
-  //    on the rendered HTML; only meaningful while we're showing a
-  //    page body. Index / log / lint_report views never carry user
-  //    content to write back.
-  const target = event.target as HTMLElement;
-  if (target instanceof HTMLInputElement && target.type === "checkbox" && target.classList.contains("md-task")) {
-    onTaskCheckboxClick(event, target);
-    return;
-  }
-  // 1. Internal wiki links: `[[Page Name]]` was rewritten to a
-  //    `<span class="wiki-link">` during markdown pre-processing,
-  //    so it doesn't overlap with regular `<a>` handling.
-  const link = target.closest(".wiki-link") as HTMLElement | null;
-  if (link?.dataset.page) {
-    navigatePage(link.dataset.page);
-    return;
-  }
-  // 2. External http(s) links in the rendered markdown body: open
-  //    in a new tab so clicking them doesn't navigate the whole
-  //    SPA away from MulmoClaude. Same-origin and non-http links
-  //    (mailto:, tel:, anchors) fall through to the browser default.
-  if (handleExternalLinkClick(event)) return;
-  // 3. Workspace-internal links: resolve relative paths against the
-  //    wiki content's filesystem location and route to the appropriate view.
-  //    Skip modifier-key clicks and middle clicks so the browser's
-  //    "open in new tab" behaviour is preserved.
-  if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
-  const anchor = target.closest("a");
-  if (!anchor) return;
-  const href = anchor.getAttribute("href");
-  if (!href || href.startsWith("#")) return;
-  const resolved = resolveWikiHref(href, WIKI_BASE_DIR.value);
-  if (classifyWorkspacePath(resolved)) {
-    event.preventDefault();
-    appApi.navigateToWorkspacePath(resolved);
-  }
-}
 </script>
 
 <style scoped>
@@ -950,109 +896,5 @@ function handleContentClick(event: MouseEvent) {
 .entry-tag-chip:hover {
   background-color: #dbeafe;
   color: #1d4ed8;
-}
-.wiki-content :deep(.wiki-link) {
-  color: #2563eb;
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-}
-.wiki-content :deep(.wiki-link:hover) {
-  text-decoration-style: solid;
-}
-.wiki-content :deep(h1) {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
-  color: #111827;
-}
-.wiki-content :deep(h1:first-child),
-.wiki-content :deep(h2:first-child),
-.wiki-content :deep(h3:first-child),
-.wiki-content :deep(p:first-child) {
-  margin-top: 0;
-}
-.wiki-content :deep(h2) {
-  font-size: 1.2rem;
-  font-weight: 600;
-  margin-top: 1.25rem;
-  margin-bottom: 0.5rem;
-  color: #1f2937;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 0.25rem;
-}
-.wiki-content :deep(h3) {
-  font-size: 1rem;
-  font-weight: 600;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  color: #374151;
-}
-.wiki-content :deep(p) {
-  margin-bottom: 0.75rem;
-  line-height: 1.6;
-  color: #374151;
-}
-.wiki-content :deep(ul),
-.wiki-content :deep(ol) {
-  margin-left: 1.5rem;
-  margin-bottom: 0.75rem;
-}
-.wiki-content :deep(li) {
-  margin-bottom: 0.25rem;
-  line-height: 1.5;
-  color: #374151;
-}
-.wiki-content :deep(ul) {
-  list-style-type: disc;
-}
-.wiki-content :deep(ol) {
-  list-style-type: decimal;
-}
-.wiki-content :deep(hr) {
-  border: none;
-  border-top: 1px solid #e5e7eb;
-  margin: 1rem 0;
-}
-.wiki-content :deep(code) {
-  background: #f3f4f6;
-  padding: 0.1rem 0.3rem;
-  border-radius: 0.25rem;
-  font-size: 0.85em;
-  font-family: monospace;
-}
-.wiki-content :deep(pre) {
-  background: #f3f4f6;
-  padding: 0.75rem;
-  border-radius: 0.375rem;
-  overflow-x: auto;
-  margin-bottom: 0.75rem;
-}
-.wiki-content :deep(pre code) {
-  background: none;
-  padding: 0;
-}
-.wiki-content :deep(blockquote) {
-  border-left: 3px solid #d1d5db;
-  padding-left: 1rem;
-  color: #6b7280;
-  margin: 0.75rem 0;
-}
-.wiki-content :deep(table) {
-  border-collapse: collapse;
-  width: 100%;
-  margin-bottom: 0.75rem;
-  font-size: 0.875rem;
-}
-.wiki-content :deep(th),
-.wiki-content :deep(td) {
-  border: 1px solid #e5e7eb;
-  padding: 0.5rem 0.75rem;
-  text-align: left;
-}
-.wiki-content :deep(th) {
-  background: #f9fafb;
-  font-weight: 600;
 }
 </style>
