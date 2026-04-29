@@ -35,7 +35,20 @@ describe("repairImageSrc", () => {
     const ok = repairImageSrc(img as unknown as HTMLImageElement);
     assert.equal(ok, false);
     assert.equal(img.src, "/api/files/raw?path=data%2Fwiki%2Fsources%2Ffoo.png");
-    assert.equal(img.dataset.imageRepairTried, "1");
+    // The marker MUST NOT be set on a no-match: otherwise a later
+    // repairable src on the same DOM element would be silently blocked.
+    assert.equal(img.dataset.imageRepairTried, undefined);
+  });
+
+  it("a no-match call doesn't poison a later repairable src on the same element", () => {
+    const img = makeImg("https://external.example.com/some.png");
+    const first = repairImageSrc(img as unknown as HTMLImageElement);
+    assert.equal(first, false);
+    // Same DOM node, src now matches.
+    img.src = "/wrong/prefix/artifacts/images/foo.png";
+    const second = repairImageSrc(img as unknown as HTMLImageElement);
+    assert.equal(second, true);
+    assert.equal(img.src, "/artifacts/images/foo.png");
   });
 
   it("does not retry a second time once tried", () => {

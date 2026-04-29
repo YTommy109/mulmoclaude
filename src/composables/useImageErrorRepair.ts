@@ -22,18 +22,23 @@ document.addEventListener("error", function (event) {
   var target = event.target;
   if (!target || target.tagName !== "IMG") return;
   if (target.dataset.imageRepairTried) return;
-  target.dataset.imageRepairTried = "1";
   var match = String(target.src).match(/artifacts\\/images\\/.+/);
   if (!match) return;
+  target.dataset.imageRepairTried = "1";
   target.src = "/" + match[0];
 }, true);
 `.trim();
 
 export function repairImageSrc(img: HTMLImageElement): boolean {
   if (img.dataset.imageRepairTried) return false;
-  img.dataset.imageRepairTried = "1";
+  // Set the one-shot marker only AFTER confirming the URL matches the
+  // repair pattern. Otherwise an unrelated 404 (different domain, no
+  // artifacts/images segment) would pin the marker and silently block
+  // any future repair attempt on the same DOM element if the src is
+  // later replaced with a repairable one.
   const match = img.src.match(IMAGE_REPAIR_PATTERN);
   if (!match) return false;
+  img.dataset.imageRepairTried = "1";
   img.src = `/${match[0]}`;
   return true;
 }
