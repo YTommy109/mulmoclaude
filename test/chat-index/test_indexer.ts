@@ -59,7 +59,7 @@ function seedSession(
       );
     }
   }
-  writeFileSync(join(chatDir, `${sessionId}.jsonl`), lines.join("\n") + "\n");
+  writeFileSync(join(chatDir, `${sessionId}.jsonl`), `${lines.join("\n")}\n`);
   return sessionId;
 }
 
@@ -97,10 +97,10 @@ describe("indexSession — happy path", () => {
     });
 
     assert.ok(entry !== null);
-    assert.equal(entry!.id, "sess-A");
-    assert.equal(entry!.title, "Plan a project");
-    assert.equal(entry!.roleId, "general");
-    assert.equal(entry!.startedAt, "2026-04-12T10:00:00.000Z");
+    assert.equal(entry.id, "sess-A");
+    assert.equal(entry.title, "Plan a project");
+    assert.equal(entry.roleId, "general");
+    assert.equal(entry.startedAt, "2026-04-12T10:00:00.000Z");
 
     // Per-session file exists.
     const perSession = JSON.parse(await readFile(indexEntryPathFor(workspace, "sess-A"), "utf-8"));
@@ -236,7 +236,7 @@ describe("indexSession — skip conditions", () => {
         startedAt: "2026-04-12T10:00:00.000Z",
       }),
     );
-    writeFileSync(join(chatDir, "sess-F.jsonl"), JSON.stringify({ source: "tool", type: "tool_result", message: "x" }) + "\n");
+    writeFileSync(join(chatDir, "sess-F.jsonl"), `${JSON.stringify({ source: "tool", type: "tool_result", message: "x" })}\n`);
     const stub = makeStubSummarize();
     const result = await indexSession(workspace, "sess-F", {
       summarize: stub.fn,

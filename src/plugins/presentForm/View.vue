@@ -1,17 +1,14 @@
 <template>
   <div class="w-full h-full overflow-y-auto p-8">
     <div v-if="formData" class="max-w-3xl w-full mx-auto">
-      <!-- Form Title -->
       <h2 v-if="formData.title" class="text-gray-900 text-3xl font-bold mb-4 text-center">
         {{ formData.title }}
       </h2>
 
-      <!-- Form Description -->
       <p v-if="formData.description" class="text-gray-600 text-center mb-8 text-lg">
         {{ formData.description }}
       </p>
 
-      <!-- Error Summary -->
       <div v-if="showErrorSummary && fieldErrors.size > 0" class="bg-red-50 border-2 border-red-500 rounded-lg p-4 mb-6" role="alert">
         <h3 class="text-red-800 font-semibold mb-2 flex items-center gap-2">
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
@@ -25,23 +22,21 @@
         </h3>
         <ul class="text-red-700 space-y-1">
           <li v-for="[fieldId, error] in fieldErrors" :key="fieldId">
-            <a :href="`#${fieldId}`" @click.prevent="focusField(fieldId)" class="hover:underline cursor-pointer">
+            <a :href="`#${fieldId}`" class="hover:underline cursor-pointer" @click.prevent="focusField(fieldId)">
               {{ error.message }}
             </a>
           </li>
         </ul>
       </div>
 
-      <!-- Form Fields -->
-      <form @submit.prevent="handleSubmit" class="space-y-6">
+      <form class="space-y-6" @submit.prevent="handleSubmit">
         <div
           v-for="field in formData.fields"
-          :key="field.id"
           :id="field.id"
+          :key="field.id"
           class="form-field"
           :class="{ 'has-error': hasError(field.id) && touched.has(field.id) }"
         >
-          <!-- Field Label -->
           <label
             :for="`input-${field.id}`"
             class="block text-gray-800 font-semibold mb-2"
@@ -53,12 +48,10 @@
             <span v-if="field.required" class="text-red-500 ml-1" aria-label="required">{{ t("pluginPresentForm.requiredMarker") }}</span>
           </label>
 
-          <!-- Field Description -->
           <p v-if="field.description" class="text-gray-600 text-sm mb-2">
             {{ field.description }}
           </p>
 
-          <!-- Text Field -->
           <input
             v-if="field.type === 'text'"
             :id="`input-${field.id}`"
@@ -67,16 +60,15 @@
             :placeholder="field.placeholder"
             :aria-invalid="hasError(field.id) && touched.has(field.id)"
             :aria-describedby="hasError(field.id) && touched.has(field.id) ? `${field.id}-error` : undefined"
-            @blur="handleBlur(field.id)"
-            @input="handleInput(field.id)"
             class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
             :class="{
               'border-red-500 focus:ring-red-500': hasError(field.id) && touched.has(field.id),
               'border-gray-300': !hasError(field.id) || !touched.has(field.id),
             }"
+            @blur="handleBlur(field.id)"
+            @input="handleInput(field.id)"
           />
 
-          <!-- Textarea Field -->
           <textarea
             v-else-if="field.type === 'textarea'"
             :id="`input-${field.id}`"
@@ -85,16 +77,15 @@
             :rows="field.rows || 4"
             :aria-invalid="hasError(field.id) && touched.has(field.id)"
             :aria-describedby="hasError(field.id) && touched.has(field.id) ? `${field.id}-error` : undefined"
-            @blur="handleBlur(field.id)"
-            @input="handleInput(field.id)"
             class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors resize-y"
             :class="{
               'border-red-500 focus:ring-red-500': hasError(field.id) && touched.has(field.id),
               'border-gray-300': !hasError(field.id) || !touched.has(field.id),
             }"
+            @blur="handleBlur(field.id)"
+            @input="handleInput(field.id)"
           />
 
-          <!-- Number Field -->
           <input
             v-else-if="field.type === 'number'"
             :id="`input-${field.id}`"
@@ -105,16 +96,15 @@
             :step="field.step"
             :aria-invalid="hasError(field.id) && touched.has(field.id)"
             :aria-describedby="hasError(field.id) && touched.has(field.id) ? `${field.id}-error` : undefined"
-            @blur="handleBlur(field.id)"
-            @input="handleInput(field.id)"
             class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
             :class="{
               'border-red-500 focus:ring-red-500': hasError(field.id) && touched.has(field.id),
               'border-gray-300': !hasError(field.id) || !touched.has(field.id),
             }"
+            @blur="handleBlur(field.id)"
+            @input="handleInput(field.id)"
           />
 
-          <!-- Date Field -->
           <input
             v-else-if="field.type === 'date'"
             :id="`input-${field.id}`"
@@ -124,16 +114,15 @@
             :max="field.maxDate"
             :aria-invalid="hasError(field.id) && touched.has(field.id)"
             :aria-describedby="hasError(field.id) && touched.has(field.id) ? `${field.id}-error` : undefined"
-            @blur="handleBlur(field.id)"
-            @change="handleInput(field.id)"
             class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
             :class="{
               'border-red-500 focus:ring-red-500': hasError(field.id) && touched.has(field.id),
               'border-gray-300': !hasError(field.id) || !touched.has(field.id),
             }"
+            @blur="handleBlur(field.id)"
+            @change="handleInput(field.id)"
           />
 
-          <!-- Time Field -->
           <input
             v-else-if="field.type === 'time'"
             :id="`input-${field.id}`"
@@ -141,16 +130,15 @@
             type="time"
             :aria-invalid="hasError(field.id) && touched.has(field.id)"
             :aria-describedby="hasError(field.id) && touched.has(field.id) ? `${field.id}-error` : undefined"
-            @blur="handleBlur(field.id)"
-            @change="handleInput(field.id)"
             class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
             :class="{
               'border-red-500 focus:ring-red-500': hasError(field.id) && touched.has(field.id),
               'border-gray-300': !hasError(field.id) || !touched.has(field.id),
             }"
+            @blur="handleBlur(field.id)"
+            @change="handleInput(field.id)"
           />
 
-          <!-- Radio Field -->
           <div
             v-else-if="field.type === 'radio'"
             class="space-y-2"
@@ -168,32 +156,31 @@
               }"
             >
               <input
+                v-model="formValues[field.id]"
                 type="radio"
                 :name="field.id"
                 :value="index"
-                v-model="formValues[field.id]"
+                class="mr-3 h-4 w-4 flex-shrink-0"
                 @change="handleInput(field.id)"
                 @blur="handleBlur(field.id)"
-                class="mr-3 h-4 w-4 flex-shrink-0"
               />
               <span class="text-gray-800">{{ choice }}</span>
             </label>
           </div>
 
-          <!-- Dropdown Field -->
           <select
             v-else-if="field.type === 'dropdown'"
             :id="`input-${field.id}`"
             v-model="formValues[field.id]"
             :aria-invalid="hasError(field.id) && touched.has(field.id)"
             :aria-describedby="hasError(field.id) && touched.has(field.id) ? `${field.id}-error` : undefined"
-            @blur="handleBlur(field.id)"
-            @change="handleInput(field.id)"
             class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors bg-white"
             :class="{
               'border-red-500 focus:ring-red-500': hasError(field.id) && touched.has(field.id),
               'border-gray-300': !hasError(field.id) || !touched.has(field.id),
             }"
+            @blur="handleBlur(field.id)"
+            @change="handleInput(field.id)"
           >
             <option :value="null" disabled>{{ t("pluginPresentForm.selectOption") }}</option>
             <option v-for="(choice, index) in field.choices" :key="index" :value="index">
@@ -201,7 +188,6 @@
             </option>
           </select>
 
-          <!-- Checkbox Field -->
           <div
             v-else-if="field.type === 'checkbox'"
             class="space-y-2"
@@ -219,18 +205,17 @@
               }"
             >
               <input
+                v-model="formValues[field.id]"
                 type="checkbox"
                 :value="index"
-                v-model="formValues[field.id]"
+                class="mr-3 h-4 w-4 flex-shrink-0"
                 @change="handleInput(field.id)"
                 @blur="handleBlur(field.id)"
-                class="mr-3 h-4 w-4 flex-shrink-0"
               />
               <span class="text-gray-800">{{ choice }}</span>
             </label>
           </div>
 
-          <!-- Error Message -->
           <div
             v-if="hasError(field.id) && touched.has(field.id)"
             :id="`${field.id}-error`"
@@ -247,7 +232,6 @@
             {{ fieldErrors.get(field.id)?.message }}
           </div>
 
-          <!-- Character Count (for text/textarea with maxLength) -->
           <div
             v-if="showCharCount(field)"
             class="text-sm mt-2"
@@ -265,7 +249,6 @@
           </div>
         </div>
 
-        <!-- Submit Button -->
         <div class="mt-8 flex justify-center">
           <button
             type="submit"
@@ -277,7 +260,6 @@
           </button>
         </div>
 
-        <!-- Progress Indicator -->
         <div class="mt-4 text-center text-gray-600 text-sm">
           {{ t("pluginPresentForm.progress", { filled: filledRequiredCount, total: requiredFieldsCount }) }}
         </div>
@@ -349,7 +331,6 @@ function applyNewResult(newResult: ToolResult): void {
   isRestoring.value = false;
 }
 
-// Initialize form data and restore state
 watch(
   () => props.selectedResult,
   (newResult, oldResult) => {
@@ -360,7 +341,6 @@ watch(
   { immediate: true },
 );
 
-// Save state to viewState - watch all state changes together
 watch(
   [formValues, touched, submitted],
   () => {
@@ -416,9 +396,7 @@ function isEmpty(value: any): boolean {
   return false;
 }
 
-// 254 = RFC 5321 maximum address length. indexOf-based check avoids
-// the chained `[^\s@]+` regex pattern that sonarjs flags as
-// vulnerable to super-linear backtracking.
+// 254 per RFC 5321; bounding upfront keeps the regex below from backtracking.
 const EMAIL_MAX_LENGTH = 254;
 function isValidEmail(email: string): boolean {
   if (!email || email.length > EMAIL_MAX_LENGTH) return false;
@@ -433,6 +411,7 @@ function isValidEmail(email: string): boolean {
 
 function isValidUrl(url: string): boolean {
   try {
+    // eslint-disable-next-line no-new -- side-effect probe to validate URL syntax
     new URL(url);
     return true;
   } catch {
@@ -518,10 +497,9 @@ function validateField(fieldId: string): boolean {
       type: "custom",
     });
     return false;
-  } else {
-    fieldErrors.value.delete(fieldId);
-    return true;
   }
+  fieldErrors.value.delete(fieldId);
+  return true;
 }
 
 function handleBlur(fieldId: string): void {
@@ -530,7 +508,6 @@ function handleBlur(fieldId: string): void {
 }
 
 function handleInput(fieldId: string): void {
-  // Real-time validation for fields that are already touched
   if (touched.value.has(fieldId)) {
     validateField(fieldId);
   }
@@ -554,15 +531,13 @@ function showCharCount(field: FormField): boolean {
 
 function isNearLimit(field: FormField): boolean {
   if (field.type !== "text" && field.type !== "textarea") return false;
-  const maxLength = (field as TextField | TextareaField).maxLength;
+  const { maxLength } = field as TextField | TextareaField;
   if (!maxLength) return false;
   const currentLength = (formValues.value[field.id] || "").length;
   return currentLength / maxLength > 0.9;
 }
 
-const requiredFieldsCount = computed(() => {
-  return formData.value?.fields.filter((field) => field.required).length || 0;
-});
+const requiredFieldsCount = computed(() => formData.value?.fields.filter((field) => field.required).length || 0);
 
 const filledRequiredCount = computed(() => {
   if (!formData.value) return 0;
@@ -572,27 +547,18 @@ const filledRequiredCount = computed(() => {
 function handleSubmit(): void {
   if (submitted.value) return;
 
-  // Mark all fields as touched
   formData.value?.fields.forEach((field) => {
     touched.value.add(field.id);
     validateField(field.id);
   });
 
-  // Check for errors
   if (fieldErrors.value.size > 0) {
     showErrorSummary.value = true;
-    // Focus first error field
-    const firstErrorFieldId = Array.from(fieldErrors.value.keys())[0];
+    const [firstErrorFieldId] = Array.from(fieldErrors.value.keys());
     focusField(firstErrorFieldId);
     return;
   }
 
-  // Build a markdown bullet list of `- {label}: {value}` lines so the
-  // chat history reads naturally for a human while still being trivial
-  // for the LLM to parse. Empty values become "(none)". Titles, labels,
-  // and choice strings are passed through singleLine() to strip any
-  // newlines they might contain — without that, a label like
-  // "Address (street\nand number)" would shatter the bullet structure.
   const lines: string[] = [];
   if (formData.value?.title) lines.push(`**${singleLine(formData.value.title)}**`, "");
   formData.value?.fields.forEach((field) => {
@@ -603,22 +569,15 @@ function handleSubmit(): void {
   props.sendTextMessage(lines.join("\n"));
 }
 
-// Indent every line except the first by 2 spaces — under markdown
-// rules, indented continuations stay attached to the preceding bullet
-// instead of starting a new top-level item. Without this, a textarea
-// value containing newlines would inject phantom bullets into the
-// chat-side payload that the LLM could mis-parse.
+// Indent so multi-line text/textarea values stay attached to their bullet
+// instead of opening a new top-level item under markdown rules.
 function indentContinuation(text: string): string {
   return text.replace(/\n/g, "\n  ");
 }
 
-// Collapse any newline (and surrounding whitespace) into a single
-// space. Used on titles, labels, and choice strings (LLM-authored
-// fields) so they can't smuggle a newline into the markdown bullet
-// structure and reshape the payload. Free-form user input
-// (text/textarea values) uses indentContinuation instead — it
-// preserves multi-line values. Implemented via split-trim-join (not a
-// global regex) to avoid sonarjs's slow-regex flag on `\s*\n\s*`.
+// LLM-authored title/label/choice strings — collapse any newline so they
+// can't smuggle phantom bullets into the payload. split-trim-join avoids
+// sonarjs's slow-regex flag on `\s*\n\s*`.
 function singleLine(text: string): string {
   return text
     .split(/\r?\n/)
@@ -633,14 +592,12 @@ function renderValue(field: FormField, value: any): string {
   if (field.type === "radio" || field.type === "dropdown") {
     return value !== null && value !== undefined ? singleLine(field.choices[value]) : empty;
   }
-  // Checkbox values render as a nested bullet sublist rather than a
-  // comma-joined string. Comma-joining is ambiguous when a choice label
-  // itself contains a comma; the sublist is unambiguous and survives
-  // round-trip parsing.
+  // Sublist (not comma-join): a choice label containing a comma would otherwise
+  // be indistinguishable from two separate selections.
   if (field.type === "checkbox") {
     const items: string[] = (value || []).map((idx: number) => singleLine(field.choices[idx]));
     if (items.length === 0) return empty;
-    return "\n  - " + items.join("\n  - ");
+    return `\n  - ${items.join("\n  - ")}`;
   }
   if (typeof value === "string") {
     const trimmed = value.trim();

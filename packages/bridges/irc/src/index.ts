@@ -22,7 +22,7 @@ const server = process.env.IRC_SERVER;
 const nick = process.env.IRC_NICK;
 const channelsStr = process.env.IRC_CHANNELS;
 if (!server || !nick || !channelsStr) {
-  console.error("IRC_SERVER, IRC_NICK, and IRC_CHANNELS are required.\n" + "See README for setup instructions.");
+  console.error("IRC_SERVER, IRC_NICK, and IRC_CHANNELS are required.\nSee README for setup instructions.");
   process.exit(1);
 }
 
@@ -36,12 +36,12 @@ const password = process.env.IRC_PASSWORD;
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });
 
+const irc = new IrcClient();
+
 mulmo.onPush((pushEvent) => {
   // pushEvent.chatId is the channel name
   irc.say(pushEvent.chatId, pushEvent.message);
 });
-
-const irc = new IrcClient();
 
 irc.connect({
   host: server,

@@ -18,13 +18,14 @@ const zulipUrl = process.env.ZULIP_URL;
 const email = process.env.ZULIP_EMAIL;
 const apiKey = process.env.ZULIP_API_KEY;
 if (!zulipUrl || !email || !apiKey) {
-  console.error("ZULIP_URL, ZULIP_EMAIL, and ZULIP_API_KEY are required.\n" + "See README for setup instructions.");
+  console.error("ZULIP_URL, ZULIP_EMAIL, and ZULIP_API_KEY are required.\nSee README for setup instructions.");
   process.exit(1);
 }
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });
 const apiBase = `${zulipUrl.replace(/\/$/, "")}/api/v1`;
-const authHeader = "Basic " + Buffer.from(`${email}:${apiKey}`).toString("base64");
+const credentials = `${email}:${apiKey}`;
+const authHeader = `Basic ${Buffer.from(credentials).toString("base64")}`;
 
 mulmo.onPush((pushEvent) => {
   sendMessage(pushEvent.chatId, pushEvent.message).catch((err) => console.error(`[zulip] push send failed: ${err}`));
@@ -141,9 +142,7 @@ async function pollLoop(): Promise<void> {
     } catch (err) {
       console.error(`[zulip] poll error: ${err}`);
       try {
-        const reg = await registerQueue();
-        queue_id = reg.queue_id;
-        last_event_id = reg.last_event_id;
+        ({ queue_id, last_event_id } = await registerQueue());
       } catch (regErr) {
         console.error(`[zulip] re-register failed: ${regErr}`);
         await new Promise((resolveDelay) => setTimeout(resolveDelay, 5000));

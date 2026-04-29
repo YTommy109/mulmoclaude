@@ -24,6 +24,12 @@
 import { homedir } from "os";
 import path from "path";
 
+// Well-known individual files — imported from the shared
+// src/config/workspacePaths.ts (single source of truth for both
+// server and frontend). Re-exported so server callers keep the
+// same `import { WORKSPACE_FILES } from "./paths.js"` they use.
+import { WORKSPACE_FILES } from "../../src/config/workspacePaths.js";
+
 // Workspace root. Hard-coded to `~/mulmoclaude` — there is no
 // WORKSPACE_PATH env override today; changing the location
 // requires a code edit or a symlink. Re-exported by
@@ -78,15 +84,14 @@ export const WORKSPACE_DIRS = {
   // prompt hint.
   wikiPages: "data/wiki/pages",
   wikiSources: "data/wiki/sources",
+  // Per-page edit-history snapshots (#763 PR 2). Hidden by leading
+  // dot so a curious user listing `data/wiki/` doesn't trip over a
+  // peer directory of historical content. Each `<slug>/` underneath
+  // holds N snapshot .md files newest-first.
+  wikiHistory: "data/wiki/.history",
   // Development — git-cloned repositories (#256).
   github: "github",
 } as const;
-
-// Well-known individual files — imported from the shared
-// src/config/workspacePaths.ts (single source of truth for both
-// server and frontend). Re-exported so server callers keep the
-// same `import { WORKSPACE_FILES } from "./paths.js"` they use.
-import { WORKSPACE_FILES } from "../../src/config/workspacePaths.js";
 export { WORKSPACE_FILES };
 
 // Absolute paths, built once at module load from `workspacePath`.
@@ -119,9 +124,11 @@ export const WORKSPACE_PATHS = {
   // nested subdirs
   wikiPages: path.join(workspacePath, WORKSPACE_DIRS.wikiPages),
   wikiSources: path.join(workspacePath, WORKSPACE_DIRS.wikiSources),
+  wikiHistory: path.join(workspacePath, WORKSPACE_DIRS.wikiHistory),
   // files
   memory: path.join(workspacePath, WORKSPACE_FILES.memory),
   sessionToken: path.join(workspacePath, WORKSPACE_FILES.sessionToken),
+  serverPort: path.join(workspacePath, WORKSPACE_FILES.serverPort),
   wikiIndex: path.join(workspacePath, WORKSPACE_FILES.wikiIndex),
   wikiLog: path.join(workspacePath, WORKSPACE_FILES.wikiLog),
   wikiSchema: path.join(workspacePath, WORKSPACE_FILES.wikiSchema),

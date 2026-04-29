@@ -41,6 +41,7 @@
           </div>
 
           <!-- Spreadsheet table -->
+          <!-- eslint-disable-next-line vue/no-v-html -- XLSX.utils.sheet_to_html output of app-owned sheet data; trusted in-process render -->
           <div ref="tableContainer" class="table-container" @click="handleTableClick" v-html="renderedHtml"></div>
         </div>
       </div>
@@ -202,6 +203,11 @@ function isFilePath(value: unknown): value is string {
   return typeof value === "string" && value.startsWith("artifacts/spreadsheets/") && value.endsWith(".json");
 }
 
+// Editor textarea backing ref. Declared up here (rather than next to
+// the other view-state refs further down) so the `fetchSheets().then`
+// initializer below can assign to it without TDZ.
+const editableData = ref(JSON.stringify(resolvedSheets.value || [], null, 2));
+
 async function fetchSheets(): Promise<void> {
   const raw = props.selectedResult.data?.sheets;
   // Clear any stale error from a previous result BEFORE the early
@@ -273,7 +279,9 @@ async function persistSheets(sheets: SpreadsheetSheet[]): Promise<void> {
 }
 
 const activeSheetIndex = ref(0);
-const editableData = ref(JSON.stringify(resolvedSheets.value || [], null, 2));
+// Editor state declared together with the other refs above. Seeded
+// in the on-mount `fetchSheets().then(...)` block above (the `.value`
+// assignment is in scope by the time that .then callback fires).
 const editorTextarea = ref<HTMLTextAreaElement | null>(null);
 const editorDetails = ref<HTMLDetailsElement | null>(null);
 const tableContainer = ref<HTMLDivElement | null>(null);
@@ -288,7 +296,7 @@ const miniEditorFormula = ref("");
 const miniEditorFormat = ref("");
 
 // Referenced cells state (for formula highlighting)
-const referencedCells = ref<Array<{ row: number; col: number }>>([]);
+const referencedCells = ref<{ row: number; col: number }[]>([]);
 
 // Check if spreadsheet data has been modified
 const hasChanges = computed(() => {
@@ -527,7 +535,7 @@ function handleTableClick(event: MouseEvent) {
   const row = cell.parentElement as HTMLTableRowElement;
 
   const colIndex = cell.cellIndex;
-  const rowIndex = row.rowIndex;
+  const { rowIndex } = row;
 
   // Check if the main editor details is open
   const isEditorOpen = editorDetails.value?.open ?? false;

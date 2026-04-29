@@ -33,7 +33,7 @@ const RECONNECT_MAX_MS = 60_000;
 const instanceUrl = process.env.MASTODON_INSTANCE_URL;
 const accessToken = process.env.MASTODON_ACCESS_TOKEN;
 if (!instanceUrl || !accessToken) {
-  console.error("MASTODON_INSTANCE_URL and MASTODON_ACCESS_TOKEN are required.\n" + "See README for setup instructions.");
+  console.error("MASTODON_INSTANCE_URL and MASTODON_ACCESS_TOKEN are required.\nSee README for setup instructions.");
   process.exit(1);
 }
 
@@ -219,7 +219,7 @@ interface ParsedStatus {
 
 function parseMentionStatus(notification: JsonRecord): ParsedStatus | null {
   if (notification.type !== "mention") return null;
-  const status = notification.status;
+  const { status } = notification;
   if (!isObj(status)) return null;
   const statusId = typeof status.id === "string" ? status.id : "";
   const visibility = typeof status.visibility === "string" ? status.visibility : "public";

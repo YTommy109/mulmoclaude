@@ -24,7 +24,7 @@ const PORT = Number(process.env.LINE_BRIDGE_PORT) || 3002;
 const channelSecret = process.env.LINE_CHANNEL_SECRET;
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 if (!channelSecret || !channelAccessToken) {
-  console.error("LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN are required.\n" + "See README for setup instructions.");
+  console.error("LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN are required.\nSee README for setup instructions.");
   process.exit(1);
 }
 
@@ -93,12 +93,12 @@ app.post("/webhook", async (req: Request, res: Response) => {
   res.status(200).send("OK");
 
   let body: {
-    events: Array<{
+    events: {
       type: string;
       replyToken?: string;
       source?: { userId?: string; type?: string };
       message?: { type: string; text?: string };
-    }>;
+    }[];
   };
   try {
     body = JSON.parse(bodyStr);

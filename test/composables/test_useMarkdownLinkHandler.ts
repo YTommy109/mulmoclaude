@@ -9,14 +9,14 @@ import { useMarkdownLinkHandler } from "../../src/composables/useMarkdownLinkHan
 // which we satisfy by stubbing `globalThis.Element`.
 
 interface FakeAnchor {
-  getAttribute(name: string): string | null;
+  getAttribute: (name: string) => string | null;
 }
 
 interface FakeElement {
   tag: string;
   parent: FakeElement | null;
   href?: string;
-  closest(selector: string): FakeAnchor | null;
+  closest: (selector: string) => FakeAnchor | null;
 }
 
 function makeAnchor(href: string | null): FakeElement {
@@ -82,7 +82,11 @@ function makeEvent(opts: Partial<FakeMouseEvent> = {}): FakeMouseEvent {
 }
 
 // Install a minimal Element constructor so `instanceof Element` passes
-// for anything whose prototype chain includes our base.
+// for anything whose prototype chain includes our base. An empty class
+// is the only way to get a constructor function that supports
+// `instanceof` checks; a const-bound function or module isn't usable
+// here.
+// eslint-disable-next-line @typescript-eslint/no-extraneous-class -- need a real constructor for `instanceof` checks
 class FakeElementBase {}
 const originalElement = (globalThis as { Element?: unknown }).Element;
 

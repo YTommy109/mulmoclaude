@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
 import { tmpdir } from "os";
 import {
   buildMemoryContext,
@@ -16,7 +16,6 @@ import {
   formatPluginSection,
 } from "../../server/agent/prompt.js";
 import { WORKSPACE_FILES } from "../../server/workspace/paths.js";
-import { dirname } from "path";
 import type { Role } from "../../src/config/roles.js";
 
 function ensureDir(dirPath: string): void {
@@ -432,11 +431,11 @@ describe("buildInlinedHelpFiles", () => {
   });
 
   it("summarizes + points to large help files", () => {
-    const bigBody = "\n\n" + "filler paragraph. ".repeat(200);
-    writeHelp("big.md", "# Big Help\n\nFirst real content paragraph explaining the feature." + bigBody);
+    const bigBody = `\n\n${"filler paragraph. ".repeat(200)}`;
+    writeHelp("big.md", `# Big Help\n\nFirst real content paragraph explaining the feature.${bigBody}`);
     const result = buildInlinedHelpFiles("See config/helps/big.md", workspace);
     assert.equal(result.length, 1);
-    const section = result[0];
+    const [section] = result;
     assert.ok(section.includes("### config/helps/big.md"));
     assert.ok(section.includes("Big Help"));
     assert.ok(section.includes("First real content paragraph"));

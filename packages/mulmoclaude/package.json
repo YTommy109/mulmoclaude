@@ -1,6 +1,6 @@
 {
   "name": "mulmoclaude",
-  "version": "0.5.1",
+  "version": "0.5.3",
   "description": "MulmoClaude — GUI-chat with Claude Code + long-term memory. One command to start.",
   "type": "module",
   "bin": {
@@ -15,7 +15,9 @@
     "bin/",
     "client/",
     "server/",
-    "src/"
+    "src/",
+    "Dockerfile.sandbox",
+    "sandbox-entrypoint.sh"
   ],
   "dependencies": {
     "@google/genai": "^1.50.1",
@@ -27,20 +29,20 @@
     "@mulmobridge/chat-service": "^0.1.2",
     "@mulmobridge/client": "^0.1.4",
     "@mulmobridge/protocol": "^0.1.4",
-    "@mulmocast/types": "^2.6.8",
+    "@mulmocast/types": "^2.6.9",
     "@mulmochat-plugin/quiz": "0.4.0",
     "@mulmochat-plugin/ui-image": "^0.3.0",
     "@receptron/task-scheduler": "^0.1.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "fast-xml-parser": "^5.7.1",
+    "fast-xml-parser": "^5.7.2",
     "gui-chat-protocol": "0.1.0",
     "ignore": "^7.0.5",
     "js-yaml": "^4.1.1",
     "mammoth": "^1.12.0",
     "marked": "^18.0.2",
-    "mulmocast": "^2.6.8",
+    "mulmocast": "^2.6.9",
     "puppeteer": "^24.42.0",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",

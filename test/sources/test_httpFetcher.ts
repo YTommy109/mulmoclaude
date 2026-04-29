@@ -98,6 +98,7 @@ describe("fetchPolite — User-Agent + scheme guard", () => {
     const deps = makeDeps();
     await assert.rejects(() => fetchPolite("file:///etc/passwd", deps), /refusing non-http/);
     await assert.rejects(() => fetchPolite("ftp://example.com/feed", deps), /refusing non-http/);
+    // eslint-disable-next-line no-script-url -- guard test fixture
     await assert.rejects(() => fetchPolite("javascript:alert(1)", deps), /refusing non-http/);
   });
 });
@@ -211,7 +212,7 @@ describe("fetchPolite — timeout + abort", () => {
     const stub: typeof fetch = (_input, init) =>
       new Promise<Response>((_, reject) => {
         init?.signal?.addEventListener("abort", () => {
-          reject(init!.signal!.reason ?? new DOMException("", "AbortError"));
+          reject(init.signal?.reason ?? new DOMException("", "AbortError"));
         });
       });
     const deps = makeDeps({

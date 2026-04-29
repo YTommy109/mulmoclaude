@@ -32,12 +32,19 @@ export default [
       // import-extraction regex in scripts/mulmoclaude/deps.mjs.
       // They're inputs to a parser test, not production code.
       "test/scripts/mulmoclaude/fixtures",
+      // esbuild output committed to git (`yarn build:hooks`
+      // regenerates from server/workspace/wiki-history/hook/snapshot.ts).
+      // Linting the bundle is meaningless — it's machine-formatted
+      // and would force formatter-friendly output options on
+      // esbuild for no real win.
+      "server/workspace/wiki-history/hook/snapshot.mjs",
     ],
   },
   eslint.configs.recommended,
   sonarjs.configs.recommended,
   securityPlugin.configs.recommended,
-  ...tseslint.configs.recommended,
+  ...tseslint.configs.strict,
+  ...tseslint.configs.stylistic,
   ...vuePlugin.configs["flat/recommended"],
   ...vueI18n.configs.recommended,
   {
@@ -135,6 +142,24 @@ export default [
           ],
         },
       ],
+      // Catch TDZ-style `use-before-define` (e.g. accessing a `const`
+      // before its declaration line). #920. Function declarations are
+      // exempt — TS hoists them safely, and top-down narrative-style
+      // (`main()` first, helpers below) is a common pattern in the
+      // codebase. Type references are also exempt: type position is
+      // erased at runtime, so the order doesn't affect execution.
+      "no-use-before-define": "off",
+      "@typescript-eslint/no-use-before-define": [
+        "error",
+        {
+          functions: false,
+          classes: true,
+          variables: true,
+          enums: true,
+          typedefs: false,
+          ignoreTypeReferences: true,
+        },
+      ],
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
@@ -145,6 +170,76 @@ export default [
         },
       ],
       "linebreak-style": ["error", "unix"],
+      // `==`/`!=` triggers JS coercion (`null == undefined` → true,
+      // `"" == 0` → true). `smart` keeps the `x == null` idiom (covers
+      // both null and undefined in one check) so existing
+      // null-or-undefined guards don't all need to be rewritten.
+      // #921.
+      eqeqeq: ["error", "smart"],
+      "no-throw-literal": "error",
+      "no-implicit-coercion": ["error", { boolean: true, number: true, string: true, disallowTemplateShorthand: false }],
+      "no-unneeded-ternary": ["error", { defaultAssignment: false }],
+      "no-else-return": ["error", { allowElseIf: false }],
+      "@typescript-eslint/no-non-null-assertion": "warn",
+      "@typescript-eslint/no-dynamic-delete": "warn",
+      "@typescript-eslint/no-empty-function": "off",
+      "@typescript-eslint/no-import-type-side-effects": "error",
+      "@typescript-eslint/no-useless-empty-export": "error",
+      "@typescript-eslint/method-signature-style": ["error", "property"],
+      "default-case-last": "error",
+      "prefer-template": "error",
+      "prefer-arrow-callback": "error",
+      "arrow-body-style": ["error", "as-needed"],
+      "no-multi-assign": "error",
+      "prefer-rest-params": "error",
+      "prefer-spread": "error",
+      "no-self-compare": "error",
+      "no-unmodified-loop-condition": "error",
+      "no-constructor-return": "error",
+      "import/no-duplicates": "error",
+      "array-callback-return": "error",
+      "default-param-last": "error",
+      "no-new-wrappers": "error",
+      "no-octal-escape": "error",
+      "no-proto": "error",
+      "no-script-url": "error",
+      "no-useless-call": "error",
+      "no-useless-concat": "error",
+      "no-useless-rename": "error",
+      radix: "error",
+      "prefer-object-spread": "error",
+      "prefer-numeric-literals": "error",
+      "prefer-promise-reject-errors": "error",
+      "no-lonely-if": "error",
+      "no-floating-decimal": "error",
+      "no-unused-private-class-members": "error",
+      // `require-await` (and the type-checked variant) misfires on
+      // Playwright route handlers, Express middleware, and any
+      // framework-imposed async contract that returns a Promise
+      // without `await`-ing inside. Off — signal-to-noise too low
+      // without type information.
+      "require-await": "off",
+      "no-loop-func": "error",
+      "no-new": "error",
+      "no-undef-init": "error",
+      "no-useless-return": "error",
+      "prefer-regex-literals": "error",
+      "prefer-exponentiation-operator": "error",
+      "@typescript-eslint/consistent-type-assertions": "error",
+      "@typescript-eslint/no-require-imports": "error",
+      "@typescript-eslint/prefer-enum-initializers": "error",
+      "import/first": "error",
+      "import/newline-after-import": "error",
+      "import/no-anonymous-default-export": "error",
+      "import/no-mutable-exports": "error",
+      "import/no-self-import": "error",
+      "import/no-useless-path-segments": "error",
+      "consistent-return": "warn",
+      "class-methods-use-this": "warn",
+      "prefer-destructuring": "warn",
+      complexity: ["warn", { max: 15 }],
+      "max-depth": ["warn", { max: 4 }],
+      "max-params": ["warn", { max: 6 }],
       quotes: "off",
       "no-shadow": "error",
       "no-param-reassign": "error",
@@ -269,6 +364,10 @@ export default [
       // sanitised markdown. Warn so the justified usage doesn't
       // block CI — audit per-use at review time.
       "vue/no-v-html": "warn",
+      "vue/no-useless-mustaches": "error",
+      "vue/no-useless-v-bind": "error",
+      "vue/prefer-true-attribute-shorthand": "error",
+      "vue/no-empty-component-block": "error",
     },
   },
   eslintConfigPrettier,

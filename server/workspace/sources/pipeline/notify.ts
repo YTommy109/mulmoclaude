@@ -30,13 +30,13 @@ export function runNotifyPhase(items: readonly SourceItem[], workspaceRoot?: str
 }
 
 function formatSingleBody(item: SourceItem): string {
-  const suffix = item.summary ? " — " + item.summary : "";
-  return "From " + item.sourceSlug + suffix;
+  const suffix = item.summary ? ` — ${item.summary}` : "";
+  return `From ${item.sourceSlug}${suffix}`;
 }
 
 function publishBatchNotification(scored: readonly ScoredItem[]): void {
   if (scored.length === 1) {
-    const { item } = scored[0];
+    const [{ item }] = scored;
     publishNotification({
       kind: NOTIFICATION_KINDS.push,
       title: item.title,
