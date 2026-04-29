@@ -106,26 +106,29 @@ playwright.live.config.ts   ← 別 config（headed, 長 timeout, workers=1）
 
 ### media（5）
 
-#### L-01: presentHtml の画像が描画される ★最重要
+#### L-01: presentHtml の画像が描画される ★最重要 ✅ 実装済
 
 - カバー: B-17, B-18
 - 重要度: **S** / Docker: `both` / 画像: fixture
-- 操作: `/chat` で新規セッション → 「`fixtures/images/sample.png` を `<img>` で埋め込んだ HTML を作って presentHtml で表示して」と送信
+- 実装: `e2e-live/tests/media.spec.ts`
+- 操作: 新規セッション → fixture 画像を `artifacts/images/e2e-live-l01.png` に配置 → 「`/artifacts/images/e2e-live-l01.png` を `<img>` で埋め込んだ HTML を presentHtml で」と LLM に依頼
 - 検証:
-  - presentHtml の iframe 内に `<img>` が存在
-  - src が `/api/files/raw?path=...` 形式にリライトされている
-  - `naturalWidth > 0`（実際に描画されている）
-- 失敗例: B-18（path-traversal 防御の副作用で 404）
+  - presentHtml の iframe 内に `<img>` が visible
+  - `src` が `/artifacts/images/` を含む（PR #969 / #972 以降の static-mount 仕様）
+  - `src` が `/api/files/raw` を含まない（旧リライトの再発を防ぐ regression guard）
+  - `naturalWidth > 0`（mount + path-traversal guard を抜けて実際に描画される）
+- 失敗例: B-18（path-traversal 防御の副作用で 404 → naturalWidth 0）
 
-#### L-02: 画像入り Markdown を PDF DL → 画像が含まれる
+#### L-02: Markdown 応答を PDF DL ✅ 実装済
 
 - カバー: B-19, B-20
-- 重要度: **S** / Docker: `both` / 画像: fixture
-- 操作: `fixtures/markdown/with-image.md`（画像 1 枚を含む）を workspace に配置 → ファイル一覧から PDF DL
+- 重要度: **S** / Docker: `both` / 画像: 不要（textResponse 経由なので workspace 配置なし）
+- 実装: `e2e-live/tests/media.spec.ts`、textResponse の PDF ボタン (`text-response-pdf-button`) 経由
+- 操作: 新規セッション → 「次の Markdown を **そのまま** 1 ターンの返信本文として返してください」と LLM に依頼 → textResponse view 表示後 PDF DL ボタンクリック
 - 検証:
-  - DL ファイルが PDF 形式（マジックバイト確認）
-  - PDF サイズが N KB 以上
-  - `pdf-parse` で画像オブジェクトが含まれる
+  - DL ファイルが `%PDF-` magic bytes を含む（`readPdfDownload` helper）
+  - PDF サイズが 500 bytes 以上（明らかな空 stub を除外）
+- 注: 「PDF に画像が inline されている」確認は scope 外（pdf-parse 等の追加依存が要るので別 PR）
 
 #### L-03: mulmoScript 生成 → 動画 DL 成功
 
@@ -327,13 +330,74 @@ playwright.live.config.ts   ← 別 config（headed, 長 timeout, workers=1）
 - 操作: `~/.claude/skills` を symlink で管理した状態で Docker 起動 → skill 一覧確認
 - 検証: skill が表示され、各 sample query が実行可能
 
+## 実装ステータス
+
+| シナリオ | 状態 | 備考 |
+|---|---|---|
+| **L-01** presentHtml 画像描画 | ✅ 実装済 | media.spec.ts、fixture 画像を workspace に配置 → naturalWidth > 0 |
+| **L-02** PDF DL | ✅ 実装済 | media.spec.ts、textResponse の PDF ボタン経由 |
+| L-03〜L-30 | 未実装 | カテゴリごとの後続 PR で順次 |
+
 ## 実装の詳細
 
-### `live-chat` fixture
+### `e2e-live/fixtures/live-chat.ts` の helper 一覧
+
+実装済の helper（後続シナリオはこの形をベースに足していく）:
+
+| helper | 用途 |
+|---|---|
+| `startNewSession(page)` | `/` に goto → `new-session-btn` クリック |
+| `sendChatMessage(page, text)` | `user-input` fill → `send-btn` click |
+| `waitForAssistantResponseComplete(page, timeoutMs?)` | `thinking-indicator` testid が hidden になるまで待つ |
+| `waitForImgInPresentHtml(page, imgSelector, timeoutMs?)` | presentHtml iframe 内の `<img>` が visible になるまで待つ |
+| `readImgSrcInPresentHtml(page, imgSelector)` | iframe 内の `<img>` の `src` 属性を取得（リライト後の URL 検証用） |
+| `readImgNaturalSize(page, imgSelector)` | iframe 内の `<img>` の `naturalWidth/Height` を取得（実描画確認） |
+| `readPdfDownload(download)` | `Download` を読み込み `%PDF-` magic bytes を検証、Buffer 返す |
+| `placeFixtureInWorkspace(fixtureRel, workspaceRel)` | `e2e-live/fixtures/<fixtureRel>` を `~/mulmoclaude/<workspaceRel>` にコピー |
+| `removeFromWorkspace(workspaceRel)` | best-effort delete（finally で呼ぶ） |
+| `getCurrentSessionId(page)` | URL から `/chat/<id>` を抽出 |
+| `deleteSession(page, sessionId)` | `DELETE /api/sessions/:id` で hard delete（best-effort、auth は `<meta name="mulmoclaude-auth">` から） |
+
+### testid 必要時の追加方針
+
+実装済の追加: `present-html-iframe`（`src/plugins/presentHtml/View.vue` の iframe）、`text-response-pdf-button`（`src/plugins/textResponse/View.vue` の PDF ボタン）。
+
+新規 testid を追加する時は:
+- `data-testid="<plugin>-<role>"` の kebab-case で命名（既存規則）
+- 翻訳テキストや `iframe[sandbox]` のような構造的属性を当てにしない（脆い）
+- 同じ PR で既存の View.vue を 1 行修正するのは OK（小さな変更）
+
+### Playwright API の選び方（罠あり）
+
+- **iframe 内 DOM へのアクセスは必ず `frameLocator` 経由**。`page.evaluate` + `iframe.contentDocument` は Vue が `srcdoc` を更新するたびに古い document を見て null を返す挙動を踏む（実機で確認）
+- **iframe `toBeVisible` だけでは早すぎる**。iframe 要素は srcdoc レンダー前に DOM に append されるので、内側の特定要素 (`<img>` 等) を `frameLocator(...).locator(...)` で待つ
+- **assertion 達成後に `waitForAssistantResponseComplete` を呼ぶ**。Playwright は assertion pass の瞬間にテストを終了させ、その時点で trace / video が切れる。LLM が応答中だと録画から後半が消える
+- **cleanup は finally + best-effort**。teardown 失敗で passing test が赤になるのを避ける
+
+### 画像戦略
+
+- **fixture 再利用**（L-01〜L-04, L-06）: `e2e-live/fixtures/images/sample.png`（`src/assets/mulmo_bw.png` のコピー）を spec ごとに **ユニークな workspace path** へコピー → LLM にそのパスを示して `<img>` / `![]()` で参照させる
+- **実生成 1 枚**（L-05）: generateImage 経路自体を検証するため、実際に画像生成
+- workspace の path は spec 名を含める（例: `artifacts/images/e2e-live-l01.png`）。複数 worker が並列実行されてもファイル名衝突しない
+
+### 画像 URL の現仕様（PR #969 / #972 以降）
+
+- `artifacts/images/...` で始まる path は Express **静的マウント**で配信される（URL がそのまま）
+- 旧 `/api/files/raw?path=...` リライトは廃止
+- presentHtml の rewriter (`src/utils/image/rewriteHtmlImageRefs.ts` → `resolveImageSrc`) は `artifacts/images/` prefix の URL をそのまま返す
+- L-01 の assert は `src` が `/artifacts/images/` を含むこと + `naturalWidth > 0` を確認
+
+### LLM 応答のばらつき吸収
+
+- LLM が presentHtml / textResponse を確実に呼ぶよう、 prompt に「以下の HTML を presentHtml ツールでそのまま表示してください」「次の Markdown を **そのまま** 1 ターンの返信本文として返してください」のように明示
+- 検証は **DOM 状態** を見る（応答テキストは見ない）。応答テキストの揺れに依存しないので安定する
+- 数値閾値（PDF サイズ等）は **緩めに**。最低限の本物の出力 vs 空 stub の判別ができれば十分
+
+### 認証
 
 - `mockAllApis(page)` を呼ばない
-- 起動前に Claude 認証状態を検証（`claude login` 済 or `ANTHROPIC_API_KEY` set）→ どちらも無ければ skip
-- ヘルパー: `startNewSession()`, `sendAndWait(message, opts)`, `getLastAssistantBlock()`, `placeFixtureFile(src, dst)`
+- bearer token は SPA と同じ経路で取得: `<meta name="mulmoclaude-auth" content="...">` を `page.evaluate` 内で読む
+- 起動前の認証状態検証は省略（dev サーバ起動時点で必ず token があるので、`yarn dev` 動いてれば OK）
 - timeout: 単一 LLM 応答 60s、生成系（PDF/動画）5 分
 
 ### 画像戦略
@@ -351,27 +415,32 @@ playwright.live.config.ts   ← 別 config（headed, 長 timeout, workers=1）
 
 ```ts
 export default defineConfig({
-  testDir: 'e2e-live',
-  outputDir: 'test-results-live',                              // ← 既存 e2e と分離
+  testDir: './tests',
+  outputDir: '../test-results-live',                            // ← 既存 e2e と分離
   timeout: 600_000,        // 10 分
-  workers: 1,              // 直列実行
-  retries: 0,              // コスト節約のため自動リトライしない
+  workers: 3,              // 並列実行（mulmoclaude server は複数 chat を捌ける）
+  retries: 0,
   reporter: [
-    ['list'],                                                  // ターミナル進捗
-    ['html', { outputFolder: 'playwright-report-live', open: 'on-failure' }],
+    ['list'],
+    ['html', { outputFolder: '../playwright-report-live', open: 'on-failure' }],
   ],
   use: {
     baseURL: 'http://localhost:5173',
-    headless: process.env.HEADED !== '1',                      // ← 環境変数で headed 切替
+    headless: process.env.HEADED !== '1',                      // ← HEADED=1 で QA 可視化
     launchOptions: {
-      slowMo: process.env.HEADED === '1' ? 200 : 0,            // ← headed 時のみ動作可視化
+      slowMo: process.env.HEADED === '1' ? 200 : 0,
     },
     trace: 'on',                                                // ← 失敗リプレイ用に常時取得
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    actionTimeout: 60_000,
+    navigationTimeout: 60_000,
   },
+  projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
 });
 ```
+
+各 spec の冒頭で `test.describe.configure({ mode: 'parallel' })` を入れて、 同一ファイル内のテストも並列で走らせる（spec を増やしたら自動で並列度が上がる）。
 
 ### `.gitignore` 追記
 
