@@ -210,7 +210,7 @@ watch(previewVersion, async (current, previous) => {
   // delete the entry.
   const wasDirty = hasChanges.value;
   const next = { ...sourceCache.value };
-  delete next[path];
+  Reflect.deleteProperty(next, path);
   sourceCache.value = next;
   if (sourceDetails.value?.open === true) {
     const fresh = await fetchSource();
