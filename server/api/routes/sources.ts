@@ -258,7 +258,6 @@ router.post(API_ROUTES.sources.manage, async (req: Request<object, unknown, Mana
         return;
       case "rebuild":
         await handleRebuild(res);
-        return;
     }
   } catch (err) {
     log.warn("sources", "manage failed", { action, error: String(err) });
@@ -433,7 +432,10 @@ interface ParsedRegisterBody {
   skipClassify: boolean;
 }
 
-type ParseError = { status: number; error: string };
+interface ParseError {
+  status: number;
+  error: string;
+}
 
 function parseRegisterBody(body: RegisterSourceBody): ParsedRegisterBody | ParseError {
   const title = typeof body.title === "string" ? body.title.trim() : "";

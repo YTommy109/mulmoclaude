@@ -22,7 +22,7 @@ const homeserverUrl = process.env.MATRIX_HOMESERVER_URL;
 const accessToken = process.env.MATRIX_ACCESS_TOKEN;
 const userId = process.env.MATRIX_USER_ID;
 if (!homeserverUrl || !accessToken || !userId) {
-  console.error("MATRIX_HOMESERVER_URL, MATRIX_ACCESS_TOKEN, and MATRIX_USER_ID are required.\n" + "See README for setup instructions.");
+  console.error("MATRIX_HOMESERVER_URL, MATRIX_ACCESS_TOKEN, and MATRIX_USER_ID are required.\nSee README for setup instructions.");
   process.exit(1);
 }
 
@@ -36,14 +36,14 @@ const allowAll = allowedRooms.size === 0;
 
 const mulmo = createBridgeClient({ transportId: TRANSPORT_ID });
 
-mulmo.onPush((pushEvent) => {
-  matrixClient.sendTextMessage(pushEvent.chatId, pushEvent.message).catch((err: unknown) => console.error(`[matrix] push send failed: ${err}`));
-});
-
 const matrixClient: MatrixClient = createClient({
   baseUrl: homeserverUrl,
   accessToken,
   userId,
+});
+
+mulmo.onPush((pushEvent) => {
+  matrixClient.sendTextMessage(pushEvent.chatId, pushEvent.message).catch((err: unknown) => console.error(`[matrix] push send failed: ${err}`));
 });
 
 // The matrix-js-sdk event emitter types are narrowly typed; the
@@ -58,7 +58,7 @@ const matrixClient: MatrixClient = createClient({
   if (content.msgtype !== "m.text") return;
   if (typeof content.body !== "string") return;
 
-  const roomId = room.roomId;
+  const { roomId } = room;
   const text = content.body;
   if (!text.trim()) return;
 

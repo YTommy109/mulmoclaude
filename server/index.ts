@@ -2,10 +2,10 @@ import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import agentRoutes from "./api/routes/agent.js";
+import agentRoutes, { startChat } from "./api/routes/agent.js";
 import todosRoutes from "./api/routes/todos.js";
 import schedulerRoutes from "./api/routes/scheduler.js";
-import sessionsRoutes from "./api/routes/sessions.js";
+import sessionsRoutes, { loadAllSessions } from "./api/routes/sessions.js";
 import chatIndexRoutes from "./api/routes/chat-index.js";
 import sourcesRoutes from "./api/routes/sources.js";
 import newsRoutes from "./api/routes/news.js";
@@ -17,6 +17,8 @@ import rolesRoutes from "./api/routes/roles.js";
 import { DEFAULT_ROLE_ID } from "../src/config/roles.js";
 import mulmoScriptRoutes from "./api/routes/mulmo-script.js";
 import wikiRoutes from "./api/routes/wiki.js";
+import wikiHistoryRoutes from "./api/routes/wiki/history.js";
+import { provisionWikiHistoryHook } from "./workspace/wiki-history/provision.js";
 import pdfRoutes from "./api/routes/pdf.js";
 import filesRoutes from "./api/routes/files.js";
 import configRoutes from "./api/routes/config.js";
@@ -25,9 +27,8 @@ import { createNotificationsRouter } from "./api/routes/notifications.js";
 import { createJournalRouter } from "./api/routes/journal.js";
 import { type NotificationDeps, initNotifications } from "./events/notifications.js";
 import { createChatService } from "@mulmobridge/chat-service";
-import { loadAllSessions } from "./api/routes/sessions.js";
 import { readSessionJsonl } from "./utils/files/session-io.js";
-import { onSessionEvent } from "./events/session-store/index.js";
+import { onSessionEvent, initSessionStore } from "./events/session-store/index.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";
 import { discoverSkills } from "./workspace/skills/index.js";
 import { WORKSPACE_PATHS } from "./workspace/paths.js";
@@ -50,14 +51,12 @@ import { initScheduler, type SystemTaskDef } from "./events/scheduler-adapter.js
 import schedulerTasksRoutes from "./api/routes/schedulerTasks.js";
 import { loadSchedulerOverrides, UTC_HH_MM_RE } from "./utils/files/scheduler-overrides-io.js";
 import type { IPubSub } from "./events/pub-sub/index.js";
-import { initSessionStore } from "./events/session-store/index.js";
 import { connectRelay } from "./events/relay-client.js";
 import { requireSameOrigin } from "./api/csrfGuard.js";
 import { bearerAuth } from "./api/auth/bearerAuth.js";
 import { deleteTokenFile, generateAndWriteToken, getCurrentToken } from "./api/auth/token.js";
 import { log } from "./system/logger/index.js";
 import { logBackgroundError } from "./utils/logBackgroundError.js";
-import { startChat } from "./api/routes/agent.js";
 import { registerScheduledSkills } from "./workspace/skills/scheduler.js";
 import { registerUserTasks } from "./workspace/skills/user-tasks.js";
 import { API_ROUTES } from "../src/config/apiRoutes.js";
@@ -111,7 +110,10 @@ app.use(requireSameOrigin);
 // tags in rendered markdown can't attach Authorization headers.
 // The CSRF origin check + loopback-only binding still apply.
 app.use("/api", (req, res, next) => {
-  if (req.path.startsWith("/files/")) return next();
+  if (req.path.startsWith("/files/")) {
+    next();
+    return;
+  }
   bearerAuth(req, res, next);
 });
 
@@ -165,6 +167,10 @@ app.use(chartRoutes);
 app.use(rolesRoutes);
 app.use(mulmoScriptRoutes);
 app.use(wikiRoutes);
+// Mounted under /api/wiki so the inner router's relative paths
+// (`/pages/:slug/history`, `/internal/snapshot`) line up with the
+// API_ROUTES.wiki.* constants.
+app.use("/api/wiki", wikiHistoryRoutes);
 app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
@@ -184,7 +190,7 @@ async function listSessionsForBridge(opts: { limit: number; offset: number }) {
 async function getSessionHistoryForBridge(sessionId: string, opts: { limit: number; offset: number }) {
   const content = await readSessionJsonl(sessionId);
   if (!content) return { messages: [], total: 0 };
-  const allMessages: Array<{ source: string; text: string }> = [];
+  const allMessages: { source: string; text: string }[] = [];
   const lines = content.split("\n").filter(Boolean);
   // Collect all text events newest-first
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -360,7 +366,7 @@ function logMcpStatus(): void {
     });
   }
   if (disabledMcpTools.length > 0) {
-    const names = disabledMcpTools.map((toolDef) => toolDef.definition.name + " (" + (toolDef.requiredEnv ?? []).join(", ") + ")").join(", ");
+    const names = disabledMcpTools.map((toolDef) => `${toolDef.definition.name} (${(toolDef.requiredEnv ?? []).join(", ")})`).join(", ");
     log.info("mcp", "Unavailable (missing env)", { tools: names });
   }
 }
@@ -555,12 +561,35 @@ process.on("SIGTERM", () => {
   sandboxEnabled = await setupSandbox();
   logMcpStatus();
 
+  // Provision the LLM-write hook in the workspace's
+  // `.claude/settings.json` (#763 PR 2). Idempotent — safe on every
+  // startup. Done BEFORE the agent ever spawns a claude CLI subprocess
+  // so the hook is in place from the first turn.
+  await provisionWikiHistoryHook().catch((err) => {
+    log.warn("wiki-history", "hook provisioning failed; LLM wiki edits will not be snapshotted this session", {
+      error: String(err),
+    });
+  });
+
   // Bind to localhost-only. Using `0.0.0.0` would expose the dev
   // server to the entire LAN (anyone on the same Wi-Fi could reach
   // `http://<laptop-ip>:3001/api/*`), which combined with the
   // workspace file API is a credential-theft risk. Personal dev
   // tool — localhost is the right default.
-  const httpServer = app.listen(port, "127.0.0.1", () => {
+  const httpServer = app.listen(port, "127.0.0.1", async () => {
+    // Publish the actually-bound port so the hook script can
+    // address us — the requested PORT may have walked forward
+    // off a busy default. Use writeFile (not writeFileAtomic)
+    // because the file is tiny + ephemeral and the .tmp dance
+    // serves no purpose for a single-process write at boot.
+    try {
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(WORKSPACE_PATHS.serverPort, `${port}\n`, { mode: 0o600 });
+    } catch (err) {
+      log.warn("server", "failed to write .server-port; LLM wiki-write hook will be unable to reach the server", {
+        error: String(err),
+      });
+    }
     startRuntimeServices(httpServer, port);
   });
 

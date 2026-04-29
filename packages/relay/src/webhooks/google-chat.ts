@@ -117,7 +117,7 @@ function parseMessage(body: unknown): ChatMessage | null {
   if (!isObj(body) || body.type !== "MESSAGE") return null;
   const msg = body.message;
   if (!isObj(msg) || typeof msg.text !== "string") return null;
-  const space = msg.space;
+  const { space } = msg;
   if (!isObj(space) || typeof space.name !== "string") return null;
   return { spaceName: space.name, text: msg.text.trim() };
 }
@@ -180,7 +180,7 @@ const googleChatPlugin: PlatformPlugin = {
   webhookPath: "/webhook/google-chat",
 
   isConfigured(env: Env): boolean {
-    return !!env.GOOGLE_CHAT_PROJECT_NUMBER;
+    return Boolean(env.GOOGLE_CHAT_PROJECT_NUMBER);
   },
 
   async handleWebhook(request: Request, body: string, env: Env): Promise<RelayMessage[]> {

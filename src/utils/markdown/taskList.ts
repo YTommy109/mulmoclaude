@@ -71,7 +71,7 @@ function stepFence(line: string, state: FenceState): boolean {
   const content = quoteMatch ? line.slice(quoteMatch[0].length) : line;
   const fenceMatch = content.match(FENCE_LINE);
   if (fenceMatch) {
-    const marker = fenceMatch[2];
+    const [, , marker] = fenceMatch;
     if (!state.inFence) {
       // Openers may carry an info string after the marker
       // (e.g. "```ts"). We don't need to keep it — just enter
@@ -108,7 +108,7 @@ function stepFence(line: string, state: FenceState): boolean {
 function flipMark(line: string, match: RegExpMatchArray): string {
   const [whole, prefix, bullet, sep, mark] = match;
   const flipped = mark === " " ? "x" : " ";
-  return `${prefix}${bullet}${sep}[${flipped}]` + line.slice(whole.length);
+  return `${prefix}${bullet}${sep}[${flipped}]${line.slice(whole.length)}`;
 }
 
 /** Find the source-line index of every task-list item, in document

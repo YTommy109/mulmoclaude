@@ -8,7 +8,7 @@
 // at a `mkdtempSync` directory without touching the real
 // ~/mulmoclaude.
 
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import { defaultSummarize, loadJsonlInput, type SummarizeFn } from "./summarizer.js";
 import { chatDirFor, indexEntryPathFor, manifestPathFor, sessionJsonlPathFor, sessionMetaPathFor } from "./paths.js";
 import type { ChatIndexEntry, ChatIndexManifest } from "./types.js";
@@ -103,6 +103,19 @@ export async function updateManifest(workspaceRoot: string, mutator: (m: ChatInd
   });
 }
 
+// Drop a session's entry from both the per-session index file and
+// the shared manifest. Used by the sessions hard-delete route so AI
+// title / summary / keywords don't outlive the underlying jsonl on
+// disk. Both removals tolerate "missing" — sessions that were never
+// indexed have no entry to prune.
+export async function removeSessionFromIndex(workspaceRoot: string, sessionId: string): Promise<void> {
+  await rm(indexEntryPathFor(workspaceRoot, sessionId), { force: true });
+  await updateManifest(workspaceRoot, (manifest) => ({
+    ...manifest,
+    entries: manifest.entries.filter((entry) => entry.id !== sessionId),
+  }));
+}
+
 // --- freshness check ------------------------------------------------
 
 // A session is "fresh" when its per-session index file exists and
@@ -114,7 +127,7 @@ export async function isFresh(workspaceRoot: string, sessionId: string, now: num
     const raw = await readFile(indexEntryPathFor(workspaceRoot, sessionId), "utf-8");
     const entry: unknown = JSON.parse(raw);
     if (!isRecord(entry)) return false;
-    const indexedAt = (entry as Record<string, unknown>).indexedAt;
+    const { indexedAt } = entry as Record<string, unknown>;
     if (typeof indexedAt !== "string") return false;
     const indexedTimestamp = Date.parse(indexedAt);
     if (Number.isNaN(indexedTimestamp)) return false;

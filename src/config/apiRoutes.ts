@@ -150,9 +150,10 @@ export const API_ROUTES = {
 
   sessions: {
     list: "/api/sessions",
-    // GET /api/sessions/:id + POST /api/sessions/:id/mark-read
+    // GET /api/sessions/:id (read) + DELETE /api/sessions/:id (hard delete)
     detail: "/api/sessions/:id",
     markRead: "/api/sessions/:id/mark-read",
+    bookmark: "/api/sessions/:id/bookmark",
   },
 
   skills: {
@@ -190,5 +191,16 @@ export const API_ROUTES = {
 
   wiki: {
     base: "/api/wiki",
+    /** History routes (#763 PR 2). `:slug` and `:stamp` are filled in
+     *  by the caller — the constants stay route-pattern shaped so the
+     *  Express router and the Vue API layer share one source of truth. */
+    pageHistory: "/api/wiki/pages/:slug/history",
+    pageHistorySnapshot: "/api/wiki/pages/:slug/history/:stamp",
+    pageHistoryRestore: "/api/wiki/pages/:slug/history/:stamp/restore",
+    /** Internal endpoint hit by the LLM-write hook script
+     *  (`<workspace>/.claude/hooks/wiki-snapshot.mjs`). Re-reads
+     *  the just-written file from disk and routes it into the
+     *  snapshot pipeline. Never called by the Vue client. */
+    internalSnapshot: "/api/wiki/internal/snapshot",
   },
 } as const;

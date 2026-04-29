@@ -21,6 +21,7 @@
                   <span class="font-medium text-gray-700">{{ speakerLabel }}</span>
                   <span v-if="transportKind" class="italic">{{ transportKind }}</span>
                 </div>
+                <!-- eslint-disable-next-line vue/no-v-html -- marked.parse output of app-owned assistant response text; trusted in-process render -->
                 <div class="markdown-content prose prose-slate max-w-none leading-relaxed text-gray-900" v-html="renderedHtml"></div>
               </div>
             </div>
@@ -106,7 +107,7 @@ const renderedHtml = computed(() => {
   if ((trimmedText.startsWith("{") && trimmedText.endsWith("}")) || (trimmedText.startsWith("[") && trimmedText.endsWith("]"))) {
     try {
       JSON.parse(trimmedText);
-      processedText = "```json\n" + trimmedText + "\n```";
+      processedText = `\`\`\`json\n${trimmedText}\n\`\`\``;
     } catch {
       // Not valid JSON, continue with original text
     }
@@ -144,6 +145,11 @@ const roleTheme = computed(() => {
 });
 
 const hasChanges = computed(() => editedText.value !== editorSource.value);
+
+// `<details>` element ref. Declared together with the editing state
+// just below, but hoisted up here so `applyChanges` can close the
+// panel after a save without TDZ ordering trouble.
+const detailsEl = ref<HTMLDetailsElement>();
 
 function applyChanges() {
   if (!hasChanges.value) return;
@@ -189,7 +195,6 @@ function openLinksInNewTab(event: MouseEvent): void {
 
 const { pdfDownloading, pdfError, downloadPdf: rawDownloadPdf } = usePdfDownload();
 
-const detailsEl = ref<HTMLDetailsElement>();
 const editing = ref(false);
 
 function onDetailsToggle(event: Event) {

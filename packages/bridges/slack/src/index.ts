@@ -32,7 +32,7 @@ const TRANSPORT_ID = "slack";
 const botToken = process.env.SLACK_BOT_TOKEN;
 const appToken = process.env.SLACK_APP_TOKEN;
 if (!botToken || !appToken) {
-  console.error("SLACK_BOT_TOKEN and SLACK_APP_TOKEN are required.\n" + "See README for setup instructions.");
+  console.error("SLACK_BOT_TOKEN and SLACK_APP_TOKEN are required.\nSee README for setup instructions.");
   process.exit(1);
 }
 
@@ -50,6 +50,7 @@ const granularity = (() => {
   } catch (err) {
     console.error(`[slack] ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
+    return undefined as never;
   }
 })();
 
@@ -59,6 +60,7 @@ const ackEmoji = (() => {
   } catch (err) {
     console.error(`[slack] ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
+    return undefined as never;
   }
 })();
 

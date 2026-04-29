@@ -266,7 +266,7 @@
     <PageChatComposer
       v-if="mode === 'page'"
       :placeholder="t('pluginManageSource.chatPlaceholder')"
-      :prepend-text="`Before answering, read config/helps/sources.md for source-management conventions.`"
+      prepend-text="Before answering, read config/helps/sources.md for source-management conventions."
       :suggestions="SOURCE_SUGGESTIONS"
       test-id-prefix="sources-page-chat"
     />
@@ -312,6 +312,7 @@ const props = defineProps<{
 }>();
 
 const localSources = ref<Source[] | null>(props.initialData?.sources ?? null);
+const sources = computed<Source[]>(() => localSources.value ?? []);
 const lastRebuild = ref<RebuildSummary | null>(props.initialData?.lastRebuild ?? null);
 const highlightSlugLocal = ref<string | null>(props.initialData?.highlightSlug ?? null);
 const actionMessage = ref("");
@@ -431,7 +432,7 @@ function buildRegisterPayload(input: DraftState): RegisterPayload | BuildError {
       }
       let hostname: string;
       try {
-        hostname = new URL(primary).hostname;
+        ({ hostname } = new URL(primary));
       } catch {
         return { errorKey: "pluginManageSource.errRssUrlInvalid" };
       }
@@ -631,7 +632,6 @@ async function rebuildInline(): Promise<void> {
   await loadBrief(summary.isoDate);
 }
 
-const sources = computed<Source[]>(() => localSources.value ?? []);
 const highlightSlug = computed(() => highlightSlugLocal.value);
 
 // Filter chip state (#768). Single-select. `all` is the implicit
@@ -662,6 +662,10 @@ function filterChipLabel(key: SourceFilterKey): string {
       return t("pluginManageSource.filter.scheduleWeekly");
     case "schedule:manual":
       return t("pluginManageSource.filter.scheduleManual");
+    default: {
+      const exhaustive: never = key;
+      throw new Error(`unreachable SourceFilterKey: ${String(exhaustive)}`);
+    }
   }
 }
 
@@ -705,6 +709,10 @@ function kindLabel(kind: Source["fetcherKind"]): string {
       return t("pluginManageSource.kindGithubIss");
     case "arxiv":
       return t("pluginManageSource.kindArxiv");
+    default: {
+      const exhaustive: never = kind;
+      throw new Error(`unreachable fetcherKind: ${String(exhaustive)}`);
+    }
   }
 }
 
@@ -718,6 +726,10 @@ function kindBadgeClass(kind: Source["fetcherKind"]): string {
       return "bg-indigo-100 text-indigo-700";
     case "arxiv":
       return "bg-emerald-100 text-emerald-700";
+    default: {
+      const exhaustive: never = kind;
+      throw new Error(`unreachable fetcherKind: ${String(exhaustive)}`);
+    }
   }
 }
 

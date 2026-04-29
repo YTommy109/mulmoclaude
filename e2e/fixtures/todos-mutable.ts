@@ -33,16 +33,16 @@ export interface MutableTodoState {
   columns: StatusColumnFixture[];
 }
 
-type DispatchResult = {
+interface DispatchResult {
   items?: TodoFixture[];
   columns?: StatusColumnFixture[];
   /** Optional extra fields merged into the response body. */
   extra?: Record<string, unknown>;
-};
+}
 
-export type ItemDispatcher = (method: string, path: string, body: Record<string, unknown>, state: MutableTodoState) => DispatchResult | void;
+export type ItemDispatcher = (method: string, path: string, body: Record<string, unknown>, state: MutableTodoState) => DispatchResult | undefined;
 
-export type ColumnDispatcher = (method: string, id: string | null, body: Record<string, unknown>, state: MutableTodoState) => DispatchResult | void;
+export type ColumnDispatcher = (method: string, id: string | null, body: Record<string, unknown>, state: MutableTodoState) => DispatchResult | undefined;
 
 export interface MutableTodoOptions {
   items?: TodoFixture[];

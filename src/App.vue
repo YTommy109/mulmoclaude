@@ -77,6 +77,8 @@
             :roles="roles"
             :error-message="historyError"
             @load-session="handleSessionSelect"
+            @toggle-bookmark="(id, bookmarked) => setBookmark(id, bookmarked)"
+            @delete-session="(id) => deleteSessionFromHistory(id)"
           />
           <SessionHistoryExpandButton :model-value="sidePanelExpanded" @update:model-value="(value: boolean) => (sidePanelExpanded = value)" />
         </div>
@@ -227,8 +229,6 @@
 import { ref, computed, watch, nextTick, onMounted, reactive } from "vue";
 import { useI18n } from "vue-i18n";
 import { v4 as uuidv4 } from "uuid";
-
-const { t } = useI18n();
 import { getPlugin } from "./tools";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import RightSidebar from "./components/RightSidebar.vue";
@@ -249,7 +249,7 @@ import AutomationsView from "./plugins/scheduler/AutomationsView.vue";
 import WikiView from "./plugins/wiki/View.vue";
 import { buildWikiRouteParams } from "./plugins/wiki/route";
 import SkillsView from "./plugins/manageSkills/View.vue";
-import RolesView from "./plugins/manageRoles/View.vue";
+import RolesView from "./components/RolesView.vue";
 import SourcesView from "./components/SourcesView.vue";
 import NewsView from "./components/NewsView.vue";
 import SettingsModal from "./components/SettingsModal.vue";
@@ -257,7 +257,7 @@ import NotificationToast from "./components/NotificationToast.vue";
 import type { NotificationAction } from "./types/notification";
 import { PAGE_ROUTES, type PageRouteName } from "./router";
 import type { SseEvent } from "./types/sse";
-import { type SessionEntry, type ActiveSession } from "./types/session";
+import type { SessionEntry, ActiveSession } from "./types/session";
 import { EVENT_TYPES } from "./types/events";
 import { extractImageData } from "./utils/tools/result";
 import { buildAgentRequestBody, postAgentRun } from "./utils/agent/request";
@@ -296,6 +296,8 @@ import { useRoute, useRouter } from "vue-router";
 import { apiGet } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
+
+const { t } = useI18n();
 
 // --- Per-session state ---
 // Declared early so that pub/sub callbacks and function declarations
@@ -384,11 +386,17 @@ const userInput = ref("");
 const pastedFile = ref<PastedFile | null>(null);
 const activePane = ref<"sidebar" | "main">("sidebar");
 
-const { sessions, historyError, fetchSessions } = useSessionHistory();
+const { sessions, historyError, fetchSessions, setBookmark, deleteSession: deleteSessionFromHistory } = useSessionHistory();
 const { markSessionRead } = useSessionSync({
   sessionMap,
   currentSessionId,
   fetchSessions,
+  // Another tab hard-deleted the chat we're currently viewing. The
+  // sessionMap eviction has already cleared the in-memory state; the
+  // URL still points at the dead id. Mirror the URL→404 fallback on
+  // line ~366 by spinning up a fresh session so the user lands on a
+  // working /chat instead of a blank pane.
+  onCurrentSessionDeleted: () => createNewSession(),
 });
 const { geminiAvailable, sandboxEnabled, cpuLoadRatio, fetchHealth } = useHealth();
 
@@ -476,7 +484,7 @@ function setSidePanelVisibleAndCollapse(value: boolean): void {
 // full-width views.
 const isChatPage = computed(() => route.name === PAGE_ROUTES.chat);
 const currentPage = computed<PageRouteName | null>(() => {
-  const name = route.name;
+  const { name } = route;
   return typeof name === "string" && isPageRouteName(name) ? name : null;
 });
 
@@ -579,9 +587,11 @@ watch(currentSessionId, (sessionId) => {
   // event, leaving the session's busy indicator stuck on.
   if (previousSessionId && previousSessionId !== sessionId) {
     const prevSession = sessionMap.get(previousSessionId);
-    const prevBusy = !!prevSession && (prevSession.isRunning || Object.keys(prevSession.pendingGenerations ?? {}).length > 0);
-    if (prevSession && !prevBusy) {
-      unsubscribeSession(previousSessionId);
+    if (prevSession !== undefined) {
+      const prevBusy = prevSession.isRunning || Object.keys(prevSession.pendingGenerations ?? {}).length > 0;
+      if (!prevBusy) {
+        unsubscribeSession(previousSessionId);
+      }
     }
   }
   previousSessionId = sessionId;
@@ -775,7 +785,8 @@ function buildAgentEventContext(session: ActiveSession): AgentEventContext {
 
 function hasPendingGenerations(sessionId: string): boolean {
   const live = sessionMap.get(sessionId);
-  return !!live && Object.keys(live.pendingGenerations).length > 0;
+  if (live === undefined) return false;
+  return Object.keys(live.pendingGenerations).length > 0;
 }
 
 function handleSessionFinished(sessionId: string): void {

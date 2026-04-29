@@ -85,7 +85,9 @@ interface UploadBeatImageBody {
   imageData: string; // base64 data URI
 }
 
-type ErrorResponse = { error: string };
+interface ErrorResponse {
+  error: string;
+}
 
 type BeatImageResponse = { image: string | null } | ErrorResponse;
 type BeatAudioResponse = { audio: string | null } | ErrorResponse;
@@ -232,6 +234,13 @@ async function loadScriptFromDisk(filePath: string, res: Response): Promise<Scri
   };
 }
 
+// Module-level dedup so a foreground SSE call and a fire-and-forget
+// background call can't race on the same script. Keyed by the realpath
+// (absoluteFilePath) so two different wire spellings of the same file
+// still collide. The set is intentionally process-local — a multi-
+// process deployment would need an external lock; that's out of scope.
+const inFlightMovies = new Set<string>();
+
 function triggerAutoBackgroundMovie(absoluteFilePath: string, wireFilePath: string, chatSessionId: string | undefined): void {
   if (inFlightMovies.has(absoluteFilePath)) return;
   inFlightMovies.add(absoluteFilePath);
@@ -366,7 +375,7 @@ function resolveStoryPath(filePath: string, res: Response): string | null {
   // Strip the optional "stories/" prefix so the remainder is a path
   // relative to storiesReal. Accepts both "stories/foo.json" (the
   // canonical caller convention) and bare "foo.json".
-  const STORIES_PREFIX = "stories" + path.sep;
+  const STORIES_PREFIX = `stories${path.sep}`;
   const relFromStories =
     filePath === "stories" ? "" : filePath.startsWith(STORIES_PREFIX) || filePath.startsWith("stories/") ? filePath.slice("stories/".length) : filePath;
   // resolveWithinRoot enforces both the realpath boundary AND
@@ -608,13 +617,6 @@ router.post(API_ROUTES.mulmoScript.renderBeat, async (req: Request<object, objec
     publishGeneration(chatSessionId, GENERATION_KINDS.beatImage, filePath, key, true, genError);
   }
 });
-
-// Module-level dedup so a foreground SSE call and a fire-and-forget
-// background call can't race on the same script. Keyed by the realpath
-// (absoluteFilePath) so two different wire spellings of the same file
-// still collide. The set is intentionally process-local — a multi-
-// process deployment would need an external lock; that's out of scope.
-const inFlightMovies = new Set<string>();
 
 type MovieGenerationResult = { ok: true; outputPath: string } | { ok: false; error: string };
 

@@ -240,15 +240,13 @@ export function buildCliArgs(params: CliArgsParams): string[] {
 export async function buildUserMessageLine(message: string, attachments?: Attachment[]): Promise<string> {
   const all = attachments ?? [];
   if (all.length === 0) {
-    return (
-      JSON.stringify({
-        type: "user",
-        message: { role: "user", content: message },
-      }) + "\n"
-    );
+    return `${JSON.stringify({
+      type: "user",
+      message: { role: "user", content: message },
+    })}\n`;
   }
 
-  const blocks: Array<Record<string, unknown>> = [];
+  const blocks: Record<string, unknown>[] = [];
   const skippedReasons: string[] = [];
 
   for (const att of all) {
@@ -274,12 +272,10 @@ export async function buildUserMessageLine(message: string, attachments?: Attach
   }
 
   blocks.push({ type: "text", text: message });
-  return (
-    JSON.stringify({
-      type: "user",
-      message: { role: "user", content: blocks },
-    }) + "\n"
-  );
+  return `${JSON.stringify({
+    type: "user",
+    message: { role: "user", content: blocks },
+  })}\n`;
 }
 
 function buildNativeBlock(att: Attachment): Record<string, unknown> {
@@ -391,6 +387,14 @@ export function buildDockerSpawnArgs(params: DockerSpawnArgsParams): string[] {
       : ["--user", `${uid}:${gid}`]),
     "-e",
     "HOME=/home/node",
+    // Wiki-history hook (#763 PR 2) runs inside this container after
+    // every Write/Edit and POSTs back to the parent server. Plain
+    // loopback fails — `127.0.0.1` is the container itself. Same
+    // resolution as MCP_HOST above; on Linux the corresponding
+    // `--add-host host.docker.internal:host-gateway` is appended via
+    // `extraHosts`.
+    "-e",
+    "MULMOCLAUDE_HOST=host.docker.internal",
     "-v",
     `${toDockerPath(projectRoot)}/node_modules:/app/node_modules:ro`,
     "-v",
