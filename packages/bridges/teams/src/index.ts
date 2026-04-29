@@ -20,7 +20,8 @@
 import "dotenv/config";
 import express, { type Request, type Response } from "express";
 import { CloudAdapter, ConfigurationBotFrameworkAuthentication, TurnContext, type Activity } from "botbuilder";
-import { createBridgeClient, chunkText } from "@mulmobridge/client";
+import { createBridgeClient, chunkText, formatAckReply } from "@mulmobridge/client";
+import { extractIncomingMessage } from "./parse.js";
 
 const TRANSPORT_ID = "teams";
 const MAX_TEAMS_TEXT = 28_000; // Teams message limit is 40k; leave headroom for formatting
@@ -96,14 +97,9 @@ async function sendChunked(context: TurnContext, text: string): Promise<void> {
 // ── Incoming handler ────────────────────────────────────────────
 
 async function processMessage(context: TurnContext): Promise<void> {
-  if (context.activity.type !== "message") return;
-
-  const senderId = context.activity.from?.aadObjectId ?? context.activity.from?.id ?? "";
-  const chatId = context.activity.conversation?.id ?? "";
-  const text = (context.activity.text ?? "").trim();
-
-  if (!senderId || !chatId) return;
-  if (!text) return;
+  const incoming = extractIncomingMessage(context.activity);
+  if (!incoming) return;
+  const { senderId, chatId, text } = incoming;
 
   if (!allowAll && !allowedUsers.has(senderId)) {
     console.log(`[teams] denied from=${senderId}`);
@@ -117,12 +113,7 @@ async function processMessage(context: TurnContext): Promise<void> {
 
   try {
     const ack = await mulmo.send(chatId, text);
-    if (ack.ok) {
-      await sendChunked(context, ack.reply ?? "");
-    } else {
-      const status = ack.status ? ` (${ack.status})` : "";
-      await sendChunked(context, `Error${status}: ${ack.error ?? "unknown"}`);
-    }
+    await sendChunked(context, formatAckReply(ack));
   } catch (err) {
     console.error(`[teams] message handling failed: ${err}`);
   }

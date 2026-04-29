@@ -16,7 +16,8 @@
 import "dotenv/config";
 import crypto from "crypto";
 import express, { type Request, type Response } from "express";
-import { createBridgeClient, chunkText } from "@mulmobridge/client";
+import { createBridgeClient, chunkText, formatAckReply } from "@mulmobridge/client";
+import { extractIncomingLineMessage, parseLineWebhookBody } from "./parse.js";
 
 const TRANSPORT_ID = "line";
 const PORT = Number(process.env.LINE_BRIDGE_PORT) || 3002;
@@ -96,37 +97,22 @@ app.post("/webhook", async (req: Request, res: Response) => {
 
   res.status(200).send("OK");
 
-  let body: {
-    events: {
-      type: string;
-      replyToken?: string;
-      source?: { userId?: string; type?: string };
-      message?: { type: string; text?: string };
-    }[];
-  };
-  try {
-    body = JSON.parse(bodyStr);
-  } catch {
+  const body = parseLineWebhookBody(bodyStr);
+  if (!body) {
     console.error("[line] malformed JSON in webhook body");
     return;
   }
 
   for (const event of body.events) {
-    if (event.type !== "message" || event.message?.type !== "text") continue;
-    const userId = event.source?.userId;
-    const text = event.message?.text ?? "";
-    if (!userId || !text.trim()) continue;
+    const incoming = extractIncomingLineMessage(event);
+    if (!incoming) continue;
+    const { userId, text } = incoming;
 
     console.log(`[line] message user=${userId} len=${text.length}`);
 
     try {
       const ack = await client.send(userId, text);
-      if (ack.ok) {
-        await pushMessage(userId, ack.reply ?? "");
-      } else {
-        const status = ack.status ? ` (${ack.status})` : "";
-        await pushMessage(userId, `Error${status}: ${ack.error ?? "unknown"}`);
-      }
+      await pushMessage(userId, formatAckReply(ack));
     } catch (err) {
       console.error(`[line] message handling failed: ${err}`);
     }
