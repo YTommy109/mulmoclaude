@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
-import { readImgSrcInPresentHtml, sendChatMessage, startNewSession, waitForImgInPresentHtml } from "../fixtures/live-chat.ts";
+import { readImgSrcInPresentHtml, sendChatMessage, startNewSession, waitForAssistantResponseComplete, waitForImgInPresentHtml } from "../fixtures/live-chat.ts";
 
 const L01_TIMEOUT_MS = 2 * ONE_MINUTE_MS;
 
@@ -36,5 +36,13 @@ test.describe("media (real LLM)", () => {
     expect(src!).toContain("/api/files/raw");
     expect(src!).toContain("sample.png");
     expect(src!, "raw /artifacts path must not survive the rewrite").not.toMatch(/^\/artifacts\//);
+
+    // Let the assistant finish its full turn before ending the test
+    // so the trace / video captures the final text reply too. The
+    // iframe assertion above can pass before the LLM finishes
+    // streaming the closing message; without this wait the
+    // recording would cut off mid-response and hide any regression
+    // that surfaces only at the end of the turn.
+    await waitForAssistantResponseComplete(page);
   });
 });

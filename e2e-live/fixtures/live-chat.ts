@@ -39,6 +39,22 @@ export async function waitForImgInPresentHtml(page: Page, imgSelector: string, t
 }
 
 /**
+ * Wait for Claude to finish its full turn — the `thinking-indicator`
+ * disappears when the assistant has stopped streaming. Without this
+ * the test would end the moment any earlier assertion passes, and
+ * the trace / video would cut off mid-response, hiding any later
+ * regression that only surfaces after the iframe is rendered (for
+ * example a text reply that fails because of a downstream error).
+ *
+ * If the indicator was never rendered (response was instant) this
+ * still resolves cleanly because Playwright's `toBeHidden` treats
+ * a detached element as hidden.
+ */
+export async function waitForAssistantResponseComplete(page: Page, timeoutMs: number = ONE_MINUTE_MS): Promise<void> {
+  await expect(page.getByTestId("thinking-indicator")).toBeHidden({ timeout: timeoutMs });
+}
+
+/**
  * Read the unresolved `src` attribute of the first matching `<img>`
  * inside the presentHtml iframe. We use Playwright's `frameLocator`
  * + `getAttribute` rather than `page.evaluate` + `contentDocument`
