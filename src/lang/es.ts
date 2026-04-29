@@ -629,6 +629,9 @@ const esMessages = {
     metadataCreated: "Creado",
     metadataUpdated: "Actualizado",
     metadataEditor: "Editor",
+    pageEditHeader: "Edición de wiki",
+    snapshotExpired: "Instantánea expirada — mostrando la página actual",
+    pageDeleted: "Página eliminada",
     history: {
       tabContent: "Contenido",
       tabHistory: "Historial",

@@ -616,6 +616,9 @@ const zhMessages = {
     metadataCreated: "创建",
     metadataUpdated: "更新",
     metadataEditor: "编辑者",
+    pageEditHeader: "Wiki 编辑",
+    snapshotExpired: "快照已过期 — 显示当前页面",
+    pageDeleted: "页面已删除",
     history: {
       tabContent: "正文",
       tabHistory: "历史",

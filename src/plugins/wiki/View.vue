@@ -11,7 +11,7 @@
         >
           <span class="material-icons text-base">arrow_back</span>
         </button>
-        <h2 class="text-lg font-semibold text-gray-800 truncate">{{ title }}</h2>
+        <h2 class="text-lg font-semibold text-gray-800 truncate">{{ displayTitle }}</h2>
       </div>
       <div class="flex items-center gap-2">
         <template v-if="action === 'page' && content">
@@ -147,7 +147,7 @@
            Stays visible across both Content and History tabs (#944
            Q11=C). -->
       <div
-        v-if="action === 'page' && hasPageMeta"
+        v-if="(action === 'page' || action === 'page-edit') && hasPageMeta"
         data-testid="wiki-page-metadata-bar"
         class="shrink-0 border-b border-gray-100 px-6 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500"
       >
@@ -273,6 +273,34 @@
         </div>
       </template>
 
+      <!-- page-edit (#963) — single-pane snapshot render with
+           optional "snapshot expired" banner and a "page deleted"
+           placeholder when neither the snapshot nor the live page
+           survives. -->
+      <div v-else-if="action === 'page-edit'" ref="scrollRef" class="flex-1 overflow-y-auto">
+        <div
+          v-if="pageEditBanner"
+          class="mx-6 mt-4 rounded border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700"
+          data-testid="wiki-page-edit-banner"
+        >
+          {{ pageEditBanner }}
+        </div>
+        <div v-if="pageEditDeleted" class="flex items-center justify-center text-gray-400 text-sm py-12" data-testid="wiki-page-edit-deleted">
+          <div class="text-center space-y-2">
+            <span class="material-icons text-4xl text-gray-300">delete</span>
+            <p>{{ t("pluginWiki.pageDeleted") }}</p>
+          </div>
+        </div>
+        <WikiPageBody
+          v-else-if="content"
+          :body="mdDoc.body"
+          :base-dir="WIKI_BASE_DIR"
+          @task-checkbox-click="onTaskCheckboxClick"
+          @wiki-link-click="navigatePage"
+          @workspace-link-click="(path) => appApi.navigateToWorkspacePath(path)"
+        />
+      </div>
+
       <!-- Non-page action: log / lint_report — single-pane render. -->
       <div v-else ref="scrollRef" class="flex-1 overflow-y-auto">
         <WikiPageBody
@@ -336,6 +364,7 @@ import { WIKI_ACTION, WIKI_ROUTE_SECTION, buildWikiRouteParams, isSafeWikiSlug, 
 import FilterChip from "../../components/FilterChip.vue";
 import HistoryTab from "./history/HistoryTab.vue";
 import WikiPageBody from "./components/WikiPageBody.vue";
+import { loadPageEdit } from "./pageEditLoader";
 
 type WikiTabView = typeof WIKI_ACTION.log | typeof WIKI_ACTION.lintReport;
 
@@ -368,6 +397,14 @@ const content = ref(props.selectedResult?.data?.content ?? "");
 const mdDoc = useMarkdownDoc(content);
 const pageEntries = ref<WikiPageEntry[]>(props.selectedResult?.data?.pageEntries ?? []);
 const pageExists = ref(props.selectedResult?.data?.pageExists ?? true);
+// `page-edit` action state (Stage 3a, #963). Populated when an LLM
+// Write/Edit toolResult is mounted: `pageEditTs` is the snapshot's
+// own timestamp (used in the header subtitle), `pageEditBanner` is
+// shown only when the snapshot was gc'd and we fell back to the
+// live page, and `pageEditDeleted` flips on when neither survives.
+const pageEditTs = ref<string | null>(null);
+const pageEditBanner = ref<string | null>(null);
+const pageEditDeleted = ref(false);
 // View-local tag filter. Null = no filter. Not persisted to URL —
 // kept intentionally ephemeral so it doesn't leak into bookmarks
 // or the per-session stack history.
@@ -469,14 +506,45 @@ watch(
     const data = props.selectedResult?.data;
     if (data) {
       action.value = data.action ?? "index";
-      title.value = data.title ?? "Wiki";
+      title.value = data.title ?? data.slug ?? "Wiki";
       content.value = data.content ?? "";
       pageEntries.value = data.pageEntries ?? [];
       pageExists.value = data.pageExists ?? true;
     }
+    // page-edit (Stage 3a #963): the toolResult only carries
+    // {slug, stamp, pagePath} pointers — fetch the snapshot body
+    // separately. Skip the generic refresh() that targets /api/wiki
+    // (it would overwrite the snapshot content with the live page).
+    if (data?.action === "page-edit" && data.slug && data.stamp) {
+      void loadPageEditData(data.slug, data.stamp);
+      return;
+    }
+    pageEditTs.value = null;
+    pageEditBanner.value = null;
+    pageEditDeleted.value = false;
     void refresh();
   },
 );
+
+async function loadPageEditData(slug: string, stamp: string): Promise<void> {
+  pageEditTs.value = null;
+  pageEditBanner.value = null;
+  pageEditDeleted.value = false;
+  content.value = "";
+
+  const result = await loadPageEdit(slug, stamp);
+  if (result.kind === "snapshot") {
+    pageEditTs.value = result.ts;
+    content.value = result.content;
+    return;
+  }
+  if (result.kind === "current") {
+    pageEditBanner.value = t("pluginWiki.snapshotExpired");
+    content.value = result.content;
+    return;
+  }
+  pageEditDeleted.value = true;
+}
 
 // URL is the single source of truth for wiki navigation. Button
 // handlers push to the router; this watcher drives callApi(). Only
@@ -593,7 +661,7 @@ watch(content, async () => {
 });
 
 /** Base directory for wiki content, adjusted by the current view. */
-const WIKI_BASE_DIR = computed(() => (action.value === "page" ? WIKI_PAGES_DIR : WIKI_DATA_DIR));
+const WIKI_BASE_DIR = computed(() => (action.value === "page" || action.value === "page-edit" ? WIKI_PAGES_DIR : WIKI_DATA_DIR));
 
 // ── Metadata bar (#895 PR B) ──────────────────────────────────
 //
@@ -653,6 +721,17 @@ function formatUpdated(raw: string): string {
     hour12: false,
   }).format(parsed);
 }
+
+// Header subtitle for the page-edit action. "Wiki edit · {slug} ·
+// {timestamp}" so the user immediately sees this is a moment-in-
+// time view, not the live page. `formatUpdated` re-uses the same
+// `YYYY-MM-DD HH:MM` shape as the metadata bar.
+const displayTitle = computed(() => {
+  if (action.value !== "page-edit") return title.value;
+  const stamp = pageEditTs.value;
+  const prefix = `${t("pluginWiki.pageEditHeader")} · ${title.value}`;
+  return stamp ? `${prefix} · ${formatUpdated(stamp)}` : prefix;
+});
 
 const { pdfDownloading, pdfError, downloadPdf: rawDownloadPdf } = usePdfDownload();
 

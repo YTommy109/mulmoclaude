@@ -21,6 +21,14 @@ export interface WikiData {
   pageEntries?: WikiPageEntry[];
   pageName?: string;
   pageExists?: boolean;
+  // ── `page-edit` action (Stage 3a, #963) ──────────────────────
+  // Server emits these when an LLM Write/Edit hits a wiki page.
+  // The View fetches the snapshot body via /api/wiki/pages/<slug>/
+  // history/<stamp> and renders it inline, falling back to
+  // pagePath if the snapshot has been gc'd.
+  slug?: string;
+  stamp?: string;
+  pagePath?: string;
 }
 
 const wikiPlugin: ToolPlugin<WikiData> = {

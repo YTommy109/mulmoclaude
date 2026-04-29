@@ -194,9 +194,9 @@ router.post("/internal/snapshot", async (req: Request<object, unknown, InternalS
     const outcome = await pushToolResult(sessionId, {
       uuid: randomUUID(),
       toolName: "manageWiki",
-      title: slug,
       data: {
         action: "page-edit",
+        title: slug,
         slug,
         stamp,
         pagePath: path.posix.join(WORKSPACE_DIRS.wikiPages, `${slug}.md`),

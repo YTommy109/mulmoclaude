@@ -630,6 +630,9 @@ const deMessages = {
     metadataCreated: "Erstellt",
     metadataUpdated: "Aktualisiert",
     metadataEditor: "Bearbeiter",
+    pageEditHeader: "Wiki-Bearbeitung",
+    snapshotExpired: "Snapshot abgelaufen — aktuelle Seite wird angezeigt",
+    pageDeleted: "Seite gelöscht",
     history: {
       tabContent: "Inhalt",
       tabHistory: "Verlauf",
