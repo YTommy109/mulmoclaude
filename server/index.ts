@@ -39,6 +39,8 @@ import { initWorkspace, workspacePath } from "./workspace/workspace.js";
 import { env, isGeminiAvailable } from "./system/env.js";
 import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import { existsSync, readFileSync } from "fs";
+import { realpath as fsRealpath } from "fs/promises";
+import { resolveWithinRoot } from "./utils/files/safe.js";
 import { cpus, homedir, loadavg } from "os";
 import { isDockerAvailable, ensureSandboxImage } from "./system/docker.js";
 import { maybeRunJournal } from "./workspace/journal/index.js";
@@ -128,17 +130,41 @@ app.use("/api", (req, res, next) => {
 // requireSameOrigin guard above still applies; the listener also
 // stays loopback-only.
 //
-// Extension allowlist + dotfiles deny: `express.static` already
-// rejects `..` traversal via its internal normalize, but we add a
-// belt-and-suspenders extension check so a stray non-image (e.g. a
-// stripped `.json` sibling) isn't served. saveImage currently writes
-// `.png` only; the allowlist keeps room for future formats without
-// re-opening the security review.
+// Three-layer guard:
+//  1. Extension allowlist — reject anything that isn't an image
+//     extension (saveImage currently writes `.png` only; the list
+//     stays slightly wider so future formats don't reopen the review).
+//  2. realpath-based traversal check via `resolveWithinRoot` — same
+//     guard `/api/files/raw` uses. Catches symlinks pointing outside
+//     the images dir, which `express.static` would otherwise follow.
+//  3. `dotfiles: deny` + `fallthrough: false` on `express.static`
+//     itself, plus its built-in `..` normalize for path traversal.
 const IMAGE_EXT_RE = /\.(png|jpe?g|webp|gif|svg)$/i;
+let imagesDirReal: string | null = null;
+async function getImagesDirReal(): Promise<string | null> {
+  if (imagesDirReal) return imagesDirReal;
+  try {
+    imagesDirReal = await fsRealpath(WORKSPACE_PATHS.images);
+    return imagesDirReal;
+  } catch {
+    // Dir not yet materialised (fresh workspace, no image saved).
+    return null;
+  }
+}
 app.use(
   "/artifacts/images",
-  (req, res, next) => {
+  async (req, res, next) => {
     if (!IMAGE_EXT_RE.test(req.path)) {
+      res.status(404).end();
+      return;
+    }
+    const root = await getImagesDirReal();
+    if (!root) {
+      res.status(404).end();
+      return;
+    }
+    const relPath = decodeURIComponent(req.path.replace(/^\//, ""));
+    if (!resolveWithinRoot(root, relPath)) {
       res.status(404).end();
       return;
     }
