@@ -9,7 +9,7 @@ import { type Download, type FrameLocator, type Page, expect } from "@playwright
 
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
 
-const PRESENT_HTML_IFRAME_SELECTOR = "iframe[sandbox]";
+const PRESENT_HTML_IFRAME_SELECTOR = '[data-testid="present-html-iframe"]';
 
 /** Open the app root and start a fresh chat session. */
 export async function startNewSession(page: Page): Promise<void> {
@@ -27,12 +27,8 @@ export async function sendChatMessage(page: Page, text: string): Promise<void> {
  * Wait for an `<img>` matching the selector to appear *inside* the
  * presentHtml iframe. The iframe element itself is appended to the
  * DOM before its srcdoc finishes rendering, so a plain `iframe`
- * `toBeVisible` check returns too early — we have to reach into the
- * frame and wait for the actual rendered child. The presentHtml
- * iframe has no stable testid yet; the unique signal is the
- * `sandbox` attribute on the srcdoc iframe (Files view's HTML
- * preview iframe carries `title="HTML preview"`, but lives outside
- * the chat canvas, so it doesn't collide here).
+ * `toBeVisible` check returns too early — we have to reach into
+ * the frame and wait for the actual rendered child.
  */
 export async function waitForImgInPresentHtml(page: Page, imgSelector: string, timeoutMs: number = ONE_MINUTE_MS): Promise<FrameLocator> {
   const frame = page.frameLocator(PRESENT_HTML_IFRAME_SELECTOR).first();

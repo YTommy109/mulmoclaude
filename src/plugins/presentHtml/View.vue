@@ -19,7 +19,13 @@
     <div v-if="sourceOpen" class="border-b border-gray-100 shrink-0">
       <textarea :value="html" readonly class="w-full text-xs text-gray-600 bg-gray-50 p-3 font-mono resize-none outline-none" rows="16" />
     </div>
-    <iframe ref="iframeRef" :srcdoc="html" sandbox="allow-scripts allow-same-origin allow-modals" class="flex-1 w-full border-0" />
+    <iframe
+      ref="iframeRef"
+      data-testid="present-html-iframe"
+      :srcdoc="html"
+      sandbox="allow-scripts allow-same-origin allow-modals"
+      class="flex-1 w-full border-0"
+    />
   </div>
 </template>
 
