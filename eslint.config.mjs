@@ -181,7 +181,7 @@ export default [
       "no-unneeded-ternary": ["error", { defaultAssignment: false }],
       "no-else-return": ["error", { allowElseIf: false }],
       "@typescript-eslint/no-non-null-assertion": "warn",
-      "@typescript-eslint/no-dynamic-delete": "warn",
+      "@typescript-eslint/no-dynamic-delete": "error",
       "@typescript-eslint/no-empty-function": "off",
       "@typescript-eslint/no-import-type-side-effects": "error",
       "@typescript-eslint/no-useless-empty-export": "error",
@@ -334,26 +334,16 @@ export default [
     },
   },
   {
-    // Server-side override: cyclomatic `complexity` stays at `warn`
-    // here because the API route handlers have several legitimately
+    // API-route override: cyclomatic `complexity` stays at `warn`
+    // here because the route handlers have several legitimately
     // branchy functions (validation + auth + business logic in one
     // place) that would need a coordinated split before they can
-    // graduate. Frontend / shared `src/` code has no such concentration
-    // and is held to `error`; over time `server/` should converge.
-    files: ["server/**/*.{ts,js}"],
+    // graduate. Everything else under `server/` (utils, agent,
+    // workspace, …) is held to `error`; over time `server/api/routes/`
+    // should converge.
+    files: ["server/api/routes/**/*.{ts,js}"],
     rules: {
       complexity: ["warn", { max: 15 }],
-    },
-  },
-  {
-    // `packages/` and `server/` are now clean of dynamic-delete; hold
-    // both to `error` so a future regression fails CI immediately. The
-    // remaining ~30 `src/` violations are concentrated in
-    // `presentMulmoScript/View.vue` and stay at `warn` until that file
-    // lands its own cleanup PR — at which point this override widens.
-    files: ["packages/**/*.{ts,js}", "server/**/*.{ts,js}"],
-    rules: {
-      "@typescript-eslint/no-dynamic-delete": "error",
     },
   },
   {
