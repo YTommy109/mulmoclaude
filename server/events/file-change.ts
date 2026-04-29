@@ -13,7 +13,7 @@
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import type { IPubSub } from "./pub-sub/index.js";
-import { fileChannel, type FileChannelPayload } from "../../src/config/pubsubChannels.js";
+import { fileChannel, toPosixWorkspacePath, type FileChannelPayload } from "../../src/config/pubsubChannels.js";
 import { workspacePath } from "../workspace/workspace.js";
 import { log } from "../system/logger/index.js";
 
@@ -45,8 +45,22 @@ export async function publishFileChange(relativePath: string): Promise<void> {
     });
     mtimeMs = Date.now();
   }
-  const payload: FileChannelPayload = { path: relativePath, mtimeMs };
-  pubsub.publish(fileChannel(relativePath), payload);
+  // Normalise once so `payload.path` and the channel suffix can't drift
+  // on Windows / mixed-separator inputs.
+  const posixPath = toPosixWorkspacePath(relativePath);
+  const payload: FileChannelPayload = { path: posixPath, mtimeMs };
+  // Callers fire-and-forget via `void publishFileChange(...)`, so a
+  // throw here would surface as an unhandled rejection (Node terminates
+  // the process by default). Missing one notification is strictly less
+  // bad than killing the server.
+  try {
+    pubsub.publish(fileChannel(posixPath), payload);
+  } catch (err) {
+    log.warn("file-change", "publish failed; subscribers will miss this event", {
+      pathPreview: posixPath,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 /** Test-only — clear the module singleton so each test starts clean. */

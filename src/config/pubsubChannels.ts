@@ -35,11 +35,18 @@ export function sessionChannel(chatSessionId: string): string {
  * Subscribers: `useFileChange(filePath)` — wired from
  * `presentHtml/View.vue` and `markdown/View.vue`.
  */
-export function fileChannel(workspaceRelativePath: string): string {
+/** Normalise a workspace-relative path to the POSIX form used as both
+ *  the `fileChannel` suffix and the `FileChannelPayload.path`. Exposed
+ *  separately so publishers can share one normalised string between the
+ *  channel name and the payload — keeping them in sync is the contract. */
+export function toPosixWorkspacePath(workspaceRelativePath: string): string {
   // Replace backslashes too — covers both Windows (`\`) and any
   // pre-normalised mixed separators from upstream code.
-  const posix = workspaceRelativePath.split(/[\\/]/g).filter(Boolean).join("/");
-  return `file:${posix}`;
+  return workspaceRelativePath.split(/[\\/]/g).filter(Boolean).join("/");
+}
+
+export function fileChannel(workspaceRelativePath: string): string {
+  return `file:${toPosixWorkspacePath(workspaceRelativePath)}`;
 }
 
 /** Payload published on `fileChannel(...)`. `mtimeMs` is the post-write

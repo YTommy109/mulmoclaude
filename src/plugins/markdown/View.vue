@@ -164,14 +164,22 @@ const watchedPath = computed(() => {
 });
 const { version: fileVersion } = useFileChange(watchedPath);
 
-// Remote write: if the user has no unsaved edits, refetch silently. If
-// they're mid-edit, skip — `apiPut` Apply will still overwrite, and
-// they can press Cancel to discard their text and pull the disk
-// version on the next focus. (A "remote changed" banner is queued for
-// a follow-up — see plans/feat-file-change-pubsub.md.)
+// Declared early so the `fileVersion` watcher below can reach into the
+// `<details>` element to close the editor when a remote write lands.
+const sourceDetails = ref<HTMLDetailsElement>();
+
+// Remote write: refetch so the rendered view tracks disk. If the
+// editor is open we close it first — `fileVersion` only fires once
+// per remote write, so leaving the panel open and skipping the fetch
+// would strand the view on stale content until the next write
+// (#1001 P1). Discarding in-progress edits is rare enough to be
+// acceptable; a "remote changed" banner is queued for a follow-up —
+// see plans/feat-file-change-pubsub.md.
 watch(fileVersion, (current, previous) => {
   if (current === 0 || current === previous) return;
-  if (hasChanges.value) return;
+  if (sourceDetails.value?.open) {
+    sourceDetails.value.open = false;
+  }
   void fetchMarkdownContent();
 });
 
@@ -217,7 +225,6 @@ watch(
   },
 );
 
-const sourceDetails = ref<HTMLDetailsElement>();
 const editing = ref(false);
 const { copied, copy } = useClipboardCopy();
 
