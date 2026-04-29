@@ -24,7 +24,7 @@ const MIN_PDF_BYTES = 1_000;
 test.describe.configure({ mode: "parallel" });
 
 test.describe("media (real LLM)", () => {
-  test("L-01: presentHtml の <img src='/artifacts/...'> がリライトされ、画像も実際に描画される", async ({ page }) => {
+  test("L-01: presentHtml の <img src='/artifacts/images/...'> が静的マウント経由で描画される", async ({ page }) => {
     test.setTimeout(L01_TIMEOUT_MS);
 
     // Spec-unique workspace path so concurrent runs do not stomp
@@ -36,11 +36,14 @@ test.describe("media (real LLM)", () => {
       await startNewSession(page);
 
       // Ask the LLM to call presentHtml with an <img> whose src
-      // points at the workspace path we just populated. Verifies
-      // both the path-traversal rewrite (B-18 regression check)
-      // and the end-to-end serve-from-workspace path (B-18/B-19
-      // root-cause check) — if the rewritten URL doesn't resolve
-      // to a real file, naturalWidth stays 0.
+      // points at the workspace path we just populated. Stage 1
+      // of plans/feat-image-path-routing.md mounts artifacts/images
+      // as Express static, so this URL is served verbatim — there
+      // is no /api/files/raw rewrite anymore. The end-to-end
+      // success criterion is `naturalWidth > 0`: if anything in
+      // the chain (rewriter, mount, path-traversal guard, etc.)
+      // breaks, the image stays 0×0, which is exactly the failure
+      // mode B-18 produced before #969 / #972.
       const message = [
         "以下の HTML を presentHtml ツールでそのまま表示してください。",
         "",
@@ -58,13 +61,13 @@ test.describe("media (real LLM)", () => {
 
       const src = await readImgSrcInPresentHtml(page, 'img[alt="sample"]');
       expect(src, "presentHtml iframe should contain <img alt='sample'>").not.toBeNull();
-      expect(src!).toContain("/api/files/raw");
+      expect(src!).toContain("/artifacts/images/");
       expect(src!).toContain("e2e-live-l01.png");
-      expect(src!, "raw /artifacts path must not survive the rewrite").not.toMatch(/^\/artifacts\//);
+      expect(src!, "static-mount routing means no /api/files/raw rewrite").not.toContain("/api/files/raw");
 
-      // The rewritten URL must resolve to the actual fixture file —
-      // a broken image leaves naturalWidth at 0, which is exactly
-      // the failure mode B-18 produced.
+      // The URL must resolve to the actual fixture file. A broken
+      // image leaves naturalWidth at 0, which is the failure mode
+      // B-18 produced.
       const size = await readImgNaturalSize(page, 'img[alt="sample"]');
       expect(size, "naturalSize should be readable").not.toBeNull();
       expect(size!.width, "image must actually decode (B-18 regression)").toBeGreaterThan(0);
