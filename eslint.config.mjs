@@ -346,13 +346,12 @@ export default [
     },
   },
   {
-    // `packages/` is already clean of dynamic-delete (0 violations on
-    // the survey that drove this rule graduation). Hold it to `error`
-    // so a future regression there fails CI immediately. `src/` still
-    // has ~30 violations (concentrated in presentMulmoScript/View.vue)
-    // and `server/` has 3 — both stay at `warn` until those land in
-    // their own cleanup PRs, then this override can widen.
-    files: ["packages/**/*.{ts,js}"],
+    // `packages/` and `server/` are now clean of dynamic-delete; hold
+    // both to `error` so a future regression fails CI immediately. The
+    // remaining ~30 `src/` violations are concentrated in
+    // `presentMulmoScript/View.vue` and stay at `warn` until that file
+    // lands its own cleanup PR — at which point this override widens.
+    files: ["packages/**/*.{ts,js}", "server/**/*.{ts,js}"],
     rules: {
       "@typescript-eslint/no-dynamic-delete": "error",
     },
