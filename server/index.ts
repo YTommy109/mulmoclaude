@@ -163,7 +163,16 @@ app.use(
       res.status(404).end();
       return;
     }
-    const relPath = decodeURIComponent(req.path.replace(/^\//, ""));
+    let relPath: string;
+    try {
+      // decodeURIComponent throws URIError on malformed escapes
+      // (`%ZZ`, stray `%`). Fail closed so a junk URL returns 404
+      // instead of bubbling a 500 out of the express error chain.
+      relPath = decodeURIComponent(req.path.replace(/^\//, ""));
+    } catch {
+      res.status(404).end();
+      return;
+    }
     if (!resolveWithinRoot(root, relPath)) {
       res.status(404).end();
       return;
