@@ -22,6 +22,34 @@ export function sessionChannel(chatSessionId: string): string {
   return `session.${chatSessionId}`;
 }
 
+/**
+ * Channel for "this workspace file just changed". One per workspace-
+ * relative path. The path is normalised to POSIX separators so a
+ * Windows publisher and a Linux subscriber agree on the channel name
+ * (the workspace is per-machine, but tests, fixtures, and future
+ * remote editing all benefit from a portable contract).
+ *
+ * Publishers: any route that writes to disk and wants the UI to
+ * re-render — currently `presentHtml` (POST + PUT) and the markdown
+ * `updateMarkdown` route.
+ * Subscribers: `useFileChange(filePath)` — wired from
+ * `presentHtml/View.vue` and `markdown/View.vue`.
+ */
+export function fileChannel(workspaceRelativePath: string): string {
+  // Replace backslashes too — covers both Windows (`\`) and any
+  // pre-normalised mixed separators from upstream code.
+  const posix = workspaceRelativePath.split(/[\\/]/g).filter(Boolean).join("/");
+  return `file:${posix}`;
+}
+
+/** Payload published on `fileChannel(...)`. `mtimeMs` is the post-write
+ *  `fs.stat().mtimeMs`; subscribers use it both as a cache-buster and
+ *  as a monotonic clock to drop out-of-order events. */
+export interface FileChannelPayload {
+  path: string; // workspace-relative POSIX, matches the channel suffix
+  mtimeMs: number;
+}
+
 /** Payload published on `PUBSUB_CHANNELS.sessions`.
  *  - Empty `{}` for ordinary "something changed, refetch" hints
  *    (run/finish, mark-read, bookmark toggle).

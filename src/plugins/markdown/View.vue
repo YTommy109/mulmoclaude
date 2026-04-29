@@ -91,6 +91,7 @@ import { API_ROUTES } from "../../config/apiRoutes";
 import { useClipboardCopy } from "../../composables/useClipboardCopy";
 import { buildPdfFilename } from "../../utils/files/filename";
 import { useAppApi } from "../../composables/useAppApi";
+import { useFileChange } from "../../composables/useFileChange";
 
 const { t } = useI18n();
 
@@ -152,6 +153,27 @@ async function fetchMarkdownContent(): Promise<void> {
 fetchMarkdownContent();
 
 const hasChanges = computed(() => editableMarkdown.value !== markdownContent.value);
+
+// Subscribe to per-file change events so any tab / browser / agent run
+// that overwrites the file refreshes this view automatically. The path
+// passed in is the workspace-relative `data.markdown` (only valid when
+// `isFilePath` — inline legacy content has no on-disk twin).
+const watchedPath = computed(() => {
+  const raw = props.selectedResult.data?.markdown;
+  return typeof raw === "string" && isFilePath(raw) ? raw : null;
+});
+const { version: fileVersion } = useFileChange(watchedPath);
+
+// Remote write: if the user has no unsaved edits, refetch silently. If
+// they're mid-edit, skip — `apiPut` Apply will still overwrite, and
+// they can press Cancel to discard their text and pull the disk
+// version on the next focus. (A "remote changed" banner is queued for
+// a follow-up — see plans/feat-file-change-pubsub.md.)
+watch(fileVersion, (current, previous) => {
+  if (current === 0 || current === previous) return;
+  if (hasChanges.value) return;
+  void fetchMarkdownContent();
+});
 
 // Frontmatter-aware view of the loaded content — separates the
 // `---\n...\n---` header (rendered as a properties panel) from the
