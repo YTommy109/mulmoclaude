@@ -728,7 +728,7 @@ artifact name: `mulmoclaude-tarball`（10 MB 程度、`.tgz`）。
 - **#967** `//{skill}` bridge shortcut → bridge カテゴリ（後続 PR）でカバー
 - **#953** session history の bookmark + hard-delete → L-17 / B-50 系の検証時に hard-delete API パス（`DELETE /api/sessions/:id`）が安定供給されている前提が立てやすくなる
 
-### 要対応（このPRには未反映、 後続 PR で見直し）
+### 要対応（PR #971 には未反映、 後続 PR で見直し）
 
 - **#974 onerror self-repair (Stage 3)**: `<img>` が 404 した時にブラウザ側で `src` を `/artifacts/images/<rest>` に書き換えて自動 retry する。 これは **L-01 の `naturalWidth > 0` チェックが甘くなる** リスク:
   - LLM が古い絶対パス convention に戻っても、 self-repair で表示は救われる
