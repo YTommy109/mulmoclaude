@@ -716,6 +716,32 @@ artifact name: `mulmoclaude-tarball`（10 MB 程度、`.tgz`）。
   - Files view `?path=` クリーンアップ (B-30)
 - 関連 PR: #961（B-18 path-traversal 副作用 hotfix、進行中）
 
+## 直近 main の動向 (#950〜#1000) と本テスト計画への反映
+
+このセクションは feat/e2e-live が main にマージされる前に着いた最新の動向を、 e2e-live のテスト戦略にどう反映すべきかをまとめる。
+
+### 反映済（このPR で取り込み済）
+
+- **#969 / #972** image-path-routing stage 1+2: `/artifacts/images/...` static-mount + 絶対パス LLM convention 廃止 → L-01 assertion を新仕様に合わせて更新済
+- **#982** presentHtml: filePath only / `/artifacts/html` mount → L-01 prompt を **相対パス** convention (`<img src="../../../images/...">`) に更新済、 `srcdoc` 経路廃止に追従
+- **#980 / #981** HTML preview の relative-path / sibling 画像対応 → 既に L-01 の relative-path 検証が同経路をカバー
+- **#967** `//{skill}` bridge shortcut → bridge カテゴリ（後続 PR）でカバー
+- **#953** session history の bookmark + hard-delete → L-17 / B-50 系の検証時に hard-delete API パス（`DELETE /api/sessions/:id`）が安定供給されている前提が立てやすくなる
+
+### 要対応（このPRには未反映、 後続 PR で見直し）
+
+- **#974 onerror self-repair (Stage 3)**: `<img>` が 404 した時にブラウザ側で `src` を `/artifacts/images/<rest>` に書き換えて自動 retry する。 これは **L-01 の `naturalWidth > 0` チェックが甘くなる** リスク:
+  - LLM が古い絶対パス convention に戻っても、 self-repair で表示は救われる
+  - assert がパスしてしまい、 「LLM が convention を守っているか」 を検出できない
+  - 緩和策: console error 監視 / `page.on("requestfailed")` で初回 fetch の 404 をフェイルさせる / `<img>` の `src` 変更を検出する MutationObserver
+  - 重要度: **中**（B-18 系の本質的な regression は naturalWidth で拾えるが、 LLM 退行の検知力は落ちる）
+- **#983 presentDocument / generateImage の path 入り message**: tool result の message 文字列に `Saved … to <path>` が乗るようになり LLM が path を正しく扱える。 → **L-05 (generateImage)** の prompt から `<path>` キャプチャが楽になる（spec 実装時に活用）
+- **#991 (open) Safari preview iframe CSP**: `sandbox="allow-scripts"` の opaque origin 上で CSP `'self'` が Safari で null origin と判定されて `<img>` が reject される。 Chromium のみで spec を回している現状では **検出不可能**。 反映方針:
+  - e2e-live の `playwright.config.ts` に **webkit project** を追加して L-01 を Safari でも回す
+  - 既存 e2e の `ime-enter.spec.ts` と同じく `testMatch` で対象 spec を絞る or 全 spec で webkit を回す（コスト次第）
+  - 重要度: **高**（Safari ユーザー向けに最重要シナリオが壊れる class のバグ）
+  - 別 PR で実装（spec の手は入れず config の追加のみ）
+
 ## 未確定事項 / TODO
 
 - [ ] 各シナリオの「期待される LLM 応答」のばらつきをどう吸収するか
@@ -725,6 +751,9 @@ artifact name: `mulmoclaude-tarball`（10 MB 程度、`.tgz`）。
 - [ ] 実行時間実測 → 30 シナリオ × 2 モードで何分か
 - [ ] CI 化のタイミング（手動運用が安定したら GitHub Actions 検討）
 - [ ] L-22 で使う skill の選定（dry-run 可能なものに絞る）
+- [ ] **#974 self-repair で L-01 の `naturalWidth > 0` が甘くなる件の緩和策決定**（console error 監視 / requestfailed リスナ / src MutationObserver のいずれか）
+- [ ] **Safari (webkit) project の追加**（PR #991 のような Chromium 通過 / Safari 失敗 class のバグを catch するため）
+- [ ] **L-05 (generateImage)** 実装時に #983 の path-in-message を活用（path のキャプチャが容易になる）
 
 ---
 
