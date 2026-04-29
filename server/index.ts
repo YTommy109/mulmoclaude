@@ -211,13 +211,20 @@ app.use(
 // guard against cross-origin abuse.
 //
 // CSP delivered via HTTP header instead of injecting a `<meta>` tag —
-// keeps the served file pristine, and `'self'` finally matches the
-// server origin (which is what allows `<img src="../images/...">` to
-// reach `/artifacts/images/...`). Header is set for HTML responses
-// only; image responses don't need it (CSP doesn't apply to image
-// MIME types loaded as subresources). Sandbox stays `allow-scripts`
-// only, so the iframe document is still opaque-origin and cannot
-// read the parent's cookies / localStorage / DOM.
+// keeps the served file pristine. The explicit request origin is
+// passed into `buildHtmlPreviewCsp` instead of relying on `'self'`:
+// the iframe is `sandbox="allow-scripts"` only, so its document has an
+// opaque origin and Safari/WebKit interprets `'self'` against that
+// (null) origin, blocking every same-origin `<img src="../images/...">`
+// reference. Substituting the absolute origin restores cross-browser
+// parity. Sandbox stays `allow-scripts` only, so the iframe document
+// still cannot read the parent's cookies / localStorage / DOM.
+//
+// `HTML_PREVIEW_EXT_RE` widens the allowlist to images so inline
+// `<img src="...png">` references resolve through this same mount
+// (no separate /artifacts/images round-trip). The CSP header is
+// only set for HTML responses (`HTML_DOCUMENT_EXT_RE`); CSP doesn't
+// apply to image subresources.
 const HTML_PREVIEW_EXT_RE = /\.(html?|png|jpe?g|webp|gif|svg|ico)$/i;
 const HTML_DOCUMENT_EXT_RE = /\.html?$/i;
 let htmlsDirReal: string | null = null;
@@ -254,7 +261,19 @@ app.use(
       return;
     }
     if (HTML_DOCUMENT_EXT_RE.test(req.path)) {
-      res.setHeader("Content-Security-Policy", buildHtmlPreviewCsp());
+      // Honour `X-Forwarded-*` so dev (Vite proxies `/artifacts/html`
+      // → `localhost:3001` with `changeOrigin: true`) emits the
+      // browser-visible origin (`localhost:5173`) rather than the
+      // upstream socket. In prod (no proxy) the headers are absent
+      // and we fall back to the raw `Host` / `req.protocol`. CSP
+      // header only on HTML responses — image subresources don't
+      // need it.
+      const fwdHost = req.get("x-forwarded-host");
+      const fwdProto = req.get("x-forwarded-proto");
+      const host = fwdHost ?? req.get("host");
+      const proto = fwdProto ?? req.protocol;
+      const origin = `${proto}://${host}`;
+      res.setHeader("Content-Security-Policy", buildHtmlPreviewCsp(origin));
     }
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
