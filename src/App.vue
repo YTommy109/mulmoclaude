@@ -77,6 +77,8 @@
             :roles="roles"
             :error-message="historyError"
             @load-session="handleSessionSelect"
+            @toggle-bookmark="(id, bookmarked) => setBookmark(id, bookmarked)"
+            @delete-session="(id) => deleteSessionFromHistory(id)"
           />
           <SessionHistoryExpandButton :model-value="sidePanelExpanded" @update:model-value="(value: boolean) => (sidePanelExpanded = value)" />
         </div>
@@ -227,8 +229,6 @@
 import { ref, computed, watch, nextTick, onMounted, reactive } from "vue";
 import { useI18n } from "vue-i18n";
 import { v4 as uuidv4 } from "uuid";
-
-const { t } = useI18n();
 import { getPlugin } from "./tools";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import RightSidebar from "./components/RightSidebar.vue";
@@ -276,6 +276,7 @@ import { useViewLayout } from "./composables/useViewLayout";
 import { useSessionSync } from "./composables/useSessionSync";
 import { useSessionDerived } from "./composables/useSessionDerived";
 import { useFaviconState } from "./composables/useFaviconState";
+import { useGlobalImageErrorRepair } from "./composables/useImageErrorRepair";
 import { useMergedSessions } from "./composables/useMergedSessions";
 import { useLayoutMode } from "./composables/useLayoutMode";
 import { useSidePanelVisible } from "./composables/useSidePanelVisible";
@@ -296,6 +297,8 @@ import { useRoute, useRouter } from "vue-router";
 import { apiGet } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
+
+const { t } = useI18n();
 
 // --- Per-session state ---
 // Declared early so that pub/sub callbacks and function declarations
@@ -384,11 +387,17 @@ const userInput = ref("");
 const pastedFile = ref<PastedFile | null>(null);
 const activePane = ref<"sidebar" | "main">("sidebar");
 
-const { sessions, historyError, fetchSessions } = useSessionHistory();
+const { sessions, historyError, fetchSessions, setBookmark, deleteSession: deleteSessionFromHistory } = useSessionHistory();
 const { markSessionRead } = useSessionSync({
   sessionMap,
   currentSessionId,
   fetchSessions,
+  // Another tab hard-deleted the chat we're currently viewing. The
+  // sessionMap eviction has already cleared the in-memory state; the
+  // URL still points at the dead id. Mirror the URL→404 fallback on
+  // line ~366 by spinning up a fresh session so the user lands on a
+  // working /chat instead of a blank pane.
+  onCurrentSessionDeleted: () => createNewSession(),
 });
 const { geminiAvailable, sandboxEnabled, cpuLoadRatio, fetchHealth } = useHealth();
 
@@ -446,6 +455,7 @@ const { mergedSessions, tabSessions } = useMergedSessions({
 // very same tick as `isRunning` flips, without waiting for the next
 // /api/sessions refetch.
 useFaviconState({ isRunning, sessions: mergedSessions, sessionsUnreadCount: unreadCount, cpuLoadRatio });
+useGlobalImageErrorRepair();
 
 const sessionSidebarRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
@@ -476,7 +486,7 @@ function setSidePanelVisibleAndCollapse(value: boolean): void {
 // full-width views.
 const isChatPage = computed(() => route.name === PAGE_ROUTES.chat);
 const currentPage = computed<PageRouteName | null>(() => {
-  const name = route.name;
+  const { name } = route;
   return typeof name === "string" && isPageRouteName(name) ? name : null;
 });
 
@@ -649,7 +659,7 @@ function createNewSession(roleId?: string): ActiveSession {
   navigateToSession(session.id, replace);
   chatInputRef.value?.collapseSuggestions();
   nextTick(() => focusChatInput());
-  return sessionMap.get(session.id)!;
+  return session;
 }
 
 function onRoleChange(roleId: string) {

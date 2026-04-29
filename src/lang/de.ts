@@ -38,6 +38,7 @@ const deMessages = {
     filters: {
       all: "Alle",
       unread: "Ungelesen",
+      bookmarked: "Gemerkt",
       human: "Mensch",
       scheduler: "Scheduler",
       skill: "Skill",
@@ -50,6 +51,11 @@ const deMessages = {
     running: "Läuft",
     noMessages: "(keine Nachrichten)",
     openRowAria: "Sitzung öffnen: {preview}",
+    rowMenuAria: "Sitzungsaktionen",
+    bookmark: "Merken",
+    unbookmark: "Lesezeichen entfernen",
+    delete: "Löschen",
+    deleteConfirm: "Diese Sitzung löschen?\n\n{preview}\n\nDies kann nicht rückgängig gemacht werden.",
   },
   notificationBell: {
     notifications: "Benachrichtigungen",
@@ -675,6 +681,8 @@ const deMessages = {
     untitled: "HTML-Seite",
     hideSource: "Quelltext ausblenden <>",
     showSource: "Quelltext anzeigen <>",
+    loadingSource: "Quelltext wird geladen…",
+    sourceError: "Quelltext konnte nicht geladen werden: {error}",
   },
   pluginNews: {
     title: "Nachrichten",

@@ -45,6 +45,7 @@ const jaMessages = {
     filters: {
       all: "すべて",
       unread: "未読",
+      bookmarked: "ブックマーク",
       human: "手動",
       scheduler: "スケジューラ",
       skill: "スキル",
@@ -57,6 +58,11 @@ const jaMessages = {
     running: "実行中",
     noMessages: "（メッセージなし）",
     openRowAria: "セッションを開く: {preview}",
+    rowMenuAria: "セッションの操作",
+    bookmark: "ブックマーク",
+    unbookmark: "ブックマーク解除",
+    delete: "削除",
+    deleteConfirm: "このセッションを削除しますか？\n\n{preview}\n\nこの操作は取り消せません。",
   },
   notificationBell: {
     notifications: "通知",
@@ -665,6 +671,8 @@ const jaMessages = {
     untitled: "HTML ページ",
     hideSource: "ソースを隠す <>",
     showSource: "ソースを表示 <>",
+    loadingSource: "ソースを読み込み中…",
+    sourceError: "ソースの読み込みに失敗しました: {error}",
   },
   pluginNews: {
     title: "ニュース",

@@ -12,6 +12,7 @@ import { mockAllApis } from "../fixtures/api";
 import { SESSION_A, SESSION_B } from "../fixtures/sessions";
 
 import { ONE_SECOND_MS } from "../../server/utils/time.ts";
+
 function urlEndsWith(suffix: string): (url: URL) => boolean {
   return (url) => url.pathname === suffix;
 }
@@ -224,7 +225,7 @@ test.describe("sending a chat message", () => {
       (route) => {
         if (route.request().method() !== "GET") return route.fallback();
         const sessionId = route.request().url().split("/api/sessions/").pop() ?? "";
-        capturedSessionId = sessionId.split("?")[0]; // strip query
+        [capturedSessionId] = sessionId.split("?"); // strip query
         return route.fulfill({
           json: [
             {

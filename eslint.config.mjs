@@ -213,6 +213,33 @@ export default [
       "no-lonely-if": "error",
       "no-floating-decimal": "error",
       "no-unused-private-class-members": "error",
+      // `require-await` (and the type-checked variant) misfires on
+      // Playwright route handlers, Express middleware, and any
+      // framework-imposed async contract that returns a Promise
+      // without `await`-ing inside. Off — signal-to-noise too low
+      // without type information.
+      "require-await": "off",
+      "no-loop-func": "error",
+      "no-new": "error",
+      "no-undef-init": "error",
+      "no-useless-return": "error",
+      "prefer-regex-literals": "error",
+      "prefer-exponentiation-operator": "error",
+      "@typescript-eslint/consistent-type-assertions": "error",
+      "@typescript-eslint/no-require-imports": "error",
+      "@typescript-eslint/prefer-enum-initializers": "error",
+      "import/first": "error",
+      "import/newline-after-import": "error",
+      "import/no-anonymous-default-export": "error",
+      "import/no-mutable-exports": "error",
+      "import/no-self-import": "error",
+      "import/no-useless-path-segments": "error",
+      "consistent-return": "error",
+      "class-methods-use-this": "error",
+      "prefer-destructuring": "error",
+      complexity: ["error", { max: 15 }],
+      "max-depth": ["error", { max: 4 }],
+      "max-params": ["error", { max: 6 }],
       quotes: "off",
       "no-shadow": "error",
       "no-param-reassign": "error",
@@ -307,6 +334,29 @@ export default [
     },
   },
   {
+    // Server-side override: cyclomatic `complexity` stays at `warn`
+    // here because the API route handlers have several legitimately
+    // branchy functions (validation + auth + business logic in one
+    // place) that would need a coordinated split before they can
+    // graduate. Frontend / shared `src/` code has no such concentration
+    // and is held to `error`; over time `server/` should converge.
+    files: ["server/**/*.{ts,js}"],
+    rules: {
+      complexity: ["warn", { max: 15 }],
+    },
+  },
+  {
+    // `packages/` and `server/` are now clean of dynamic-delete; hold
+    // both to `error` so a future regression fails CI immediately. The
+    // remaining ~30 `src/` violations are concentrated in
+    // `presentMulmoScript/View.vue` and stay at `warn` until that file
+    // lands its own cleanup PR — at which point this override widens.
+    files: ["packages/**/*.{ts,js}", "server/**/*.{ts,js}"],
+    rules: {
+      "@typescript-eslint/no-dynamic-delete": "error",
+    },
+  },
+  {
     // Vue SFC override — must come AFTER the main rules block so
     // our per-rule overrides actually take effect (flat config's
     // last-match-wins semantics). `vue-eslint-parser` is needed so
@@ -333,10 +383,15 @@ export default [
       // (`src/plugins/<name>/View.vue`). The Vue-recommended rule
       // against single-word names fights that on purpose.
       "vue/multi-word-component-names": "off",
-      // `wiki/View.vue` uses `v-html` intentionally to render
-      // sanitised markdown. Warn so the justified usage doesn't
-      // block CI — audit per-use at review time.
-      "vue/no-v-html": "warn",
+      // Legitimate v-html usages (sanitised markdown / app-owned
+      // HTML) carry per-line eslint-disable comments with a
+      // rationale. Promote to error so any new unjustified usage
+      // fails CI.
+      "vue/no-v-html": "error",
+      "vue/no-useless-mustaches": "error",
+      "vue/no-useless-v-bind": "error",
+      "vue/prefer-true-attribute-shorthand": "error",
+      "vue/no-empty-component-block": "error",
     },
   },
   eslintConfigPrettier,

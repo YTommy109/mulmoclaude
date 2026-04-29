@@ -189,7 +189,7 @@ describe("GET /api/sessions — full fetch (no ?since=)", () => {
     await getHandler({ query: {} } as unknown as Request, res);
 
     assert.equal(state.status, 200);
-    const body = state.body;
+    const { body } = state;
     assert.ok(body);
     assert.equal(body.sessions.length, 2);
     assert.deepEqual(body.deletedIds, [], "deletedIds is always [] today");
@@ -281,7 +281,7 @@ describe("GET /api/sessions?since=<cursor> — incremental fetch", () => {
     const first = mockRes();
     await getHandler({ query: {} } as unknown as Request, first.res);
     assert.ok(first.state.body);
-    const cursor = first.state.body.cursor;
+    const { cursor } = first.state.body;
 
     const second = mockRes();
     await getHandler({ query: { since: cursor } } as unknown as Request, second.res);

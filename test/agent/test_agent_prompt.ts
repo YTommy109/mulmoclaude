@@ -218,6 +218,24 @@ describe("buildSystemPrompt", () => {
     assert.ok(result.includes(`Workspace directory: ${workspace}`));
   });
 
+  it("contains the image-reference convention (stage 2 of plans/feat-image-path-routing)", () => {
+    const role = makeRole();
+    const result = buildSystemPrompt({
+      role,
+      workspacePath: workspace,
+      useDocker: false,
+    });
+    assert.ok(result.includes("Image references in markdown / HTML"));
+    // Each rule in the section must appear so a future refactor that
+    // accidentally drops a bullet trips this test.
+    assert.match(result, /always use a \*\*relative path\*\*/i);
+    // Absolute `/artifacts/images/...` is explicitly forbidden because
+    // it breaks `file://` direct-disk rendering (Goal #2 of the plan).
+    assert.match(result, /never use an \*\*absolute path\*\*/i);
+    assert.match(result, /never use a workspace-rooted, no-leading-slash form/i);
+    assert.match(result, /never write `\/api\/files\/raw\?path=\.\.\.` urls/i);
+  });
+
   it("contains today's date", () => {
     const role = makeRole();
     const result = buildSystemPrompt({
@@ -435,7 +453,7 @@ describe("buildInlinedHelpFiles", () => {
     writeHelp("big.md", `# Big Help\n\nFirst real content paragraph explaining the feature.${bigBody}`);
     const result = buildInlinedHelpFiles("See config/helps/big.md", workspace);
     assert.equal(result.length, 1);
-    const section = result[0];
+    const [section] = result;
     assert.ok(section.includes("### config/helps/big.md"));
     assert.ok(section.includes("Big Help"));
     assert.ok(section.includes("First real content paragraph"));

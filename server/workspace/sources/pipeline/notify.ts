@@ -36,7 +36,7 @@ function formatSingleBody(item: SourceItem): string {
 
 function publishBatchNotification(scored: readonly ScoredItem[]): void {
   if (scored.length === 1) {
-    const { item } = scored[0];
+    const [{ item }] = scored;
     publishNotification({
       kind: NOTIFICATION_KINDS.push,
       title: item.title,

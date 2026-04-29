@@ -142,9 +142,7 @@ async function pollLoop(): Promise<void> {
     } catch (err) {
       console.error(`[zulip] poll error: ${err}`);
       try {
-        const reg = await registerQueue();
-        queue_id = reg.queue_id;
-        last_event_id = reg.last_event_id;
+        ({ queue_id, last_event_id } = await registerQueue());
       } catch (regErr) {
         console.error(`[zulip] re-register failed: ${regErr}`);
         await new Promise((resolveDelay) => setTimeout(resolveDelay, 5000));

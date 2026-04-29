@@ -5,10 +5,17 @@ import { readTextSafe, resolveWithinRoot } from "../../utils/files/safe.js";
 import path from "path";
 import { workspacePath } from "../../workspace/workspace.js";
 import { WORKSPACE_PATHS } from "../../workspace/paths.js";
-import { readSessionMeta as readSessionMetaIO, readSessionJsonl, sessionJsonlAbsPath, sessionMetaAbsPath } from "../../utils/files/session-io.js";
-import { readManifest } from "../../workspace/chat-index/indexer.js";
+import {
+  readSessionMeta as readSessionMetaIO,
+  readSessionJsonl,
+  sessionJsonlAbsPath,
+  sessionMetaAbsPath,
+  updateIsBookmarked,
+  deleteSessionFiles,
+} from "../../utils/files/session-io.js";
+import { readManifest, removeSessionFromIndex } from "../../workspace/chat-index/indexer.js";
 import type { ChatIndexEntry } from "../../workspace/chat-index/types.js";
-import { markRead, getSession } from "../../events/session-store/index.js";
+import { markRead, getSession, evictSession, publishSessionsChanged } from "../../events/session-store/index.js";
 import { notFound } from "../../utils/httpError.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
@@ -24,6 +31,7 @@ interface SessionMeta {
   startedAt: string;
   firstUserMessage?: string;
   hasUnread?: boolean;
+  isBookmarked?: boolean;
   origin?: SessionOrigin;
 }
 
@@ -65,6 +73,9 @@ export interface SessionSummary {
   keywords?: string[];
   // Where this session originated (#486). Missing = "human".
   origin?: SessionOrigin;
+  // User-toggled bookmark — surfaced in the history panel as a
+  // dedicated filter chip and a green role-icon tint.
+  isBookmarked?: boolean;
   // Live state from the in-memory session store. Absent when the
   // session has no active entry in the store (i.e. idle / historical).
   isRunning?: boolean;
@@ -144,6 +155,7 @@ export async function loadAllSessions(): Promise<{ summary: SessionSummary; chan
           hasUnread: live?.hasUnread ?? meta.hasUnread ?? false,
         };
         if (meta.origin) summary.origin = meta.origin;
+        if (meta.isBookmarked) summary.isBookmarked = true;
         if (indexEntry?.summary !== undefined) summary.summary = indexEntry.summary;
         if (indexEntry?.keywords !== undefined) summary.keywords = indexEntry.keywords;
         if (live) {
@@ -299,6 +311,69 @@ router.post(API_ROUTES.sessions.markRead, async (req: Request<SessionIdParams>, 
   await markRead(req.params.id);
   log.info("sessions", "mark-read: ok", { sessionId: req.params.id });
   res.json({ ok: true });
+});
+
+// Toggle the user-set bookmark flag on a session's meta sidecar.
+router.post(
+  API_ROUTES.sessions.bookmark,
+  async (
+    req: Request<SessionIdParams, { ok: boolean } | SessionErrorResponse, { bookmarked: boolean }>,
+    res: Response<{ ok: boolean } | SessionErrorResponse>,
+  ) => {
+    const { id: sessionId } = req.params;
+    const bookmarked = Boolean(req.body?.bookmarked);
+    log.info("sessions", "bookmark: start", { sessionId, bookmarked });
+    try {
+      await updateIsBookmarked(sessionId, bookmarked);
+      // Meta-mtime bumps on the write — cursor diff will pick up the
+      // change on the next refetch — but every other tab also needs
+      // to know to refetch right now.
+      publishSessionsChanged();
+      log.info("sessions", "bookmark: ok", { sessionId, bookmarked });
+      res.json({ ok: true });
+    } catch (err) {
+      log.error("sessions", "bookmark: threw", { sessionId, error: errorMessage(err) });
+      res.status(500).json({ error: "Failed to update bookmark" });
+    }
+  },
+);
+
+// Hard-delete a session: remove the jsonl, meta sidecar, AND the
+// chat-index per-session file + manifest entry, then evict the
+// in-memory store entry and broadcast `deletedIds` so every tab
+// prunes its caches.
+//
+// Order matters:
+//   1. Refuse if the session is currently running. The agent route
+//      (server/api/routes/agent.ts) writes via `appendSessionLine` /
+//      `endRun`; deleting the files out from under a live run would
+//      either resurrect them or corrupt mid-stream state. Caller
+//      should cancel first, then retry the delete.
+//   2. Delete the on-disk artifacts (jsonl + meta + index entry +
+//      manifest prune). If any of these throw we abort BEFORE
+//      evicting / broadcasting, so clients don't see "session gone"
+//      while the file lingers.
+//   3. Only after disk is clean do we evict from the store and fire
+//      `notifySessionsChanged({ deletedIds })`. Now the broadcast is
+//      a truthful statement.
+router.delete(API_ROUTES.sessions.detail, async (req: Request<SessionIdParams>, res: Response<{ ok: boolean } | SessionErrorResponse>) => {
+  const { id: sessionId } = req.params;
+  log.info("sessions", "delete: start", { sessionId });
+  if (getSession(sessionId)?.isRunning) {
+    log.warn("sessions", "delete: refused — session running", { sessionId });
+    res.status(409).json({ error: "Session is running. Cancel the run before deleting." });
+    return;
+  }
+  try {
+    await deleteSessionFiles(sessionId);
+    await removeSessionFromIndex(workspacePath, sessionId);
+    evictSession(sessionId);
+    log.info("sessions", "delete: ok", { sessionId });
+    res.json({ ok: true });
+  } catch (err) {
+    log.error("sessions", "delete: threw", { sessionId, error: errorMessage(err) });
+    res.status(500).json({ error: "Failed to delete session" });
+  }
 });
 
 export default router;

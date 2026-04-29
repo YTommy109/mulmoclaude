@@ -1,4 +1,5 @@
 <template>
+  <!-- eslint-disable-next-line vue/no-v-html -- marked.parse output of app-owned wiki page body; trusted in-process render -->
   <div ref="rootRef" class="px-6 py-4 prose prose-sm max-w-none wiki-content" @click="onClick" v-html="renderedHtml" />
 </template>
 

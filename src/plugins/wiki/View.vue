@@ -101,7 +101,7 @@
         />
         <FilterChip
           v-if="selectedTag !== null && !allTags.some(([tag]) => tag === selectedTag)"
-          :active="true"
+          active
           :label="selectedTag"
           :count="tagCounts.get(selectedTag) ?? 1"
           :data-testid="`wiki-tag-filter-${selectedTag}`"
@@ -612,7 +612,7 @@ const allTags = computed<[string, number][]>(() => {
     .filter(([, count]) => count > 1)
     .sort(([tagA, countA], [tagB, countB]) => countB - countA || tagA.localeCompare(tagB));
   if (meaningful.length <= TARGET_FILTER_CHIPS) return meaningful;
-  const cutoff = meaningful[TARGET_FILTER_CHIPS - 1][1];
+  const [, cutoff] = meaningful[TARGET_FILTER_CHIPS - 1];
   return meaningful.filter(([, count]) => count >= cutoff);
 });
 
@@ -903,7 +903,7 @@ async function persistWikiPage(pageName: string, newContent: string, generation:
 // frontmatter shape — the body length is always exact.
 function splitFrontmatter(): { prefix: string; body: string } {
   const parsed = parseFrontmatter(content.value);
-  const body = parsed.body;
+  const { body } = parsed;
   const prefix = content.value.slice(0, content.value.length - body.length);
   return { prefix, body };
 }

@@ -55,8 +55,8 @@ function parseScheduleValue(raw: string): SkillSchedule["parsed"] {
   // interval Ns / Nm / Nh — must be >= MIN_INTERVAL_MS
   const intervalMatch = trimmed.match(/^interval\s+(\d+)([smh])$/);
   if (intervalMatch) {
-    const value = Number(intervalMatch[1]);
-    const unit = intervalMatch[2];
+    const [, valueRaw, unit] = intervalMatch;
+    const value = Number(valueRaw);
     const unitMs = TIME_UNIT_MS[unit];
     if (!unitMs) return null;
     const intervalMs = value * unitMs;

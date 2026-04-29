@@ -5,6 +5,7 @@ import { disambiguateSlug } from "../../server/utils/slug";
 import { WORKSPACE_FILES } from "../../src/config/workspacePaths";
 
 import { ONE_SECOND_MS } from "../../server/utils/time.ts";
+
 const TODOS_URL = `/files/${WORKSPACE_FILES.todosItems}`;
 
 async function setupTodoMocks(page: Page): Promise<void> {
@@ -32,6 +33,7 @@ async function setupTodoMocks(page: Page): Promise<void> {
           columns: state.columns.map((col) => (col.id === columnId ? { ...col, label: "Renamed" } : col)),
         };
       }
+      return undefined;
     },
   });
 }

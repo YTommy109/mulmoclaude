@@ -234,8 +234,9 @@ async function resolvePagePath(pageName: string): Promise<string | null> {
   const indexContent = readFileOrEmpty(indexFile());
   const entries = parseIndexEntries(indexContent);
   const titleMatch = entries.find((entry) => entry.title === pageName);
-  if (titleMatch && slugs.has(titleMatch.slug)) {
-    return path.join(dir, slugs.get(titleMatch.slug)!);
+  if (titleMatch) {
+    const file = slugs.get(titleMatch.slug);
+    if (file) return path.join(dir, file);
   }
 
   return null;
@@ -535,7 +536,7 @@ async function handleSaveAction(
     badRequest(res, "pageName required for save action");
     return;
   }
-  const content = req.body.content;
+  const { content } = req.body;
   if (typeof content !== "string") {
     log.warn("wiki", "POST save: missing content", { pageNamePreview: previewSnippet(pageName) });
     badRequest(res, "content (string) required for save action");

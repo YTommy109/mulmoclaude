@@ -38,6 +38,7 @@ const frMessages = {
     filters: {
       all: "Toutes",
       unread: "Non lues",
+      bookmarked: "Favoris",
       human: "Humain",
       scheduler: "Planificateur",
       skill: "Skill",
@@ -50,6 +51,11 @@ const frMessages = {
     running: "En cours",
     noMessages: "(aucun message)",
     openRowAria: "Ouvrir la session : {preview}",
+    rowMenuAria: "Actions de la session",
+    bookmark: "Ajouter aux favoris",
+    unbookmark: "Retirer des favoris",
+    delete: "Supprimer",
+    deleteConfirm: "Supprimer cette session ?\n\n{preview}\n\nCette action est irréversible.",
   },
   notificationBell: {
     notifications: "Notifications",
@@ -668,6 +674,8 @@ const frMessages = {
     untitled: "Page HTML",
     hideSource: "Masquer la source <>",
     showSource: "Afficher la source <>",
+    loadingSource: "Chargement de la source…",
+    sourceError: "Échec du chargement de la source : {error}",
   },
   pluginNews: {
     title: "Actualités",

@@ -117,6 +117,7 @@
                 <div v-if="bodyLoading" class="text-sm text-gray-400">{{ t("common.loading") }}</div>
                 <div v-else-if="bodyError" class="text-sm text-red-600">{{ t("pluginNews.bodyError", { error: bodyError }) }}</div>
                 <div v-else-if="!body" class="text-sm text-gray-400 italic">{{ t("pluginNews.noBody") }}</div>
+                <!-- eslint-disable-next-line vue/no-v-html -- marked.parse output of app-owned news body; trusted in-process render -->
                 <div v-else class="markdown-content prose prose-slate max-w-none" v-html="renderedBody"></div>
               </div>
             </div>
@@ -125,7 +126,7 @@
             :key="selected.id"
             :placeholder="t('pluginNews.chatPlaceholder')"
             :prepend-text="`Read this article. ${selected.url}`"
-            :allow-empty="true"
+            allow-empty
             test-id-prefix="news-page-chat"
           />
         </template>
