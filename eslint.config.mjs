@@ -237,7 +237,7 @@ export default [
       "consistent-return": "error",
       "class-methods-use-this": "error",
       "prefer-destructuring": "error",
-      complexity: ["warn", { max: 15 }],
+      complexity: ["error", { max: 15 }],
       "max-depth": ["error", { max: 4 }],
       "max-params": ["error", { max: 6 }],
       quotes: "off",
@@ -331,6 +331,30 @@ export default [
       // `no-explicit-any` at `error` in production code; demote to
       // warn inside tests.
       "@typescript-eslint/no-explicit-any": "warn",
+    },
+  },
+  {
+    // Server-side override: cyclomatic `complexity` stays at `warn`
+    // here because the API route handlers have several legitimately
+    // branchy functions (validation + auth + business logic in one
+    // place) that would need a coordinated split before they can
+    // graduate. Frontend / shared `src/` code has no such concentration
+    // and is held to `error`; over time `server/` should converge.
+    files: ["server/**/*.{ts,js}"],
+    rules: {
+      complexity: ["warn", { max: 15 }],
+    },
+  },
+  {
+    // `packages/` is already clean of dynamic-delete (0 violations on
+    // the survey that drove this rule graduation). Hold it to `error`
+    // so a future regression there fails CI immediately. `src/` still
+    // has ~30 violations (concentrated in presentMulmoScript/View.vue)
+    // and `server/` has 3 — both stay at `warn` until those land in
+    // their own cleanup PRs, then this override can widen.
+    files: ["packages/**/*.{ts,js}"],
+    rules: {
+      "@typescript-eslint/no-dynamic-delete": "error",
     },
   },
   {
