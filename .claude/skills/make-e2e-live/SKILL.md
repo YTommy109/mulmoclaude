@@ -129,6 +129,8 @@ yarn test:e2e:live:<category>   # 該当カテゴリだけ
 
 `yarn test:e2e:live:<category>` は実 Claude API を叩くので、 ユーザーに `yarn dev` 起動済みか / 認証 OK か確認してから走らせる。
 
+**注意 — dev server の stale**: `yarn dev` の server プロセスは `tsx server/index.ts`（`--watch` なし）で起動するため、 server/*.ts や server に取り込まれる `src/utils/**` の変更は再起動するまで反映されない。 `git pull` で main を更新した直後・branch を切り替えた直後に走らせると、 ソース上は修正済の bug が再発したように見える（実例: PR #991 後の webkit L-01 fail → 誤った issue #1015 起票、 dev 再起動だけで解消）。 走らせる前にユーザーに 「dev 再起動済か？」 を 1 回確認する。
+
 ### Docker on / off
 
 このメンテ skill では基本 **片モードだけ** で OK。 「両モード巡回」 は実行用 `/e2e-live` の責任なので、 メンテ中は手元の dev のモードで pass まで持っていけば十分。 PR で「両モードで pass 確認した」と書く必要があれば、 commit 前にユーザーに `DISABLE_SANDBOX` 切替を依頼する。
