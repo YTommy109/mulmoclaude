@@ -13,9 +13,7 @@ let requireSameOrigin: (req: Request, res: Response, next: NextFunction) => void
 before(async () => {
   process.env.ALLOWED_ORIGINS = "https://exact.example.com:5173";
   process.env.ALLOWED_HOSTS = "wildcard.example.com,other.test";
-  const mod = await import("../../server/api/csrfGuard.js");
-  isAllowedOrigin = mod.isAllowedOrigin;
-  requireSameOrigin = mod.requireSameOrigin;
+  ({ isAllowedOrigin, requireSameOrigin } = await import("../../server/api/csrfGuard.js"));
 });
 
 describe("isAllowedOrigin \u2014 full-origin match via ALLOWED_ORIGINS", () => {
