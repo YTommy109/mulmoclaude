@@ -190,8 +190,18 @@ export async function startChat(params: StartChatParams): Promise<StartChatResul
     }
   }
 
+  // Collect every workspace path the user attached for this turn so
+  // the user message persists with them. The Vue UI surfaces these as
+  // chips next to the bubble in stack/single mode and after a reload.
+  // Inline (data:) bytes coming from a bridge don't carry a path and
+  // so don't surface as chips — only path-bearing attachments do.
+  const attachedPaths = collectAttachedPaths(normalisedAttachments);
+
   // Append user message for this turn
-  await appendSessionLine(chatSessionId, JSON.stringify({ source: "user", type: EVENT_TYPES.text, message }));
+  await appendSessionLine(
+    chatSessionId,
+    JSON.stringify({ source: "user", type: EVENT_TYPES.text, message, ...(attachedPaths.length > 0 ? { attachments: attachedPaths } : {}) }),
+  );
 
   // Broadcast the user message so other tabs viewing this session
   // see the input in real time. Runs AFTER beginRun so a 409 never
@@ -200,6 +210,7 @@ export async function startChat(params: StartChatParams): Promise<StartChatResul
     type: EVENT_TYPES.text,
     source: "user",
     message,
+    ...(attachedPaths.length > 0 ? { attachments: attachedPaths } : {}),
   });
 
   const role = getRole(roleId);
@@ -258,6 +269,20 @@ interface RequestExtras {
    *  the request carried only inline bridge bytes (no paths) or
    *  nothing at all. */
   attachedFilePaths: string[];
+}
+
+/** Pluck workspace-relative paths out of `attachments[]`. Used for
+ *  persistence + broadcast of the user message: the Vue UI renders
+ *  these as attachment chips next to the chat bubble. Inline (data:)
+ *  bytes carry no path and are skipped. Order matches declaration
+ *  order so chip order matches the order the user attached them. */
+function collectAttachedPaths(attachments: Attachment[] | undefined): string[] {
+  if (!attachments || attachments.length === 0) return [];
+  const paths: string[] = [];
+  for (const att of attachments) {
+    if (typeof att.path === "string" && att.path.length > 0) paths.push(att.path);
+  }
+  return paths;
 }
 
 /** Bridge-only compat: external bridge clients may still ship a
