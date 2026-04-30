@@ -76,20 +76,6 @@ router.post(API_ROUTES.agent.internal.toolResult, async (req: Request<object, un
   res.json({ ok: outcome.kind === "processed" });
 });
 
-// Called by the MCP server to trigger a role switch on the frontend
-interface SwitchRoleBody {
-  roleId: string;
-}
-
-router.post(API_ROUTES.agent.internal.switchRole, async (req: Request<object, unknown, SwitchRoleBody>, res: Response<OkResponse>) => {
-  const chatSessionId = getSessionQuery(req);
-  pushSessionEvent(chatSessionId, {
-    type: EVENT_TYPES.switchRole,
-    roleId: req.body.roleId,
-  });
-  res.json({ ok: true });
-});
-
 // Cancel a running agent session by killing the Claude CLI process.
 interface CancelBody {
   chatSessionId: string;

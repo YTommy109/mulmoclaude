@@ -57,9 +57,6 @@ export const TOOL_NAMES = {
   readXPost: "readXPost",
   searchX: "searchX",
   notify: "notify",
-
-  // Built-in (handled specially by the MCP stdio bridge).
-  switchRole: "switchRole",
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];

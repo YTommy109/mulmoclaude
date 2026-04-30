@@ -29,7 +29,6 @@ export const API_ROUTES = {
     cancel: "/api/agent/cancel",
     internal: {
       toolResult: "/api/internal/tool-result",
-      switchRole: "/api/internal/switch-role",
     },
   },
 
