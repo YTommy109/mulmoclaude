@@ -100,8 +100,6 @@ export const ROLES: Role[] = [
       "readXPost",
       "searchX",
       "notify",
-      "manageSkills",
-      "manageSource",
       "switchRole",
     ],
     queries: [
