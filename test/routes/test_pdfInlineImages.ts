@@ -139,6 +139,17 @@ describe("inlineImages — sourceDir parameter (Stage F: Wiki PDF)", () => {
     const out = inlineImages(html, { workspaceRoot });
     assert.match(out, /data:image\/png;base64/);
   });
+
+  it("does not crash on non-string sourceDir from a malformed payload (Codex iter-2)", () => {
+    // A JSON body like `{ baseDir: null }` would forward `null` here.
+    // Without a type guard, `path.join(workspaceRoot, null)` throws.
+    // Treat anything non-string as undefined → legacy default.
+    const html = '<img src="../images/2026/04/foo.png">';
+    for (const malformed of [null, 42, {}, [], true] as unknown[]) {
+      const out = inlineImages(html, { workspaceRoot, sourceDir: malformed as string | undefined });
+      assert.match(out, /data:image\/png;base64/, `failed for malformed input: ${JSON.stringify(malformed)}`);
+    }
+  });
 });
 
 describe("inlineImages — quote-form coverage (Stage F)", () => {
