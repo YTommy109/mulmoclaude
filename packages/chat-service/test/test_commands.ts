@@ -262,8 +262,10 @@ describe("parseSkillShortcut (pure helper)", () => {
     assert.deepEqual(parseSkillShortcut("//mag2 https://x.com/post"), { skillName: "mag2", argsVerbatim: "https://x.com/post" });
   });
 
-  it("preserves doubled internal whitespace", () => {
-    assert.deepEqual(parseSkillShortcut("//mag2  url  with  spaces"), { skillName: "mag2", argsVerbatim: " url  with  spaces" });
+  it("collapses the leading separator run while preserving doubled whitespace inside args", () => {
+    // Two-space separator before first arg → drop both. Internal
+    // doubled spaces between subsequent tokens stay verbatim.
+    assert.deepEqual(parseSkillShortcut("//mag2  url  with  spaces"), { skillName: "mag2", argsVerbatim: "url  with  spaces" });
   });
 
   it("preserves tabs and newlines inside the args", () => {
@@ -271,6 +273,13 @@ describe("parseSkillShortcut (pure helper)", () => {
       skillName: "mag2",
       argsVerbatim: "line one\n\nline two\twith tab",
     });
+  });
+
+  it("collapses a CRLF separator (Codex iter-1 — Windows-style paste)", () => {
+    // Input from a Windows clipboard / Telegram desktop client. The
+    // \r\n is one logical line break between skill name and args;
+    // dropping only \r would leave an orphan \n at the head of args.
+    assert.deepEqual(parseSkillShortcut("//mag2\r\nurl"), { skillName: "mag2", argsVerbatim: "url" });
   });
 
   it("returns an empty skill name for bare `//`", () => {
