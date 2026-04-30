@@ -269,6 +269,15 @@ interface PdfMarkdownBody {
 
 router.post(API_ROUTES.pdf.markdown, async (req: Request<object, unknown, PdfMarkdownBody>, res: Response) => {
   const { body } = req;
+  // Express only sets `req.body` after `express.json()` parses a JSON
+  // payload. A client that sends raw JSON `null`, an array, or omits
+  // the body entirely would land here with body = null / [] / undefined,
+  // and the per-field guards below would throw on the first property
+  // dereference. Bail out cleanly with a 400 instead.
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    badRequest(res, "request body must be a JSON object");
+    return;
+  }
   // Defensive type guards: a malformed JSON body could send
   // `baseDir: null` / `stripFrontmatter: "yes"` / etc. Coerce
   // anything off-shape to its safe default rather than letting a
