@@ -73,10 +73,14 @@ export function isSafeMemorySlug(slug: string): boolean {
   if (slug.length > 200) return false;
   if (slug.includes("/") || slug.includes("\\")) return false;
   if (slug.includes("\0")) return false;
-  // `.`, `..`, leading `.` (dotfiles), or a literal `MEMORY` would
-  // each conflict with how the reader scans the directory.
+  // `.`, `..`, leading `.` (dotfiles), or any case-fold of `MEMORY`
+  // would conflict with how the reader scans the directory. The
+  // case-fold covers `Memory` / `memory` collisions on macOS /
+  // Windows where the filesystem is case-insensitive — a case-
+  // sensitive comparison would let `slug = "Memory"` produce
+  // `Memory.md`, which aliases `MEMORY.md` and shadows the index.
   if (slug.startsWith(".")) return false;
-  if (slug === "MEMORY") return false;
+  if (slug.toUpperCase() === "MEMORY") return false;
   return true;
 }
 

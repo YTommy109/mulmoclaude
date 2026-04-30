@@ -116,6 +116,15 @@ describe("memory/io — slug safety", () => {
     assert.equal(isSafeMemorySlug("MEMORY"), false);
   });
 
+  it("rejects every case-fold of the reserved index name (case-insensitive FS safety)", () => {
+    // macOS / Windows are case-insensitive by default — `Memory.md`
+    // aliases `MEMORY.md` on those filesystems and would shadow the
+    // index. The check must be case-fold, not byte-equal.
+    assert.equal(isSafeMemorySlug("Memory"), false);
+    assert.equal(isSafeMemorySlug("memory"), false);
+    assert.equal(isSafeMemorySlug("MeMoRy"), false);
+  });
+
   it("writeMemoryEntry throws on unsafe slug instead of writing outside the memory directory", async () => {
     const fresh = await mkdtemp(path.join(tmpdir(), "mulmoclaude-memory-io-slug-"));
     try {
