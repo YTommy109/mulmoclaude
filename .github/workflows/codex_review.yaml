@@ -107,9 +107,12 @@ jobs:
           # Deployment name on the Azure resource (the LLM model
           # alias the workspace administrator created). Codex passes
           # this through as `model = ...` in the request body.
-          # Default `gpt-4o` matches the deployment present on
-          # `mulmo-sweden`; override if a different resource lacks it.
-          AZURE_MODEL: ${{ secrets.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o' }}
+          # Default `gpt-5.3-codex` is the codex-optimized GPT-5.3
+          # variant (deployed on `mulmo-sweden` 2026-04-30) — the
+          # MSFT-documented choice for Codex CLI agentic-coding
+          # workloads. Older `gpt-4o` still works as a fallback if
+          # the codex variant isn't deployed; override via secret.
+          AZURE_MODEL: ${{ secrets.AZURE_OPENAI_DEPLOYMENT || 'gpt-5.3-codex' }}
         run: |
           mkdir -p "$HOME/.codex"
           # Strip trailing slash so concatenation never doubles up.
