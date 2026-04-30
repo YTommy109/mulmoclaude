@@ -96,18 +96,20 @@ jobs:
           # Default to a known Azure API version; override with
           # `AZURE_OPENAI_API_VERSION` secret if a newer deployment
           # demands a different one.
-          # Codex CLI 0.125.0 dropped `wire_api = "chat"` support
-          # (https://github.com/openai/codex/discussions/7782) — the
-          # only supported transport is now the Responses API. On
-          # Azure that requires `2025-03-01-preview` or later;
-          # earlier versions return "API version not supported".
-          # Override via the `AZURE_OPENAI_API_VERSION` secret if a
-          # newer preview is needed for a specific deployment.
-          AZURE_API_VERSION: ${{ secrets.AZURE_OPENAI_API_VERSION || '2025-03-01-preview' }}
+          # Azure exposes Codex's required Responses API on the
+          # `/openai/v1/responses` compat endpoint with the magic
+          # `api-version=preview` — dated previews
+          # (`2024-10-01-preview` … `2025-04-01-preview`) all return
+          # `400 API version not supported` on the `mulmo-sweden`
+          # resource. Override via `AZURE_OPENAI_API_VERSION` if a
+          # newer Azure resource pins a dated preview.
+          AZURE_API_VERSION: ${{ secrets.AZURE_OPENAI_API_VERSION || 'preview' }}
           # Deployment name on the Azure resource (the LLM model
           # alias the workspace administrator created). Codex passes
           # this through as `model = ...` in the request body.
-          AZURE_MODEL: ${{ secrets.AZURE_OPENAI_DEPLOYMENT || 'gpt-5.4-mini' }}
+          # Default `gpt-4o` matches the deployment present on
+          # `mulmo-sweden`; override if a different resource lacks it.
+          AZURE_MODEL: ${{ secrets.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o' }}
         run: |
           mkdir -p "$HOME/.codex"
           # Strip trailing slash so concatenation never doubles up.
