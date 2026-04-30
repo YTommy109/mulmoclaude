@@ -59,7 +59,7 @@ Set `speechOptions.instruction` on the Narrator speaker to match the story's ton
   },
   "imageParams": {
     "provider": "google",
-    "model": "gemini-3.1-flash-image",
+    "model": "gemini-3.1-flash-image-preview",
     "style": "painterly watercolor illustration",
     "images": {
       "mara": {
