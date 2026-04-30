@@ -188,6 +188,56 @@ describe("POST /api/wiki/internal/snapshot", () => {
     assert.equal(result.data?.pagePath, `data/wiki/pages/${slug}.md`);
   });
 
+  it("skips snapshot + toolResult when the new content matches the previous snapshot (sans auto-stamps)", async () => {
+    const slug = "no-meaningful-change";
+    const sessionId = "chat-no-op-1";
+    const filePath = path.join(pagesDir, `${slug}.md`);
+    await writeFile(filePath, "---\ntitle: x\nupdated: '2026-04-30T00:00:00.000Z'\neditor: llm\n---\n\nbody A\n", "utf-8");
+
+    // Set up a session so pushToolResult would actually fire if the
+    // dedupe gate let through the no-op call (codex review iter-1
+    // #1017): without this listener we'd only catch a snapshot regression,
+    // not a stray toolResult.
+    const sessionFile = path.join(tmpRoot, `${sessionId}.jsonl`);
+    getOrCreateSession(sessionId, {
+      roleId: "general",
+      resultsFilePath: sessionFile,
+      startedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    const events: Record<string, unknown>[] = [];
+    const unsubscribe = onSessionEvent(sessionId, (event) => {
+      events.push(event);
+    });
+
+    // First call records the baseline AND publishes a toolResult.
+    const first = mockRes();
+    await snapshotHandler(makeReq({ slug, sessionId }), first.res);
+    assert.equal(first.state.status, 200);
+    assert.equal((await listSnapshots(slug)).length, 1, "first call should record baseline");
+    assert.equal(events.length, 1, "first call should publish exactly one toolResult");
+
+    // Second call with only `updated` re-stamped → must be a no-op
+    // for BOTH snapshot and toolResult.
+    await writeFile(filePath, "---\ntitle: x\nupdated: '2026-04-30T00:01:00.000Z'\neditor: llm\n---\n\nbody A\n", "utf-8");
+    const second = mockRes();
+    await snapshotHandler(makeReq({ slug, sessionId }), second.res);
+    assert.equal(second.state.status, 200);
+    assert.equal((second.state.body as Record<string, unknown> | undefined)?.skipped, "no-meaningful-change");
+    assert.equal((await listSnapshots(slug)).length, 1, "no second snapshot for an updated-only diff");
+    assert.equal(events.length, 1, "no second toolResult for an updated-only diff");
+
+    // Third call with a real body change → must record AND publish.
+    await writeFile(filePath, "---\ntitle: x\nupdated: '2026-04-30T00:02:00.000Z'\neditor: llm\n---\n\nbody B\n", "utf-8");
+    const third = mockRes();
+    await snapshotHandler(makeReq({ slug, sessionId }), third.res);
+    assert.equal(third.state.status, 200);
+    assert.equal((await listSnapshots(slug)).length, 2, "real body change must record");
+    assert.equal(events.length, 2, "real body change must publish a toolResult");
+
+    unsubscribe();
+  });
+
   it("does not publish a toolResult when sessionId is absent", async () => {
     const slug = "no-publish-without-session";
     await writeFile(path.join(pagesDir, `${slug}.md`), "body\n", "utf-8");
