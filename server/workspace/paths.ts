@@ -43,6 +43,11 @@ export const workspacePath = path.join(homedir(), "mulmoclaude");
 export const WORKSPACE_DIRS = {
   // conversations/
   chat: "conversations/chat",
+  // Typed memory entries (#1029). One markdown file per fact, indexed
+  // by `MEMORY.md` (= WORKSPACE_FILES.memoryIndex). Replaces the
+  // single-file `memory.md`; the legacy file is kept as
+  // `memory.md.backup` after migration.
+  memoryDir: "conversations/memory",
   summaries: "conversations/summaries",
   // Tool-trace output for WebSearch (one .md per search, referenced
   // from chat JSONL `contentRef`). Lives alongside chat/ so search
@@ -121,6 +126,7 @@ export const WORKSPACE_PATHS = {
   news: path.join(workspacePath, WORKSPACE_DIRS.news),
   sources: path.join(workspacePath, WORKSPACE_DIRS.sources),
   attachments: path.join(workspacePath, WORKSPACE_DIRS.attachments),
+  memoryDir: path.join(workspacePath, WORKSPACE_DIRS.memoryDir),
   summaries: path.join(workspacePath, WORKSPACE_DIRS.summaries),
   searches: path.join(workspacePath, WORKSPACE_DIRS.searches),
   htmls: path.join(workspacePath, WORKSPACE_DIRS.htmls),
@@ -133,6 +139,7 @@ export const WORKSPACE_PATHS = {
   wikiHistory: path.join(workspacePath, WORKSPACE_DIRS.wikiHistory),
   // files
   memory: path.join(workspacePath, WORKSPACE_FILES.memory),
+  memoryIndex: path.join(workspacePath, WORKSPACE_FILES.memoryIndex),
   sessionToken: path.join(workspacePath, WORKSPACE_FILES.sessionToken),
   serverPort: path.join(workspacePath, WORKSPACE_FILES.serverPort),
   wikiIndex: path.join(workspacePath, WORKSPACE_FILES.wikiIndex),
