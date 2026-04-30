@@ -60,5 +60,16 @@ export default defineConfig({
     actionTimeout: ONE_MINUTE_MS,
     navigationTimeout: ONE_MINUTE_MS,
   },
-  projects: [{ name: "chromium", use: { browserName: "chromium" } }],
+  // chromium runs every spec; webkit only re-runs media.spec.ts so we
+  // catch Safari-only iframe / CSP regressions (PR #991 class) without
+  // doubling the wall time of the rest of the suite. Mirrors the
+  // chromium+webkit split in `../e2e/playwright.config.ts`.
+  projects: [
+    { name: "chromium", use: { browserName: "chromium" } },
+    {
+      name: "webkit",
+      use: { browserName: "webkit" },
+      testMatch: "media.spec.ts",
+    },
+  ],
 });

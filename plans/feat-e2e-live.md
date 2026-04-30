@@ -326,6 +326,10 @@ e2e-live/
 - 操作: `~/.claude/skills` を symlink で管理した状態で Docker 起動 → skill 一覧確認
 - 検証: skill が表示され、各 sample query が実行可能
 
+## メンテ skill 化済 — `/make-e2e-live` を起点にする
+
+このスイートを継続メンテするための skill `/make-e2e-live` を `.claude/skills/make-e2e-live/SKILL.md` に用意した。 次セッション以降、 未実装シナリオの追加・main 動向への追従（webkit project, self-repair 緩和等）・既存 spec 修正は **このファイルを起点にして** Phase 1〜6 のフロー（状況把握 → 着手項目合意 → ブランチ → 実装 → PR → plans 反映）で進める。 1 PR の規模は 1〜3 シナリオ or 1 config 改善に絞ること。 実行用 `/e2e-live` skill とは別物（実行 = 既存スイートを回す、 メンテ = スイートを育てる）。
+
 ## 実装ステータス
 
 | シナリオ | 状態 | 備考 |
@@ -791,11 +795,10 @@ artifact name: `mulmoclaude-tarball`（10 MB 程度、`.tgz`）。
   - 緩和策: console error 監視 / `page.on("requestfailed")` で初回 fetch の 404 をフェイルさせる / `<img>` の `src` 変更を検出する MutationObserver
   - 重要度: **中**（B-18 系の本質的な regression は naturalWidth で拾えるが、 LLM 退行の検知力は落ちる）
 - **#983 presentDocument / generateImage の path 入り message**: tool result の message 文字列に `Saved … to <path>` が乗るようになり LLM が path を正しく扱える。 → **L-05 (generateImage)** の prompt から `<path>` キャプチャが楽になる（spec 実装時に活用）
-- **#991 (open) Safari preview iframe CSP**: `sandbox="allow-scripts"` の opaque origin 上で CSP `'self'` が Safari で null origin と判定されて `<img>` が reject される。 Chromium のみで spec を回している現状では **検出不可能**。 反映方針:
-  - e2e-live の `playwright.config.ts` に **webkit project** を追加して L-01 を Safari でも回す
-  - 既存 e2e の `ime-enter.spec.ts` と同じく `testMatch` で対象 spec を絞る or 全 spec で webkit を回す（コスト次第）
-  - 重要度: **高**（Safari ユーザー向けに最重要シナリオが壊れる class のバグ）
-  - 別 PR で実装（spec の手は入れず config の追加のみ）
+- **#991 Safari preview iframe CSP** ✅ webkit project 追加 + 動作確認済: `e2e-live/playwright.config.ts` の projects に `webkit` を追加 (`testMatch: "media.spec.ts"` で対象 spec を絞り、 `e2e/playwright.config.ts` の chromium+webkit 分割を踏襲)。 spec 側は手を入れていない。
+  - **当初の誤観測**: webkit 走行で L-01 が `naturalWidth=0` で fail し、 #991 の fix が e2e-live 経路に届いていないと推定して issue #1015 を起票した。
+  - **真の原因**: **dev server (`tsx server/index.ts`、 `--watch` なし) が PR #991 merge 前に起動されたままだった** ため、 ソース上は fix されているのに走っているプロセスは pre-#991 の `buildHtmlPreviewCsp()` を呼んでいた。 `curl -i http://localhost:5173/artifacts/html/<file>.html` の CSP header が `img-src 'self'` のままだったことから判明（fix 後は `img-src http://localhost:5173 ...` になる）。 dev 再起動後に webkit L-01 + L-02 とも pass を確認、 issue #1015 close 済。
+  - **教訓**: e2e-live は server プロセスのコードに敏感。 main pull / branch 切り替えの後は `yarn dev` を必ず再起動してから走らせる。 `/e2e-live` skill の前提セクションに注意書きを追記済。
 
 ## 未確定事項 / TODO
 
@@ -807,7 +810,8 @@ artifact name: `mulmoclaude-tarball`（10 MB 程度、`.tgz`）。
 - [ ] CI 化のタイミング（手動運用が安定したら GitHub Actions 検討）
 - [ ] L-22 で使う skill の選定（dry-run 可能なものに絞る）
 - [ ] **#974 self-repair で L-01 の `naturalWidth > 0` が甘くなる件の緩和策決定**（console error 監視 / requestfailed リスナ / src MutationObserver のいずれか）
-- [ ] **Safari (webkit) project の追加**（PR #991 のような Chromium 通過 / Safari 失敗 class のバグを catch するため）
+- [x] ~~**Safari (webkit) project の追加**~~ → 反映済（`e2e-live/playwright.config.ts` に `webkit` project + `testMatch: "media.spec.ts"`）
+- [x] ~~**webkit で L-01 が `naturalWidth=0` で fail する件の調査と修正**~~ → #1015 close 済（real bug ではなく dev server stale だっただけ。 上の 「真の原因」 セクション参照。 dev 再起動後に webkit L-01 + L-02 pass 確認）
 - [ ] **L-05 (generateImage)** 実装時に #983 の path-in-message を活用（path のキャプチャが容易になる）
 
 ---
