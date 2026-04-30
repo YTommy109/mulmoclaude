@@ -6,6 +6,7 @@ import {
   getCurrentSessionId,
   placeFixtureInWorkspace,
   readImgNaturalSize,
+  readImgRepairAttempted,
   readImgSrcInPresentHtml,
   readPdfDownload,
   removeFromWorkspace,
@@ -112,6 +113,13 @@ async function assertL01PresentHtml(page: Page): Promise<void> {
   }
   expect(size.width, "image must actually decode (B-18 regression)").toBeGreaterThan(0);
   expect(size.height).toBeGreaterThan(0);
+  // PR #974's onerror self-repair would otherwise mask an LLM
+  // regression that embeds `artifacts/images/...` behind a wrong
+  // prefix — the browser rewrites the src to `/artifacts/images/<rest>`,
+  // the image loads, naturalWidth > 0, and the convention drift goes
+  // unnoticed. The repair script tags the element on activation.
+  const repaired = await readImgRepairAttempted(page, L01_IMG_LOCATOR);
+  expect(repaired, "self-repair must not fire — LLM regressed from the relative-path convention").toBe(false);
 }
 
 async function sendL02Prompt(page: Page, workspaceImageRel: string): Promise<void> {
