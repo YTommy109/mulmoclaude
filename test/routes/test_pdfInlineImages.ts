@@ -211,3 +211,39 @@ describe("inlineImages — attribute-boundary correctness (Codex #1023 review)",
     assert.match(out, /\bsrc="data:image\/png;base64,/);
   });
 });
+
+describe("inlineImages — extended tag coverage (Stage B)", () => {
+  it("inlines <source src> on a video child", () => {
+    const html = '<video controls><source src="/artifacts/images/2026/04/foo.png" type="image/png"></video>';
+    const out = inlineImages(html, { workspaceRoot });
+    assert.match(out, /<source src="data:image\/png;base64,[A-Za-z0-9+/=]+"/);
+  });
+
+  it("inlines <video poster>", () => {
+    const html = '<video poster="/artifacts/images/2026/04/foo.png" controls></video>';
+    const out = inlineImages(html, { workspaceRoot });
+    assert.match(out, /<video poster="data:image\/png;base64,[A-Za-z0-9+/=]+"/);
+  });
+
+  it("inlines <audio src>", () => {
+    // The asset is a PNG but the `<audio>` tag still routes through
+    // the same resolver — the Stage B change is purely about which
+    // tag/attribute pairs get scanned, not MIME validation.
+    const html = '<audio src="/artifacts/images/2026/04/foo.png"></audio>';
+    const out = inlineImages(html, { workspaceRoot });
+    assert.match(out, /<audio src="data:image\/png;base64,[A-Za-z0-9+/=]+"/);
+  });
+
+  it("inlines both <video poster> and <video src> on the same tag", () => {
+    const html = '<video poster="/artifacts/images/2026/04/foo.png" src="/artifacts/images/2026/04/foo.png"></video>';
+    const out = inlineImages(html, { workspaceRoot });
+    assert.match(out, /poster="data:image\/png;base64,/);
+    assert.match(out, /src="data:image\/png;base64,/);
+  });
+
+  it("does NOT touch <source srcset> (deferred)", () => {
+    const html = '<source srcset="/artifacts/images/2026/04/foo.png 2x" type="image/png">';
+    const out = inlineImages(html, { workspaceRoot });
+    assert.equal(out, html);
+  });
+});
