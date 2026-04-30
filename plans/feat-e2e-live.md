@@ -810,7 +810,7 @@ artifact name: `mulmoclaude-tarball`（10 MB 程度、`.tgz`）。
 - [ ] L-22 で使う skill の選定（dry-run 可能なものに絞る）
 - [ ] **#974 self-repair で L-01 の `naturalWidth > 0` が甘くなる件の緩和策決定**（console error 監視 / requestfailed リスナ / src MutationObserver のいずれか）
 - [x] ~~**Safari (webkit) project の追加**~~ → 反映済（`e2e-live/playwright.config.ts` に `webkit` project + `testMatch: "media.spec.ts"`）
-- [ ] **webkit で L-01 が `naturalWidth=0` で fail する件の調査と修正**（PR #991 merged 済にも関わらず e2e-live 経路で同 class の事象が観測された。 fix が `localhost:5173` 直叩き経路 + `/artifacts/html` static mount にまで効いているかを確認し、 必要なら CSP / sandbox 設定を見直す。 spec 側は手を入れない）
+- [ ] **webkit で L-01 が `naturalWidth=0` で fail する件の調査と修正** → #1015（PR #991 merged 済にも関わらず e2e-live 経路で同 class の事象が観測された。 fix が `localhost:5173` 直叩き経路 + `/artifacts/html` static mount にまで効いているかを確認し、 必要なら CSP / sandbox 設定を見直す。 spec 側は手を入れない）
 - [ ] **L-05 (generateImage)** 実装時に #983 の path-in-message を活用（path のキャプチャが容易になる）
 
 ---
