@@ -29,3 +29,5 @@ config/scheduler/state.json
 .session-token
 .mulmoclaude/
 migration-284-manifest.json
+github/
+.server-port
