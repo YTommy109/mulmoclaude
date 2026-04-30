@@ -75,6 +75,30 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:3001',
           changeOrigin: true
         },
+        // Static-mount on the backend (server/index.ts: app.use('/artifacts/images', ...)).
+        // Without this proxy, dev's Vite catch-all returns the SPA index.html instead.
+        '/artifacts/images': {
+          target: 'http://localhost:3001',
+          changeOrigin: true
+        },
+        // Static-mount on the backend (server/index.ts: app.use('/artifacts/html', ...)).
+        // Without this proxy, Vite's HTML transform injects `/@vite/client` and
+        // `/src/main.ts` into the response, which the iframe (opaque origin) then
+        // tries to load and the browser blocks via CORS. Forwarding to Express
+        // returns the file untouched plus the CSP HTTP header.
+        //
+        // `xfwd: true` adds `X-Forwarded-Host` / `X-Forwarded-Proto` so Express
+        // can recover the browser-visible origin (`localhost:5173`) when emitting
+        // the CSP `img-src` directive. `changeOrigin: true` rewrites `Host` to
+        // the upstream `localhost:3001`, so without xfwd the CSP would advertise
+        // the wrong origin and Safari would block every `<img src="../images/...">`
+        // request (Chrome happens to be lenient because images route through the
+        // same proxy).
+        '/artifacts/html': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          xfwd: true
+        },
         '/ws': {
           target: 'ws://localhost:3001',
           ws: true

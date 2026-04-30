@@ -357,7 +357,7 @@ function updatePendingGenerations(session: ServerSession, type: string, event: R
   if (type === EVENT_TYPES.generationStarted) {
     session.pendingGenerations[mapKey] = payload;
   } else {
-    delete session.pendingGenerations[mapKey];
+    Reflect.deleteProperty(session.pendingGenerations, mapKey);
   }
 
   const isEmpty = Object.keys(session.pendingGenerations).length === 0;
@@ -442,9 +442,10 @@ export function onSessionEvent(chatSessionId: string, listener: SessionEventList
     sessionListeners.set(chatSessionId, listeners);
   }
   listeners.add(listener);
+  const captured = listeners;
   return () => {
-    listeners!.delete(listener);
-    if (listeners!.size === 0) sessionListeners.delete(chatSessionId);
+    captured.delete(listener);
+    if (captured.size === 0) sessionListeners.delete(chatSessionId);
   };
 }
 
