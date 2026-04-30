@@ -42,6 +42,7 @@ See [Wiki](helps/wiki.md) for details on how it works.
 - [Gemini API Key](helps/gemini.md) — why `GEMINI_API_KEY` is strongly recommended (images, audio, video) and how to get one from Google AI Studio
 - [MulmoScript](helps/mulmoscript.md) — format reference for authoring multimedia stories: beats, image types, speech, audio, and a minimal example
 - [Business Presentation Template](helps/business.md) — MulmoScript template and rules for business presentations in the Office role
+- [Storyteller Template](helps/storyteller.md) — MulmoScript template and rules for character-driven narrated stories in the Storyteller role
 - [Spreadsheet](helps/spreadsheet.md) — cell format, formulas, date handling, and format codes for the presentSpreadsheet plugin
 - [Sandbox](helps/sandbox.md) — how the Docker sandbox isolates the agent, what it can access, and how to disable it
 - [Telegram Bridge](helps/telegram.md) — how to talk to MulmoClaude from the Telegram app: creating a bot, starting the bridge, allowlisting chat IDs, commands, and troubleshooting
