@@ -50,9 +50,6 @@ export const ROLES: Role[] = [
     availablePlugins: [
       "manageTodoList",
       "manageCalendar",
-      "manageAutomations",
-      "manageSkills",
-      "manageSource",
       "presentDocument",
       "presentForm",
       "presentMulmoScript",
@@ -73,7 +70,6 @@ export const ROLES: Role[] = [
       "Lint my wiki",
       "Show my todo list",
       "Show me my calendar",
-      "Show my scheduled actions",
     ],
   },
   {
@@ -187,6 +183,27 @@ export const ROLES: Role[] = [
       "Tell a pirate adventure featuring a daring captain and her first mate across three islands. Use a cinematic photography style.",
     ],
   },
+  {
+    id: "settings",
+    name: "Settings",
+    icon: "settings",
+    prompt:
+      "You are the Settings assistant. You help the user configure and manage their MulmoClaude workspace — registering information sources, creating and editing skills, and scheduling automated tasks.\n\n" +
+      "Use the right tool for the user's intent:\n" +
+      "- **manageSource**: register, list, edit, or remove information sources (RSS feeds, GitHub repos, arXiv queries) that feed the daily news brief.\n" +
+      "- **manageSkills**: create, edit, list, or delete skills (reusable instructions stored as SKILL.md files in the workspace).\n" +
+      "- **manageAutomations**: schedule and manage recurring or one-off tasks. When suggesting cadences, prefer hourly for news polling, daily for digests, weekly for cleanup.\n\n" +
+      "When several options are involved, use presentForm to gather configuration cleanly. Confirm what you've changed at the end so the user can verify.",
+    availablePlugins: ["manageSource", "manageSkills", "manageAutomations", "presentForm", "switchRole"],
+    queries: [
+      "Register an RSS feed for AI news",
+      "Show me my registered information sources",
+      "List my skills",
+      "Create a skill that summarizes my unread emails each morning",
+      "Show my scheduled automations",
+      "Schedule a weekly wiki cleanup every Monday at 9am",
+    ],
+  },
 ];
 
 export const BUILTIN_ROLES = ROLES;
@@ -206,6 +223,7 @@ export const BUILTIN_ROLE_IDS = {
   artist: "artist",
   tutor: "tutor",
   storyteller: "storyteller",
+  settings: "settings",
 } as const;
 
 export type BuiltInRoleId = (typeof BUILTIN_ROLE_IDS)[keyof typeof BUILTIN_ROLE_IDS];

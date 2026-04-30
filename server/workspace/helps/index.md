@@ -15,6 +15,7 @@ Under the hood it uses the Claude Code Agent SDK as its LLM core. Claude has ful
 - **Tutor** — Assesses your knowledge level, then teaches any topic with structured documents and visuals.
 - **Storyteller** — Crafts illustrated narrative stories as a MulmoScript storyboard.
 - **Storyteller Plus** — Like Storyteller, with consistent character images across beats.
+- **Settings** — Manages information sources, skills, and scheduled automations for the workspace.
 - *(Additional roles may be defined by the user in the workspace.)*
 
 ## Key Capabilities
