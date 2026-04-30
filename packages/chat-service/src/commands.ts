@@ -39,6 +39,22 @@ function formatRelativeTime(isoDate: string): string {
   return `${days}d ago`;
 }
 
+/**
+ * Split a `//{skill} [args...]` shortcut into the skill name and the
+ * verbatim argument text. Splits at the FIRST whitespace character
+ * only, so doubled spaces / tabs / newlines inside the args are
+ * preserved (the bridge contract treats args as opaque payload, not a
+ * tokenised list — see CodeRabbit on #967).
+ *
+ * Exported for unit tests; callers in the handler use it directly.
+ */
+export function parseSkillShortcut(text: string): { skillName: string; argsVerbatim: string } {
+  const sepIdx = text.search(/\s/);
+  const head = sepIdx < 0 ? text : text.slice(0, sepIdx);
+  const argsVerbatim = sepIdx < 0 ? "" : text.slice(sepIdx + 1);
+  return { skillName: head.slice(2), argsVerbatim };
+}
+
 // ── Factory ──────────────────────────────────────────────────
 
 export function createCommandHandler(opts: {
@@ -279,15 +295,16 @@ export function createCommandHandler(opts: {
 
     // `//{skill} [args...]` shortcut — start a new session AND run
     // the skill in one bridge turn. Args after the skill name are
-    // forwarded verbatim, so `//mag2 https://x.com/post` resets and
-    // runs `/mag2 https://x.com/post`.
+    // forwarded verbatim — split at the FIRST whitespace character
+    // and preserve everything after it (including doubled spaces /
+    // tabs) so payloads like a URL with internal whitespace, or
+    // multi-paragraph prompts, aren't silently rewritten.
     if (text.startsWith("//")) {
       const skills = await fetchSkills();
-      const [head, ...rest] = text.split(/\s+/);
-      const skillName = head.slice(2);
+      const { skillName, argsVerbatim } = parseSkillShortcut(text);
       if (skillName && skills.some((s) => s.name === skillName)) {
         const nextState = await resetChatState(transportId, chatState.externalChatId, chatState.roleId);
-        const forwardAs = rest.length > 0 ? `/${skillName} ${rest.join(" ")}` : `/${skillName}`;
+        const forwardAs = argsVerbatim.length > 0 ? `/${skillName} ${argsVerbatim}` : `/${skillName}`;
         return {
           reply: `Session reset. Running ${forwardAs}`,
           nextState,
