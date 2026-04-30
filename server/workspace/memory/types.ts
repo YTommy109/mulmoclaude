@@ -31,20 +31,39 @@ export function isMemoryType(value: unknown): value is MemoryType {
   return typeof value === "string" && (MEMORY_TYPES as readonly string[]).includes(value);
 }
 
+// Bound the alphanumeric portion of a slug. Long bullets in the
+// legacy memory.md (e.g. paragraph-length recurring task descriptions)
+// would otherwise produce slugs > 200 chars and trip
+// `isSafeMemorySlug`'s upper bound, dropping the entry on disk. 80
+// chars keeps the filename readable in `ls` output, leaves headroom
+// under the safety cap, and is well under the 255-byte filename limit
+// every supported filesystem honors.
+const MAX_SLUG_BODY = 80;
+
 // Slugify a name into a filename-safe token. ASCII-only conversion of
 // [a-zA-Z0-9] segments; everything else collapses into a single `-`.
-// Non-ASCII (Japanese / 中文) input falls back to the type prefix +
-// short hash so two entries with all-non-ASCII names don't collide on
-// the empty string. Uses an explicit char loop instead of regex so a
-// deeply-recursive name can't trigger pathological backtracking.
+// The result is truncated to MAX_SLUG_BODY and any trailing `-` from
+// the truncation is trimmed so the slug doesn't read like a partial
+// word. Non-ASCII (Japanese / 中文) input falls back to the type
+// prefix + short hash so two entries with all-non-ASCII names don't
+// collide on the empty string. Uses an explicit char loop instead of
+// regex so a deeply-recursive name can't trigger pathological
+// backtracking.
 export function slugifyMemoryName(name: string, type: MemoryType): string {
   const ascii = compactAlnum(name.toLowerCase());
-  if (ascii.length > 0) return `${type}_${ascii}`;
+  const bounded = trimTrailingSeparators(ascii.slice(0, MAX_SLUG_BODY));
+  if (bounded.length > 0) return `${type}_${bounded}`;
   let hash = 0;
   for (let index = 0; index < name.length; index += 1) {
     hash = (hash * 31 + name.charCodeAt(index)) >>> 0;
   }
   return `${type}_${hash.toString(36)}`;
+}
+
+function trimTrailingSeparators(text: string): string {
+  let end = text.length;
+  while (end > 0 && text[end - 1] === "-") end -= 1;
+  return text.slice(0, end);
 }
 
 function compactAlnum(text: string): string {
