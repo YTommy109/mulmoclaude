@@ -77,7 +77,7 @@ describe("MCP server Docker smoke test", { skip: !canRunDocker }, () => {
       "-e",
       "PORT=9999",
       "-e",
-      "PLUGIN_NAMES=manageTodoList,presentMulmoScript,manageWiki,switchRole",
+      "PLUGIN_NAMES=manageTodoList,presentMulmoScript,switchRole",
       "-e",
       "ROLE_IDS=general",
       "mulmoclaude-sandbox",
