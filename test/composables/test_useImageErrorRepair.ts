@@ -159,14 +159,21 @@ describe("repairSourceSrc", () => {
 });
 
 describe("IMAGE_REPAIR_INLINE_SCRIPT — Stage E parity", () => {
-  it("references both <IMG> and <SOURCE> tag handlers", () => {
+  it("references all four tag-name branches the document listener handles", () => {
     // Drift guard: the iframe-inlined script must match the TS
     // dispatcher in `useGlobalImageErrorRepair`. If the TS gains a
-    // new branch, the inline must too — otherwise presentHtml's
-    // self-repair silently regresses for that surface.
+    // new branch, the inline must too — otherwise iframe surfaces
+    // (presentHtml etc) silently regress for that case.
     assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName === "IMG"/);
     assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName === "SOURCE"/);
+    // <audio>/<video> propagate child-source errors up to themselves.
+    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName === "AUDIO"/);
+    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName === "VIDEO"/);
     // The picture-sibling walk must also be in lock step.
     assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /closest\("picture"\)/);
+    // The audio/video child walk uses `:scope > source` to avoid
+    // grabbing the inner <picture><source> case (which is already
+    // handled by the IMG branch via `closest("picture")`).
+    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /:scope > source/);
   });
 });

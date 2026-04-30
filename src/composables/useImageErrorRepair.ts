@@ -74,6 +74,9 @@ document.addEventListener("error", function (event) {
     }
   } else if (target.tagName === "SOURCE") {
     fixSource(target);
+  } else if (target.tagName === "AUDIO" || target.tagName === "VIDEO") {
+    var mediaSources = target.querySelectorAll(":scope > source");
+    for (var j = 0; j < mediaSources.length; j++) fixSource(mediaSources[j]);
   }
 }, true);
 `.trim();
@@ -124,13 +127,13 @@ export function repairSourceSrc(source: HTMLSourceElement): boolean {
   return repaired;
 }
 
-// Attach a document-level capture-phase error listener so any <img>
-// or <source> 404 in the app shell (wiki / markdown / news / Files
-// preview etc) gets one repair attempt. Capture phase is required
-// because img/source error events don't bubble. The repair is a
-// no-op for src values that don't match the artifacts/images
-// pattern, so attaching at document scope is safe — it never
-// touches non-image-bearing UI.
+// Attach a document-level capture-phase error listener so any
+// `<img>` / `<source>` / `<audio>` / `<video>` 404 in the app
+// shell (wiki / markdown / news / Files preview etc) gets one
+// repair attempt. Capture phase is required because the relevant
+// error events don't bubble. The repair is a no-op for src values
+// that don't match the artifacts/images pattern, so attaching at
+// document scope is safe — it never touches non-image-bearing UI.
 export function useGlobalImageErrorRepair(): void {
   function onError(event: Event): void {
     const { target } = event;
@@ -148,6 +151,14 @@ export function useGlobalImageErrorRepair(): void {
       }
     } else if (target instanceof HTMLSourceElement) {
       repairSourceSrc(target);
+    } else if (target instanceof HTMLMediaElement) {
+      // `<audio>` / `<video>` fire `error` on themselves when ALL
+      // their `<source>` children fail. The source elements never
+      // get a target of their own in that path, so reach into
+      // each child and repair it.
+      for (const src of target.querySelectorAll<HTMLSourceElement>(":scope > source")) {
+        repairSourceSrc(src);
+      }
     }
   }
 
