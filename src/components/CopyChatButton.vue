@@ -27,6 +27,8 @@ import { ref, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { exportChatToMarkdown } from "../utils/chat/exportMarkdown";
+import { apiGet } from "../utils/api";
+import { API_ROUTES } from "../config/apiRoutes";
 
 const COPIED_FEEDBACK_MS = 1500;
 
@@ -41,10 +43,17 @@ const props = defineProps<{
 const justCopied = ref(false);
 let resetTimeout: ReturnType<typeof setTimeout> | null = null;
 
+async function readWorkspaceFile(path: string): Promise<string | null> {
+  const result = await apiGet<{ content?: string }>(API_ROUTES.files.content, { path });
+  if (!result.ok) return null;
+  return result.data.content ?? null;
+}
+
 async function onCopy(): Promise<void> {
-  const markdown = exportChatToMarkdown(props.results, {
+  const markdown = await exportChatToMarkdown(props.results, {
     sessionRoleName: props.sessionRoleName,
     resultTimestamps: props.resultTimestamps,
+    readFile: readWorkspaceFile,
   });
   try {
     await navigator.clipboard.writeText(markdown);

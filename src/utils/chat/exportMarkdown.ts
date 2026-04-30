@@ -2,27 +2,43 @@
 // items + per-uuid timestamps) into a self-contained Markdown document
 // suitable for pasting into a doc, an issue, or another chat.
 //
-// Design (Option A — blockquoted turns):
-//   Each speaker turn is rendered as `### 👤 Speaker · HH:MM` followed
-//   by the message body prefixed line-by-line with `> `. The blockquote
-//   guarantees that any markdown the message itself contains (headings,
-//   tables, code fences, raw HTML) renders inside a visually distinct
-//   quote region rather than colliding with the export's own structure.
+// Each turn is rendered as a `## ⬜︎ Speaker · HH:MM` heading followed
+// by the message body, with `---` horizontal rules between turns.
+// Headings inside message bodies are demoted by 2 levels (e.g. an
+// assistant `# Heading` becomes `### Heading`) so the speaker headings
+// always sit above message-internal structure in the document outline.
 //
-// Tool calls (anything other than `text-response`) are rendered as a
-// single italic line `*🔧 toolName — title*`, outside the blockquote.
-// Their full payloads are intentionally omitted to keep the export
-// readable; users wanting fidelity can view the raw JSONL.
+// Tool calls (anything other than `text-response`) render as a `## ⬛︎
+// toolName HH:MM` heading — a compact marker showing which tools the
+// assistant invoked. Tool payloads are intentionally omitted to keep
+// the export readable; users wanting fidelity can view the raw JSONL.
+// The one exception is `presentDocument`: its `data.markdown` is
+// itself a piece of prose worth reading out of context, so we inline
+// the document body (demoted by 2 levels) under the marker. In real
+// sessions `data.markdown` is usually a workspace path
+// (`artifacts/documents/*.md`) rather than inline text, so the export
+// is async — callers pass a `readFile` resolver that reads the file
+// off the workspace, mirroring the in-app Markdown View's loader.
 
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { isRecord } from "../types";
 
 const TEXT_RESPONSE_TOOL = "text-response";
+const PRESENT_DOCUMENT_TOOL = "presentDocument";
+
+/** Heuristic for the file-path mode of presentDocument's `markdown` field
+ *  (server-side documents stored under `artifacts/documents/*.md`). When
+ *  matched, the value is a path — not inline content — and the export
+ *  has to read the file off the workspace via the caller-supplied
+ *  resolver to inline the body. */
+function looksLikeDocumentPath(value: string): boolean {
+  return value.endsWith(".md") && value.startsWith("artifacts/documents/");
+}
 
 const ROLE_LABELS = {
-  user: "👤 You",
-  assistant: "🤖 Assistant",
-  system: "⚙️ System",
+  user: "⬜︎ You",
+  assistant: "⬛︎ Assistant",
+  system: "◇ System",
 } as const;
 
 type Role = keyof typeof ROLE_LABELS;
@@ -34,6 +50,11 @@ export interface ExportChatOptions {
   exportedAt?: string;
   /** Per-uuid epoch-ms map matching `ActiveSession.resultTimestamps`. */
   resultTimestamps?: Map<string, number>;
+  /** Resolver for workspace-relative file paths (currently the
+   *  `artifacts/documents/*.md` form used by presentDocument). Returns
+   *  the file's text content, or null if the read fails. Omit it to
+   *  skip file-mode resolution and emit only the marker line. */
+  readFile?: (path: string) => Promise<string | null>;
 }
 
 /** Format `epochMs` as `HH:MM` in 24h, locale-independent. */
@@ -42,16 +63,6 @@ function formatHHMM(epochMs: number): string {
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
   return `${hours}:${minutes}`;
-}
-
-/** Prefix every line with `> `. Empty lines become bare `>` so the quote
- *  block stays contiguous (CommonMark breaks the quote on a fully blank line). */
-function blockquote(text: string): string {
-  if (text.length === 0) return ">";
-  return text
-    .split(/\r\n|\r|\n/)
-    .map((line) => (line.length === 0 ? ">" : `> ${line}`))
-    .join("\n");
 }
 
 /** Narrow `data?.role` to a known speaker label. Defaults to "assistant". */
@@ -75,19 +86,75 @@ function isTextResponse(result: ToolResultComplete): boolean {
   return result.toolName === TEXT_RESPONSE_TOOL;
 }
 
+const FENCE_RE = /^(`{3,}|~{3,})/;
+const ATX_HEADING_RE = /^(#{1,6})([ \t].*)$/;
+
+/** Demote every ATX heading inside `markdown` by `levels` (`#` → `#`+levels),
+ *  capping at h6. Skips lines inside fenced code blocks (``` / ~~~) so
+ *  `# comment` lines in code samples are left alone. */
+function demoteHeadings(markdown: string, levels: number): string {
+  if (levels <= 0 || markdown.length === 0) return markdown;
+  const out: string[] = [];
+  let inFence = false;
+  for (const line of markdown.split(/\r\n|\r|\n/)) {
+    if (FENCE_RE.test(line)) {
+      inFence = !inFence;
+      out.push(line);
+      continue;
+    }
+    if (inFence) {
+      out.push(line);
+      continue;
+    }
+    const match = ATX_HEADING_RE.exec(line);
+    if (!match) {
+      out.push(line);
+      continue;
+    }
+    const [, hashes, rest] = match;
+    const newDepth = Math.min(6, hashes.length + levels);
+    out.push(`${"#".repeat(newDepth)}${rest}`);
+  }
+  return out.join("\n");
+}
+
 function renderTextTurn(result: ToolResultComplete, timestamps: Map<string, number>): string {
   const role = roleOf(result);
   const epochMs = timestamps.get(result.uuid);
   const time = epochMs ? ` · ${formatHHMM(epochMs)}` : "";
-  const body = textOf(result).trim();
-  return `### ${ROLE_LABELS[role]}${time}\n${blockquote(body)}`;
+  // Speaker is `##`; demote any in-body heading by 2 so it always sits
+  // strictly below the speaker (`#` → `###`, `##` → `####`, …).
+  const body = demoteHeadings(textOf(result).trim(), 2);
+  return body.length > 0 ? `## ${ROLE_LABELS[role]}${time}\n\n${body}` : `## ${ROLE_LABELS[role]}${time}`;
 }
 
-function renderToolTurn(result: ToolResultComplete, timestamps: Map<string, number>): string {
+/** Resolve presentDocument's `data.markdown` to inline content. If the
+ *  value is a workspace path, defer to `readFile`; otherwise treat it
+ *  as inline markdown. Returns null when the data is missing/empty or
+ *  the file read fails. */
+async function presentDocumentBody(result: ToolResultComplete, readFile: ExportChatOptions["readFile"]): Promise<string | null> {
+  const { data } = result;
+  if (!isRecord(data)) return null;
+  const { markdown } = data;
+  if (typeof markdown !== "string" || markdown.length === 0) return null;
+  if (!looksLikeDocumentPath(markdown)) return markdown;
+  if (!readFile) return null;
+  return readFile(markdown);
+}
+
+async function renderToolTurn(result: ToolResultComplete, timestamps: Map<string, number>, readFile: ExportChatOptions["readFile"]): Promise<string> {
   const epochMs = timestamps.get(result.uuid);
-  const time = epochMs ? ` · ${formatHHMM(epochMs)}` : "";
-  const label = result.title?.trim() ? `${result.toolName} — ${result.title.trim()}` : result.toolName;
-  return `*🔧 ${label}${time}*`;
+  const time = epochMs ? ` ${formatHHMM(epochMs)}` : "";
+  const marker = `## ⬛︎ ${result.toolName}${time}`;
+
+  if (result.toolName === PRESENT_DOCUMENT_TOOL) {
+    const documentBody = await presentDocumentBody(result, readFile);
+    if (documentBody !== null) {
+      return `${marker}\n\n${demoteHeadings(documentBody.trim(), 2)}`;
+    }
+  }
+
+  return marker;
 }
 
 /** Build the document header. Title and the "Exported" subtitle are
@@ -101,12 +168,17 @@ function renderHeader(opts: ExportChatOptions): string {
   return `${title}\n\n*Exported ${dateStamp} UTC*\n\n---`;
 }
 
-/** Convert a chat session to a Markdown string. Pure function; safe to
- *  call from anywhere. Returns at minimum a non-empty header so callers
- *  never have to special-case empty sessions. */
-export function exportChatToMarkdown(results: readonly ToolResultComplete[], options: ExportChatOptions = {}): string {
+/** Convert a chat session to a Markdown string. Async because
+ *  presentDocument's body may live on disk and need a `readFile` round
+ *  trip. Returns at minimum a non-empty header so callers never have
+ *  to special-case empty sessions. */
+export async function exportChatToMarkdown(results: readonly ToolResultComplete[], options: ExportChatOptions = {}): Promise<string> {
   const timestamps = options.resultTimestamps ?? new Map<string, number>();
-  const turns = results.map((result) => (isTextResponse(result) ? renderTextTurn(result, timestamps) : renderToolTurn(result, timestamps)));
+  const turns = await Promise.all(
+    results.map((result) =>
+      isTextResponse(result) ? Promise.resolve(renderTextTurn(result, timestamps)) : renderToolTurn(result, timestamps, options.readFile),
+    ),
+  );
   const body = turns.join("\n\n---\n\n");
   const header = renderHeader(options);
   return body.length > 0 ? `${header}\n\n${body}\n` : `${header}\n`;

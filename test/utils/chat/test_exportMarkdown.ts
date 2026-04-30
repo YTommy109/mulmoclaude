@@ -22,62 +22,144 @@ function toolResult(toolName: string, title: string | undefined, uuid: string): 
 }
 
 describe("exportChatToMarkdown", () => {
-  it("renders a user/assistant exchange as blockquoted turns", () => {
-    const out = exportChatToMarkdown([textResult("user", "hello"), textResult("assistant", "hi there")], { exportedAt: "2026-04-30T12:00:00Z" });
+  it("renders a user/assistant exchange as plain-markdown turns", async () => {
+    const out = await exportChatToMarkdown([textResult("user", "hello"), textResult("assistant", "hi there")], { exportedAt: "2026-04-30T12:00:00Z" });
     assert.match(out, /^# Conversation/);
-    assert.match(out, /### 👤 You/);
-    assert.match(out, /### 🤖 Assistant/);
-    assert.match(out, /^> hello$/m);
-    assert.match(out, /^> hi there$/m);
+    assert.match(out, /## ⬜︎ You/);
+    assert.match(out, /## ⬛︎ Assistant/);
+    assert.match(out, /^hello$/m);
+    assert.match(out, /^hi there$/m);
+    assert.match(out, /\n\n---\n\n/);
   });
 
-  it("includes the role name in the title when provided", () => {
-    const out = exportChatToMarkdown([textResult("user", "hi")], { sessionRoleName: "General", exportedAt: "2026-04-30T12:00:00Z" });
+  it("includes the role name in the title when provided", async () => {
+    const out = await exportChatToMarkdown([textResult("user", "hi")], { sessionRoleName: "General", exportedAt: "2026-04-30T12:00:00Z" });
     assert.match(out, /^# Conversation · General/);
   });
 
-  it("preserves markdown inside a message by quoting every line", () => {
-    const inner = "# Heading\n\nBody line\n\n## Sub\n- item";
-    const out = exportChatToMarkdown([textResult("assistant", inner)], { exportedAt: "2026-04-30T12:00:00Z" });
-    // every non-empty source line becomes "> ..."
-    assert.match(out, /^> # Heading$/m);
-    assert.match(out, /^> Body line$/m);
-    assert.match(out, /^> ## Sub$/m);
-    assert.match(out, /^> - item$/m);
-    // blank lines inside the message stay inside the quote (bare ">")
-    assert.match(out, /^>$/m);
+  it("demotes headings inside a message body by 2 levels (cap at h6)", async () => {
+    const inner = "# H1\n\n## H2\n\n### H3\n\n##### H5\n\n###### H6\n\nBody line\n- item";
+    const out = await exportChatToMarkdown([textResult("assistant", inner)], { exportedAt: "2026-04-30T12:00:00Z" });
+    assert.match(out, /^### H1$/m);
+    assert.match(out, /^#### H2$/m);
+    assert.match(out, /^##### H3$/m);
+    assert.match(out, /^###### H5$/m);
+    assert.match(out, /^###### H6$/m);
+    assert.match(out, /^Body line$/m);
+    assert.match(out, /^- item$/m);
   });
 
-  it("renders non-text tool calls as a single italic line", () => {
-    const out = exportChatToMarkdown(
-      [textResult("user", "show todos"), toolResult("manageTodoList", "Today's todos", "tool-1"), textResult("assistant", "here you go")],
-      { exportedAt: "2026-04-30T12:00:00Z" },
-    );
-    assert.match(out, /\*🔧 manageTodoList — Today's todos.*\*/);
-    // tool line is NOT inside a blockquote
-    assert.doesNotMatch(out, /^> \*🔧 manageTodoList/m);
+  it("does not demote headings inside fenced code blocks", async () => {
+    const inner = "```md\n# This is sample syntax\n```\n\n## Real heading";
+    const out = await exportChatToMarkdown([textResult("assistant", inner)], { exportedAt: "2026-04-30T12:00:00Z" });
+    assert.match(out, /^# This is sample syntax$/m);
+    assert.match(out, /^#### Real heading$/m);
   });
 
-  it("falls back to tool name when title is missing", () => {
-    const out = exportChatToMarkdown([toolResult("manageWiki", undefined, "tool-2")], { exportedAt: "2026-04-30T12:00:00Z" });
-    assert.match(out, /\*🔧 manageWiki\*/);
+  it("renders a non-text tool call as a single `## ⬛︎ toolName HH:MM` heading line", async () => {
+    const stamps = new Map<string, number>([["tool-1", Date.UTC(2026, 3, 30, 15, 17)]]);
+    const out = await exportChatToMarkdown([textResult("user", "open it"), toolResult("openCanvas", "Untitled", "tool-1"), textResult("assistant", "done")], {
+      exportedAt: "2026-04-30T12:00:00Z",
+      resultTimestamps: stamps,
+    });
+    assert.match(out, /^## ⬛︎ openCanvas \d{2}:\d{2}$/m);
+    assert.doesNotMatch(out, /\*▸ openCanvas/);
+    assert.doesNotMatch(out, /openCanvas — Untitled/);
   });
 
-  it("renders a header even for an empty session", () => {
-    const out = exportChatToMarkdown([], { exportedAt: "2026-04-30T12:00:00Z" });
+  it("renders the tool heading without a time when no timestamp is available", async () => {
+    const out = await exportChatToMarkdown([toolResult("manageWiki", undefined, "tool-2")], { exportedAt: "2026-04-30T12:00:00Z" });
+    assert.match(out, /^## ⬛︎ manageWiki$/m);
+  });
+
+  it("inlines presentDocument's inline markdown body (demoted) under the marker line", async () => {
+    const presentDoc: ToolResultComplete = {
+      toolName: "presentDocument",
+      uuid: "doc-1",
+      message: "doc",
+      title: "Trip plan",
+      data: {
+        markdown: "# Trip plan\n\n## Day 1\n\nFly to Tokyo.",
+        filenamePrefix: "trip-plan",
+      },
+    };
+    const out = await exportChatToMarkdown([presentDoc], { exportedAt: "2026-04-30T12:00:00Z" });
+    assert.match(out, /^## ⬛︎ presentDocument$/m);
+    assert.match(out, /^### Trip plan$/m);
+    assert.match(out, /^#### Day 1$/m);
+    assert.match(out, /^Fly to Tokyo\.$/m);
+  });
+
+  it("inlines presentDocument's file-mode body via the readFile resolver", async () => {
+    const presentDoc: ToolResultComplete = {
+      toolName: "presentDocument",
+      uuid: "doc-2",
+      message: "doc",
+      title: "Saved doc",
+      data: {
+        markdown: "artifacts/documents/saved-doc.md",
+        filenamePrefix: "saved-doc",
+      },
+    };
+    const files = new Map<string, string>([["artifacts/documents/saved-doc.md", "# Saved doc\n\nServer body."]]);
+    const out = await exportChatToMarkdown([presentDoc], {
+      exportedAt: "2026-04-30T12:00:00Z",
+      readFile: async (path) => files.get(path) ?? null,
+    });
+    assert.match(out, /^## ⬛︎ presentDocument$/m);
+    assert.match(out, /^### Saved doc$/m); // # → ###
+    assert.match(out, /^Server body\.$/m);
+  });
+
+  it("falls back to marker-only when the readFile resolver returns null", async () => {
+    const presentDoc: ToolResultComplete = {
+      toolName: "presentDocument",
+      uuid: "doc-3",
+      message: "doc",
+      title: "Missing",
+      data: {
+        markdown: "artifacts/documents/missing.md",
+        filenamePrefix: "missing",
+      },
+    };
+    const out = await exportChatToMarkdown([presentDoc], {
+      exportedAt: "2026-04-30T12:00:00Z",
+      readFile: async () => null,
+    });
+    assert.match(out, /^## ⬛︎ presentDocument$/m);
+    assert.doesNotMatch(out, /artifacts\/documents\/missing\.md/);
+  });
+
+  it("falls back to marker-only when no readFile resolver is supplied for a file-mode reference", async () => {
+    const presentDoc: ToolResultComplete = {
+      toolName: "presentDocument",
+      uuid: "doc-4",
+      message: "doc",
+      title: "Saved doc",
+      data: {
+        markdown: "artifacts/documents/saved-doc.md",
+        filenamePrefix: "saved-doc",
+      },
+    };
+    const out = await exportChatToMarkdown([presentDoc], { exportedAt: "2026-04-30T12:00:00Z" });
+    assert.match(out, /^## ⬛︎ presentDocument$/m);
+    assert.doesNotMatch(out, /artifacts\/documents\/saved-doc\.md/);
+  });
+
+  it("renders a header even for an empty session", async () => {
+    const out = await exportChatToMarkdown([], { exportedAt: "2026-04-30T12:00:00Z" });
     assert.match(out, /^# Conversation/);
     assert.match(out, /Exported 2026-04-30/);
   });
 
-  it("includes time stamps when resultTimestamps has the uuid", () => {
+  it("includes time stamps when resultTimestamps has the uuid", async () => {
     const stamps = new Map<string, number>([["t-user", Date.UTC(2026, 3, 30, 14, 35)]]);
-    const out = exportChatToMarkdown([textResult("user", "hi")], { resultTimestamps: stamps, exportedAt: "2026-04-30T12:00:00Z" });
-    // 14:35 UTC will be locale-shifted on the renderer; assert "·" + HH:MM shape.
-    assert.match(out, /### 👤 You · \d{2}:\d{2}/);
+    const out = await exportChatToMarkdown([textResult("user", "hi")], { resultTimestamps: stamps, exportedAt: "2026-04-30T12:00:00Z" });
+    assert.match(out, /## ⬜︎ You · \d{2}:\d{2}/);
   });
 
-  it("treats system role correctly", () => {
-    const out = exportChatToMarkdown([textResult("system", "session started")], { exportedAt: "2026-04-30T12:00:00Z" });
-    assert.match(out, /### ⚙️ System/);
+  it("treats system role correctly", async () => {
+    const out = await exportChatToMarkdown([textResult("system", "session started")], { exportedAt: "2026-04-30T12:00:00Z" });
+    assert.match(out, /## ◇ System/);
   });
 });
