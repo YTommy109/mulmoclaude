@@ -29,6 +29,7 @@ describe("WORKSPACE_DIRS expected keys", () => {
     "htmls",
     "images",
     "markdowns",
+    "memoryDir",
     "news",
     "roles",
     "scheduler",
