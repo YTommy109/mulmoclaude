@@ -74,9 +74,17 @@ export interface InlineImagesOptions {
   sourceDir?: string;
 }
 
-// Outer regex: linear scan to the first `>` of an `<img>` tag.
-// `[^>]` bounds the run so no input drives exponential backtracking.
-const IMG_TAG_RE = /<img\b[^>]*\/?>/gi;
+// Outer regex: scan an `<img>` tag, respecting quoted attribute values
+// so `>` characters that appear inside `alt="x > y"` don't terminate
+// the tag prematurely (Codex iter-2 finding). The body is one of:
+//   - any non-`>` non-quote char     `[^>"']`
+//   - a complete double-quoted span  `"[^"]*"`
+//   - a complete single-quoted span  `'[^']*'`
+// All branches are bounded — no nested quantifiers, no overlap. The
+// 100KB ReDoS test pins linear time.
+//
+// eslint-disable-next-line sonarjs/slow-regex, sonarjs/regex-complexity -- bounded alternatives, ReDoS-safe (test in test_pdfInlineImages.ts)
+const IMG_TAG_RE = /<img\b(?:[^>"']|"[^"]*"|'[^']*')*\/?>/gi;
 // Attribute iterator: walks each `name=value` pair inside a tag. The
 // leading `\s+` ensures we only match real attribute boundaries, not
 // `src=` text embedded inside another attribute's quoted value (e.g.

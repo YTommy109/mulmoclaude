@@ -186,4 +186,28 @@ describe("inlineImages — attribute-boundary correctness (Codex #1023 review)",
     assert.ok(out.includes('alt="example: src=foo.png"'));
     assert.match(out, /\bsrc="data:image\/png;base64,/);
   });
+
+  it("handles `>` inside a quoted attribute value (Codex iter-2 finding)", () => {
+    // Without quote-aware outer regex, the matcher would stop at the
+    // first `>` inside alt and never see the real `src`.
+    const html = '<img alt="x > y" src="/artifacts/images/2026/04/foo.png">';
+    const out = inlineImages(html, { workspaceRoot });
+    assert.ok(out.includes('alt="x > y"'));
+    assert.match(out, /\bsrc="data:image\/png;base64,/);
+  });
+
+  it("handles `>` inside a single-quoted attribute value", () => {
+    const html = "<img alt='a > b' src='/artifacts/images/2026/04/foo.png'>";
+    const out = inlineImages(html, { workspaceRoot });
+    assert.ok(out.includes("alt='a > b'"));
+    assert.match(out, /\bsrc='data:image\/png;base64,/);
+  });
+
+  it("handles multiple `>` characters inside attribute values", () => {
+    const html = '<img alt="x>y>z" title="p>q" src="/artifacts/images/2026/04/foo.png">';
+    const out = inlineImages(html, { workspaceRoot });
+    assert.ok(out.includes('alt="x>y>z"'));
+    assert.ok(out.includes('title="p>q"'));
+    assert.match(out, /\bsrc="data:image\/png;base64,/);
+  });
 });

@@ -187,9 +187,16 @@ function rewriteSrcAttr(captures: unknown[], basePath: string): string {
   return `${leading}${name}${eqWithSpaces}${quote}${newUrl}${quote}`;
 }
 
+// Outer regex: respects quoted attribute values so a `>` inside
+// `alt="x > y"` doesn't terminate the tag early (Codex iter-2
+// finding on #1023). All branches bounded; ReDoS-safe.
+//
+// eslint-disable-next-line sonarjs/slow-regex, sonarjs/regex-complexity -- bounded alternatives, ReDoS-safe (test in test_rewriteMarkdownImageRefs.ts)
+const IMG_TAG_OUTER_RE = /<img\b(?:[^>"']|"[^"]*"|'[^']*')*\/?>/gi;
+
 export function rewriteImgSrcAttrsInHtml(html: string, basePath: string): string {
   if (!html) return html;
-  return html.replace(/<img\b[^>]*\/?>/gi, (tag) => tag.replace(IMG_ATTR_ITER_RE, (...captures: unknown[]) => rewriteSrcAttr(captures, basePath)));
+  return html.replace(IMG_TAG_OUTER_RE, (tag) => tag.replace(IMG_ATTR_ITER_RE, (...captures: unknown[]) => rewriteSrcAttr(captures, basePath)));
 }
 
 function isSkippable(token: Token): boolean {
