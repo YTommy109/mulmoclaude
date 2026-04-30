@@ -125,6 +125,17 @@ function loadImageAsDataUri(abs: string): string | null {
   return `data:${mime};base64,${buf.toString("base64")}`;
 }
 
+// Video / audio extensions Stage B (#1011) added to the rewriter.
+// In PDF rendering puppeteer can't play them, so inlining a large
+// `.mp4` as base64 just blows up the HTML and times out the page
+// load (`Navigation timeout of 30000 ms exceeded`). The `<video
+// poster>` attribute IS an image and stays inlined — that's the
+// only thing the user actually sees in a PDF anyway. The `<video
+// src>` / `<source src>` (in a `<video>`) / `<audio src>` URL is
+// left as the original relative path; puppeteer's fetch will fail
+// quickly and `networkidle0` still resolves.
+const PDF_SKIP_MEDIA_EXT_RE = /\.(mp4|webm|mov|m4v|ogv|mp3|ogg|oga|wav|m4a|aac)(\?|#|$)/i;
+
 /**
  * Inline local images as base64 data URIs so Puppeteer can render
  * them. Resolves URL-bearing attributes (currently `<img src>`,
@@ -154,6 +165,10 @@ export function inlineImages(html: string, options: InlineImagesOptions = {}): s
   const baseDir = path.join(workspaceRoot, sourceDir);
   return transformResolvableUrlsInHtml(html, (url) => {
     if (url.startsWith("data:") || url.startsWith("http")) return null;
+    // Skip media (mp4 / mp3 / webm / ...) — see PDF_SKIP_MEDIA_EXT_RE
+    // comment. `<video poster="x.png">` still inlines because the
+    // poster value's URL ends in an image extension.
+    if (PDF_SKIP_MEDIA_EXT_RE.test(url)) return null;
     const abs = resolveImageAbsPath(url, workspaceRoot, baseDir);
     if (!abs) return null;
     return loadImageAsDataUri(abs);

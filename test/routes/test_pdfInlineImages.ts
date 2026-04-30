@@ -246,4 +246,34 @@ describe("inlineImages — extended tag coverage (Stage B)", () => {
     const out = inlineImages(html, { workspaceRoot });
     assert.equal(out, html);
   });
+
+  it("does NOT inline <video src=mp4> — poster image is what shows in PDF", () => {
+    // The actual file doesn't have to exist; the URL extension is
+    // what gates the skip. Inlining a 100MB mp4 as base64 would
+    // blow up puppeteer's page-load timeout.
+    const html = '<video src="/artifacts/images/2026/04/clip.mp4"></video>';
+    const out = inlineImages(html, { workspaceRoot });
+    assert.equal(out, html, ".mp4 must NOT be inlined in PDF");
+  });
+
+  it("inlines <video poster> while leaving <video src=mp4> alone", () => {
+    // Poster is an image → inlined. The mp4 src → left as relative
+    // URL; puppeteer's fetch fails quickly, `networkidle0` resolves.
+    const html = '<video poster="/artifacts/images/2026/04/foo.png" src="/artifacts/images/2026/04/clip.mp4"></video>';
+    const out = inlineImages(html, { workspaceRoot });
+    assert.match(out, /poster="data:image\/png;base64,/);
+    assert.match(out, /src="\/artifacts\/images\/2026\/04\/clip\.mp4"/);
+  });
+
+  it("does NOT inline <audio src=mp3>", () => {
+    const html = '<audio src="/artifacts/images/2026/04/track.mp3"></audio>';
+    const out = inlineImages(html, { workspaceRoot });
+    assert.equal(out, html);
+  });
+
+  it("skips media URL with query string (?v=…cache-bust)", () => {
+    const html = '<video src="/artifacts/images/2026/04/clip.mp4?v=123"></video>';
+    const out = inlineImages(html, { workspaceRoot });
+    assert.equal(out, html);
+  });
 });
