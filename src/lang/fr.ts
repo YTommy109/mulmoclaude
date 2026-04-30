@@ -629,6 +629,9 @@ const frMessages = {
     metadataCreated: "Créé",
     metadataUpdated: "Mis à jour",
     metadataEditor: "Éditeur",
+    pageEditHeader: "Édition du wiki",
+    snapshotExpired: "Instantané expiré — affichage de la page actuelle",
+    pageDeleted: "Page supprimée",
     history: {
       tabContent: "Contenu",
       tabHistory: "Historique",

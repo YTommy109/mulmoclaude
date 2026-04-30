@@ -4,14 +4,14 @@
     <div class="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
       <div class="flex items-center gap-2 min-w-0">
         <button
-          v-if="action !== 'index'"
+          v-if="action !== 'index' && isStandaloneWikiRoute"
           class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
           :title="t('pluginWiki.backToIndex')"
           @click="router.back()"
         >
           <span class="material-icons text-base">arrow_back</span>
         </button>
-        <h2 class="text-lg font-semibold text-gray-800 truncate">{{ title }}</h2>
+        <h2 class="text-lg font-semibold text-gray-800 truncate">{{ displayTitle }}</h2>
       </div>
       <div class="flex items-center gap-2">
         <template v-if="action === 'page' && content">
@@ -79,7 +79,7 @@
          body below so the History tab stays reachable when the
          live page is missing or empty (codex review iter-2 #946 —
          history outlives the page). -->
-    <div v-if="!content && !navError && action !== 'page'" class="flex-1 flex items-center justify-center text-gray-400 text-sm">
+    <div v-if="!content && !navError && action !== 'page' && action !== 'page-edit'" class="flex-1 flex items-center justify-center text-gray-400 text-sm">
       <div class="text-center space-y-2">
         <span class="material-icons text-4xl text-gray-300">menu_book</span>
         <p>{{ t("pluginWiki.empty") }}</p>
@@ -147,7 +147,7 @@
            Stays visible across both Content and History tabs (#944
            Q11=C). -->
       <div
-        v-if="action === 'page' && hasPageMeta"
+        v-if="(action === 'page' || action === 'page-edit') && hasPageMeta"
         data-testid="wiki-page-metadata-bar"
         class="shrink-0 border-b border-gray-100 px-6 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500"
       >
@@ -261,21 +261,56 @@
             </div>
           </div>
           <!-- Rendered markdown body. -->
-          <!-- eslint-disable-next-line vue/no-v-html -- marked.parse output of app-owned wiki page body; trusted in-process render -->
-          <div v-else ref="scrollRef" class="flex-1 px-6 py-4 prose prose-sm max-w-none wiki-content" @click="handleContentClick" v-html="renderedContent" />
+          <WikiPageBody
+            v-else
+            :body="mdDoc.body"
+            :base-dir="WIKI_BASE_DIR"
+            class="flex-1"
+            @task-checkbox-click="onTaskCheckboxClick"
+            @wiki-link-click="navigatePage"
+            @workspace-link-click="(path) => appApi.navigateToWorkspacePath(path)"
+          />
         </div>
       </template>
 
+      <!-- page-edit (#963) — single-pane snapshot render with
+           optional "snapshot expired" banner and a "page deleted"
+           placeholder when neither the snapshot nor the live page
+           survives. -->
+      <div v-else-if="action === 'page-edit'" ref="scrollRef" class="flex-1 overflow-y-auto">
+        <div
+          v-if="pageEditBanner"
+          class="mx-6 mt-4 rounded border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700"
+          data-testid="wiki-page-edit-banner"
+        >
+          {{ pageEditBanner }}
+        </div>
+        <div v-if="pageEditDeleted" class="flex items-center justify-center text-gray-400 text-sm py-12" data-testid="wiki-page-edit-deleted">
+          <div class="text-center space-y-2">
+            <span class="material-icons text-4xl text-gray-300">delete</span>
+            <p>{{ t("pluginWiki.pageDeleted") }}</p>
+          </div>
+        </div>
+        <WikiPageBody
+          v-else-if="content"
+          :body="mdDoc.body"
+          :base-dir="WIKI_BASE_DIR"
+          @task-checkbox-click="onTaskCheckboxClick"
+          @wiki-link-click="navigatePage"
+          @workspace-link-click="(path) => appApi.navigateToWorkspacePath(path)"
+        />
+      </div>
+
       <!-- Non-page action: log / lint_report — single-pane render. -->
-      <!-- eslint-disable vue/no-v-html -- marked.parse output of app-owned wiki log/lint-report content; trusted in-process render -->
-      <div
-        v-else
-        ref="scrollRef"
-        class="flex-1 overflow-y-auto px-6 py-4 prose prose-sm max-w-none wiki-content"
-        @click="handleContentClick"
-        v-html="renderedContent"
-      />
-      <!-- eslint-enable vue/no-v-html -->
+      <div v-else ref="scrollRef" class="flex-1 overflow-y-auto">
+        <WikiPageBody
+          :body="mdDoc.body"
+          :base-dir="WIKI_BASE_DIR"
+          @task-checkbox-click="onTaskCheckboxClick"
+          @wiki-link-click="navigatePage"
+          @workspace-link-click="(path) => appApi.navigateToWorkspacePath(path)"
+        />
+      </div>
 
       <!-- History tab body (kept mounted across tab toggles for state
            persistence, Q15=B). Mount whenever we have a slug — list /
@@ -311,28 +346,25 @@
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { marked } from "marked";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { WikiData, WikiPageEntry } from "./index";
-import { handleExternalLinkClick } from "../../utils/dom/externalLink";
-import { classifyWorkspacePath, resolveWikiHref } from "../../utils/path/workspaceLinkRouter";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { useAppApi } from "../../composables/useAppApi";
 import { buildPdfFilename } from "../../utils/files/filename";
-import { renderWikiLinks } from "./helpers";
 import PageChatComposer from "../../components/PageChatComposer.vue";
 import { BUILTIN_ROLE_IDS } from "../../config/roles";
-import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { parseFrontmatter } from "../../utils/markdown/frontmatter";
 import { useMarkdownDoc } from "../../composables/useMarkdownDoc";
-import { findTaskLines, makeTasksInteractive, toggleTaskAt } from "../../utils/markdown/taskList";
+import { findTaskLines, toggleTaskAt } from "../../utils/markdown/taskList";
 import { apiPost } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { PAGE_ROUTES } from "../../router";
 import { WIKI_ACTION, WIKI_ROUTE_SECTION, buildWikiRouteParams, isSafeWikiSlug, readWikiRouteTarget, wikiActionFor, type WikiTarget } from "./route";
 import FilterChip from "../../components/FilterChip.vue";
 import HistoryTab from "./history/HistoryTab.vue";
+import WikiPageBody from "./components/WikiPageBody.vue";
+import { loadPageEdit } from "./pageEditLoader";
 
 type WikiTabView = typeof WIKI_ACTION.log | typeof WIKI_ACTION.lintReport;
 
@@ -365,6 +397,14 @@ const content = ref(props.selectedResult?.data?.content ?? "");
 const mdDoc = useMarkdownDoc(content);
 const pageEntries = ref<WikiPageEntry[]>(props.selectedResult?.data?.pageEntries ?? []);
 const pageExists = ref(props.selectedResult?.data?.pageExists ?? true);
+// `page-edit` action state (Stage 3a, #963). Populated when an LLM
+// Write/Edit toolResult is mounted: `pageEditTs` is the snapshot's
+// own timestamp (used in the header subtitle), `pageEditBanner` is
+// shown only when the snapshot was gc'd and we fell back to the
+// live page, and `pageEditDeleted` flips on when neither survives.
+const pageEditTs = ref<string | null>(null);
+const pageEditBanner = ref<string | null>(null);
+const pageEditDeleted = ref(false);
 // View-local tag filter. Null = no filter. Not persisted to URL —
 // kept intentionally ephemeral so it doesn't leak into bookmarks
 // or the per-session stack history.
@@ -458,6 +498,19 @@ onMounted(() => {
   // the index payload — if it resolves last, it clobbers log / lint /
   // page state. Cancel it here so the two can't race.
   if (route.name === PAGE_ROUTES.wiki) abortFreshFetch();
+  // page-edit toolResults source their content from the snapshot
+  // endpoint via loadPageEditData. Cancel the mount fetch (which
+  // targets /api/wiki) so it can't clobber state, and kick the
+  // loader directly — the selectedResult watcher only fires on
+  // subsequent uuid changes, not on the initial mount, so this is
+  // the only place to seed page-edit content (#963).
+  const data = props.selectedResult?.data;
+  if (data?.action === "page-edit") {
+    abortFreshFetch();
+    if (data.slug && data.stamp) {
+      void loadPageEditData(data.slug, data.stamp);
+    }
+  }
 });
 
 watch(
@@ -466,14 +519,45 @@ watch(
     const data = props.selectedResult?.data;
     if (data) {
       action.value = data.action ?? "index";
-      title.value = data.title ?? "Wiki";
+      title.value = data.title ?? data.slug ?? "Wiki";
       content.value = data.content ?? "";
       pageEntries.value = data.pageEntries ?? [];
       pageExists.value = data.pageExists ?? true;
     }
+    // page-edit (Stage 3a #963): the toolResult only carries
+    // {slug, stamp, pagePath} pointers — fetch the snapshot body
+    // separately. Skip the generic refresh() that targets /api/wiki
+    // (it would overwrite the snapshot content with the live page).
+    if (data?.action === "page-edit" && data.slug && data.stamp) {
+      void loadPageEditData(data.slug, data.stamp);
+      return;
+    }
+    pageEditTs.value = null;
+    pageEditBanner.value = null;
+    pageEditDeleted.value = false;
     void refresh();
   },
 );
+
+async function loadPageEditData(slug: string, stamp: string): Promise<void> {
+  pageEditTs.value = null;
+  pageEditBanner.value = null;
+  pageEditDeleted.value = false;
+  content.value = "";
+
+  const result = await loadPageEdit(slug, stamp);
+  if (result.kind === "snapshot") {
+    pageEditTs.value = result.ts;
+    content.value = result.content;
+    return;
+  }
+  if (result.kind === "current") {
+    pageEditBanner.value = t("pluginWiki.snapshotExpired");
+    content.value = result.content;
+    return;
+  }
+  pageEditDeleted.value = true;
+}
 
 // URL is the single source of truth for wiki navigation. Button
 // handlers push to the router; this watcher drives callApi(). Only
@@ -590,7 +674,7 @@ watch(content, async () => {
 });
 
 /** Base directory for wiki content, adjusted by the current view. */
-const WIKI_BASE_DIR = computed(() => (action.value === "page" ? WIKI_PAGES_DIR : WIKI_DATA_DIR));
+const WIKI_BASE_DIR = computed(() => (action.value === "page" || action.value === "page-edit" ? WIKI_PAGES_DIR : WIKI_DATA_DIR));
 
 // ── Metadata bar (#895 PR B) ──────────────────────────────────
 //
@@ -651,25 +735,15 @@ function formatUpdated(raw: string): string {
   }).format(parsed);
 }
 
-const renderedContent = computed(() => {
-  if (!content.value) return "";
-  // Strip YAML frontmatter before rendering — marked doesn't parse
-  // it, so the `---` fences turn into <hr>s and the inner keys
-  // render as plain text (title / created / updated / tags / source).
-  const { body } = parseFrontmatter(content.value);
-  if (!body) return "";
-  // Rewrite workspace-relative image refs (`![alt](images/foo.png)`)
-  // to `/api/files/raw?path=...` BEFORE marked parses them — without
-  // this, the browser tries to fetch against the SPA route URL
-  // (/chat/…/images/foo.png) and 404s. Reuse WIKI_BASE_DIR so a
-  // page's `../images/foo.png` resolves under `data/wiki/`.
-  const withImages = rewriteMarkdownImageRefs(body, WIKI_BASE_DIR.value);
-  // Strip marked's `disabled=""` from GFM task checkboxes and tag
-  // them with `class="md-task"` so `handleContentClick` can find
-  // them via DOM delegation (#775). Other view modes (index / log /
-  // lint_report) get the same transform — it's a no-op when no
-  // checkboxes are present.
-  return makeTasksInteractive(marked.parse(renderWikiLinks(withImages)) as string);
+// Header subtitle for the page-edit action. "Wiki edit · {slug} ·
+// {timestamp}" so the user immediately sees this is a moment-in-
+// time view, not the live page. `formatUpdated` re-uses the same
+// `YYYY-MM-DD HH:MM` shape as the metadata bar.
+const displayTitle = computed(() => {
+  if (action.value !== "page-edit") return title.value;
+  const stamp = pageEditTs.value;
+  const prefix = `${t("pluginWiki.pageEditHeader")} · ${title.value}`;
+  return stamp ? `${prefix} · ${formatUpdated(stamp)}` : prefix;
 });
 
 const { pdfDownloading, pdfError, downloadPdf: rawDownloadPdf } = usePdfDownload();
@@ -896,45 +970,6 @@ function onTaskCheckboxClick(event: MouseEvent, target: HTMLInputElement): void 
   // `navError` inside `persistWikiPage`'s `!response.ok` branch.
   taskPersistChain = taskPersistChain.then(() => persistWikiPage(pageName, newContent, generation)).catch(() => undefined);
 }
-
-function handleContentClick(event: MouseEvent) {
-  // 0. GFM task checkbox toggle (#775). Tagged by `makeTasksInteractive`
-  //    on the rendered HTML; only meaningful while we're showing a
-  //    page body. Index / log / lint_report views never carry user
-  //    content to write back.
-  const target = event.target as HTMLElement;
-  if (target instanceof HTMLInputElement && target.type === "checkbox" && target.classList.contains("md-task")) {
-    onTaskCheckboxClick(event, target);
-    return;
-  }
-  // 1. Internal wiki links: `[[Page Name]]` was rewritten to a
-  //    `<span class="wiki-link">` during markdown pre-processing,
-  //    so it doesn't overlap with regular `<a>` handling.
-  const link = target.closest(".wiki-link") as HTMLElement | null;
-  if (link?.dataset.page) {
-    navigatePage(link.dataset.page);
-    return;
-  }
-  // 2. External http(s) links in the rendered markdown body: open
-  //    in a new tab so clicking them doesn't navigate the whole
-  //    SPA away from MulmoClaude. Same-origin and non-http links
-  //    (mailto:, tel:, anchors) fall through to the browser default.
-  if (handleExternalLinkClick(event)) return;
-  // 3. Workspace-internal links: resolve relative paths against the
-  //    wiki content's filesystem location and route to the appropriate view.
-  //    Skip modifier-key clicks and middle clicks so the browser's
-  //    "open in new tab" behaviour is preserved.
-  if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
-  const anchor = target.closest("a");
-  if (!anchor) return;
-  const href = anchor.getAttribute("href");
-  if (!href || href.startsWith("#")) return;
-  const resolved = resolveWikiHref(href, WIKI_BASE_DIR.value);
-  if (classifyWorkspacePath(resolved)) {
-    event.preventDefault();
-    appApi.navigateToWorkspacePath(resolved);
-  }
-}
 </script>
 
 <style scoped>
@@ -953,109 +988,5 @@ function handleContentClick(event: MouseEvent) {
 .entry-tag-chip:hover {
   background-color: #dbeafe;
   color: #1d4ed8;
-}
-.wiki-content :deep(.wiki-link) {
-  color: #2563eb;
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-}
-.wiki-content :deep(.wiki-link:hover) {
-  text-decoration-style: solid;
-}
-.wiki-content :deep(h1) {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
-  color: #111827;
-}
-.wiki-content :deep(h1:first-child),
-.wiki-content :deep(h2:first-child),
-.wiki-content :deep(h3:first-child),
-.wiki-content :deep(p:first-child) {
-  margin-top: 0;
-}
-.wiki-content :deep(h2) {
-  font-size: 1.2rem;
-  font-weight: 600;
-  margin-top: 1.25rem;
-  margin-bottom: 0.5rem;
-  color: #1f2937;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 0.25rem;
-}
-.wiki-content :deep(h3) {
-  font-size: 1rem;
-  font-weight: 600;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  color: #374151;
-}
-.wiki-content :deep(p) {
-  margin-bottom: 0.75rem;
-  line-height: 1.6;
-  color: #374151;
-}
-.wiki-content :deep(ul),
-.wiki-content :deep(ol) {
-  margin-left: 1.5rem;
-  margin-bottom: 0.75rem;
-}
-.wiki-content :deep(li) {
-  margin-bottom: 0.25rem;
-  line-height: 1.5;
-  color: #374151;
-}
-.wiki-content :deep(ul) {
-  list-style-type: disc;
-}
-.wiki-content :deep(ol) {
-  list-style-type: decimal;
-}
-.wiki-content :deep(hr) {
-  border: none;
-  border-top: 1px solid #e5e7eb;
-  margin: 1rem 0;
-}
-.wiki-content :deep(code) {
-  background: #f3f4f6;
-  padding: 0.1rem 0.3rem;
-  border-radius: 0.25rem;
-  font-size: 0.85em;
-  font-family: monospace;
-}
-.wiki-content :deep(pre) {
-  background: #f3f4f6;
-  padding: 0.75rem;
-  border-radius: 0.375rem;
-  overflow-x: auto;
-  margin-bottom: 0.75rem;
-}
-.wiki-content :deep(pre code) {
-  background: none;
-  padding: 0;
-}
-.wiki-content :deep(blockquote) {
-  border-left: 3px solid #d1d5db;
-  padding-left: 1rem;
-  color: #6b7280;
-  margin: 0.75rem 0;
-}
-.wiki-content :deep(table) {
-  border-collapse: collapse;
-  width: 100%;
-  margin-bottom: 0.75rem;
-  font-size: 0.875rem;
-}
-.wiki-content :deep(th),
-.wiki-content :deep(td) {
-  border: 1px solid #e5e7eb;
-  padding: 0.5rem 0.75rem;
-  text-align: left;
-}
-.wiki-content :deep(th) {
-  background: #f9fafb;
-  font-weight: 600;
 }
 </style>

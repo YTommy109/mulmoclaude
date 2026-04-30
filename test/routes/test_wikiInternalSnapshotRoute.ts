@@ -65,6 +65,8 @@ let originalHome: string | undefined;
 let originalUserProfile: string | undefined;
 let snapshotHandler: Handler;
 let listSnapshots: typeof import("../../server/workspace/wiki-pages/snapshot.js").listSnapshots;
+let getOrCreateSession: typeof import("../../server/events/session-store/index.js").getOrCreateSession;
+let onSessionEvent: typeof import("../../server/events/session-store/index.js").onSessionEvent;
 
 before(async () => {
   tmpRoot = await mkdtemp(path.join(tmpdir(), "wiki-internal-snap-"));
@@ -81,6 +83,7 @@ before(async () => {
   const historyMod = await import("../../server/api/routes/wiki/history.js");
   snapshotHandler = extractRouteHandler(historyMod, "/internal/snapshot", "post");
   ({ listSnapshots } = await import("../../server/workspace/wiki-pages/snapshot.js"));
+  ({ getOrCreateSession, onSessionEvent } = await import("../../server/events/session-store/index.js"));
 });
 
 after(async () => {
@@ -146,5 +149,61 @@ describe("POST /api/wiki/internal/snapshot", () => {
 
     const snapshots = await listSnapshots(slug);
     assert.equal(snapshots[0].sessionId, "chat-abc-123");
+  });
+
+  // Stage 3a (#963): the snapshot endpoint also publishes a synthetic
+  // manageWiki / page-edit toolResult into the active chat session
+  // so the canvas timeline shows the LLM's edit inline.
+  it("publishes a manageWiki/page-edit toolResult to an active session", async () => {
+    const slug = "publishes-toolresult";
+    const sessionId = "chat-publish-1";
+    await writeFile(path.join(pagesDir, `${slug}.md`), "body\n", "utf-8");
+    const sessionFile = path.join(tmpRoot, `${sessionId}.jsonl`);
+    getOrCreateSession(sessionId, {
+      roleId: "general",
+      resultsFilePath: sessionFile,
+      startedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    const events: Record<string, unknown>[] = [];
+    const unsubscribe = onSessionEvent(sessionId, (event) => {
+      events.push(event);
+    });
+
+    const { state, res } = mockRes();
+    await snapshotHandler(makeReq({ slug, sessionId }), res);
+    assert.equal(state.status, 200);
+
+    unsubscribe();
+    const toolResultEvent = events.find((event) => event.type === "tool_result");
+    assert.ok(toolResultEvent, "expected a tool_result event published to the session");
+    const result = toolResultEvent.result as {
+      toolName?: string;
+      data?: { action?: string; slug?: string; stamp?: string; pagePath?: string };
+    };
+    assert.equal(result.toolName, "manageWiki");
+    assert.equal(result.data?.action, "page-edit");
+    assert.equal(result.data?.slug, slug);
+    assert.match(result.data?.stamp ?? "", /^\d{4}-\d{2}-\d{2}T/);
+    assert.equal(result.data?.pagePath, `data/wiki/pages/${slug}.md`);
+  });
+
+  it("does not publish a toolResult when sessionId is absent", async () => {
+    const slug = "no-publish-without-session";
+    await writeFile(path.join(pagesDir, `${slug}.md`), "body\n", "utf-8");
+    // Pre-register a listener under a sentinel id so a stray publish
+    // (regression) would still be caught — even though we expect
+    // none with no sessionId.
+    const events: Record<string, unknown>[] = [];
+    const unsubscribe = onSessionEvent("never-published-to", (event) => {
+      events.push(event);
+    });
+
+    const { state, res } = mockRes();
+    await snapshotHandler(makeReq({ slug }), res);
+    assert.equal(state.status, 200);
+
+    unsubscribe();
+    assert.equal(events.length, 0);
   });
 });

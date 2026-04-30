@@ -628,6 +628,9 @@ const ptBRMessages = {
     metadataCreated: "Criado",
     metadataUpdated: "Atualizado",
     metadataEditor: "Editor",
+    pageEditHeader: "Edição do wiki",
+    snapshotExpired: "Snapshot expirado — exibindo a página atual",
+    pageDeleted: "Página excluída",
     history: {
       tabContent: "Conteúdo",
       tabHistory: "Histórico",

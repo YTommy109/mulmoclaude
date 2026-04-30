@@ -626,6 +626,9 @@ const jaMessages = {
     metadataCreated: "作成",
     metadataUpdated: "更新",
     metadataEditor: "編集者",
+    pageEditHeader: "Wiki編集",
+    snapshotExpired: "スナップショットが期限切れ — 現在のページを表示中",
+    pageDeleted: "ページが削除されました",
     history: {
       tabContent: "本文",
       tabHistory: "履歴",

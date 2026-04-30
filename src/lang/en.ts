@@ -651,6 +651,9 @@ const enMessages = {
     metadataCreated: "Created",
     metadataUpdated: "Updated",
     metadataEditor: "Editor",
+    pageEditHeader: "Wiki edit",
+    snapshotExpired: "Snapshot expired — showing current page",
+    pageDeleted: "Page deleted",
     history: {
       tabContent: "Content",
       tabHistory: "History",

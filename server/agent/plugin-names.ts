@@ -10,7 +10,6 @@ import ManageAutomationsDef from "../../src/plugins/scheduler/automationsDefinit
 import PresentMulmoScriptDef from "../../src/plugins/presentMulmoScript/definition.js";
 import ManageSkillsDef from "../../src/plugins/manageSkills/definition.js";
 import ManageSourceDef from "../../src/plugins/manageSource/definition.js";
-import WikiDef from "../../src/plugins/wiki/definition.js";
 import PresentHtmlDef from "../../src/plugins/presentHtml/definition.js";
 import PresentChartDef from "../../src/plugins/chart/definition.js";
 import MarkdownDef from "../../src/plugins/markdown/definition.js";
@@ -46,7 +45,6 @@ export const TOOL_ENDPOINTS: Record<string, string> = {
   [ManageSkillsDef.name]: API_ROUTES.skills.create,
   [ManageSourceDef.name]: API_ROUTES.sources.manage,
   [PresentMulmoScriptDef.name]: API_ROUTES.mulmoScript.save,
-  [WikiDef.name]: API_ROUTES.wiki.base,
 };
 
 /** All ToolDefinition objects for package and local plugins. */
@@ -68,7 +66,6 @@ export const PLUGIN_DEFS = [
   Present3DDef,
   ManageSkillsDef,
   ManageSourceDef,
-  WikiDef,
 ];
 
 /**

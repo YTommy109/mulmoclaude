@@ -626,6 +626,9 @@ const koMessages = {
     metadataCreated: "생성",
     metadataUpdated: "업데이트",
     metadataEditor: "편집자",
+    pageEditHeader: "Wiki 편집",
+    snapshotExpired: "스냅샷 만료됨 — 현재 페이지 표시 중",
+    pageDeleted: "페이지가 삭제되었습니다",
     history: {
       tabContent: "본문",
       tabHistory: "기록",

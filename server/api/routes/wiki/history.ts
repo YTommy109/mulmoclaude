@@ -13,6 +13,7 @@
 
 import { Router, type Request, type Response } from "express";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { writeWikiPage } from "../../../workspace/wiki-pages/io.js";
 import { WORKSPACE_DIRS } from "../../../workspace/paths.js";
 import { isSafeStamp, listSnapshots, readSnapshot, stripSnapshotMeta } from "../../../workspace/wiki-pages/snapshot.js";
@@ -20,6 +21,7 @@ import { mergeFrontmatter, serializeWithFrontmatter } from "../../../utils/markd
 import { badRequest, notFound } from "../../../utils/httpError.js";
 import { readTextOrNull } from "../../../utils/files/safe.js";
 import { workspacePath } from "../../../workspace/workspace.js";
+import { pushToolResult } from "../../../events/session-store/index.js";
 import { log } from "../../../system/logger/index.js";
 
 const router = Router();
@@ -167,7 +169,7 @@ router.post("/internal/snapshot", async (req: Request<object, unknown, InternalS
   // construction the agent is the actor. User-driven manual saves
   // go through writeWikiPage in-process and never reach here.
   const { appendSnapshot } = await import("../../../workspace/wiki-pages/snapshot.js");
-  await appendSnapshot(
+  const stamp = await appendSnapshot(
     slug,
     null,
     content,
@@ -178,6 +180,47 @@ router.post("/internal/snapshot", async (req: Request<object, unknown, InternalS
     { workspaceRoot: workspacePath },
   );
   log.info("wiki", "internal snapshot recorded", { slug });
+
+  // Stage 3a (#963): publish a synthetic `manageWiki` toolResult
+  // into the session timeline so the canvas shows what the LLM
+  // just wrote. The View dispatch (existing manageWiki plugin)
+  // picks up the new `page-edit` action and fetches the snapshot
+  // body via /api/wiki/pages/:slug/history/:stamp on render —
+  // JSONL stays small (~150 bytes per write) because we store
+  // the snapshot reference, not the body. `pagePath` is a GC
+  // fallback: if the snapshot is gc'd before render, the View
+  // falls back to reading the live page file.
+  // Wrapped in try/catch so a publish failure (e.g. JSONL append
+  // throws) doesn't fail the whole route — the snapshot was
+  // already written, and the hook is fire-and-forget. Without
+  // this guard the route would 500 even though the wiki write
+  // itself succeeded; the next save would still snapshot fine,
+  // but the canvas would silently lose this one preview
+  // (CodeRabbit review).
+  if (typeof sessionId === "string" && sessionId.length > 0) {
+    try {
+      const outcome = await pushToolResult(sessionId, {
+        uuid: randomUUID(),
+        toolName: "manageWiki",
+        data: {
+          action: "page-edit",
+          title: slug,
+          slug,
+          stamp,
+          pagePath: path.posix.join(WORKSPACE_DIRS.wikiPages, `${slug}.md`),
+        },
+      });
+      if (outcome.kind === "skipped") {
+        log.warn("wiki", "page-edit toolResult publish skipped", { slug, reason: outcome.reason });
+      }
+    } catch (err) {
+      log.warn("wiki", "page-edit toolResult publish failed", {
+        slug,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   res.json({ slug, ok: true });
 });
 

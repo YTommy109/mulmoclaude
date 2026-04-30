@@ -208,6 +208,32 @@ Two layouts share `<WikiView>`: the **index** (page list) and a **single page** 
 └───────────────────────────────────────────────────────────────┘
 ```
 
+### page-edit (canvas timeline only — #963)
+
+When the LLM Writes/Edits a `data/wiki/pages/<slug>.md` file via
+Claude Code's built-in tools, the snapshot endpoint publishes a
+synthetic `manageWiki` toolResult with `action: "page-edit"` into
+the active session. The canvas (StackView) renders it via the
+same `<WikiView>` component as `action: "page"`, so the body
+markup is identical:
+
+```text
+┌─[<WikiView> action="page-edit" — canvas only]─────────────────┐
+│ ▮ Wiki edit · <slug> · 2026-04-30 12:00                       │
+│ ┌─[wiki-page-metadata-bar]────────────────────────────────┐   │
+│ │ Created: ... · Updated: ... · Editor: llm · #tag1 #tag2 │   │
+│ └─────────────────────────────────────────────────────────┘   │
+│ [wiki-page-edit-banner] (only when snapshot was gc'd)         │
+│ ┌─Markdown content from snapshot file (.wiki-content)─────┐   │
+│ │ ...same render as the live page action...              │   │
+│ └─────────────────────────────────────────────────────────┘   │
+│ [wiki-page-edit-deleted] (only when both snapshot + page gone)│
+└───────────────────────────────────────────────────────────────┘
+```
+
+Tabs / PDF / chat composer / create-update buttons are hidden —
+this is a moment-in-time view, not the live page.
+
 ## /sources — registered news/RSS feeds
 
 ```
