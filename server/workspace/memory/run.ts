@@ -10,6 +10,7 @@ import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { runClaudeCli, ClaudeCliNotFoundError } from "../journal/archivist-cli.js";
+import { loadAllMemoryEntries } from "./io.js";
 import { makeLlmMemoryClassifier } from "./llm-classifier.js";
 import { migrateLegacyMemory } from "./migrate.js";
 import { errorMessage } from "../../utils/errors.js";
@@ -27,6 +28,19 @@ export async function runMemoryMigrationOnce(workspaceRoot: string): Promise<voi
   const stat = statSync(legacyPath);
   if (stat.size < 64) {
     log.info("memory", "migration: legacy file is below the placeholder threshold, skipping");
+    return;
+  }
+  // If the typed memory dir already has entries, the workspace is
+  // post-migration (or the user has been editing typed entries
+  // directly). Re-running on a populated dir would re-classify the
+  // same legacy bullets and create duplicates next to the existing
+  // typed entries. Leave the legacy file alone — the user can
+  // manually move or delete it.
+  const existing = await loadAllMemoryEntries(workspaceRoot);
+  if (existing.length > 0) {
+    log.info("memory", "migration: typed entries already present, skipping legacy run", {
+      existingCount: existing.length,
+    });
     return;
   }
   const classifier = makeLlmMemoryClassifier({ summarize: runClaudeCli });

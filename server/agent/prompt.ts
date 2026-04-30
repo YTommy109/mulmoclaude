@@ -1,5 +1,7 @@
-import { existsSync, readFileSync, readdirSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { join } from "path";
+import { loadAllMemoryEntriesSync } from "../workspace/memory/io.js";
+import type { MemoryEntry } from "../workspace/memory/types.js";
 import type { Role } from "../../src/config/roles.js";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
 import { PLUGIN_DEFS } from "./plugin-names.js";
@@ -189,29 +191,20 @@ export function buildMemoryContext(workspacePath: string): string {
 }
 
 function readTypedMemoryEntries(workspacePath: string): string | null {
-  const dir = join(workspacePath, WORKSPACE_DIRS.memoryDir);
-  if (!existsSync(dir)) return null;
-  let names: string[];
-  try {
-    names = readdirSync(dir);
-  } catch {
-    return null;
-  }
-  const sections: string[] = [];
-  for (const name of names.sort()) {
-    if (name === "MEMORY.md") continue;
-    if (!name.endsWith(".md")) continue;
-    if (name.startsWith(".")) continue;
-    let raw: string;
-    try {
-      raw = readFileSync(join(dir, name), "utf-8");
-    } catch {
-      continue;
-    }
-    const trimmed = raw.trim();
-    if (trimmed) sections.push(trimmed);
-  }
-  return sections.length > 0 ? sections.join("\n\n---\n\n") : null;
+  // Use the validated loader rather than reading raw files directly:
+  // a corrupt frontmatter (mid-edit, malformed YAML) is logged and
+  // skipped by `loadAllMemoryEntriesSync` instead of leaking into the
+  // system prompt. This also keeps the skip rules (MEMORY.md /
+  // dotfiles / non-files) defined in exactly one place.
+  const entries = loadAllMemoryEntriesSync(workspacePath);
+  if (entries.length === 0) return null;
+  return entries.map(formatMemoryEntryForPrompt).join("\n\n");
+}
+
+function formatMemoryEntryForPrompt(entry: MemoryEntry): string {
+  const head = `[${entry.type}] ${entry.name} — ${entry.description}`;
+  const body = entry.body.trim();
+  return body ? `${head}\n${body}` : head;
 }
 
 function readLegacyMemoryFile(workspacePath: string): string | null {

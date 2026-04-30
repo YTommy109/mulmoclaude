@@ -10,11 +10,12 @@
 // `memory.md` is intentionally NOT touched here; migration handles it.
 
 import { mkdir } from "node:fs/promises";
+import type { Stats } from "node:fs";
 import path from "node:path";
 
 import { parseFrontmatter, serializeWithFrontmatter } from "../../utils/markdown/frontmatter.js";
 import { writeFileAtomic } from "../../utils/files/atomic.js";
-import { readDirSafeAsync, readTextSafe, statSafeAsync } from "../../utils/files/safe.js";
+import { readDirSafe, readDirSafeAsync, readTextSafe, readTextSafeSync, statSafe, statSafeAsync } from "../../utils/files/safe.js";
 import { log } from "../../system/logger/index.js";
 import { isMemoryType, type MemoryEntry, type MemoryType } from "./types.js";
 
@@ -120,22 +121,59 @@ async function listEntryFiles(dir: string): Promise<string[]> {
   // Missing memory dir → treat as empty. `readDirSafeAsync` already
   // returns `[]` on ENOENT, so no explicit branch needed.
   const dirents = await readDirSafeAsync(dir);
-  const out: string[] = [];
+  const candidates: string[] = [];
   for (const dirent of dirents) {
-    const { name } = dirent;
-    if (name === "MEMORY.md") continue;
-    if (!name.endsWith(".md")) continue;
-    if (name.startsWith(".")) continue;
-    if (!dirent.isFile()) {
-      // Symlinks / non-regular entries: stat to resolve, skip on
-      // failure or non-file. A corrupt entry should not poison the
-      // read path.
-      const stat = await statSafeAsync(path.join(dir, name));
-      if (!stat?.isFile()) continue;
+    if (!isCandidateName(dirent.name)) continue;
+    if (dirent.isFile()) {
+      candidates.push(dirent.name);
+      continue;
     }
-    out.push(name);
+    // Symlinks / non-regular entries: stat to resolve, skip on
+    // failure or non-file. A corrupt entry should not poison the
+    // read path.
+    const stat = await statSafeAsync(path.join(dir, dirent.name));
+    if (stat?.isFile()) candidates.push(dirent.name);
   }
-  return out.sort();
+  return candidates.sort();
+}
+
+// Synchronous mirror of `loadAllMemoryEntries` for the agent prompt
+// builder, which is sync all the way up. Same skip rules and
+// frontmatter validation — corrupt entries log once and are excluded
+// instead of leaking raw markdown into the system prompt.
+export function loadAllMemoryEntriesSync(workspaceRoot: string): MemoryEntry[] {
+  const dir = memoryDirOf(workspaceRoot);
+  const dirents = readDirSafe(dir);
+  const filenames: string[] = [];
+  for (const dirent of dirents) {
+    if (!isCandidateName(dirent.name)) continue;
+    if (dirent.isFile()) {
+      filenames.push(dirent.name);
+      continue;
+    }
+    const stat: Stats | null = statSafe(path.join(dir, dirent.name));
+    if (stat?.isFile()) filenames.push(dirent.name);
+  }
+  filenames.sort();
+  const loaded: MemoryEntry[] = [];
+  for (const filename of filenames) {
+    const absPath = path.join(dir, filename);
+    const raw = readTextSafeSync(absPath);
+    if (raw === null) {
+      log.warn("memory", "failed to read entry", { path: absPath });
+      continue;
+    }
+    const entry = parseMemoryFile(absPath, raw);
+    if (entry) loaded.push(entry);
+  }
+  return loaded;
+}
+
+function isCandidateName(name: string): boolean {
+  if (name === "MEMORY.md") return false;
+  if (!name.endsWith(".md")) return false;
+  if (name.startsWith(".")) return false;
+  return true;
 }
 
 async function readMemoryFile(absPath: string): Promise<MemoryEntry | null> {
@@ -144,6 +182,13 @@ async function readMemoryFile(absPath: string): Promise<MemoryEntry | null> {
     log.warn("memory", "failed to read entry", { path: absPath });
     return null;
   }
+  return parseMemoryFile(absPath, raw);
+}
+
+// Shared frontmatter validator used by both async and sync loaders.
+// Returns null on missing envelope / unknown type / blank required
+// fields; callers log + skip.
+function parseMemoryFile(absPath: string, raw: string): MemoryEntry | null {
   const parsed = parseFrontmatter(raw);
   if (!parsed.hasHeader) {
     log.warn("memory", "entry missing frontmatter", { path: absPath });
