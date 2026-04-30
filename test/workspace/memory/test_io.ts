@@ -10,7 +10,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { loadAllMemoryEntries, memoryDirOf, memoryIndexOf, regenerateIndex, writeMemoryEntry } from "../../../server/workspace/memory/io.js";
+import { isSafeMemorySlug, loadAllMemoryEntries, memoryDirOf, memoryIndexOf, regenerateIndex, writeMemoryEntry } from "../../../server/workspace/memory/io.js";
 import type { MemoryEntry } from "../../../server/workspace/memory/types.js";
 
 let workspaceRoot: string;
@@ -89,6 +89,44 @@ describe("memory/io — reader tolerance", () => {
     try {
       const all = await loadAllMemoryEntries(fresh);
       assert.deepEqual(all, []);
+    } finally {
+      await rm(fresh, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("memory/io — slug safety", () => {
+  it("accepts a typical generated slug", () => {
+    assert.equal(isSafeMemorySlug("preference_yarn"), true);
+    assert.equal(isSafeMemorySlug("fact_egypt-trip-2"), true);
+    assert.equal(isSafeMemorySlug("interest_印象派"), true);
+  });
+
+  it("rejects slugs that would escape the memory directory", () => {
+    assert.equal(isSafeMemorySlug(".."), false);
+    assert.equal(isSafeMemorySlug("../foo"), false);
+    assert.equal(isSafeMemorySlug("a/b"), false);
+    assert.equal(isSafeMemorySlug("a\\b"), false);
+    assert.equal(isSafeMemorySlug("foo\0bar"), false);
+  });
+
+  it("rejects empty / dotfile / reserved slugs", () => {
+    assert.equal(isSafeMemorySlug(""), false);
+    assert.equal(isSafeMemorySlug(".hidden"), false);
+    assert.equal(isSafeMemorySlug("MEMORY"), false);
+  });
+
+  it("writeMemoryEntry throws on unsafe slug instead of writing outside the memory directory", async () => {
+    const fresh = await mkdtemp(path.join(tmpdir(), "mulmoclaude-memory-io-slug-"));
+    try {
+      const malicious: MemoryEntry = {
+        name: "evil",
+        description: "should not write",
+        type: "fact",
+        body: "x",
+        slug: "../../../../tmp/pwn",
+      };
+      await assert.rejects(() => writeMemoryEntry(fresh, malicious), /unsafe slug/);
     } finally {
       await rm(fresh, { recursive: true, force: true });
     }

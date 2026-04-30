@@ -45,8 +45,15 @@ export async function loadAllMemoryEntries(workspaceRoot: string): Promise<Memor
 
 // Persist a single entry. Filename is `<slug>.md`. Returns the
 // workspace-relative path that was written so callers can log /
-// reference the destination.
+// reference the destination. Slugs are validated against
+// `isSafeMemorySlug` — `..` segments, separators, dotfiles, and
+// reserved filenames are rejected so a caller-supplied slug cannot
+// escape the memory directory or collide with `MEMORY.md`. PR-B
+// will surface this same check at the agent-write boundary.
 export async function writeMemoryEntry(workspaceRoot: string, entry: MemoryEntry): Promise<string> {
+  if (!isSafeMemorySlug(entry.slug)) {
+    throw new Error(`refusing to write memory entry with unsafe slug: ${JSON.stringify(entry.slug)}`);
+  }
   const dir = memoryDirOf(workspaceRoot);
   await mkdir(dir, { recursive: true });
   const filename = `${entry.slug}.md`;
@@ -54,6 +61,23 @@ export async function writeMemoryEntry(workspaceRoot: string, entry: MemoryEntry
   const content = serializeWithFrontmatter({ name: entry.name, description: entry.description, type: entry.type }, entry.body);
   await writeFileAtomic(absPath, content, { uniqueTmp: true });
   return path.posix.join("conversations", "memory", filename);
+}
+
+// Slug shape gate. Allows arbitrary unicode (so non-ASCII names slug
+// fine via `slugifyMemoryName`'s hash fallback) but rejects anything
+// that would let a caller escape the memory directory or shadow
+// reserved filenames.
+export function isSafeMemorySlug(slug: string): boolean {
+  if (typeof slug !== "string") return false;
+  if (slug.length === 0) return false;
+  if (slug.length > 200) return false;
+  if (slug.includes("/") || slug.includes("\\")) return false;
+  if (slug.includes("\0")) return false;
+  // `.`, `..`, leading `.` (dotfiles), or a literal `MEMORY` would
+  // each conflict with how the reader scans the directory.
+  if (slug.startsWith(".")) return false;
+  if (slug === "MEMORY") return false;
+  return true;
 }
 
 // Rebuild `MEMORY.md` from current entry frontmatters. Sorted by type

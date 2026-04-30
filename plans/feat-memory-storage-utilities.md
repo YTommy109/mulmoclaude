@@ -50,8 +50,11 @@ filename for type.
 - [印象派](interest_impressionism.md) — 美術鑑賞の主軸
 ```
 
-Index is generated from frontmatter. Lines beyond the entries are kept
-verbatim so a heading at the top of the file (added by humans) survives.
+Index is fully derived from the live frontmatters and **overwritten in
+place** on every `regenerateIndex` call. Humans edit individual entry
+files (frontmatter is the source of truth); `MEMORY.md` is system-owned
+and not user-editable. Hand-written prefix/suffix content is not
+preserved.
 
 ## IO surface (initial)
 
