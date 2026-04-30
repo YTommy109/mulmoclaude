@@ -390,15 +390,15 @@ describe("rewriteImgSrcAttrsInHtml — adversarial input", () => {
     assert.equal(rewriteImgSrcAttrsInHtml(html, ""), html);
   });
 
-  it("is unaffected by an embedded > inside a quoted attribute (regex stops at first >)", () => {
-    // `<img title="x>y" src="a.png">` — the outer regex matches
-    // `<img title="x>` (stops at first >). The inner regex sees
-    // `<img title="x` and finds no `src=`, so returns unchanged.
-    // The trailing `y" src="a.png">` is left literally as-is. The
-    // output is still equal to the input.
+  it("rewrites the real src even when an embedded > sits inside a quoted attribute", () => {
+    // The quote-aware outer regex (Codex iter-2 fix) skips over
+    // `"x>y"` as a complete quoted span and reaches the real
+    // `src="a.png"`. The old `[^>]*` matcher would have stopped at
+    // the first `>` and missed the src entirely.
     const html = '<img title="x>y" src="a.png">';
     const out = rewriteImgSrcAttrsInHtml(html, "");
-    assert.equal(out, html);
+    assert.ok(out.includes('title="x>y"'));
+    assert.ok(out.includes('src="/api/files/raw?path=a.png"'));
   });
 
   it("does not match <imgs ...> (word boundary respected)", () => {
@@ -530,6 +530,75 @@ describe("rewriteImgSrcAttrsInHtml — adversarial input", () => {
     const html = '<img data-src="x.png" alt="y">';
     const out = rewriteImgSrcAttrsInHtml(html, "");
     assert.equal(out, html);
+  });
+
+  it("does not rewrite a `src=` substring inside another attribute's quoted value", () => {
+    // Codex review of #1023 caught this: a free-form `src=` lookbehind
+    // would rewrite the alt-internal `src=oops` and corrupt the tag.
+    // Attribute-iterator parsing handles it correctly — the alt value
+    // is consumed as a unit, and the real `src=` is matched separately.
+    const html = '<img alt="x src=oops" src="real.png">';
+    const out = rewriteImgSrcAttrsInHtml(html, "");
+    assert.ok(out.includes('alt="x src=oops"'));
+    assert.ok(out.includes('src="/api/files/raw?path=real.png"'));
+  });
+
+  it("does not rewrite namespaced attrs like xml:src or xlink:src", () => {
+    const xml = '<img xml:src="ignored.png" src="real.png">';
+    const xlink = '<img xlink:src="ignored.png" src="real.png">';
+    const xmlOut = rewriteImgSrcAttrsInHtml(xml, "");
+    const xlinkOut = rewriteImgSrcAttrsInHtml(xlink, "");
+    assert.ok(xmlOut.includes('xml:src="ignored.png"'));
+    assert.ok(xmlOut.includes('src="/api/files/raw?path=real.png"'));
+    assert.ok(xlinkOut.includes('xlink:src="ignored.png"'));
+    assert.ok(xlinkOut.includes('src="/api/files/raw?path=real.png"'));
+  });
+
+  it("preserves a quoted value that itself contains the substring 'src='", () => {
+    // Pathological mocking-pattern: the alt explicitly mentions src=…
+    // so users can write tutorials. The rewriter must NOT touch it.
+    const html = '<img alt="docs example: src=foo.png" src="real.png">';
+    const out = rewriteImgSrcAttrsInHtml(html, "");
+    assert.ok(out.includes('alt="docs example: src=foo.png"'));
+    assert.ok(out.includes('src="/api/files/raw?path=real.png"'));
+  });
+
+  it("handles `>` inside a quoted attribute value (Codex iter-2 finding)", () => {
+    // Without quote-aware outer regex, the matcher would stop at the
+    // first `>` (inside alt) and never see the real `src`.
+    const html = '<img alt="comparison: a > b" src="real.png">';
+    const out = rewriteImgSrcAttrsInHtml(html, "");
+    assert.ok(out.includes('alt="comparison: a > b"'));
+    assert.ok(out.includes('src="/api/files/raw?path=real.png"'));
+  });
+
+  it("handles `>` inside a single-quoted attribute value", () => {
+    const html = "<img alt='a > b' src='real.png'>";
+    const out = rewriteImgSrcAttrsInHtml(html, "");
+    assert.ok(out.includes("alt='a > b'"));
+    assert.ok(out.includes("src='/api/files/raw?path=real.png'"));
+  });
+
+  it("handles multiple `>` characters inside attribute values", () => {
+    const html = '<img alt="x>y>z" title="p>q" src="real.png">';
+    const out = rewriteImgSrcAttrsInHtml(html, "");
+    assert.ok(out.includes('alt="x>y>z"'));
+    assert.ok(out.includes('title="p>q"'));
+    assert.ok(out.includes('src="/api/files/raw?path=real.png"'));
+  });
+
+  it("processes 100KB of `>`-laden input in linear time (no ReDoS in the new outer regex)", () => {
+    // Quote-aware outer is more complex than the old `[^>]*`. Pin
+    // linear-time behavior on adversarial input.
+    const inner = '" '.repeat(50_000); // 100KB of mixed quote and space
+    const html = `<img alt=${inner} src="real.png">`;
+    const start = Date.now();
+    const out = rewriteImgSrcAttrsInHtml(html, "");
+    const elapsedMs = Date.now() - start;
+    // No assertion on `out` content — adversarial input may not match
+    // the tag pattern at all. Just verify it returns in bounded time.
+    assert.equal(typeof out, "string");
+    assert.ok(elapsedMs < 1000, `expected <1s, got ${elapsedMs}ms`);
   });
 });
 
