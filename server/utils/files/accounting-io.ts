@@ -219,7 +219,12 @@ export async function readSnapshot(bookId: string, period: string, workspaceRoot
 export async function writeSnapshot(bookId: string, snapshot: MonthSnapshot, workspaceRoot?: string): Promise<void> {
   const file = snapshotFileFor(bookId, snapshot.period, workspaceRoot);
   await fsPromises.mkdir(path.dirname(file), { recursive: true });
-  await writeFileAtomic(file, JSON.stringify(snapshot, null, 2));
+  // `uniqueTmp` guards against the lazy fallback in `getOrBuildSnapshot`
+  // racing with the background rebuild — both can land in
+  // `writeSnapshot` for the same period at once. Distinct tmp file
+  // names mean each writer renames its own; the destination
+  // overwrites idempotently (both derive from the same journal).
+  await writeFileAtomic(file, JSON.stringify(snapshot, null, 2), { uniqueTmp: true });
 }
 
 /** Drop snapshot files for all periods >= `fromPeriod`. The next

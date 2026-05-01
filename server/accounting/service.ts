@@ -7,13 +7,12 @@
 //  - invalidates dependent snapshots,
 //  - publishes a pub/sub event so subscribers refetch.
 //
-// Snapshot rebuild policy in this iteration is **lazy** — we drop
-// the stale files synchronously and let the next `getReport` rebuild
-// them via `snapshotCache.getOrBuildSnapshot`. The plan calls for a
-// later upgrade to async background rebuild with a "ready" event;
-// that is captured under "Out of scope" / follow-up. The lazy path
-// is correct (returns identical results, just on read instead of
-// on write), so this file's API stays stable across that upgrade.
+// Snapshot rebuild policy: writes invalidate stale snapshot files
+// synchronously, then call `scheduleRebuild` to rebuild them in the
+// background. `getOrBuildSnapshot` keeps a lazy fallback so a report
+// requested before the rebuild reaches that month still returns the
+// right number — it just builds inline. Both paths are byte-identical
+// (enforced by `test/accounting/test_snapshotCache.ts`).
 
 import { randomUUID } from "node:crypto";
 
@@ -38,7 +37,7 @@ import {
 import { findActiveOpening, validateOpening } from "./openingBalances.js";
 import { localDateString, makeEntry, makeVoidEntries, validateEntry } from "./journal.js";
 import { aggregateBalances, buildBalanceSheet, buildLedger, buildProfitLoss } from "./report.js";
-import { balancesAtEndOf, getOrBuildSnapshot, rebuildAllSnapshots } from "./snapshotCache.js";
+import { balancesAtEndOf, getOrBuildSnapshot, rebuildAllSnapshots, scheduleRebuild } from "./snapshotCache.js";
 import { publishBookChange, publishBooksChanged } from "./eventPublisher.js";
 import { DEFAULT_ACCOUNTS } from "./defaultAccounts.js";
 import { log } from "../system/logger/index.js";
@@ -56,11 +55,11 @@ export class AccountingError extends Error {
   }
 }
 
-const DEFAULT_BOOK_ID = "default";
 const DEFAULT_CURRENCY = "USD";
+const GENERATED_ID_RETRIES = 8;
 
 function emptyConfig(): AccountingConfig {
-  return { activeBookId: DEFAULT_BOOK_ID, books: [] };
+  return { activeBookId: null, books: [] };
 }
 
 async function loadOrInitConfig(workspaceRoot?: string): Promise<AccountingConfig> {
@@ -77,10 +76,20 @@ function resolveBookId(config: AccountingConfig, requested?: string): string {
   if (requested) {
     throw new AccountingError(404, `book ${JSON.stringify(requested)} not found`);
   }
-  if (!findBook(config, config.activeBookId)) {
-    throw new AccountingError(409, "no books exist; call createBook first");
+  if (!config.activeBookId || !findBook(config, config.activeBookId)) {
+    throw new AccountingError(409, "no active book; create or select one first");
   }
   return config.activeBookId;
+}
+
+async function generateBookId(config: AccountingConfig, workspaceRoot?: string): Promise<string> {
+  // 8 hex chars × small N → collision odds are negligible, but a
+  // bounded retry keeps the generator total even if one happens.
+  for (let attempt = 0; attempt < GENERATED_ID_RETRIES; attempt += 1) {
+    const candidate = `book-${randomUUID().slice(0, 8)}`;
+    if (!findBook(config, candidate) && !(await bookExists(candidate, workspaceRoot))) return candidate;
+  }
+  throw new AccountingError(500, "could not generate a unique book id after several attempts");
 }
 
 /** Read every journal entry across every month, in period-sorted
@@ -106,18 +115,19 @@ async function readAllEntries(bookId: string, workspaceRoot?: string): Promise<J
 
 // ── books ──────────────────────────────────────────────────────────
 
-export async function listBooks(workspaceRoot?: string): Promise<{ activeBookId: string; books: BookSummary[] }> {
+export async function listBooks(workspaceRoot?: string): Promise<{ activeBookId: string | null; books: BookSummary[] }> {
   const config = await loadOrInitConfig(workspaceRoot);
   return { activeBookId: config.activeBookId, books: config.books };
 }
 
 export async function createBook(input: { id?: string; name: string; currency?: string }, workspaceRoot?: string): Promise<{ book: BookSummary }> {
   const config = await loadOrInitConfig(workspaceRoot);
-  // First book defaults to id "default" so a typical user with a
-  // single ledger gets the obvious path on disk. Explicit `id` from
-  // the caller takes precedence and is kept verbatim — no slugification
-  // — so users who want their own scheme can keep using it.
-  const bookId = input.id ?? (config.books.length === 0 ? DEFAULT_BOOK_ID : `book-${randomUUID().slice(0, 8)}`);
+  // Auto-generate when no caller id is supplied — every book,
+  // including the very first one, gets a generated id. Explicit
+  // caller-supplied ids (from a custom config import or a CLI tool)
+  // are kept verbatim so users with their own naming scheme can
+  // adopt it.
+  const bookId = input.id ?? (await generateBookId(config, workspaceRoot));
   // Guard against caller-supplied path-traversal ids before any
   // fs touch (createBook → ensureBookDir → writeAccounts /
   // writeMeta → writeConfig). Auto-generated ids always pass.
@@ -140,7 +150,7 @@ export async function createBook(input: { id?: string; name: string; currency?: 
   await writeAccounts(bookId, [...DEFAULT_ACCOUNTS], workspaceRoot);
   await writeMeta(bookId, { createdAt: book.createdAt }, workspaceRoot);
   const nextConfig: AccountingConfig = {
-    activeBookId: config.books.length === 0 ? bookId : config.activeBookId,
+    activeBookId: config.activeBookId ?? bookId,
     books: [...config.books, book],
   };
   await writeConfig(nextConfig, workspaceRoot);
@@ -161,7 +171,7 @@ export async function setActiveBook(input: { bookId: string }, workspaceRoot?: s
 export async function deleteBook(
   input: { bookId: string; confirm: boolean },
   workspaceRoot?: string,
-): Promise<{ deletedBookId: string; activeBookId: string }> {
+): Promise<{ deletedBookId: string; activeBookId: string | null }> {
   if (!input.confirm) {
     throw new AccountingError(400, "deleteBook requires confirm: true");
   }
@@ -169,12 +179,21 @@ export async function deleteBook(
   if (!findBook(config, input.bookId)) {
     throw new AccountingError(404, `book ${JSON.stringify(input.bookId)} not found`);
   }
-  if (config.books.length === 1) {
-    throw new AccountingError(409, "cannot delete the last book; create another book first");
-  }
   await removeBookDir(input.bookId, workspaceRoot);
   const remaining = config.books.filter((book) => book.id !== input.bookId);
-  const nextActive = config.activeBookId === input.bookId ? remaining[0].id : config.activeBookId;
+  // When the deleted book was the active one, promote the most
+  // recently created remaining book — that's the most user-meaningful
+  // default. When nothing remains, activeBookId becomes null and the
+  // View renders its empty state with the "create a book" prompt.
+  let nextActive: string | null = config.activeBookId;
+  if (config.activeBookId === input.bookId || nextActive === null) {
+    if (remaining.length === 0) {
+      nextActive = null;
+    } else {
+      const [newest] = [...remaining].sort((lhs, rhs) => rhs.createdAt.localeCompare(lhs.createdAt));
+      nextActive = newest.id;
+    }
+  }
   await writeConfig({ activeBookId: nextActive, books: remaining }, workspaceRoot);
   publishBooksChanged();
   return { deletedBookId: input.bookId, activeBookId: nextActive };
@@ -217,6 +236,7 @@ export async function upsertAccount(input: { bookId?: string; account: Account }
   // snapshot to be safe. Pure name / note changes don't, but
   // distinguishing isn't worth the complexity.
   if (oldType !== null && oldType !== input.account.type) {
+    scheduleRebuild(bookId, "0000-00", workspaceRoot);
     await invalidateAllSnapshots(bookId, workspaceRoot);
   }
   publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.accounts });
@@ -239,6 +259,10 @@ export async function addEntry(
   const entry = makeEntry({ date: input.date, lines: input.lines, memo: input.memo, kind: "normal" });
   await appendJournal(bookId, entry, workspaceRoot);
   const period = periodFromDate(input.date);
+  // scheduleRebuild first (sync, sets pendingFromPeriod) so any
+  // in-flight rebuild's `isInvalidatedDuringRebuild` check sees the
+  // new pending mark before our invalidate races with its write.
+  scheduleRebuild(bookId, period, workspaceRoot);
   await invalidateSnapshotsFrom(bookId, period, workspaceRoot);
   publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.journal, period });
   return { bookId, entry };
@@ -271,6 +295,7 @@ export async function voidEntry(
   // Period whose snapshot is now stale = the older of the
   // original entry's month and the void's month.
   const fromPeriod = target.date < voidDate ? periodFromDate(target.date) : periodFromDate(voidDate);
+  scheduleRebuild(bookId, fromPeriod, workspaceRoot);
   await invalidateSnapshotsFrom(bookId, fromPeriod, workspaceRoot);
   publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.journal, period: fromPeriod });
   return { bookId, reverseEntry: reverse, markerEntry: marker };
@@ -349,6 +374,7 @@ export async function setOpeningBalances(
     kind: "opening",
   });
   await appendJournal(bookId, opening, workspaceRoot);
+  scheduleRebuild(bookId, "0000-00", workspaceRoot);
   await invalidateAllSnapshots(bookId, workspaceRoot);
   publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.opening });
   return { bookId, openingEntry: opening, replacedExisting: existing !== null };

@@ -13,13 +13,17 @@
 // produce byte-identical results. The unit test for this lives in
 // `test/accounting/test_snapshotCache.ts`.
 //
-// Concurrency: the route handlers run on a single Node process, and
-// `getOrBuildSnapshot` is async — concurrent calls may race and
-// produce duplicate work. The duplicate writes are idempotent
-// (writeFileAtomic, same input → same output) so the worst case is
-// extra CPU. If contention becomes an issue, gating by a per-book
-// promise map would add serialization. Today's volume doesn't need
-// it.
+// Rebuild policy: writes call `scheduleRebuild(bookId, fromPeriod)`
+// after invalidating stale snapshot files. Each book has at most one
+// rebuild in flight; additional writes during a running rebuild merge
+// into a single queued follow-up (so a burst of N writes runs at most
+// two rebuilds). `getOrBuildSnapshot` keeps a lazy fallback so a
+// report requested before the rebuild reaches that month is still
+// correct — it just builds inline.
+//
+// Test API: `awaitRebuildIdle(bookId)` and `inspectRebuildQueue(bookId)`
+// are diagnostics that let tests assert on queue state without
+// sleep-and-poll. Production code never needs them.
 
 import {
   invalidateSnapshotsFrom as ioInvalidateFrom,
@@ -30,6 +34,9 @@ import {
   writeSnapshot,
 } from "../utils/files/accounting-io.js";
 import { aggregateBalances } from "./report.js";
+import { publishBookChange } from "./eventPublisher.js";
+import { log } from "../system/logger/index.js";
+import { ACCOUNTING_BOOK_EVENT_KINDS } from "../../src/config/pubsubChannels.js";
 import type { AccountBalance, JournalEntry, MonthSnapshot } from "./types.js";
 
 function previousPeriod(period: string): string {
@@ -125,4 +132,152 @@ export async function rebuildAllSnapshots(bookId: string, workspaceRoot?: string
     await getOrBuildSnapshot(bookId, monthKey, workspaceRoot);
   }
   return { rebuilt: periods };
+}
+
+// ── async rebuild queue ────────────────────────────────────────────
+//
+// Per-book queue. A `running` promise represents the in-flight
+// rebuild. While it's running, additional `scheduleRebuild` calls
+// merge their `fromPeriod` into `pendingFromPeriod` (taking the
+// minimum so the next pass covers everyone's invalidation), and we
+// kick off a follow-up once the current one resolves.
+
+interface RebuildQueueEntry {
+  running: Promise<void>;
+  pendingFromPeriod: string | null;
+  pendingWorkspaceRoot: string | undefined;
+  coalescedWriteCount: number;
+  runningFromPeriod: string;
+}
+
+const rebuildQueues = new Map<string, RebuildQueueEntry>();
+
+function minPeriod(lhs: string | null, rhs: string): string {
+  if (lhs === null) return rhs;
+  return lhs < rhs ? lhs : rhs;
+}
+
+function isInvalidatedDuringRebuild(bookId: string, period: string): boolean {
+  // A pending invalidation that covers `period` means the queued
+  // follow-up rebuild will redo this period. Skip the in-flight
+  // write so we don't pollute the cache with stale data while a
+  // fresher computation is queued. Without this guard, the
+  // sequence "rebuild reads journal → caller writes a new entry →
+  // caller invalidates → rebuild writes (stale) snapshot" leaves
+  // the cache lying about the latest state.
+  const queue = rebuildQueues.get(bookId);
+  return queue !== undefined && queue.pendingFromPeriod !== null && period >= queue.pendingFromPeriod;
+}
+
+async function runRebuild(bookId: string, fromPeriod: string, workspaceRoot: string | undefined): Promise<void> {
+  const startedAt = Date.now();
+  log.info("accounting", "snapshot rebuild started", { bookId, fromPeriod });
+  publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.snapshotsRebuilding, period: fromPeriod });
+  const periods = await listJournalPeriods(bookId, workspaceRoot);
+  const targets = periods.filter((monthKey) => monthKey >= fromPeriod);
+  let written = 0;
+  for (const monthKey of targets) {
+    if (isInvalidatedDuringRebuild(bookId, monthKey)) break;
+    // Compute fresh from journal — bypasses getOrBuildSnapshot's
+    // own write side-effect so the staleness check below is the
+    // only writer in the rebuild path.
+    const balances = await balancesAtEndOf(bookId, monthKey, workspaceRoot);
+    if (isInvalidatedDuringRebuild(bookId, monthKey)) break;
+    await writeSnapshot(bookId, { period: monthKey, balances, builtAt: new Date().toISOString() }, workspaceRoot);
+    if (isInvalidatedDuringRebuild(bookId, monthKey)) {
+      // A concurrent invalidate raced ahead between our last check
+      // and the disk write. The data we just wrote may be stale
+      // relative to the latest journal — undo so the queued
+      // follow-up rebuild starts from a clean slate.
+      await ioInvalidateFrom(bookId, monthKey, workspaceRoot);
+      break;
+    }
+    written += 1;
+    publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.snapshotsReady, period: monthKey });
+  }
+  log.info("accounting", "snapshot rebuild done", { bookId, periods: written, durationMs: Date.now() - startedAt });
+}
+
+function startRebuild(bookId: string, fromPeriod: string, workspaceRoot: string | undefined): RebuildQueueEntry {
+  const entry: RebuildQueueEntry = {
+    running: Promise.resolve(),
+    pendingFromPeriod: null,
+    pendingWorkspaceRoot: undefined,
+    coalescedWriteCount: 1,
+    runningFromPeriod: fromPeriod,
+  };
+  entry.running = runRebuild(bookId, fromPeriod, workspaceRoot)
+    .catch((err) => {
+      // A rebuild failure is logged but does not poison the queue —
+      // the next `scheduleRebuild` call will start a fresh promise.
+      log.error("accounting", "snapshot rebuild failed", { bookId, fromPeriod, error: err instanceof Error ? err.message : String(err) });
+    })
+    .then(() => {
+      // Drain any work that piled up while we were running.
+      const current = rebuildQueues.get(bookId);
+      if (!current) return;
+      if (current.pendingFromPeriod !== null) {
+        const nextFrom = current.pendingFromPeriod;
+        const nextRoot = current.pendingWorkspaceRoot;
+        const carriedCount = current.coalescedWriteCount;
+        const successor = startRebuild(bookId, nextFrom, nextRoot);
+        successor.coalescedWriteCount += carriedCount;
+        rebuildQueues.set(bookId, successor);
+      } else {
+        rebuildQueues.delete(bookId);
+      }
+    });
+  return entry;
+}
+
+/** Schedule a background rebuild for `bookId` starting at `fromPeriod`.
+ *  Multiple calls during an in-flight rebuild coalesce into a single
+ *  follow-up rebuild that covers the minimum `fromPeriod` seen.
+ *  Returns immediately — the rebuild runs on its own promise chain. */
+export function scheduleRebuild(bookId: string, fromPeriod: string, workspaceRoot?: string): void {
+  const existing = rebuildQueues.get(bookId);
+  if (!existing) {
+    rebuildQueues.set(bookId, startRebuild(bookId, fromPeriod, workspaceRoot));
+    return;
+  }
+  existing.pendingFromPeriod = minPeriod(existing.pendingFromPeriod, fromPeriod);
+  existing.pendingWorkspaceRoot = workspaceRoot;
+  existing.coalescedWriteCount += 1;
+}
+
+/** Test/diagnostic: resolves when no rebuild is running or queued for
+ *  `bookId`. Production code never needs this — the lazy fallback in
+ *  `getOrBuildSnapshot` makes blocking on the rebuild unnecessary. */
+export async function awaitRebuildIdle(bookId: string): Promise<void> {
+  while (rebuildQueues.has(bookId)) {
+    const entry = rebuildQueues.get(bookId);
+    if (!entry) return;
+    await entry.running;
+  }
+}
+
+/** Test/diagnostic: snapshot of the per-book queue state. Stable
+ *  enough to assert against; fields may grow over time. */
+export function inspectRebuildQueue(bookId: string): {
+  running: boolean;
+  runningFromPeriod: string | null;
+  pendingFromPeriod: string | null;
+  coalescedWriteCount: number;
+} {
+  const entry = rebuildQueues.get(bookId);
+  if (!entry) {
+    return { running: false, runningFromPeriod: null, pendingFromPeriod: null, coalescedWriteCount: 0 };
+  }
+  return {
+    running: true,
+    runningFromPeriod: entry.runningFromPeriod,
+    pendingFromPeriod: entry.pendingFromPeriod,
+    coalescedWriteCount: entry.coalescedWriteCount,
+  };
+}
+
+/** Test-only — drop all queue state. Called between tests so each
+ *  case starts fresh. */
+export function _resetRebuildQueueForTesting(): void {
+  rebuildQueues.clear();
 }
