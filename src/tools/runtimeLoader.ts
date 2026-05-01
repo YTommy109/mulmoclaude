@@ -14,6 +14,7 @@
 // Failures don't abort boot — a single broken plugin logs a warning
 // and the rest of the app starts normally.
 
+import { reactive } from "vue";
 import type { Component } from "vue";
 import type { ToolDefinition } from "gui-chat-protocol";
 import { apiGet } from "../utils/api";
@@ -40,9 +41,20 @@ interface PluginVueModule {
   default?: { plugin?: ToolPluginExport };
 }
 
-/** Tool name → PluginEntry. Populated once at app boot from the
- *  installed-plugin list returned by the server. */
-const runtimeRegistry = new Map<string, PluginEntry>();
+/** Tool name → PluginEntry. Reactive so callers reading via
+ *  `getRuntimePluginEntry(name)` / `getRuntimeToolNames()` from a
+ *  template, computed, or watch automatically re-evaluate when the
+ *  loader populates the registry post-mount. Without this, a
+ *  component that snapshots plugin names in `setup()` (RolesView,
+ *  manageRoles/View, App.vue's tool-result render path) would never
+ *  see workspace-installed plugins because the loader is fire-and-
+ *  forget — by the time the list fetch resolves, those components
+ *  have already cached their initial reads.
+ *
+ *  Vue 3's `reactive(new Map())` tracks `.get()`, `.has()`, and
+ *  iteration (`.keys()`, `for…of`) so the call sites don't need to
+ *  change shape — they just need to be inside a reactive context. */
+const runtimeRegistry = reactive(new Map<string, PluginEntry>());
 
 export function getRuntimePluginEntry(toolName: string): PluginEntry | null {
   return runtimeRegistry.get(toolName) ?? null;
