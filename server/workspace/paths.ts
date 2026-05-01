@@ -101,6 +101,12 @@ export const WORKSPACE_DIRS = {
   wikiHistory: "data/wiki/.history",
   // Development — git-cloned repositories (#256).
   github: "github",
+  // Runtime-loaded plugins (#1043 C-2). The `plugins/` directory holds
+  // user-installed npm-published plugin tarballs; `.cache/<name>/<ver>/`
+  // is the extracted-on-boot mirror. Both live under the workspace root
+  // so the install / extract artefacts persist across npx invocations.
+  plugins: "plugins",
+  pluginCache: "plugins/.cache",
 } as const;
 export { WORKSPACE_FILES };
 
@@ -133,6 +139,8 @@ export const WORKSPACE_PATHS = {
   html: path.join(workspacePath, WORKSPACE_DIRS.html),
   transports: path.join(workspacePath, WORKSPACE_DIRS.transports),
   github: path.join(workspacePath, WORKSPACE_DIRS.github),
+  plugins: path.join(workspacePath, WORKSPACE_DIRS.plugins),
+  pluginCache: path.join(workspacePath, WORKSPACE_DIRS.pluginCache),
   // nested subdirs
   wikiPages: path.join(workspacePath, WORKSPACE_DIRS.wikiPages),
   wikiSources: path.join(workspacePath, WORKSPACE_DIRS.wikiSources),
@@ -153,6 +161,7 @@ export const WORKSPACE_PATHS = {
   schedulerUserTasks: path.join(workspacePath, WORKSPACE_FILES.schedulerUserTasks),
   schedulerOverrides: path.join(workspacePath, WORKSPACE_FILES.schedulerOverrides),
   newsReadState: path.join(workspacePath, WORKSPACE_FILES.newsReadState),
+  pluginsLedger: path.join(workspacePath, WORKSPACE_FILES.pluginsLedger),
 } as const;
 
 export type WorkspaceDirKey = keyof typeof WORKSPACE_DIRS;

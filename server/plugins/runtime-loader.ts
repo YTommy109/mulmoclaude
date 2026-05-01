@@ -1,0 +1,153 @@
+// Runtime plugin loader (#1043 C-2).
+//
+// At server boot:
+//   1. Read the install ledger (`plugins/plugins.json`).
+//   2. For each entry, ensure the tgz is extracted to
+//      `plugins/.cache/<name>/<version>/` (cache hit = skip).
+//   3. Dynamic-import the plugin's `dist/index.js` to pull out
+//      `TOOL_DEFINITION`. The plugin module is bundled (per the
+//      contract documented in `docs/plugin-development.md`) so its
+//      bare imports resolve against the on-disk chunk siblings, not
+//      against a non-existent `node_modules/` underneath the cache.
+//
+// This module is called from BOTH the parent server (`server/index.ts`)
+// and the spawned MCP child (`server/agent/mcp-server.ts`) — they share
+// the cache, so the second call is fast (no re-extract).
+//
+// Failures don't abort boot. A bad ledger entry, missing tgz, or a
+// definition that fails to import gets logged and skipped; healthy
+// plugins still load.
+
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import type { ToolDefinition } from "gui-chat-protocol";
+import { WORKSPACE_PATHS } from "../workspace/paths.js";
+import { readLedger, type LedgerEntry } from "../utils/files/plugins-io.js";
+import { log } from "../system/logger/index.js";
+
+const LOG_PREFIX = "plugins/runtime";
+
+export interface RuntimePlugin {
+  /** npm package name, e.g. `@gui-chat-plugin/weather`. */
+  name: string;
+  /** Semver string from the tgz's `package.json`. */
+  version: string;
+  /** Absolute path to the extracted plugin directory under
+   *  `plugins/.cache/<name>/<version>/`. */
+  cachePath: string;
+  /** TOOL_DEFINITION export from the plugin's `dist/index.js`. The
+   *  shape matches static plugins in `plugin-names.ts`, so the same
+   *  MCP merge / dispatch path applies. */
+  definition: ToolDefinition;
+}
+
+interface PackageJson {
+  name?: string;
+  version?: string;
+  exports?: Record<string, unknown>;
+  main?: string;
+  module?: string;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
+
+const isToolDefinition = (value: unknown): value is ToolDefinition => {
+  if (!isRecord(value)) return false;
+  return typeof value.name === "string" && typeof value.description === "string";
+};
+
+/** Resolve the entry-point path from a plugin's `package.json`. Falls
+ *  through `exports["."].import` → `module` → `main` so we cover both
+ *  the modern `exports` shape and legacy `main`-only packages. */
+function resolveEntrySpecifier(pkg: PackageJson): string | null {
+  const root = pkg.exports?.["."];
+  if (isRecord(root) && typeof root.import === "string") return root.import;
+  if (typeof pkg.module === "string") return pkg.module;
+  if (typeof pkg.main === "string") return pkg.main;
+  return null;
+}
+
+/** Run `tar xzf` to extract a tgz into the version-keyed cache slot.
+ *  `--strip-components=1` drops the `package/` prefix that npm packs
+ *  add. `execFileSync` (not `execSync`) so paths bypass shell parsing
+ *  and never trip on metacharacters in workspace paths. Synchronous
+ *  because boot is single-threaded and the alternative (a stream
+ *  pipeline) adds dependencies for no benefit. */
+function extractTgz(tgzAbs: string, destDir: string): void {
+  mkdirSync(destDir, { recursive: true });
+  execFileSync("tar", ["-xzf", tgzAbs, "-C", destDir, "--strip-components=1"], { stdio: "pipe" });
+}
+
+function readPackageJson(cachePath: string): PackageJson | null {
+  const pkgPath = path.join(cachePath, "package.json");
+  try {
+    return JSON.parse(readFileSync(pkgPath, "utf-8")) as PackageJson;
+  } catch (err) {
+    log.warn(LOG_PREFIX, "package.json read/parse failed", { path: pkgPath, error: String(err) });
+    return null;
+  }
+}
+
+/** Load a plugin from an already-extracted cache directory. Pure
+ *  function — accepts paths explicitly, so tests don't need a real
+ *  workspace. Returns null on any structural failure (missing
+ *  package.json, missing TOOL_DEFINITION, broken import); the caller
+ *  treats nulls as "skip". */
+export async function loadPluginFromCacheDir(name: string, version: string, cachePath: string): Promise<RuntimePlugin | null> {
+  const pkg = readPackageJson(cachePath);
+  if (!pkg) return null;
+  const entrySpec = resolveEntrySpecifier(pkg);
+  if (!entrySpec) {
+    log.warn(LOG_PREFIX, "no entry specifier in package.json — skipping", { name });
+    return null;
+  }
+  const entryAbs = path.join(cachePath, entrySpec);
+  try {
+    const mod = (await import(pathToFileURL(entryAbs).href)) as Record<string, unknown>;
+    const definition = mod.TOOL_DEFINITION;
+    if (!isToolDefinition(definition)) {
+      log.warn(LOG_PREFIX, "no TOOL_DEFINITION export — skipping", { name, entrySpec });
+      return null;
+    }
+    return { name, version, cachePath, definition };
+  } catch (err) {
+    log.error(LOG_PREFIX, "import failed", { name, entrySpec, error: String(err) });
+    return null;
+  }
+}
+
+async function loadOne(entry: LedgerEntry): Promise<RuntimePlugin | null> {
+  const tgzAbs = path.join(WORKSPACE_PATHS.plugins, entry.tgz);
+  if (!existsSync(tgzAbs)) {
+    log.warn(LOG_PREFIX, "tgz missing — skipping", { name: entry.name, tgz: entry.tgz });
+    return null;
+  }
+  const cachePath = path.join(WORKSPACE_PATHS.pluginCache, entry.name, entry.version);
+  if (!existsSync(cachePath)) {
+    try {
+      extractTgz(tgzAbs, cachePath);
+      log.info(LOG_PREFIX, "extracted", { name: entry.name, version: entry.version });
+    } catch (err) {
+      log.error(LOG_PREFIX, "extract failed", { name: entry.name, error: String(err) });
+      return null;
+    }
+  }
+  return loadPluginFromCacheDir(entry.name, entry.version, cachePath);
+}
+
+/** Read the ledger and load every healthy plugin. Returns the loaded
+ *  set; failures are logged and silently skipped (see module
+ *  comment). */
+export async function loadRuntimePlugins(): Promise<RuntimePlugin[]> {
+  const entries = readLedger();
+  if (entries.length === 0) return [];
+  const loaded: RuntimePlugin[] = [];
+  for (const entry of entries) {
+    const plugin = await loadOne(entry);
+    if (plugin) loaded.push(plugin);
+  }
+  log.info(LOG_PREFIX, "loaded", { requested: entries.length, succeeded: loaded.length });
+  return loaded;
+}

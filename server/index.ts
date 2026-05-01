@@ -24,6 +24,10 @@ import pdfRoutes from "./api/routes/pdf.js";
 import filesRoutes from "./api/routes/files.js";
 import configRoutes from "./api/routes/config.js";
 import skillsRoutes from "./api/routes/skills.js";
+import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
+import { loadRuntimePlugins } from "./plugins/runtime-loader.js";
+import { registerRuntimePlugins } from "./plugins/runtime-registry.js";
+import { MCP_PLUGIN_NAMES } from "./agent/plugin-names.js";
 import { createNotificationsRouter } from "./api/routes/notifications.js";
 import { createJournalRouter } from "./api/routes/journal.js";
 import { type NotificationDeps, initNotifications } from "./events/notifications.js";
@@ -375,6 +379,7 @@ app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
 app.use(skillsRoutes);
+app.use(runtimePluginRoutes);
 async function listSessionsForBridge(opts: { limit: number; offset: number }) {
   const rows = await loadAllSessions();
   const sorted = rows.sort((leftSession, rightSession) => rightSession.changeMs - leftSession.changeMs);
@@ -775,6 +780,23 @@ process.on("SIGTERM", () => {
       error: String(err),
     });
   });
+
+  // Runtime-loaded plugins (#1043 C-2). Read the install ledger,
+  // extract any tgz that doesn't have a cache mirror yet, dynamic-
+  // import each plugin's TOOL_DEFINITION, and register with the
+  // collision policy from runtime-registry.ts. Failures don't abort
+  // boot — bad plugins are skipped, healthy ones still load. Static
+  // tool names (built-in MCP plugins) win every collision.
+  try {
+    const runtime = await loadRuntimePlugins();
+    const result = registerRuntimePlugins(MCP_PLUGIN_NAMES, runtime);
+    log.info("plugins/runtime", "registered runtime plugins", {
+      registered: result.registered.length,
+      collisions: result.collisions.length,
+    });
+  } catch (err) {
+    log.error("plugins/runtime", "registry init failed; runtime plugins disabled this session", { error: String(err) });
+  }
 
   // Bind to localhost-only. Using `0.0.0.0` would expose the dev
   // server to the entire LAN (anyone on the same Wi-Fi could reach

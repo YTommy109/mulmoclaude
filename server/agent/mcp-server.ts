@@ -6,7 +6,9 @@
 
 import type { ToolDefinition } from "gui-chat-protocol";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
-import { TOOL_ENDPOINTS, PLUGIN_DEFS } from "./plugin-names.js";
+import { TOOL_ENDPOINTS, PLUGIN_DEFS, MCP_PLUGIN_NAMES } from "./plugin-names.js";
+import { loadRuntimePlugins } from "../plugins/runtime-loader.js";
+import { registerRuntimePlugins, getRuntimePlugins } from "../plugins/runtime-registry.js";
 import { errorMessage } from "../utils/errors.js";
 import { isNonEmptyString, isRecord } from "../utils/types.js";
 import { API_ROUTES } from "../../src/config/apiRoutes.js";
@@ -91,12 +93,35 @@ const mcpToolDefs: Record<string, ToolDef> = Object.fromEntries(
   ]),
 );
 
+// Static plugins land in ALL_TOOLS synchronously; runtime plugins
+// (#1043 C-2) are added once the async load completes. The MCP child
+// process is short-lived but cannot use top-level await — Docker
+// builds tsx with cjs output, where TLA fails at parse time.
+// Instead, the stdin handler awaits `runtimeReady` before serving
+// `tools/list` / `tools/call`, so requests arriving early just wait.
 const ALL_TOOLS: Record<string, ToolDef> = {
   ...mcpToolDefs,
   ...Object.fromEntries(PLUGIN_DEFS.map((def) => [def.name, fromPackage(def, TOOL_ENDPOINTS[def.name])])),
 };
 
-const tools = PLUGIN_NAMES.map((name) => ALL_TOOLS[name]).filter(Boolean);
+let activeNames: string[] = [...PLUGIN_NAMES];
+let tools: ToolDef[] = activeNames.map((name) => ALL_TOOLS[name]).filter(Boolean);
+
+const runtimeReady: Promise<void> = (async () => {
+  const runtime = await loadRuntimePlugins();
+  registerRuntimePlugins(MCP_PLUGIN_NAMES, runtime);
+  for (const plugin of getRuntimePlugins()) {
+    const endpoint = `/api/plugins/runtime/${encodeURIComponent(plugin.name)}/dispatch`;
+    ALL_TOOLS[plugin.definition.name] = fromPackage(plugin.definition, endpoint);
+  }
+  // Runtime plugins are auto-included regardless of role.availablePlugins
+  // — the user explicitly installed them, so every role gets to use them.
+  // Roles still gate the static set via PLUGIN_NAMES env (set by the
+  // parent based on getActivePlugins(role)).
+  const runtimeToolNames = getRuntimePlugins().map((plugin) => plugin.definition.name);
+  activeNames = Array.from(new Set([...PLUGIN_NAMES, ...runtimeToolNames]));
+  tools = activeNames.map((name) => ALL_TOOLS[name]).filter(Boolean);
+})();
 
 // MCP tools (e.g. readXPost, searchX) call external APIs through their
 // own handlers. The bridge timeout must exceed those inner timeouts
@@ -400,17 +425,23 @@ process.stdin.on("data", (chunk: Buffer) => {
         },
       });
     } else if (method === "tools/list") {
-      respond({
-        jsonrpc: "2.0",
-        id: requestId,
-        result: {
-          tools: tools.map((toolDef) => ({
-            name: toolDef.name,
-            description: toolDef.description,
-            inputSchema: toolDef.inputSchema,
-          })),
-        },
-      });
+      // Await runtime-plugin load before responding so workspace-
+      // installed tools appear in the very first list call. Without
+      // this, an early tools/list could miss them and the LLM would
+      // never call them this session.
+      runtimeReady.then(() =>
+        respond({
+          jsonrpc: "2.0",
+          id: requestId,
+          result: {
+            tools: tools.map((toolDef) => ({
+              name: toolDef.name,
+              description: toolDef.description,
+              inputSchema: toolDef.inputSchema,
+            })),
+          },
+        }),
+      );
     } else if (method === "tools/call") {
       if (!params?.name) {
         respond({
@@ -424,7 +455,9 @@ process.stdin.on("data", (chunk: Buffer) => {
         continue;
       }
       const toolArgs = params.arguments ?? {};
-      handleToolCall(params.name, toolArgs)
+      const callName = params.name;
+      runtimeReady
+        .then(() => handleToolCall(callName, toolArgs))
         .then((text) => {
           respond({
             jsonrpc: "2.0",
