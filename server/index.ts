@@ -320,6 +320,16 @@ app.use(
       res.status(404).end();
       return;
     }
+    // Dotfile deny — `express.static` below enforces this for the
+    // non-HTML branch via `dotfiles: "deny"`, but the HTML short-
+    // circuit added in #1056 was bypassing the guard and would
+    // happily serve `/artifacts/html/.hidden.html` (Codex review on
+    // #1056). Apply the same policy uniformly so both branches
+    // refuse any path component starting with `.`.
+    if (relPath.split("/").some((segment) => segment.startsWith("."))) {
+      res.status(404).end();
+      return;
+    }
     if (HTML_DOCUMENT_EXT_RE.test(req.path)) {
       const origin = browserVisibleOrigin(req);
       res.setHeader("Content-Security-Policy", buildHtmlPreviewCsp(origin));
