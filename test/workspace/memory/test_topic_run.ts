@@ -1,0 +1,135 @@
+// Unit tests for runTopicMigrationOnce's idempotency guards
+// (#1070 PR-B). Mirrors the structure of #1029's `test_run.ts`.
+//
+// The clusterer summarize is stubbed so these tests never invoke
+// the real Claude CLI.
+
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+import { writeMemoryEntry } from "../../../server/workspace/memory/io.js";
+import { runTopicMigrationOnce } from "../../../server/workspace/memory/topic-run.js";
+import { topicStagingPath } from "../../../server/workspace/memory/topic-migrate.js";
+import type { Summarize } from "../../../server/workspace/journal/archivist-cli.js";
+
+const stubSummarize: Summarize = async () =>
+  JSON.stringify({
+    preference: [{ topic: "dev", unsectionedBullets: ["yarn"] }],
+    interest: [],
+    fact: [],
+    reference: [],
+  });
+
+describe("memory/topic-run — idempotency guards", () => {
+  it("is a no-op when the workspace already uses the topic format", async () => {
+    const fresh = await mkdtemp(path.join(tmpdir(), "mulmoclaude-topic-run-already-"));
+    try {
+      // Pre-create a `<type>/` subdir to signal post-swap state.
+      await mkdir(path.join(fresh, "conversations", "memory", "interest"), { recursive: true });
+      // Add an atomic entry alongside; the runner should still skip.
+      await writeMemoryEntry(fresh, {
+        name: "yarn",
+        description: "npm 不可",
+        type: "preference",
+        body: "yarn",
+        slug: "preference_yarn",
+      });
+      await runTopicMigrationOnce(fresh, { summarize: stubSummarize });
+      const stagingExists = await stat(topicStagingPath(fresh)).catch(() => null);
+      assert.equal(stagingExists, null, "post-swap workspace should not produce staging");
+    } finally {
+      await rm(fresh, { recursive: true, force: true });
+    }
+  });
+
+  it("is a no-op when staging is already pending review", async () => {
+    const fresh = await mkdtemp(path.join(tmpdir(), "mulmoclaude-topic-run-staged-"));
+    try {
+      await writeMemoryEntry(fresh, {
+        name: "yarn",
+        description: "npm 不可",
+        type: "preference",
+        body: "yarn",
+        slug: "preference_yarn",
+      });
+      // Pre-create a stale staging tree the user is about to review.
+      const stagingPath = topicStagingPath(fresh);
+      await mkdir(path.join(stagingPath, "preference"), { recursive: true });
+      await writeFile(path.join(stagingPath, "preference", "old.md"), "---\ntype: preference\ntopic: old\n---\n\n# Old", "utf-8");
+      let summarizeCalled = false;
+      const summarize: Summarize = async () => {
+        summarizeCalled = true;
+        return "{}";
+      };
+      await runTopicMigrationOnce(fresh, { summarize });
+      assert.equal(summarizeCalled, false, "must not re-run while staging is pending review");
+      // Staging file untouched.
+      const oldFile = await stat(path.join(stagingPath, "preference", "old.md"));
+      assert.ok(oldFile.isFile());
+    } finally {
+      await rm(fresh, { recursive: true, force: true });
+    }
+  });
+
+  it("is a no-op when there are no atomic entries to migrate (fresh workspace)", async () => {
+    const fresh = await mkdtemp(path.join(tmpdir(), "mulmoclaude-topic-run-empty-"));
+    try {
+      await runTopicMigrationOnce(fresh, { summarize: stubSummarize });
+      const stagingExists = await stat(topicStagingPath(fresh)).catch(() => null);
+      assert.equal(stagingExists, null);
+    } finally {
+      await rm(fresh, { recursive: true, force: true });
+    }
+  });
+
+  it("defers when the legacy memory.md is still in flight (#1029 migration not done yet)", async () => {
+    const fresh = await mkdtemp(path.join(tmpdir(), "mulmoclaude-topic-run-legacy-"));
+    try {
+      const legacyPath = path.join(fresh, "conversations", "memory.md");
+      await mkdir(path.dirname(legacyPath), { recursive: true });
+      // Past the 64-byte placeholder threshold from
+      // runMemoryMigrationOnce, so the topic runner reads it as
+      // "in flight" and defers.
+      await writeFile(
+        legacyPath,
+        ["# Memory", "", "Distilled facts about you and your work.", "", "## Preferences", "- yarn を使う（npm 不可）", "- Emacs を愛用", ""].join("\n"),
+        "utf-8",
+      );
+      await writeMemoryEntry(fresh, {
+        name: "yarn",
+        description: "npm 不可",
+        type: "preference",
+        body: "yarn",
+        slug: "preference_yarn",
+      });
+      await runTopicMigrationOnce(fresh, { summarize: stubSummarize });
+      const stagingExists = await stat(topicStagingPath(fresh)).catch(() => null);
+      assert.equal(stagingExists, null, "topic migration should defer until the legacy migration finishes");
+    } finally {
+      await rm(fresh, { recursive: true, force: true });
+    }
+  });
+
+  it("proceeds and writes staging when atomic entries are present and no other guard fires", async () => {
+    const fresh = await mkdtemp(path.join(tmpdir(), "mulmoclaude-topic-run-go-"));
+    try {
+      await writeMemoryEntry(fresh, {
+        name: "yarn",
+        description: "npm 不可",
+        type: "preference",
+        body: "yarn",
+        slug: "preference_yarn",
+      });
+      await runTopicMigrationOnce(fresh, { summarize: stubSummarize });
+      const stagingExists = await stat(topicStagingPath(fresh));
+      assert.ok(stagingExists.isDirectory());
+      const written = await stat(path.join(topicStagingPath(fresh), "preference", "dev.md"));
+      assert.ok(written.isFile(), "expected the clustered topic file to land in staging");
+    } finally {
+      await rm(fresh, { recursive: true, force: true });
+    }
+  });
+});

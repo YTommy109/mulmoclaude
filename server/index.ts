@@ -39,6 +39,7 @@ import { makeUuid } from "./utils/id.js";
 import { mcpToolsRouter, mcpTools, isMcpToolEnabled } from "./agent/mcp-tools/index.js";
 import { initWorkspace, workspacePath } from "./workspace/workspace.js";
 import { runMemoryMigrationOnce } from "./workspace/memory/run.js";
+import { runTopicMigrationOnce } from "./workspace/memory/topic-run.js";
 import { env, isGeminiAvailable } from "./system/env.js";
 import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import { existsSync, readFileSync } from "fs";
@@ -92,6 +93,13 @@ initWorkspace();
 // `void` (banned by sonarjs/void-use).
 const noop = (): void => {};
 runMemoryMigrationOnce(workspacePath).then(noop, noop);
+
+// Fire-and-forget topic-restructure migration (#1070). Skips when
+// the workspace already uses the topic format, when staging is
+// pending review, or when there are no atomic entries yet (e.g.
+// fresh install + #1029 legacy migration still in flight). Same
+// floating-promises shape as the call above.
+runTopicMigrationOnce(workspacePath).then(noop, noop);
 
 let sandboxEnabled = false;
 
