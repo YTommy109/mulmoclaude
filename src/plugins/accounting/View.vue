@@ -63,7 +63,6 @@
           v-else-if="currentTab === 'settings'"
           :book-id="activeBookId"
           :book-name="activeBookName"
-          :is-last-book="books.length <= 1"
           @deleted="onBookDeleted"
           @books-changed="refetchBooks"
         />

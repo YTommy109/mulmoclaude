@@ -20,25 +20,20 @@
       <h4 class="text-sm font-semibold text-red-700">{{ t("pluginAccounting.settings.deleteBook") }}</h4>
       <p class="text-xs text-gray-500">{{ t("pluginAccounting.settings.deleteBookExplain") }}</p>
       <p v-if="deleteError" class="text-xs text-red-500" data-testid="accounting-settings-delete-error">{{ deleteError }}</p>
-      <p v-if="isLastBook" class="text-xs text-gray-500" data-testid="accounting-settings-delete-blocked">
-        {{ t("pluginAccounting.settings.cannotDeleteLastBook") }}
-      </p>
-      <template v-else>
-        <label class="text-xs text-gray-500 flex flex-col gap-1">
-          {{ t("pluginAccounting.settings.deleteBookConfirm", { bookName: bookName }) }}
-          <input v-model="confirmName" class="h-8 px-2 rounded border border-gray-300 text-sm" data-testid="accounting-settings-delete-confirm" />
-        </label>
-        <div>
-          <button
-            class="h-8 px-3 rounded bg-red-600 hover:bg-red-700 text-white text-sm disabled:opacity-50"
-            :disabled="confirmName !== bookName || deleting"
-            data-testid="accounting-settings-delete"
-            @click="onDelete"
-          >
-            {{ deleting ? t("pluginAccounting.common.loading") : t("pluginAccounting.settings.deleteBookButton") }}
-          </button>
-        </div>
-      </template>
+      <label class="text-xs text-gray-500 flex flex-col gap-1">
+        {{ t("pluginAccounting.settings.deleteBookConfirm", { bookName: bookName }) }}
+        <input v-model="confirmName" class="h-8 px-2 rounded border border-gray-300 text-sm" data-testid="accounting-settings-delete-confirm" />
+      </label>
+      <div>
+        <button
+          class="h-8 px-3 rounded bg-red-600 hover:bg-red-700 text-white text-sm disabled:opacity-50"
+          :disabled="confirmName !== bookName || deleting"
+          data-testid="accounting-settings-delete"
+          @click="onDelete"
+        >
+          {{ deleting ? t("pluginAccounting.common.loading") : t("pluginAccounting.settings.deleteBookButton") }}
+        </button>
+      </div>
     </section>
   </div>
 </template>
@@ -50,7 +45,7 @@ import { deleteBook, rebuildSnapshots } from "../api";
 
 const { t } = useI18n();
 
-const props = defineProps<{ bookId: string; bookName: string; isLastBook: boolean }>();
+const props = defineProps<{ bookId: string; bookName: string }>();
 const emit = defineEmits<{ deleted: []; "books-changed": [] }>();
 
 const rebuilding = ref(false);

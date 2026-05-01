@@ -654,7 +654,6 @@ const enMessages = {
       deleteBookExplain: "Permanently deletes this book's directory. Cannot be undone.",
       deleteBookConfirm: 'Type "{bookName}" to confirm:',
       deleteBookButton: "Delete forever",
-      cannotDeleteLastBook: "Can't delete — this is the only book.",
     },
     preview: {
       entry: "Posted entry on {date}",

@@ -55,7 +55,7 @@
           </td>
           <td class="py-1 px-2 text-right">
             <button
-              v-if="entry.kind === 'normal'"
+              v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)"
               class="text-xs text-red-500 hover:underline"
               :data-testid="`accounting-void-${entry.id}`"
               @click="onVoid(entry)"

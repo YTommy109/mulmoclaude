@@ -664,7 +664,6 @@ const esMessages = {
       deleteBookExplain: "Elimina permanentemente el directorio del libro. No se puede deshacer.",
       deleteBookConfirm: 'Escribe "{bookName}" para confirmar:',
       deleteBookButton: "Eliminar para siempre",
-      cannotDeleteLastBook: "No se puede — es el único libro.",
     },
     preview: {
       entry: "Entrada asentada el {date}",
