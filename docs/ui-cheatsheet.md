@@ -402,7 +402,7 @@ route exists.** The default Role cannot reach this surface; only
 custom Roles whose `availablePlugins` include `manageAccounting` can
 trigger the mount.
 
-```
+```text
 ┌─[<AccountingApp>] data-testid="accounting-app"───────────────────────┐
 │ ┌─Header───────────────────────────────────────────────────────────┐ │
 │ │  account_balance Accounting          [<BookSwitcher>]            │ │

@@ -30,7 +30,11 @@ function makeTmp(): string {
 // Each test owns its own bookId, but the rebuild queue is module-
 // level state. Reset before every test so a leftover background
 // rebuild from an earlier test can't race with the current one.
-beforeEach(() => _resetRebuildQueueForTesting());
+// The reset is async — it cancels and awaits any in-flight rebuild
+// before clearing bookkeeping.
+beforeEach(async () => {
+  await _resetRebuildQueueForTesting();
+});
 
 after(() => {
   for (const dir of created) rmSync(dir, { recursive: true, force: true });
@@ -185,6 +189,33 @@ describe("voidEntry", () => {
     assert.equal(list.entries.length, 3);
     assert.ok(list.entries.some((entry) => entry.kind === "void"));
     assert.ok(list.entries.some((entry) => entry.kind === "void-marker"));
+    assert.deepEqual(list.voidedEntryIds, [added.entry.id]);
+  });
+  it("listEntries: voidedEntryIds covers void-markers even when an account filter excludes them", async () => {
+    // Regression for the JournalList strikeout bug: filtering by
+    // accountCode drops the void-marker row (no lines), so the
+    // client must NOT derive voidedEntryIds from the filtered list.
+    const root = makeTmp();
+    await createBook({ name: "Test" }, root);
+    const added = await addEntry(
+      {
+        date: "2026-04-01",
+        lines: [
+          { accountCode: "1000", debit: 100 },
+          { accountCode: "4000", credit: 100 },
+        ],
+      },
+      root,
+    );
+    await voidEntry({ entryId: added.entry.id, reason: "typo" }, root);
+    const filtered = await listEntries({ accountCode: "1000" }, root);
+    // Void-marker has empty lines so it's filtered out; original + reverse remain.
+    assert.equal(
+      filtered.entries.some((entry) => entry.kind === "void-marker"),
+      false,
+    );
+    // But the server still surfaces the voided id so the View can strike out the original.
+    assert.deepEqual(filtered.voidedEntryIds, [added.entry.id]);
   });
 });
 

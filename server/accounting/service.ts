@@ -35,9 +35,9 @@ import {
   writeMeta,
 } from "../utils/files/accounting-io.js";
 import { findActiveOpening, validateOpening } from "./openingBalances.js";
-import { localDateString, makeEntry, makeVoidEntries, validateEntry } from "./journal.js";
+import { localDateString, makeEntry, makeVoidEntries, validateEntry, voidedIdSet } from "./journal.js";
 import { aggregateBalances, buildBalanceSheet, buildLedger, buildProfitLoss } from "./report.js";
-import { balancesAtEndOf, getOrBuildSnapshot, rebuildAllSnapshots, scheduleRebuild } from "./snapshotCache.js";
+import { awaitRebuildIdle, balancesAtEndOf, cancelRebuild, getOrBuildSnapshot, rebuildAllSnapshots, scheduleRebuild } from "./snapshotCache.js";
 import { publishBookChange, publishBooksChanged } from "./eventPublisher.js";
 import { DEFAULT_ACCOUNTS } from "./defaultAccounts.js";
 import { log } from "../system/logger/index.js";
@@ -179,6 +179,11 @@ export async function deleteBook(
   if (!findBook(config, input.bookId)) {
     throw new AccountingError(404, `book ${JSON.stringify(input.bookId)} not found`);
   }
+  // Stop any in-flight rebuild before removing the directory; otherwise
+  // writeSnapshot could re-create the tree via mkdir-recursive after
+  // we delete it, leaving an orphaned book folder on disk.
+  cancelRebuild(input.bookId);
+  await awaitRebuildIdle(input.bookId);
   await removeBookDir(input.bookId, workspaceRoot);
   const remaining = config.books.filter((book) => book.id !== input.bookId);
   // When the deleted book was the active one, promote the most
@@ -315,20 +320,29 @@ function entryMatchesFilters(entry: JournalEntry, input: ListEntriesInput): bool
   return true;
 }
 
-export async function listEntries(input: ListEntriesInput, workspaceRoot?: string): Promise<{ bookId: string; entries: JournalEntry[] }> {
+export async function listEntries(
+  input: ListEntriesInput,
+  workspaceRoot?: string,
+): Promise<{ bookId: string; entries: JournalEntry[]; voidedEntryIds: string[] }> {
   const config = await loadOrInitConfig(workspaceRoot);
   const bookId = resolveBookId(config, input.bookId);
   const periods = await listJournalPeriods(bookId, workspaceRoot);
   const entries: JournalEntry[] = [];
+  // Collect voided ids from the *unfiltered* set across every month —
+  // an account-filtered query drops void-marker rows (they have no
+  // lines), so deriving voided ids from the filtered list misses
+  // them and the View loses the strikeout on the cancelled original.
+  const allVoidedIds = new Set<string>();
   for (const monthKey of periods) {
+    const { entries: monthEntries } = await readJournalMonth(bookId, monthKey, workspaceRoot);
+    for (const voidedId of voidedIdSet(monthEntries)) allVoidedIds.add(voidedId);
     if (input.from && monthKey < input.from.slice(0, 7)) continue;
     if (input.to && monthKey > input.to.slice(0, 7)) continue;
-    const { entries: monthEntries } = await readJournalMonth(bookId, monthKey, workspaceRoot);
     for (const entry of monthEntries) {
       if (entryMatchesFilters(entry, input)) entries.push(entry);
     }
   }
-  return { bookId, entries };
+  return { bookId, entries, voidedEntryIds: Array.from(allVoidedIds).sort() };
 }
 
 // ── opening balances ───────────────────────────────────────────────

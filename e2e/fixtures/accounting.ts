@@ -75,12 +75,19 @@ function uniqueId(prefix: string): string {
   return `${prefix}-${randomUUID().slice(0, 8)}`;
 }
 
-function bookIdFrom(state: AccountingState, body: DispatchBody): string {
-  return (typeof body.bookId === "string" ? body.bookId : state.activeBookId) ?? "";
+/** Resolve the book id the way the real service does: the explicit
+ *  one wins, else activeBookId, else null. Returning null preserves
+ *  the "no active book" state so handlers can surface the same
+ *  empty-workspace error path the server emits — the fixture must
+ *  not silently mask that with `""`. */
+function bookIdFrom(state: AccountingState, body: DispatchBody): string | null {
+  if (typeof body.bookId === "string") return body.bookId;
+  return state.activeBookId;
 }
 
 const ok = (body: unknown): MockResponse => ({ status: 200, body });
 const err = (status: number, message: string): MockResponse => ({ status, body: { error: message } });
+const noActiveBook = (): MockResponse => err(409, "no active book; create or select one first");
 
 function handleOpenApp(state: AccountingState, body: DispatchBody): MockResponse {
   const requested = typeof body.bookId === "string" ? body.bookId : null;
@@ -127,16 +134,28 @@ function handleDeleteBook(state: AccountingState, body: DispatchBody): MockRespo
 
 function handleListAccounts(state: AccountingState, body: DispatchBody): MockResponse {
   const bookId = bookIdFrom(state, body);
+  if (bookId === null) return noActiveBook();
   return ok({ bookId, accounts: state.accountsByBook.get(bookId) ?? [] });
+}
+
+function voidedIdsFrom(entries: readonly FakeEntry[]): string[] {
+  const set = new Set<string>();
+  for (const entry of entries) {
+    if (entry.kind === "void-marker" && entry.voidedEntryId) set.add(entry.voidedEntryId);
+  }
+  return Array.from(set).sort();
 }
 
 function handleListEntries(state: AccountingState, body: DispatchBody): MockResponse {
   const bookId = bookIdFrom(state, body);
-  return ok({ bookId, entries: state.entriesByBook.get(bookId) ?? [] });
+  if (bookId === null) return noActiveBook();
+  const entries = state.entriesByBook.get(bookId) ?? [];
+  return ok({ bookId, entries, voidedEntryIds: voidedIdsFrom(entries) });
 }
 
 function handleAddEntry(state: AccountingState, body: DispatchBody): MockResponse {
   const bookId = bookIdFrom(state, body);
+  if (bookId === null) return noActiveBook();
   const entry: FakeEntry = {
     id: uniqueId("entry"),
     date: typeof body.date === "string" ? body.date : "2026-04-01",
@@ -152,13 +171,18 @@ function handleAddEntry(state: AccountingState, body: DispatchBody): MockRespons
 }
 
 function buildVoidMemo(target: FakeEntry, reason: string | undefined): string {
-  const memoSource = target.memo ?? target.lines.find((line) => line.memo)?.memo ?? null;
-  const base = memoSource !== null ? `void of '${memoSource}' on ${target.date}` : `void of entry on ${target.date}`;
+  // Mirror the real service contract from
+  // `server/accounting/journal.ts#voidMemo`: entry-level memo →
+  // first line memo → date-only fallback. Picking memo from any
+  // line (e.g. via `find(...)`) would diverge from production.
+  const memoSource = target.memo ?? target.lines[0]?.memo ?? null;
+  const base = memoSource ? `void of '${memoSource}' on ${target.date}` : `void of entry on ${target.date}`;
   return reason && reason.trim() !== "" ? `${base}: ${reason}` : base;
 }
 
 function handleVoidEntry(state: AccountingState, body: DispatchBody): MockResponse {
   const bookId = bookIdFrom(state, body);
+  if (bookId === null) return noActiveBook();
   const list = state.entriesByBook.get(bookId) ?? [];
   const targetId = typeof body.entryId === "string" ? body.entryId : "";
   const target = list.find((entry) => entry.id === targetId);
@@ -191,12 +215,14 @@ function handleVoidEntry(state: AccountingState, body: DispatchBody): MockRespon
 
 function handleGetOpening(state: AccountingState, body: DispatchBody): MockResponse {
   const bookId = bookIdFrom(state, body);
+  if (bookId === null) return noActiveBook();
   const list = state.entriesByBook.get(bookId) ?? [];
   return ok({ bookId, opening: list.find((entry) => entry.kind === "opening") ?? null });
 }
 
 function handleSetOpening(state: AccountingState, body: DispatchBody): MockResponse {
   const bookId = bookIdFrom(state, body);
+  if (bookId === null) return noActiveBook();
   const opening: FakeEntry = {
     id: uniqueId("entry"),
     date: typeof body.asOfDate === "string" ? body.asOfDate : "2026-01-01",
@@ -213,6 +239,7 @@ function handleSetOpening(state: AccountingState, body: DispatchBody): MockRespo
 
 function handleGetReport(state: AccountingState, body: DispatchBody): MockResponse {
   const bookId = bookIdFrom(state, body);
+  if (bookId === null) return noActiveBook();
   const kind = typeof body.kind === "string" ? body.kind : "balance";
   if (kind === "pl") {
     return ok({ bookId, profitLoss: { from: "2026-04-01", to: "2026-04-30", income: { rows: [], total: 0 }, expense: { rows: [], total: 0 }, netIncome: 0 } });

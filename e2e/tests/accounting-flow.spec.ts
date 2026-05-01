@@ -53,8 +53,10 @@ test.describe("accounting plugin — flow", () => {
     await page.getByTestId("accounting-preview").first().click();
 
     // The full View carries data-testid="accounting-app". When the
-    // workspace is empty, the no-book branch renders alongside the
-    // auto-opening NewBookForm.
+    // workspace is empty (mock returns books=[]), View.vue renders
+    // its no-book branch and auto-opens NewBookForm. Assert both so
+    // a regression in either path actually fails this test.
     await expect(page.getByTestId("accounting-app")).toBeVisible();
+    await expect(page.getByTestId("accounting-no-book")).toBeVisible();
   });
 });

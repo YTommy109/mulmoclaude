@@ -153,7 +153,7 @@ export function listEntries(input: {
   to?: string;
   accountCode?: string;
   bookId?: string;
-}): Promise<ApiResult<{ bookId: string; entries: JournalEntry[] }>> {
+}): Promise<ApiResult<{ bookId: string; entries: JournalEntry[]; voidedEntryIds: string[] }>> {
   return call("listEntries", input);
 }
 

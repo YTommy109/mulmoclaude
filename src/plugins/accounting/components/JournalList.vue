@@ -85,6 +85,7 @@ const from = ref("");
 const toDate = ref("");
 const accountCode = ref("");
 const entries = ref<JournalEntry[]>([]);
+const serverVoidedIds = ref<string[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const { begin: beginRequest, isCurrent } = useLatestRequest();
@@ -121,9 +122,11 @@ async function refresh(): Promise<void> {
     if (!result.ok) {
       error.value = result.error;
       entries.value = [];
+      serverVoidedIds.value = [];
       return;
     }
     entries.value = result.data.entries;
+    serverVoidedIds.value = result.data.voidedEntryIds;
   } finally {
     if (isCurrent(token)) loading.value = false;
   }
@@ -131,18 +134,12 @@ async function refresh(): Promise<void> {
 
 const filteredEntries = computed(() => entries.value);
 
-// Set of original entry ids that have been voided — derived from
-// every void-marker entry's voidedEntryId. Source of truth on the
-// server is `voidedIdSet()` in journal.ts; we recompute the same
-// shape here to drive the strikeout class binding (the original
-// entry, not the void/void-marker rows, is the cancelled one).
-const voidedEntryIds = computed(() => {
-  const set = new Set<string>();
-  for (const entry of entries.value) {
-    if (entry.kind === "void-marker" && entry.voidedEntryId) set.add(entry.voidedEntryId);
-  }
-  return set;
-});
+// Set of original entry ids that have been voided. The server
+// computes this from the *unfiltered* journal (so an account-filtered
+// query — which drops void-marker rows because they have no lines —
+// still strikes out the cancelled original). Source of truth on the
+// server is `voidedIdSet()` in journal.ts.
+const voidedEntryIds = computed(() => new Set(serverVoidedIds.value));
 
 async function onVoid(entry: JournalEntry): Promise<void> {
   // Single dialog: the prompt is the confirmation. Cancelling

@@ -126,8 +126,8 @@ describe("snapshot cache byte-equality invariant", () => {
 });
 
 describe("scheduleRebuild + queue", () => {
-  beforeEach(() => {
-    _resetRebuildQueueForTesting();
+  beforeEach(async () => {
+    await _resetRebuildQueueForTesting();
     _resetAccountingEventPublisherForTesting();
   });
 
