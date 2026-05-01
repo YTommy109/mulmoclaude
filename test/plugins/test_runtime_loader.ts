@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { loadPluginFromCacheDir } from "../../server/plugins/runtime-loader.js";
+import { loadPluginFromCacheDir, isCacheValid, EXTRACT_MARKER } from "../../server/plugins/runtime-loader.js";
 
 interface FixtureOpts {
   exportsImport?: string;
@@ -108,6 +108,20 @@ describe("loadPluginFromCacheDir", () => {
     writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "@x/empty", version: "1.0.0" }));
     const plugin = await loadPluginFromCacheDir("@x/empty", "1.0.0", dir);
     assert.equal(plugin, null);
+  });
+
+  it("isCacheValid: false on a directory missing the completion marker (partial extract)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "mulmo-runtime-cache-partial-"));
+    writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "@x/half", version: "1.0.0" }));
+    // No EXTRACT_MARKER → cache is partial / invalid even though the
+    // directory exists. This is what stops a sticky broken cache.
+    assert.equal(isCacheValid(dir), false);
+  });
+
+  it("isCacheValid: true once the completion marker is present", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "mulmo-runtime-cache-complete-"));
+    writeFileSync(path.join(dir, EXTRACT_MARKER), "");
+    assert.equal(isCacheValid(dir), true);
   });
 
   it("returns null when entry file is missing on disk", async () => {

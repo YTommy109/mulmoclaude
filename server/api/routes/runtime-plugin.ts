@@ -20,13 +20,14 @@
 // boot logs).
 
 import path from "node:path";
-import { existsSync, promises as fsp } from "node:fs";
+import { realpathSync, promises as fsp } from "node:fs";
 import { Router, type Request, type Response } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { getRuntimePlugins } from "../../plugins/runtime-registry.js";
 import { notFound, serverError } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
 import { isRecord } from "../../utils/types.js";
+import { resolveWithinRoot } from "../../utils/files/safe.js";
 import { log } from "../../system/logger/index.js";
 import { WORKSPACE_PATHS } from "../../workspace/paths.js";
 
@@ -80,26 +81,32 @@ router.post(API_ROUTES.plugins.runtimeDispatch, async (req: Request<{ pkg: strin
 });
 
 // Static-mount of the extracted plugin cache. Express resolves
-// `:pkg/:version/*` with the wildcard available on
-// `req.params[0]`. Path is normalised to prevent traversal outside
-// the plugin's cache directory.
+// `:pkg/:version/*` with the wildcard available on `req.params[0]`.
+// Uses `resolveWithinRoot` (realpath-based) so a symlink inside the
+// extracted tree pointing at host files (e.g. /etc/passwd) cannot
+// escape the plugin's cache directory — a textual `startsWith` check
+// would not catch that. Same hardening pattern as the rest of the
+// repo's static-mount endpoints.
 router.get(API_ROUTES.plugins.runtimeAsset, async (req: Request<{ pkg: string; version: string; "0": string }>, res: Response) => {
   const pkg = decodeURIComponent(req.params.pkg);
   const version = decodeURIComponent(req.params.version);
   const { 0: subPath } = req.params;
   const root = path.join(WORKSPACE_PATHS.pluginCache, pkg, version);
-  const target = path.normalize(path.join(root, subPath));
-  if (!target.startsWith(root + path.sep) && target !== root) {
+  let rootReal: string;
+  try {
+    rootReal = realpathSync(root);
+  } catch {
     notFound(res, "asset not found");
     return;
   }
-  if (!existsSync(target)) {
+  const resolved = resolveWithinRoot(rootReal, subPath);
+  if (!resolved) {
     notFound(res, "asset not found");
     return;
   }
   try {
-    const data = await fsp.readFile(target);
-    const ext = path.extname(target).toLowerCase();
+    const data = await fsp.readFile(resolved);
+    const ext = path.extname(resolved).toLowerCase();
     const contentType = contentTypeFor(ext);
     res.setHeader("Content-Type", contentType);
     res.send(data);

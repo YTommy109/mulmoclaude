@@ -42,6 +42,19 @@ describe("runtime-registry", () => {
     assert.equal(result.collisions[0].existingTool, "builtin");
   });
 
+  it("static set must include MCP tool names too — `notify` collision skipped", () => {
+    // Mirrors how mcp-server.ts now passes both PLUGIN_DEFS names and
+    // mcpToolDefs keys (notify / readXPost / searchX). Without this
+    // combined set, a runtime plugin named `notify` would shadow the
+    // built-in.
+    const staticSet = new Set(["manageTodoList", "presentForm", "notify", "readXPost", "searchX"]);
+    const result = registerRuntimePlugins(staticSet, [fakePlugin("@x/notify-clone", "1.0.0", "notify")]);
+    assert.equal(result.registered.length, 0);
+    assert.equal(result.collisions.length, 1);
+    assert.equal(result.collisions[0].reason, "static");
+    assert.equal(result.collisions[0].existingTool, "notify");
+  });
+
   it("runtime-vs-runtime collision: first-loaded wins, second skipped with reason=runtime", () => {
     const first = fakePlugin("@x/a", "1.0.0", "shared");
     const second = fakePlugin("@y/b", "1.0.0", "shared");

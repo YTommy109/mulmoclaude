@@ -107,20 +107,37 @@ const ALL_TOOLS: Record<string, ToolDef> = {
 let activeNames: string[] = [...PLUGIN_NAMES];
 let tools: ToolDef[] = activeNames.map((name) => ALL_TOOLS[name]).filter(Boolean);
 
+// Static collision floor — both the GUI plugin set (`MCP_PLUGIN_NAMES`)
+// AND the pure MCP tool set (`mcpToolDefs` keys: notify / readXPost /
+// searchX / …). A runtime plugin named `notify` must NOT shadow the
+// built-in notify tool; including both groups makes the collision
+// policy in `runtime-registry.ts` enforce that.
+const STATIC_TOOL_NAMES: ReadonlySet<string> = new Set([...MCP_PLUGIN_NAMES, ...Object.keys(mcpToolDefs)]);
+
+// Internal try/catch so a filesystem failure (EACCES on plugins.json,
+// busted tgz, runaway plugin import) can never strand the MCP
+// handshake. Runtime plugins are best-effort: any failure logs and
+// falls back to the static-only tool list initialised above. The
+// `tools/list` and `tools/call` paths downstream just call
+// `runtimeReady.then(...)` and proceed.
 const runtimeReady: Promise<void> = (async () => {
-  const runtime = await loadRuntimePlugins();
-  registerRuntimePlugins(MCP_PLUGIN_NAMES, runtime);
-  for (const plugin of getRuntimePlugins()) {
-    const endpoint = `/api/plugins/runtime/${encodeURIComponent(plugin.name)}/dispatch`;
-    ALL_TOOLS[plugin.definition.name] = fromPackage(plugin.definition, endpoint);
+  try {
+    const runtime = await loadRuntimePlugins();
+    registerRuntimePlugins(STATIC_TOOL_NAMES, runtime);
+    for (const plugin of getRuntimePlugins()) {
+      const endpoint = `/api/plugins/runtime/${encodeURIComponent(plugin.name)}/dispatch`;
+      ALL_TOOLS[plugin.definition.name] = fromPackage(plugin.definition, endpoint);
+    }
+    // Runtime plugins are auto-included regardless of role.availablePlugins
+    // — the user explicitly installed them, so every role gets to use them.
+    // Roles still gate the static set via PLUGIN_NAMES env (set by the
+    // parent based on getActivePlugins(role)).
+    const runtimeToolNames = getRuntimePlugins().map((plugin) => plugin.definition.name);
+    activeNames = Array.from(new Set([...PLUGIN_NAMES, ...runtimeToolNames]));
+    tools = activeNames.map((name) => ALL_TOOLS[name]).filter(Boolean);
+  } catch (err) {
+    process.stderr.write(`[mcp-server] runtime plugin load failed; static tools only: ${String(err)}\n`);
   }
-  // Runtime plugins are auto-included regardless of role.availablePlugins
-  // — the user explicitly installed them, so every role gets to use them.
-  // Roles still gate the static set via PLUGIN_NAMES env (set by the
-  // parent based on getActivePlugins(role)).
-  const runtimeToolNames = getRuntimePlugins().map((plugin) => plugin.definition.name);
-  activeNames = Array.from(new Set([...PLUGIN_NAMES, ...runtimeToolNames]));
-  tools = activeNames.map((name) => ALL_TOOLS[name]).filter(Boolean);
 })();
 
 // MCP tools (e.g. readXPost, searchX) call external APIs through their
@@ -428,7 +445,11 @@ process.stdin.on("data", (chunk: Buffer) => {
       // Await runtime-plugin load before responding so workspace-
       // installed tools appear in the very first list call. Without
       // this, an early tools/list could miss them and the LLM would
-      // never call them this session.
+      // never call them this session. `tools` is a `let` binding
+      // updated once when `runtimeReady` resolves; reading the latest
+      // value at callback time is the desired behaviour, not the
+      // loop-capture footgun the rule flags.
+      // eslint-disable-next-line no-loop-func -- read latest `tools` post-runtimeReady
       runtimeReady.then(() =>
         respond({
           jsonrpc: "2.0",

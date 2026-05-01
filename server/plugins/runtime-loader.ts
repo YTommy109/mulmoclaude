@@ -18,7 +18,7 @@
 // definition that fails to import gets logged and skipped; healthy
 // plugins still load.
 
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -69,15 +69,44 @@ function resolveEntrySpecifier(pkg: PackageJson): string | null {
   return null;
 }
 
+/** Sentinel file written at the end of a successful extract. The
+ *  loader uses its presence (not just `existsSync(cachePath)`) as the
+ *  cache-validity check, so a partial extract (interrupted tar, ENOSPC
+ *  half-write) is detected and re-extracted on the next boot instead
+ *  of becoming a permanent broken state. */
+export const EXTRACT_MARKER = ".extract-complete";
+
+export function isCacheValid(cachePath: string): boolean {
+  return existsSync(path.join(cachePath, EXTRACT_MARKER));
+}
+
 /** Run `tar xzf` to extract a tgz into the version-keyed cache slot.
  *  `--strip-components=1` drops the `package/` prefix that npm packs
  *  add. `execFileSync` (not `execSync`) so paths bypass shell parsing
  *  and never trip on metacharacters in workspace paths. Synchronous
  *  because boot is single-threaded and the alternative (a stream
- *  pipeline) adds dependencies for no benefit. */
+ *  pipeline) adds dependencies for no benefit.
+ *
+ *  On failure, the partial directory is removed so the next boot
+ *  re-extracts cleanly (no sticky broken state). The completion
+ *  marker is written ONLY after tar exits 0 — readers should test
+ *  `isCacheValid()`, not `existsSync(cachePath)`. */
 function extractTgz(tgzAbs: string, destDir: string): void {
+  // Wipe any leftover from a previous failed extract before writing.
+  if (existsSync(destDir)) rmSync(destDir, { recursive: true, force: true });
   mkdirSync(destDir, { recursive: true });
-  execFileSync("tar", ["-xzf", tgzAbs, "-C", destDir, "--strip-components=1"], { stdio: "pipe" });
+  try {
+    execFileSync("tar", ["-xzf", tgzAbs, "-C", destDir, "--strip-components=1"], { stdio: "pipe" });
+    writeFileSync(path.join(destDir, EXTRACT_MARKER), "");
+  } catch (err) {
+    // Tear down the partial tree so isCacheValid() stays false next boot.
+    try {
+      rmSync(destDir, { recursive: true, force: true });
+    } catch {
+      // best-effort cleanup
+    }
+    throw err;
+  }
 }
 
 function readPackageJson(cachePath: string): PackageJson | null {
@@ -125,7 +154,7 @@ async function loadOne(entry: LedgerEntry): Promise<RuntimePlugin | null> {
     return null;
   }
   const cachePath = path.join(WORKSPACE_PATHS.pluginCache, entry.name, entry.version);
-  if (!existsSync(cachePath)) {
+  if (!isCacheValid(cachePath)) {
     try {
       extractTgz(tgzAbs, cachePath);
       log.info(LOG_PREFIX, "extracted", { name: entry.name, version: entry.version });
