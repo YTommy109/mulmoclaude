@@ -126,7 +126,6 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
   listBooks: () => listBooks(),
   createBook: (rest) =>
     createBook({
-      id: typeof rest.id === "string" ? rest.id : undefined,
       name: String(rest.name ?? ""),
       currency: typeof rest.currency === "string" ? rest.currency : undefined,
     }),
@@ -194,8 +193,8 @@ function previewMessage(action: string, fields: Record<string, unknown>): string
       return `Mounted the accounting app in the canvas. ${VIEW_VISIBLE_TRAILER}`;
     case "createBook": {
       const book = fields.book as { id?: string; name?: string } | undefined;
-      const name = book?.name ? JSON.stringify(book.name) : "a book";
-      return `Created ${name}. ${VIEW_VISIBLE_TRAILER}`;
+      const subject = book?.name ? `A new book named ${JSON.stringify(book.name)}` : "A new book";
+      return `${subject} has been created. ${VIEW_VISIBLE_TRAILER}`;
     }
     case "setActiveBook": {
       const bookId = fields.activeBookId as string | undefined;

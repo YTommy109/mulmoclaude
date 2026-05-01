@@ -107,7 +107,7 @@ export function listBooks(): Promise<ApiResult<{ activeBookId: string | null; bo
   return call("listBooks");
 }
 
-export function createBook(input: { name: string; currency?: string; id?: string }): Promise<ApiResult<{ book: BookSummary }>> {
+export function createBook(input: { name: string; currency?: string }): Promise<ApiResult<{ book: BookSummary }>> {
   return call("createBook", input);
 }
 
