@@ -13,13 +13,16 @@
 
 import { Router, type Request, type Response } from "express";
 import path from "node:path";
-import { writeWikiPage } from "../../../workspace/wiki-pages/io.js";
+import { randomUUID } from "node:crypto";
+import { TOOL_NAMES } from "../../../../src/config/toolNames.js";
+import { hasMeaningfulChange, writeWikiPage } from "../../../workspace/wiki-pages/io.js";
 import { WORKSPACE_DIRS } from "../../../workspace/paths.js";
 import { isSafeStamp, listSnapshots, readSnapshot, stripSnapshotMeta } from "../../../workspace/wiki-pages/snapshot.js";
 import { mergeFrontmatter, serializeWithFrontmatter } from "../../../utils/markdown/frontmatter.js";
 import { badRequest, notFound } from "../../../utils/httpError.js";
 import { readTextOrNull } from "../../../utils/files/safe.js";
 import { workspacePath } from "../../../workspace/workspace.js";
+import { pushToolResult } from "../../../events/session-store/index.js";
 import { log } from "../../../system/logger/index.js";
 
 const router = Router();
@@ -42,6 +45,19 @@ function isSafeSlug(slug: string): boolean {
 // every other UI-driven save today.
 function restoreReason(stamp: string): string {
   return `Restored from ${stamp}`;
+}
+
+// Re-build the previous snapshot's content as a single
+// frontmatter+body string for `hasMeaningfulChange` to compare
+// against. `_snapshot_*` keys are stripped first — those are
+// snapshot-event metadata, not part of the page itself, and
+// keeping them in the diff would always flag a difference.
+async function loadPreviousSnapshotContent(slug: string): Promise<string | null> {
+  const recent = await listSnapshots(slug, { workspaceRoot: workspacePath });
+  if (recent.length === 0) return null;
+  const latest = await readSnapshot(slug, recent[0].stamp, { workspaceRoot: workspacePath });
+  if (latest === null) return null;
+  return serializeWithFrontmatter(stripSnapshotMeta(latest.meta), latest.body);
 }
 
 router.get("/pages/:slug/history", async (req: Request<{ slug: string }>, res: Response) => {
@@ -163,11 +179,25 @@ router.post("/internal/snapshot", async (req: Request<object, unknown, InternalS
     return;
   }
 
+  // Dedupe against the most recent snapshot — Write/Edit hooks
+  // fire for every tool call, including ones that only re-stamp
+  // `updated` / `editor` without touching the body. Without this
+  // guard the history page accumulates duplicate entries (user
+  // report 2026-04-30: two identical bodies snapped 2.6s apart).
+  // `hasMeaningfulChange` already drives the in-process
+  // `writeWikiPage` path; reusing it keeps both paths aligned.
+  const previousContent = await loadPreviousSnapshotContent(slug);
+  if (previousContent !== null && !hasMeaningfulChange(previousContent, content)) {
+    log.info("wiki", "internal snapshot skipped — no meaningful change since previous snapshot", { slug });
+    res.json({ slug, ok: true, skipped: "no-meaningful-change" });
+    return;
+  }
+
   // The hook only fires for claude-CLI-driven writes — by
   // construction the agent is the actor. User-driven manual saves
   // go through writeWikiPage in-process and never reach here.
   const { appendSnapshot } = await import("../../../workspace/wiki-pages/snapshot.js");
-  await appendSnapshot(
+  const stamp = await appendSnapshot(
     slug,
     null,
     content,
@@ -178,6 +208,53 @@ router.post("/internal/snapshot", async (req: Request<object, unknown, InternalS
     { workspaceRoot: workspacePath },
   );
   log.info("wiki", "internal snapshot recorded", { slug });
+
+  // Stage 3a (#963): publish a synthetic `manageWiki` toolResult
+  // into the session timeline so the canvas shows what the LLM
+  // just wrote. The View dispatch (existing manageWiki plugin)
+  // picks up the new `page-edit` action and fetches the snapshot
+  // body via /api/wiki/pages/:slug/history/:stamp on render —
+  // JSONL stays small (~150 bytes per write) because we store
+  // the snapshot reference, not the body. `pagePath` is a GC
+  // fallback: if the snapshot is gc'd before render, the View
+  // falls back to reading the live page file.
+  // Wrapped in try/catch so a publish failure (e.g. JSONL append
+  // throws) doesn't fail the whole route — the snapshot was
+  // already written, and the hook is fire-and-forget. Without
+  // this guard the route would 500 even though the wiki write
+  // itself succeeded; the next save would still snapshot fine,
+  // but the canvas would silently lose this one preview
+  // (CodeRabbit review).
+  if (typeof sessionId === "string" && sessionId.length > 0) {
+    try {
+      const outcome = await pushToolResult(sessionId, {
+        uuid: randomUUID(),
+        toolName: TOOL_NAMES.manageWiki,
+        data: {
+          // `"page-edit"` is the action discriminator the wiki
+          // plugin's `View.vue` switches on. It's repeated in the
+          // plugin and in `src/plugins/wiki/pageEditLoader.ts`; a
+          // shared `WIKI_ACTIONS` const would be the cleaner home
+          // but that's a multi-file refactor — out of scope for
+          // this CR follow-up.
+          action: "page-edit",
+          title: slug,
+          slug,
+          stamp,
+          pagePath: path.posix.join(WORKSPACE_DIRS.wikiPages, `${slug}.md`),
+        },
+      });
+      if (outcome.kind === "skipped") {
+        log.warn("wiki", "page-edit toolResult publish skipped", { slug, reason: outcome.reason });
+      }
+    } catch (err) {
+      log.warn("wiki", "page-edit toolResult publish failed", {
+        slug,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   res.json({ slug, ok: true });
 });
 

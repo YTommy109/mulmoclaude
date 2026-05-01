@@ -217,6 +217,9 @@ const esMessages = {
     pdfPreview: "Vista previa PDF",
     parseError: "error al analizar",
   },
+  filesView: {
+    chatPlaceholder: "Pregunta sobre este archivo…",
+  },
   systemFiles: {
     schemaLabel: "Esquema",
     showDetails: "Mostrar detalles",
@@ -539,6 +542,8 @@ const esMessages = {
     redo: "Rehacer",
     clear: "Limpiar",
     styleLabel: "Estilo:",
+    stylePromptWithPath: "Convierte la imagen en `{path}` en una imagen de estilo {style}.",
+    stylePromptNoPath: "Convierte mi dibujo en el lienzo en una imagen de estilo {style}.",
   },
   pluginChart: {
     untitled: "Gráfico",
@@ -635,6 +640,9 @@ const esMessages = {
     metadataCreated: "Creado",
     metadataUpdated: "Actualizado",
     metadataEditor: "Editor",
+    pageEditHeader: "Edición de wiki",
+    snapshotExpired: "Instantánea expirada — mostrando la página actual",
+    pageDeleted: "Página eliminada",
     history: {
       tabContent: "Contenido",
       tabHistory: "Historial",

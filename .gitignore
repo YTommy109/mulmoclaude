@@ -14,6 +14,8 @@ server/logs/
 .vscode/
 playwright-report/
 test-results/
+playwright-report-live/
+test-results-live/
 .playwright-mcp/
 .mcp.json
 
@@ -29,3 +31,5 @@ config/scheduler/state.json
 .session-token
 .mulmoclaude/
 migration-284-manifest.json
+github/
+.server-port

@@ -145,16 +145,18 @@ Pre-existing 3- or 4-column tables (without a Tags header) keep parsing; their e
 
 - A page's YAML frontmatter `tags:` field is the source of truth for that page's tags.
 - The tags recorded for that slug in `index.md` must match the frontmatter set exactly (order and case don't matter; we compare as a lowercased set).
-- `manageWiki` `action: "lint_report"` flags any mismatch as **Tag drift**. Fix by updating whichever side is stale.
+- The Lint button on the `/wiki` UI flags any mismatch as **Tag drift**. Fix by updating whichever side is stale.
 
-## Canvas Tool
+## Browsing the wiki
 
-Use the `manageWiki` tool to display wiki content in the canvas:
+Wiki page Writes/Edits the LLM performs render inline in the chat automatically — no extra display call needed.
 
-- `action: "index"` — show the page catalog
-- `action: "page"` — show a single page (provide `pageName`)
-- `action: "log"` — show the activity log
-- `action: "lint_report"` — run a health check
+For browse / lint queries, point the user at the `/wiki` UI:
+
+- `/wiki` — the page catalog (with tag filters)
+- `/wiki/pages/<slug>` — a specific page
+- `/wiki/log` — the activity log
+- The Lint button on `/wiki` runs a health check
 
 ## Relationship to `memory.md`
 

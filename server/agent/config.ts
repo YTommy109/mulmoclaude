@@ -27,7 +27,6 @@ export interface McpConfigParams {
   chatSessionId: string;
   port: number;
   activePlugins: string[];
-  roleIds: string[];
   useDocker?: boolean;
   // User-defined MCP servers from <workspace>/config/mcp.json.
   // Keys become the server id in the generated --mcp-config file;
@@ -96,8 +95,8 @@ function collectMcpToolSentinelEnv(): Record<string, string> {
   return env;
 }
 
-function buildMulmoclaudeServer(params: { chatSessionId: string; port: number; activePlugins: string[]; roleIds: string[]; useDocker: boolean }): object {
-  const { chatSessionId, port, activePlugins, roleIds, useDocker } = params;
+function buildMulmoclaudeServer(params: { chatSessionId: string; port: number; activePlugins: string[]; useDocker: boolean }): object {
+  const { chatSessionId, port, activePlugins, useDocker } = params;
   const projectRoot = process.cwd();
   const command = useDocker ? "tsx" : join(projectRoot, "node_modules/.bin/tsx");
   const mcpServerPath = useDocker ? "/app/server/agent/mcp-server.ts" : join(projectRoot, "server/agent/mcp-server.ts");
@@ -124,7 +123,6 @@ function buildMulmoclaudeServer(params: { chatSessionId: string; port: number; a
       SESSION_ID: chatSessionId,
       PORT: String(port),
       PLUGIN_NAMES: activePlugins.join(","),
-      ROLE_IDS: roleIds.join(","),
       ...authEnv,
       ...dockerEnv,
     },
@@ -145,14 +143,13 @@ function excludeReservedKeys(servers: Record<string, McpServerSpec>): Record<str
 }
 
 export function buildMcpConfig(params: McpConfigParams): { mcpServers: Record<string, unknown> } {
-  const { chatSessionId, port, activePlugins, roleIds, useDocker = false, userServers = {} } = params;
+  const { chatSessionId, port, activePlugins, useDocker = false, userServers = {} } = params;
   return {
     mcpServers: {
       mulmoclaude: buildMulmoclaudeServer({
         chatSessionId,
         port,
         activePlugins,
-        roleIds,
         useDocker,
       }),
       ...excludeReservedKeys(userServers),
@@ -250,6 +247,13 @@ export async function buildUserMessageLine(message: string, attachments?: Attach
   const skippedReasons: string[] = [];
 
   for (const att of all) {
+    // Defensive: prepareRequestExtras normalises path-only entries to
+    // bytes before we get here, so `data` + `mimeType` should always
+    // be set. Skip with a reason if a malformed entry slipped through.
+    if (!att.data || !att.mimeType) {
+      skippedReasons.push(att.path ? `attachment "${att.path}" missing bytes/mimeType after normalisation` : "attachment missing bytes/mimeType");
+      continue;
+    }
     // Native types: image and PDF go directly as content blocks
     if (isNativeAttachmentMime(att.mimeType)) {
       blocks.push(buildNativeBlock(att));
@@ -279,13 +283,15 @@ export async function buildUserMessageLine(message: string, attachments?: Attach
 }
 
 function buildNativeBlock(att: Attachment): Record<string, unknown> {
-  const blockType = isImageMime(att.mimeType) ? "image" : "document";
+  const mimeType = att.mimeType ?? "application/octet-stream";
+  const data = att.data ?? "";
+  const blockType = isImageMime(mimeType) ? "image" : "document";
   return {
     type: blockType,
     source: {
       type: "base64",
-      media_type: att.mimeType,
-      data: att.data,
+      media_type: mimeType,
+      data,
     },
   };
 }
@@ -319,6 +325,13 @@ export interface DockerSpawnArgsParams {
   uid: number;
   gid: number;
   platform: Platform;
+  /** Our app's chat session id. Forwarded into the container as
+   *  `MULMOCLAUDE_CHAT_SESSION_ID` so the wiki-history PostToolUse
+   *  hook can publish a `page-edit` toolResult to the right chat
+   *  session — Claude CLI's own `session_id` (in the hook payload)
+   *  is the *CLI* session, not our chat session, so the session
+   *  store would never find a match (#963). */
+  chatSessionId: string;
   projectRoot?: string;
   homeDir?: string;
   /** Extra `-v` / `-e` tokens for opt-in host credentials (#259).
@@ -395,6 +408,12 @@ export function buildDockerSpawnArgs(params: DockerSpawnArgsParams): string[] {
     // `extraHosts`.
     "-e",
     "MULMOCLAUDE_HOST=host.docker.internal",
+    // Chat session id for the wiki-history hook (#963). The hook
+    // POSTs `{slug, sessionId}` to the parent server; the server
+    // looks up the chat session by this id to publish a `page-edit`
+    // toolResult into its timeline.
+    "-e",
+    `MULMOCLAUDE_CHAT_SESSION_ID=${params.chatSessionId}`,
     "-v",
     `${toDockerPath(projectRoot)}/node_modules:/app/node_modules:ro`,
     "-v",

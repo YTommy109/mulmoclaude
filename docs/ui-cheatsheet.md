@@ -117,6 +117,18 @@ Click on a row → `useNotifications.markRead(id)` → badge decrements. The �
 
 The right canvas binds to `currentSession.selectedResultUuid`. Clicking a tool-call card on the left sets the uuid; the right pane re-renders via plugin lookup (`getPlugin(toolName).viewComponent`).
 
+### Canvas plugin views — primary testids
+
+Stable hooks for tests / chat references when a tool result is selected on the right canvas:
+
+| Plugin | testid | What it points at |
+|---|---|---|
+| `presentHtml` | `[present-html-iframe]` | The `<iframe :src="/artifacts/html/...">` rendering the saved HTML page |
+| `textResponse` | `[text-response-pdf-button]` | The "PDF" button on an assistant text response (`usePdfDownload` → `/api/pdf/markdown`) |
+| `textResponse` | `[text-response-edit]` / `[text-response-edit-summary]` / `[text-response-edit-textarea]` / `[text-response-apply-btn]` | The collapsible source editor on an assistant text response |
+
+(Other plugin views — `<CalendarView>`, `<MarkdownView>`, `<SpreadsheetView>`, `<ChartView>`, etc. — are documented in their own sections below or are direct components without a stable testid yet.)
+
 ## /calendar — calendar of dated items
 
 ```
@@ -207,6 +219,64 @@ Two layouts share `<WikiView>`: the **index** (page list) and a **single page** 
 │   [wiki-page-chat-input]  [wiki-page-chat-send]               │
 └───────────────────────────────────────────────────────────────┘
 ```
+
+### page-edit (canvas timeline only — #963)
+
+When the LLM Writes/Edits a `data/wiki/pages/<slug>.md` file via
+Claude Code's built-in tools, the snapshot endpoint publishes a
+synthetic `manageWiki` toolResult with `action: "page-edit"` into
+the active session. The canvas (StackView) renders it via the
+same `<WikiView>` component as `action: "page"`, so the body
+markup is identical:
+
+```text
+┌─[<WikiView> action="page-edit" — canvas only]─────────────────┐
+│ ▮ Wiki edit · <slug> · 2026-04-30 12:00                       │
+│ ┌─[wiki-page-metadata-bar]────────────────────────────────┐   │
+│ │ Created: ... · Updated: ... · Editor: llm · #tag1 #tag2 │   │
+│ └─────────────────────────────────────────────────────────┘   │
+│ [wiki-page-edit-banner] (only when snapshot was gc'd)         │
+│ ┌─Markdown content from snapshot file (.wiki-content)─────┐   │
+│ │ ...same render as the live page action...              │   │
+│ └─────────────────────────────────────────────────────────┘   │
+│ [wiki-page-edit-deleted] (only when both snapshot + page gone)│
+└───────────────────────────────────────────────────────────────┘
+```
+
+Tabs / PDF / chat composer / create-update buttons are hidden —
+this is a moment-in-time view, not the live page.
+
+## /news — news viewer
+
+`/news` reads the items the sources pipeline has fetched and presents them as a two-pane reader (list + detail) with unread tracking. Per-article chat composer lets the user spawn a new chat that's already aware of the article.
+
+```text
+┌─[<NewsView> data-testid="news-view"]─────────────────────────────────────┐
+│ Header row:                                                              │
+│   [news-counts] (e.g. "23 unread of 142")                                │
+│   Filters: [news-filter-all] [news-filter-unread]  [news-mark-all-read]  │
+│   Source selector: [news-source-<slug>] (one button per source)          │
+│                                                                          │
+│ ┌─[news-list] (left pane, 320px)────┐ ┌─[news-detail] (right pane)─────┐ │
+│ │ [news-item-<id>] · headline       │ │ Article title + metadata       │ │
+│ │ ◯ unread / ⚪ read                │ │ Author, source, published date │ │
+│ │ source · published date           │ │                                │ │
+│ │ ─────────────────────────────────  │ │ ┌─Article body (markdown)──┐  │ │
+│ │ ...                               │ │ │ ...                      │  │ │
+│ │                                   │ │ └──────────────────────────┘  │ │
+│ │                                   │ │ [news-open-original] (↗︎)      │ │
+│ │                                   │ │                                │ │
+│ │                                   │ │ Per-article chat composer:    │ │
+│ │                                   │ │ [news-article-chat-input]      │ │
+│ │                                   │ │ [news-article-chat-send]       │ │
+│ │                                   │ │ → spawns a new chat with a    │ │
+│ │                                   │ │ "read this article first"     │ │
+│ │                                   │ │ prepend                       │ │
+│ └───────────────────────────────────┘ └────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+Clicking a list row marks it read (badge decrements). The "Mark all read" button zeroes the counter for the current filter scope.
 
 ## /sources — registered news/RSS feeds
 

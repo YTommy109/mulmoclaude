@@ -11,6 +11,7 @@ import sourcesRoutes from "./api/routes/sources.js";
 import newsRoutes from "./api/routes/news.js";
 import pluginsRoutes from "./api/routes/plugins.js";
 import imageRoutes from "./api/routes/image.js";
+import attachmentRoutes from "./api/routes/attachment.js";
 import presentHtmlRoutes from "./api/routes/presentHtml.js";
 import chartRoutes from "./api/routes/chart.js";
 import rolesRoutes from "./api/routes/roles.js";
@@ -37,6 +38,7 @@ import { serverError } from "./utils/httpError.js";
 import { makeUuid } from "./utils/id.js";
 import { mcpToolsRouter, mcpTools, isMcpToolEnabled } from "./agent/mcp-tools/index.js";
 import { initWorkspace, workspacePath } from "./workspace/workspace.js";
+import { runMemoryMigrationOnce } from "./workspace/memory/run.js";
 import { env, isGeminiAvailable } from "./system/env.js";
 import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import { existsSync, readFileSync } from "fs";
@@ -66,6 +68,7 @@ import { API_ROUTES } from "../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../src/types/events.js";
 import { SESSION_ORIGINS } from "../src/types/session.js";
 import { buildHtmlPreviewCsp } from "../src/utils/html/previewCsp.js";
+import { readAndInjectHtmlArtifact } from "./utils/html/htmlArtifactSplicer.js";
 import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS } from "./utils/time.js";
 import { isPortFree, findAvailablePort, MAX_PORT_PROBES } from "./utils/port.mjs";
 import { SCHEDULE_TYPES, MISSED_RUN_POLICIES } from "@receptron/task-scheduler";
@@ -78,6 +81,17 @@ const __dirname = path.dirname(__filename);
 const debugMode = process.argv.includes("--debug");
 
 initWorkspace();
+
+// Fire-and-forget legacy-memory migration (#1029). Idempotent: a
+// no-op when there's no `conversations/memory.md` to migrate. We
+// don't await — migration calls Claude per bullet and can take
+// minutes, but the agent can serve traffic in parallel. The brief
+// race window is documented in plans/feat-memory-storage-wire.md.
+// The runner logs failures internally; the outer .then(noop, noop)
+// keeps the floating-promises rule happy without smuggling in a
+// `void` (banned by sonarjs/void-use).
+const noop = (): void => {};
+runMemoryMigrationOnce(workspacePath).then(noop, noop);
 
 let sandboxEnabled = false;
 
@@ -133,15 +147,21 @@ app.use("/api", (req, res, next) => {
 // stays loopback-only.
 //
 // Three-layer guard:
-//  1. Extension allowlist — reject anything that isn't an image
-//     extension (saveImage currently writes `.png` only; the list
-//     stays slightly wider so future formats don't reopen the review).
+//  1. Extension allowlist — reject anything that isn't an image,
+//     video, or audio extension. `saveImage` currently writes `.png`
+//     only, but Stage B (#1011) extends the markdown / wiki rewriter
+//     to `<source>` / `<video poster|src>` / `<audio src>`; an LLM
+//     placing a `.mp4` poster's source video alongside its image at
+//     `artifacts/images/<id>.mp4` (or any user-dropped media file
+//     under that dir) needs to round-trip through this mount the
+//     same way image refs do — otherwise the rewritten URL hits this
+//     mount and 404s before `express.static` gets a chance.
 //  2. realpath-based traversal check via `resolveWithinRoot` — same
 //     guard `/api/files/raw` uses. Catches symlinks pointing outside
 //     the images dir, which `express.static` would otherwise follow.
 //  3. `dotfiles: deny` + `fallthrough: false` on `express.static`
 //     itself, plus its built-in `..` normalize for path traversal.
-const IMAGE_EXT_RE = /\.(png|jpe?g|webp|gif|svg)$/i;
+const IMAGE_EXT_RE = /\.(png|jpe?g|webp|gif|svg|mp4|webm|mov|m4v|ogv|mp3|ogg|oga|wav|m4a|aac)$/i;
 let imagesDirReal: string | null = null;
 async function getImagesDirReal(): Promise<string | null> {
   if (imagesDirReal) return imagesDirReal;
@@ -221,12 +241,15 @@ app.use(
 // parity. Sandbox stays `allow-scripts` only, so the iframe document
 // still cannot read the parent's cookies / localStorage / DOM.
 //
-// `HTML_PREVIEW_EXT_RE` widens the allowlist to images so inline
-// `<img src="...png">` references resolve through this same mount
-// (no separate /artifacts/images round-trip). The CSP header is
-// only set for HTML responses (`HTML_DOCUMENT_EXT_RE`); CSP doesn't
-// apply to image subresources.
-const HTML_PREVIEW_EXT_RE = /\.(html?|png|jpe?g|webp|gif|svg|ico)$/i;
+// `HTML_PREVIEW_EXT_RE` widens the allowlist to images, video and
+// audio so inline `<img src="...png">` / `<source>` / `<video src>` /
+// `<audio src>` references resolve through this same mount (no
+// separate /artifacts/images round-trip). The CSP header is only set
+// for HTML responses (`HTML_DOCUMENT_EXT_RE`); CSP doesn't apply to
+// image / media subresources.
+//
+// eslint-disable-next-line sonarjs/regex-complexity -- flat extension allowlist with no nested quantifiers, ReDoS-safe; complexity is just the disjunction count
+const HTML_PREVIEW_EXT_RE = /\.(html?|png|jpe?g|webp|gif|svg|ico|mp4|webm|mov|m4v|ogv|mp3|ogg|oga|wav|m4a|aac)$/i;
 const HTML_DOCUMENT_EXT_RE = /\.html?$/i;
 let htmlsDirReal: string | null = null;
 async function getHtmlsDirReal(): Promise<string | null> {
@@ -237,6 +260,19 @@ async function getHtmlsDirReal(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+// Honour `X-Forwarded-*` so dev (Vite proxies `/artifacts/html` →
+// `localhost:3001` with `changeOrigin: true`) emits the browser-
+// visible origin (`localhost:5173`) rather than the upstream socket.
+// In prod (no proxy) the headers are absent and we fall back to the
+// raw `Host` / `req.protocol`.
+function browserVisibleOrigin(req: Request): string {
+  const fwdHost = req.get("x-forwarded-host");
+  const fwdProto = req.get("x-forwarded-proto");
+  const host = fwdHost ?? req.get("host");
+  const proto = fwdProto ?? req.protocol;
+  return `${proto}://${host}`;
 }
 app.use(
   "/artifacts/html",
@@ -262,19 +298,17 @@ app.use(
       return;
     }
     if (HTML_DOCUMENT_EXT_RE.test(req.path)) {
-      // Honour `X-Forwarded-*` so dev (Vite proxies `/artifacts/html`
-      // → `localhost:3001` with `changeOrigin: true`) emits the
-      // browser-visible origin (`localhost:5173`) rather than the
-      // upstream socket. In prod (no proxy) the headers are absent
-      // and we fall back to the raw `Host` / `req.protocol`. CSP
-      // header only on HTML responses — image subresources don't
-      // need it.
-      const fwdHost = req.get("x-forwarded-host");
-      const fwdProto = req.get("x-forwarded-proto");
-      const host = fwdHost ?? req.get("host");
-      const proto = fwdProto ?? req.protocol;
-      const origin = `${proto}://${host}`;
+      const origin = browserVisibleOrigin(req);
       res.setHeader("Content-Security-Policy", buildHtmlPreviewCsp(origin));
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      const spliced = await readAndInjectHtmlArtifact(root, relPath);
+      if (spliced === null) {
+        res.status(404).end();
+        return;
+      }
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(spliced);
+      return;
     }
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
@@ -327,6 +361,7 @@ app.use(sourcesRoutes);
 app.use(newsRoutes);
 app.use(pluginsRoutes);
 app.use(imageRoutes);
+app.use(attachmentRoutes);
 app.use(presentHtmlRoutes);
 app.use(chartRoutes);
 app.use(rolesRoutes);

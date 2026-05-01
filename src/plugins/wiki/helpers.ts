@@ -2,6 +2,23 @@
 // `/\[\[([^\]]+)\]\]/g` regex — flagged by `sonarjs/slow-regex`
 // for backtracking risk — with a linear walker.
 
+import { marked } from "marked";
+import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
+import { makeTasksInteractive } from "../../utils/markdown/taskList";
+
+/**
+ * Pure markdown→HTML pipeline shared between the standalone /wiki
+ * view and the chat-inline preview (Stage 3a). Caller passes a body
+ * that already has frontmatter stripped, plus the workspace-relative
+ * base dir used to rewrite image refs (`data/wiki/pages` for a page,
+ * `data/wiki` for log/lint).
+ */
+export function renderWikiPageHtml(body: string, baseDir: string): string {
+  if (!body) return "";
+  const withImages = rewriteMarkdownImageRefs(body, baseDir);
+  return makeTasksInteractive(marked.parse(renderWikiLinks(withImages)) as string);
+}
+
 /**
  * Replace every `[[page name]]` occurrence in `content` with a
  * `<span class="wiki-link" data-page="…">…</span>` element. The

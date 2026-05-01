@@ -215,6 +215,9 @@ const jaMessages = {
     pdfPreview: "PDF プレビュー",
     parseError: "パースエラー",
   },
+  filesView: {
+    chatPlaceholder: "このファイルについて質問…",
+  },
   systemFiles: {
     schemaLabel: "スキーマ",
     showDetails: "詳細を表示",
@@ -530,6 +533,8 @@ const jaMessages = {
     redo: "やり直し",
     clear: "クリア",
     styleLabel: "スタイル:",
+    stylePromptWithPath: "`{path}` の画像を {style} スタイルの画像に変換してください。",
+    stylePromptNoPath: "キャンバスに描いた絵を {style} スタイルの画像に変換してください。",
   },
   pluginChart: {
     untitled: "チャート",
@@ -626,6 +631,9 @@ const jaMessages = {
     metadataCreated: "作成",
     metadataUpdated: "更新",
     metadataEditor: "編集者",
+    pageEditHeader: "Wiki編集",
+    snapshotExpired: "スナップショットが期限切れ — 現在のページを表示中",
+    pageDeleted: "ページが削除されました",
     history: {
       tabContent: "本文",
       tabHistory: "履歴",

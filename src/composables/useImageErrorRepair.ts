@@ -1,33 +1,17 @@
 import { onMounted, onBeforeUnmount } from "vue";
+import { IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_INLINE_SCRIPT } from "../utils/image/imageRepairInlineScript.js";
 
-// All Gemini / canvas / image-edit output lives at
-// `artifacts/images/YYYY/MM/<id>.png` (see server/utils/files/image-store.ts).
-// If a rendered <img>'s src happens to embed that segment somewhere
-// (e.g. an LLM emitted `<img src="../wrong/prefix/artifacts/images/foo.png">`
-// or the rewriter missed a single-quoted attribute), trim everything before
-// the pattern and retry as `/artifacts/images/<rest>` — the static mount
-// added in stage 1 (server/index.ts) will then serve the file directly.
-//
-// Stage 3 of the image-path-routing redesign — see
-// plans/feat-image-path-routing.md and
-// docs/discussion-image-path-routing.md.
-export const IMAGE_REPAIR_PATTERN = /artifacts\/images\/.+/;
+// Re-exported from the pure module so existing callers keep working.
+// New callers (server/index.ts splice, future iframe-injection
+// surfaces) should import from `../utils/image/imageRepairInlineScript.js`
+// directly to avoid pulling Vue lifecycle hooks into Node code paths.
+export { IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_INLINE_SCRIPT };
 
-// Inline script body that the presentHtml plugin injects into its
-// iframe srcdoc. Same logic as `repairImageSrc` below; kept as a
-// string so it can be embedded into the rendered HTML and run in the
-// sandboxed iframe. Update both together if the repair rule changes.
-export const IMAGE_REPAIR_INLINE_SCRIPT = `
-document.addEventListener("error", function (event) {
-  var target = event.target;
-  if (!target || target.tagName !== "IMG") return;
-  if (target.dataset.imageRepairTried) return;
-  var match = String(target.src).match(/artifacts\\/images\\/.+/);
-  if (!match) return;
-  target.dataset.imageRepairTried = "1";
-  target.src = "/" + match[0];
-}, true);
-`.trim();
+// Whitespace- and comma-bounded URL token inside a `srcset` value.
+// `srcset` is a comma-list of `<url> [descriptor]` entries; the
+// regex picks each non-whitespace, non-comma run so the descriptor
+// (`1x`, `2x`, `100w`, …) survives the repair pass untouched.
+const SRCSET_TOKEN_RE = /[^\s,]+/g;
 
 export function repairImageSrc(img: HTMLImageElement): boolean {
   if (img.dataset.imageRepairTried) return false;
@@ -43,16 +27,71 @@ export function repairImageSrc(img: HTMLImageElement): boolean {
   return true;
 }
 
-// Attach a document-level capture-phase error listener so any <img>
-// 404 in the app shell (wiki / markdown / news / Files preview etc)
-// gets one repair attempt. Capture phase is required because <img>
+// Repair a `<source>` element used inside `<picture>` / `<audio>` /
+// `<video>`. Handles both shapes:
+//   - `srcset="..."` (the picture form, often comma-list with size
+//     descriptors)
+//   - `src="..."` (the audio/video form, single URL)
+// One-shot via the same `imageRepairTried` marker as <img>.
+export function repairSourceSrc(source: HTMLSourceElement): boolean {
+  if (source.dataset.imageRepairTried) return false;
+  let repaired = false;
+  const src = source.getAttribute("src");
+  if (src) {
+    const match = src.match(IMAGE_REPAIR_PATTERN);
+    if (match) {
+      source.setAttribute("src", `/${match[0]}`);
+      repaired = true;
+    }
+  }
+  if (source.srcset) {
+    const original = source.srcset;
+    const next = original.replace(SRCSET_TOKEN_RE, (token) => {
+      const tokenMatch = token.match(IMAGE_REPAIR_PATTERN);
+      return tokenMatch ? `/${tokenMatch[0]}` : token;
+    });
+    if (next !== original) {
+      source.srcset = next;
+      repaired = true;
+    }
+  }
+  if (repaired) source.dataset.imageRepairTried = "1";
+  return repaired;
+}
+
+// Attach a document-level capture-phase error listener so any
+// `<img>` / `<source>` / `<audio>` / `<video>` 404 in the app
+// shell (wiki / markdown / news / Files preview etc) gets one
+// repair attempt. Capture phase is required because the relevant
 // error events don't bubble. The repair is a no-op for src values
 // that don't match the artifacts/images pattern, so attaching at
 // document scope is safe — it never touches non-image-bearing UI.
 export function useGlobalImageErrorRepair(): void {
   function onError(event: Event): void {
     const { target } = event;
-    if (target instanceof HTMLImageElement) repairImageSrc(target);
+    if (target instanceof HTMLImageElement) {
+      repairImageSrc(target);
+      // Source-element error events don't fire reliably in Chromium
+      // when a `<picture><source>` srcset 404s — only the inner
+      // `<img>` reaches a target. Walk siblings so a wrong-prefix
+      // `<source>` next to a repairable `<img>` gets the same fix.
+      const picture = target.closest("picture");
+      if (picture) {
+        for (const src of picture.querySelectorAll("source")) {
+          repairSourceSrc(src);
+        }
+      }
+    } else if (target instanceof HTMLSourceElement) {
+      repairSourceSrc(target);
+    } else if (target instanceof HTMLMediaElement) {
+      // `<audio>` / `<video>` fire `error` on themselves when ALL
+      // their `<source>` children fail. The source elements never
+      // get a target of their own in that path, so reach into
+      // each child and repair it.
+      for (const src of target.querySelectorAll<HTMLSourceElement>(":scope > source")) {
+        repairSourceSrc(src);
+      }
+    }
   }
 
   onMounted(() => {
