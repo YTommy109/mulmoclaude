@@ -56,6 +56,23 @@ describe("exportChatToMarkdown", () => {
     assert.match(out, /^#### Real heading$/m);
   });
 
+  it("treats a shorter inner fence as content (4-backtick block containing a 3-backtick block)", async () => {
+    // Outer fence is 4 backticks; inner ``` is just content. The `#` on
+    // line 3 must stay untouched, and `## After` after the real close
+    // must be demoted normally.
+    const inner = "````md\n```\n# Inside inner\n```\n````\n\n## After";
+    const out = await exportChatToMarkdown([textResult("assistant", inner)], { exportedAt: "2026-04-30T12:00:00Z" });
+    assert.match(out, /^# Inside inner$/m); // untouched
+    assert.match(out, /^#### After$/m); // demoted
+  });
+
+  it("treats the opposite fence char as content (~~~ inside ```)", async () => {
+    const inner = "```\n~~~\n# Inside\n~~~\n```\n\n## After";
+    const out = await exportChatToMarkdown([textResult("assistant", inner)], { exportedAt: "2026-04-30T12:00:00Z" });
+    assert.match(out, /^# Inside$/m); // untouched (~~~ doesn't close a ``` fence)
+    assert.match(out, /^#### After$/m);
+  });
+
   it("renders a non-text tool call as a single `## ⬛︎ toolName HH:MM` heading line", async () => {
     const stamps = new Map<string, number>([["tool-1", Date.UTC(2026, 3, 30, 15, 17)]]);
     const out = await exportChatToMarkdown([textResult("user", "open it"), toolResult("openCanvas", "Untitled", "tool-1"), textResult("assistant", "done")], {
@@ -111,6 +128,27 @@ describe("exportChatToMarkdown", () => {
     assert.match(out, /^Server body\.$/m);
   });
 
+  it("falls back to marker-only when the readFile resolver throws", async () => {
+    const presentDoc: ToolResultComplete = {
+      toolName: "presentDocument",
+      uuid: "doc-throw",
+      message: "doc",
+      title: "Throws",
+      data: {
+        markdown: "artifacts/documents/throws.md",
+        filenamePrefix: "throws",
+      },
+    };
+    const out = await exportChatToMarkdown([presentDoc], {
+      exportedAt: "2026-04-30T12:00:00Z",
+      readFile: async () => {
+        throw new Error("network down");
+      },
+    });
+    assert.match(out, /^## ⬛︎ presentDocument$/m);
+    assert.doesNotMatch(out, /network down/);
+  });
+
   it("falls back to marker-only when the readFile resolver returns null", async () => {
     const presentDoc: ToolResultComplete = {
       toolName: "presentDocument",
@@ -154,6 +192,13 @@ describe("exportChatToMarkdown", () => {
 
   it("includes time stamps when resultTimestamps has the uuid", async () => {
     const stamps = new Map<string, number>([["t-user", Date.UTC(2026, 3, 30, 14, 35)]]);
+    const out = await exportChatToMarkdown([textResult("user", "hi")], { resultTimestamps: stamps, exportedAt: "2026-04-30T12:00:00Z" });
+    assert.match(out, /## ⬜︎ You · \d{2}:\d{2}/);
+  });
+
+  it("renders the time even when the timestamp is the Unix epoch (0)", async () => {
+    // Boundary case: `epochMs ? …` would silently drop this.
+    const stamps = new Map<string, number>([["t-user", 0]]);
     const out = await exportChatToMarkdown([textResult("user", "hi")], { resultTimestamps: stamps, exportedAt: "2026-04-30T12:00:00Z" });
     assert.match(out, /## ⬜︎ You · \d{2}:\d{2}/);
   });

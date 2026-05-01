@@ -86,23 +86,55 @@ function isTextResponse(result: ToolResultComplete): boolean {
   return result.toolName === TEXT_RESPONSE_TOOL;
 }
 
-const FENCE_RE = /^(`{3,}|~{3,})/;
+const FENCE_RUN_RE = /^(`{3,}|~{3,})/;
 const ATX_HEADING_RE = /^(#{1,6})([ \t].*)$/;
 
+interface OpenFence {
+  char: "`" | "~";
+  len: number;
+}
+
+/** Match the leading run of fence characters on `line`, if any. Captures
+ *  the fence char + length so the closing logic can apply GFM's rules
+ *  (close fence must be the same char and at least as long as the open). */
+function matchFenceRun(line: string): OpenFence | null {
+  const match = FENCE_RUN_RE.exec(line);
+  if (!match) return null;
+  const [, run] = match;
+  return { char: run[0] as "`" | "~", len: run.length };
+}
+
+/** A line closes `open` only when it uses the same fence char, has at
+ *  least as many of them, and carries no info-string after the run.
+ *  Anything else inside the fence is content (including a different
+ *  fence type or a shorter run). */
+function isClosingFence(line: string, fence: OpenFence, open: OpenFence): boolean {
+  if (fence.char !== open.char) return false;
+  if (fence.len < open.len) return false;
+  return line.slice(fence.len).trim() === "";
+}
+
 /** Demote every ATX heading inside `markdown` by `levels` (`#` → `#`+levels),
- *  capping at h6. Skips lines inside fenced code blocks (``` / ~~~) so
- *  `# comment` lines in code samples are left alone. */
+ *  capping at h6. Skips lines inside fenced code blocks so `# comment`
+ *  lines in code samples are left alone. Honours GFM fence rules: a
+ *  block opened with N backticks (or N tildes) only closes on a line of
+ *  the same character with ≥N of them and nothing else, so nested
+ *  shorter fences and the opposite fence char both count as content. */
 function demoteHeadings(markdown: string, levels: number): string {
   if (levels <= 0 || markdown.length === 0) return markdown;
   const out: string[] = [];
-  let inFence = false;
+  let openFence: OpenFence | null = null;
   for (const line of markdown.split(/\r\n|\r|\n/)) {
-    if (FENCE_RE.test(line)) {
-      inFence = !inFence;
+    const fence = matchFenceRun(line);
+    if (openFence !== null) {
+      if (fence !== null && isClosingFence(line, fence, openFence)) {
+        openFence = null;
+      }
       out.push(line);
       continue;
     }
-    if (inFence) {
+    if (fence !== null) {
+      openFence = fence;
       out.push(line);
       continue;
     }
@@ -121,7 +153,11 @@ function demoteHeadings(markdown: string, levels: number): string {
 function renderTextTurn(result: ToolResultComplete, timestamps: Map<string, number>): string {
   const role = roleOf(result);
   const epochMs = timestamps.get(result.uuid);
-  const time = epochMs ? ` · ${formatHHMM(epochMs)}` : "";
+  // Use `!== undefined` rather than truthiness so a 0 (Unix epoch)
+  // timestamp still renders. Practically irrelevant for live chat, but
+  // it removes a foot-gun for any synthetic / migrated session that
+  // ends up with that boundary value.
+  const time = epochMs !== undefined ? ` · ${formatHHMM(epochMs)}` : "";
   // Speaker is `##`; demote any in-body heading by 2 so it always sits
   // strictly below the speaker (`#` → `###`, `##` → `####`, …).
   const body = demoteHeadings(textOf(result).trim(), 2);
@@ -139,12 +175,18 @@ async function presentDocumentBody(result: ToolResultComplete, readFile: ExportC
   if (typeof markdown !== "string" || markdown.length === 0) return null;
   if (!looksLikeDocumentPath(markdown)) return markdown;
   if (!readFile) return null;
-  return readFile(markdown);
+  // Honour the documented "returns null on failure" contract — a
+  // single rejected resolver shouldn't blow up the whole export.
+  try {
+    return await readFile(markdown);
+  } catch {
+    return null;
+  }
 }
 
 async function renderToolTurn(result: ToolResultComplete, timestamps: Map<string, number>, readFile: ExportChatOptions["readFile"]): Promise<string> {
   const epochMs = timestamps.get(result.uuid);
-  const time = epochMs ? ` ${formatHHMM(epochMs)}` : "";
+  const time = epochMs !== undefined ? ` ${formatHHMM(epochMs)}` : "";
   const marker = `## ⬛︎ ${result.toolName}${time}`;
 
   if (result.toolName === PRESENT_DOCUMENT_TOOL) {
