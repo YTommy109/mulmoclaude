@@ -218,6 +218,14 @@ function previewMessage(action: string, fields: Record<string, unknown>): string
   return head ? `${head} ${VIEW_VISIBLE_TRAILER}` : VIEW_VISIBLE_TRAILER;
 }
 
+// Read actions where the LLM needs the actual payload as the tool's
+// text result (the MCP bridge only forwards `message` / `instructions`
+// to the model — `data` and `jsonData` reach the view but not the
+// LLM). Without an explicit message these actions resolve to "Done"
+// from the model's perspective, which is useless for queries the
+// LLM needs to reason about.
+const PAYLOAD_AS_MESSAGE_ACTIONS = new Set<string>(["listEntries"]);
+
 async function dispatch(body: AccountingActionBody): Promise<unknown> {
   const { action, ...rest } = body;
   const handler = ACTION_HANDLERS[action];
@@ -241,7 +249,13 @@ async function dispatch(body: AccountingActionBody): Promise<unknown> {
   // empty-workspace first-run state, which has tighter wording than
   // the generic "view is shown" trailer).
   const handlerMessage = typeof handlerFields.message === "string" ? handlerFields.message : undefined;
-  const messageField = handlerMessage ? {} : PREVIEW_ACTIONS.has(action) ? { message: previewMessage(action, handlerFields) } : {};
+  const messageField = handlerMessage
+    ? {}
+    : PREVIEW_ACTIONS.has(action)
+      ? { message: previewMessage(action, handlerFields) }
+      : PAYLOAD_AS_MESSAGE_ACTIONS.has(action)
+        ? { message: JSON.stringify(handlerFields) }
+        : {};
   return { action, ...handlerFields, ...messageField, ...dataField };
 }
 
