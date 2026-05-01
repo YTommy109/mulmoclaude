@@ -67,6 +67,50 @@ export interface SessionsChannelPayload {
   deletedIds?: string[];
 }
 
+/**
+ * Channel for "the book list changed in the accounting plugin" — emitted
+ * when a book is created, deleted, or renamed, or when `activeBookId`
+ * flips. Carries no payload (subscribers refetch from /api/accounting).
+ *
+ * Publisher: `server/api/routes/accounting.ts` (mutating actions in
+ * the book-management group).
+ * Subscribers: BookSwitcher.vue / View.vue at the moment they need a
+ * fresh book list.
+ *
+ * Per-book change events live on `accountingBookChannel(bookId)` below
+ * — kept separate so a `JournalList.vue` viewing book A doesn't repaint
+ * when the user creates book B from another window.
+ */
+export function accountingBookChannel(bookId: string): string {
+  return `accounting:${bookId}`;
+}
+
+/** Payload published on `accountingBookChannel(bookId)`. The `kind`
+ *  discriminator lets a subscriber decide what to refetch:
+ *
+ *  - `"journal"`  — addEntry / voidEntry hit the books at `period`.
+ *                   Refetch the journal list and (if the View is
+ *                   showing balances at or after `period`) the
+ *                   relevant report.
+ *  - `"opening"`  — setOpeningBalances. Affects every period from
+ *                   the opening date forward; refetch everything
+ *                   the View is showing.
+ *  - `"accounts"` — chart-of-accounts mutation that may affect
+ *                   aggregation (account type changed). Refetch
+ *                   accounts and the active report.
+ *  - `"snapshots-rebuilding"` / `"snapshots-ready"` — purely
+ *                   informational; the View can show a "calculating"
+ *                   spinner during rebuild, but the lazy-rebuild
+ *                   safety net means a refetch always returns the
+ *                   right answer regardless. */
+export interface AccountingBookChannelPayload {
+  kind: "journal" | "opening" | "accounts" | "snapshots-rebuilding" | "snapshots-ready";
+  /** YYYY-MM. Present for `journal` (entry month) and the snapshot
+   *  events (the earliest invalidated month). Absent for `opening`
+   *  (which invalidates everything) and `accounts`. */
+  period?: string;
+}
+
 /** Static pub/sub channel names. Factories for parameterised channels
  *  (e.g. `sessionChannel(id)`) live alongside as named helpers. */
 export const PUBSUB_CHANNELS = {
@@ -87,6 +131,11 @@ export const PUBSUB_CHANNELS = {
    *  the same channel. Subscriber list starts empty — the UI lands
    *  in a separate PR. Payload: `{ message: string, firedAt: ISO8601 }`. */
   notifications: "notifications",
+  /** Sent when the *list of books* changes in the accounting plugin
+   *  (createBook / deleteBook / renames / activeBookId flips).
+   *  Per-book data changes ride `accountingBookChannel(bookId)` instead.
+   *  Subscribers: BookSwitcher.vue. Payload: empty `{}`. */
+  accountingBooks: "accounting:books",
 } as const;
 
 export type StaticPubSubChannel = (typeof PUBSUB_CHANNELS)[keyof typeof PUBSUB_CHANNELS];

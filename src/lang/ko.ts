@@ -544,6 +544,16 @@ const koMessages = {
     chartTitle: "차트 {num}",
     png: "PNG",
   },
+  pluginAccounting: {
+    title: "회계",
+    stubBookLine: "도구 결과로 장부 {bookId}이(가) 마운트되었습니다",
+    stubTabFragment: " · 탭 {tab}",
+    stubFollowupNote:
+      "전체 UI는 후속 릴리스에서 제공됩니다. REST API는 /api/accounting에서 실행 중이며, 사용자 정의 Role의 manageAccounting을 통해 채팅에서 호출할 수 있습니다.",
+    previewSummary: "회계 · {bookId}",
+    previewError: "회계: {error}",
+    previewGeneric: "회계 결과",
+  },
   pluginTodo: {
     clearFilters: "모든 필터 지우기",
     deleteItem: "항목 삭제",

@@ -544,6 +544,16 @@ const jaMessages = {
     chartTitle: "チャート {num}",
     png: "PNG",
   },
+  pluginAccounting: {
+    title: "会計",
+    stubBookLine: "ツール結果として帳簿 {bookId} をマウントしました",
+    stubTabFragment: " · タブ {tab}",
+    stubFollowupNote:
+      "フル UI は後続リリースで追加されます。REST API は /api/accounting で稼働中。カスタム Role の manageAccounting からチャット越しに操作できます。",
+    previewSummary: "会計 · {bookId}",
+    previewError: "会計: {error}",
+    previewGeneric: "会計の結果",
+  },
   pluginTodo: {
     clearFilters: "すべてのフィルタをクリア",
     deleteItem: "項目を削除",

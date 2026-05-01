@@ -553,6 +553,16 @@ const deMessages = {
     chartTitle: "Diagramm {num}",
     png: "PNG",
   },
+  pluginAccounting: {
+    title: "Buchhaltung",
+    stubBookLine: "Per Tool-Ergebnis für Buch {bookId} eingebunden",
+    stubTabFragment: " · Reiter {tab}",
+    stubFollowupNote:
+      "Die vollständige Oberfläche folgt in einem Nachfolge-Release. Die REST-API unter /api/accounting ist bereits aktiv und lässt sich aus dem Chat per manageAccounting in einer benutzerdefinierten Role ansteuern.",
+    previewSummary: "Buchhaltung · {bookId}",
+    previewError: "Buchhaltung: {error}",
+    previewGeneric: "Buchhaltungs-Ergebnis",
+  },
   pluginTodo: {
     clearFilters: "Alle Filter zurücksetzen",
     deleteItem: "Eintrag löschen",

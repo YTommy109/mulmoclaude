@@ -546,6 +546,16 @@ const ptBRMessages = {
     chartTitle: "Gráfico {num}",
     png: "PNG",
   },
+  pluginAccounting: {
+    title: "Contabilidade",
+    stubBookLine: "Montado via resultado de ferramenta para o livro {bookId}",
+    stubTabFragment: " · aba {tab}",
+    stubFollowupNote:
+      "A UI completa chega em entrega futura. A API REST em /api/accounting já está ativa; você pode usá-la pelo chat com manageAccounting em um Role personalizado.",
+    previewSummary: "Contabilidade · {bookId}",
+    previewError: "Contabilidade: {error}",
+    previewGeneric: "Resultado da contabilidade",
+  },
   pluginTodo: {
     clearFilters: "Limpar todos os filtros",
     deleteItem: "Excluir item",

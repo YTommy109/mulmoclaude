@@ -553,6 +553,16 @@ const esMessages = {
     chartTitle: "Gráfico {num}",
     png: "PNG",
   },
+  pluginAccounting: {
+    title: "Contabilidad",
+    stubBookLine: "Montado mediante resultado de herramienta para el libro {bookId}",
+    stubTabFragment: " · pestaña {tab}",
+    stubFollowupNote:
+      "La interfaz completa llegará en una entrega posterior. La API REST en /api/accounting ya está activa; puedes utilizarla desde el chat con manageAccounting en un Role personalizado.",
+    previewSummary: "Contabilidad · {bookId}",
+    previewError: "Contabilidad: {error}",
+    previewGeneric: "Resultado de contabilidad",
+  },
   pluginTodo: {
     clearFilters: "Borrar todos los filtros",
     deleteItem: "Eliminar elemento",

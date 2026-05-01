@@ -569,6 +569,18 @@ const enMessages = {
     chartTitle: "Chart {num}",
     png: "PNG",
   },
+  pluginAccounting: {
+    // Stub View placeholder text — replaced by the full
+    // <AccountingApp> UI in a follow-up. See plans/feat-accounting.md.
+    title: "Accounting",
+    stubBookLine: "Mounted via tool-result for book {bookId}",
+    stubTabFragment: " · tab {tab}",
+    stubFollowupNote:
+      "Full UI ships in a follow-up. The REST API at /api/accounting is live; you can drive it from the chat side via manageAccounting in a custom Role.",
+    previewSummary: "Accounting · {bookId}",
+    previewError: "Accounting: {error}",
+    previewGeneric: "Accounting result",
+  },
   pluginTodo: {
     clearFilters: "Clear all filters",
     deleteItem: "Delete item",

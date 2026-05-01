@@ -540,6 +540,15 @@ const zhMessages = {
     chartTitle: "图表 {num}",
     png: "PNG",
   },
+  pluginAccounting: {
+    title: "会计",
+    stubBookLine: "已通过工具结果挂载账簿 {bookId}",
+    stubTabFragment: " · 标签 {tab}",
+    stubFollowupNote: "完整界面将在后续版本中提供。REST API（/api/accounting）已在线；可在自定义 Role 中通过 manageAccounting 从聊天侧调用。",
+    previewSummary: "会计 · {bookId}",
+    previewError: "会计: {error}",
+    previewGeneric: "会计结果",
+  },
   pluginTodo: {
     clearFilters: "清除所有筛选",
     deleteItem: "删除项目",
