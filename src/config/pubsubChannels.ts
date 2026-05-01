@@ -78,10 +78,9 @@ export interface SessionsChannelPayload {
  * `useAccountingChannel(bookId)`.
  *
  * Book-list-level events (a new book was created, an existing one
- * was deleted, `activeBookId` changed) ride the static
- * `PUBSUB_CHANNELS.accountingBooks` channel below — kept separate
- * so a `JournalList.vue` viewing book A doesn't repaint when the
- * user creates book B from another window.
+ * was deleted) ride the static `PUBSUB_CHANNELS.accountingBooks`
+ * channel below — kept separate so a `JournalList.vue` viewing book
+ * A doesn't repaint when the user creates book B from another window.
  */
 export function accountingBookChannel(bookId: string): string {
   return `accounting:${bookId}`;
@@ -146,8 +145,8 @@ export const PUBSUB_CHANNELS = {
    *  in a separate PR. Payload: `{ message: string, firedAt: ISO8601 }`. */
   notifications: "notifications",
   /** Sent when the *list of books* changes in the accounting plugin
-   *  (createBook / deleteBook / renames / activeBookId flips).
-   *  Per-book data changes ride `accountingBookChannel(bookId)` instead.
+   *  (createBook / deleteBook / renames). Per-book data changes ride
+   *  `accountingBookChannel(bookId)` instead.
    *  Subscribers: BookSwitcher.vue. Payload: empty `{}`. */
   accountingBooks: "accounting:books",
 } as const;

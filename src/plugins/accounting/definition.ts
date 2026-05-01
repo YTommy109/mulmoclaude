@@ -29,7 +29,6 @@ const toolDefinition: ToolDefinition = {
           "openApp",
           "getBooks",
           "createBook",
-          "setActiveBook",
           "deleteBook",
           "getAccounts",
           "upsertAccount",
@@ -47,7 +46,8 @@ const toolDefinition: ToolDefinition = {
       },
       bookId: {
         type: "string",
-        description: "Target book id. Omit to use the currently active book (config.json#activeBookId).",
+        description:
+          "Target book id. Required for every action that reads or writes book data; call 'getBooks' first to enumerate available ids. The only actions that do NOT take a bookId are 'getBooks' and 'createBook' (which creates a fresh one).",
       },
       // openApp / createBook
       name: { type: "string", description: "For 'createBook': human-readable book name." },

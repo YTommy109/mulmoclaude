@@ -59,7 +59,7 @@ const DEFAULT_CURRENCY = "USD";
 const GENERATED_ID_RETRIES = 8;
 
 function emptyConfig(): AccountingConfig {
-  return { activeBookId: null, books: [] };
+  return { books: [] };
 }
 
 async function loadOrInitConfig(workspaceRoot?: string): Promise<AccountingConfig> {
@@ -71,15 +71,18 @@ function findBook(config: AccountingConfig, bookId: string): BookSummary | null 
   return config.books.find((book) => book.id === bookId) ?? null;
 }
 
-function resolveBookId(config: AccountingConfig, requested?: string): string {
-  if (requested && findBook(config, requested)) return requested;
-  if (requested) {
+function resolveBookId(config: AccountingConfig, requested: string | undefined): string {
+  // Every book-touching action now requires an explicit `bookId` —
+  // there's no server-side "active book" to fall back on. Callers
+  // are the LLM (which is told to pass bookId on each call) and the
+  // View (which tracks the current selection in localStorage).
+  if (!requested) {
+    throw new AccountingError(400, "bookId is required");
+  }
+  if (!findBook(config, requested)) {
     throw new AccountingError(404, `book ${JSON.stringify(requested)} not found`);
   }
-  if (!config.activeBookId || !findBook(config, config.activeBookId)) {
-    throw new AccountingError(409, "no active book; create or select one first");
-  }
-  return config.activeBookId;
+  return requested;
 }
 
 async function generateBookId(config: AccountingConfig, workspaceRoot?: string): Promise<string> {
@@ -115,9 +118,9 @@ async function readAllEntries(bookId: string, workspaceRoot?: string): Promise<J
 
 // ── books ──────────────────────────────────────────────────────────
 
-export async function listBooks(workspaceRoot?: string): Promise<{ activeBookId: string | null; books: BookSummary[] }> {
+export async function listBooks(workspaceRoot?: string): Promise<{ books: BookSummary[] }> {
   const config = await loadOrInitConfig(workspaceRoot);
-  return { activeBookId: config.activeBookId, books: config.books };
+  return { books: config.books };
 }
 
 export async function createBook(input: { id?: string; name: string; currency?: string }, workspaceRoot?: string): Promise<{ book: BookSummary }> {
@@ -149,29 +152,13 @@ export async function createBook(input: { id?: string; name: string; currency?: 
   await ensureBookDir(bookId, workspaceRoot);
   await writeAccounts(bookId, [...DEFAULT_ACCOUNTS], workspaceRoot);
   await writeMeta(bookId, { createdAt: book.createdAt }, workspaceRoot);
-  const nextConfig: AccountingConfig = {
-    activeBookId: config.activeBookId ?? bookId,
-    books: [...config.books, book],
-  };
+  const nextConfig: AccountingConfig = { books: [...config.books, book] };
   await writeConfig(nextConfig, workspaceRoot);
   publishBooksChanged();
   return { book };
 }
 
-export async function setActiveBook(input: { bookId: string }, workspaceRoot?: string): Promise<{ activeBookId: string }> {
-  const config = await loadOrInitConfig(workspaceRoot);
-  if (!findBook(config, input.bookId)) {
-    throw new AccountingError(404, `book ${JSON.stringify(input.bookId)} not found`);
-  }
-  await writeConfig({ ...config, activeBookId: input.bookId }, workspaceRoot);
-  publishBooksChanged();
-  return { activeBookId: input.bookId };
-}
-
-export async function deleteBook(
-  input: { bookId: string; confirm: boolean },
-  workspaceRoot?: string,
-): Promise<{ deletedBookId: string; activeBookId: string | null }> {
+export async function deleteBook(input: { bookId: string; confirm: boolean }, workspaceRoot?: string): Promise<{ deletedBookId: string }> {
   if (!input.confirm) {
     throw new AccountingError(400, "deleteBook requires confirm: true");
   }
@@ -186,22 +173,9 @@ export async function deleteBook(
   await awaitRebuildIdle(input.bookId);
   await removeBookDir(input.bookId, workspaceRoot);
   const remaining = config.books.filter((book) => book.id !== input.bookId);
-  // When the deleted book was the active one, promote the most
-  // recently created remaining book — that's the most user-meaningful
-  // default. When nothing remains, activeBookId becomes null and the
-  // View renders its empty state with the "create a book" prompt.
-  let nextActive: string | null = config.activeBookId;
-  if (config.activeBookId === input.bookId || nextActive === null) {
-    if (remaining.length === 0) {
-      nextActive = null;
-    } else {
-      const [newest] = [...remaining].sort((lhs, rhs) => rhs.createdAt.localeCompare(lhs.createdAt));
-      nextActive = newest.id;
-    }
-  }
-  await writeConfig({ activeBookId: nextActive, books: remaining }, workspaceRoot);
+  await writeConfig({ books: remaining }, workspaceRoot);
   publishBooksChanged();
-  return { deletedBookId: input.bookId, activeBookId: nextActive };
+  return { deletedBookId: input.bookId };
 }
 
 // ── accounts ───────────────────────────────────────────────────────

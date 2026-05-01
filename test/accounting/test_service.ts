@@ -14,7 +14,6 @@ import {
   getProfitLossReport,
   listBooks,
   listEntries,
-  setActiveBook,
   setOpeningBalances,
   voidEntry,
 } from "../../server/accounting/service.js";
@@ -64,18 +63,20 @@ describe("createBook id validation", () => {
 describe("upsertAccount synthetic-code guard", () => {
   it("rejects account codes starting with _ (reserved for synthetic rows)", async () => {
     const root = makeTmp();
-    await createBook({ name: "X" }, root);
+    const book = await createBook({ name: "X" }, root);
     const { upsertAccount } = await import("../../server/accounting/service.js");
-    await assert.rejects(() => upsertAccount({ account: { code: "_currentEarnings", name: "Synthetic", type: "equity" } }, root), AccountingError);
+    await assert.rejects(
+      () => upsertAccount({ bookId: book.book.id, account: { code: "_currentEarnings", name: "Synthetic", type: "equity" } }, root),
+      AccountingError,
+    );
   });
 });
 
 describe("books lifecycle", () => {
-  it("createBook generates ids, lists, sets active, deletes books in sequence", async () => {
+  it("createBook generates ids, lists, and deletes books in sequence", async () => {
     const root = makeTmp();
     const empty = await listBooks(root);
     assert.deepEqual(empty.books, []);
-    assert.equal(empty.activeBookId, null);
     const first = await createBook({ name: "First" }, root);
     assert.match(first.book.id, /^book-/);
     const second = await createBook({ name: "Second" }, root);
@@ -83,22 +84,21 @@ describe("books lifecycle", () => {
     assert.notEqual(first.book.id, second.book.id);
     const list = await listBooks(root);
     assert.equal(list.books.length, 2);
-    assert.equal(list.activeBookId, first.book.id);
-    const switched = await setActiveBook({ bookId: second.book.id }, root);
-    assert.equal(switched.activeBookId, second.book.id);
-    // delete the active one — auto-promote remaining
     const afterDelete = await deleteBook({ bookId: second.book.id, confirm: true }, root);
-    assert.equal(afterDelete.activeBookId, first.book.id);
+    assert.equal(afterDelete.deletedBookId, second.book.id);
+    const remaining = await listBooks(root);
+    assert.equal(remaining.books.length, 1);
+    assert.equal(remaining.books[0].id, first.book.id);
   });
-  it("deleting the last book leaves activeBookId null and the workspace empty", async () => {
+  it("deleting the last book empties the workspace; ops without a bookId throw 400", async () => {
     const root = makeTmp();
     const only = await createBook({ name: "Only" }, root);
     const result = await deleteBook({ bookId: only.book.id, confirm: true }, root);
-    assert.equal(result.activeBookId, null);
+    assert.equal(result.deletedBookId, only.book.id);
     const list = await listBooks(root);
     assert.equal(list.books.length, 0);
-    assert.equal(list.activeBookId, null);
-    // Subsequent operations without a bookId surface the "no active book" error.
+    // No more "active book" fallback — every action requires an
+    // explicit bookId or the service throws AccountingError(400).
     await assert.rejects(
       () =>
         addEntry(
@@ -114,19 +114,6 @@ describe("books lifecycle", () => {
       AccountingError,
     );
   });
-  it("deleting an active-but-not-last book promotes the most recently created remaining book", async () => {
-    const root = makeTmp();
-    const alpha = await createBook({ name: "A" }, root);
-    // Stagger createdAt so the sort is deterministic without relying on timer resolution.
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    const beta = await createBook({ name: "B" }, root);
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    const gamma = await createBook({ name: "C" }, root);
-    await setActiveBook({ bookId: alpha.book.id }, root);
-    const result = await deleteBook({ bookId: alpha.book.id, confirm: true }, root);
-    assert.equal(result.activeBookId, gamma.book.id);
-    assert.notEqual(result.activeBookId, beta.book.id);
-  });
   it("deleteBook without confirm: true is rejected", async () => {
     const root = makeTmp();
     const first = await createBook({ name: "A" }, root);
@@ -138,9 +125,11 @@ describe("books lifecycle", () => {
 describe("addEntry / listEntries", () => {
   it("appends, lists, and rejects unbalanced", async () => {
     const root = makeTmp();
-    await createBook({ name: "Test" }, root);
+    const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
     const entry = await addEntry(
       {
+        bookId,
         date: "2026-04-01",
         lines: [
           { accountCode: "1000", debit: 100 },
@@ -150,12 +139,13 @@ describe("addEntry / listEntries", () => {
       root,
     );
     assert.equal(entry.entry.kind, "normal");
-    const list = await listEntries({}, root);
+    const list = await listEntries({ bookId }, root);
     assert.equal(list.entries.length, 1);
     await assert.rejects(
       () =>
         addEntry(
           {
+            bookId,
             date: "2026-04-02",
             lines: [
               { accountCode: "1000", debit: 100 },
@@ -172,9 +162,11 @@ describe("addEntry / listEntries", () => {
 describe("voidEntry", () => {
   it("appends a reverse + marker pair; void shows in listEntries", async () => {
     const root = makeTmp();
-    await createBook({ name: "Test" }, root);
+    const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
     const added = await addEntry(
       {
+        bookId,
         date: "2026-04-01",
         lines: [
           { accountCode: "1000", debit: 100 },
@@ -183,8 +175,8 @@ describe("voidEntry", () => {
       },
       root,
     );
-    await voidEntry({ entryId: added.entry.id, reason: "typo" }, root);
-    const list = await listEntries({}, root);
+    await voidEntry({ bookId, entryId: added.entry.id, reason: "typo" }, root);
+    const list = await listEntries({ bookId }, root);
     // Original + reverse + marker = 3 rows
     assert.equal(list.entries.length, 3);
     assert.ok(list.entries.some((entry) => entry.kind === "void"));
@@ -196,9 +188,11 @@ describe("voidEntry", () => {
     // accountCode drops the void-marker row (no lines), so the
     // client must NOT derive voidedEntryIds from the filtered list.
     const root = makeTmp();
-    await createBook({ name: "Test" }, root);
+    const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
     const added = await addEntry(
       {
+        bookId,
         date: "2026-04-01",
         lines: [
           { accountCode: "1000", debit: 100 },
@@ -207,8 +201,8 @@ describe("voidEntry", () => {
       },
       root,
     );
-    await voidEntry({ entryId: added.entry.id, reason: "typo" }, root);
-    const filtered = await listEntries({ accountCode: "1000" }, root);
+    await voidEntry({ bookId, entryId: added.entry.id, reason: "typo" }, root);
+    const filtered = await listEntries({ bookId, accountCode: "1000" }, root);
     // Void-marker has empty lines so it's filtered out; original + reverse remain.
     assert.equal(
       filtered.entries.some((entry) => entry.kind === "void-marker"),
@@ -222,10 +216,11 @@ describe("voidEntry", () => {
 describe("opening balances", () => {
   it("sets opening, rejects when post-dated entries exist, replaces existing on second call", async () => {
     const root = makeTmp();
-    await createBook({ name: "Test" }, root);
-    // Set opening on a fresh book.
+    const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
     await setOpeningBalances(
       {
+        bookId,
         asOfDate: "2026-01-01",
         lines: [
           { accountCode: "1000", debit: 1000 },
@@ -234,12 +229,13 @@ describe("opening balances", () => {
       },
       root,
     );
-    let opening = await getOpeningBalances({}, root);
+    let opening = await getOpeningBalances({ bookId }, root);
     assert.ok(opening.opening);
     assert.equal(opening.opening.kind, "opening");
     // Replace it.
     const second = await setOpeningBalances(
       {
+        bookId,
         asOfDate: "2026-01-01",
         lines: [
           { accountCode: "1000", debit: 1500 },
@@ -249,7 +245,7 @@ describe("opening balances", () => {
       root,
     );
     assert.equal(second.replacedExisting, true);
-    opening = await getOpeningBalances({}, root);
+    opening = await getOpeningBalances({ bookId }, root);
     assert.ok(opening.opening);
     assert.equal(opening.opening.lines[0].debit, 1500);
     // Now book a normal entry after opening, then try to set
@@ -257,6 +253,7 @@ describe("opening balances", () => {
     // refuse.
     await addEntry(
       {
+        bookId,
         date: "2026-02-01",
         lines: [
           { accountCode: "1000", debit: 50 },
@@ -269,6 +266,7 @@ describe("opening balances", () => {
       () =>
         setOpeningBalances(
           {
+            bookId,
             asOfDate: "2026-03-01",
             lines: [
               { accountCode: "1000", debit: 1000 },
@@ -282,11 +280,12 @@ describe("opening balances", () => {
   });
   it("rejects opening with income / expense accounts", async () => {
     const root = makeTmp();
-    await createBook({ name: "Test" }, root);
+    const book = await createBook({ name: "Test" }, root);
     await assert.rejects(
       () =>
         setOpeningBalances(
           {
+            bookId: book.book.id,
             asOfDate: "2026-01-01",
             lines: [
               { accountCode: "1000", debit: 1000 },
@@ -307,8 +306,10 @@ describe("reports end-to-end", () => {
     // → imbalance 200.20. The fix adds a synthetic earnings row.
     const root = makeTmp();
     const book = await createBook({ name: "Pervasive" }, root);
+    const bookId = book.book.id;
     await setOpeningBalances(
       {
+        bookId,
         asOfDate: "2026-04-01",
         lines: [
           { accountCode: "1010", debit: 50000 },
@@ -319,6 +320,7 @@ describe("reports end-to-end", () => {
     );
     await addEntry(
       {
+        bookId,
         date: "2026-04-08",
         lines: [
           { accountCode: "5400", debit: 200.2 },
@@ -328,8 +330,8 @@ describe("reports end-to-end", () => {
       },
       root,
     );
-    await drainRebuilds(book.book.id);
-    const report = await getBalanceSheetReport({ period: { kind: "month", period: "2026-04" } }, root);
+    await drainRebuilds(bookId);
+    const report = await getBalanceSheetReport({ bookId, period: { kind: "month", period: "2026-04" } }, root);
     assert.ok(Math.abs(report.balanceSheet.imbalance) < 0.0001, `imbalance was ${report.balanceSheet.imbalance}`);
     const equity = report.balanceSheet.sections.find((section) => section.type === "equity");
     assert.ok(equity);
@@ -340,8 +342,10 @@ describe("reports end-to-end", () => {
   it("opening + a few entries → consistent B/S and P/L", async () => {
     const root = makeTmp();
     const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
     await setOpeningBalances(
       {
+        bookId,
         asOfDate: "2026-01-01",
         lines: [
           { accountCode: "1000", debit: 1000 },
@@ -352,6 +356,7 @@ describe("reports end-to-end", () => {
     );
     await addEntry(
       {
+        bookId,
         date: "2026-04-10",
         lines: [
           { accountCode: "1000", debit: 200 },
@@ -362,6 +367,7 @@ describe("reports end-to-end", () => {
     );
     await addEntry(
       {
+        bookId,
         date: "2026-04-20",
         lines: [
           { accountCode: "5100", debit: 70 },
@@ -370,13 +376,13 @@ describe("reports end-to-end", () => {
       },
       root,
     );
-    await drainRebuilds(book.book.id);
-    const balanceSheet = await getBalanceSheetReport({ period: { kind: "month", period: "2026-04" } }, root);
+    await drainRebuilds(bookId);
+    const balanceSheet = await getBalanceSheetReport({ bookId, period: { kind: "month", period: "2026-04" } }, root);
     const cashRow = balanceSheet.balanceSheet.sections[0].rows.find((row) => row.accountCode === "1000");
     assert.ok(cashRow);
     // Cash = 1000 (opening) + 200 (sales) - 70 (rent) = 1130
     assert.equal(cashRow.balance, 1130);
-    const profitLoss = await getProfitLossReport({ period: { kind: "month", period: "2026-04" } }, root);
+    const profitLoss = await getProfitLossReport({ bookId, period: { kind: "month", period: "2026-04" } }, root);
     assert.equal(profitLoss.profitLoss.income.total, 200);
     assert.equal(profitLoss.profitLoss.expense.total, 70);
     assert.equal(profitLoss.profitLoss.netIncome, 130);

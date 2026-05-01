@@ -49,10 +49,6 @@ export interface BookSummary {
 }
 
 export interface AccountingConfig {
-  /** ID of the currently-selected book, or `null` when the workspace
-   *  has zero books. `createBook` sets this on first creation;
-   *  `deleteBook` clears it when the last book is removed. */
-  activeBookId: string | null;
   books: BookSummary[];
 }
 

@@ -26,7 +26,6 @@ import {
   listBooks,
   listEntries,
   rebuildSnapshots,
-  setActiveBook,
   setOpeningBalances,
   upsertAccount,
   voidEntry,
@@ -70,15 +69,14 @@ type ActionHandler = (rest: ActionRest) => Promise<unknown>;
 // validateOpening) so the adapters can stay one-liners.
 
 async function handleOpenApp(rest: ActionRest): Promise<OpenAppToolResult> {
-  // Resolving the bookId server-side ensures the LLM's tool result
-  // *describes* what's in the canvas (which book, which tab) so
-  // historical chat replays render accurately. The View handles
-  // the empty-state flow (full-page first-run form so the user
-  // can pick name + currency); the server doesn't try to bootstrap
-  // a default book.
+  // openApp resolves an explicit `bookId` (if the LLM passed one and
+  // it exists) or returns null — the View picks from getBooks +
+  // localStorage on its own. There's no server-side "active book"
+  // anymore; persisting that across calls would make tool replays
+  // ambiguous and couple multiple browser tabs to each other.
   const list = await listBooks();
   const requested = typeof rest.bookId === "string" ? rest.bookId : undefined;
-  const bookId = requested && list.books.some((book) => book.id === requested) ? requested : list.activeBookId;
+  const bookId = requested && list.books.some((book) => book.id === requested) ? requested : null;
   const initialTab = typeof rest.initialTab === "string" ? rest.initialTab : undefined;
   if (list.books.length === 0) {
     // No books yet — the canvas is showing the full-page first-run
@@ -129,7 +127,6 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
       name: String(rest.name ?? ""),
       currency: typeof rest.currency === "string" ? rest.currency : undefined,
     }),
-  setActiveBook: (rest) => setActiveBook({ bookId: String(rest.bookId ?? "") }),
   deleteBook: (rest) => deleteBook({ bookId: String(rest.bookId ?? ""), confirm: rest.confirm === true }),
   getAccounts: (rest) => listAccounts({ bookId: rest.bookId as string | undefined }),
   upsertAccount: (rest) =>
@@ -178,7 +175,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
 // Reads (lists / reports) and View-driven maintenance ops stay
 // silent — they're invoked from inside the canvas and the LLM will
 // summarise reads in its text reply anyway.
-const PREVIEW_ACTIONS = new Set<string>(["openApp", "createBook", "setActiveBook", "upsertAccount", "addEntry", "voidEntry", "setOpeningBalances"]);
+const PREVIEW_ACTIONS = new Set<string>(["openApp", "createBook", "upsertAccount", "addEntry", "voidEntry", "setOpeningBalances"]);
 
 // LLM-facing `message` tacked onto YES actions. The shared trailer
 // ("The accounting view is shown to the user.") tells the LLM that a
@@ -196,7 +193,6 @@ const MESSAGE_BUILDERS: Record<string, MessageBuilder> = {
     const subject = book?.name ? `A new book named ${JSON.stringify(book.name)}` : "A new book";
     return `${subject} has been created.`;
   },
-  setActiveBook: (fields) => `Switched the active book to ${JSON.stringify((fields.activeBookId as string | undefined) ?? "")}.`,
   upsertAccount: () => "Updated the chart of accounts.",
   addEntry: (fields) => {
     const entry = fields.entry as { date?: string } | undefined;
