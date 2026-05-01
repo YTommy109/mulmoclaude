@@ -77,4 +77,24 @@ describe("memory/topic-types — isSafeTopicSlug", () => {
     assert.equal(isSafeTopicSlug("Memory"), false);
     assert.equal(isSafeTopicSlug("memory"), false);
   });
+
+  it("rejects Windows-reserved basenames so migration doesn't fail on Win32", () => {
+    // Windows refuses to create `con.md` / `prn.md` etc. even with
+    // an extension; without this gate a clusterer that returned
+    // "CON" would slugify to `con`, pass validation, and then
+    // explode on the writeTopicFileToStaging call on Windows.
+    for (const reserved of ["con", "prn", "aux", "nul", "com1", "com9", "lpt1", "lpt9"]) {
+      assert.equal(isSafeTopicSlug(reserved), false, `slug "${reserved}" should be rejected`);
+    }
+  });
+});
+
+describe("memory/topic-types — slugifyTopicName Windows-reserved gate", () => {
+  it("returns null for Windows-reserved basenames so the caller falls back", () => {
+    // Mirrors the isSafeTopicSlug gate so the slugifier never emits
+    // a slug that the validator would later reject.
+    for (const reserved of ["CON", "Prn", "aux", "Nul", "COM1", "lpt9"]) {
+      assert.equal(slugifyTopicName(reserved), null, `slugify("${reserved}") should be null`);
+    }
+  });
 });
