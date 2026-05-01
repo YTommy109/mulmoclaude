@@ -23,9 +23,14 @@
         <button
           v-for="tab in TABS"
           :key="tab.key"
+          :disabled="isTabDisabled(tab.key)"
           :class="[
             'h-8 px-2.5 flex items-center gap-1 rounded text-sm whitespace-nowrap',
-            currentTab === tab.key ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600 hover:bg-gray-50',
+            isTabDisabled(tab.key)
+              ? 'text-gray-300 cursor-not-allowed'
+              : currentTab === tab.key
+                ? 'bg-blue-50 text-blue-600 font-medium'
+                : 'text-gray-600 hover:bg-gray-50',
           ]"
           :data-testid="`accounting-tab-${tab.key}`"
           @click="currentTab = tab.key"
@@ -92,7 +97,7 @@ import Ledger from "./components/Ledger.vue";
 import BalanceSheet from "./components/BalanceSheet.vue";
 import ProfitLoss from "./components/ProfitLoss.vue";
 import BookSettings from "./components/BookSettings.vue";
-import { listAccounts, listBooks, type Account, type BookSummary } from "./api";
+import { getOpeningBalances, listAccounts, listBooks, type Account, type BookSummary } from "./api";
 import { useAccountingChannel, useAccountingBooksChannel } from "../../composables/useAccountingChannel";
 
 const { t } = useI18n();
@@ -154,6 +159,11 @@ const bookLoadError = ref<string | null>(null);
 // `version` prop for sub-components so they `watch` and refetch
 // uniformly.
 const localVersion = ref(0);
+// Tracks whether the active book has an opening entry on file.
+// `null` = unknown / loading; the gate only activates on an
+// explicit `false` so we don't disable tabs during the cold load
+// while the first getOpeningBalances request is still in flight.
+const hasOpening = ref<boolean | null>(null);
 
 const activeBook = computed(() => books.value.find((book) => book.id === activeBookId.value) ?? null);
 const activeBookName = computed(() => activeBook.value?.name ?? "");
@@ -229,6 +239,27 @@ async function refetchAccounts(): Promise<void> {
   accounts.value = result.data.accounts;
 }
 
+async function refetchOpening(): Promise<void> {
+  if (!activeBookId.value) {
+    hasOpening.value = null;
+    return;
+  }
+  const result = await getOpeningBalances(activeBookId.value);
+  if (!result.ok) return;
+  hasOpening.value = result.data.opening !== null;
+}
+
+// A book without an opening on file is in "gated" mode: the user
+// must save an opening (empty is fine — see OpeningBalancesForm)
+// before journal / report tabs unlock. Settings stays accessible
+// so the user can delete the book if they don't want to proceed.
+const openingGateActive = computed(() => activeBookId.value !== null && hasOpening.value === false);
+
+function isTabDisabled(key: TabKey): boolean {
+  if (!openingGateActive.value) return false;
+  return key !== "opening" && key !== "settings";
+}
+
 function onBookSelected(bookId: string): void {
   activeBookId.value = bookId;
 }
@@ -236,7 +267,10 @@ function onBookSelected(bookId: string): void {
 function onEntrySubmitted(): void {
   bumpLocalVersion();
   // After posting an opening or a normal entry, switch to the
-  // journal so the user immediately sees what they booked.
+  // journal so the user immediately sees what they booked. The
+  // bumpLocalVersion above triggers the bookVersion watcher which
+  // refetches hasOpening, so the gate auto-lifts shortly after the
+  // tab switch — no manual unlock needed here.
   if (currentTab.value === "newEntry" || currentTab.value === "opening") {
     currentTab.value = "journal";
   }
@@ -249,6 +283,27 @@ async function onBookDeleted(): Promise<void> {
 
 watch(activeBookId, (next) => {
   if (next) void refetchAccounts();
+});
+
+// Refetch the opening status whenever the active book changes or
+// any pub/sub / child action bumps bookVersion (e.g. an opening
+// got saved or voided). Clears hasOpening when the book goes null
+// so a stale "true" doesn't carry over between books.
+watch(
+  () => [activeBookId.value, bookVersion.value],
+  () => void refetchOpening(),
+  { immediate: true },
+);
+
+// Force-route to the Opening tab whenever the gate engages. Tab
+// buttons are also `:disabled` so a stray click can't bypass it,
+// but this watcher handles the programmatic case (book switch,
+// initial mount with a no-opening book, LLM-supplied initialTab
+// pointing at a gated tab).
+watch(openingGateActive, (active) => {
+  if (!active) return;
+  if (currentTab.value === "opening" || currentTab.value === "settings") return;
+  currentTab.value = "opening";
 });
 
 void refetchBooks();
