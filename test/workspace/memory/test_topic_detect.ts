@@ -46,9 +46,11 @@ describe("memory/topic-detect — hasTopicFormat", () => {
 
   it("returns true when only `memory.next/<type>` exists — covers the swap-in-progress window", async () => {
     // Reproduces the gap inside swapStagingIntoMemory:
-    //   1. rename memory/ → memory.<ts>.backup
+    //   1. rename memory/ → memory.<ts>.backup  (memory/ now ABSENT)
     //   2. <— hasTopicFormat must still return true here
     //   3. rename memory.next/ → memory/
+    // Note: `memory/` MUST NOT exist for this case to trigger; an
+    // empty live `memory/` is the staging-in-progress case below.
     const root = await mkdtemp(path.join(tmpdir(), "mulmoclaude-topic-detect-swap-window-"));
     try {
       await mkdir(path.join(root, "conversations", "memory.next", "preference"), { recursive: true });
@@ -64,6 +66,24 @@ describe("memory/topic-detect — hasTopicFormat", () => {
       await mkdir(path.join(root, "conversations", "memory", "interest"), { recursive: true });
       await mkdir(path.join(root, "conversations", "memory.next", "interest"), { recursive: true });
       assert.equal(hasTopicFormat(root), true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("returns FALSE when memory/ is still atomic and memory.next/<type>/ is being staged (#1087 review)", async () => {
+    // Bug Codex flagged on #1086: during normal startup migration,
+    // clusterAtomicIntoStaging fills memory.next/<type>/ for a long
+    // window before swap completes. If hasTopicFormat returned true
+    // off `memory.next` alone, prompt routing would flip to topic
+    // mode and atomic + legacy memory would silently disappear from
+    // the prompt. Live `memory/` still existing — even with no
+    // type subdirs — must keep us in atomic mode.
+    const root = await mkdtemp(path.join(tmpdir(), "mulmoclaude-topic-detect-staging-"));
+    try {
+      await mkdir(path.join(root, "conversations", "memory"), { recursive: true });
+      await mkdir(path.join(root, "conversations", "memory.next", "interest"), { recursive: true });
+      assert.equal(hasTopicFormat(root), false);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
