@@ -416,7 +416,7 @@ async function persistInlineBytesAsPaths(attachments: Attachment[] | undefined):
  *  Inline (`{ data, mimeType }`) entries no longer reach this layer —
  *  `persistInlineBytesAsPaths` rewrites them as path-bearing entries
  *  before this runs. */
-async function prepareRequestExtras(attachments: Attachment[] | undefined): Promise<RequestExtras> {
+export async function prepareRequestExtras(attachments: Attachment[] | undefined): Promise<RequestExtras> {
   if (!Array.isArray(attachments) || attachments.length === 0) {
     return { attachments: undefined, attachedFilePaths: [] };
   }
@@ -428,7 +428,11 @@ async function prepareRequestExtras(attachments: Attachment[] | undefined): Prom
       continue;
     }
     const resolved = await loadFromPath(att.path, att.mimeType);
-    if (resolved) result.push(resolved);
+    if (!resolved) continue;
+    // Only emit the `[Attached file: …]` marker when the file was
+    // actually loaded — otherwise the LLM gets told a bogus path
+    // exists (Codex review on PR #1084 follow-up to #1052).
+    result.push(resolved);
     attachedFilePaths.push(att.path);
   }
   return {
