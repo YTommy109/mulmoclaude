@@ -48,11 +48,19 @@ function stripCarriageReturn(line: string): string {
   return line.endsWith("\r") ? line.slice(0, -1) : line;
 }
 
+// Maximum length of a topic slug (filename without `.md`). Both the
+// slugifier and the safety gate honour this cap, and downstream
+// callers that suffix a slug (e.g. collision resolution in
+// `topic-migrate`'s `pickUniqueSlug`) must trim the base so the
+// suffixed result still fits.
+export const MAX_TOPIC_SLUG_LENGTH = 60;
+
 // Slugify a topic name for use as a filename. `<type>/<topic>.md`
 // must keep `topic` filesystem-safe and short. Collapses anything
 // non-alnum into a single `-`, lowercases, trims trailing
-// separators, caps at 60 chars. Returns null when the result is
-// empty (caller decides whether to fall back to a hash).
+// separators, caps at MAX_TOPIC_SLUG_LENGTH chars. Returns null when
+// the result is empty (caller decides whether to fall back to a
+// hash).
 export function slugifyTopicName(name: string): string | null {
   const lower = name.toLowerCase();
   const out: string[] = [];
@@ -67,7 +75,7 @@ export function slugifyTopicName(name: string): string | null {
     }
   }
   while (out.length > 0 && out[out.length - 1] === "-") out.pop();
-  const compact = out.slice(0, 60).join("");
+  const compact = out.slice(0, MAX_TOPIC_SLUG_LENGTH).join("");
   return compact.length > 0 ? trimTrailing(compact, "-") : null;
 }
 
@@ -89,7 +97,7 @@ function trimTrailing(text: string, char: string): string {
 export function isSafeTopicSlug(slug: string): boolean {
   if (typeof slug !== "string") return false;
   if (slug.length === 0) return false;
-  if (slug.length > 60) return false;
+  if (slug.length > MAX_TOPIC_SLUG_LENGTH) return false;
   if (slug.startsWith("-") || slug.endsWith("-")) return false;
   for (const char of slug) {
     const ok = (char >= "a" && char <= "z") || (char >= "0" && char <= "9") || char === "-";

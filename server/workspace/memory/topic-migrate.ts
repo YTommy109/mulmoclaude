@@ -18,6 +18,7 @@ import { errorMessage } from "../../utils/errors.js";
 import { loadAllMemoryEntries } from "./io.js";
 import { MEMORY_TYPES, type MemoryEntry, type MemoryType } from "./types.js";
 import type { ClusterMap, ClusterTopic, MemoryClusterer } from "./topic-cluster.js";
+import { MAX_TOPIC_SLUG_LENGTH } from "./topic-types.js";
 
 export interface TopicMigrationResult {
   /** Whether anything was emitted to the staging dir. */
@@ -107,11 +108,31 @@ export async function clusterAtomicIntoStaging(workspaceRoot: string, clusterer:
 // clusterer may return two topics that would normalise to the same
 // slug (e.g. "Music" and "music"); without this guard the second
 // would silently overwrite the first.
+//
+// The base slug is trimmed if needed so `base + "-N"` still fits the
+// `MAX_TOPIC_SLUG_LENGTH` cap that `isSafeTopicSlug` enforces. A
+// 60-char slug colliding with a prior write would otherwise produce a
+// 62-char filename that the writer rejects (and the reader would
+// then refuse to load on the next session). After trimming we strip
+// any trailing `-` so the suffix ("-N") is the only separator at the
+// boundary.
 function pickUniqueSlug(base: string, used: Set<string>): string {
   if (!used.has(base)) return base;
   let counter = 2;
-  while (used.has(`${base}-${counter}`)) counter += 1;
-  return `${base}-${counter}`;
+  while (true) {
+    const suffix = `-${counter}`;
+    const room = MAX_TOPIC_SLUG_LENGTH - suffix.length;
+    const trimmedBase = trimTrailingDash(base.slice(0, room));
+    const candidate = trimmedBase.length > 0 ? `${trimmedBase}${suffix}` : `topic${suffix}`;
+    if (!used.has(candidate)) return candidate;
+    counter += 1;
+  }
+}
+
+function trimTrailingDash(text: string): string {
+  let end = text.length;
+  while (end > 0 && text[end - 1] === "-") end -= 1;
+  return text.slice(0, end);
 }
 
 function emptyResult(stagingPath: string): TopicMigrationResult {

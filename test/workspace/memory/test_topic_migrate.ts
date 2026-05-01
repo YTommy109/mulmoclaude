@@ -253,6 +253,54 @@ describe("memory/topic-migrate — edge cases", () => {
     }
   });
 
+  it("keeps colliding slugs at MAX length within the safety cap (suffix trims the base)", async () => {
+    // Boundary case the iter-2 review caught: a clusterer returns two
+    // topics that both hit the 60-char slug cap. The naive
+    // `${base}-2` would produce a 62-char filename and trip
+    // isSafeTopicSlug; the writer must trim the base so the suffixed
+    // result still fits.
+    const fresh = await mkdtemp(path.join(tmpdir(), "mulmoclaude-topic-mig-cap-"));
+    try {
+      await writeMemoryEntry(fresh, {
+        name: "x",
+        description: "y",
+        type: "interest",
+        body: "x",
+        slug: "interest_x",
+      });
+      const sixty = "a".repeat(60); // exactly MAX_TOPIC_SLUG_LENGTH
+      const collidingClusterer: MemoryClusterer = async () => ({
+        preference: [],
+        interest: [
+          { topic: sixty, unsectionedBullets: ["first"] },
+          { topic: sixty, unsectionedBullets: ["second"] },
+        ],
+        fact: [],
+        reference: [],
+      });
+      const result = await clusterAtomicIntoStaging(fresh, collidingClusterer);
+      assert.equal(result.topicCounts.interest, 2);
+
+      const interestDir = path.join(result.stagingPath, "interest");
+      const files = (await readFile(path.join(result.stagingPath, "MEMORY.md"), "utf-8")).split("\n").filter((line) => line.startsWith("- interest/"));
+      assert.equal(files.length, 2);
+      // Every link in the index points to a real file with a slug
+      // that passes the safety cap (≤ 60 chars).
+      for (const line of files) {
+        const match = /interest\/([^.]+)\.md/.exec(line);
+        assert.ok(match, `line should reference a real file: ${line}`);
+        const [, slug] = match;
+        assert.ok(slug.length <= 60, `slug "${slug}" exceeds the 60-char cap`);
+        const filePath = path.join(interestDir, `${slug}.md`);
+        const content = await readFile(filePath, "utf-8");
+        // Frontmatter `topic` matches the (suffixed, trimmed) slug.
+        assert.match(content, new RegExp(`^---\\ntype: interest\\ntopic: ${slug}\\n---`));
+      }
+    } finally {
+      await rm(fresh, { recursive: true, force: true });
+    }
+  });
+
   it("emits an index that reflects only successfully-written topics (not the cluster map)", async () => {
     // Inject a clusterer that emits one topic with content, plus one
     // topic that we ALSO write the same slug for — the second one
