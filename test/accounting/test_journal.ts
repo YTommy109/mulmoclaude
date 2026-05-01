@@ -140,6 +140,32 @@ describe("makeVoidEntries", () => {
     assert.equal(marker.voidedEntryId, original.id);
     assert.equal(marker.lines.length, 0);
   });
+  it("memo quotes the original entry-level memo and date when present", () => {
+    const original = makeEntry({ date: "2026-04-01", lines: balancedLines(), memo: "Office rent" });
+    const { reverse } = makeVoidEntries(original, undefined, "2026-04-30");
+    assert.equal(reverse.memo, "void of 'Office rent' on 2026-04-01");
+  });
+  it("memo falls back to the first line memo when entry-level memo is missing", () => {
+    const original = makeEntry({
+      date: "2026-04-01",
+      lines: [
+        { accountCode: "1000", debit: 100, memo: "Cash deposit" },
+        { accountCode: "4000", credit: 100 },
+      ],
+    });
+    const { reverse } = makeVoidEntries(original, undefined, "2026-04-30");
+    assert.equal(reverse.memo, "void of 'Cash deposit' on 2026-04-01");
+  });
+  it("memo uses the date-only template when no original memo exists", () => {
+    const original = makeEntry({ date: "2026-04-01", lines: balancedLines() });
+    const { reverse } = makeVoidEntries(original, undefined, "2026-04-30");
+    assert.equal(reverse.memo, "void of entry on 2026-04-01");
+  });
+  it("memo appends the user-supplied reason after a colon when present", () => {
+    const original = makeEntry({ date: "2026-04-01", lines: balancedLines(), memo: "Office rent" });
+    const { reverse } = makeVoidEntries(original, "duplicate", "2026-04-30");
+    assert.equal(reverse.memo, "void of 'Office rent' on 2026-04-01: duplicate");
+  });
 });
 
 describe("voidedIdSet", () => {

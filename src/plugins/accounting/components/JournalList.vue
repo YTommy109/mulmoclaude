@@ -37,7 +37,8 @@
         <tr
           v-for="entry in filteredEntries"
           :key="entry.id"
-          :class="entry.kind === 'void' || entry.kind === 'void-marker' ? 'text-gray-400 line-through' : ''"
+          :class="voidedEntryIds.has(entry.id) ? 'text-gray-400 line-through' : ''"
+          :data-testid="voidedEntryIds.has(entry.id) ? `accounting-journal-row-voided-${entry.id}` : `accounting-journal-row-${entry.id}`"
           class="border-b border-gray-100 align-top"
         >
           <td class="py-1 px-2 whitespace-nowrap">{{ entry.date }}</td>
@@ -54,7 +55,7 @@
           </td>
           <td class="py-1 px-2 text-right">
             <button
-              v-if="entry.kind === 'normal'"
+              v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)"
               class="text-xs text-red-500 hover:underline"
               :data-testid="`accounting-void-${entry.id}`"
               @click="onVoid(entry)"
@@ -84,6 +85,7 @@ const from = ref("");
 const toDate = ref("");
 const accountCode = ref("");
 const entries = ref<JournalEntry[]>([]);
+const serverVoidedIds = ref<string[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const { begin: beginRequest, isCurrent } = useLatestRequest();
@@ -120,9 +122,11 @@ async function refresh(): Promise<void> {
     if (!result.ok) {
       error.value = result.error;
       entries.value = [];
+      serverVoidedIds.value = [];
       return;
     }
     entries.value = result.data.entries;
+    serverVoidedIds.value = result.data.voidedEntryIds;
   } finally {
     if (isCurrent(token)) loading.value = false;
   }
@@ -130,11 +134,19 @@ async function refresh(): Promise<void> {
 
 const filteredEntries = computed(() => entries.value);
 
+// Set of original entry ids that have been voided. The server
+// computes this from the *unfiltered* journal (so an account-filtered
+// query — which drops void-marker rows because they have no lines —
+// still strikes out the cancelled original). Source of truth on the
+// server is `voidedIdSet()` in journal.ts.
+const voidedEntryIds = computed(() => new Set(serverVoidedIds.value));
+
 async function onVoid(entry: JournalEntry): Promise<void> {
+  // Single dialog: the prompt is the confirmation. Cancelling
+  // (returning null) cancels the void; entering empty text or a
+  // reason proceeds.
   const reason = window.prompt(t("pluginAccounting.journalList.voidReason"));
   if (reason === null) return;
-  const confirmed = window.confirm(t("pluginAccounting.journalList.voidConfirm"));
-  if (!confirmed) return;
   try {
     const result = await voidEntry({ entryId: entry.id, reason: reason || undefined, bookId: props.bookId });
     if (!result.ok) {

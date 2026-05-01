@@ -650,7 +650,6 @@ const zhMessages = {
       deleteBookExplain: "永久删除该账簿目录。无法撤销。",
       deleteBookConfirm: '请输入 "{bookName}" 以确认:',
       deleteBookButton: "彻底删除",
-      cannotDeleteLastBook: "无法删除 — 这是仅剩的账簿。",
     },
     preview: {
       entry: "已记账 {date} 的分录",

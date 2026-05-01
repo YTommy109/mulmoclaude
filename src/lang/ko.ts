@@ -654,7 +654,6 @@ const koMessages = {
       deleteBookExplain: "이 장부의 디렉터리를 영구히 삭제합니다. 되돌릴 수 없습니다.",
       deleteBookConfirm: '확인을 위해 "{bookName}"을 입력하세요:',
       deleteBookButton: "영구 삭제",
-      cannotDeleteLastBook: "삭제할 수 없습니다 — 유일한 장부입니다.",
     },
     preview: {
       entry: "{date} 분개를 등록",
