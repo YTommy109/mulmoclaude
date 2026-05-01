@@ -56,8 +56,12 @@ describe("memory/topic-swap", () => {
       assert.equal(await fileExists(path.join(fresh, "conversations", "memory.next")), false);
 
       // The old atomic file is parked under memory/.atomic-backup/.
-      assert.match(result.backupPath ?? "", /\.atomic-backup\/memory\.atomic-backup-/);
-      const backedUp = await readFile(path.join(result.backupPath ?? "", "preference_yarn.md"), "utf-8");
+      // Assert on the path components so Windows (`\` separators) and
+      // POSIX (`/`) both pass the same shape check.
+      const backupPath = result.backupPath ?? "";
+      assert.ok(path.basename(backupPath).startsWith("memory.atomic-backup-"), `backup basename: ${backupPath}`);
+      assert.equal(path.basename(path.dirname(backupPath)), ".atomic-backup", `backup parent: ${backupPath}`);
+      const backedUp = await readFile(path.join(backupPath, "preference_yarn.md"), "utf-8");
       assert.match(backedUp, /yarn 固定/);
     } finally {
       await rm(fresh, { recursive: true, force: true });
