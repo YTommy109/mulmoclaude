@@ -654,7 +654,6 @@ const jaMessages = {
       deleteBookExplain: "この帳簿のディレクトリを完全に削除します。元に戻せません。",
       deleteBookConfirm: '確認のため "{bookName}" を入力してください:',
       deleteBookButton: "完全に削除",
-      cannotDeleteLastBook: "最後の 1 冊なので削除できません。",
     },
     preview: {
       entry: "{date} の仕訳を起票",

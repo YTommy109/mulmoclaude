@@ -129,6 +129,28 @@ export function makeEntry(input: { date: string; lines: readonly JournalLine[]; 
   };
 }
 
+/** Pick the most descriptive memo from the original entry to quote
+ *  in the voiding entry's memo. Precedence: entry-level memo →
+ *  first non-empty line memo → null (caller falls back to a
+ *  date-only template). */
+function originalMemoToQuote(target: JournalEntry): string | null {
+  if (target.memo && target.memo.trim() !== "") return target.memo;
+  for (const line of target.lines) {
+    if (line.memo && line.memo.trim() !== "") return line.memo;
+  }
+  return null;
+}
+
+/** Build the human-readable memo that goes on the voiding entry.
+ *  Format: `void of '<original memo>' on <original date>` (or the
+ *  no-memo fallback when the original carried no memo). The reason
+ *  the user typed is appended after a colon when present. */
+export function voidMemo(target: JournalEntry, reason: string | undefined): string {
+  const quoted = originalMemoToQuote(target);
+  const base = quoted !== null ? `void of '${quoted}' on ${target.date}` : `void of entry on ${target.date}`;
+  return reason && reason.trim() !== "" ? `${base}: ${reason}` : base;
+}
+
 /** Build the reversing pair for a voided entry. The `void` entry
  *  swaps debit / credit on every line so the net effect is zero;
  *  the `void-marker` is a zero-line entry that exists purely to
@@ -148,7 +170,7 @@ export function makeVoidEntries(target: JournalEntry, reason: string | undefined
     date: voidDate,
     kind: "void",
     lines: swappedLines,
-    memo: reason ? `void of ${target.id}: ${reason}` : `void of ${target.id}`,
+    memo: voidMemo(target, reason),
     voidedEntryId: target.id,
     voidReason: reason,
     createdAt: new Date().toISOString(),

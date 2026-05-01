@@ -52,7 +52,9 @@ interface AccountingErrorResponse {
 // renders summaries for every other action).
 interface OpenAppToolResult {
   kind: "accounting-app";
-  bookId: string;
+  /** `null` when the workspace has zero books — the View shows its
+   *  empty state and prompts the user to create one. */
+  bookId: string | null;
   initialTab?: string;
 }
 

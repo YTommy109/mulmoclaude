@@ -49,9 +49,10 @@ export interface BookSummary {
 }
 
 export interface AccountingConfig {
-  /** ID of the book the View should show by default. Always points
-   *  at an existing book (createBook sets this if there's none). */
-  activeBookId: string;
+  /** ID of the currently-selected book, or `null` when the workspace
+   *  has zero books. `createBook` sets this on first creation;
+   *  `deleteBook` clears it when the last book is removed. */
+  activeBookId: string | null;
   books: BookSummary[];
 }
 

@@ -656,7 +656,6 @@ const ptBRMessages = {
       deleteBookExplain: "Exclui permanentemente o diretório do livro. Não pode ser desfeito.",
       deleteBookConfirm: 'Digite "{bookName}" para confirmar:',
       deleteBookButton: "Excluir para sempre",
-      cannotDeleteLastBook: "Não é possível — é o único livro.",
     },
     preview: {
       entry: "Lançamento em {date}",

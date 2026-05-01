@@ -663,7 +663,6 @@ const deMessages = {
       deleteBookExplain: "Löscht das Buch-Verzeichnis dauerhaft. Nicht rückgängig zu machen.",
       deleteBookConfirm: 'Tippen Sie "{bookName}" zur Bestätigung:',
       deleteBookButton: "Endgültig löschen",
-      cannotDeleteLastBook: "Nicht möglich — dies ist das einzige Buch.",
     },
     preview: {
       entry: "Eintrag am {date} gebucht",

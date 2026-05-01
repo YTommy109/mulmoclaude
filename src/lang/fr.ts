@@ -658,7 +658,6 @@ const frMessages = {
       deleteBookExplain: "Supprime définitivement le répertoire du livre. Irréversible.",
       deleteBookConfirm: 'Tapez "{bookName}" pour confirmer :',
       deleteBookButton: "Supprimer définitivement",
-      cannotDeleteLastBook: "Impossible — c'est le seul livre.",
     },
     preview: {
       entry: "Écriture comptabilisée le {date}",
