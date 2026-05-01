@@ -1,7 +1,9 @@
 import { execSync } from "node:child_process";
+import path from "node:path";
 
 import { type Page, expect, test } from "@playwright/test";
 
+import { TOOL_NAME as PRESENT_MULMO_SCRIPT_TOOL } from "../../src/plugins/presentMulmoScript/definition.ts";
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
 import {
   deleteSession,
@@ -107,8 +109,12 @@ test.describe("media (real LLM)", () => {
     // without this they race and only one worker's generateMovie
     // SSE stream completes (the loser hangs for the full timeout).
     const slug = testInfo.project.name;
-    const workspaceScriptRel = `artifacts/stories/e2e-live-l03-${slug}.json`;
-    const wireFilePath = `stories/e2e-live-l03-${slug}.json`;
+    const fixtureBasename = `e2e-live-l03-${slug}.json`;
+    // path.posix.join keeps the separator forward-slash on every
+    // host so the wire form matches the server's POSIX-shaped
+    // resolveStoryPath input regardless of the runner OS.
+    const workspaceScriptRel = path.posix.join("artifacts/stories", fixtureBasename);
+    const wireFilePath = path.posix.join("stories", fixtureBasename);
     await placeFixtureInWorkspace("mulmo/l03-two-beat.json", workspaceScriptRel);
     try {
       await startNewSession(page);
@@ -220,7 +226,7 @@ async function downloadAndAssertPdf(page: Page): Promise<void> {
  */
 async function sendL03FilePathPrompt(page: Page, workspaceScriptRel: string): Promise<void> {
   const message = [
-    `\`presentMulmoScript\` ツールに \`filePath: "${workspaceScriptRel}"\` を渡して、 既存スクリプトをそのまま表示してください。`,
+    `\`${PRESENT_MULMO_SCRIPT_TOOL}\` ツールに \`filePath: "${workspaceScriptRel}"\` を渡して、 既存スクリプトをそのまま表示してください。`,
     "",
     "- ツールには filePath だけを渡し、 script は省略してください",
     "- 動画生成 (Generate Movie / generateMovie ツール) は呼ばないでください — テスト側でボタンを押します",
