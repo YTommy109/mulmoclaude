@@ -36,15 +36,20 @@ export function topicFilePath(workspaceRoot: string, type: MemoryType, topic: st
   return path.join(topicMemoryRoot(workspaceRoot), type, `${topic}.md`);
 }
 
+// Both loaders walk types in `MEMORY_TYPES` order (a stable
+// constant) and sort filenames within each type by name. This pins
+// the order of entries in the agent's system prompt so a `readdir`
+// reshuffle on a different filesystem or after a restart can't
+// destabilise the prompt content (and trash prompt cache hit rates).
 export async function loadAllTopicFiles(workspaceRoot: string): Promise<TopicMemoryFile[]> {
   const root = topicMemoryRoot(workspaceRoot);
   const collected: TopicMemoryFile[] = [];
   for (const type of MEMORY_TYPES) {
     const typeDir = path.join(root, type);
     const dirents = await readDirSafeAsync(typeDir);
-    for (const dirent of dirents) {
-      if (!isCandidateFilename(dirent.name)) continue;
-      const absPath = path.join(typeDir, dirent.name);
+    const filenames = candidateFilenamesSorted(dirents);
+    for (const name of filenames) {
+      const absPath = path.join(typeDir, name);
       const raw = await readTextSafe(absPath);
       const file = parseTopicFile(absPath, raw, type);
       if (file) collected.push(file);
@@ -59,15 +64,23 @@ export function loadAllTopicFilesSync(workspaceRoot: string): TopicMemoryFile[] 
   for (const type of MEMORY_TYPES) {
     const typeDir = path.join(root, type);
     const dirents = readDirSafe(typeDir);
-    for (const dirent of dirents) {
-      if (!isCandidateFilename(dirent.name)) continue;
-      const absPath = path.join(typeDir, dirent.name);
+    const filenames = candidateFilenamesSorted(dirents);
+    for (const name of filenames) {
+      const absPath = path.join(typeDir, name);
       const raw = readTextSafeSync(absPath);
       const file = parseTopicFile(absPath, raw, type);
       if (file) collected.push(file);
     }
   }
   return collected;
+}
+
+function candidateFilenamesSorted(dirents: readonly { name: string }[]): string[] {
+  const names: string[] = [];
+  for (const dirent of dirents) {
+    if (isCandidateFilename(dirent.name)) names.push(dirent.name);
+  }
+  return names.sort();
 }
 
 export async function writeTopicFile(workspaceRoot: string, file: TopicMemoryFile): Promise<string> {
