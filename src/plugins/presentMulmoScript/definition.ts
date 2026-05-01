@@ -36,7 +36,7 @@ Required structure:
       }
     }
   },
-  "imageParams": { "provider": "google", "model": "gemini-3.1-flash-image" },
+  "imageParams": { "provider": "google", "model": "gemini-3.1-flash-image-preview" },
   "movieParams": { "provider": "google", "model": "veo-3.1-generate" },
   "beats": [
     {

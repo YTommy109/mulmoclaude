@@ -179,12 +179,13 @@ export async function appendSnapshot(
   newContent: string,
   meta: WikiWriteMeta,
   opts: SnapshotPathOptions = {},
-): Promise<void> {
+): Promise<string> {
   const now = (opts.now ?? (() => new Date()))();
   const isoTs = now.toISOString();
   const filenameStamp = timestampToFilenameStamp(now);
   const tail = (opts.shortId ?? shortId)();
-  const fileName = `${filenameStamp}-${tail}.md`;
+  const stamp = `${filenameStamp}-${tail}`;
+  const fileName = `${stamp}.md`;
 
   // The new page already has its own frontmatter (writeWikiPage
   // auto-stamps `created` / `updated` / `editor`). Merge the
@@ -200,6 +201,7 @@ export async function appendSnapshot(
   }
   await writeFileAtomic(path.join(dir, fileName), snapshotContent);
   await gcSnapshots(slug, now, opts);
+  return stamp;
 }
 
 /** Walk `historyDir(slug)` and unlink every snapshot that fails

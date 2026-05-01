@@ -210,6 +210,9 @@ const ptBRMessages = {
     pdfPreview: "Pré-visualização PDF",
     parseError: "erro de análise",
   },
+  filesView: {
+    chatPlaceholder: "Pergunte sobre este arquivo…",
+  },
   systemFiles: {
     schemaLabel: "Esquema",
     showDetails: "Mostrar detalhes",
@@ -532,6 +535,8 @@ const ptBRMessages = {
     redo: "Refazer",
     clear: "Limpar",
     styleLabel: "Estilo:",
+    stylePromptWithPath: "Transforme a imagem em `{path}` em uma imagem no estilo {style}.",
+    stylePromptNoPath: "Transforme meu desenho na tela em uma imagem no estilo {style}.",
   },
   pluginChart: {
     untitled: "Gráfico",
@@ -628,6 +633,9 @@ const ptBRMessages = {
     metadataCreated: "Criado",
     metadataUpdated: "Atualizado",
     metadataEditor: "Editor",
+    pageEditHeader: "Edição do wiki",
+    snapshotExpired: "Snapshot expirado — exibindo a página atual",
+    pageDeleted: "Página excluída",
     history: {
       tabContent: "Conteúdo",
       tabHistory: "Histórico",

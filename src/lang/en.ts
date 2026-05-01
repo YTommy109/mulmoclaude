@@ -232,6 +232,9 @@ const enMessages = {
     pdfPreview: "PDF preview",
     parseError: "parse error",
   },
+  filesView: {
+    chatPlaceholder: "Ask about this file…",
+  },
   // SystemFileBanner copy. Each id matches a descriptor in
   // src/config/systemFileDescriptors.ts. `title` is the chip-style
   // headline above the file body; `summary` is one or two sentences
@@ -555,6 +558,8 @@ const enMessages = {
     redo: "Redo",
     clear: "Clear",
     styleLabel: "Style:",
+    stylePromptWithPath: "Turn the image at `{path}` into a {style} style image.",
+    stylePromptNoPath: "Turn my drawing on the canvas into a {style} style image.",
   },
   pluginChart: {
     untitled: "Chart",
@@ -651,6 +656,9 @@ const enMessages = {
     metadataCreated: "Created",
     metadataUpdated: "Updated",
     metadataEditor: "Editor",
+    pageEditHeader: "Wiki edit",
+    snapshotExpired: "Snapshot expired — showing current page",
+    pageDeleted: "Page deleted",
     history: {
       tabContent: "Content",
       tabHistory: "History",

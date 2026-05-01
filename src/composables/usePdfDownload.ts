@@ -13,17 +13,31 @@ import { API_ROUTES } from "../config/apiRoutes";
 import { apiFetchRaw } from "../utils/api";
 import { errorMessage } from "../utils/errors";
 
+export interface DownloadPdfOptions {
+  /** Workspace-relative source directory of the markdown (e.g.
+   *  `"data/wiki/pages"` for Wiki pages). The server uses it to
+   *  resolve relative `<img>` references to the right base path
+   *  before inlining. Omit for the legacy `markdowns/` default. */
+  baseDir?: string;
+  /** When true, the server strips a leading YAML frontmatter envelope
+   *  (`---\n…\n---\n`) before rendering, so the YAML header doesn't
+   *  appear as plain text on page 1 of the PDF. Wiki pages set this.
+   *  Other callers leave it false so a chat-generated document that
+   *  literally starts with `---` is preserved. */
+  stripFrontmatter?: boolean;
+}
+
 export interface UsePdfDownloadHandle {
   pdfDownloading: Ref<boolean>;
   pdfError: Ref<string | null>;
-  downloadPdf: (markdown: string, filename: string) => Promise<void>;
+  downloadPdf: (markdown: string, filename: string, options?: DownloadPdfOptions) => Promise<void>;
 }
 
 export function usePdfDownload(): UsePdfDownloadHandle {
   const pdfDownloading = ref(false);
   const pdfError = ref<string | null>(null);
 
-  async function downloadPdf(markdown: string, filename: string): Promise<void> {
+  async function downloadPdf(markdown: string, filename: string, options: DownloadPdfOptions = {}): Promise<void> {
     pdfError.value = null;
     pdfDownloading.value = true;
     let url: string | null = null;
@@ -33,7 +47,7 @@ export function usePdfDownload(): UsePdfDownloadHandle {
       const response = await apiFetchRaw(API_ROUTES.pdf.markdown, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markdown, filename }),
+        body: JSON.stringify({ markdown, filename, baseDir: options.baseDir, stripFrontmatter: options.stripFrontmatter }),
       });
       if (!response.ok) {
         const errText = await response.text().catch(() => "");

@@ -212,6 +212,9 @@ const zhMessages = {
     pdfPreview: "PDF 预览",
     parseError: "解析错误",
   },
+  filesView: {
+    chatPlaceholder: "询问关于此文件的问题…",
+  },
   systemFiles: {
     schemaLabel: "架构",
     showDetails: "显示详情",
@@ -526,6 +529,8 @@ const zhMessages = {
     redo: "重做",
     clear: "清除",
     styleLabel: "样式:",
+    stylePromptWithPath: "将 `{path}` 处的图像转换为 {style} 风格的图像。",
+    stylePromptNoPath: "将我在画布上的绘图转换为 {style} 风格的图像。",
   },
   pluginChart: {
     untitled: "图表",
@@ -622,6 +627,9 @@ const zhMessages = {
     metadataCreated: "创建",
     metadataUpdated: "更新",
     metadataEditor: "编辑者",
+    pageEditHeader: "Wiki 编辑",
+    snapshotExpired: "快照已过期 — 显示当前页面",
+    pageDeleted: "页面已删除",
     history: {
       tabContent: "正文",
       tabHistory: "历史",

@@ -216,6 +216,9 @@ const koMessages = {
     pdfPreview: "PDF 미리보기",
     parseError: "파싱 오류",
   },
+  filesView: {
+    chatPlaceholder: "이 파일에 대해 질문하세요…",
+  },
   systemFiles: {
     schemaLabel: "스키마",
     showDetails: "자세히 보기",
@@ -530,6 +533,8 @@ const koMessages = {
     redo: "다시 실행",
     clear: "지우기",
     styleLabel: "스타일:",
+    stylePromptWithPath: "`{path}`의 이미지를 {style} 스타일 이미지로 변환해 주세요.",
+    stylePromptNoPath: "캔버스에 그린 그림을 {style} 스타일 이미지로 변환해 주세요.",
   },
   pluginChart: {
     untitled: "차트",
@@ -626,6 +631,9 @@ const koMessages = {
     metadataCreated: "생성",
     metadataUpdated: "업데이트",
     metadataEditor: "편집자",
+    pageEditHeader: "Wiki 편집",
+    snapshotExpired: "스냅샷 만료됨 — 현재 페이지 표시 중",
+    pageDeleted: "페이지가 삭제되었습니다",
     history: {
       tabContent: "본문",
       tabHistory: "기록",

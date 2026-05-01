@@ -211,6 +211,9 @@ const frMessages = {
     pdfPreview: "Aperçu PDF",
     parseError: "erreur d'analyse",
   },
+  filesView: {
+    chatPlaceholder: "Posez une question sur ce fichier…",
+  },
   systemFiles: {
     schemaLabel: "Schéma",
     showDetails: "Afficher les détails",
@@ -533,6 +536,8 @@ const frMessages = {
     redo: "Rétablir",
     clear: "Effacer",
     styleLabel: "Style :",
+    stylePromptWithPath: "Transforme l'image en `{path}` en une image de style {style}.",
+    stylePromptNoPath: "Transforme mon dessin sur le canevas en une image de style {style}.",
   },
   pluginChart: {
     untitled: "Graphique",
@@ -629,6 +634,9 @@ const frMessages = {
     metadataCreated: "Créé",
     metadataUpdated: "Mis à jour",
     metadataEditor: "Éditeur",
+    pageEditHeader: "Édition du wiki",
+    snapshotExpired: "Instantané expiré — affichage de la page actuelle",
+    pageDeleted: "Page supprimée",
     history: {
       tabContent: "Contenu",
       tabHistory: "Historique",

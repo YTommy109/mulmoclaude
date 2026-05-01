@@ -4,6 +4,7 @@
       <button
         class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
         :disabled="pdfDownloading"
+        data-testid="text-response-pdf-button"
         @click="downloadPdf"
       >
         <span class="material-icons text-base">{{ pdfDownloading ? "hourglass_empty" : "download" }}</span>
@@ -23,6 +24,9 @@
                 </div>
                 <!-- eslint-disable-next-line vue/no-v-html -- marked.parse output of app-owned assistant response text; trusted in-process render -->
                 <div class="markdown-content prose prose-slate max-w-none leading-relaxed text-gray-900" v-html="renderedHtml"></div>
+                <div v-if="messageAttachments.length > 0" class="space-y-3 mt-3" data-testid="text-response-attachments">
+                  <SentAttachmentChip v-for="path in messageAttachments" :key="path" :path="path" variant="block" />
+                </div>
               </div>
             </div>
           </div>
@@ -51,6 +55,7 @@ import { useI18n } from "vue-i18n";
 import { marked } from "marked";
 import type { ToolResult, ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TextResponseData } from "./types";
+import SentAttachmentChip from "../../components/SentAttachmentChip.vue";
 import { handleExternalLinkClick } from "../../utils/dom/externalLink";
 import { classifyWorkspacePath } from "../../utils/path/workspaceLinkRouter";
 import { useAppApi } from "../../composables/useAppApi";
@@ -96,6 +101,7 @@ watch(editorSource, (next) => {
 
 const messageRole = computed(() => props.selectedResult.data?.role ?? "assistant");
 const transportKind = computed(() => props.selectedResult.data?.transportKind ?? "");
+const messageAttachments = computed<string[]>(() => props.selectedResult.data?.attachments ?? []);
 
 const renderedHtml = computed(() => {
   if (!messageText.value) return "";
@@ -224,13 +230,22 @@ async function copyText() {
 }
 
 async function downloadPdf() {
-  const text = props.selectedResult.data?.text ?? "";
+  const { data } = props.selectedResult;
+  // Display text and PDF source can diverge: Files Explorer's .md
+  // preview pre-rewrites image refs to `/api/files/raw?...` for
+  // browser display, but the server PDF inliner can't resolve those
+  // back to disk. Use the original source when the caller passes it.
+  const pdfText = data?.pdfSourceText ?? data?.text ?? "";
+  const displayText = data?.text ?? "";
   const filename = buildPdfFilename({
-    name: extractTextResponseTitle(text),
+    name: extractTextResponseTitle(displayText),
     fallback: "chat",
     timestampMs: appApi.getResultTimestamp(props.selectedResult.uuid),
   });
-  await rawDownloadPdf(text, filename);
+  await rawDownloadPdf(pdfText, filename, {
+    baseDir: data?.pdfBaseDir,
+    stripFrontmatter: data?.pdfStripFrontmatter,
+  });
 }
 </script>
 

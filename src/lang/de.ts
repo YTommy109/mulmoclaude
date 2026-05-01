@@ -211,6 +211,9 @@ const deMessages = {
     pdfPreview: "PDF-Vorschau",
     parseError: "Parse-Fehler",
   },
+  filesView: {
+    chatPlaceholder: "Frage zu dieser Datei stellen…",
+  },
   systemFiles: {
     schemaLabel: "Schema",
     showDetails: "Details anzeigen",
@@ -539,6 +542,8 @@ const deMessages = {
     redo: "Wiederherstellen",
     clear: "Löschen",
     styleLabel: "Stil:",
+    stylePromptWithPath: "Wandle das Bild unter `{path}` in ein Bild im {style}-Stil um.",
+    stylePromptNoPath: "Wandle meine Zeichnung auf dem Canvas in ein Bild im {style}-Stil um.",
   },
   pluginChart: {
     untitled: "Diagramm",
@@ -636,6 +641,9 @@ const deMessages = {
     metadataCreated: "Erstellt",
     metadataUpdated: "Aktualisiert",
     metadataEditor: "Bearbeiter",
+    pageEditHeader: "Wiki-Bearbeitung",
+    snapshotExpired: "Snapshot abgelaufen — aktuelle Seite wird angezeigt",
+    pageDeleted: "Seite gelöscht",
     history: {
       tabContent: "Inhalt",
       tabHistory: "Verlauf",
