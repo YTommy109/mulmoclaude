@@ -277,8 +277,12 @@ function onEntrySubmitted(): void {
 }
 
 async function onBookDeleted(): Promise<void> {
-  await refetchBooks();
+  // Reset the tab BEFORE awaiting so a fast delete-then-create
+  // can't race: if the new book's gate engages while we're still
+  // awaiting refetchBooks, the gate watcher needs to see a
+  // non-"settings" currentTab to route the user to Opening.
   currentTab.value = "journal";
+  await refetchBooks();
 }
 
 watch(activeBookId, (next) => {
@@ -300,10 +304,15 @@ watch(
 // watcher handles the programmatic case where currentTab still
 // points at a now-hidden tab (book switch, initial mount with a
 // no-opening book, LLM-supplied initialTab pointing at a gated
-// tab) — without it, `<main>` would render nothing.
+// tab, or fresh-book creation right after deleting from the
+// settings tab) — without it, `<main>` would render nothing or
+// the user would be stranded on the prior book's settings view.
+// We don't exempt "settings" here: the user can still click back
+// to it from the (gated) tab strip if they want to delete the
+// new book instead of setting it up.
 watch(openingGateActive, (active) => {
   if (!active) return;
-  if (currentTab.value === "opening" || currentTab.value === "settings") return;
+  if (currentTab.value === "opening") return;
   currentTab.value = "opening";
 });
 
