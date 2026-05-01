@@ -107,7 +107,7 @@ function handleOpenApp(state: AccountingState, body: DispatchBody): MockResponse
   return ok({ kind: "accounting-app", bookId, initialTab });
 }
 
-function handleListBooks(state: AccountingState): MockResponse {
+function handleGetBooks(state: AccountingState): MockResponse {
   return ok({ activeBookId: state.activeBookId, books: state.books });
 }
 
@@ -144,7 +144,7 @@ function handleDeleteBook(state: AccountingState, body: DispatchBody): MockRespo
   return ok({ deletedBookId: bookId, activeBookId: state.activeBookId });
 }
 
-function handleListAccounts(state: AccountingState, body: DispatchBody): MockResponse {
+function handleGetAccounts(state: AccountingState, body: DispatchBody): MockResponse {
   const bookId = bookIdFrom(state, body);
   if (bookId === null) return noActiveBook();
   return ok({ bookId, accounts: state.accountsByBook.get(bookId) ?? [] });
@@ -158,7 +158,7 @@ function voidedIdsFrom(entries: readonly FakeEntry[]): string[] {
   return Array.from(set).sort();
 }
 
-function handleListEntries(state: AccountingState, body: DispatchBody): MockResponse {
+function handleGetJournalEntries(state: AccountingState, body: DispatchBody): MockResponse {
   const bookId = bookIdFrom(state, body);
   if (bookId === null) return noActiveBook();
   const entries = state.entriesByBook.get(bookId) ?? [];
@@ -264,12 +264,12 @@ function handleGetReport(state: AccountingState, body: DispatchBody): MockRespon
 
 const ACTION_HANDLERS: Record<string, ActionHandler> = {
   openApp: handleOpenApp,
-  listBooks: handleListBooks,
+  getBooks: handleGetBooks,
   createBook: handleCreateBook,
   setActiveBook: handleSetActiveBook,
   deleteBook: handleDeleteBook,
-  listAccounts: handleListAccounts,
-  getJournalEntries: handleListEntries,
+  getAccounts: handleGetAccounts,
+  getJournalEntries: handleGetJournalEntries,
   addEntry: handleAddEntry,
   voidEntry: handleVoidEntry,
   getOpeningBalances: handleGetOpening,

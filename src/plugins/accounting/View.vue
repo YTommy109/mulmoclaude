@@ -97,7 +97,7 @@ import Ledger from "./components/Ledger.vue";
 import BalanceSheet from "./components/BalanceSheet.vue";
 import ProfitLoss from "./components/ProfitLoss.vue";
 import BookSettings from "./components/BookSettings.vue";
-import { getOpeningBalances, listAccounts, listBooks, type Account, type BookSummary } from "./api";
+import { getOpeningBalances, getAccounts, getBooks, type Account, type BookSummary } from "./api";
 import { useAccountingChannel, useAccountingBooksChannel } from "../../composables/useAccountingChannel";
 
 const { t } = useI18n();
@@ -198,7 +198,7 @@ async function refetchBooks(): Promise<void> {
   loadingBooks.value = true;
   bookLoadError.value = null;
   try {
-    const result = await listBooks();
+    const result = await getBooks();
     if (!result.ok) {
       // Surface load failures as a distinct error state so the user
       // doesn't see "No books yet" (and the auto-open modal) when
@@ -234,7 +234,7 @@ async function refetchAccounts(): Promise<void> {
     accounts.value = [];
     return;
   }
-  const result = await listAccounts(activeBookId.value);
+  const result = await getAccounts(activeBookId.value);
   if (!result.ok) return;
   accounts.value = result.data.accounts;
 }

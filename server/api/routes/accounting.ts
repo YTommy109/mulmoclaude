@@ -123,7 +123,7 @@ async function handleGetReport(rest: ActionRest): Promise<unknown> {
 
 const ACTION_HANDLERS: Record<string, ActionHandler> = {
   openApp: handleOpenApp,
-  listBooks: () => listBooks(),
+  getBooks: () => listBooks(),
   createBook: (rest) =>
     createBook({
       name: String(rest.name ?? ""),
@@ -131,7 +131,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     }),
   setActiveBook: (rest) => setActiveBook({ bookId: String(rest.bookId ?? "") }),
   deleteBook: (rest) => deleteBook({ bookId: String(rest.bookId ?? ""), confirm: rest.confirm === true }),
-  listAccounts: (rest) => listAccounts({ bookId: rest.bookId as string | undefined }),
+  getAccounts: (rest) => listAccounts({ bookId: rest.bookId as string | undefined }),
   upsertAccount: (rest) =>
     upsertAccount({
       bookId: rest.bookId as string | undefined,
@@ -224,7 +224,7 @@ function previewMessage(action: string, fields: Record<string, unknown>): string
 // LLM). Without an explicit message these actions resolve to "Done"
 // from the model's perspective, which is useless for queries the
 // LLM needs to reason about.
-const PAYLOAD_AS_MESSAGE_ACTIONS = new Set<string>(["getJournalEntries"]);
+const PAYLOAD_AS_MESSAGE_ACTIONS = new Set<string>(["getJournalEntries", "getBooks", "getAccounts"]);
 
 async function dispatch(body: AccountingActionBody): Promise<unknown> {
   const { action, ...rest } = body;

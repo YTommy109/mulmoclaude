@@ -103,8 +103,8 @@ function call<T>(action: string, args: Record<string, unknown> = {}): Promise<Ap
 
 // ── Books ────────────────────────────────────────────────────────────
 
-export function listBooks(): Promise<ApiResult<{ activeBookId: string | null; books: BookSummary[] }>> {
-  return call("listBooks");
+export function getBooks(): Promise<ApiResult<{ activeBookId: string | null; books: BookSummary[] }>> {
+  return call("getBooks");
 }
 
 export function createBook(input: { name: string; currency?: string }): Promise<ApiResult<{ book: BookSummary }>> {
@@ -121,8 +121,8 @@ export function deleteBook(bookId: string): Promise<ApiResult<{ deletedBookId: s
 
 // ── Accounts ─────────────────────────────────────────────────────────
 
-export function listAccounts(bookId?: string): Promise<ApiResult<{ bookId: string; accounts: Account[] }>> {
-  return call("listAccounts", { bookId });
+export function getAccounts(bookId?: string): Promise<ApiResult<{ bookId: string; accounts: Account[] }>> {
+  return call("getAccounts", { bookId });
 }
 
 export function upsertAccount(account: Account, bookId?: string): Promise<ApiResult<{ bookId: string; accounts: Account[] }>> {

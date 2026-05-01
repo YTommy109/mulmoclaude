@@ -27,11 +27,11 @@ const toolDefinition: ToolDefinition = {
         type: "string",
         enum: [
           "openApp",
-          "listBooks",
+          "getBooks",
           "createBook",
           "setActiveBook",
           "deleteBook",
-          "listAccounts",
+          "getAccounts",
           "upsertAccount",
           "addEntry",
           "voidEntry",
