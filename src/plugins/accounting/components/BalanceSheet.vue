@@ -1,0 +1,88 @@
+<template>
+  <div class="flex flex-col gap-3" data-testid="accounting-balance-sheet">
+    <div class="flex items-end gap-3">
+      <label class="text-xs text-gray-500 flex flex-col gap-1">
+        {{ t("pluginAccounting.balanceSheet.asOfLabel") }}
+        <input v-model="period" type="month" class="h-8 px-2 rounded border border-gray-300 text-sm" data-testid="accounting-bs-period" />
+      </label>
+      <button class="h-8 px-2.5 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-50" @click="refresh">
+        <span class="material-icons text-base align-middle">refresh</span>
+      </button>
+    </div>
+    <p v-if="loading" class="text-xs text-gray-400">{{ t("pluginAccounting.common.loading") }}</p>
+    <p v-else-if="error" class="text-xs text-red-500">{{ t("pluginAccounting.common.error", { error }) }}</p>
+    <template v-else-if="balanceSheet">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <section v-for="section in balanceSheet.sections" :key="section.type" class="border border-gray-200 rounded p-3">
+          <h4 class="text-sm font-semibold mb-2">{{ sectionLabel(section.type) }}</h4>
+          <table class="w-full text-sm">
+            <tbody>
+              <tr v-for="row in section.rows" :key="row.accountCode" class="border-b border-gray-100">
+                <td class="py-1 px-1 font-mono text-xs">{{ row.accountCode }}</td>
+                <td class="py-1 px-1">{{ row.accountName }}</td>
+                <td class="py-1 px-1 text-right font-mono">{{ formatAmount(row.balance) }}</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="font-semibold border-t border-gray-300">
+                <td colspan="2" class="py-1 px-1">{{ t("pluginAccounting.balanceSheet.total") }}</td>
+                <td class="py-1 px-1 text-right">{{ formatAmount(section.total) }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </section>
+      </div>
+      <p :class="Math.abs(balanceSheet.imbalance) <= 0.01 ? 'text-green-600' : 'text-red-500'" class="text-xs" data-testid="accounting-bs-imbalance">
+        {{ t("pluginAccounting.balanceSheet.imbalance", { amount: formatAmount(balanceSheet.imbalance) }) }}
+      </p>
+    </template>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import { getBalanceSheet, type BalanceSheet } from "../api";
+
+const { t } = useI18n();
+
+const props = defineProps<{ bookId: string; version: number }>();
+
+function defaultPeriod(): string {
+  return new Date().toISOString().slice(0, 7);
+}
+
+const period = ref(defaultPeriod());
+const balanceSheet = ref<BalanceSheet | null>(null);
+const loading = ref(false);
+const error = ref<string | null>(null);
+
+function formatAmount(value: number): string {
+  return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function sectionLabel(type: string): string {
+  if (type === "asset") return t("pluginAccounting.balanceSheet.sections.asset");
+  if (type === "liability") return t("pluginAccounting.balanceSheet.sections.liability");
+  if (type === "equity") return t("pluginAccounting.balanceSheet.sections.equity");
+  return type;
+}
+
+async function refresh(): Promise<void> {
+  loading.value = true;
+  error.value = null;
+  try {
+    const result = await getBalanceSheet({ kind: "month", period: period.value }, props.bookId);
+    if (!result.ok) {
+      error.value = result.error;
+      balanceSheet.value = null;
+      return;
+    }
+    balanceSheet.value = result.data.balanceSheet;
+  } finally {
+    loading.value = false;
+  }
+}
+
+watch(() => [props.bookId, props.version, period.value], refresh, { immediate: true });
+</script>
