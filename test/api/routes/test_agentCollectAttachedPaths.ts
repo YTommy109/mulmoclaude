@@ -43,4 +43,23 @@ describe("collectAttachedPaths", () => {
     const attachments: Attachment[] = [{ path: "data/attachments/2026/04/foo.png" }, { mimeType: "image/png", data: "AAAA" }, { path: "" }];
     assert.deepEqual(collectAttachedPaths(attachments), ["data/attachments/2026/04/foo.png"]);
   });
+
+  it("rejects paths outside the allowed workspace roots", () => {
+    // Bogus paths posted directly by a malicious client. `loadFromPath`
+    // would refuse to read them, but the chip + JSONL line + LLM marker
+    // are emitted independently — they have to filter here too.
+    const attachments: Attachment[] = [
+      { path: "/etc/passwd" },
+      { path: "../escape.png" },
+      { path: "secrets/key.pem" },
+      { path: "data/attachments/2026/04/legit.png" },
+      { path: "artifacts/images/2026/04/legit.png" },
+    ];
+    assert.deepEqual(collectAttachedPaths(attachments), ["data/attachments/2026/04/legit.png", "artifacts/images/2026/04/legit.png"]);
+  });
+
+  it("rejects an image path that doesn't end in .png (matches isImagePath)", () => {
+    const attachments: Attachment[] = [{ path: "artifacts/images/2026/04/foo.gif" }];
+    assert.deepEqual(collectAttachedPaths(attachments), []);
+  });
 });
