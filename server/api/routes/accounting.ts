@@ -178,7 +178,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
 // Reads (lists / reports) and View-driven maintenance ops stay
 // silent — they're invoked from inside the canvas and the LLM will
 // summarise reads in its text reply anyway.
-const PREVIEW_ACTIONS = new Set<string>(["openApp", "createBook", "setActiveBook", "upsertAccount", "addEntry", "voidEntry"]);
+const PREVIEW_ACTIONS = new Set<string>(["openApp", "createBook", "setActiveBook", "upsertAccount", "addEntry", "voidEntry", "setOpeningBalances"]);
 
 // LLM-facing `message` tacked onto YES actions. The shared trailer
 // ("The accounting view is shown to the user.") tells the LLM that a
@@ -187,34 +187,35 @@ const PREVIEW_ACTIONS = new Set<string>(["openApp", "createBook", "setActiveBook
 // should narrate what was *done*, not re-list what's on screen.
 const VIEW_VISIBLE_TRAILER = "The accounting view is shown to the user.";
 
+type MessageBuilder = (fields: Record<string, unknown>) => string;
+
+const MESSAGE_BUILDERS: Record<string, MessageBuilder> = {
+  openApp: () => "Mounted the accounting app in the canvas.",
+  createBook: (fields) => {
+    const book = fields.book as { name?: string } | undefined;
+    const subject = book?.name ? `A new book named ${JSON.stringify(book.name)}` : "A new book";
+    return `${subject} has been created.`;
+  },
+  setActiveBook: (fields) => `Switched the active book to ${JSON.stringify((fields.activeBookId as string | undefined) ?? "")}.`,
+  upsertAccount: () => "Updated the chart of accounts.",
+  addEntry: (fields) => {
+    const entry = fields.entry as { date?: string } | undefined;
+    return `Posted a journal entry on ${entry?.date ?? "the requested date"}.`;
+  },
+  voidEntry: (fields) => {
+    const reverse = fields.reverseEntry as { date?: string } | undefined;
+    return `Voided the entry; a reversing pair was posted on ${reverse?.date ?? "today"}.`;
+  },
+  setOpeningBalances: (fields) => {
+    const opening = fields.openingEntry as { date?: string } | undefined;
+    const verb = fields.replacedExisting === true ? "replaced" : "set";
+    return `Opening balances were ${verb} as of ${opening?.date ?? "the requested date"}.`;
+  },
+};
+
 function previewMessage(action: string, fields: Record<string, unknown>): string {
-  switch (action) {
-    case "openApp":
-      return `Mounted the accounting app in the canvas. ${VIEW_VISIBLE_TRAILER}`;
-    case "createBook": {
-      const book = fields.book as { id?: string; name?: string } | undefined;
-      const subject = book?.name ? `A new book named ${JSON.stringify(book.name)}` : "A new book";
-      return `${subject} has been created. ${VIEW_VISIBLE_TRAILER}`;
-    }
-    case "setActiveBook": {
-      const bookId = fields.activeBookId as string | undefined;
-      return `Switched the active book to ${JSON.stringify(bookId ?? "")}. ${VIEW_VISIBLE_TRAILER}`;
-    }
-    case "upsertAccount":
-      return `Updated the chart of accounts. ${VIEW_VISIBLE_TRAILER}`;
-    case "addEntry": {
-      const entry = fields.entry as { date?: string } | undefined;
-      const date = entry?.date ?? "the requested date";
-      return `Posted a journal entry on ${date}. ${VIEW_VISIBLE_TRAILER}`;
-    }
-    case "voidEntry": {
-      const reverse = fields.reverseEntry as { date?: string } | undefined;
-      const date = reverse?.date ?? "today";
-      return `Voided the entry; a reversing pair was posted on ${date}. ${VIEW_VISIBLE_TRAILER}`;
-    }
-    default:
-      return VIEW_VISIBLE_TRAILER;
-  }
+  const head = MESSAGE_BUILDERS[action]?.(fields);
+  return head ? `${head} ${VIEW_VISIBLE_TRAILER}` : VIEW_VISIBLE_TRAILER;
 }
 
 async function dispatch(body: AccountingActionBody): Promise<unknown> {
