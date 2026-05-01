@@ -113,6 +113,40 @@ describe("memory/topic-run — idempotency guards", () => {
     }
   });
 
+  it("proceeds when memory.md sits next to a memory.md.backup (legacy migration already completed)", async () => {
+    // Real-world bug surfaced in review: a workspace where the
+    // legacy `runMemoryMigrationOnce` finished once (so `.backup`
+    // exists) and then the user dropped `memory.md` back in. The
+    // legacy runner now refuses to re-process — the topic runner
+    // must NOT keep deferring or the workspace is stuck forever.
+    const fresh = await mkdtemp(path.join(tmpdir(), "mulmoclaude-topic-run-postlegacy-"));
+    try {
+      const legacyPath = path.join(fresh, "conversations", "memory.md");
+      await mkdir(path.dirname(legacyPath), { recursive: true });
+      await writeFile(
+        legacyPath,
+        ["# Memory", "", "Distilled facts about you and your work.", "", "## Preferences", "- yarn を使う（npm 不可）", "- Emacs を愛用", ""].join("\n"),
+        "utf-8",
+      );
+      // `.backup` present means a prior successful legacy migration
+      // already fired. Without the bugfix, the topic runner would
+      // see the >=64-byte memory.md and defer indefinitely.
+      await writeFile(`${legacyPath}.backup`, "older legacy contents\n", "utf-8");
+      await writeMemoryEntry(fresh, {
+        name: "yarn",
+        description: "npm 不可",
+        type: "preference",
+        body: "yarn",
+        slug: "preference_yarn",
+      });
+      await runTopicMigrationOnce(fresh, { summarize: stubSummarize });
+      const stagingExists = await stat(topicStagingPath(fresh));
+      assert.ok(stagingExists.isDirectory(), "topic migration must run when legacy is past completion (`.backup` exists)");
+    } finally {
+      await rm(fresh, { recursive: true, force: true });
+    }
+  });
+
   it("proceeds and writes staging when atomic entries are present and no other guard fires", async () => {
     const fresh = await mkdtemp(path.join(tmpdir(), "mulmoclaude-topic-run-go-"));
     try {

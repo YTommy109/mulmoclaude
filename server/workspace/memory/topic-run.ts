@@ -41,13 +41,20 @@ export async function runTopicMigrationOnce(workspaceRoot: string, deps: RunTopi
     return;
   }
   // Don't trip over an in-progress legacy `memory.md` migration from
-  // #1029 PR-B. Once that finishes the legacy file is renamed to
-  // `.backup` and the atomic entries below the memory dir become
-  // visible to `loadAllMemoryEntries`.
+  // #1029 PR-B. We mirror the conditions under which
+  // `runMemoryMigrationOnce` would actually run — legacy file
+  // present, past the placeholder threshold, AND `.backup` absent.
+  // The `.backup` check is load-bearing: when both `memory.md` and
+  // `.backup` exist, the legacy runner refuses to re-process (the
+  // backup signals "already done; user re-introduced the file"),
+  // and without this clause the topic runner would defer
+  // indefinitely waiting for a migration that's never going to
+  // happen.
   const legacyPath = path.join(workspaceRoot, "conversations", "memory.md");
   if (existsSync(legacyPath)) {
     const stat = statSync(legacyPath);
-    if (stat.size >= 64) {
+    const backupPath = `${legacyPath}.backup`;
+    if (stat.size >= 64 && !existsSync(backupPath)) {
       log.debug("memory", "topic-run: legacy memory.md still in flight, deferring", { legacyPath });
       return;
     }
