@@ -18,7 +18,6 @@ import {
   createBook,
   deleteBook,
   getBalanceSheetReport,
-  getBookMeta,
   getLedgerReport,
   getOpeningBalances,
   getProfitLossReport,
@@ -26,11 +25,12 @@ import {
   listBooks,
   listEntries,
   rebuildSnapshots,
-  setActiveBook,
   setOpeningBalances,
   upsertAccount,
   voidEntry,
 } from "../../accounting/service.js";
+import type { BookSummary } from "../../accounting/types.js";
+import { ACCOUNTING_ACTIONS } from "../../../src/plugins/accounting/actions.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { log } from "../../system/logger/index.js";
 
@@ -58,6 +58,10 @@ interface OpenAppToolResult {
    *  full-page first-run form and prompts the user to create one. */
   bookId: string | null;
   initialTab?: string;
+  /** Same shape getBooks returns — included so an LLM that calls
+   *  openApp doesn't need a follow-up getBooks round-trip to learn
+   *  what books exist before its next action. */
+  books: BookSummary[];
   message?: string;
 }
 
@@ -70,15 +74,14 @@ type ActionHandler = (rest: ActionRest) => Promise<unknown>;
 // validateOpening) so the adapters can stay one-liners.
 
 async function handleOpenApp(rest: ActionRest): Promise<OpenAppToolResult> {
-  // Resolving the bookId server-side ensures the LLM's tool result
-  // *describes* what's in the canvas (which book, which tab) so
-  // historical chat replays render accurately. The View handles
-  // the empty-state flow (full-page first-run form so the user
-  // can pick name + currency); the server doesn't try to bootstrap
-  // a default book.
+  // openApp resolves an explicit `bookId` (if the LLM passed one and
+  // it exists) or returns null — the View picks from getBooks +
+  // localStorage on its own. There's no server-side "active book"
+  // anymore; persisting that across calls would make tool replays
+  // ambiguous and couple multiple browser tabs to each other.
   const list = await listBooks();
   const requested = typeof rest.bookId === "string" ? rest.bookId : undefined;
-  const bookId = requested && list.books.some((book) => book.id === requested) ? requested : list.activeBookId;
+  const bookId = requested && list.books.some((book) => book.id === requested) ? requested : null;
   const initialTab = typeof rest.initialTab === "string" ? rest.initialTab : undefined;
   if (list.books.length === 0) {
     // No books yet — the canvas is showing the full-page first-run
@@ -89,11 +92,12 @@ async function handleOpenApp(rest: ActionRest): Promise<OpenAppToolResult> {
       kind: "accounting-app",
       bookId,
       initialTab,
+      books: list.books,
       message:
         "No books in this workspace yet. The accounting UI is showing a form asking the user to create their first book (name + currency) before any accounting feature can be used.",
     };
   }
-  return { kind: "accounting-app", bookId, initialTab };
+  return { kind: "accounting-app", bookId, initialTab, books: list.books };
 }
 
 async function handleGetReport(rest: ActionRest): Promise<unknown> {
@@ -122,56 +126,139 @@ async function handleGetReport(rest: ActionRest): Promise<unknown> {
 }
 
 const ACTION_HANDLERS: Record<string, ActionHandler> = {
-  openApp: handleOpenApp,
-  listBooks: () => listBooks(),
-  createBook: (rest) =>
+  [ACCOUNTING_ACTIONS.openApp]: handleOpenApp,
+  [ACCOUNTING_ACTIONS.getBooks]: () => listBooks(),
+  [ACCOUNTING_ACTIONS.createBook]: (rest) =>
     createBook({
-      id: typeof rest.id === "string" ? rest.id : undefined,
       name: String(rest.name ?? ""),
       currency: typeof rest.currency === "string" ? rest.currency : undefined,
     }),
-  setActiveBook: (rest) => setActiveBook({ bookId: String(rest.bookId ?? "") }),
-  deleteBook: (rest) => deleteBook({ bookId: String(rest.bookId ?? ""), confirm: rest.confirm === true }),
-  listAccounts: (rest) => listAccounts({ bookId: rest.bookId as string | undefined }),
-  upsertAccount: (rest) =>
+  [ACCOUNTING_ACTIONS.deleteBook]: (rest) => deleteBook({ bookId: String(rest.bookId ?? ""), confirm: rest.confirm === true }),
+  [ACCOUNTING_ACTIONS.getAccounts]: (rest) => listAccounts({ bookId: rest.bookId as string | undefined }),
+  [ACCOUNTING_ACTIONS.upsertAccount]: (rest) =>
     upsertAccount({
       bookId: rest.bookId as string | undefined,
       // Service validates the shape — route doesn't reach into it.
       account: rest.account as never,
     }),
-  addEntry: (rest) =>
+  [ACCOUNTING_ACTIONS.addEntry]: (rest) =>
     addEntry({
       bookId: rest.bookId as string | undefined,
       date: String(rest.date ?? ""),
       lines: (rest.lines ?? []) as never,
       memo: rest.memo as string | undefined,
     }),
-  voidEntry: (rest) =>
+  [ACCOUNTING_ACTIONS.voidEntry]: (rest) =>
     voidEntry({
       bookId: rest.bookId as string | undefined,
       entryId: String(rest.entryId ?? ""),
       reason: rest.reason as string | undefined,
       voidDate: rest.voidDate as string | undefined,
     }),
-  listEntries: (rest) =>
+  [ACCOUNTING_ACTIONS.getJournalEntries]: (rest) =>
     listEntries({
       bookId: rest.bookId as string | undefined,
       from: rest.from as string | undefined,
       to: rest.to as string | undefined,
       accountCode: rest.accountCode as string | undefined,
     }),
-  getOpeningBalances: (rest) => getOpeningBalances({ bookId: rest.bookId as string | undefined }),
-  setOpeningBalances: (rest) =>
+  [ACCOUNTING_ACTIONS.getOpeningBalances]: (rest) => getOpeningBalances({ bookId: rest.bookId as string | undefined }),
+  [ACCOUNTING_ACTIONS.setOpeningBalances]: (rest) =>
     setOpeningBalances({
       bookId: rest.bookId as string | undefined,
       asOfDate: String(rest.asOfDate ?? ""),
       lines: (rest.lines ?? []) as never,
       memo: rest.memo as string | undefined,
     }),
-  getReport: handleGetReport,
-  getBookMeta: (rest) => getBookMeta({ bookId: rest.bookId as string | undefined }),
-  rebuildSnapshots: (rest) => rebuildSnapshots({ bookId: rest.bookId as string | undefined }),
+  [ACCOUNTING_ACTIONS.getReport]: handleGetReport,
+  [ACCOUNTING_ACTIONS.rebuildSnapshots]: (rest) => rebuildSnapshots({ bookId: rest.bookId as string | undefined }),
 };
+
+// Actions whose tool-result envelope should carry a `data` field so
+// the sidebar renders a preview card. Everything else returns
+// without `data` and the host gates the preview off (silent action).
+// Reads (lists / reports) and View-driven maintenance ops stay
+// silent — they're invoked from inside the canvas and the LLM will
+// summarise reads in its text reply anyway.
+const PREVIEW_ACTIONS = new Set<string>([
+  ACCOUNTING_ACTIONS.openApp,
+  ACCOUNTING_ACTIONS.createBook,
+  ACCOUNTING_ACTIONS.upsertAccount,
+  ACCOUNTING_ACTIONS.addEntry,
+  ACCOUNTING_ACTIONS.voidEntry,
+  ACCOUNTING_ACTIONS.setOpeningBalances,
+]);
+
+// LLM-facing `message` tacked onto YES actions. The shared trailer
+// ("The accounting view is shown to the user.") tells the LLM that a
+// canvas / sidebar surface is already visible, so its text reply
+// shouldn't redundantly enumerate the result the user can see — it
+// should narrate what was *done*, not re-list what's on screen.
+const VIEW_VISIBLE_TRAILER = "The accounting view is shown to the user.";
+
+type MessageBuilder = (fields: Record<string, unknown>) => string;
+
+const MESSAGE_BUILDERS: Record<string, MessageBuilder> = {
+  [ACCOUNTING_ACTIONS.openApp]: (fields) => {
+    // Include the books list inline so the LLM doesn't need a
+    // follow-up getBooks round-trip before deciding what to do
+    // next (pick a book, create one, etc.).
+    const { books } = fields;
+    const booksFragment = Array.isArray(books) ? ` Books available: ${JSON.stringify(books)}.` : "";
+    return `Mounted the accounting app in the canvas.${booksFragment}`;
+  },
+  [ACCOUNTING_ACTIONS.createBook]: (fields) => {
+    const book = fields.book as { id?: string; name?: string } | undefined;
+    const subject = book?.name ? `A new book named ${JSON.stringify(book.name)}` : "A new book";
+    // The LLM needs book.id to call any follow-up action on this
+    // book (getAccounts, addEntry, etc.), so include it in the
+    // status message instead of forcing a round-trip via getBooks.
+    const idFragment = book?.id ? ` (id: ${book.id})` : "";
+    return `${subject} has been created${idFragment}.`;
+  },
+  [ACCOUNTING_ACTIONS.upsertAccount]: (fields) => {
+    const account = fields.account as { code?: string; name?: string } | undefined;
+    if (account?.code && account?.name) {
+      return `Upserted account ${account.code} ${JSON.stringify(account.name)}.`;
+    }
+    return "Updated the chart of accounts.";
+  },
+  [ACCOUNTING_ACTIONS.addEntry]: (fields) => {
+    const entry = fields.entry as { id?: string; date?: string } | undefined;
+    const idFragment = entry?.id ? ` (id: ${entry.id})` : "";
+    // The LLM needs the entry id to act on this entry later (e.g.
+    // voidEntry), so return it as part of the status message.
+    return `Posted a journal entry on ${entry?.date ?? "the requested date"}${idFragment}.`;
+  },
+  [ACCOUNTING_ACTIONS.voidEntry]: (fields) => {
+    const reverse = fields.reverseEntry as { date?: string } | undefined;
+    return `Voided the entry; a reversing pair was posted on ${reverse?.date ?? "today"}.`;
+  },
+  [ACCOUNTING_ACTIONS.setOpeningBalances]: (fields) => {
+    const opening = fields.openingEntry as { date?: string; lines?: unknown } | undefined;
+    const verb = fields.replacedExisting === true ? "replaced" : "set";
+    const date = opening?.date ?? "the requested date";
+    // Surface the actual lines so the LLM can answer follow-up
+    // questions like "what's my opening cash?" without a separate
+    // getOpeningBalances round-trip. An empty-marker opening
+    // (zero lines, used to unlock the gate) gets no fragment.
+    const lines = Array.isArray(opening?.lines) ? (opening.lines as unknown[]) : [];
+    const linesFragment = lines.length > 0 ? ` Lines: ${JSON.stringify(lines)}.` : "";
+    return `Opening balances were ${verb} as of ${date}.${linesFragment}`;
+  },
+  [ACCOUNTING_ACTIONS.deleteBook]: (fields) => {
+    const bookId = fields.deletedBookId as string | undefined;
+    const name = fields.deletedBookName as string | undefined;
+    const subject = name ? `the book ${JSON.stringify(name)}` : "the book";
+    const idFragment = bookId ? ` (id: ${bookId})` : "";
+    return `Deleted ${subject}${idFragment}.`;
+  },
+};
+
+function previewMessage(action: string, fields: Record<string, unknown>): string {
+  const head = MESSAGE_BUILDERS[action]?.(fields);
+  return head ? `${head} ${VIEW_VISIBLE_TRAILER}` : VIEW_VISIBLE_TRAILER;
+}
 
 async function dispatch(body: AccountingActionBody): Promise<unknown> {
   const { action, ...rest } = body;
@@ -185,7 +272,31 @@ async function dispatch(body: AccountingActionBody): Promise<unknown> {
   // Direct browser callers (the AccountingApp view) ignore the field.
   // Service responses that already set `action` win via the spread.
   const result = await handler(rest);
-  return { action, ...(result && typeof result === "object" ? result : { value: result }) };
+  const handlerFields = result && typeof result === "object" ? (result as Record<string, unknown>) : { value: result };
+  // `data` is the host's preview-eligibility signal (see
+  // SessionSidebar.vue's v-if gate). Mirror the handler payload
+  // into it for the actions that should render a card; leave it
+  // off for silent ones so the gate suppresses the preview.
+  const dataField = PREVIEW_ACTIONS.has(action) ? { data: { action, ...handlerFields } } : {};
+  // The MCP bridge only forwards `message` / `instructions` to the
+  // LLM (`data` / `jsonData` reach the view but not the model). So
+  // every action MUST set a message — silence resolves to "Done"
+  // and gives the LLM nothing to reason about. Resolution order:
+  //   1. handler-set `message` wins (handleOpenApp uses this to flag
+  //      the empty-workspace first-run state with tighter wording);
+  //   2. an action with a registered MESSAGE_BUILDER gets the
+  //      per-action human-friendly summary; this is decoupled from
+  //      PREVIEW_ACTIONS so silent ops like deleteBook can still
+  //      narrate without earning a card;
+  //   3. everything else returns the JSON-stringified handler
+  //      payload so the LLM can read the raw data.
+  const handlerMessage = typeof handlerFields.message === "string" ? handlerFields.message : undefined;
+  const messageField = handlerMessage
+    ? {}
+    : MESSAGE_BUILDERS[action]
+      ? { message: previewMessage(action, handlerFields) }
+      : { message: JSON.stringify(handlerFields) };
+  return { action, ...handlerFields, ...messageField, ...dataField };
 }
 
 router.post(API_ROUTES.accounting.dispatch, async (req: Request<object, unknown, AccountingActionBody>, res: Response<unknown | AccountingErrorResponse>) => {

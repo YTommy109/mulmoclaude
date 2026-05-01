@@ -62,7 +62,7 @@ function validateField(field: FormField, index: number, seenIds: Set<string>): v
   validateRangeField(field);
 }
 
-export const executeForm = async (_context: ToolContext, args: FormArgs): Promise<ToolResult<never, FormData>> => {
+export const executeForm = async (_context: ToolContext, args: FormArgs): Promise<ToolResult<FormData, FormData>> => {
   try {
     const { title, description, fields } = args;
     if (!fields || !Array.isArray(fields) || fields.length === 0) {
@@ -76,6 +76,10 @@ export const executeForm = async (_context: ToolContext, args: FormArgs): Promis
     const titleSuffix = title ? `: ${title}` : "";
     return {
       message: `Form created with ${fieldCount}${titleSuffix}`,
+      // `data` is the view's source (also the host's preview-gate
+      // signal); `jsonData` is what the LLM sees in the tool result.
+      // Same payload, two audiences — keep both in sync.
+      data: formData,
       jsonData: formData,
       instructions:
         "The form has been presented to the user. Wait for the user to fill out and submit it. They will reply with a markdown bullet list of `- {label}: {value}` lines.",

@@ -62,6 +62,11 @@ import type { LayoutMode } from "../utils/canvas/layoutMode";
 const { t } = useI18n();
 
 defineProps<{
+  // Already filtered to "what the user should see" by the parent's
+  // `sidebarResults` computed (see useSessionDerived.ts) — keyboard
+  // navigation, selection, and this render all consume the same
+  // visible-only list so a hidden result can't slip into selected
+  // state and leave the sidebar showing no highlight.
   results: ToolResultComplete[];
   selectedUuid: string | null;
   resultTimestamps: Map<string, number>;

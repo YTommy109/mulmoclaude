@@ -1,5 +1,6 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 import { TOOL_NAMES } from "../../config/toolNames";
+import { ACCOUNTING_ACTIONS } from "./actions";
 
 // MCP tool definition for the accounting plugin.
 //
@@ -25,34 +26,18 @@ const toolDefinition: ToolDefinition = {
     properties: {
       action: {
         type: "string",
-        enum: [
-          "openApp",
-          "listBooks",
-          "createBook",
-          "setActiveBook",
-          "deleteBook",
-          "listAccounts",
-          "upsertAccount",
-          "addEntry",
-          "voidEntry",
-          "listEntries",
-          "getOpeningBalances",
-          "setOpeningBalances",
-          "getReport",
-          "getBookMeta",
-          "rebuildSnapshots",
-        ],
+        enum: Object.values(ACCOUNTING_ACTIONS),
         description:
           "Operation to perform. 'openApp' mounts the full UI; others perform a single read or write. Use 'openApp' when the user wants to browse / interact, and a specific action when the user named the operation.",
       },
       bookId: {
         type: "string",
-        description: "Target book id. Omit to use the currently active book (config.json#activeBookId).",
+        description:
+          "Target book id. Required for every action that reads or writes book data; call 'getBooks' first to enumerate available ids. The only actions that do NOT take a bookId are 'getBooks' and 'createBook' (which creates a fresh one).",
       },
       // openApp / createBook
       name: { type: "string", description: "For 'createBook': human-readable book name." },
       currency: { type: "string", description: "For 'createBook': ISO 4217 currency code (default USD). Single-currency per book." },
-      id: { type: "string", description: "For 'createBook': explicit book id. Omit to let the server auto-generate a unique id." },
       initialTab: { type: "string", description: "For 'openApp': initial tab to show (e.g. 'journal', 'opening', 'balanceSheet')." },
       confirm: { type: "boolean", description: "For 'deleteBook': must be true to actually delete (guard against accidental deletion)." },
       // accounts
@@ -89,10 +74,13 @@ const toolDefinition: ToolDefinition = {
       entryId: { type: "string", description: "For 'voidEntry': id of the entry to void. The reverse + marker pair is appended (journal stays append-only)." },
       reason: { type: "string", description: "For 'voidEntry': human-readable reason." },
       voidDate: { type: "string", description: "For 'voidEntry': YYYY-MM-DD date for the reverse entry (defaults to today)." },
-      // listEntries / getReport ranges
-      from: { type: "string", description: "For 'listEntries': inclusive YYYY-MM-DD lower bound." },
-      to: { type: "string", description: "For 'listEntries': inclusive YYYY-MM-DD upper bound." },
-      accountCode: { type: "string", description: "For 'listEntries' / 'getReport' (kind=ledger): filter to a specific account." },
+      // getJournalEntries / getReport ranges
+      from: { type: "string", description: "For 'getJournalEntries': inclusive YYYY-MM-DD lower bound on entry date." },
+      to: { type: "string", description: "For 'getJournalEntries': inclusive YYYY-MM-DD upper bound on entry date." },
+      accountCode: {
+        type: "string",
+        description: "For 'getJournalEntries' / 'getReport' (kind=ledger): filter to entries that touch a specific account code.",
+      },
       // opening
       asOfDate: {
         type: "string",

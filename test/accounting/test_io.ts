@@ -58,7 +58,7 @@ describe("config.json", () => {
   it("returns null when missing, round-trips when written", async () => {
     const root = makeTmp();
     assert.equal(await readConfig(root), null);
-    const cfg = { activeBookId: "default", books: [{ id: "default", name: "Default", currency: "USD", createdAt: "2026-04-30T00:00:00Z" }] };
+    const cfg = { books: [{ id: "default", name: "Default", currency: "USD", createdAt: "2026-04-30T00:00:00Z" }] };
     await writeConfig(cfg, root);
     assert.deepEqual(await readConfig(root), cfg);
   });

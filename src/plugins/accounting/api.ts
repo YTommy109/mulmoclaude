@@ -9,6 +9,7 @@
 
 import { apiPost, type ApiResult } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
+import { ACCOUNTING_ACTIONS } from "./actions";
 
 export type AccountType = "asset" | "liability" | "equity" | "income" | "expense";
 export type JournalEntryKind = "normal" | "opening" | "void" | "void-marker";
@@ -103,30 +104,26 @@ function call<T>(action: string, args: Record<string, unknown> = {}): Promise<Ap
 
 // ── Books ────────────────────────────────────────────────────────────
 
-export function listBooks(): Promise<ApiResult<{ activeBookId: string | null; books: BookSummary[] }>> {
-  return call("listBooks");
+export function getBooks(): Promise<ApiResult<{ books: BookSummary[] }>> {
+  return call(ACCOUNTING_ACTIONS.getBooks);
 }
 
-export function createBook(input: { name: string; currency?: string; id?: string }): Promise<ApiResult<{ book: BookSummary }>> {
-  return call("createBook", input);
+export function createBook(input: { name: string; currency?: string }): Promise<ApiResult<{ book: BookSummary }>> {
+  return call(ACCOUNTING_ACTIONS.createBook, input);
 }
 
-export function setActiveBook(bookId: string): Promise<ApiResult<{ activeBookId: string }>> {
-  return call("setActiveBook", { bookId });
-}
-
-export function deleteBook(bookId: string): Promise<ApiResult<{ deletedBookId: string; activeBookId: string | null }>> {
-  return call("deleteBook", { bookId, confirm: true });
+export function deleteBook(bookId: string): Promise<ApiResult<{ deletedBookId: string; deletedBookName: string }>> {
+  return call(ACCOUNTING_ACTIONS.deleteBook, { bookId, confirm: true });
 }
 
 // ── Accounts ─────────────────────────────────────────────────────────
 
-export function listAccounts(bookId?: string): Promise<ApiResult<{ bookId: string; accounts: Account[] }>> {
-  return call("listAccounts", { bookId });
+export function getAccounts(bookId: string): Promise<ApiResult<{ bookId: string; accounts: Account[] }>> {
+  return call(ACCOUNTING_ACTIONS.getAccounts, { bookId });
 }
 
-export function upsertAccount(account: Account, bookId?: string): Promise<ApiResult<{ bookId: string; accounts: Account[] }>> {
-  return call("upsertAccount", { account, bookId });
+export function upsertAccount(account: Account, bookId: string): Promise<ApiResult<{ bookId: string; account: Account; accounts: Account[] }>> {
+  return call(ACCOUNTING_ACTIONS.upsertAccount, { account, bookId });
 }
 
 // ── Entries ──────────────────────────────────────────────────────────
@@ -135,59 +132,59 @@ export function addEntry(input: {
   date: string;
   lines: JournalLine[];
   memo?: string;
-  bookId?: string;
+  bookId: string;
 }): Promise<ApiResult<{ bookId: string; entry: JournalEntry }>> {
-  return call("addEntry", input);
+  return call(ACCOUNTING_ACTIONS.addEntry, input);
 }
 
 export function voidEntry(input: {
   entryId: string;
   reason?: string;
-  bookId?: string;
+  bookId: string;
 }): Promise<ApiResult<{ bookId: string; reverseEntry: JournalEntry; markerEntry: JournalEntry }>> {
-  return call("voidEntry", input);
+  return call(ACCOUNTING_ACTIONS.voidEntry, input);
 }
 
-export function listEntries(input: {
+export function getJournalEntries(input: {
   from?: string;
   to?: string;
   accountCode?: string;
-  bookId?: string;
+  bookId: string;
 }): Promise<ApiResult<{ bookId: string; entries: JournalEntry[]; voidedEntryIds: string[] }>> {
-  return call("listEntries", input);
+  return call(ACCOUNTING_ACTIONS.getJournalEntries, input);
 }
 
 // ── Opening balances ─────────────────────────────────────────────────
 
-export function getOpeningBalances(bookId?: string): Promise<ApiResult<{ bookId: string; opening: JournalEntry | null }>> {
-  return call("getOpeningBalances", { bookId });
+export function getOpeningBalances(bookId: string): Promise<ApiResult<{ bookId: string; opening: JournalEntry | null }>> {
+  return call(ACCOUNTING_ACTIONS.getOpeningBalances, { bookId });
 }
 
 export function setOpeningBalances(input: {
   asOfDate: string;
   lines: JournalLine[];
   memo?: string;
-  bookId?: string;
+  bookId: string;
 }): Promise<ApiResult<{ bookId: string; openingEntry: JournalEntry; replacedExisting: boolean }>> {
-  return call("setOpeningBalances", input);
+  return call(ACCOUNTING_ACTIONS.setOpeningBalances, input);
 }
 
 // ── Reports ──────────────────────────────────────────────────────────
 
-export function getBalanceSheet(period: ReportPeriod, bookId?: string): Promise<ApiResult<{ bookId: string; balanceSheet: BalanceSheet }>> {
-  return call("getReport", { kind: "balance", period, bookId });
+export function getBalanceSheet(period: ReportPeriod, bookId: string): Promise<ApiResult<{ bookId: string; balanceSheet: BalanceSheet }>> {
+  return call(ACCOUNTING_ACTIONS.getReport, { kind: "balance", period, bookId });
 }
 
-export function getProfitLoss(period: ReportPeriod, bookId?: string): Promise<ApiResult<{ bookId: string; profitLoss: ProfitLoss }>> {
-  return call("getReport", { kind: "pl", period, bookId });
+export function getProfitLoss(period: ReportPeriod, bookId: string): Promise<ApiResult<{ bookId: string; profitLoss: ProfitLoss }>> {
+  return call(ACCOUNTING_ACTIONS.getReport, { kind: "pl", period, bookId });
 }
 
-export function getLedger(accountCode: string, period?: ReportPeriod, bookId?: string): Promise<ApiResult<{ bookId: string; ledger: Ledger }>> {
-  return call("getReport", { kind: "ledger", accountCode, period, bookId });
+export function getLedger(accountCode: string, period: ReportPeriod | undefined, bookId: string): Promise<ApiResult<{ bookId: string; ledger: Ledger }>> {
+  return call(ACCOUNTING_ACTIONS.getReport, { kind: "ledger", accountCode, period, bookId });
 }
 
 // ── Admin ────────────────────────────────────────────────────────────
 
-export function rebuildSnapshots(bookId?: string): Promise<ApiResult<{ bookId: string; rebuilt: string[] }>> {
-  return call("rebuildSnapshots", { bookId });
+export function rebuildSnapshots(bookId: string): Promise<ApiResult<{ bookId: string; rebuilt: string[] }>> {
+  return call(ACCOUNTING_ACTIONS.rebuildSnapshots, { bookId });
 }
