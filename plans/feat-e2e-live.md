@@ -336,7 +336,8 @@ e2e-live/
 |---|---|---|
 | **L-01** presentHtml 画像描画 | ✅ 実装済 | media.spec.ts、fixture 画像を workspace に配置 → naturalWidth > 0、self-repair guard (readImgRepairAttempted) 追加済 |
 | **L-02** PDF DL | ✅ 実装済 | media.spec.ts、textResponse の PDF ボタン経由 |
-| L-03〜L-30 | 未実装 | カテゴリごとの後続 PR で順次 |
+| **L-03** mulmoScript 動画 DL | ✅ 実装済 | media.spec.ts、 fixture json (`e2e-live/fixtures/mulmo/l03-two-beat.json`) を `artifacts/stories/e2e-live-l03-<project>.json` に seed → LLM に filePath 指示 → Generate Movie ボタン → Download Movie ボタン → MP4 `ftyp` magic bytes 検証 (B-21)。 全 beat `text: ""` + textSlide で TTS / image API 呼ばず、 ffmpeg 不在時は `which ffmpeg` で `test.skip`。 worker 衝突回避のため fixture 名に project slug を埋める |
+| L-04〜L-30 | 未実装 | カテゴリごとの後続 PR で順次 |
 
 ## 実装の詳細
 
@@ -353,6 +354,7 @@ e2e-live/
 | `readImgSrcInPresentHtml(page, imgSelector)` | iframe 内の `<img>` の `src` 属性を取得（リライト後の URL 検証用） |
 | `readImgNaturalSize(page, imgSelector)` | iframe 内の `<img>` の `naturalWidth/Height` を取得（実描画確認） |
 | `readPdfDownload(download)` | `Download` を読み込み `%PDF-` magic bytes を検証、Buffer 返す |
+| `readMovieDownload(download)` | `Download` を読み込み MP4 の `ftyp` magic bytes を検証、Buffer 返す（L-03 用） |
 | `placeFixtureInWorkspace(fixtureRel, workspaceRel)` | `e2e-live/fixtures/<fixtureRel>` を `~/mulmoclaude/<workspaceRel>` にコピー |
 | `removeFromWorkspace(workspaceRel)` | best-effort delete（finally で呼ぶ） |
 | `getCurrentSessionId(page)` | URL から `/chat/<id>` を抽出 |
@@ -360,7 +362,7 @@ e2e-live/
 
 ### testid 必要時の追加方針
 
-実装済の追加: `present-html-iframe`（`src/plugins/presentHtml/View.vue` の iframe）、`text-response-pdf-button`（`src/plugins/textResponse/View.vue` の PDF ボタン）。
+実装済の追加: `present-html-iframe`（`src/plugins/presentHtml/View.vue` の iframe）、`text-response-pdf-button`（`src/plugins/textResponse/View.vue` の PDF ボタン）、`mulmo-script-generate-movie-button` / `mulmo-script-download-movie-button` / `mulmo-script-regenerate-movie-button`（`src/plugins/presentMulmoScript/View.vue` の動画操作 3 ボタン、 L-03 用）。
 
 新規 testid を追加する時は:
 - `data-testid="<plugin>-<role>"` の kebab-case で命名（既存規則）
@@ -775,6 +777,10 @@ artifact name: `mulmoclaude-tarball`（10 MB 程度、`.tgz`）。
   - 通知二重表示 (B-50)
   - Files view `?path=` クリーンアップ (B-30)
 - 関連 PR: #961（B-18 path-traversal 副作用 hotfix、進行中）
+- L-03 実装中に発見した周辺 issue:
+  - **#1049** mulmoclaude README に ffmpeg system 依存の明記がない（一般ユーザー向け docs gap、 動画生成は npx でも system ffmpeg 必要）
+  - **#1073** presentMulmoScript の Play ボタン: text 空 beat で次に自動送りされない（schema は `duration` 用意済、 frontend が audio end のみを cue にしている疑い）
+  - **#1074** presentMulmoScript: beat 編集後「更新」 した内容が別セッションに戻ると消えている疑い（要調査）
 
 ## 直近 main の動向 (#950〜#1000) と本テスト計画への反映
 
