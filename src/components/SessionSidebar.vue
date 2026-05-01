@@ -42,7 +42,11 @@
         >
           {{ formatSmartTime(resultTimestamps.get(result.uuid)!) }}
         </span>
-        <component :is="getPlugin(result.toolName)?.previewComponent" v-if="getPlugin(result.toolName)?.previewComponent" :result="result" />
+        <component
+          :is="getPlugin(result.toolName)?.previewComponent"
+          v-if="getPlugin(result.toolName)?.previewComponent && result.data !== undefined"
+          :result="result"
+        />
         <span v-else class="block truncate p-2">{{ result.title || result.toolName }}</span>
       </div>
     </div>

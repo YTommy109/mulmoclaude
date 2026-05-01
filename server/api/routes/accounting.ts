@@ -173,6 +173,14 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
   rebuildSnapshots: (rest) => rebuildSnapshots({ bookId: rest.bookId as string | undefined }),
 };
 
+// Actions whose tool-result envelope should carry a `data` field so
+// the sidebar renders a preview card. Everything else returns
+// without `data` and the host gates the preview off (silent action).
+// Reads (lists / reports) and View-driven maintenance ops stay
+// silent — they're invoked from inside the canvas and the LLM will
+// summarise reads in its text reply anyway.
+const PREVIEW_ACTIONS = new Set<string>(["openApp", "createBook", "setActiveBook", "upsertAccount", "addEntry", "voidEntry"]);
+
 async function dispatch(body: AccountingActionBody): Promise<unknown> {
   const { action, ...rest } = body;
   const handler = ACTION_HANDLERS[action];
@@ -185,7 +193,13 @@ async function dispatch(body: AccountingActionBody): Promise<unknown> {
   // Direct browser callers (the AccountingApp view) ignore the field.
   // Service responses that already set `action` win via the spread.
   const result = await handler(rest);
-  return { action, ...(result && typeof result === "object" ? result : { value: result }) };
+  const handlerFields = result && typeof result === "object" ? (result as Record<string, unknown>) : { value: result };
+  // `data` is the host's preview-eligibility signal (see
+  // SessionSidebar.vue's v-if gate). Mirror the handler payload
+  // into it for the actions that should render a card; leave it
+  // off for silent ones so the gate suppresses the preview.
+  const dataField = PREVIEW_ACTIONS.has(action) ? { data: { action, ...handlerFields } } : {};
+  return { action, ...handlerFields, ...dataField };
 }
 
 router.post(API_ROUTES.accounting.dispatch, async (req: Request<object, unknown, AccountingActionBody>, res: Response<unknown | AccountingErrorResponse>) => {
