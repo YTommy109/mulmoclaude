@@ -160,10 +160,20 @@ function parseTopicFile(absPath: string, raw: string | null, expectedType: Memor
     log.warn("memory", "topic-io: missing topic", { path: absPath });
     return null;
   }
-  if (!isSafeTopicSlug(topic.trim())) {
+  const topicTrimmed = topic.trim();
+  if (!isSafeTopicSlug(topicTrimmed)) {
     log.warn("memory", "topic-io: unsafe topic slug", { path: absPath, topic });
     return null;
   }
+  // Filename is the source of truth — the index links to it.
+  // A frontmatter `topic` that disagrees with the basename produces
+  // dangling index entries (`type/topic.md` doesn't exist on disk),
+  // which the swap promotes verbatim.
+  const fileTopic = path.basename(absPath, ".md");
+  if (topicTrimmed !== fileTopic) {
+    log.warn("memory", "topic-io: topic / filename mismatch", { path: absPath, topic: topicTrimmed, fileTopic });
+    return null;
+  }
   const sections = extractH2Sections(parsed.body);
-  return { type, topic: topic.trim(), body: parsed.body, sections };
+  return { type, topic: topicTrimmed, body: parsed.body, sections };
 }

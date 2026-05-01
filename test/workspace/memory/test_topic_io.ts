@@ -94,6 +94,22 @@ describe("memory/topic-io — reader tolerance", () => {
     assert.equal(all[0].topic, "art");
   });
 
+  it("skips files whose frontmatter topic disagrees with the filename", async () => {
+    // Otherwise the index would link to `interest/imposter.md` (the
+    // frontmatter topic) — a path that doesn't exist on disk — and
+    // every reader following the link gets a dangling 404.
+    const isolated = await mkdtemp(path.join(tmpdir(), "mulmoclaude-topic-io-mismatch-"));
+    try {
+      const root = topicMemoryRoot(isolated);
+      await mkdir(path.join(root, "interest"), { recursive: true });
+      await writeFile(path.join(root, "interest", "music.md"), "---\ntype: interest\ntopic: imposter\n---\n\n# Music\n\n- something", "utf-8");
+      const all = await loadAllTopicFiles(isolated);
+      assert.deepEqual(all, []);
+    } finally {
+      await rm(isolated, { recursive: true, force: true });
+    }
+  });
+
   it("returns empty when the memory dir does not exist", async () => {
     const fresh = await mkdtemp(path.join(tmpdir(), "mulmoclaude-topic-io-empty-"));
     try {
