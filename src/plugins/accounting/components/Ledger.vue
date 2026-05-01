@@ -61,6 +61,7 @@ import { ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { getLedger, type Account, type Ledger } from "../api";
 import { formatAmount as formatAmountWithCurrency } from "../currencies";
+import { useLatestRequest } from "./useLatestRequest";
 
 const { t } = useI18n();
 
@@ -71,6 +72,7 @@ const accountCode = ref("");
 const ledger = ref<Ledger | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const { begin: beginRequest, isCurrent } = useLatestRequest();
 
 function formatAmount(value: number): string {
   return formatAmountWithCurrency(value, props.currency);
@@ -81,15 +83,21 @@ function formatAccountLabel(account: Account): string {
 }
 
 async function refresh(): Promise<void> {
+  const token = beginRequest();
   if (!accountCode.value) {
     ledger.value = null;
     error.value = null;
+    loading.value = false;
     return;
   }
   loading.value = true;
   error.value = null;
   try {
     const result = await getLedger(accountCode.value, undefined, props.bookId);
+    // Drop the result if a newer refresh started (bookId or
+    // accountCode changed under us) — otherwise a slower earlier
+    // request could overwrite the fresh ledger.
+    if (!isCurrent(token)) return;
     if (!result.ok) {
       error.value = result.error;
       ledger.value = null;
@@ -97,7 +105,7 @@ async function refresh(): Promise<void> {
     }
     ledger.value = result.data.ledger;
   } finally {
-    loading.value = false;
+    if (isCurrent(token)) loading.value = false;
   }
 }
 

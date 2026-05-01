@@ -66,6 +66,7 @@ import { useI18n } from "vue-i18n";
 import { getProfitLoss, type ProfitLoss } from "../api";
 import { formatAmount as formatAmountWithCurrency } from "../currencies";
 import { localDateString, localStartOfYearString } from "../dates";
+import { useLatestRequest } from "./useLatestRequest";
 
 const { t } = useI18n();
 
@@ -76,16 +77,19 @@ const toDate = ref(localDateString());
 const profitLoss = ref<ProfitLoss | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const { begin: beginRequest, isCurrent } = useLatestRequest();
 
 function formatAmount(value: number): string {
   return formatAmountWithCurrency(value, props.currency);
 }
 
 async function refresh(): Promise<void> {
+  const token = beginRequest();
   loading.value = true;
   error.value = null;
   try {
     const result = await getProfitLoss({ kind: "range", from: from.value, to: toDate.value }, props.bookId);
+    if (!isCurrent(token)) return;
     if (!result.ok) {
       error.value = result.error;
       profitLoss.value = null;
@@ -93,7 +97,7 @@ async function refresh(): Promise<void> {
     }
     profitLoss.value = result.data.profitLoss;
   } finally {
-    loading.value = false;
+    if (isCurrent(token)) loading.value = false;
   }
 }
 

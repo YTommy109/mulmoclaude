@@ -92,8 +92,13 @@ async function handleGetReport(rest: ActionRest): Promise<unknown> {
   }
   if (kind === "ledger") {
     // period is optional for ledger — full-history view from the
-    // UI calls getLedger(accountCode, undefined, bookId).
-    return getLedgerReport({ bookId, accountCode: String(rest.accountCode ?? ""), period: periodInput });
+    // UI calls getLedger(accountCode, undefined, bookId). The
+    // account code, however, is mandatory; without it the request
+    // is meaningless and the service would 404 on a blank code.
+    if (typeof rest.accountCode !== "string" || rest.accountCode === "") {
+      throw new AccountingError(400, "getReport ledger: accountCode is required");
+    }
+    return getLedgerReport({ bookId, accountCode: rest.accountCode, period: periodInput });
   }
   throw new AccountingError(400, `getReport: unknown kind ${JSON.stringify(kind)}`);
 }

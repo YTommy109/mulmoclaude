@@ -36,12 +36,13 @@ import {
   writeMeta,
 } from "../utils/files/accounting-io.js";
 import { findActiveOpening, validateOpening } from "./openingBalances.js";
-import { makeEntry, makeVoidEntries, validateEntry } from "./journal.js";
+import { localDateString, makeEntry, makeVoidEntries, validateEntry } from "./journal.js";
 import { aggregateBalances, buildBalanceSheet, buildLedger, buildProfitLoss } from "./report.js";
 import { balancesAtEndOf, getOrBuildSnapshot, rebuildAllSnapshots } from "./snapshotCache.js";
 import { publishBookChange, publishBooksChanged } from "./eventPublisher.js";
 import { DEFAULT_ACCOUNTS } from "./defaultAccounts.js";
 import { log } from "../system/logger/index.js";
+import { ACCOUNTING_BOOK_EVENT_KINDS } from "../../src/config/pubsubChannels.js";
 import type { Account, AccountingConfig, BookSummary, JournalEntry, JournalLine, ReportPeriod } from "./types.js";
 
 export class AccountingError extends Error {
@@ -218,7 +219,7 @@ export async function upsertAccount(input: { bookId?: string; account: Account }
   if (oldType !== null && oldType !== input.account.type) {
     await invalidateAllSnapshots(bookId, workspaceRoot);
   }
-  publishBookChange(bookId, { kind: "accounts" });
+  publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.accounts });
   return { bookId, accounts: next };
 }
 
@@ -239,7 +240,7 @@ export async function addEntry(
   await appendJournal(bookId, entry, workspaceRoot);
   const period = periodFromDate(input.date);
   await invalidateSnapshotsFrom(bookId, period, workspaceRoot);
-  publishBookChange(bookId, { kind: "journal", period });
+  publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.journal, period });
   return { bookId, entry };
 }
 
@@ -263,7 +264,7 @@ export async function voidEntry(
   if (!target) {
     throw new AccountingError(404, `entry ${JSON.stringify(input.entryId)} not found`);
   }
-  const voidDate = input.voidDate ?? new Date().toISOString().slice(0, 10);
+  const voidDate = input.voidDate ?? localDateString();
   const { reverse, marker } = makeVoidEntries(target, input.reason, voidDate);
   await appendJournal(bookId, reverse, workspaceRoot);
   await appendJournal(bookId, marker, workspaceRoot);
@@ -271,7 +272,7 @@ export async function voidEntry(
   // original entry's month and the void's month.
   const fromPeriod = target.date < voidDate ? periodFromDate(target.date) : periodFromDate(voidDate);
   await invalidateSnapshotsFrom(bookId, fromPeriod, workspaceRoot);
-  publishBookChange(bookId, { kind: "journal", period: fromPeriod });
+  publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.journal, period: fromPeriod });
   return { bookId, reverseEntry: reverse, markerEntry: marker };
 }
 
@@ -336,7 +337,7 @@ export async function setOpeningBalances(
   // happened), not the original opening date.
   const existing = findActiveOpening(all);
   if (existing) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateString();
     const { reverse, marker } = makeVoidEntries(existing, "replaced via setOpeningBalances", today);
     await appendJournal(bookId, reverse, workspaceRoot);
     await appendJournal(bookId, marker, workspaceRoot);
@@ -349,7 +350,7 @@ export async function setOpeningBalances(
   });
   await appendJournal(bookId, opening, workspaceRoot);
   await invalidateAllSnapshots(bookId, workspaceRoot);
-  publishBookChange(bookId, { kind: "opening" });
+  publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.opening });
   return { bookId, openingEntry: opening, replacedExisting: existing !== null };
 }
 
@@ -432,7 +433,7 @@ export async function rebuildSnapshots(input: { bookId?: string }, workspaceRoot
   const config = await loadOrInitConfig(workspaceRoot);
   const bookId = resolveBookId(config, input.bookId);
   const result = await rebuildAllSnapshots(bookId, workspaceRoot);
-  publishBookChange(bookId, { kind: "snapshots-ready" });
+  publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.snapshotsReady });
   return { bookId, rebuilt: result.rebuilt };
 }
 

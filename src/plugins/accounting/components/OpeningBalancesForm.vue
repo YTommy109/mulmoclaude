@@ -78,6 +78,7 @@ import { useI18n } from "vue-i18n";
 import { getOpeningBalances, setOpeningBalances, type Account, type JournalEntry, type JournalLine } from "../api";
 import { formatAmount, inputStepFor } from "../currencies";
 import { localDateString } from "../dates";
+import { useLatestRequest } from "./useLatestRequest";
 
 const { t } = useI18n();
 
@@ -95,6 +96,7 @@ const existing = ref<JournalEntry | null>(null);
 const submitting = ref(false);
 const error = ref<string | null>(null);
 const successMessage = ref<string | null>(null);
+const { begin: beginLoad, isCurrent: isCurrentLoad } = useLatestRequest();
 
 const bsAccounts = computed(() => props.accounts.filter((account) => account.type === "asset" || account.type === "liability" || account.type === "equity"));
 
@@ -166,8 +168,13 @@ function freshRows(): Record<string, OpeningRow> {
 async function loadExisting(): Promise<void> {
   // Always start from a fresh row map so a book without an
   // opening doesn't inherit the previous book's draft values.
+  const token = beginLoad();
   const next = freshRows();
   const result = await getOpeningBalances(props.bookId);
+  // Drop the result if the user has switched books since this
+  // call started — otherwise stale rows would land on the new
+  // book's form.
+  if (!isCurrentLoad(token)) return;
   if (!result.ok) {
     existing.value = null;
     rows.value = next;

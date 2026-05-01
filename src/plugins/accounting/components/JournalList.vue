@@ -73,6 +73,7 @@ import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { listEntries, voidEntry, type Account, type JournalEntry, type JournalEntryKind } from "../api";
 import { formatAmount } from "../currencies";
+import { useLatestRequest } from "./useLatestRequest";
 
 const { t } = useI18n();
 
@@ -85,6 +86,7 @@ const accountCode = ref("");
 const entries = ref<JournalEntry[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const { begin: beginRequest, isCurrent } = useLatestRequest();
 
 function kindLabel(kind: JournalEntryKind): string {
   if (kind === "opening") return t("pluginAccounting.journalList.kind.opening");
@@ -104,6 +106,7 @@ function formatAccountLabel(account: Account): string {
 }
 
 async function refresh(): Promise<void> {
+  const token = beginRequest();
   loading.value = true;
   error.value = null;
   try {
@@ -113,6 +116,7 @@ async function refresh(): Promise<void> {
       to: toDate.value || undefined,
       accountCode: accountCode.value || undefined,
     });
+    if (!isCurrent(token)) return;
     if (!result.ok) {
       error.value = result.error;
       entries.value = [];
@@ -120,7 +124,7 @@ async function refresh(): Promise<void> {
     }
     entries.value = result.data.entries;
   } finally {
-    loading.value = false;
+    if (isCurrent(token)) loading.value = false;
   }
 }
 

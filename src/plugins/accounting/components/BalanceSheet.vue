@@ -47,6 +47,7 @@ import { useI18n } from "vue-i18n";
 import { getBalanceSheet, type BalanceSheet } from "../api";
 import { formatAmount as formatAmountWithCurrency } from "../currencies";
 import { localMonthString } from "../dates";
+import { useLatestRequest } from "./useLatestRequest";
 
 const { t } = useI18n();
 
@@ -56,6 +57,7 @@ const period = ref(localMonthString());
 const balanceSheet = ref<BalanceSheet | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const { begin: beginRequest, isCurrent } = useLatestRequest();
 
 function formatAmount(value: number): string {
   return formatAmountWithCurrency(value, props.currency);
@@ -91,10 +93,12 @@ function rowName(row: BSRow): string {
 }
 
 async function refresh(): Promise<void> {
+  const token = beginRequest();
   loading.value = true;
   error.value = null;
   try {
     const result = await getBalanceSheet({ kind: "month", period: period.value }, props.bookId);
+    if (!isCurrent(token)) return;
     if (!result.ok) {
       error.value = result.error;
       balanceSheet.value = null;
@@ -102,7 +106,7 @@ async function refresh(): Promise<void> {
     }
     balanceSheet.value = result.data.balanceSheet;
   } finally {
-    loading.value = false;
+    if (isCurrent(token)) loading.value = false;
   }
 }
 

@@ -41,6 +41,20 @@ function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
+/** Build today's `YYYY-MM-DD` from the host's local timezone.
+ *  Centralised here so server-side defaults (the void-date on
+ *  `voidEntry`, the today() stamp on opening replacements, etc.)
+ *  agree with the client-side `localDateString()` from
+ *  `src/plugins/accounting/dates.ts`. `toISOString().slice(0, 10)`
+ *  would emit a UTC date instead — which silently flips into
+ *  tomorrow / yesterday in negative-offset timezones. */
+export function localDateString(now: Date = new Date()): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 /** Validate that `date` is both shaped as YYYY-MM-DD AND represents
  *  a real calendar day. The bare regex accepts impossible values
  *  like 2026-02-31 or 2026-13-01 which would then poison

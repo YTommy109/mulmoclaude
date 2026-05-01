@@ -140,23 +140,30 @@ function onCreditInput(line: FormLine): void {
   if (line.credit !== null && line.credit !== 0) line.debit = null;
 }
 
+// Imbalance is computed off lines that are *postable* (have an
+// accountCode + a positive amount). Without that filter,
+// `balanced` could be `true` even when `toApiLines()` would drop a
+// row, and the user would hit a confusing "needs ≥ 2 lines" error
+// from the server on submit.
 const imbalance = computed<number>(() => {
   let sum = 0;
   for (const line of lines.value) {
-    if (typeof line.debit === "number") sum += line.debit;
-    if (typeof line.credit === "number") sum -= line.credit;
+    if (!isPostable(line)) continue;
+    if (isPositiveAmount(line.debit)) sum += line.debit;
+    if (isPositiveAmount(line.credit)) sum -= line.credit;
   }
   return sum;
 });
-const hasAtLeastTwoNonzeroLines = computed(() => {
+const hasAtLeastTwoPostableLines = computed(() => {
   let count = 0;
   for (const line of lines.value) {
-    if ((line.debit ?? 0) > 0 || (line.credit ?? 0) > 0) count += 1;
+    if (!isPostable(line)) continue;
+    count += 1;
     if (count >= 2) return true;
   }
   return false;
 });
-const balanced = computed(() => Math.abs(imbalance.value) <= 0.005 && hasAtLeastTwoNonzeroLines.value);
+const balanced = computed(() => Math.abs(imbalance.value) <= 0.005 && hasAtLeastTwoPostableLines.value);
 const imbalanceText = computed(() => formatAmount(imbalance.value, props.currency));
 const step = computed(() => inputStepFor(props.currency));
 
@@ -168,16 +175,18 @@ function isPositiveAmount(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+function isPostable(line: FormLine): boolean {
+  if (!line.accountCode) return false;
+  return isPositiveAmount(line.debit) || isPositiveAmount(line.credit);
+}
+
 function toApiLines(): JournalLine[] {
   const out: JournalLine[] = [];
   for (const line of lines.value) {
-    if (!line.accountCode) continue;
-    const debitOk = isPositiveAmount(line.debit);
-    const creditOk = isPositiveAmount(line.credit);
-    if (!debitOk && !creditOk) continue;
+    if (!isPostable(line)) continue;
     const apiLine: JournalLine = { accountCode: line.accountCode };
-    if (debitOk) apiLine.debit = line.debit as number;
-    if (creditOk) apiLine.credit = line.credit as number;
+    if (isPositiveAmount(line.debit)) apiLine.debit = line.debit;
+    if (isPositiveAmount(line.credit)) apiLine.credit = line.credit;
     out.push(apiLine);
   }
   return out;
