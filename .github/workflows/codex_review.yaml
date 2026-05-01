@@ -155,7 +155,16 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           REPO: ${{ github.repository }}
         run: |
-          codex exec --sandbox workspace-write "$(cat <<PROMPT
+          # `--sandbox danger-full-access` skips bubblewrap entirely.
+          # The default `workspace-write` sandbox tries to create a
+          # network namespace via bwrap, which fails on GitHub
+          # Actions runners with `RTM_NEWADDR: Operation not
+          # permitted` — the runner kernel restricts unprivileged
+          # `unshare` for namespaces. Without bwrap, codex can't
+          # spawn ANY shell command, including `gh`. The runner VM
+          # is itself ephemeral + isolated per job, so dropping the
+          # nested sandbox is safe in this context.
+          codex exec --sandbox danger-full-access "$(cat <<PROMPT
           Review PR #${PR_NUMBER} in ${REPO}.
 
           Use the gh CLI to inspect the diff:
