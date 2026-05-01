@@ -67,6 +67,63 @@ describe("aggregateBalances", () => {
 });
 
 describe("buildBalanceSheet", () => {
+  it("balances during the period by adding a synthetic Current period earnings row", () => {
+    // Reproduces the imbalance scenario the user reported: opening
+    // sets Cash = 50000 / Equity = 50000, then a 200.20 expense is
+    // booked (Office Supplies dr / Cash cr). Without the synthetic
+    // earnings row the B/S would show Assets 49,799.80 vs
+    // Equity 50,000 → imbalance 200.20. With the row, Equity drops
+    // to 49,799.80 and the equation holds.
+    const opening = makeEntry({
+      date: "2026-01-01",
+      kind: "opening",
+      lines: [
+        { accountCode: "1010", debit: 50000 },
+        { accountCode: "3100", credit: 50000 },
+      ],
+    });
+    const expense = makeEntry({
+      date: "2026-04-08",
+      lines: [
+        { accountCode: "5000", debit: 200.2 },
+        { accountCode: "1010", credit: 200.2 },
+      ],
+    });
+    const balances = aggregateBalances([opening, expense]);
+    const accounts: Account[] = [
+      { code: "1010", name: "Bank", type: "asset" },
+      { code: "3100", name: "Retained Earnings", type: "equity" },
+      { code: "5000", name: "Office Supplies", type: "expense" },
+    ];
+    const balanceSheet = buildBalanceSheet({ accounts, balances, asOf: "2026-04-30" });
+    const equity = balanceSheet.sections.find((section) => section.type === "equity");
+    assert.ok(equity);
+    const earningsRow = equity.rows.find((row) => row.accountCode === "_currentEarnings");
+    assert.ok(earningsRow, "expected a Current period earnings row");
+    assert.ok(Math.abs(earningsRow.balance + 200.2) < 0.0001, `earnings should be -200.20, got ${earningsRow.balance}`);
+    assert.ok(Math.abs(balanceSheet.imbalance) < 0.0001, `B/S should balance, got imbalance ${balanceSheet.imbalance}`);
+  });
+  it("omits the earnings row when there is no income / expense activity", () => {
+    const opening = makeEntry({
+      date: "2026-01-01",
+      kind: "opening",
+      lines: [
+        { accountCode: "1010", debit: 50000 },
+        { accountCode: "3100", credit: 50000 },
+      ],
+    });
+    const balances = aggregateBalances([opening]);
+    const accounts: Account[] = [
+      { code: "1010", name: "Bank", type: "asset" },
+      { code: "3100", name: "Retained Earnings", type: "equity" },
+      { code: "5000", name: "Office Supplies", type: "expense" },
+    ];
+    const balanceSheet = buildBalanceSheet({ accounts, balances, asOf: "2026-01-31" });
+    const equity = balanceSheet.sections.find((section) => section.type === "equity");
+    assert.ok(equity);
+    const earningsRow = equity.rows.find((row) => row.accountCode === "_currentEarnings");
+    assert.equal(earningsRow, undefined, "no earnings row should be added when net income is zero");
+  });
   it("presents B/S with natural signs and computes imbalance", () => {
     const opening = makeEntry({
       date: "2026-01-01",

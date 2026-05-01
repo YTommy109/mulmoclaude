@@ -56,8 +56,29 @@ function naturalSign(type: AccountType, netDebit: number): number {
   return -netDebit;
 }
 
+/** Sentinel `accountCode` for the synthetic "Current period
+ *  earnings" row added to the Equity section by `buildBalanceSheet`.
+ *  The View detects this code and substitutes a localised label
+ *  for the fixed English fallback. */
+export const CURRENT_EARNINGS_ACCOUNT_CODE = "_currentEarnings";
+
+function computeCurrentEarnings(accounts: readonly Account[], balanceByCode: ReadonlyMap<string, number>): number {
+  // Σ income − Σ expense, in natural-sign presentation. Without
+  // this synthetic Equity row the B/S would be off by exactly net
+  // income during the period, because closing entries that fold
+  // income/expense into Retained Earnings haven't been booked yet.
+  let earnings = 0;
+  for (const account of accounts) {
+    if (account.type !== "income" && account.type !== "expense") continue;
+    const presented = naturalSign(account.type, balanceByCode.get(account.code) ?? 0);
+    earnings += account.type === "income" ? presented : -presented;
+  }
+  return earnings;
+}
+
 export function buildBalanceSheet(input: { accounts: readonly Account[]; balances: readonly AccountBalance[]; asOf: string }): BalanceSheet {
   const balanceByCode = new Map(input.balances.map((row) => [row.accountCode, row.netDebit]));
+  const currentEarnings = computeCurrentEarnings(input.accounts, balanceByCode);
   const sections: BalanceSheetSection[] = [];
   for (const type of ["asset", "liability", "equity"] as const) {
     const rows: BalanceSheetSection["rows"] = [];
@@ -69,6 +90,10 @@ export function buildBalanceSheet(input: { accounts: readonly Account[]; balance
       if (Math.abs(presented) <= ZERO_TOLERANCE) continue;
       rows.push({ accountCode: account.code, accountName: account.name, balance: presented });
       total += presented;
+    }
+    if (type === "equity" && Math.abs(currentEarnings) > ZERO_TOLERANCE) {
+      rows.push({ accountCode: CURRENT_EARNINGS_ACCOUNT_CODE, accountName: "Current period earnings", balance: currentEarnings });
+      total += currentEarnings;
     }
     sections.push({ type, rows, total });
   }

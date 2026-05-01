@@ -641,6 +641,7 @@ const frMessages = {
       },
       total: "Total",
       imbalance: "Déséquilibre : {amount}",
+      currentEarnings: "Résultat de la période",
     },
     profitLoss: {
       fromLabel: "Du",

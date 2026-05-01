@@ -633,6 +633,7 @@ const zhMessages = {
       },
       total: "合计",
       imbalance: "差额: {amount}",
+      currentEarnings: "当期净损益",
     },
     profitLoss: {
       fromLabel: "起始",

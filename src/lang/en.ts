@@ -643,6 +643,7 @@ const enMessages = {
       sections: { asset: "Assets", liability: "Liabilities", equity: "Equity" },
       total: "Total",
       imbalance: "Imbalance: {amount}",
+      currentEarnings: "Current period earnings",
     },
     profitLoss: { fromLabel: "From", toLabel: "To", income: "Income", expense: "Expense", netIncome: "Net income:" },
     settings: {

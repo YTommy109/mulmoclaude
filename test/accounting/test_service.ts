@@ -194,6 +194,41 @@ describe("opening balances", () => {
 });
 
 describe("reports end-to-end", () => {
+  it("opening + expense produces a balanced B/S (regression: synthetic Current period earnings row)", async () => {
+    // The user reported: enter opening 50,000 USD in Checking,
+    // post one expense (printer 200.20 USD), open Balance Sheet
+    // → imbalance 200.20. The fix adds a synthetic earnings row.
+    const root = makeTmp();
+    await createBook({ name: "Pervasive" }, root);
+    await setOpeningBalances(
+      {
+        asOfDate: "2026-04-01",
+        lines: [
+          { accountCode: "1010", debit: 50000 },
+          { accountCode: "3100", credit: 50000 },
+        ],
+      },
+      root,
+    );
+    await addEntry(
+      {
+        date: "2026-04-08",
+        lines: [
+          { accountCode: "5400", debit: 200.2 },
+          { accountCode: "1010", credit: 200.2 },
+        ],
+        memo: "Printer",
+      },
+      root,
+    );
+    const report = await getBalanceSheetReport({ period: { kind: "month", period: "2026-04" } }, root);
+    assert.ok(Math.abs(report.balanceSheet.imbalance) < 0.0001, `imbalance was ${report.balanceSheet.imbalance}`);
+    const equity = report.balanceSheet.sections.find((section) => section.type === "equity");
+    assert.ok(equity);
+    const earningsRow = equity.rows.find((row) => row.accountCode === "_currentEarnings");
+    assert.ok(earningsRow);
+    assert.ok(Math.abs(earningsRow.balance + 200.2) < 0.0001);
+  });
   it("opening + a few entries → consistent B/S and P/L", async () => {
     const root = makeTmp();
     await createBook({ name: "Test" }, root);

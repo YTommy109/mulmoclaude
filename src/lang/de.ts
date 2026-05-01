@@ -646,6 +646,7 @@ const deMessages = {
       },
       total: "Summe",
       imbalance: "Differenz: {amount}",
+      currentEarnings: "Periodenergebnis",
     },
     profitLoss: {
       fromLabel: "Von",

@@ -132,14 +132,25 @@ const balanced = computed(() => Math.abs(imbalance.value) <= 0.005 && hasAnyNonz
 const imbalanceText = computed(() => formatAmount(imbalance.value, props.currency));
 const step = computed(() => inputStepFor(props.currency));
 
+function isPositiveAmount(value: unknown): value is number {
+  // Robust against the empty string `v-model.number` produces when
+  // the user clears a previously-typed field — without this, the
+  // skip condition `value === 0` was false for `""` and the form
+  // emitted ghost lines like `{accountCode: "3000"}` with no
+  // amount on either side.
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
 function toApiLines(): JournalLine[] {
   const out: JournalLine[] = [];
   for (const code of Object.keys(rows.value)) {
     const row = rows.value[code];
-    if ((row.debit ?? 0) === 0 && (row.credit ?? 0) === 0) continue;
+    const debitOk = isPositiveAmount(row.debit);
+    const creditOk = isPositiveAmount(row.credit);
+    if (!debitOk && !creditOk) continue;
     const line: JournalLine = { accountCode: code };
-    if ((row.debit ?? 0) > 0) line.debit = row.debit ?? undefined;
-    if ((row.credit ?? 0) > 0) line.credit = row.credit ?? undefined;
+    if (debitOk) line.debit = row.debit as number;
+    if (creditOk) line.credit = row.credit as number;
     out.push(line);
   }
   return out;

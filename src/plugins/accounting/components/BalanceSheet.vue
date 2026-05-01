@@ -17,9 +17,11 @@
           <h4 class="text-sm font-semibold mb-2">{{ sectionLabel(section.type) }}</h4>
           <table class="w-full text-sm">
             <tbody>
-              <tr v-for="row in section.rows" :key="row.accountCode" class="border-b border-gray-100">
-                <td class="py-1 px-1 font-mono text-xs">{{ row.accountCode }}</td>
-                <td class="py-1 px-1">{{ row.accountName }}</td>
+              <tr v-for="row in section.rows" :key="row.accountCode" class="border-b border-gray-100" :class="isEarningsRow(row) ? 'italic text-gray-600' : ''">
+                <td class="py-1 px-1 font-mono text-xs">
+                  <span v-if="!isEarningsRow(row)">{{ row.accountCode }}</span>
+                </td>
+                <td class="py-1 px-1">{{ rowName(row) }}</td>
                 <td class="py-1 px-1 text-right font-mono">{{ formatAmount(row.balance) }}</td>
               </tr>
             </tbody>
@@ -67,6 +69,28 @@ function sectionLabel(type: string): string {
   if (type === "liability") return t("pluginAccounting.balanceSheet.sections.liability");
   if (type === "equity") return t("pluginAccounting.balanceSheet.sections.equity");
   return type;
+}
+
+// The server adds a synthetic "Current period earnings" row to the
+// Equity section so the B/S balances during the period (before
+// closing entries fold income/expense into Retained Earnings).
+// `_currentEarnings` is the sentinel accountCode emitted by the
+// server — see CURRENT_EARNINGS_ACCOUNT_CODE in
+// server/accounting/report.ts.
+const CURRENT_EARNINGS_ACCOUNT_CODE = "_currentEarnings";
+
+interface BSRow {
+  accountCode: string;
+  accountName: string;
+  balance: number;
+}
+
+function isEarningsRow(row: BSRow): boolean {
+  return row.accountCode === CURRENT_EARNINGS_ACCOUNT_CODE;
+}
+
+function rowName(row: BSRow): string {
+  return isEarningsRow(row) ? t("pluginAccounting.balanceSheet.currentEarnings") : row.accountName;
 }
 
 async function refresh(): Promise<void> {

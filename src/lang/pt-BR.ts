@@ -639,6 +639,7 @@ const ptBRMessages = {
       },
       total: "Total",
       imbalance: "Diferença: {amount}",
+      currentEarnings: "Resultado do período",
     },
     profitLoss: {
       fromLabel: "De",

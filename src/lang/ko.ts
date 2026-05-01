@@ -637,6 +637,7 @@ const koMessages = {
       },
       total: "합계",
       imbalance: "차액: {amount}",
+      currentEarnings: "당기 순손익",
     },
     profitLoss: {
       fromLabel: "시작",

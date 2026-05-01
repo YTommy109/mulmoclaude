@@ -159,14 +159,24 @@ const balanced = computed(() => Math.abs(imbalance.value) <= 0.005 && hasAtLeast
 const imbalanceText = computed(() => formatAmount(imbalance.value, props.currency));
 const step = computed(() => inputStepFor(props.currency));
 
+function isPositiveAmount(value: unknown): value is number {
+  // Robust against the empty string `v-model.number` produces when
+  // the user clears a previously-typed field — `"" ?? 0 === 0` is
+  // false so a naive truthy check would let the empty input through
+  // as a phantom zero amount.
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
 function toApiLines(): JournalLine[] {
   const out: JournalLine[] = [];
   for (const line of lines.value) {
     if (!line.accountCode) continue;
-    if ((line.debit ?? 0) === 0 && (line.credit ?? 0) === 0) continue;
+    const debitOk = isPositiveAmount(line.debit);
+    const creditOk = isPositiveAmount(line.credit);
+    if (!debitOk && !creditOk) continue;
     const apiLine: JournalLine = { accountCode: line.accountCode };
-    if ((line.debit ?? 0) > 0) apiLine.debit = line.debit ?? undefined;
-    if ((line.credit ?? 0) > 0) apiLine.credit = line.credit ?? undefined;
+    if (debitOk) apiLine.debit = line.debit as number;
+    if (creditOk) apiLine.credit = line.credit as number;
     out.push(apiLine);
   }
   return out;

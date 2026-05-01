@@ -647,6 +647,7 @@ const esMessages = {
       },
       total: "Total",
       imbalance: "Descuadre: {amount}",
+      currentEarnings: "Resultado del período",
     },
     profitLoss: {
       fromLabel: "Desde",
