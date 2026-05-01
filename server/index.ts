@@ -41,6 +41,7 @@ import { makeUuid } from "./utils/id.js";
 import { mcpToolsRouter, mcpTools, isMcpToolEnabled } from "./agent/mcp-tools/index.js";
 import { initWorkspace, workspacePath } from "./workspace/workspace.js";
 import { runMemoryMigrationOnce } from "./workspace/memory/run.js";
+import { runTopicMigrationOnce } from "./workspace/memory/topic-run.js";
 import { env, isGeminiAvailable } from "./system/env.js";
 import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import { existsSync, readFileSync } from "fs";
@@ -84,16 +85,36 @@ const debugMode = process.argv.includes("--debug");
 
 initWorkspace();
 
-// Fire-and-forget legacy-memory migration (#1029). Idempotent: a
-// no-op when there's no `conversations/memory.md` to migrate. We
-// don't await — migration calls Claude per bullet and can take
-// minutes, but the agent can serve traffic in parallel. The brief
-// race window is documented in plans/done/feat-memory-storage-wire.md.
-// The runner logs failures internally; the outer .then(noop, noop)
-// keeps the floating-promises rule happy without smuggling in a
-// `void` (banned by sonarjs/void-use).
+// Fire-and-forget memory migrations: legacy `memory.md` → atomic
+// (#1029), then atomic → topic-format staging (#1070). Chained so
+// that a fresh `memory.md` workspace lands in the topic format on
+// a SINGLE server start instead of needing two restarts (the topic
+// runner used to defer on the first start because legacy was still
+// in flight; now it picks up right after legacy completes).
+//
+// Both runners are idempotent: legacy no-ops when the source file
+// is gone, topic no-ops when the workspace already uses the topic
+// format or staging is already pending review. The agent can serve
+// traffic while the chain runs.
+//
+// `.then(noop, noop)` keeps the floating-promises rule happy
+// without smuggling in a `void` (banned by sonarjs/void-use). Each
+// runner logs its own failures; the chain's outer rejection
+// handler is therefore a hard backstop only.
+//
+// CLEANUP 2026-07-01: this whole chain is one-shot migration code
+// for #1029 + #1070. After every active workspace has flipped to
+// the topic format, delete the chain plus the runners under
+// `server/workspace/memory/` (run.ts / migrate.ts /
+// llm-classifier.ts / topic-run.ts / topic-migrate.ts /
+// topic-cluster.ts / topic-swap.ts) and the
+// `scripts/memory-swap-topic-staging.ts` helper. Topic-format
+// reading / writing (`topic-types.ts`, `topic-io.ts`,
+// `topic-detect.ts`) plus the topic branch in `prompt.ts` stays.
 const noop = (): void => {};
-runMemoryMigrationOnce(workspacePath).then(noop, noop);
+runMemoryMigrationOnce(workspacePath)
+  .then(() => runTopicMigrationOnce(workspacePath))
+  .then(noop, noop);
 
 let sandboxEnabled = false;
 
