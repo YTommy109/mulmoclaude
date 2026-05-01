@@ -190,3 +190,19 @@ watch(
   { immediate: true },
 );
 </script>
+
+<style scoped>
+/* Hide the WebKit / Firefox spin buttons on amount inputs. The
+   step attribute still controls validation; this is purely UI.
+   Accounting amount fields don't benefit from a spinner — users
+   type the number and the up/down arrows just clutter the row. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+</style>
