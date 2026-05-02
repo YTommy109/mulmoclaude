@@ -62,6 +62,41 @@ export function isTopicFilePath(relativePath: string): boolean {
 /** Workspace-relative path to the index file the hook regenerates. */
 export const TOPIC_INDEX_RELATIVE_PATH = "conversations/memory/MEMORY.md";
 
+// Per-workspace FIFO chain. `regenerateTopicIndex` reads the topic
+// directory tree then writes `MEMORY.md` atomically — concurrent
+// invocations would race on the readdir scan, and a fast burst of
+// edits via the file explorer (saving 5 topic files in 200ms) could
+// produce overlapping rebuilds where the second writer overwrites
+// the first with a stale snapshot. The chain ensures one rebuild at
+// a time per workspace; later calls coalesce naturally because the
+// last finishing rebuild already saw every prior write to disk
+// (#1109 review).
+//
+// Keyed by absolute workspace path so a future multi-workspace
+// deployment doesn't cross-serialize unrelated work. In practice
+// `workspacePath` is a process-level constant today, so the map has
+// a single entry — the keying is forward-compatible insurance.
+const regenChains = new Map<string, Promise<unknown>>();
+
+function chainRegen(workspaceRoot: string): Promise<unknown> {
+  const previous = regenChains.get(workspaceRoot) ?? Promise.resolve();
+  const next = previous.then(
+    () => regenerateTopicIndex(workspaceRoot),
+    () => regenerateTopicIndex(workspaceRoot),
+  );
+  // Tail update is unconditional (then with both onFulfilled and
+  // onRejected) so a single failed rebuild doesn't permanently
+  // poison ordering for the next call.
+  regenChains.set(
+    workspaceRoot,
+    next.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return next;
+}
+
 // Fire-and-forget index regeneration for a workspace-relative path.
 // Returns `true` when a regen actually ran — callers (specifically
 // `publishFileChange`) use this to decide whether to emit a follow-up
@@ -71,7 +106,7 @@ export const TOPIC_INDEX_RELATIVE_PATH = "conversations/memory/MEMORY.md";
 export async function maybeRegenerateTopicIndex(relativePath: string): Promise<boolean> {
   if (!isTopicFilePath(relativePath)) return false;
   try {
-    await regenerateTopicIndex(workspacePath);
+    await chainRegen(workspacePath);
     log.debug("memory", "topic-index-hook: regenerated", { trigger: relativePath });
     return true;
   } catch (err) {
@@ -81,4 +116,13 @@ export async function maybeRegenerateTopicIndex(relativePath: string): Promise<b
     });
     return false;
   }
+}
+
+/** Test-only — drop the per-workspace regen chain so each test
+ *  starts with a fresh queue. Without this, a chain rejection from
+ *  one test could carry into the next (the .catch in `chainRegen`
+ *  swallows it for the next caller, but the test runner sees the
+ *  unhandled-rejection from the original promise). */
+export function _resetTopicIndexRegenChainForTesting(): void {
+  regenChains.clear();
 }
