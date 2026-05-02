@@ -38,9 +38,9 @@ export function publishBookChange(bookId: string, payload: AccountingBookChannel
   safePublish(accountingBookChannel(bookId), payload);
 }
 
-/** Fired when the *list* of books changes (createBook, deleteBook,
- *  setActiveBook). Payload is intentionally empty — subscribers
- *  refetch from /api/accounting. */
+/** Fired when the *list* of books changes (createBook, deleteBook).
+ *  Payload is intentionally empty — subscribers refetch from
+ *  /api/accounting. */
 export function publishBooksChanged(): void {
   safePublish(PUBSUB_CHANNELS.accountingBooks, {});
 }

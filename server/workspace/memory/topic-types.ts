@@ -55,6 +55,36 @@ function stripCarriageReturn(line: string): string {
 // suffixed result still fits.
 export const MAX_TOPIC_SLUG_LENGTH = 60;
 
+// Windows refuses to create files with these basenames even with an
+// extension (`con.md` is blocked). Without this gate a clusterer
+// that returns "CON" would slugify to `con`, pass `isSafeTopicSlug`,
+// and then fail migration on Windows. Listed in lowercase since the
+// slugifier lowercases first.
+const WINDOWS_RESERVED_BASENAMES = new Set([
+  "con",
+  "prn",
+  "aux",
+  "nul",
+  "com1",
+  "com2",
+  "com3",
+  "com4",
+  "com5",
+  "com6",
+  "com7",
+  "com8",
+  "com9",
+  "lpt1",
+  "lpt2",
+  "lpt3",
+  "lpt4",
+  "lpt5",
+  "lpt6",
+  "lpt7",
+  "lpt8",
+  "lpt9",
+]);
+
 // Slugify a topic name for use as a filename. `<type>/<topic>.md`
 // must keep `topic` filesystem-safe and short. Collapses anything
 // non-alnum into a single `-`, lowercases, trims trailing
@@ -76,7 +106,10 @@ export function slugifyTopicName(name: string): string | null {
   }
   while (out.length > 0 && out[out.length - 1] === "-") out.pop();
   const compact = out.slice(0, MAX_TOPIC_SLUG_LENGTH).join("");
-  return compact.length > 0 ? trimTrailing(compact, "-") : null;
+  if (compact.length === 0) return null;
+  const trimmed = trimTrailing(compact, "-");
+  if (WINDOWS_RESERVED_BASENAMES.has(trimmed)) return null;
+  return trimmed;
 }
 
 function trimTrailing(text: string, char: string): string {
@@ -104,5 +137,6 @@ export function isSafeTopicSlug(slug: string): boolean {
     if (!ok) return false;
   }
   if (slug === "memory") return false;
+  if (WINDOWS_RESERVED_BASENAMES.has(slug)) return false;
   return true;
 }

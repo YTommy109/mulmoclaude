@@ -93,7 +93,7 @@ import Ledger from "./components/Ledger.vue";
 import BalanceSheet from "./components/BalanceSheet.vue";
 import ProfitLoss from "./components/ProfitLoss.vue";
 import BookSettings from "./components/BookSettings.vue";
-import { getOpeningBalances, listAccounts, listBooks, type Account, type BookSummary } from "./api";
+import { getOpeningBalances, getAccounts, getBooks, type Account, type BookSummary } from "./api";
 import { useAccountingChannel, useAccountingBooksChannel } from "../../composables/useAccountingChannel";
 
 const { t } = useI18n();
@@ -179,22 +179,53 @@ function bumpLocalVersion(): void {
   localVersion.value += 1;
 }
 
-function pickActiveBookId(serverActiveBookId: string | null): string | null {
-  // Only ever point activeBookId at a book that actually exists on
-  // disk. Empty workspace returns null; the View renders its empty
-  // state and the auto-opening NewBookForm prompts for creation.
+// sessionStorage key for "which book is the user currently looking
+// at." There's no server-side active-book state — sessionStorage is
+// scoped to a single browsing context, so each tab keeps its own
+// selection (localStorage would re-couple tabs through shared origin
+// storage and reintroduce the cross-tab interference we just removed).
+const BOOK_ID_STORAGE_KEY = "mulmoclaude.accounting.bookId";
+
+function readStoredBookId(): string | null {
+  try {
+    return sessionStorage.getItem(BOOK_ID_STORAGE_KEY);
+  } catch {
+    // sessionStorage can throw in private-browsing or sandboxed iframes;
+    // a missing prior selection is fine, the picker just falls through.
+    return null;
+  }
+}
+
+function writeStoredBookId(bookId: string | null): void {
+  try {
+    if (bookId) sessionStorage.setItem(BOOK_ID_STORAGE_KEY, bookId);
+    else sessionStorage.removeItem(BOOK_ID_STORAGE_KEY);
+  } catch {
+    // Best-effort — losing the persisted selection only means the
+    // next mount picks a different default book.
+  }
+}
+
+function pickInitialBookId(): string | null {
+  // Priority: explicit `initialPayload.bookId` (LLM-supplied via
+  // openApp) → previously stored selection → most-recently created
+  // book → null (empty workspace). Always validates the candidate
+  // against the live book list so a stale id from localStorage or
+  // a deleted book doesn't poison the View.
   if (books.value.length === 0) return null;
   const requested = initialPayload.value.bookId;
   if (requested && books.value.some((book) => book.id === requested)) return requested;
-  if (serverActiveBookId && books.value.some((book) => book.id === serverActiveBookId)) return serverActiveBookId;
-  return books.value[0].id;
+  const stored = readStoredBookId();
+  if (stored && books.value.some((book) => book.id === stored)) return stored;
+  const [newest] = [...books.value].sort((lhs, rhs) => rhs.createdAt.localeCompare(lhs.createdAt));
+  return newest.id;
 }
 
 async function refetchBooks(): Promise<void> {
   loadingBooks.value = true;
   bookLoadError.value = null;
   try {
-    const result = await listBooks();
+    const result = await getBooks();
     if (!result.ok) {
       // Surface load failures as a distinct error state so the user
       // doesn't see "No books yet" (and the auto-open modal) when
@@ -204,7 +235,7 @@ async function refetchBooks(): Promise<void> {
     }
     books.value = result.data.books;
     const stillExists = activeBookId.value !== null && books.value.some((book) => book.id === activeBookId.value);
-    if (!stillExists) activeBookId.value = pickActiveBookId(result.data.activeBookId);
+    if (!stillExists) activeBookId.value = pickInitialBookId();
     // Auto-open the New Book modal exactly once on first arrival
     // when the workspace is empty. After that, the user can still
     // open it manually via the "+ New book" button.
@@ -230,7 +261,7 @@ async function refetchAccounts(): Promise<void> {
     accounts.value = [];
     return;
   }
-  const result = await listAccounts(activeBookId.value);
+  const result = await getAccounts(activeBookId.value);
   if (!result.ok) return;
   accounts.value = result.data.accounts;
 }
@@ -286,6 +317,10 @@ async function onBookDeleted(): Promise<void> {
 }
 
 watch(activeBookId, (next) => {
+  // Persist the user's current book selection so the next mount
+  // (refresh, new tab, restart) lands on the same book without a
+  // server round-trip.
+  writeStoredBookId(next);
   if (next) void refetchAccounts();
 });
 

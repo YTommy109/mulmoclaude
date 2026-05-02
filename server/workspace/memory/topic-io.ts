@@ -21,15 +21,16 @@ import { parseFrontmatter, serializeWithFrontmatter } from "../../utils/markdown
 import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { readDirSafe, readDirSafeAsync, readTextSafe, readTextSafeSync } from "../../utils/files/safe.js";
 import { log } from "../../system/logger/index.js";
+import { WORKSPACE_DIRS, WORKSPACE_FILES } from "../paths.js";
 import { isMemoryType, MEMORY_TYPES, type MemoryType } from "./types.js";
 import { extractH2Sections, isSafeTopicSlug, type TopicMemoryFile } from "./topic-types.js";
 
 export function topicMemoryRoot(workspaceRoot: string): string {
-  return path.join(workspaceRoot, "conversations", "memory");
+  return path.join(workspaceRoot, WORKSPACE_DIRS.memoryDir);
 }
 
 export function topicMemoryIndexPath(workspaceRoot: string): string {
-  return path.join(topicMemoryRoot(workspaceRoot), "MEMORY.md");
+  return path.join(workspaceRoot, WORKSPACE_FILES.memoryIndex);
 }
 
 export function topicFilePath(workspaceRoot: string, type: MemoryType, topic: string): string {
@@ -92,7 +93,7 @@ export async function writeTopicFile(workspaceRoot: string, file: TopicMemoryFil
   const absPath = path.join(dir, `${file.topic}.md`);
   const content = serializeWithFrontmatter({ type: file.type, topic: file.topic }, file.body);
   await writeFileAtomic(absPath, content, { uniqueTmp: true });
-  return path.posix.join("conversations", "memory", file.type, `${file.topic}.md`);
+  return path.posix.join(WORKSPACE_DIRS.memoryDir, file.type, `${file.topic}.md`);
 }
 
 // Rebuild `MEMORY.md` from the live topic files. Sorted by type
@@ -160,10 +161,20 @@ function parseTopicFile(absPath: string, raw: string | null, expectedType: Memor
     log.warn("memory", "topic-io: missing topic", { path: absPath });
     return null;
   }
-  if (!isSafeTopicSlug(topic.trim())) {
+  const topicTrimmed = topic.trim();
+  if (!isSafeTopicSlug(topicTrimmed)) {
     log.warn("memory", "topic-io: unsafe topic slug", { path: absPath, topic });
     return null;
   }
+  // Filename is the source of truth — the index links to it.
+  // A frontmatter `topic` that disagrees with the basename produces
+  // dangling index entries (`type/topic.md` doesn't exist on disk),
+  // which the swap promotes verbatim.
+  const fileTopic = path.basename(absPath, ".md");
+  if (topicTrimmed !== fileTopic) {
+    log.warn("memory", "topic-io: topic / filename mismatch", { path: absPath, topic: topicTrimmed, fileTopic });
+    return null;
+  }
   const sections = extractH2Sections(parsed.body);
-  return { type, topic: topic.trim(), body: parsed.body, sections };
+  return { type, topic: topicTrimmed, body: parsed.body, sections };
 }

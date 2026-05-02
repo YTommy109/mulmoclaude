@@ -14,7 +14,6 @@
       <option :value="NEW_BOOK_SENTINEL" data-testid="accounting-new-book-option">+ {{ t("pluginAccounting.bookSwitcher.newBook") }}</option>
     </select>
     <NewBookForm v-if="showNewBook" @cancel="showNewBook = false" @created="onCreated" />
-    <p v-if="switchError" class="text-xs text-red-500">{{ switchError }}</p>
   </div>
 </template>
 
@@ -22,7 +21,7 @@
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import NewBookForm from "./NewBookForm.vue";
-import { setActiveBook, type BookSummary } from "../api";
+import type { BookSummary } from "../api";
 
 const { t } = useI18n();
 
@@ -34,18 +33,17 @@ const emit = defineEmits<{
 
 // Sentinel value for the "+ New book" option living inside the
 // books <select>. Picking it opens the modal and reverts the
-// select's displayed value to the active book — the option must
-// not collide with any real book id, which are nanoid-shaped.
+// select's displayed value to the current selection — the option
+// must not collide with any real book id, which are nanoid-shaped.
 const NEW_BOOK_SENTINEL = "__new__";
 
 const showNewBook = ref(false);
-const switchError = ref<string | null>(null);
 
 function formatBookOption(book: BookSummary): string {
   return `${book.name} (${book.currency})`;
 }
 
-async function onSelect(event: Event): Promise<void> {
+function onSelect(event: Event): void {
   const target = event.target as HTMLSelectElement;
   const bookId = target.value;
   if (bookId === NEW_BOOK_SENTINEL) {
@@ -54,15 +52,9 @@ async function onSelect(event: Event): Promise<void> {
     return;
   }
   if (bookId === props.modelValue) return;
-  const result = await setActiveBook(bookId);
-  if (!result.ok) {
-    target.value = props.modelValue;
-    switchError.value = result.error;
-    return;
-  }
-  switchError.value = null;
+  // The View persists the new selection to localStorage; no server
+  // round-trip needed since there's no shared "active book" state.
   emit("update:modelValue", bookId);
-  emit("books-changed");
 }
 
 function onCreated(book: BookSummary): void {

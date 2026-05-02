@@ -62,6 +62,11 @@ import type { LayoutMode } from "../utils/canvas/layoutMode";
 const { t } = useI18n();
 
 defineProps<{
+  // Already filtered to "what the user should see" by the parent's
+  // `sidebarResults` computed (see useSessionDerived.ts) — keyboard
+  // navigation, selection, and this render all consume the same
+  // visible-only list so a hidden result can't slip into selected
+  // state and leave the sidebar showing no highlight.
   results: ToolResultComplete[];
   selectedUuid: string | null;
   resultTimestamps: Map<string, number>;
@@ -73,7 +78,14 @@ defineProps<{
 
 function sourceLabel(result: ToolResultComplete): string {
   if (result.toolName === "text-response") return result.title ?? "Assistant";
-  return result.action ? `${result.toolName}(${result.action})` : result.toolName;
+  // `action` lives on the persisted tool-result (see #670b40a5
+  // `feat(sidebar): use ToolResult.action for multi-feature labels`)
+  // but is not yet declared on `ToolResultComplete` in
+  // `gui-chat-protocol`. Cast to a local view so vue-tsc accepts
+  // the access; runtime is unchanged (it was already returning
+  // `undefined` for results that don't carry one).
+  const { action } = result as { action?: unknown };
+  return typeof action === "string" && action.length > 0 ? `${result.toolName}(${action})` : result.toolName;
 }
 
 const emit = defineEmits<{
