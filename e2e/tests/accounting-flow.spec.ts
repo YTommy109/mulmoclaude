@@ -1,17 +1,26 @@
 // Functional flow for the accounting plugin. Mounts <AccountingApp>
-// via an injected tool_result envelope (the same path the LLM's
-// `openBook` action would hit in production), and drives the canvas
-// against the in-memory mock from e2e/fixtures/accounting.ts. This
-// exercises the empty-state → first-book → journal path without an
-// LLM round-trip per click.
+// via an injected tool_result envelope and drives the canvas against
+// the in-memory mock from e2e/fixtures/accounting.ts.
+//
+// The production LLM path is `createBook → openBook(bookId)`: openBook
+// requires a non-empty, existing bookId (else 400/404). The first
+// test below pins that path against a seeded book; the second pins
+// the defensive first-run fallback the View still renders when the
+// book list comes back empty (a stale envelope or out-of-band delete
+// — not reachable from the LLM).
 
 import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
-import { mockAccountingApi, makeAccountingToolResult } from "../fixtures/accounting";
+import { mockAccountingApi, makeAccountingToolResult, type AccountingSeedBook } from "../fixtures/accounting";
 
 const SESSION_ID = "accounting-session";
 
-async function setupSession(page: Page): Promise<void> {
+interface SetupOpts {
+  books?: readonly AccountingSeedBook[];
+  envelope: { bookId: string | null; initialTab?: string };
+}
+
+async function setupSession(page: Page, opts: SetupOpts): Promise<void> {
   await mockAllApis(page, {
     sessions: [
       {
@@ -24,7 +33,7 @@ async function setupSession(page: Page): Promise<void> {
     ],
   });
 
-  await mockAccountingApi(page);
+  await mockAccountingApi(page, { books: opts.books });
 
   await page.route(
     (url) => url.pathname.startsWith("/api/sessions/") && url.pathname !== "/api/sessions",
@@ -33,25 +42,44 @@ async function setupSession(page: Page): Promise<void> {
         json: [
           { type: "session_meta", roleId: "general", sessionId: SESSION_ID },
           { type: "text", source: "user", message: "Open my books" },
-          makeAccountingToolResult({ bookId: null }),
+          makeAccountingToolResult(opts.envelope),
         ],
       }),
   );
 }
 
 test.describe("accounting plugin — flow", () => {
-  test.beforeEach(async ({ page }) => {
-    await setupSession(page);
-  });
+  test("openBook envelope with a real bookId mounts <AccountingApp> on that book", async ({ page }) => {
+    const SEED_BOOK_ID = "book-seeded-1";
+    await setupSession(page, {
+      books: [{ id: SEED_BOOK_ID, name: "Seeded Book" }],
+      envelope: { bookId: SEED_BOOK_ID },
+    });
 
-  test("openBook envelope mounts <AccountingApp>; empty workspace shows full-page first-run form", async ({ page }) => {
     await page.goto(`/chat/${SESSION_ID}`);
     await expect(page.getByText("MulmoClaude")).toBeVisible();
 
-    // The accounting-app envelope auto-mounts on session load. On
-    // an empty workspace the first-run NewBookForm replaces the
-    // chrome (header + tabs + main) entirely — the regular
-    // no-book empty-state branch does not render in this mode.
+    // Production path: <AccountingApp> mounts on the seeded book and
+    // shows the regular chrome (header + tabs). The first-run form
+    // must NOT render — that branch is reserved for an empty book
+    // list, which can't happen when openBook resolves a real id.
+    await expect(page.getByTestId("accounting-app")).toBeVisible();
+    await expect(page.getByTestId("accounting-tabs")).toBeVisible();
+    await expect(page.getByTestId("accounting-new-book-firstrun")).not.toBeVisible();
+    await expect(page.getByTestId("accounting-no-book")).not.toBeVisible();
+  });
+
+  test("renders full-page first-run form when the workspace is empty (defensive fallback)", async ({ page }) => {
+    // openBook now 400s on a missing bookId, so this state is no
+    // longer reachable from the LLM. The View still renders the
+    // full-page first-run form when refetchBooks() returns an empty
+    // list — defensive against a stale envelope or an out-of-band
+    // delete between mount and book fetch. Pin that behavior here.
+    await setupSession(page, { envelope: { bookId: null } });
+
+    await page.goto(`/chat/${SESSION_ID}`);
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+
     await expect(page.getByTestId("accounting-app")).toBeVisible();
     await expect(page.getByTestId("accounting-new-book-modal")).toBeVisible();
     await expect(page.getByTestId("accounting-new-book-firstrun")).toBeVisible();

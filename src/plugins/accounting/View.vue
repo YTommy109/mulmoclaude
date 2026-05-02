@@ -291,20 +291,44 @@ watch(activeBookId, (next) => {
   if (next) void refetchAccounts();
 });
 
+// Stash a target bookId that we want to land on but haven't been
+// able to apply yet (book not in `books` at the moment the
+// tool-result fired). Cleared as soon as the books list catches up.
+const pendingTargetBookId = ref<string | null>(null);
+
+function applyTargetBookId(target: string): void {
+  if (books.value.some((book) => book.id === target)) {
+    activeBookId.value = target;
+    pendingTargetBookId.value = null;
+    return;
+  }
+  pendingTargetBookId.value = target;
+}
+
 // When the selected tool-result changes (user clicks a different
 // preview card in the sidebar), follow the new result's bookId so
 // the canvas lands on the book that action just touched. Skipped
 // when the new result has no bookId (silent reads / actions that
-// don't carry one) or when it points at a book that no longer
-// exists.
+// don't carry one). When the target isn't in `books` yet — common
+// race after a fresh `createBook → openBook(bookId)` handoff where
+// the result envelope arrives before refetchBooks completes — the
+// id is stashed and applied by the books watcher below as soon as
+// the list catches up.
 watch(
   () => initialPayload.value.bookId,
   (next) => {
     if (!next) return;
-    if (!books.value.some((book) => book.id === next)) return;
-    activeBookId.value = next;
+    applyTargetBookId(next);
   },
 );
+
+// Drains the pending target once `books` includes it (typically
+// after a pub/sub-driven refetch resolves the createBook write).
+// No-op when nothing is pending or the target is still missing.
+watch(books, () => {
+  const pending = pendingTargetBookId.value;
+  if (pending) applyTargetBookId(pending);
+});
 
 // Refetch the opening status whenever the active book changes or
 // any pub/sub / child action bumps bookVersion (e.g. an opening

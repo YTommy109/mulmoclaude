@@ -277,12 +277,31 @@ function dispatch(state: AccountingState, body: DispatchBody): MockResponse {
   return handler(state, body);
 }
 
+export interface AccountingSeedBook {
+  id: string;
+  name: string;
+  currency?: string;
+}
+
 /** Register a mock /api/accounting route on `page`. The mock keeps
  *  in-memory state so multi-step flows (createBook → addEntry →
  *  voidEntry) work end-to-end. Returns the state so tests can
- *  pre-seed before navigation. */
-export async function mockAccountingApi(page: Page): Promise<AccountingState> {
+ *  pre-seed before navigation. Pass `opts.books` to seed the state
+ *  with pre-existing books — useful for tests that need to drive
+ *  `openBook` against a real bookId without first running through
+ *  the createBook flow. */
+export async function mockAccountingApi(page: Page, opts: { books?: readonly AccountingSeedBook[] } = {}): Promise<AccountingState> {
   const state = makeState();
+  for (const seed of opts.books ?? []) {
+    state.books.push({
+      id: seed.id,
+      name: seed.name,
+      currency: seed.currency ?? "USD",
+      createdAt: new Date().toISOString(),
+    });
+    state.accountsByBook.set(seed.id, [...SEED_ACCOUNTS]);
+    state.entriesByBook.set(seed.id, []);
+  }
   await page.route(
     (url) => url.pathname === "/api/accounting",
     async (route: Route) => {
