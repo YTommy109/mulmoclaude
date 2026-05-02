@@ -221,7 +221,6 @@ const enMessages = {
     skills: { label: "Skills", title: "Open skills" },
     roles: { label: "Roles", title: "Open roles" },
     files: { label: "Files", title: "Open workspace files" },
-    memory: { label: "Memory", title: "Open the memory directory in the file explorer" },
   },
   fileContentHeader: {
     showRendered: "Show rendered Markdown",

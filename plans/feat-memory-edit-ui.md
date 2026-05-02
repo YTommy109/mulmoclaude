@@ -15,16 +15,18 @@ This PR closes both.
 
 ## Scope
 
-- **Launcher shortcut** — `PluginLauncher` gains a "Memory" button
-  that routes to `/files/conversations/memory/MEMORY.md`. Same
-  toolbar that already has todos / calendar / wiki / files; one
-  more click target.
 - **Auto-regen index on human edits** — `publishFileChange` (the
   single chokepoint for "a workspace file just got written via the
   app") gets a hook that re-runs `regenerateTopicIndex` when the
   changed path is a topic file (`conversations/memory/<type>/*.md`).
   Async fire-and-forget; failures log but don't block the request.
-- **i18n** — 8-locale entries for `pluginLauncher.memory.{label,title}`.
+
+A launcher button was considered and dropped: `conversations/memory/`
+is already reachable via the existing Files button (drill 3 levels in
+the tree, or click the index links inside `MEMORY.md`). Adding a 10th
+top-bar button + 8-locale strings for a one-click shortcut is not
+worth the chrome cost when the same flow is two more clicks via the
+existing UI.
 
 ## Out of scope
 

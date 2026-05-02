@@ -201,7 +201,6 @@ const zhMessages = {
     skills: { label: "技能", title: "打开技能" },
     roles: { label: "角色", title: "打开角色" },
     files: { label: "文件", title: "打开工作区文件" },
-    memory: { label: "记忆", title: "在文件浏览器中打开记忆目录" },
   },
   fileContentHeader: {
     showRendered: "显示渲染后的 Markdown",

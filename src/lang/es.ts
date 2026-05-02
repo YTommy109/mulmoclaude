@@ -206,7 +206,6 @@ const esMessages = {
     skills: { label: "Skills", title: "Abrir skills" },
     roles: { label: "Roles", title: "Abrir roles" },
     files: { label: "Archivos", title: "Abrir archivos del área de trabajo" },
-    memory: { label: "Memoria", title: "Abrir el directorio de memoria en el explorador de archivos" },
   },
   fileContentHeader: {
     showRendered: "Mostrar Markdown renderizado",
