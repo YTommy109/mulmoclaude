@@ -57,7 +57,7 @@ export interface RuntimePlugin {
 interface PackageJson {
   name?: string;
   version?: string;
-  exports?: Record<string, unknown>;
+  exports?: string | Record<string, unknown>;
   main?: string;
   module?: string;
 }
@@ -69,14 +69,37 @@ const isToolDefinition = (value: unknown): value is ToolDefinition => {
   return typeof value.name === "string" && typeof value.description === "string";
 };
 
-/** Resolve the entry-point path from a plugin's `package.json`. Falls
- *  through `exports["."].import` → `module` → `main` so we cover both
- *  the modern `exports` shape and legacy `main`-only packages. */
+/** Resolve the entry-point path from a plugin's `package.json`. Covers
+ *  the four legal `exports` shapes per the Node.js spec, then falls
+ *  through to `module` / `main` for legacy packages.
+ *
+ *  Legal `exports` forms (Node.js docs):
+ *    1. String sugar:     `"exports": "./index.js"`
+ *    2. Conditional root: `"exports": { "import": "./esm.js", … }`
+ *    3. Subpath map:      `"exports": { ".": "./index.js", "./util": "./util.js", … }`
+ *    4. Subpath + cond.:  `"exports": { ".": { "import": "./esm.js", "require": "./cjs.js" } }`
+ *
+ *  Earlier the loader only matched form (4) and fell straight through
+ *  to `module` / `main`. Real npm packages using forms (1)-(3) failed
+ *  to load (#1077 review). */
 function resolveEntrySpecifier(pkg: PackageJson): string | null {
-  const root = pkg.exports?.["."];
-  if (isRecord(root) && typeof root.import === "string") return root.import;
+  const fromExports = resolveExportsField(pkg.exports);
+  if (fromExports) return fromExports;
   if (typeof pkg.module === "string") return pkg.module;
   if (typeof pkg.main === "string") return pkg.main;
+  return null;
+}
+
+function resolveExportsField(exportsField: PackageJson["exports"]): string | null {
+  // Form 1: top-level string sugar.
+  if (typeof exportsField === "string") return exportsField;
+  if (!isRecord(exportsField)) return null;
+  // Form 2: conditional root (e.g. { import, require }) — `import` wins.
+  if (typeof exportsField.import === "string") return exportsField.import;
+  // Form 3 / 4: subpath map keyed by `.`.
+  const root = exportsField["."];
+  if (typeof root === "string") return root;
+  if (isRecord(root) && typeof root.import === "string") return root.import;
   return null;
 }
 

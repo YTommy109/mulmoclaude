@@ -14,22 +14,39 @@ interface FixtureOpts {
   omitPackageJson?: boolean;
   /** When true, write malformed JSON in `package.json`. */
   corruptPackageJson?: boolean;
+  /** Override the `exports` field shape entirely. Used to exercise
+   *  the four legal Node.js shapes (#1077 review). When set, the
+   *  default conditional-subpath shape is skipped. */
+  exportsField?: unknown;
+  /** When true, omit `exports` and use `main` instead (legacy form). */
+  useMainOnly?: string;
 }
 
 function makeFixture(opts: FixtureOpts = {}): string {
   const dir = mkdtempSync(path.join(tmpdir(), "mulmo-runtime-loader-"));
   if (opts.omitPackageJson) return dir;
-  const pkg = opts.corruptPackageJson
-    ? "{ broken json"
-    : JSON.stringify({
-        name: "@fixture/plugin",
-        version: "1.0.0",
-        type: "module",
-        exports: { ".": { import: opts.exportsImport ?? "./entry.js" } },
-      });
+  const entrySpec = opts.exportsImport ?? "./entry.js";
+  let pkgRecord: Record<string, unknown>;
+  if (opts.useMainOnly) {
+    pkgRecord = {
+      name: "@fixture/plugin",
+      version: "1.0.0",
+      type: "module",
+      main: opts.useMainOnly,
+    };
+  } else {
+    pkgRecord = {
+      name: "@fixture/plugin",
+      version: "1.0.0",
+      type: "module",
+      exports: opts.exportsField ?? { ".": { import: entrySpec } },
+    };
+  }
+  const pkg = opts.corruptPackageJson ? "{ broken json" : JSON.stringify(pkgRecord);
   writeFileSync(path.join(dir, "package.json"), pkg);
   if (opts.corruptPackageJson) return dir;
-  const entryPath = path.join(dir, opts.exportsImport ?? "entry.js");
+  const entryRel = opts.useMainOnly ?? opts.exportsImport ?? "entry.js";
+  const entryPath = path.join(dir, entryRel);
   mkdirSync(path.dirname(entryPath), { recursive: true });
   writeFileSync(
     entryPath,
@@ -175,5 +192,40 @@ describe("loadPluginFromCacheDir", () => {
     );
     const plugin = await loadPluginFromCacheDir("@x/missing-entry", "1.0.0", dir);
     assert.equal(plugin, null);
+  });
+
+  // Cover the four legal `exports` shapes per the Node.js spec.
+  // Earlier the loader only matched the conditional-subpath form
+  // (form 4) and silently fell through to `module` / `main` for the
+  // others. Real npm packages using the simpler forms wouldn't load
+  // (#1077 review).
+  describe("resolveEntrySpecifier — `exports` field shapes", () => {
+    it("loads a plugin with top-level string `exports` (form 1: sugar)", async () => {
+      const dir = makeFixture({ exportsField: "./entry.js" });
+      const plugin = await loadPluginFromCacheDir("@fixture/plugin", "1.0.0", dir);
+      assert.ok(plugin, "string-form `exports` must resolve to the entry");
+      assert.equal(plugin.definition.name, "fixture");
+    });
+
+    it("loads a plugin with conditional-root `exports` (form 2: { import, require })", async () => {
+      const dir = makeFixture({ exportsField: { import: "./entry.js", require: "./entry.cjs" } });
+      const plugin = await loadPluginFromCacheDir("@fixture/plugin", "1.0.0", dir);
+      assert.ok(plugin, "conditional-root `exports.import` must resolve to the entry");
+      assert.equal(plugin.definition.name, "fixture");
+    });
+
+    it('loads a plugin with subpath-string `exports["."]` (form 3)', async () => {
+      const dir = makeFixture({ exportsField: { ".": "./entry.js" } });
+      const plugin = await loadPluginFromCacheDir("@fixture/plugin", "1.0.0", dir);
+      assert.ok(plugin, "subpath-string `exports['.']` must resolve to the entry");
+      assert.equal(plugin.definition.name, "fixture");
+    });
+
+    it("falls back to `main` when `exports` is absent (legacy)", async () => {
+      const dir = makeFixture({ useMainOnly: "./entry.js" });
+      const plugin = await loadPluginFromCacheDir("@fixture/plugin", "1.0.0", dir);
+      assert.ok(plugin, "legacy `main`-only packages must still load");
+      assert.equal(plugin.definition.name, "fixture");
+    });
   });
 });

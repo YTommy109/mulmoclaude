@@ -863,7 +863,14 @@ process.on("SIGTERM", () => {
   try {
     const presets = await loadPresetPlugins();
     const userInstalled = await loadRuntimePlugins();
-    const result = registerRuntimePlugins(MCP_PLUGIN_NAMES, [...presets, ...userInstalled]);
+    // Pass the full static-tool set (MCP plugins + MCP tools like
+    // readXPost / searchX) as the collision policy. The standalone
+    // mcp-server already does this via STATIC_TOOL_NAMES; keeping
+    // index.ts narrower meant a runtime plugin could shadow an MCP
+    // tool in the parent registry while colliding cleanly in the
+    // bridge — visibly inconsistent (#1077 review).
+    const staticToolNames = new Set([...MCP_PLUGIN_NAMES, ...mcpTools.map((tool) => tool.definition.name)]);
+    const result = registerRuntimePlugins(staticToolNames, [...presets, ...userInstalled]);
     log.info("plugins/runtime", "registered runtime plugins", {
       presets: presets.length,
       userInstalled: userInstalled.length,
