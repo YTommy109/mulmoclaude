@@ -38,6 +38,7 @@ const esMessages = {
     attachFile: "Adjuntar archivo",
     fileTooLarge: "El archivo es demasiado grande ({sizeMB} MB). El máximo es 30 MB.",
     unsupportedFileType: "Tipo de archivo no admitido. Se aceptan: imágenes, PDF, DOCX, XLSX, PPTX y archivos de texto.",
+    attachImageFailed: "No se pudo adjuntar la imagen: {error}",
   },
   sessionHistoryPanel: {
     filters: {
