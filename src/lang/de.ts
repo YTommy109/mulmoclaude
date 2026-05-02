@@ -33,6 +33,7 @@ const deMessages = {
     attachFile: "Datei anhängen",
     fileTooLarge: "Datei zu groß ({sizeMB} MB). Das Maximum beträgt 30 MB.",
     unsupportedFileType: "Dateityp nicht unterstützt. Akzeptiert: Bilder, PDF, DOCX, XLSX, PPTX, Textdateien.",
+    attachImageFailed: "Anhängen des Bildes fehlgeschlagen: {error}",
   },
   sessionHistoryPanel: {
     filters: {
