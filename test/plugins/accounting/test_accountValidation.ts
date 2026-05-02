@@ -8,7 +8,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateAccountDraft } from "../../../src/plugins/accounting/components/accountValidation.ts";
+import { validateAccountDraft, validateCodeField, validateNameField } from "../../../src/plugins/accounting/components/accountValidation.ts";
 import type { Account } from "../../../src/plugins/accounting/api.ts";
 import type { AccountDraft } from "../../../src/plugins/accounting/components/accountDraft.ts";
 
@@ -134,5 +134,48 @@ describe("validateAccountDraft", () => {
       // structural rule before the collision.
       assert.equal(validateAccountDraft(draft({ code: "1000" }), EXISTING, true), "codeTypeMismatch");
     });
+  });
+
+  describe("duplicateName", () => {
+    it("rejects a new entry whose name collides with an existing account (case-insensitive)", () => {
+      assert.equal(validateAccountDraft(draft({ code: "5500", name: "  cash  " }), EXISTING, true), "duplicateName");
+    });
+
+    it("rejects an edit whose name collides with a DIFFERENT account", () => {
+      // Renaming Rent (5100) to "Cash" would collide with 1000.
+      assert.equal(validateAccountDraft(draft({ code: "5100", name: "Cash", type: "expense" }), EXISTING, false), "duplicateName");
+    });
+
+    it("does NOT flag the account's own name on edit (self-collision is the upsert path)", () => {
+      assert.equal(validateAccountDraft(draft({ code: "1000", name: "Cash", type: "asset" }), EXISTING, false), null);
+    });
+
+    it("checks code before name (code error wins when both fail)", () => {
+      assert.equal(validateAccountDraft(draft({ code: "_synthetic", name: "Cash" }), EXISTING, true), "reservedCode");
+    });
+  });
+});
+
+describe("validateCodeField", () => {
+  it("returns code-only errors and ignores name issues", () => {
+    assert.equal(validateCodeField(draft({ code: "5100", name: "" }), EXISTING, true), "duplicateCode");
+  });
+
+  it("returns null for a valid code regardless of the name field", () => {
+    assert.equal(validateCodeField(draft({ code: "5500", name: "" }), EXISTING, true), null);
+  });
+});
+
+describe("validateNameField", () => {
+  it("returns name-only errors and ignores code issues", () => {
+    assert.equal(validateNameField(draft({ code: "_bogus", name: "" }), EXISTING, true), "emptyName");
+  });
+
+  it("flags a case-insensitive name collision on a new entry", () => {
+    assert.equal(validateNameField(draft({ code: "5500", name: "RENT" }), EXISTING, true), "duplicateName");
+  });
+
+  it("excludes the account's own row when checking on edit", () => {
+    assert.equal(validateNameField(draft({ code: "1000", name: "Cash", type: "asset" }), EXISTING, false), null);
   });
 });
