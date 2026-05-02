@@ -71,16 +71,18 @@ test.describe("accounting plugin — flow", () => {
 
   test("New Entry tab exposes the per-line tax-registration ID input", async ({ page }) => {
     const SEED_BOOK_ID = "book-tax-id-1";
+    // `withEmptyOpening: true` lets us land on a book whose
+    // opening-gate is already satisfied — without it, the View
+    // hides every tab except `opening` and `settings` until the
+    // user saves an opening, and `accounting-tab-newEntry` would
+    // never render.
     await setupSession(page, {
-      books: [{ id: SEED_BOOK_ID, name: "Seeded Book" }],
+      books: [{ id: SEED_BOOK_ID, name: "Seeded Book", withEmptyOpening: true }],
       envelope: { bookId: SEED_BOOK_ID },
     });
 
     await page.goto(`/chat/${SESSION_ID}`);
     await expect(page.getByTestId("accounting-app")).toBeVisible();
-    // Wait for the tab strip before clicking — `accounting-tabs`
-    // renders only after `showFirstRunForm` is settled, which
-    // depends on the books fetch the View runs on mount.
     await expect(page.getByTestId("accounting-tabs")).toBeVisible();
     await page.getByTestId("accounting-tab-newEntry").click();
 

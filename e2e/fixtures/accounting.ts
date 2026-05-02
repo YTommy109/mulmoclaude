@@ -295,6 +295,12 @@ export interface AccountingSeedBook {
   id: string;
   name: string;
   currency?: string;
+  /** Pre-seed an empty opening entry so the View's opening-gate
+   *  doesn't kick in and hide the journal / newEntry tabs. The View
+   *  treats any opening entry — even one with zero lines — as
+   *  satisfying the gate. Tests that drive flows past the gate set
+   *  this to true so they can land directly on those tabs. */
+  withEmptyOpening?: boolean;
 }
 
 /** Register a mock /api/accounting route on `page`. The mock keeps
@@ -314,7 +320,17 @@ export async function mockAccountingApi(page: Page, opts: { books?: readonly Acc
       createdAt: new Date().toISOString(),
     });
     state.accountsByBook.set(seed.id, [...SEED_ACCOUNTS]);
-    state.entriesByBook.set(seed.id, []);
+    const entries: FakeEntry[] = [];
+    if (seed.withEmptyOpening) {
+      entries.push({
+        id: uniqueId("entry"),
+        date: "2026-04-01",
+        kind: "opening",
+        lines: [],
+        createdAt: new Date().toISOString(),
+      });
+    }
+    state.entriesByBook.set(seed.id, entries);
   }
   await page.route(
     (url) => url.pathname === "/api/accounting",
