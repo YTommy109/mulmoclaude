@@ -94,23 +94,15 @@ function resolveBookId(state: AccountingState, body: DispatchBody): string | Moc
   return body.bookId;
 }
 
-function handleOpenApp(state: AccountingState, body: DispatchBody): MockResponse {
-  const requested = typeof body.bookId === "string" ? body.bookId : null;
-  const bookId = requested && state.books.some((book) => book.id === requested) ? requested : null;
-  const initialTab = typeof body.initialTab === "string" ? body.initialTab : undefined;
-  if (state.books.length === 0) {
-    // Mirrors the server's no-book LLM-facing message — see
-    // server/api/routes/accounting.ts handleOpenApp.
-    return ok({
-      kind: "accounting-app",
-      bookId,
-      initialTab,
-      books: state.books,
-      message:
-        "No books in this workspace yet. The accounting UI is showing a form asking the user to create their first book (name + currency) before any accounting feature can be used.",
-    });
+function handleOpenBook(state: AccountingState, body: DispatchBody): MockResponse {
+  // Mirrors the server's required-bookId contract — see
+  // server/api/routes/accounting.ts handleOpenBook.
+  if (typeof body.bookId !== "string" || body.bookId === "") return missingBookId();
+  if (!state.books.some((book) => book.id === body.bookId)) {
+    return err(404, `book ${JSON.stringify(body.bookId)} not found`);
   }
-  return ok({ kind: "accounting-app", bookId, initialTab, books: state.books });
+  const initialTab = typeof body.initialTab === "string" ? body.initialTab : undefined;
+  return ok({ kind: "accounting-app", bookId: body.bookId, initialTab, books: state.books });
 }
 
 function handleGetBooks(state: AccountingState): MockResponse {
@@ -124,7 +116,7 @@ function handleCreateBook(state: AccountingState, body: DispatchBody): MockRespo
   state.books.push(book);
   state.accountsByBook.set(book.id, [...SEED_ACCOUNTS]);
   state.entriesByBook.set(book.id, []);
-  return ok({ book });
+  return ok({ bookId: book.id, book });
 }
 
 function handleDeleteBook(state: AccountingState, body: DispatchBody): MockResponse {
@@ -261,7 +253,7 @@ function handleGetReport(state: AccountingState, body: DispatchBody): MockRespon
 }
 
 const ACTION_HANDLERS: Record<string, ActionHandler> = {
-  [ACCOUNTING_ACTIONS.openApp]: handleOpenApp,
+  [ACCOUNTING_ACTIONS.openBook]: handleOpenBook,
   [ACCOUNTING_ACTIONS.getBooks]: handleGetBooks,
   [ACCOUNTING_ACTIONS.createBook]: handleCreateBook,
   [ACCOUNTING_ACTIONS.deleteBook]: handleDeleteBook,
@@ -285,12 +277,31 @@ function dispatch(state: AccountingState, body: DispatchBody): MockResponse {
   return handler(state, body);
 }
 
+export interface AccountingSeedBook {
+  id: string;
+  name: string;
+  currency?: string;
+}
+
 /** Register a mock /api/accounting route on `page`. The mock keeps
  *  in-memory state so multi-step flows (createBook → addEntry →
  *  voidEntry) work end-to-end. Returns the state so tests can
- *  pre-seed before navigation. */
-export async function mockAccountingApi(page: Page): Promise<AccountingState> {
+ *  pre-seed before navigation. Pass `opts.books` to seed the state
+ *  with pre-existing books — useful for tests that need to drive
+ *  `openBook` against a real bookId without first running through
+ *  the createBook flow. */
+export async function mockAccountingApi(page: Page, opts: { books?: readonly AccountingSeedBook[] } = {}): Promise<AccountingState> {
   const state = makeState();
+  for (const seed of opts.books ?? []) {
+    state.books.push({
+      id: seed.id,
+      name: seed.name,
+      currency: seed.currency ?? "USD",
+      createdAt: new Date().toISOString(),
+    });
+    state.accountsByBook.set(seed.id, [...SEED_ACCOUNTS]);
+    state.entriesByBook.set(seed.id, []);
+  }
   await page.route(
     (url) => url.pathname === "/api/accounting",
     async (route: Route) => {

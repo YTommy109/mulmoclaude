@@ -47,8 +47,9 @@
             <span v-if="entry.memo">{{ entry.memo }}</span>
           </td>
           <td class="py-1 px-2">
-            <div v-for="(line, idx) in entry.lines" :key="idx" class="text-xs flex gap-2">
-              <span class="font-mono">{{ line.accountCode }}</span>
+            <div v-for="(line, idx) in entry.lines" :key="idx" class="text-xs flex gap-2 items-baseline">
+              <span class="font-mono text-[10px] text-gray-400">{{ line.accountCode }}</span>
+              <span v-if="accountNameFor(line.accountCode)">{{ accountNameFor(line.accountCode) }}</span>
               <span v-if="line.debit">{{ formatDebit(line.debit) }}</span>
               <span v-if="line.credit">{{ formatCredit(line.credit) }}</span>
             </div>
@@ -61,6 +62,14 @@
               @click="onVoid(entry)"
             >
               {{ t("pluginAccounting.journalList.void") }}
+            </button>
+            <button
+              v-else-if="entry.kind === 'opening' && !voidedEntryIds.has(entry.id)"
+              class="text-xs text-blue-600 hover:underline"
+              :data-testid="`accounting-edit-opening-${entry.id}`"
+              @click="emit('editOpening')"
+            >
+              {{ t("pluginAccounting.journalList.edit") }}
             </button>
           </td>
         </tr>
@@ -79,7 +88,7 @@ import { useLatestRequest } from "./useLatestRequest";
 const { t } = useI18n();
 
 const props = defineProps<{ bookId: string; accounts: Account[]; currency: string; version: number }>();
-const emit = defineEmits<{ changed: [] }>();
+const emit = defineEmits<{ changed: []; editOpening: [] }>();
 
 const from = ref("");
 const toDate = ref("");
@@ -105,6 +114,14 @@ function formatCredit(value: number): string {
 }
 function formatAccountLabel(account: Account): string {
   return `${account.code} — ${account.name}`;
+}
+const accountNameByCode = computed(() => {
+  const map = new Map<string, string>();
+  for (const account of props.accounts) map.set(account.code, account.name);
+  return map;
+});
+function accountNameFor(code: string): string | null {
+  return accountNameByCode.value.get(code) ?? null;
 }
 
 async function refresh(): Promise<void> {

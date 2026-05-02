@@ -51,7 +51,7 @@ const plugins: Record<string, PluginEntry> = {
   openCanvas: canvasPlugin,
   presentHtml: presentHtmlPlugin,
   presentChart: presentChartPlugin,
-  editImages: editImagesPlugin,
+  [TOOL_NAMES.editImages]: editImagesPlugin,
   present3D: Present3DPlugin.plugin,
   // weather: now a runtime preset (see import comment above). The
   // runtime registry exposes it under its TOOL_DEFINITION.name
