@@ -220,7 +220,7 @@ Adding a new bullet:
 2. \`Read\` that topic file. Pick the H2 section the bullet fits under (or add a new H2 if none fits — H2 sections are optional, you may also append directly under H1 for a small / new topic).
 3. Append your bullet. Keep it short, one line ideally.
 4. \`Write\` the file back.
-5. The system regenerates \`MEMORY.md\` automatically — you do NOT need to update it by hand.
+5. \`MEMORY.md\` is rebuilt during clustering and on explicit \`regenerateTopicIndex\` calls; individual topic-file writes do NOT update the index immediately. If your bullet adds a new H2 that should appear in the index right away, also \`Write\` an updated \`MEMORY.md\` line for that topic.
 
 Creating a new topic file:
 
