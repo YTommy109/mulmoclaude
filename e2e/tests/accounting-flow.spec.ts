@@ -73,17 +73,21 @@ test.describe("accounting plugin — flow", () => {
     const SEED_BOOK_ID = "book-tax-id-1";
     await setupSession(page, {
       books: [{ id: SEED_BOOK_ID, name: "Seeded Book" }],
-      envelope: { bookId: SEED_BOOK_ID, initialTab: "newEntry" },
+      envelope: { bookId: SEED_BOOK_ID },
     });
 
     await page.goto(`/chat/${SESSION_ID}`);
     await expect(page.getByTestId("accounting-app")).toBeVisible();
+    // Wait for the tab strip before clicking — `accounting-tabs`
+    // renders only after `showFirstRunForm` is settled, which
+    // depends on the books fetch the View runs on mount.
+    await expect(page.getByTestId("accounting-tabs")).toBeVisible();
+    await page.getByTestId("accounting-tab-newEntry").click();
 
-    // Form opens directly via initialTab=newEntry. The per-line
-    // input must be present from the first row — typing into it
-    // should not block the form's balance / submit logic. We
-    // assert the field exists and accepts input; the back-end
-    // round-trip is covered by unit tests.
+    // The per-line input must be present from the first row —
+    // typing into it should not block the form's balance / submit
+    // logic. We assert the field exists and accepts input; the
+    // back-end round-trip is covered by unit tests.
     const taxIdInput = page.getByTestId("accounting-entry-line-tax-registration-id-0");
     await expect(taxIdInput).toBeVisible();
     await taxIdInput.fill("T1234567890123");
