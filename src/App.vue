@@ -508,6 +508,14 @@ watch(sidePanelVisible, (visible, prev) => {
 });
 
 function onPluginNavigate(target: { key: string }): void {
+  if (target.key === "memory") {
+    // `memory` is not a real page — deep-link into the file explorer
+    // at the topic-format index (#1032). The user edits memory by
+    // navigating its markdown files through FilesView like any other
+    // workspace content.
+    router.push({ name: "files", params: { pathMatch: ["conversations", "memory", "MEMORY.md"] } }).catch(() => {});
+    return;
+  }
   if (isPageRouteName(target.key)) {
     router.push({ name: target.key }).catch(() => {});
   }

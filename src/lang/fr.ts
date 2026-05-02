@@ -200,6 +200,7 @@ const frMessages = {
     skills: { label: "Skills", title: "Ouvrir les skills" },
     roles: { label: "Rôles", title: "Ouvrir les rôles" },
     files: { label: "Fichiers", title: "Ouvrir les fichiers du workspace" },
+    memory: { label: "Mémoire", title: "Ouvrir le dossier mémoire dans l'explorateur de fichiers" },
   },
   fileContentHeader: {
     showRendered: "Afficher le Markdown rendu",

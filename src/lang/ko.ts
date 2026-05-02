@@ -205,6 +205,7 @@ const koMessages = {
     skills: { label: "스킬", title: "스킬 열기" },
     roles: { label: "역할", title: "역할 열기" },
     files: { label: "파일", title: "워크스페이스 파일 열기" },
+    memory: { label: "메모리", title: "파일 탐색기에서 메모리 디렉터리 열기" },
   },
   fileContentHeader: {
     showRendered: "렌더링된 Markdown 표시",

@@ -199,6 +199,7 @@ const ptBRMessages = {
     skills: { label: "Skills", title: "Abrir skills" },
     roles: { label: "Papéis", title: "Abrir papéis" },
     files: { label: "Arquivos", title: "Abrir arquivos do workspace" },
+    memory: { label: "Memória", title: "Abrir o diretório de memória no explorador de arquivos" },
   },
   fileContentHeader: {
     showRendered: "Mostrar Markdown renderizado",

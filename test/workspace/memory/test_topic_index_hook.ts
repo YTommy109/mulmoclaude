@@ -1,0 +1,60 @@
+// Unit tests for the topic-index auto-regen hook (#1032).
+//
+// The path predicate is the load-bearing piece: it decides which
+// `publishFileChange` events trigger a regenerate vs become no-ops.
+
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+
+import { isTopicFilePath } from "../../../server/workspace/memory/topic-index-hook.js";
+
+describe("memory/topic-index-hook — isTopicFilePath", () => {
+  it("matches files inside each of the four type subdirs", () => {
+    assert.equal(isTopicFilePath("conversations/memory/preference/dev.md"), true);
+    assert.equal(isTopicFilePath("conversations/memory/interest/music.md"), true);
+    assert.equal(isTopicFilePath("conversations/memory/fact/travel.md"), true);
+    assert.equal(isTopicFilePath("conversations/memory/reference/tasks.md"), true);
+  });
+
+  it("rejects MEMORY.md and other root-level files (the index itself, not a topic)", () => {
+    // The index file IS the regen target — regenerating because it
+    // changed would loop. Exclusion is mandatory.
+    assert.equal(isTopicFilePath("conversations/memory/MEMORY.md"), false);
+    assert.equal(isTopicFilePath("conversations/memory/note.md"), false);
+  });
+
+  it("rejects unrelated workspace paths", () => {
+    assert.equal(isTopicFilePath("conversations/chat/abc.jsonl"), false);
+    assert.equal(isTopicFilePath("data/wiki/pages/foo.md"), false);
+    assert.equal(isTopicFilePath("artifacts/documents/2026/04/note.md"), false);
+    assert.equal(isTopicFilePath(""), false);
+  });
+
+  it("rejects non-markdown files inside the topic subdirs", () => {
+    assert.equal(isTopicFilePath("conversations/memory/fact/travel.json"), false);
+    assert.equal(isTopicFilePath("conversations/memory/preference/dev"), false);
+  });
+
+  it("rejects nested paths under a type subdir (layout is flat)", () => {
+    // The topic format does not allow nesting under a type. A path
+    // like `interest/foo/bar.md` is malformed; not regenerating
+    // for it avoids reinforcing the wrong shape.
+    assert.equal(isTopicFilePath("conversations/memory/interest/foo/bar.md"), false);
+  });
+
+  it("rejects atomic-backup and archived dirs (residual from prior migrations)", () => {
+    // After a swap, the prior atomic layout lives under
+    // `.atomic-backup/<ts>/` inside memory/. Edits there must not
+    // trigger regen — those files are not topic-format and the
+    // backup is intentionally untouched.
+    assert.equal(isTopicFilePath("conversations/memory/.atomic-backup/2026-05-01-1228/preference_yarn.md"), false);
+    assert.equal(isTopicFilePath("conversations/memory/.archived/preference/dev.md"), false);
+  });
+
+  it("rejects type-prefixed paths that just happen to match the prefix string", () => {
+    // The prefix check requires `conversations/memory/<type>/`,
+    // not `conversations/memory<something>/`.
+    assert.equal(isTopicFilePath("conversations/memory_old/preference/dev.md"), false);
+    assert.equal(isTopicFilePath("data/conversations/memory/fact/travel.md"), false);
+  });
+});

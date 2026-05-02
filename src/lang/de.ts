@@ -200,6 +200,7 @@ const deMessages = {
     skills: { label: "Skills", title: "Skills öffnen" },
     roles: { label: "Rollen", title: "Rollen öffnen" },
     files: { label: "Dateien", title: "Workspace-Dateien öffnen" },
+    memory: { label: "Speicher", title: "Speicherverzeichnis im Datei-Explorer öffnen" },
   },
   fileContentHeader: {
     showRendered: "Gerendertes Markdown anzeigen",

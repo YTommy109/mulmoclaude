@@ -43,7 +43,7 @@ export type PluginLauncherKind = "view"; // Switch the canvas to a dedicated vie
 // strings out of this file avoids duplication across locales.
 export interface PluginLauncherTarget {
   /** Stable key for testid + dispatch in App.vue. */
-  key: "todos" | "calendar" | "automations" | "wiki" | "sources" | "news" | "skills" | "roles" | "files";
+  key: "todos" | "calendar" | "automations" | "wiki" | "sources" | "news" | "skills" | "roles" | "files" | "memory";
   kind: PluginLauncherKind;
   /** Material-icons glyph. */
   icon: string;
@@ -67,6 +67,11 @@ const TARGETS: PluginLauncherTarget[] = [
   { key: "skills", kind: "view", icon: "psychology" },
   { key: "roles", kind: "view", icon: "manage_accounts" },
   { key: "files", kind: "view", icon: "folder" },
+  // `memory` deep-links into FilesView at conversations/memory/MEMORY.md
+  // (handled in App.vue#onPluginNavigate). No standalone /memory route
+  // — the topic markdown files are edited through the same explorer
+  // any other workspace file uses.
+  { key: "memory", kind: "view", icon: "bookmarks" },
 ];
 
 // Index AFTER which the visual separator is inserted (between data

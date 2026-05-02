@@ -204,6 +204,7 @@ const jaMessages = {
     skills: { label: "スキル", title: "スキルを開く" },
     roles: { label: "ロール", title: "ロールを開く" },
     files: { label: "ファイル", title: "ワークスペースファイルを開く" },
+    memory: { label: "メモリ", title: "ファイルエクスプローラーでメモリディレクトリを開く" },
   },
   fileContentHeader: {
     showRendered: "レンダリング表示",
