@@ -94,12 +94,32 @@ function resolveExportsField(exportsField: PackageJson["exports"]): string | nul
   // Form 1: top-level string sugar.
   if (typeof exportsField === "string") return exportsField;
   if (!isRecord(exportsField)) return null;
-  // Form 2: conditional root (e.g. { import, require }) — `import` wins.
-  if (typeof exportsField.import === "string") return exportsField.import;
+  // Form 2: conditional root (e.g. `{ import, require, default }`).
+  // `import` wins for ESM; `default` is the spec-mandated fallback
+  // that "always matches" when no other condition does (Codex review
+  // on #1116). An ESM-only package may publish
+  // `{ "default": "./dist/index.js" }` with no `import` key at all —
+  // Node resolves it via `default`, so we must too.
+  const rootCondition = pickEsmCondition(exportsField);
+  if (rootCondition) return rootCondition;
   // Form 3 / 4: subpath map keyed by `.`.
   const root = exportsField["."];
   if (typeof root === "string") return root;
-  if (isRecord(root) && typeof root.import === "string") return root.import;
+  if (isRecord(root)) {
+    const dotCondition = pickEsmCondition(root);
+    if (dotCondition) return dotCondition;
+  }
+  return null;
+}
+
+/** Pick the ESM target from a condition object per Node.js spec
+ *  ordering: `import` (the import-condition match) first, then
+ *  `default` (the universal fallback). Returns null when neither is
+ *  a string (e.g. only `require` is present, or the conditions are
+ *  nested objects this loader doesn't recurse into). */
+function pickEsmCondition(conditions: Record<string, unknown>): string | null {
+  if (typeof conditions.import === "string") return conditions.import;
+  if (typeof conditions.default === "string") return conditions.default;
   return null;
 }
 

@@ -227,5 +227,34 @@ describe("loadPluginFromCacheDir", () => {
       assert.ok(plugin, "legacy `main`-only packages must still load");
       assert.equal(plugin.definition.name, "fixture");
     });
+
+    it("falls back to `default` in a top-level conditional `exports` (ESM-only package, no `import` key)", async () => {
+      // Node.js resolves `exports: { default: "./entry.js" }` via the
+      // `default` condition because it "always matches" when no
+      // earlier condition fired. ESM-only packages may publish in
+      // exactly this shape with no `import` key at all (Codex review
+      // on #1116).
+      const dir = makeFixture({ exportsField: { default: "./entry.js" } });
+      const plugin = await loadPluginFromCacheDir("@fixture/plugin", "1.0.0", dir);
+      assert.ok(plugin, "top-level `exports.default` must resolve to the entry");
+      assert.equal(plugin.definition.name, "fixture");
+    });
+
+    it('falls back to `default` in a subpath conditional `exports["."]`', async () => {
+      const dir = makeFixture({ exportsField: { ".": { default: "./entry.js" } } });
+      const plugin = await loadPluginFromCacheDir("@fixture/plugin", "1.0.0", dir);
+      assert.ok(plugin, "subpath `exports['.'].default` must resolve to the entry");
+      assert.equal(plugin.definition.name, "fixture");
+    });
+
+    it("prefers `import` over `default` in a conditional object", async () => {
+      // When both keys are present, `import` is the more-specific
+      // condition and wins. Sanity: a fixture pointing `default` at a
+      // file we never write proves the loader didn't pick `default`.
+      const dir = makeFixture({ exportsField: { import: "./entry.js", default: "./never-written.js" } });
+      const plugin = await loadPluginFromCacheDir("@fixture/plugin", "1.0.0", dir);
+      assert.ok(plugin, "`import` must take precedence over `default`");
+      assert.equal(plugin.definition.name, "fixture");
+    });
   });
 });
