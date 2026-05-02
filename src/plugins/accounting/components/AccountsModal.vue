@@ -34,10 +34,19 @@
           <div v-if="group.accounts.length === 0" class="text-xs text-gray-400 italic px-1">{{ t("pluginAccounting.common.empty") }}</div>
           <template v-for="account in group.accounts" :key="account.code">
             <AccountRow v-if="editingCode !== account.code" :account="account" @edit="onEdit(account)" @toggle-active="onToggleActive(account)" />
-            <AccountEditor v-else :draft="draft" :is-new="false" :busy="saving" :error="error" @save="onSave" @cancel="onCancelEditor" />
+            <AccountEditor
+              v-else
+              :draft="draft"
+              :is-new="false"
+              :busy="saving"
+              :error="error"
+              :existing-accounts="accounts"
+              @save="onSave"
+              @cancel="onCancelEditor"
+            />
           </template>
           <div v-if="addingNew && draft.type === group.type" :ref="(node) => bindNewEditor(node, group.type)">
-            <AccountEditor :draft="draft" is-new :busy="saving" :error="error" @save="onSave" @cancel="onCancelEditor" />
+            <AccountEditor :draft="draft" is-new :busy="saving" :error="error" :existing-accounts="accounts" @save="onSave" @cancel="onCancelEditor" />
           </div>
           <button
             v-else
@@ -83,6 +92,7 @@ const VALIDATION_MESSAGE_KEYS: Record<AccountValidationError, string> = {
   codeTypeMismatch: "pluginAccounting.accounts.errorCodeTypeMismatch",
   emptyName: "pluginAccounting.accounts.errorEmptyName",
   duplicateCode: "pluginAccounting.accounts.errorDuplicateCode",
+  duplicateName: "pluginAccounting.accounts.errorDuplicateName",
 };
 
 interface AccountGroup {
@@ -226,13 +236,15 @@ async function onToggleActive(account: Account): Promise<void> {
   // single click to undo.
   //
   // Toggle uses its own `toggleSaving` / `toggleError` refs rather
-  // than the AccountEditor's shared `saving` / `error` so that:
-  //   1. a toggle while an editor is open doesn't clear the
-  //      editor's validation message or pin its Save button to
-  //      "Saving…", and
-  //   2. a toggle failure still surfaces (via the toggle banner)
-  //      when no editor is mounted to render `:error`.
+  // than the AccountEditor's shared `saving` / `error` so that a
+  // toggle failure still surfaces (via the toggle banner) when no
+  // editor is mounted to render `:error`.
   if (toggleSaving.value) return;
+  // Dismiss any open editor — the row about to (de)activate may be
+  // the same one being edited, and even when it isn't, the user has
+  // shifted attention to the toggle. Unsaved edits are dropped per
+  // product call: reopening Edit is one click.
+  onCancelEditor();
   const willDeactivate = account.active !== false;
   toggleSaving.value = true;
   toggleError.value = null;
@@ -254,7 +266,6 @@ async function onToggleActive(account: Account): Promise<void> {
       toggleError.value = result.error;
       return;
     }
-    showSuccess(t("pluginAccounting.accounts.success"));
     emit("changed");
   } catch (err) {
     toggleError.value = err instanceof Error ? err.message : String(err);
