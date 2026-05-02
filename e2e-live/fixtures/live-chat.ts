@@ -211,6 +211,18 @@ export async function sendChatMessage(page: Page, text: string): Promise<void> {
 }
 
 /**
+ * Switch the active role via the dropdown. App.vue's `onRoleChange`
+ * spins up a fresh session in the new role on chat pages, so callers
+ * are expected to capture the new session id (after the next user
+ * turn) for cleanup. Idempotent: calling with the already-active role
+ * still works because the dropdown emits `change` on every selection.
+ */
+export async function selectRole(page: Page, roleId: string): Promise<void> {
+  await page.getByTestId("role-selector-btn").click();
+  await page.getByTestId(`role-option-${roleId}`).click();
+}
+
+/**
  * Wait for an `<img>` matching the selector to appear *inside* the
  * presentHtml iframe. The iframe element itself is appended to the
  * DOM before its srcdoc finishes rendering, so a plain `iframe`

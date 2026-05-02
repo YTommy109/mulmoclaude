@@ -1,19 +1,27 @@
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
-import { deleteSession, getCurrentSessionId, sendChatMessage, startNewSession, waitForAssistantResponseComplete } from "../fixtures/live-chat.ts";
+import { deleteSession, getCurrentSessionId, selectRole, sendChatMessage, startNewSession, waitForAssistantResponseComplete } from "../fixtures/live-chat.ts";
 
-const L06_TIMEOUT_MS = 2 * ONE_MINUTE_MS;
+const ROLE_TURN_TIMEOUT_MS = 2 * ONE_MINUTE_MS;
+// "single word: hello" intentionally stays a no-tool-call prompt so
+// every role variant pays the same flat agent round-trip — no MCP
+// fan-out, no image gen, no spreadsheet build. The turn is purely a
+// canary for B-41 (deferred-tools switch had broken every role's
+// first-turn dispatch) and the role-selector wiring (B-15 used to
+// keep input disabled on roles that needed Gemini).
+const SINGLE_WORD_PROMPT = "Reply with the single word: hello";
 
 test.describe.configure({ mode: "parallel" });
 
 test.describe("roles (real LLM)", () => {
   test("L-06: General ロールで 1 ターン → 入力欄 enabled + 応答完走", async ({ page }) => {
-    test.setTimeout(L06_TIMEOUT_MS);
+    test.setTimeout(ROLE_TURN_TIMEOUT_MS);
     // Covers B-15 (General used to be disabled when GEMINI_API_KEY
     // was missing) and B-41 (deferred-tools switch broke role tool
-    // calls). The "single word" prompt is enough to drive a full
-    // turn without paying for TTS / image generation.
+    // calls). General is the default, so unlike L-07/08/09 we do not
+    // call selectRole — startNewSession lands us here directly and
+    // we assert that as the B-15 canary.
     let sessionIdForCleanup: string | null = null;
     try {
       await startNewSession(page);
@@ -25,7 +33,7 @@ test.describe("roles (real LLM)", () => {
       // specifically).
       await expect(page.getByTestId("role-selector-btn"), "default role must be General — B-15 canary").toHaveAttribute("data-role", "general");
       await expect(page.getByTestId("user-input"), "input must be enabled — B-15 used to disable it on this role").toBeEnabled();
-      await sendChatMessage(page, "Reply with the single word: hello");
+      await sendChatMessage(page, SINGLE_WORD_PROMPT);
       await waitForAssistantResponseComplete(page);
       // The empty-session placeholder lingers in DOM longer than the
       // thinking-indicator on chromium even after the reply lands, so
@@ -39,4 +47,49 @@ test.describe("roles (real LLM)", () => {
       if (sessionIdForCleanup !== null) await deleteSession(page, sessionIdForCleanup);
     }
   });
+
+  test("L-07: Office ロールで 1 ターン → 応答完走", async ({ page }) => {
+    test.setTimeout(ROLE_TURN_TIMEOUT_MS);
+    await runRoleSampleTurn(page, "office");
+  });
+
+  test("L-08: Tutor ロールで 1 ターン → 応答完走", async ({ page }) => {
+    test.setTimeout(ROLE_TURN_TIMEOUT_MS);
+    await runRoleSampleTurn(page, "tutor");
+  });
+
+  test("L-09: Storyteller ロールで 1 ターン → 応答完走", async ({ page }) => {
+    test.setTimeout(ROLE_TURN_TIMEOUT_MS);
+    await runRoleSampleTurn(page, "storyteller");
+  });
 });
+
+/**
+ * Shared B-41 canary for non-default roles. Switches into `roleId`
+ * (App.vue's onRoleChange spins up a fresh session in that role on
+ * chat pages — see useCurrentRole + createNewSession), runs one
+ * tool-free turn, and asserts the session id stuck. The earlier
+ * General session is intentionally orphaned without cleanup since it
+ * carries no messages and {@link deleteSession} only handles the
+ * final session captured in the URL.
+ */
+async function runRoleSampleTurn(page: Page, roleId: string): Promise<void> {
+  let sessionIdForCleanup: string | null = null;
+  try {
+    await startNewSession(page);
+    await selectRole(page, roleId);
+    // Wait for the role chip to flip to the new id before driving
+    // the input — the selection is async (App.vue spins up a new
+    // session in the new role) and a too-eager send would land in
+    // the old General session.
+    await expect(page.getByTestId("role-selector-btn"), `role chip must reflect ${roleId} after switch (B-41 canary)`).toHaveAttribute("data-role", roleId);
+    await expect(page.getByTestId("user-input"), "input must be enabled on this role").toBeEnabled();
+    await sendChatMessage(page, SINGLE_WORD_PROMPT);
+    await waitForAssistantResponseComplete(page);
+    const sessionId = getCurrentSessionId(page);
+    expect(sessionId, `session id should be present after a successful ${roleId} turn (B-41 canary)`).not.toBeNull();
+    sessionIdForCleanup = sessionId;
+  } finally {
+    if (sessionIdForCleanup !== null) await deleteSession(page, sessionIdForCleanup);
+  }
+}
