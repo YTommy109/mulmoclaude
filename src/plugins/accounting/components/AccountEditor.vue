@@ -16,11 +16,17 @@
              editable input is restricted to the trailing 3 digits.
              The prefix span communicates the rule visually without
              needing a separate help string. -->
+        <!-- The trailing-3-digit input has `outline-none bg-transparent`
+             so the prefix span and the editable digits read as one
+             pill. That removes the browser's default focus indicator,
+             so we surface it on the wrapper via `focus-within:ring-1`
+             — same shape as the name input below — to keep the field
+             keyboard-discoverable (#1115 review). -->
         <div
           v-if="isNew"
           :class="[
             'flex items-stretch h-8 rounded border bg-white text-sm font-mono overflow-hidden',
-            codeError ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300',
+            codeError ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus-within:ring-1 focus-within:ring-blue-500',
           ]"
         >
           <span
