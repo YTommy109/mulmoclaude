@@ -43,7 +43,7 @@ New file: `src/plugins/accounting/components/AccountsModal.vue`.
 
 Modal uses the same overlay pattern as `NewBookForm.vue` (modal mode) — `fixed inset-0 z-50 bg-black/20 flex items-center justify-center`. Backdrop click + `Esc` key + Cancel button all close. Body is a fixed-width card (`w-[28rem]` or so), max-height capped to viewport with scrolling so a long chart of accounts doesn't blow the layout.
 
-```
+```text
 ┌─ Manage accounts ─────────────────────── ✕ ─┐
 │                                              │
 │  Assets                                      │
@@ -66,7 +66,7 @@ Modal uses the same overlay pattern as `NewBookForm.vue` (modal mode) — `fixed
 
 When the user clicks `[Edit]` on a row OR `[+ Add account]`, the row (or the trailing block) expands into an inline editor:
 
-```
+```text
   ┌────────────────────────────────────────┐
   │ Code  [____]  Name  [_______________]  │
   │ Type  [select v]  Note  [__________]   │

@@ -7,13 +7,14 @@
     class="fixed inset-0 z-50 bg-black/20 flex items-center justify-center"
     role="dialog"
     aria-modal="true"
+    aria-labelledby="accounting-accounts-modal-title"
     data-testid="accounting-accounts-modal"
     @click.self="onBackdropClick"
     @keydown.esc="emit('close')"
   >
     <div class="bg-white rounded shadow-lg w-[32rem] max-h-[80vh] flex flex-col">
       <header class="flex items-center justify-between px-4 py-2 border-b border-gray-200 shrink-0">
-        <h3 class="text-base font-semibold">{{ t("pluginAccounting.accounts.modalTitle") }}</h3>
+        <h3 id="accounting-accounts-modal-title" class="text-base font-semibold">{{ t("pluginAccounting.accounts.modalTitle") }}</h3>
         <button
           ref="closeButton"
           type="button"
@@ -60,6 +61,7 @@ import { upsertAccount, type Account, type AccountType } from "../api";
 import AccountRow from "./AccountRow.vue";
 import AccountEditor from "./AccountEditor.vue";
 import type { AccountDraft } from "./accountDraft";
+import { validateAccountDraft, type AccountValidationError } from "./accountValidation";
 
 const { t } = useI18n();
 
@@ -70,8 +72,14 @@ const emit = defineEmits<{ close: []; changed: [] }>();
 // P/L). Section titles are pulled from i18n via the literal type
 // keys, so this array drives both ordering and visibility.
 const ACCOUNT_TYPES: readonly AccountType[] = ["asset", "liability", "equity", "income", "expense"];
-const RESERVED_PREFIX = "_";
 const SUCCESS_FADE_MS = 2500;
+
+const VALIDATION_MESSAGE_KEYS: Record<AccountValidationError, string> = {
+  emptyCode: "pluginAccounting.accounts.errorEmptyCode",
+  reservedCode: "pluginAccounting.accounts.errorReservedCode",
+  emptyName: "pluginAccounting.accounts.errorEmptyName",
+  duplicateCode: "pluginAccounting.accounts.errorDuplicateCode",
+};
 
 interface AccountGroup {
   type: AccountType;
@@ -128,20 +136,8 @@ function onCancelEditor(): void {
 }
 
 function validateDraft(next: AccountDraft, isNew: boolean): string | null {
-  const trimmedCode = next.code.trim();
-  const trimmedName = next.name.trim();
-  if (trimmedCode.length === 0) return t("pluginAccounting.accounts.errorEmptyCode");
-  if (trimmedCode.startsWith(RESERVED_PREFIX)) return t("pluginAccounting.accounts.errorReservedCode");
-  if (trimmedName.length === 0) return t("pluginAccounting.accounts.errorEmptyName");
-  // For a brand-new entry, the code must not collide with an
-  // existing account. Without this guard, the server would silently
-  // overwrite the existing account's name / type / note (the
-  // "upsert" semantic), which is rarely what the user typing into
-  // the "Add account" form intended.
-  if (isNew && props.accounts.some((account) => account.code === trimmedCode)) {
-    return t("pluginAccounting.accounts.errorDuplicateCode");
-  }
-  return null;
+  const code = validateAccountDraft(next, props.accounts, isNew);
+  return code === null ? null : t(VALIDATION_MESSAGE_KEYS[code]);
 }
 
 async function onSave(next: AccountDraft): Promise<void> {
