@@ -67,7 +67,15 @@ router.post(API_ROUTES.plugins.runtimeDispatch, async (req: Request<{ pkg: strin
   }
   const args = isRecord(req.body) ? req.body : {};
   try {
-    const result = await plugin.execute(args);
+    // gui-chat-protocol's ToolPluginCore.execute is
+    // `(context: ToolContext, args) => Promise<ToolResult>`. The
+    // server has no UI-side state to share, so context is an empty
+    // object — but it MUST be the first arg, otherwise the plugin
+    // destructures its args from `undefined` and the call fails with
+    // "Cannot destructure property '<field>' of '<arg>' as it is
+    // undefined".
+    const context = {};
+    const result = await plugin.execute(context, args);
     // Forward whatever the plugin returns as the response body
     // (mirrors static plugin routes — see plugins.ts). MCP server
     // spreads this into the toolResult event downstream.

@@ -45,10 +45,13 @@ export interface RuntimePlugin {
    *  across @gui-chat-plugin packages is to export it under the same
    *  key as `TOOL_DEFINITION.name` (e.g. weather → `fetchWeather`,
    *  browse → `browse`); we capture it at load time so the dispatch
-   *  route doesn't have to re-resolve. `null` means the module
-   *  shipped a TOOL_DEFINITION but no matching handler — the
-   *  dispatch will 500 with a useful message. */
-  execute: ((args: unknown) => unknown) | null;
+   *  route doesn't have to re-resolve. The signature follows
+   *  gui-chat-protocol's `ToolPluginCore.execute`:
+   *  `(context: ToolContext, args) => Promise<ToolResult>` — context
+   *  first, args second. `null` means the module shipped a
+   *  TOOL_DEFINITION but no matching handler — the dispatch will 500
+   *  with a useful message. */
+  execute: ((context: unknown, args: unknown) => unknown) | null;
 }
 
 interface PackageJson {
@@ -156,7 +159,7 @@ export async function loadPluginFromCacheDir(name: string, version: string, cach
     // plugin still appears in tools/list but the dispatch will fail
     // with a clear server log + 500.
     const handler = mod[definition.name];
-    const execute = typeof handler === "function" ? (handler as (args: unknown) => unknown) : null;
+    const execute = typeof handler === "function" ? (handler as (context: unknown, args: unknown) => unknown) : null;
     if (!execute) {
       log.warn(LOG_PREFIX, "no execute handler matching TOOL_DEFINITION.name — dispatch will fail", { name, expectedExport: definition.name });
     }

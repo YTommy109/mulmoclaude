@@ -14,7 +14,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { resolvePluginRoot } from "../../../server/api/routes/runtime-plugin.ts";
+import express from "express";
+import type { AddressInfo } from "node:net";
+import runtimePluginRouter, { resolvePluginRoot } from "../../../server/api/routes/runtime-plugin.ts";
 import { registerRuntimePlugins, _resetRuntimeRegistryForTest } from "../../../server/plugins/runtime-registry.ts";
 import type { RuntimePlugin } from "../../../server/plugins/runtime-loader.ts";
 
@@ -108,5 +110,55 @@ describe("resolvePluginRoot — registry membership", () => {
     assert.ok(result, "registered cachePath resolves regardless of where on disk it points");
     // But a different (pkg, version) still doesn't reach it.
     assert.equal(resolvePluginRoot(`../${path.basename(outsideDir)}`, "1.0.0"), null);
+  });
+});
+
+// gui-chat-protocol's `ToolPluginCore.execute` signature is
+// `(context: ToolContext, args) => Promise<ToolResult>`. The dispatch
+// route MUST call it with both args in that order — when callers
+// passed only the args object, plugins like @gui-chat-plugin/weather
+// crashed inside their handler with "Cannot destructure property
+// 'areaCode' of '<arg>' as it is undefined" because the destructured
+// arg landed in the unused first slot and the real args slot was
+// undefined.
+describe("POST /api/plugins/runtime/:pkg/dispatch — call signature", () => {
+  it("invokes plugin.execute with (context, args) in order", async () => {
+    const calls: { context: unknown; args: unknown }[] = [];
+    const spyPlugin: RuntimePlugin = {
+      name: "@fixture/spy",
+      version: "1.0.0",
+      cachePath: fixtureDir,
+      definition: {
+        type: "function",
+        name: "tool_spy",
+        description: "fixture",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+      execute: async (context: unknown, args: unknown) => {
+        calls.push({ context, args });
+        return { ok: true };
+      },
+    };
+    registerRuntimePlugins(new Set(), [spyPlugin]);
+
+    const app = express();
+    app.disable("x-powered-by");
+    app.use(express.json());
+    app.use(runtimePluginRouter);
+    const server = app.listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      const res = await fetch(`http://127.0.0.1:${port}/api/plugins/runtime/${encodeURIComponent("@fixture/spy")}/dispatch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ areaCode: "130000" }),
+      });
+      assert.equal(res.status, 200, await res.text());
+      assert.equal(calls.length, 1);
+      assert.deepEqual(calls[0].args, { areaCode: "130000" }, "args must arrive as the SECOND parameter");
+      assert.ok(calls[0].context !== undefined, "context must be a defined value (empty object is fine), not omitted");
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });

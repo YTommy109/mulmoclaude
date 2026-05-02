@@ -109,6 +109,18 @@ export default defineConfig({
         index: path.resolve(__dirname, 'index.html'),
         'runtime-vue': path.resolve(__dirname, 'src/_runtime/vue.ts'),
       },
+      // Force every named re-export from `src/_runtime/vue.ts` to be
+      // preserved in the emitted chunk. Without `'strict'`, Rolldown
+      // tree-shakes the `export * from "vue"` re-exports (no static
+      // consumer in the build references them — the browser does,
+      // via the runtime importmap), shrinking the chunk to a 46-byte
+      // side-effect stub. A runtime-loaded plugin's
+      // `import { createCommentVNode } from "vue"` then fails with
+      // "does not provide an export named 'createCommentVNode'".
+      // `'strict'` is the public-library mode and matches what we
+      // want here: the entry's exports ARE the public surface for
+      // browser-side consumers.
+      preserveEntrySignatures: 'strict',
     },
   },
   server: {
