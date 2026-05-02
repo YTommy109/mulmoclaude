@@ -1,5 +1,5 @@
 <template>
-  <!-- Full <AccountingApp> mounted via the openApp tool result.
+  <!-- Full <AccountingApp> mounted via the openBook tool result.
        Talks to /api/accounting directly for browse / form ops; only
        the entry gate (this mount) runs through the LLM. Pub/sub
        refetches keep multi-tab / sibling-window views in sync. -->
@@ -84,6 +84,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import BookSwitcher from "./components/BookSwitcher.vue";
 import NewBookForm from "./components/NewBookForm.vue";
 import JournalList from "./components/JournalList.vue";
@@ -104,7 +105,7 @@ interface AccountingAppPayload {
   initialTab?: string;
 }
 
-const props = defineProps<{ data?: AccountingAppPayload; jsonData?: AccountingAppPayload }>();
+const props = defineProps<{ selectedResult?: ToolResultComplete<AccountingAppPayload, AccountingAppPayload> }>();
 
 const TAB_KEYS = ["journal", "newEntry", "opening", "ledger", "balanceSheet", "profitLoss", "settings"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -129,7 +130,7 @@ function isTabKey(value: string | undefined): value is TabKey {
   return typeof value === "string" && (TAB_KEYS as readonly string[]).includes(value);
 }
 
-const initialPayload = computed<AccountingAppPayload>(() => props.data ?? props.jsonData ?? {});
+const initialPayload = computed<AccountingAppPayload>(() => props.selectedResult?.data ?? props.selectedResult?.jsonData ?? {});
 const initialTab = computed<TabKey>(() => (isTabKey(initialPayload.value.initialTab) ? initialPayload.value.initialTab : "journal"));
 
 const currentTab = ref<TabKey>(initialTab.value);
@@ -179,46 +180,16 @@ function bumpLocalVersion(): void {
   localVersion.value += 1;
 }
 
-// sessionStorage key for "which book is the user currently looking
-// at." There's no server-side active-book state — sessionStorage is
-// scoped to a single browsing context, so each tab keeps its own
-// selection (localStorage would re-couple tabs through shared origin
-// storage and reintroduce the cross-tab interference we just removed).
-const BOOK_ID_STORAGE_KEY = "mulmoclaude.accounting.bookId";
-
-function readStoredBookId(): string | null {
-  try {
-    return sessionStorage.getItem(BOOK_ID_STORAGE_KEY);
-  } catch {
-    // sessionStorage can throw in private-browsing or sandboxed iframes;
-    // a missing prior selection is fine, the picker just falls through.
-    return null;
-  }
-}
-
-function writeStoredBookId(bookId: string | null): void {
-  try {
-    if (bookId) sessionStorage.setItem(BOOK_ID_STORAGE_KEY, bookId);
-    else sessionStorage.removeItem(BOOK_ID_STORAGE_KEY);
-  } catch {
-    // Best-effort — losing the persisted selection only means the
-    // next mount picks a different default book.
-  }
-}
-
 function pickInitialBookId(): string | null {
-  // Priority: explicit `initialPayload.bookId` (LLM-supplied via
-  // openApp) → previously stored selection → most-recently created
-  // book → null (empty workspace). Always validates the candidate
-  // against the live book list so a stale id from localStorage or
-  // a deleted book doesn't poison the View.
+  // Priority: explicit `initialPayload.bookId` (carried in the
+  // tool-result envelope by openBook / createBook / addEntry / …) →
+  // first book in the list → null (empty workspace). The candidate
+  // is validated against the live book list so a stale id from a
+  // deleted book doesn't poison the View.
   if (books.value.length === 0) return null;
   const requested = initialPayload.value.bookId;
   if (requested && books.value.some((book) => book.id === requested)) return requested;
-  const stored = readStoredBookId();
-  if (stored && books.value.some((book) => book.id === stored)) return stored;
-  const [newest] = [...books.value].sort((lhs, rhs) => rhs.createdAt.localeCompare(lhs.createdAt));
-  return newest.id;
+  return books.value[0].id;
 }
 
 async function refetchBooks(): Promise<void> {
@@ -317,11 +288,46 @@ async function onBookDeleted(): Promise<void> {
 }
 
 watch(activeBookId, (next) => {
-  // Persist the user's current book selection so the next mount
-  // (refresh, new tab, restart) lands on the same book without a
-  // server round-trip.
-  writeStoredBookId(next);
   if (next) void refetchAccounts();
+});
+
+// Stash a target bookId that we want to land on but haven't been
+// able to apply yet (book not in `books` at the moment the
+// tool-result fired). Cleared as soon as the books list catches up.
+const pendingTargetBookId = ref<string | null>(null);
+
+function applyTargetBookId(target: string): void {
+  if (books.value.some((book) => book.id === target)) {
+    activeBookId.value = target;
+    pendingTargetBookId.value = null;
+    return;
+  }
+  pendingTargetBookId.value = target;
+}
+
+// When the selected tool-result changes (user clicks a different
+// preview card in the sidebar), follow the new result's bookId so
+// the canvas lands on the book that action just touched. Skipped
+// when the new result has no bookId (silent reads / actions that
+// don't carry one). When the target isn't in `books` yet — common
+// race after a fresh `createBook → openBook(bookId)` handoff where
+// the result envelope arrives before refetchBooks completes — the
+// id is stashed and applied by the books watcher below as soon as
+// the list catches up.
+watch(
+  () => initialPayload.value.bookId,
+  (next) => {
+    if (!next) return;
+    applyTargetBookId(next);
+  },
+);
+
+// Drains the pending target once `books` includes it (typically
+// after a pub/sub-driven refetch resolves the createBook write).
+// No-op when nothing is pending or the target is still missing.
+watch(books, () => {
+  const pending = pendingTargetBookId.value;
+  if (pending) applyTargetBookId(pending);
 });
 
 // Refetch the opening status whenever the active book changes or
