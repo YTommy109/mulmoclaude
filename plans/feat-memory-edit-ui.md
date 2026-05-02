@@ -44,26 +44,22 @@ existing UI.
 
 ## Implementation notes
 
-- The launcher key `"memory"` is NOT a real `PAGE_ROUTES` entry. So
-  `App.vue#onPluginNavigate` special-cases it to push the deep-link
-  URL instead of `router.push({ name })`.
-- The active-state highlight (`isActive(target)`) compares against
-  `activeViewMode` which is the page route name. When the user is
-  on `/files/conversations/memory/...` the active page is `"files"`,
-  not `"memory"`, so the Memory button stays unlit. Acceptable —
-  the Files button lights up in that state, which is honest
-  signaling.
 - `regenerateTopicIndex` walks all topic files, so calling it on
   every memory edit is O(N) per write. For our workspace size this
-  is microsecond cost; if it becomes a hotspot we can debounce.
+  is microsecond cost; concurrent writes are coalesced through a
+  per-workspace FIFO chain (`chainRegen` in `topic-index-hook.ts`)
+  so a fast burst of edits produces sequential rebuilds rather than
+  racing on the readdir scan.
+- `isTopicFilePath` enforces the same shape gate the writer uses
+  (`isSafeTopicSlug`): lowercase alnum + `-` only, length 1–60, no
+  dotdir subtree, no nesting under a type directory. A malformed
+  file dropped manually under a type subdir won't trigger a regen
+  for an entry the loader would later skip anyway.
 
 ## Tests
 
 - `topic-detect` already tests the format-detection signal.
-- New: a unit test for the publishFileChange hook predicate
-  (matches `conversations/memory/<type>/*.md`, doesn't match
-  unrelated paths or `.md` files at the memory root).
-- New: PluginLauncher renders the memory button + emits navigate
-  with the expected key.
-- App.vue's `onPluginNavigate` special-case is small enough to
-  cover via a focused unit test on a helper.
+- `test_topic_index_hook.ts` covers the predicate on positive /
+  negative paths plus the slug-shape gate, including the reserved
+  `memory` slug (would alias `MEMORY.md` on case-insensitive
+  filesystems).
