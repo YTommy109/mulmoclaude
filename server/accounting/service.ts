@@ -33,6 +33,7 @@ import {
   writeConfig,
 } from "../utils/files/accounting-io.js";
 import { findActiveOpening, validateOpening } from "./openingBalances.js";
+import { normalizeStoredAccount } from "./accountNormalize.js";
 import { localDateString, makeEntry, makeVoidEntries, validateEntry, voidedIdSet } from "./journal.js";
 import { aggregateBalances, buildBalanceSheet, buildLedger, buildProfitLoss } from "./report.js";
 import { awaitRebuildIdle, balancesAtEndOf, cancelRebuild, getOrBuildSnapshot, rebuildAllSnapshots, scheduleRebuild } from "./snapshotCache.js";
@@ -214,24 +215,11 @@ export async function upsertAccount(
   const existingIdx = accounts.findIndex((account) => account.code === input.account.code);
   const next = [...accounts];
   const oldType = existingIdx >= 0 ? accounts[existingIdx].type : null;
-  // Whitelist the persisted fields so unknown keys from a
-  // mistyped LLM call don't leak into accounts.json. `active` is
-  // only stored when explicitly false — the default-active
-  // assumption keeps existing books' files unchanged.
-  const stored: Account = { code: input.account.code, name: input.account.name, type: input.account.type };
-  if (typeof input.account.note === "string" && input.account.note.length > 0) stored.note = input.account.note;
-  // Active-flag policy on update is opt-in to change:
-  //   - explicit `false` → store `false` (deactivate)
-  //   - explicit `true` → omit (reactivate; default-active)
-  //   - omitted (`undefined`) → inherit the existing flag, so a
-  //     caller editing only name/type/note doesn't accidentally
-  //     reactivate a soft-deleted account. This matters for
-  //     LLM-driven upserts (and any older client) that send only
-  //     code/name/type — without the inheritance, every such call
-  //     would silently flip the account back into entry/ledger
-  //     dropdowns.
-  const inheritInactive = input.account.active === undefined && existingIdx >= 0 && accounts[existingIdx].active === false;
-  if (input.account.active === false || inheritInactive) stored.active = false;
+  // Whitelist + active-flag policy lives in normalizeStoredAccount
+  // (see ./accountNormalize.ts) so the rules are unit-testable in
+  // isolation and this service function stays focused on the
+  // file-IO + snapshot-invalidation orchestration.
+  const stored = normalizeStoredAccount(input.account, existingIdx >= 0 ? accounts[existingIdx] : undefined);
   if (existingIdx >= 0) {
     next[existingIdx] = stored;
   } else {
