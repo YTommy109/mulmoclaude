@@ -298,6 +298,48 @@ export async function readImgRepairAttempted(page: Page, imgSelector: string): P
   return marker !== null;
 }
 
+const GENERATE_IMAGE_VIEW_SELECTOR = '[data-testid="generate-image-view"]';
+
+/**
+ * Wait for the generateImage canvas view to render an `<img>` — i.e.
+ * the LLM called the tool, the server returned an `imageData` path,
+ * and the SPA mounted ImageView with a non-empty `resolvedSrc`. Use
+ * before reading src / naturalWidth so the spec does not race the
+ * ImageView placeholder ("No image yet").
+ */
+export async function waitForGeneratedImage(page: Page, timeoutMs: number = ONE_MINUTE_MS): Promise<void> {
+  const view = page.locator(GENERATE_IMAGE_VIEW_SELECTOR);
+  await expect(view.locator("img").first()).toBeVisible({ timeout: timeoutMs });
+}
+
+/**
+ * Read the unresolved `src` attribute of the generated image. After
+ * PR #969 / #972 introduced the `/artifacts/images/` static mount,
+ * `resolveImageSrcFresh` produces `/artifacts/images/<path>?v=<bump>`,
+ * so the caller can assert the prefix to catch regressions in the
+ * image storage / resolve chain.
+ */
+export async function readGeneratedImageSrc(page: Page): Promise<string | null> {
+  const img = page.locator(GENERATE_IMAGE_VIEW_SELECTOR).locator("img").first();
+  if ((await img.count()) === 0) return null;
+  return await img.getAttribute("src");
+}
+
+/**
+ * Read `naturalWidth` / `naturalHeight` of the generated image. Both
+ * 0 means the static mount returned a non-decodable response (404,
+ * empty file, wrong MIME) — that is the failure mode we want to
+ * detect end-to-end, paralleling the iframe-side `readImgNaturalSize`.
+ */
+export async function readGeneratedImageNaturalSize(page: Page): Promise<{ width: number; height: number } | null> {
+  const img = page.locator(GENERATE_IMAGE_VIEW_SELECTOR).locator("img").first();
+  if ((await img.count()) === 0) return null;
+  return await img.evaluate((node) => {
+    if (!(node instanceof HTMLImageElement)) return { width: 0, height: 0 };
+    return { width: node.naturalWidth, height: node.naturalHeight };
+  });
+}
+
 const PDF_MAGIC = Buffer.from("%PDF-", "ascii");
 const PDF_EOF = Buffer.from("%%EOF", "ascii");
 // PDF spec writes %%EOF in the last few hundred bytes; widen to

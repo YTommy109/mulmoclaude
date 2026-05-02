@@ -337,11 +337,12 @@ e2e-live/
 | **L-01** presentHtml 画像描画 | ✅ 実装済 | media.spec.ts、fixture 画像を workspace に配置 → naturalWidth > 0、self-repair guard (readImgRepairAttempted) 追加済 |
 | **L-02** PDF DL | ✅ 実装済 | media.spec.ts、textResponse の PDF ボタン経由 |
 | **L-03** mulmoScript 動画 DL | ✅ 実装済 | media.spec.ts、 fixture json (`e2e-live/fixtures/mulmo/l03-two-beat.json`) を `artifacts/stories/e2e-live-l03-<project>.json` に seed → LLM に filePath 指示 → Generate Movie ボタン → Download Movie ボタン → MP4 `ftyp` magic bytes 検証 (B-21)。 全 beat `text: ""` + textSlide で TTS / image API 呼ばず、 ffmpeg 不在時は `which ffmpeg` で `test.skip`。 worker 衝突回避のため fixture 名に project slug を埋める |
+| **L-05** generateImage 実画像描画 | ✅ 実装済 | media.spec.ts、 「猫の絵」 prompt + `generateImage ツールを使ってください` 指示で tool 呼出 → `[generate-image-view]` testid を `src/plugins/generateImage/View.vue` に追加 → `<img>` の src が `/artifacts/images/...` で始まること + `naturalWidth > 0` を assert (decode を待つため `expect.toPass`)。 `GEMINI_API_KEY` は server 側に必要 (test process 側では skip 判定しない、 dotenv が test runner で動かないため) |
 | **L-06** General role 1 ターン | ✅ 実装済 | roles.spec.ts、 `Reply with the single word: hello` で 1 ターン → role-selector が "General" + user-input enabled (B-15) + session id が払い出される (B-41) を検証 |
 | **L-11** session reload 復元 | ✅ 実装済 | session.spec.ts、 `Reply with the single word: pong` 後に reload → 2 段階の locale-agnostic assertion (B-14): (1) `getCurrentSessionId(page)` で URL `/chat/<id>` から session id を抽出して reload 前後の equality を比較、 (2) `page.getByText("Reply with ...")` で **ユーザーが送ったプロンプト文字列** (locale 非依存) が DOM に visible なことを assert して transcript hydration を検証。 visible 系の chrome-side 文字列 (e.g. 「Start a conversation」) は 8 locale lockstep の都合で使わない |
 | **L-14** wiki 内部リンク | ✅ 実装済 | wiki-nav.spec.ts、 fixture wiki page 2 件 seed → wikilink `[[slug]]` を click → `/wiki/pages/<target>` に遷移 (B-23/B-24/B-25)、 catch-all で `/chat` に飛ばないこと |
 | **L-EDIT** beat 編集永続化 | 🟡 skip 中 | mulmo-script-edit.spec.ts、 #1074 で報告された「`Saving…` から戻らない」 症状を再現する spec として on disk。 **unskip trigger**: issue #1074 が close + その fix を merge した状態で `yarn test:e2e:live:mulmo-script-edit --project=chromium` を 1 回手動実行 (任意で `HEADED=1` を付けて UI で挙動を観察すると false-negative を避けやすい) し、 pass が確認できたら `test.skip(true, ...)` を削除する。 dormant 化を防ぐオーナーは #1074 を close する人 |
-| L-04, L-05, L-07〜L-10, L-12〜L-30 | 未実装 | 後続 PR で順次。 横串で 「未登録系」 (リソース不在時の UI、 #1073 系) を機能別 spec として追加予定 |
+| L-04, L-07〜L-10, L-12〜L-30 | 未実装 | 後続 PR で順次。 横串で 「未登録系」 (リソース不在時の UI、 #1073 系) を機能別 spec として追加予定 |
 
 ## 実装の詳細
 
@@ -357,6 +358,9 @@ e2e-live/
 | `waitForImgInPresentHtml(page, imgSelector, timeoutMs?)` | presentHtml iframe 内の `<img>` が visible になるまで待つ |
 | `readImgSrcInPresentHtml(page, imgSelector)` | iframe 内の `<img>` の `src` 属性を取得（リライト後の URL 検証用） |
 | `readImgNaturalSize(page, imgSelector)` | iframe 内の `<img>` の `naturalWidth/Height` を取得（実描画確認） |
+| `waitForGeneratedImage(page, timeoutMs?)` | generateImage View 内 (`[generate-image-view]`) の `<img>` が visible になるまで待つ |
+| `readGeneratedImageSrc(page)` | generateImage View 内の `<img>` の `src` 属性を取得（`/artifacts/images/...` 検証用） |
+| `readGeneratedImageNaturalSize(page)` | generateImage View 内の `<img>` の `naturalWidth/Height` を取得（実描画確認） |
 | `readPdfDownload(download)` | `Download` を読み込み `%PDF-` magic bytes を検証、Buffer 返す |
 | `readMovieDownload(download)` | `Download` を読み込み MP4 の `ftyp` magic bytes を検証、Buffer 返す（L-03 用） |
 | `placeFixtureInWorkspace(fixtureRel, workspaceRel)` | `e2e-live/fixtures/<fixtureRel>` を `~/mulmoclaude/<workspaceRel>` にコピー |
@@ -366,7 +370,7 @@ e2e-live/
 
 ### testid 必要時の追加方針
 
-実装済の追加: `present-html-iframe`（`src/plugins/presentHtml/View.vue` の iframe）、`text-response-pdf-button`（`src/plugins/textResponse/View.vue` の PDF ボタン）、`mulmo-script-generate-movie-button` / `mulmo-script-download-movie-button` / `mulmo-script-regenerate-movie-button`（`src/plugins/presentMulmoScript/View.vue` の動画操作 3 ボタン、 L-03 用）。
+実装済の追加: `present-html-iframe`（`src/plugins/presentHtml/View.vue` の iframe）、`text-response-pdf-button`（`src/plugins/textResponse/View.vue` の PDF ボタン）、`mulmo-script-generate-movie-button` / `mulmo-script-download-movie-button` / `mulmo-script-regenerate-movie-button`（`src/plugins/presentMulmoScript/View.vue` の動画操作 3 ボタン、 L-03 用）、 `generate-image-view`（`src/plugins/generateImage/View.vue` の wrapper、 L-05 用）。
 
 新規 testid を追加する時は:
 - `data-testid="<plugin>-<role>"` の kebab-case で命名（既存規則）
@@ -884,7 +888,7 @@ artifact name: `mulmoclaude-tarball`（10 MB 程度、`.tgz`）。
 - [x] ~~**#974 self-repair で L-01 の `naturalWidth > 0` が甘くなる件の緩和策決定**~~ → `data-image-repair-tried` マーカ参照 guard を採用（上記 「要対応」 セクション参照）
 - [x] ~~**Safari (webkit) project の追加**~~ → 反映済（`e2e-live/playwright.config.ts` に `webkit` project + `testMatch: "media.spec.ts"`）
 - [x] ~~**webkit で L-01 が `naturalWidth=0` で fail する件の調査と修正**~~ → #1015 close 済（real bug ではなく dev server stale だっただけ。 上の 「真の原因」 セクション参照。 dev 再起動後に webkit L-01 + L-02 pass 確認）
-- [ ] **L-05 (generateImage)** 実装時に #983 の path-in-message を活用（path のキャプチャが容易になる）
+- [x] ~~**L-05 (generateImage)** 実装時に #983 の path-in-message を活用~~ → 実装済（path 文字列キャプチャは不要だった: `[generate-image-view]` testid 経由で `<img>.src` を読めば `/artifacts/images/...` の prefix が取れるので tool message を parse する必要がない。 #983 で server message に path が乗るのは agent 側の hint として有用、 spec 側は DOM-only assertion で十分）
 
 ---
 

@@ -9,6 +9,8 @@ import {
   deleteSession,
   getCurrentSessionId,
   placeFixtureInWorkspace,
+  readGeneratedImageNaturalSize,
+  readGeneratedImageSrc,
   readImgNaturalSize,
   readImgRepairAttempted,
   readImgSrcInPresentHtml,
@@ -18,6 +20,7 @@ import {
   sendChatMessage,
   startNewSession,
   waitForAssistantResponseComplete,
+  waitForGeneratedImage,
   waitForImgInPresentHtml,
 } from "../fixtures/live-chat.ts";
 
@@ -29,6 +32,12 @@ const L02_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 // headroom for the slowest TTS provider on a cold cache.
 const L03_TIMEOUT_MS = 10 * ONE_MINUTE_MS;
 const L03_GENERATION_TIMEOUT_MS = 8 * ONE_MINUTE_MS;
+// L-05 has to absorb the LLM picking the generateImage tool plus the
+// Gemini image-gen round trip. Cold Gemini calls land in 30–60s in
+// practice; 4 minutes leaves slack for slow networks without inviting
+// a hung run to soak up the wall clock.
+const L05_TIMEOUT_MS = 4 * ONE_MINUTE_MS;
+const L05_IMAGE_VISIBLE_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 // Floor for "the route returned a real PDF, not a stub". The actual
 // size depends on how verbose the LLM's reply happens to be that
 // run, so this is loose on purpose — `readPdfDownload` already
@@ -79,6 +88,33 @@ test.describe("media (real LLM)", () => {
       await downloadAndAssertPdf(page);
     } finally {
       await cleanupSessionAndWorkspace(page, workspaceImageRel);
+    }
+  });
+
+  test("L-05: generateImage プラグインで実画像が描画される", async ({ page }) => {
+    test.setTimeout(L05_TIMEOUT_MS);
+    // Pure Gemini-side path — no fixture seeding needed. The server's
+    // /api/image/generate-image route saves the result under
+    // ~/mulmoclaude/artifacts/images/<YYYY>/<MM>/<id>.png and
+    // returns `data.imageData` as the workspace-relative path; the
+    // SPA's resolveImageSrcFresh maps that to /artifacts/images/...
+    // via the static mount (PR #969 / #972 / #983).
+    //
+    // GEMINI_API_KEY must be configured server-side (.env or shell
+    // for `yarn dev`). Without it the route returns no imageData and
+    // ImageView stays on the placeholder, so the visibility wait
+    // fails cleanly with a meaningful timeout. We deliberately do
+    // not skip on `process.env.GEMINI_API_KEY` here because the test
+    // process lives in a different env from `yarn dev` — the dev
+    // shell loads .env via dotenv, but the spec runner does not.
+    try {
+      await startNewSession(page);
+      await sendL05Prompt(page);
+      await assertL05GeneratedImage(page);
+      await waitForAssistantResponseComplete(page);
+    } finally {
+      const sessionId = getCurrentSessionId(page);
+      if (sessionId) await deleteSession(page, sessionId);
     }
   });
 
@@ -272,6 +308,49 @@ async function generateAndDownloadMovie(page: Page): Promise<void> {
   await downloadBtn.click();
   const movie = await readMovieDownload(await downloadPromise);
   expect(movie.length, "movie should not be a near-empty stub").toBeGreaterThan(MIN_MOVIE_BYTES);
+}
+
+/**
+ * Push the LLM toward the generateImage tool (vs returning a text
+ * description). The "ツールを使ってください — 文章での描写ではなく実画像が必要です"
+ * line is what flips Claude away from offering ASCII art / verbal
+ * descriptions when the prompt is ambiguous. Subject is intentionally
+ * mundane to keep generation fast and avoid Gemini's safety triggers.
+ */
+async function sendL05Prompt(page: Page): Promise<void> {
+  const message = [
+    "猫が窓辺で日向ぼっこしているシンプルなイラストを 1 枚生成してください。",
+    "generateImage ツールを使ってください — 文章での描写ではなく実画像が必要です。",
+  ].join("\n");
+  await sendChatMessage(page, message);
+}
+
+/**
+ * End-to-end signal that generateImage worked: the SPA mounted the
+ * canvas view, the resolved src points at the static mount, and the
+ * browser actually decoded the file. `naturalWidth > 0` is the
+ * decisive bit — a 404 / wrong MIME / empty file all fail there.
+ */
+async function assertL05GeneratedImage(page: Page): Promise<void> {
+  await waitForGeneratedImage(page, L05_IMAGE_VISIBLE_TIMEOUT_MS);
+  const src = await readGeneratedImageSrc(page);
+  if (src === null) {
+    throw new Error("generateImage view should contain an <img>");
+  }
+  // resolveImageSrcFresh maps `artifacts/images/...` paths to
+  // `/artifacts/images/...?v=<bump>`, so the leading slash + prefix
+  // is the marker that the static-mount routing chain stayed intact.
+  expect(src, "image src should resolve via the artifacts/images static mount").toMatch(/^\/artifacts\/images\//);
+  // naturalWidth/Height race the decode — wait until the browser
+  // has actually loaded the bytes before asserting.
+  await expect(async () => {
+    const size = await readGeneratedImageNaturalSize(page);
+    if (size === null) {
+      throw new Error("generateImage <img> disappeared before naturalSize could be read");
+    }
+    expect(size.width, "image must actually decode").toBeGreaterThan(0);
+    expect(size.height).toBeGreaterThan(0);
+  }).toPass({ timeout: ONE_MINUTE_MS });
 }
 
 /**
