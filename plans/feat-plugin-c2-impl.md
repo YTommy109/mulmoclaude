@@ -19,7 +19,7 @@ Tracking: #1043 — umbrella for plugin SDK / dynamic install / marketplace.
 
 ### Workspace 配置
 
-```
+```text
 ~/mulmoclaude/
   plugins/
     plugins.json                      ← install 台帳 (source of truth)
@@ -86,7 +86,7 @@ export * from "vue";
 
 各 runtime plugin は同じ generic endpoint を共有:
 
-```
+```http
 POST /api/plugins/runtime/:pkgEncoded/dispatch
 body: { tool: string, args: Record<string, unknown> }
 ```
