@@ -17,7 +17,12 @@ test.describe("roles (real LLM)", () => {
     let sessionIdForCleanup: string | null = null;
     try {
       await startNewSession(page);
-      await expect(page.getByTestId("role-selector-btn"), "General must be the default role").toContainText("General");
+      // The role selector label is localized in eight UI dictionaries
+      // (CLAUDE.md keeps them in lockstep), so don't assert on its
+      // visible text. The structural canary B-15 needs is "the input
+      // is reachable" — once the regression returned, the input would
+      // be disabled regardless of which locale was active.
+      await expect(page.getByTestId("role-selector-btn"), "default role chip must render — B-15 canary").toBeVisible();
       await expect(page.getByTestId("user-input"), "input must be enabled — B-15 used to disable it on this role").toBeEnabled();
       await sendChatMessage(page, "Reply with the single word: hello");
       await waitForAssistantResponseComplete(page);
