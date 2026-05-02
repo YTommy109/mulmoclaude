@@ -5,7 +5,7 @@ import { executeForm } from "./plugin";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 
-const presentFormPlugin: ToolPlugin<never, FormData, FormArgs> = {
+const presentFormPlugin: ToolPlugin<FormData, FormData, FormArgs> = {
   toolDefinition: TOOL_DEFINITION,
   execute: executeForm,
   generatingMessage: "Preparing form...",

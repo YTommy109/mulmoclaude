@@ -6,8 +6,8 @@
            the workspace has zero books. No backdrop, no cancel:
            the user MUST create their first book to proceed.
        The submit calls createBook directly; on success it emits
-       the new book and its id, leaving the parent to wire
-       activeBookId / refetch. -->
+       the new book and its id, leaving the parent to update its
+       current selection / refetch. -->
   <div :class="wrapperClass" data-testid="accounting-new-book-modal" @click.self="onBackdropClick">
     <form class="bg-white p-4 rounded shadow-lg w-96 flex flex-col gap-3" data-testid="accounting-new-book-form" @submit.prevent="onSubmit">
       <h3 class="text-base font-semibold">{{ t("pluginAccounting.bookSwitcher.newBook") }}</h3>

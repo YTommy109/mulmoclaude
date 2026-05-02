@@ -30,11 +30,12 @@ import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { runClaudeCli, ClaudeCliNotFoundError, type Summarize } from "../journal/archivist-cli.js";
+import { WORKSPACE_DIRS, WORKSPACE_FILES } from "../paths.js";
 import { loadAllMemoryEntries } from "./io.js";
 import { makeLlmMemoryClusterer } from "./topic-cluster.js";
 import { clusterAtomicIntoStaging, topicStagingPath } from "./topic-migrate.js";
 import { swapStagingIntoMemory } from "./topic-swap.js";
-import { hasTopicFormat } from "./topic-detect.js";
+import { MEMORY_TYPES } from "./types.js";
 import { errorMessage } from "../../utils/errors.js";
 import { log } from "../../system/logger/index.js";
 
@@ -44,8 +45,28 @@ export interface RunTopicMigrationDeps {
   summarize?: Summarize;
 }
 
+// Strict variant of `hasTopicFormat` that only looks at `memory/`,
+// not `memory.next/`. The shared `hasTopicFormat` is intentionally
+// swap-tolerant so prompt routing doesn't fall back to atomic-format
+// rules during the rename window — but the runner's idempotency
+// guard needs the OPPOSITE: when only `memory.next/` exists (a
+// swap-in-progress or a crash mid-swap), the runner must drop into
+// the "existing staging detected" retry-swap branch below, not exit.
+function memoryTreeIsTopicFormat(workspaceRoot: string): boolean {
+  const memoryRoot = path.join(workspaceRoot, WORKSPACE_DIRS.memoryDir);
+  for (const type of MEMORY_TYPES) {
+    try {
+      if (statSync(path.join(memoryRoot, type)).isDirectory()) return true;
+    } catch {
+      // ENOENT / EACCES → keep looking; only the actual presence of
+      // a `memory/<type>` dir signals migration completed.
+    }
+  }
+  return false;
+}
+
 export async function runTopicMigrationOnce(workspaceRoot: string, deps: RunTopicMigrationDeps = {}): Promise<void> {
-  if (hasTopicFormat(workspaceRoot)) {
+  if (memoryTreeIsTopicFormat(workspaceRoot)) {
     log.debug("memory", "topic-run: workspace already uses topic format, skipping");
     return;
   }
@@ -69,11 +90,26 @@ export async function runTopicMigrationOnce(workspaceRoot: string, deps: RunTopi
   // and without this clause the topic runner would defer
   // indefinitely waiting for a migration that's never going to
   // happen.
-  const legacyPath = path.join(workspaceRoot, "conversations", "memory.md");
-  if (existsSync(legacyPath)) {
-    const stat = statSync(legacyPath);
+  //
+  // One guarded `statSync` (no `existsSync` first): the legacy
+  // migration runs in parallel and can rename / delete `memory.md`
+  // between an `existsSync` check and a follow-up `statSync`,
+  // turning the race into an unhandled rejection because this whole
+  // function is invoked as a floating promise on startup. ENOENT
+  // means the legacy file isn't there (or just got renamed away),
+  // so there's nothing to defer for; any other error is swallowed
+  // and the runner proceeds — a permission glitch should never block
+  // the topic restructure.
+  const legacyPath = path.join(workspaceRoot, WORKSPACE_FILES.memory);
+  let legacyStat: ReturnType<typeof statSync> | null;
+  try {
+    legacyStat = statSync(legacyPath);
+  } catch {
+    legacyStat = null;
+  }
+  if (legacyStat && legacyStat.size >= 64) {
     const backupPath = `${legacyPath}.backup`;
-    if (stat.size >= 64 && !existsSync(backupPath)) {
+    if (!existsSync(backupPath)) {
       log.debug("memory", "topic-run: legacy memory.md still in flight, deferring", { legacyPath });
       return;
     }
@@ -88,15 +124,27 @@ export async function runTopicMigrationOnce(workspaceRoot: string, deps: RunTopi
   log.info("memory", "topic-run: starting", { entryCount: entries.length });
   try {
     const result = await clusterAtomicIntoStaging(workspaceRoot, clusterer);
+    if (result.noop) {
+      // `clusterAtomicIntoStaging` already logged the failure cause
+      // (`clusterer threw` or `clusterer returned null`) and rm'd
+      // the staging dir. Logging "staged" here would tell the user
+      // to `diff` a directory that no longer exists (#1076 review).
+      log.warn("memory", "topic-run: cluster did not produce staging — see prior log entry");
+      return;
+    }
     log.info("memory", "topic-run: staged", {
       stagingPath: result.stagingPath,
       topicCounts: result.topicCounts,
       bulletsLost: result.bulletsLost,
     });
-    if (!result.noop) {
-      await runSwap(workspaceRoot);
-    }
+    await runSwap(workspaceRoot);
   } catch (err) {
+    // Defensive: `makeLlmMemoryClusterer` swallows summarize errors
+    // and returns null today, and `clusterAtomicIntoStaging` doesn't
+    // re-throw, so this branch is currently unreachable. Kept so a
+    // future change in the clusterer error contract surfaces a
+    // visible log instead of an unhandled rejection (the runner is
+    // invoked as a floating promise on startup).
     if (err instanceof ClaudeCliNotFoundError) {
       log.warn("memory", "topic-run: claude CLI not on PATH; topic restructure deferred");
       return;
