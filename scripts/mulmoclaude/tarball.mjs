@@ -200,12 +200,13 @@ export async function readTokenFromLauncherLog({ logFile, readFileImpl = readFil
 }
 
 // Hit `/api/plugins/runtime/list` with the launcher's bearer token to
-// confirm the runtime registry actually loaded at boot. The packaged
-// preset list ships with at least `@gui-chat-plugin/weather`, so a
-// successful prod install MUST report >=1 plugin here. A 200 with
-// zero plugins means the loader couldn't resolve the package against
-// the installed `node_modules/` — exactly the regression class the
-// `resolveProjectRoot()` fix targets, just on the prod side.
+// confirm the runtime-plugin pipeline reaches the wire. We assert
+// status 200 + a JSON body shaped `{ plugins: [...] }` — that already
+// proves bearer auth is wired, the route is mounted, and Express is
+// serializing JSON correctly. A non-zero `plugins.length` means user-
+// installed plugins were resolved through the workspace ledger, but
+// is NOT required for ok=true: a fresh install (no presets, no user
+// ledger) legitimately reports zero. Plugin count is informational.
 export async function probeRuntimePlugins({ port, token, fetchImpl = globalThis.fetch } = {}) {
   if (!token) {
     return { ok: false, status: null, plugins: 0, lastError: "no bearer token (could not extract from launcher log)" };
@@ -227,13 +228,10 @@ export async function probeRuntimePlugins({ port, token, fetchImpl = globalThis.
   } catch (err) {
     return { ok: false, status: 200, plugins: 0, lastError: `json parse failed: ${err instanceof Error ? err.message : String(err)}` };
   }
-  const count = Array.isArray(body?.plugins) ? body.plugins.length : 0;
-  return {
-    ok: count > 0,
-    status: 200,
-    plugins: count,
-    lastError: count > 0 ? null : "list returned 0 plugins — preset loader did not register the bundled @gui-chat-plugin/* packages",
-  };
+  if (!Array.isArray(body?.plugins)) {
+    return { ok: false, status: 200, plugins: 0, lastError: "response body is not { plugins: [...] }" };
+  }
+  return { ok: true, status: 200, plugins: body.plugins.length, lastError: null };
 }
 
 // Verify the sandbox build context made it through `npm pack` / `npm

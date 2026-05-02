@@ -27,10 +27,10 @@ export interface PresetPlugin {
 }
 
 export const PRESET_PLUGINS: readonly PresetPlugin[] = [
-  // weather is migrated from build-time bundle to runtime preset so
-  // the runtime path runs on every fresh checkout. The package
-  // exports `fetchWeather` (Japan Meteorological Agency) — a no-side-
-  // effects external API call, perfect for verifying both the MCP
-  // dispatch path and the frontend View render path.
-  { packageName: "@gui-chat-plugin/weather" },
+  // No presets currently. Plugins like `@gui-chat-plugin/weather` are
+  // discovered through the user's workspace install ledger
+  // (`plugins/plugins.json`) instead — running them as both a preset
+  // and a user-install registered the same package twice and produced
+  // a "name collides" warning on every boot. The framework remains
+  // here for future presets that genuinely should ship pre-loaded.
 ];

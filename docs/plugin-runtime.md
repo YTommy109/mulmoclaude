@@ -6,47 +6,60 @@ A runtime plugin is a published npm package that exports a `gui-chat-protocol` `
 
 There are **two sources** of runtime plugins, both feeding the same registry:
 
-| Source | Where it lives | Who controls it | Use case |
-|---|---|---|---|
-| **Preset** | `node_modules/<pkg>/`, listed in [`server/plugins/preset-list.ts`](../server/plugins/preset-list.ts) (kept under `server/` so it's available at runtime in Docker, where `config/` is not mounted) | repo / committer | First-launch UX. Plugins that ship with mulmoclaude. |
-| **User-installed** | `~/mulmoclaude/plugins/<pkg>.tgz`, listed in `~/mulmoclaude/plugins/plugins.json` | end user | Per-workspace extensions the user installs themselves. |
+| Source             | Where it lives                                                                                                                                                                                     | Who controls it  | Use case                                               |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------ |
+| **Preset**         | `node_modules/<pkg>/`, listed in [`server/plugins/preset-list.ts`](../server/plugins/preset-list.ts) (kept under `server/` so it's available at runtime in Docker, where `config/` is not mounted) | repo / committer | First-launch UX. Plugins that ship with mulmoclaude.   |
+| **User-installed** | `~/mulmoclaude/plugins/<pkg>.tgz`, listed in `~/mulmoclaude/plugins/plugins.json`                                                                                                                  | end user         | Per-workspace extensions the user installs themselves. |
+
+`PRESET_PLUGINS` is currently empty — the framework is in place but no preset ships by default. Past attempts to preset `@gui-chat-plugin/weather` produced "name collides with already-loaded runtime plugin" warnings on every boot for users who had also installed it via the workspace ledger; until that double-source state is handled cleanly, presets stay empty and `@gui-chat-plugin/weather` is just one of the packages a user can install themselves.
 
 On tool-name collision the preset wins (loaded first). Static built-in MCP tools win over both.
 
 ## User scenarios
 
-### Scenario 1: out-of-the-box (preset)
+### Scenario 1: user installs a plugin (walkthrough with `@gui-chat-plugin/weather`)
 
-A fresh checkout of mulmoclaude has [`@gui-chat-plugin/weather`](https://www.npmjs.com/package/@gui-chat-plugin/weather) registered as a preset. After `yarn install && yarn dev`:
-
-1. Server boot logs `[plugins/preset] loaded requested=1 succeeded=1`.
-2. Server boot logs `[plugins/runtime] registered runtime plugins presets=1 userInstalled=0 registered=1 collisions=0`.
-3. The MCP child exposes `fetchWeather` in `tools/list`.
-4. The user opens [http://localhost:5173](http://localhost:5173), sends "東京の天気おしえて", and the LLM calls `fetchWeather`.
-5. The toolResult event arrives; the canvas renders the weather plugin's View (⛅ + Tailwind styling).
-
-No manual install. No code edit. The runtime pipeline runs end-to-end on every fresh checkout.
-
-### Scenario 2: user installs a third-party plugin
+[`@gui-chat-plugin/weather`](https://www.npmjs.com/package/@gui-chat-plugin/weather) is a good first plugin to install — it exports `fetchWeather` (Japan Meteorological Agency, free public API, no key required) and ships both the server-side handler and a Vue View, so it exercises the whole runtime pipeline (MCP dispatch + canvas render).
 
 Phase D (the `yarn plugin:install` CLI) is not yet shipped. Until then, the install path is manual:
 
 ```bash
 mkdir -p ~/mulmoclaude/plugins
-cd "$(mktemp -d)" && npm pack @some/plugin
-mv *.tgz ~/mulmoclaude/plugins/
-# Append an entry to ~/mulmoclaude/plugins/plugins.json:
-# [{"name":"@some/plugin","version":"X.Y.Z","tgz":"some-plugin-X.Y.Z.tgz","installedAt":"<ISO>"}]
-# Restart the server.
+cd "$(mktemp -d)" && npm pack @gui-chat-plugin/weather
+mv gui-chat-plugin-weather-*.tgz ~/mulmoclaude/plugins/
+
+# Append an entry to ~/mulmoclaude/plugins/plugins.json
+# (create the file with `[]` first if it doesn't exist):
+#   [
+#     {
+#       "name": "@gui-chat-plugin/weather",
+#       "version": "0.1.0",
+#       "tgz": "gui-chat-plugin-weather-0.1.0.tgz",
+#       "installedAt": "2026-05-02T00:00:00.000Z"
+#     }
+#   ]
 ```
 
-After restart, `[plugins/runtime] registered runtime plugins presets=1 userInstalled=1 …` and the new tool is callable.
+Restart the server. Boot log:
 
-### Scenario 3: mix preset + user-installed
+```
+[plugins/runtime] loaded requested=1 succeeded=1
+[plugins/runtime] registered runtime plugins presets=0 userInstalled=1 registered=1 collisions=0
+```
 
-Both sources merge into the same registry. The user-installed plugin sees presets and vice versa; on collision the preset wins.
+Then in the browser:
 
-### Scenario 4: collisions
+1. Open a chat session at [http://localhost:5173](http://localhost:5173).
+2. Send "東京の天気おしえて".
+3. The LLM calls `fetchWeather`; the canvas renders the weather View (⛅ + Tailwind styling) with the JMA forecast for Tokyo.
+
+Substitute any other `gui-chat-protocol`-shaped package the same way — the steps above are not weather-specific.
+
+### Scenario 2: mix preset + user-installed
+
+Both sources merge into the same registry. The user-installed plugin sees presets and vice versa; on collision the preset wins. (Currently no presets ship — see the table above — so the practical layout is "user-installed only".)
+
+### Scenario 3: collisions
 
 There are three flavours of collision and the behaviour differs by source:
 
@@ -64,19 +77,20 @@ Future work (out of scope for this PR): reject case 2 at registration time too, 
 
 ## Test scenarios
 
-### Manual smoke (preset only — no setup needed)
+### Manual smoke (user-installed plugin)
+
+Install `@gui-chat-plugin/weather` (or any other `gui-chat-protocol`-shaped plugin) into the workspace ledger first — see _Scenario 1_ above — then:
 
 ```bash
-git switch feat/plugin-c2-server
 yarn install
 yarn dev
 ```
 
-Expected boot log:
+Expected boot log (with weather installed in the ledger):
 
 ```
-[plugins/preset] loaded requested=1 succeeded=1
-[plugins/runtime] registered runtime plugins presets=1 userInstalled=0 registered=1 collisions=0
+[plugins/runtime] loaded requested=1 succeeded=1
+[plugins/runtime] registered runtime plugins presets=0 userInstalled=1 registered=1 collisions=0
 ```
 
 Then in the browser at [http://localhost:5173](http://localhost:5173):
@@ -147,10 +161,7 @@ Verifies the MCP child process boots inside the Docker sandbox (the runtime load
 2. Append an entry to [`server/plugins/preset-list.ts`](../server/plugins/preset-list.ts):
 
    ```ts
-   export const PRESET_PLUGINS: readonly PresetPlugin[] = [
-     { packageName: "@gui-chat-plugin/weather" },
-     { packageName: "@some-org/some-plugin" },
-   ];
+   export const PRESET_PLUGINS: readonly PresetPlugin[] = [{ packageName: "@gui-chat-plugin/weather" }, { packageName: "@some-org/some-plugin" }];
    ```
 
 3. Restart the server.

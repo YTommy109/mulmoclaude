@@ -217,11 +217,11 @@ describe("probeRuntimePlugins", () => {
     return ((url: string, init?: { headers?: Record<string, string> }) => Promise.resolve(handler(url, init))) as unknown as typeof globalThis.fetch;
   }
 
-  it("ok=true and plugins>0 on a 200 with a non-empty list", async () => {
+  it("ok=true and plugins=N on a 200 with a non-empty list", async () => {
     let seenAuth: string | undefined;
     const fetchImpl = fakeFetch((_url, init) => {
       seenAuth = init?.headers?.Authorization;
-      return new Response(JSON.stringify({ plugins: [{ name: "@gui-chat-plugin/weather" }] }), {
+      return new Response(JSON.stringify({ plugins: [{ name: "@example/installed" }] }), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
@@ -232,12 +232,22 @@ describe("probeRuntimePlugins", () => {
     assert.equal(seenAuth, "Bearer tok", "Authorization header must be sent");
   });
 
-  it("ok=false on a 200 with an empty plugins array (preset loader silently failed)", async () => {
+  // Fresh install with no presets and no user-installed plugins is a
+  // legitimate state — the route still responds correctly. The probe
+  // verifies wiring (auth, route mount, JSON shape), not population.
+  it("ok=true on a 200 with an empty plugins array (fresh install, no plugins yet)", async () => {
     const fetchImpl = fakeFetch(() => new Response(JSON.stringify({ plugins: [] }), { status: 200, headers: { "content-type": "application/json" } }));
     const result = await tarball.probeRuntimePlugins({ port: 3099, token: "tok", fetchImpl });
-    assert.equal(result.ok, false);
+    assert.equal(result.ok, true);
     assert.equal(result.plugins, 0);
-    assert.match(result.lastError ?? "", /0 plugins/);
+    assert.equal(result.lastError, null);
+  });
+
+  it("ok=false on a 200 whose body is not the expected `{ plugins: [...] }` shape", async () => {
+    const fetchImpl = fakeFetch(() => new Response(JSON.stringify({ unrelated: true }), { status: 200, headers: { "content-type": "application/json" } }));
+    const result = await tarball.probeRuntimePlugins({ port: 3099, token: "tok", fetchImpl });
+    assert.equal(result.ok, false);
+    assert.match(result.lastError ?? "", /not \{ plugins/);
   });
 
   it("ok=false with a status code on a non-200 response", async () => {
