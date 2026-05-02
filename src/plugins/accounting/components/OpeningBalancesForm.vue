@@ -119,7 +119,9 @@ const error = ref<string | null>(null);
 const successMessage = ref<string | null>(null);
 const { begin: beginLoad, isCurrent: isCurrentLoad } = useLatestRequest();
 
-const bsAccounts = computed(() => props.accounts.filter((account) => account.type === "asset" || account.type === "liability" || account.type === "equity"));
+const bsAccounts = computed(() =>
+  props.accounts.filter((account) => (account.type === "asset" || account.type === "liability" || account.type === "equity") && account.active !== false),
+);
 
 function ensureRows(): void {
   for (const account of bsAccounts.value) {

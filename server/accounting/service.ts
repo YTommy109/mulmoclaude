@@ -214,10 +214,17 @@ export async function upsertAccount(
   const existingIdx = accounts.findIndex((account) => account.code === input.account.code);
   const next = [...accounts];
   const oldType = existingIdx >= 0 ? accounts[existingIdx].type : null;
+  // Whitelist the persisted fields so unknown keys from a
+  // mistyped LLM call don't leak into accounts.json. `active` is
+  // only stored when explicitly false — the default-active
+  // assumption keeps existing books' files unchanged.
+  const stored: Account = { code: input.account.code, name: input.account.name, type: input.account.type };
+  if (typeof input.account.note === "string" && input.account.note.length > 0) stored.note = input.account.note;
+  if (input.account.active === false) stored.active = false;
   if (existingIdx >= 0) {
-    next[existingIdx] = { ...input.account };
+    next[existingIdx] = stored;
   } else {
-    next.push({ ...input.account });
+    next.push(stored);
   }
   await writeAccounts(bookId, next, workspaceRoot);
   // Type changes affect aggregation across periods — drop every

@@ -40,7 +40,7 @@
               :data-testid="`accounting-entry-line-account-${idx}`"
             >
               <option value="">{{ DASH }}</option>
-              <option v-for="account in accounts" :key="account.code" :value="account.code">{{ formatAccountLabel(account) }}</option>
+              <option v-for="account in selectableAccounts" :key="account.code" :value="account.code">{{ formatAccountLabel(account) }}</option>
             </select>
           </td>
           <td class="py-1 px-2">
@@ -125,8 +125,16 @@ const showAccountsModal = ref(false);
 const DASH = "—";
 
 function formatAccountLabel(account: Account): string {
-  return `${account.code} — ${account.name}`;
+  // Name first so type-to-search in the <select> matches the
+  // human-meaningful word; the code goes in trailing parens.
+  return `${account.name} (${account.code})`;
 }
+
+// Hide deactivated accounts from the entry dropdown — accounting
+// integrity requires keeping them in the chart of accounts (any
+// historical journal line still references the code), but new
+// entries should not be able to land on a soft-deleted account.
+const selectableAccounts = computed<Account[]>(() => props.accounts.filter((account) => account.active !== false));
 
 interface FormLine {
   accountCode: string;
