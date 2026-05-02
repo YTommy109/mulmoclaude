@@ -256,5 +256,34 @@ describe("loadPluginFromCacheDir", () => {
       assert.ok(plugin, "`import` must take precedence over `default`");
       assert.equal(plugin.definition.name, "fixture");
     });
+
+    it("resolves a top-level array fallback chain", async () => {
+      // Per Node.js spec, `exports` may be an array of fallback
+      // targets. We don't probe disk per element — we pick the first
+      // string. Codex review iter-2 on #1116.
+      const dir = makeFixture({ exportsField: ["./entry.js", "./never-written.js"] });
+      const plugin = await loadPluginFromCacheDir("@fixture/plugin", "1.0.0", dir);
+      assert.ok(plugin, "top-level array `exports` first element must resolve");
+      assert.equal(plugin.definition.name, "fixture");
+    });
+
+    it('resolves an `exports["."]` array fallback chain', async () => {
+      const dir = makeFixture({ exportsField: { ".": ["./entry.js", "./never-written.js"] } });
+      const plugin = await loadPluginFromCacheDir("@fixture/plugin", "1.0.0", dir);
+      assert.ok(plugin, "subpath array `exports['.'][0]` must resolve");
+      assert.equal(plugin.definition.name, "fixture");
+    });
+
+    it("resolves an array containing condition objects", async () => {
+      // A real-world shape from packages that ship multiple module
+      // formats: an array of condition objects. The loader picks the
+      // first one with a usable ESM target (`import` then `default`).
+      const dir = makeFixture({
+        exportsField: { ".": [{ require: "./cjs.js" }, { import: "./entry.js" }] },
+      });
+      const plugin = await loadPluginFromCacheDir("@fixture/plugin", "1.0.0", dir);
+      assert.ok(plugin, "array of condition objects must surface the ESM target");
+      assert.equal(plugin.definition.name, "fixture");
+    });
   });
 });

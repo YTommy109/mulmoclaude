@@ -92,35 +92,46 @@ function resolveEntrySpecifier(pkg: PackageJson): string | null {
 
 function resolveExportsField(exportsField: PackageJson["exports"]): string | null {
   // Form 1: top-level string sugar.
-  if (typeof exportsField === "string") return exportsField;
-  if (!isRecord(exportsField)) return null;
+  // Form A: array fallback chain (e.g. ["./dist/index.js", "./fallback.js"]).
   // Form 2: conditional root (e.g. `{ import, require, default }`).
-  // `import` wins for ESM; `default` is the spec-mandated fallback
-  // that "always matches" when no other condition does (Codex review
-  // on #1116). An ESM-only package may publish
-  // `{ "default": "./dist/index.js" }` with no `import` key at all —
-  // Node resolves it via `default`, so we must too.
-  const rootCondition = pickEsmCondition(exportsField);
-  if (rootCondition) return rootCondition;
-  // Form 3 / 4: subpath map keyed by `.`.
-  const root = exportsField["."];
-  if (typeof root === "string") return root;
-  if (isRecord(root)) {
-    const dotCondition = pickEsmCondition(root);
-    if (dotCondition) return dotCondition;
+  // Form 3 / 4: subpath map keyed by `.` — value can be a string,
+  //   array, or condition object (Codex review iter-2 on #1116).
+  const root = pickExportsTarget(exportsField);
+  if (root) return root;
+  if (isRecord(exportsField)) {
+    return pickExportsTarget(exportsField["."]);
   }
   return null;
 }
 
-/** Pick the ESM target from a condition object per Node.js spec
- *  ordering: `import` (the import-condition match) first, then
- *  `default` (the universal fallback). Returns null when neither is
- *  a string (e.g. only `require` is present, or the conditions are
- *  nested objects this loader doesn't recurse into). */
-function pickEsmCondition(conditions: Record<string, unknown>): string | null {
-  if (typeof conditions.import === "string") return conditions.import;
-  if (typeof conditions.default === "string") return conditions.default;
-  return null;
+/** Walk a Node.js `exports` value and return the first string entry
+ *  point this ESM loader can use. Handles every legal target shape:
+ *
+ *    - string: return it directly.
+ *    - array: try each element in order; first resolvable wins.
+ *      Per the spec arrays are a fallback chain — Node tries each
+ *      until one resolves on disk. We don't probe disk here, so
+ *      "first string-or-resolvable-condition" approximates that.
+ *    - condition object: prefer `import` (ESM-specific), then
+ *      `default` (universal fallback).
+ *    - everything else (e.g. only `require`, only nested arrays of
+ *      condition objects with no string targets): null. */
+function pickExportsTarget(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const resolved = pickExportsTarget(entry);
+      if (resolved) return resolved;
+    }
+    return null;
+  }
+  if (!isRecord(value)) return null;
+  // Condition object — `import` first (the ESM-specific condition
+  // match), then `default` (the universal fallback that "always
+  // matches" per the Node.js spec).
+  const fromImport = pickExportsTarget(value.import);
+  if (fromImport) return fromImport;
+  return pickExportsTarget(value.default);
 }
 
 /** Sentinel file written at the end of a successful extract. The
