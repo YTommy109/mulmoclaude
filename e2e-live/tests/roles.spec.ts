@@ -17,12 +17,13 @@ test.describe("roles (real LLM)", () => {
     let sessionIdForCleanup: string | null = null;
     try {
       await startNewSession(page);
-      // The role selector label is localized in eight UI dictionaries
-      // (CLAUDE.md keeps them in lockstep), so don't assert on its
-      // visible text. The structural canary B-15 needs is "the input
-      // is reachable" — once the regression returned, the input would
-      // be disabled regardless of which locale was active.
-      await expect(page.getByTestId("role-selector-btn"), "default role chip must render — B-15 canary").toBeVisible();
+      // The visible role label is localized in eight UI dictionaries
+      // (CLAUDE.md keeps them in lockstep), so we assert on the
+      // chip's `data-role` attribute instead — that's the locale-
+      // agnostic identity of the active role and is the actual B-15
+      // regression net (the bug disabled the General role
+      // specifically).
+      await expect(page.getByTestId("role-selector-btn"), "default role must be General — B-15 canary").toHaveAttribute("data-role", "general");
       await expect(page.getByTestId("user-input"), "input must be enabled — B-15 used to disable it on this role").toBeEnabled();
       await sendChatMessage(page, "Reply with the single word: hello");
       await waitForAssistantResponseComplete(page);
