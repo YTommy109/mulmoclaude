@@ -615,6 +615,8 @@ const enMessages = {
       accountLabel: "Account",
       debitLabel: "Debit",
       creditLabel: "Credit",
+      taxRegistrationIdLabel: "Tax registration ID",
+      taxRegistrationIdPlaceholder: "T-number / VAT ID / GSTIN…",
       addLine: "Add line",
       removeLine: "Remove",
       submit: "Post entry",

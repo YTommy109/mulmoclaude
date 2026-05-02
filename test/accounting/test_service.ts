@@ -197,6 +197,49 @@ describe("addEntry / listEntries", () => {
       AccountingError,
     );
   });
+
+  it("round-trips taxRegistrationId through addEntry → listEntries", async () => {
+    const root = makeTmp();
+    const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
+    await addEntry(
+      {
+        bookId,
+        date: "2026-04-01",
+        lines: [
+          { accountCode: "1000", debit: 100, taxRegistrationId: "T1234567890123" },
+          { accountCode: "4000", credit: 100 },
+        ],
+      },
+      root,
+    );
+    await drainRebuilds(bookId);
+    const list = await listEntries({ bookId }, root);
+    assert.equal(list.entries.length, 1);
+    assert.equal(list.entries[0].lines[0].taxRegistrationId, "T1234567890123");
+    assert.equal(list.entries[0].lines[1].taxRegistrationId, undefined);
+  });
+
+  it("rejects an entry whose taxRegistrationId exceeds the length cap", async () => {
+    const root = makeTmp();
+    const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
+    await assert.rejects(
+      () =>
+        addEntry(
+          {
+            bookId,
+            date: "2026-04-01",
+            lines: [
+              { accountCode: "1000", debit: 100, taxRegistrationId: "T".repeat(33) },
+              { accountCode: "4000", credit: 100 },
+            ],
+          },
+          root,
+        ),
+      AccountingError,
+    );
+  });
 });
 
 describe("voidEntry", () => {

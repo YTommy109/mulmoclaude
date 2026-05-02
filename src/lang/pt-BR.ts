@@ -602,6 +602,8 @@ const ptBRMessages = {
       accountLabel: "Conta",
       debitLabel: "Débito",
       creditLabel: "Crédito",
+      taxRegistrationIdLabel: "Inscrição fiscal",
+      taxRegistrationIdPlaceholder: "CNPJ / VAT ID / GSTIN…",
       addLine: "Adicionar linha",
       removeLine: "Remover",
       submit: "Lançar",

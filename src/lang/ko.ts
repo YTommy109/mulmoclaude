@@ -600,6 +600,8 @@ const koMessages = {
       accountLabel: "계정",
       debitLabel: "차변",
       creditLabel: "대변",
+      taxRegistrationIdLabel: "세무 등록번호",
+      taxRegistrationIdPlaceholder: "T-number / VAT ID / GSTIN…",
       addLine: "라인 추가",
       removeLine: "삭제",
       submit: "등록",

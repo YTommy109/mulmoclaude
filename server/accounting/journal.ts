@@ -21,6 +21,14 @@ import type { Account, JournalEntry, JournalLine } from "./types.js";
  *  many lines. */
 const EQUALITY_TOLERANCE = 0.005;
 
+/** Defensive cap on `JournalLine.taxRegistrationId`. Real-world IDs
+ *  are short (JP T-numbers are 14 chars, EU VAT IDs ≤ 14, GSTIN is
+ *  15, ABN is 11). 32 covers every documented format with comfortable
+ *  margin while still rejecting accidental paste-bombs. Validation
+ *  applies to the *trimmed* value so a string of pure whitespace
+ *  doesn't trip the limit (it normalises to absent). */
+export const MAX_TAX_REGISTRATION_ID_LENGTH = 32;
+
 export interface ValidationError {
   field: string;
   message: string;
@@ -95,6 +103,30 @@ function validateLine(line: JournalLine, idx: number, accountCodes: ReadonlySet<
   if (!lineHasExactlyOneSide(line)) {
     errors.push({ field: `lines[${idx}]`, message: "each line must set exactly one of debit or credit (and to a non-zero amount)" });
   }
+  if (line.taxRegistrationId !== undefined) {
+    if (typeof line.taxRegistrationId !== "string") {
+      errors.push({ field: `lines[${idx}].taxRegistrationId`, message: "must be a string" });
+    } else if (line.taxRegistrationId.trim().length > MAX_TAX_REGISTRATION_ID_LENGTH) {
+      errors.push({
+        field: `lines[${idx}].taxRegistrationId`,
+        message: `must be at most ${MAX_TAX_REGISTRATION_ID_LENGTH} characters (got ${line.taxRegistrationId.trim().length})`,
+      });
+    }
+  }
+}
+
+/** Normalize a journal line before persistence: trim string fields
+ *  and drop empty-string optionals so the JSONL doesn't accumulate
+ *  noise like `"taxRegistrationId":""`. Pure — does not mutate
+ *  `line`. */
+function normalizeLine(line: JournalLine): JournalLine {
+  const out: JournalLine = { ...line };
+  if (typeof out.taxRegistrationId === "string") {
+    const trimmed = out.taxRegistrationId.trim();
+    if (trimmed === "") delete out.taxRegistrationId;
+    else out.taxRegistrationId = trimmed;
+  }
+  return out;
 }
 
 export function validateEntry(input: { date: string; lines: readonly JournalLine[]; accounts: readonly Account[] }): ValidationResult {
@@ -117,13 +149,15 @@ export function validateEntry(input: { date: string; lines: readonly JournalLine
 
 /** Build a JournalEntry — validation is the caller's responsibility
  *  (it should have called `validateEntry` first). The id is a fresh
- *  UUID; createdAt is the wall clock at the moment of creation. */
+ *  UUID; createdAt is the wall clock at the moment of creation.
+ *  Lines are normalized so optional string fields don't persist as
+ *  empty strings. */
 export function makeEntry(input: { date: string; lines: readonly JournalLine[]; memo?: string; kind?: JournalEntry["kind"] }): JournalEntry {
   return {
     id: randomUUID(),
     date: input.date,
     kind: input.kind ?? "normal",
-    lines: input.lines.map((line) => ({ ...line })),
+    lines: input.lines.map(normalizeLine),
     memo: input.memo,
     createdAt: new Date().toISOString(),
   };
@@ -159,12 +193,21 @@ export function voidMemo(target: JournalEntry, reason: string | undefined): stri
  *  `kind: "void-marker"` surfaces every voided id without scanning
  *  for matching pairs. */
 export function makeVoidEntries(target: JournalEntry, reason: string | undefined, voidDate: string): { reverse: JournalEntry; marker: JournalEntry } {
-  const swappedLines: JournalLine[] = target.lines.map((line) => ({
-    accountCode: line.accountCode,
-    debit: line.credit,
-    credit: line.debit,
-    memo: line.memo,
-  }));
+  const swappedLines: JournalLine[] = target.lines.map((line) => {
+    const swapped: JournalLine = {
+      accountCode: line.accountCode,
+      debit: line.credit,
+      credit: line.debit,
+      memo: line.memo,
+    };
+    // Preserve the counterparty tax-registration ID on each reversed
+    // line so the audit trail survives the void — without it, the
+    // reversing pair would silently drop the input-tax-credit
+    // documentation and a later report scan couldn't reconstruct
+    // which T-number / VAT ID the original input tax was tied to.
+    if (line.taxRegistrationId !== undefined) swapped.taxRegistrationId = line.taxRegistrationId;
+    return swapped;
+  });
   const reverse: JournalEntry = {
     id: randomUUID(),
     date: voidDate,

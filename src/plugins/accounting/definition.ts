@@ -65,6 +65,11 @@ const toolDefinition: ToolDefinition = {
             debit: { type: "number" },
             credit: { type: "number" },
             memo: { type: "string" },
+            taxRegistrationId: {
+              type: "string",
+              description:
+                "Optional counterparty tax-authority registration ID for this line (Japan T-number, EU VAT ID, UK VAT registration number, India GSTIN, Australia ABN, etc.). Free-form string, max 32 chars. Required for input-tax-credit eligibility under regimes like Japan's インボイス制度.",
+            },
           },
           required: ["accountCode"],
         },

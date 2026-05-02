@@ -69,6 +69,27 @@ test.describe("accounting plugin — flow", () => {
     await expect(page.getByTestId("accounting-no-book")).not.toBeVisible();
   });
 
+  test("New Entry tab exposes the per-line tax-registration ID input", async ({ page }) => {
+    const SEED_BOOK_ID = "book-tax-id-1";
+    await setupSession(page, {
+      books: [{ id: SEED_BOOK_ID, name: "Seeded Book" }],
+      envelope: { bookId: SEED_BOOK_ID, initialTab: "newEntry" },
+    });
+
+    await page.goto(`/chat/${SESSION_ID}`);
+    await expect(page.getByTestId("accounting-app")).toBeVisible();
+
+    // Form opens directly via initialTab=newEntry. The per-line
+    // input must be present from the first row — typing into it
+    // should not block the form's balance / submit logic. We
+    // assert the field exists and accepts input; the back-end
+    // round-trip is covered by unit tests.
+    const taxIdInput = page.getByTestId("accounting-entry-line-tax-registration-id-0");
+    await expect(taxIdInput).toBeVisible();
+    await taxIdInput.fill("T1234567890123");
+    await expect(taxIdInput).toHaveValue("T1234567890123");
+  });
+
   test("renders full-page first-run form when the workspace is empty (defensive fallback)", async ({ page }) => {
     // openBook now 400s on a missing bookId, so this state is no
     // longer reachable from the LLM. The View still renders the

@@ -28,6 +28,11 @@ interface FakeLine {
   debit?: number;
   credit?: number;
   memo?: string;
+  /** Counterparty tax-registration ID (JP T-number, EU VAT ID, …).
+   *  Mirrors `JournalLine.taxRegistrationId` in
+   *  server/accounting/types.ts so the mock dispatcher round-trips
+   *  the same shape the production REST handler does. */
+  taxRegistrationId?: string;
 }
 
 interface FakeEntry {
@@ -192,7 +197,16 @@ function handleVoidEntry(state: AccountingState, body: DispatchBody): MockRespon
     id: uniqueId("entry"),
     date: voidDate,
     kind: "void",
-    lines: target.lines.map((line) => ({ accountCode: line.accountCode, debit: line.credit, credit: line.debit, memo: line.memo })),
+    lines: target.lines.map((line) => ({
+      accountCode: line.accountCode,
+      debit: line.credit,
+      credit: line.debit,
+      memo: line.memo,
+      // Mirror the production void path — the counterparty
+      // tax-registration ID survives onto the reversing line so
+      // the audit trail isn't broken by a void.
+      taxRegistrationId: line.taxRegistrationId,
+    })),
     memo: buildVoidMemo(target, reason),
     voidedEntryId: target.id,
     voidReason: reason,

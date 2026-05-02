@@ -21,6 +21,10 @@ export const DEFAULT_ACCOUNTS: readonly Account[] = [
   { code: "1100", name: "Accounts Receivable", type: "asset" },
   { code: "1200", name: "Inventory", type: "asset", active: false },
   { code: "1300", name: "Prepaid Expenses", type: "asset", active: false },
+  // Pairs with 2400 Sales Tax Payable for the tax-excluded (税抜)
+  // booking method: input tax paid on purchases sits here as an
+  // asset and is netted against output-tax collected at filing time.
+  { code: "1310", name: "Sales Tax Receivable", type: "asset", active: false },
   { code: "1500", name: "Equipment", type: "asset" },
   { code: "1510", name: "Furniture & Fixtures", type: "asset", active: false },
   { code: "1520", name: "Vehicles", type: "asset", active: false },

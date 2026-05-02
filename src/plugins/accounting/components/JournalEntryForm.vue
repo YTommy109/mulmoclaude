@@ -28,6 +28,7 @@
           <th class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.accountLabel") }}</th>
           <th class="text-right py-1 px-2 w-32">{{ t("pluginAccounting.entryForm.debitLabel") }}</th>
           <th class="text-right py-1 px-2 w-32">{{ t("pluginAccounting.entryForm.creditLabel") }}</th>
+          <th class="text-left py-1 px-2 w-40">{{ t("pluginAccounting.entryForm.taxRegistrationIdLabel") }}</th>
           <th class="py-1 px-2"></th>
         </tr>
       </thead>
@@ -63,6 +64,23 @@
               class="h-8 px-2 w-full rounded border border-gray-300 text-sm text-right"
               :data-testid="`accounting-entry-line-credit-${idx}`"
               @input="onCreditInput(line)"
+            />
+          </td>
+          <td class="py-1 px-2">
+            <!-- Optional counterparty tax-registration ID per line —
+                 JP T-number, EU VAT ID, GSTIN, ABN, etc. Realtime
+                 length-cap red border matches the AccountEditor
+                 pattern; the cap is enforced server-side too. -->
+            <input
+              v-model="line.taxRegistrationId"
+              type="text"
+              :maxlength="MAX_TAX_REGISTRATION_ID_LENGTH"
+              :placeholder="t('pluginAccounting.entryForm.taxRegistrationIdPlaceholder')"
+              :class="[
+                'h-8 px-2 w-full rounded border text-sm font-mono',
+                isTaxRegistrationIdInvalid(line) ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300',
+              ]"
+              :data-testid="`accounting-entry-line-tax-registration-id-${idx}`"
             />
           </td>
           <td class="py-1 px-2 text-right">
@@ -141,10 +159,22 @@ interface FormLine {
   accountCode: string;
   debit: number | null;
   credit: number | null;
+  taxRegistrationId: string;
 }
 
+// Mirrors server/accounting/journal.ts MAX_TAX_REGISTRATION_ID_LENGTH.
+// Duplicated rather than imported to keep the front-end bundle from
+// pulling in server modules (the existing client / server type alias
+// pattern in api.ts does the same — both sides own their copy of the
+// shape).
+const MAX_TAX_REGISTRATION_ID_LENGTH = 32;
+
 function blankLine(): FormLine {
-  return { accountCode: "", debit: null, credit: null };
+  return { accountCode: "", debit: null, credit: null, taxRegistrationId: "" };
+}
+
+function isTaxRegistrationIdInvalid(line: FormLine): boolean {
+  return line.taxRegistrationId.trim().length > MAX_TAX_REGISTRATION_ID_LENGTH;
 }
 
 const date = ref(localDateString());
@@ -192,7 +222,8 @@ const hasAtLeastTwoPostableLines = computed(() => {
   }
   return false;
 });
-const balanced = computed(() => Math.abs(imbalance.value) <= 0.005 && hasAtLeastTwoPostableLines.value);
+const hasTaxRegistrationIdError = computed(() => lines.value.some(isTaxRegistrationIdInvalid));
+const balanced = computed(() => Math.abs(imbalance.value) <= 0.005 && hasAtLeastTwoPostableLines.value && !hasTaxRegistrationIdError.value);
 const imbalanceText = computed(() => formatAmount(imbalance.value, props.currency));
 const step = computed(() => inputStepFor(props.currency));
 
@@ -225,6 +256,8 @@ function toApiLines(): JournalLine[] {
     const apiLine: JournalLine = { accountCode: line.accountCode };
     if (isPositiveAmount(line.debit)) apiLine.debit = line.debit;
     if (isPositiveAmount(line.credit)) apiLine.credit = line.credit;
+    const trimmedTaxId = line.taxRegistrationId.trim();
+    if (trimmedTaxId !== "") apiLine.taxRegistrationId = trimmedTaxId;
     out.push(apiLine);
   }
   return out;
