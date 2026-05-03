@@ -7,7 +7,7 @@
 // `manageBookmarks` calls land in `definePlugin`'s handler in
 // `../index.ts`.
 
-import { onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 import { useRuntime } from "gui-chat-protocol/vue";
 import { useT } from "./lang";
 
@@ -30,21 +30,46 @@ interface Bookmark {
 interface Props {
   selectedResult: { bookmarks?: Bookmark[] };
 }
-defineProps<Props>();
+const props = defineProps<Props>();
 
-const { pubsub, openUrl, dispatch } = useRuntime();
+const { pubsub, openUrl, dispatch, log } = useRuntime();
 const t = useT();
 
-const bookmarks = ref<Bookmark[]>([]);
+// Seed from `selectedResult` so the initial paint shows whatever the
+// LLM's tool call returned (e.g. the freshly added bookmark) without
+// waiting for `refetch()` to win the race. CodeRabbit review on PR
+// #1124 caught the empty-on-mount flicker this used to cause.
+const bookmarks = ref<Bookmark[]>(props.selectedResult.bookmarks ?? []);
+
+// If the host swaps in a new tool result while this component stays
+// mounted, mirror it. Cheap because Vue's prop watcher fires only on
+// reference change.
+watch(
+  () => props.selectedResult.bookmarks,
+  (next) => {
+    if (next) bookmarks.value = next;
+  },
+);
 
 async function refetch(): Promise<void> {
-  const json = await dispatch<{ ok: boolean; bookmarks?: Bookmark[] }>({ kind: "list" });
-  if (json.ok && json.bookmarks) bookmarks.value = json.bookmarks;
+  try {
+    const json = await dispatch<{ ok: boolean; bookmarks?: Bookmark[] }>({ kind: "list" });
+    if (json.ok && json.bookmarks) bookmarks.value = json.bookmarks;
+  } catch (err) {
+    // CLAUDE.md mandate: every fetch must handle errors. Log + leave
+    // the existing list visible so the user has SOMETHING rather than
+    // a blank canvas (CodeRabbit review on PR #1124).
+    log.warn("refetch failed; keeping last-known list", { error: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 async function remove(id: string): Promise<void> {
-  await dispatch({ kind: "remove", id });
-  // The "changed" pubsub event from the server fires refetch below.
+  try {
+    await dispatch({ kind: "remove", id });
+    // The "changed" pubsub event from the server fires refetch below.
+  } catch (err) {
+    log.warn("remove failed", { id, error: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 let unsub: (() => void) | undefined;

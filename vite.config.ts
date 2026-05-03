@@ -88,7 +88,15 @@ function runtimeImportmapBuildPlugin(): Plugin {
               break
             }
           }
-          if (!runtimeFile) continue
+          if (!runtimeFile) {
+            // Surface explicitly so a future input rename (or a
+            // tree-shake regression on the runtime entry) doesn't
+            // silently leave the dev URL in the built importmap and
+            // break runtime-loaded plugins in production with no
+            // diagnostic. CodeRabbit review on PR #1124.
+            console.warn(`[mulmoclaude] runtime importmap chunk not emitted: ${chunkName} (importmap entry "${devUrl}" left as dev URL)`)
+            continue
+          }
           // `replaceAll` (not `replace`) so both occurrences get
           // rewritten — the importmap target AND any comment that
           // documents the dev URL.

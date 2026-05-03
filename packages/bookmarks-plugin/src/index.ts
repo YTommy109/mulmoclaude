@@ -84,7 +84,17 @@ export default definePlugin(({ pubsub, files, log }) => {
             addedAt: new Date().toISOString(),
           };
           await writeAll([next, ...(await readAll())]);
-          log.info("bookmark added", { id: next.id, url: next.url });
+          // Log only the host portion of the URL — full URLs can carry
+          // private path segments, search terms, or auth tokens in the
+          // query string (CodeRabbit review on PR #1124). The id is
+          // enough to locate the bookmark on disk if needed.
+          let host = "";
+          try {
+            host = new URL(next.url).host;
+          } catch {
+            host = "<unparseable>";
+          }
+          log.info("bookmark added", { id: next.id, host });
           return { ok: true, bookmark: next };
         }
         case "list": {

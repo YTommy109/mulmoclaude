@@ -11,6 +11,7 @@ import { useI18n } from "vue-i18n";
 import type { BrowserPluginRuntime, PluginNotifyMessage } from "gui-chat-protocol/vue";
 import { usePubSub } from "../../composables/usePubSub";
 import { apiPost } from "../api";
+import { API_ROUTES } from "../../config/apiRoutes";
 
 /** Build the channel name for a plugin's event. Must stay in lockstep
  *  with `server/plugins/runtime.ts:pluginChannelName`. */
@@ -44,25 +45,45 @@ function makeScopedLogger(pkgName: string): BrowserPluginRuntime["log"] {
   };
 }
 
+/** Allowlisted URL schemes for `runtime.openUrl`. The two http schemes
+ *  cover the legitimate "open this external page" use case; everything
+ *  else (`javascript:`, `data:`, `vbscript:`, `file:`, custom schemes)
+ *  is rejected. The `noopener,noreferrer` flags on `window.open`
+ *  prevent the opened tab from snooping the opener but do NOT stop
+ *  `javascript:` execution — that's why scheme filtering is the actual
+ *  XSS guard. CodeRabbit review caught this on PR #1124. */
+const OPEN_URL_ALLOWED_SCHEMES: ReadonlySet<string> = new Set(["http:", "https:"]);
+
 function makeOpenUrl(pkgName: string): BrowserPluginRuntime["openUrl"] {
   return (url: string) => {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      console.warn(`[plugin/${pkgName}] openUrl rejected unparseable URL`, { url });
+      return;
+    }
+    if (!OPEN_URL_ALLOWED_SCHEMES.has(parsed.protocol)) {
+      console.warn(`[plugin/${pkgName}] openUrl rejected non-http(s) scheme`, { scheme: parsed.protocol });
+      return;
+    }
     // `noopener` prevents the opened tab from accessing `window.opener`
     // and snooping; `noreferrer` strips the Referer header so the
     // destination can't see what page sent the user. Forced at the
     // platform level so individual plugin links can't drop them.
     const opened = window.open(url, "_blank", "noopener,noreferrer");
     if (!opened) {
-      // Popup blocker engaged or url malformed.
+      // Popup blocker engaged.
       console.warn(`[plugin/${pkgName}] window.open returned null`, { url });
     }
   };
 }
 
 function makeDispatch(pkgName: string): BrowserPluginRuntime["dispatch"] {
-  // Encode the pkg name into the URL the same way the host's
-  // runtime asset / dispatch routes expect (encodeURIComponent
-  // collapses scoped names into one path segment).
-  const url = `/api/plugins/runtime/${encodeURIComponent(pkgName)}/dispatch`;
+  // Substitute `:pkg` in the contracted dispatch route. encodeURIComponent
+  // collapses scoped names (`@org/pkg`) into one URL path segment;
+  // the parameter pattern `:pkg` matches any segment.
+  const url = API_ROUTES.plugins.runtimeDispatch.replace(":pkg", encodeURIComponent(pkgName));
   return async <T = unknown>(args: object): Promise<T> => {
     const result = await apiPost<T>(url, args);
     if (!result.ok) {

@@ -134,27 +134,34 @@ describe("makePluginRuntime — scoped pubsub", () => {
 describe("makePluginRuntime — files.data and files.config", () => {
   // Each test creates a fresh fake workspace root so the writes
   // don't pile up.
-  let savedDataRoot: string;
-  let savedConfigRoot: string;
+  let savedDataDescriptor: PropertyDescriptor | undefined;
+  let savedConfigDescriptor: PropertyDescriptor | undefined;
   let dataRoot: string;
   let configRoot: string;
 
   beforeEach(() => {
-    savedDataRoot = WORKSPACE_PATHS.pluginsData;
-    savedConfigRoot = WORKSPACE_PATHS.pluginsConfig;
+    // Capture the FULL descriptor so afterEach can restore the original
+    // writability + enumerability flags. Storing only `value` and re-
+    // applying via `Object.defineProperty(...{value, configurable})`
+    // would silently flip the property to non-writable and non-
+    // enumerable, leaking that mutation into later test cases that
+    // iterate or re-patch WORKSPACE_PATHS (CodeRabbit review on PR
+    // #1124).
+    savedDataDescriptor = Object.getOwnPropertyDescriptor(WORKSPACE_PATHS, "pluginsData");
+    savedConfigDescriptor = Object.getOwnPropertyDescriptor(WORKSPACE_PATHS, "pluginsConfig");
     dataRoot = mkdtempSync(path.join(tmpdir(), "plugin-runtime-data-"));
     configRoot = mkdtempSync(path.join(tmpdir(), "plugin-runtime-config-"));
     // WORKSPACE_PATHS is a frozen const at import time, so we patch it
     // via Object.defineProperty for the lifetime of the test. The
     // alternative — refactoring `makePluginRuntime` to take roots as
     // arguments — would expose internals plugin authors don't need.
-    Object.defineProperty(WORKSPACE_PATHS, "pluginsData", { value: dataRoot, configurable: true });
-    Object.defineProperty(WORKSPACE_PATHS, "pluginsConfig", { value: configRoot, configurable: true });
+    if (savedDataDescriptor) Object.defineProperty(WORKSPACE_PATHS, "pluginsData", { ...savedDataDescriptor, value: dataRoot });
+    if (savedConfigDescriptor) Object.defineProperty(WORKSPACE_PATHS, "pluginsConfig", { ...savedConfigDescriptor, value: configRoot });
   });
 
   afterEach(() => {
-    Object.defineProperty(WORKSPACE_PATHS, "pluginsData", { value: savedDataRoot, configurable: true });
-    Object.defineProperty(WORKSPACE_PATHS, "pluginsConfig", { value: savedConfigRoot, configurable: true });
+    if (savedDataDescriptor) Object.defineProperty(WORKSPACE_PATHS, "pluginsData", savedDataDescriptor);
+    if (savedConfigDescriptor) Object.defineProperty(WORKSPACE_PATHS, "pluginsConfig", savedConfigDescriptor);
     rmSync(dataRoot, { recursive: true, force: true });
     rmSync(configRoot, { recursive: true, force: true });
   });

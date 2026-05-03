@@ -191,20 +191,32 @@ function makeScopedFetch(pkgName: string): PluginRuntime["fetch"] {
       // so plugin authors don't need to know the wider DOM BodyInit union.
       const body = opts.body as Parameters<typeof fetch>[1] extends infer T ? (T extends { body?: infer B } ? B : never) : never;
       return await fetch(url, { method: opts.method, headers: opts.headers, body, signal });
+    } catch (err) {
+      // Re-throw with plugin context so a fan-out failure in the
+      // host log immediately points at the responsible plugin
+      // instead of an anonymous network error (CodeRabbit review on
+      // PR #1124). Distinguishing AbortError → "timeout" is more
+      // useful than the bare "AbortError: This operation was aborted"
+      // message that surfaces from AbortController.
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new Error(`plugin/${pkgName}: fetch timed out after ${timeoutMs}ms (${url})`);
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`plugin/${pkgName}: fetch failed (${url}): ${message}`);
     } finally {
       clearTimeout(timer);
     }
   };
 }
 
-function makeScopedFetchJson(scopedFetch: PluginRuntime["fetch"]): PluginRuntime["fetchJson"] {
+function makeScopedFetchJson(pkgName: string, scopedFetch: PluginRuntime["fetch"]): PluginRuntime["fetchJson"] {
   // When `opts.parse` is provided we trust its narrowing; when absent
   // the caller asserts the JSON shape themselves (same contract as
   // `JSON.parse(...) as T`).
   return async function fetchJson<T>(url: string, opts: { parse?: (raw: unknown) => T } & Parameters<PluginRuntime["fetch"]>[1] = {}): Promise<T> {
     const response = await scopedFetch(url, opts);
     if (!response.ok) {
-      throw new Error(`fetchJson: HTTP ${response.status} for ${url}`);
+      throw new Error(`plugin/${pkgName}: fetchJson HTTP ${response.status} for ${url}`);
     }
     const raw = (await response.json()) as unknown;
     return opts.parse ? opts.parse(raw) : (raw as T);
@@ -280,7 +292,7 @@ export function makePluginRuntime(deps: MakePluginRuntimeDeps): PluginRuntime {
     },
     log: makeScopedLogger(pkgName),
     fetch: scopedFetch,
-    fetchJson: makeScopedFetchJson(scopedFetch),
+    fetchJson: makeScopedFetchJson(pkgName, scopedFetch),
     notify: makeScopedNotify(pkgName),
   };
 }
