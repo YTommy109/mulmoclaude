@@ -130,6 +130,32 @@ describe("Bookmarks plugin — end-to-end through the loader", () => {
     assert.deepEqual(res, { ok: false, error: "not_found" });
   });
 
+  // Regression: parallel `add` calls used to read the same snapshot
+  // and the later writer dropped the earlier change. The plugin now
+  // serialises read-modify-write through a per-process mutex —
+  // CodeRabbit review on PR #1124. Asserts: 5 concurrent `add`s land
+  // in the file, none are silently dropped.
+  it("serialises concurrent add calls — no lost updates", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const { pubsub } = makeRecordingPubSub();
+    const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+    });
+    assert.ok(plugin, "plugin should load");
+    const { execute } = plugin;
+    assert.ok(execute, "execute handler must be present");
+
+    const PARALLEL = 5;
+    const adds = Array.from({ length: PARALLEL }, (_, i) => execute({}, { kind: "add", url: `https://example.com/${i}`, title: `Example ${i}` }));
+    await Promise.all(adds);
+
+    const listed = (await execute({}, { kind: "list" })) as BookmarkResult;
+    assert.equal(listed.bookmarks?.length, PARALLEL, `expected ${PARALLEL} bookmarks after concurrent adds, got ${listed.bookmarks?.length}`);
+  });
+
   it("setSort writes to files.config (not files.data) and publishes prefs-changed", async (ctx) => {
     if (!existsSync(PLUGIN_DIST_INDEX)) {
       ctx.skip("dist not built");
