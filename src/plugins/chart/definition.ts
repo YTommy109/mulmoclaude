@@ -1,7 +1,11 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 
 export const TOOL_NAME = "presentChart";
-export const API_ENDPOINT = "/api/present-chart";
+
+export interface ChartEndpoints {
+  [key: string]: string;
+  present: string;
+}
 
 const toolDefinition: ToolDefinition = {
   type: "function",

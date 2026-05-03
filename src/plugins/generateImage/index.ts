@@ -1,7 +1,9 @@
 import type { ToolResult } from "gui-chat-protocol";
 import type { PluginRegistration, ToolPlugin } from "../../tools/types";
-import toolDefinition, { API_ENDPOINT, TOOL_NAME } from "./definition";
+import toolDefinition, { TOOL_NAME } from "./definition";
 import type { ImageToolData } from "./definition";
+import { pluginEndpoints } from "../api";
+import type { ImageEndpoints } from "../editImages/definition";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -20,7 +22,8 @@ const generateImagePlugin: ToolPlugin<ImageToolData> = {
   toolDefinition,
 
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<ImageToolData>>(API_ENDPOINT, args);
+    const endpoints = pluginEndpoints<ImageEndpoints>("image");
+    const result = await apiPost<ToolResult<ImageToolData>>(endpoints.generate, args);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

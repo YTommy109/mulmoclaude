@@ -1,7 +1,17 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 
 export const TOOL_NAME = "editImages";
-export const API_ENDPOINT = "/api/edit-image";
+
+/** Endpoint contract — both `editImages` and `generateImage` plugins
+ *  share the host's `image` scope (the host's `API_ROUTES.image.*`).
+ *  Each picks the URL it needs (`edit` / `generate` / `update`). */
+export interface ImageEndpoints {
+  [key: string]: string;
+  generate: string;
+  edit: string;
+  upload: string;
+  update: string;
+}
 
 export interface ImageToolData {
   imageData: string;

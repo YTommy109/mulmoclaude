@@ -50,10 +50,14 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { PresentHtmlData } from "./index";
 import { htmlPreviewUrlFor } from "../../composables/useContentDisplay";
 import { apiFetchRaw, apiPut } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
+import type { HtmlEndpoints } from "./definition";
 import { errorMessage } from "../../utils/errors";
 import { buildPrintCspContent } from "../../utils/html/previewCsp";
 import { useFileChange } from "../../composables/useFileChange";
+
+const endpoints = pluginEndpoints<HtmlEndpoints>("html");
+const filesEndpoints = pluginEndpoints<{ raw: string }>("files");
 
 const { t } = useI18n();
 
@@ -115,7 +119,7 @@ async function fetchSource(): Promise<string | null> {
   sourceLoading.value = true;
   sourceError.value = null;
   try {
-    const resp = await apiFetchRaw(API_ROUTES.files.raw, { query: { path } });
+    const resp = await apiFetchRaw(filesEndpoints.raw, { query: { path } });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const text = await resp.text();
     // Stale-response guard: only commit the result if the user has
@@ -166,7 +170,7 @@ async function applyHtml() {
   if (!path) return;
   saveError.value = null;
   saving.value = true;
-  const result = await apiPut<{ path: string }>(API_ROUTES.html.update, {
+  const result = await apiPut<{ path: string }>(endpoints.update, {
     relativePath: path,
     html: editableHtml.value,
   });

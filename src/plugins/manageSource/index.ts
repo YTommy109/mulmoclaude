@@ -1,6 +1,7 @@
 import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
-import toolDefinition, { API_ENDPOINT, TOOL_NAME } from "./definition";
+import toolDefinition, { TOOL_NAME, type SourcesEndpoints } from "./definition";
+import { pluginEndpoints } from "../api";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -42,7 +43,8 @@ export interface ManageSourceData {
 const manageSourcePlugin: ToolPlugin<ManageSourceData> = {
   toolDefinition,
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<ManageSourceData>>(API_ENDPOINT, args);
+    const endpoints = pluginEndpoints<SourcesEndpoints>("sources");
+    const result = await apiPost<ToolResult<ManageSourceData>>(endpoints.manage, args);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

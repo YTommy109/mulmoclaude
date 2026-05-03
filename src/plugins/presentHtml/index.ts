@@ -1,6 +1,7 @@
 import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
-import toolDefinition, { API_ENDPOINT, TOOL_NAME } from "./definition";
+import toolDefinition, { TOOL_NAME, type HtmlEndpoints } from "./definition";
+import { pluginEndpoints } from "../api";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -15,7 +16,8 @@ const presentHtmlPlugin: ToolPlugin<PresentHtmlData> = {
   toolDefinition,
 
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<PresentHtmlData>>(API_ENDPOINT, args);
+    const endpoints = pluginEndpoints<HtmlEndpoints>("html");
+    const result = await apiPost<ToolResult<PresentHtmlData>>(endpoints.present, args);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

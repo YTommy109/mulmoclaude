@@ -1,7 +1,8 @@
 import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import type { MulmoScript } from "mulmocast";
-import toolDefinition, { API_ENDPOINT, TOOL_NAME } from "./definition";
+import toolDefinition, { TOOL_NAME, type MulmoScriptEndpoints } from "./definition";
+import { pluginEndpoints } from "../api";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -21,7 +22,8 @@ const presentMulmoScriptPlugin: ToolPlugin<MulmoScriptData> = {
   // `autoGenerateMovie` background trigger server-side. Keeping this
   // function trivial means the two callers can never drift apart.
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<MulmoScriptData>>(API_ENDPOINT, args);
+    const endpoints = pluginEndpoints<MulmoScriptEndpoints>("mulmoScript");
+    const result = await apiPost<ToolResult<MulmoScriptData>>(endpoints.save, args);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

@@ -1,5 +1,5 @@
 import type { ToolDefinition } from "gui-chat-protocol";
-import { SCHEDULER_ACTIONS } from "../../config/schedulerActions";
+import { SCHEDULER_ACTIONS } from "./actions";
 
 export const TOOL_NAME = "manageCalendar";
 

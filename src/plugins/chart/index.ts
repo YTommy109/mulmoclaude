@@ -1,6 +1,7 @@
 import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
-import toolDefinition, { API_ENDPOINT, TOOL_NAME } from "./definition";
+import toolDefinition, { TOOL_NAME, type ChartEndpoints } from "./definition";
+import { pluginEndpoints } from "../api";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -27,7 +28,8 @@ const presentChartPlugin: ToolPlugin<PresentChartData> = {
   toolDefinition,
 
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<PresentChartData>>(API_ENDPOINT, args);
+    const endpoints = pluginEndpoints<ChartEndpoints>("chart");
+    const result = await apiPost<ToolResult<PresentChartData>>(endpoints.present, args);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

@@ -1,10 +1,19 @@
 import type { ToolDefinition } from "gui-chat-protocol";
-import { SCHEDULER_ACTIONS } from "../../config/schedulerActions";
+import { SCHEDULER_ACTIONS } from "./actions";
 
 export const TOOL_NAME = "manageAutomations";
-// Shared with calendarDefinition — both tools dispatch to the same
-// `/api/scheduler` route which differentiates by action enum.
-export const API_ENDPOINT = "/api/scheduler";
+
+/** Endpoint contract for the scheduler plugin (shared by calendar +
+ *  automations definitions — both dispatch to the same base via
+ *  the action enum). */
+export interface SchedulerEndpoints {
+  [key: string]: string;
+  base: string;
+  tasks: string;
+  task: string;
+  taskRun: string;
+  logs: string;
+}
 
 const AUTOMATION_ACTIONS = [SCHEDULER_ACTIONS.createTask, SCHEDULER_ACTIONS.listTasks, SCHEDULER_ACTIONS.deleteTask, SCHEDULER_ACTIONS.runTask] as const;
 

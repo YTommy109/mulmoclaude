@@ -2,7 +2,8 @@ import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
-import toolDefinition, { API_ENDPOINT, TOOL_NAME } from "./definition";
+import toolDefinition, { TOOL_NAME, type TodoEndpoints } from "./definition";
+import { pluginEndpoints } from "../api";
 import { apiPost } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
@@ -37,7 +38,8 @@ const todoPlugin: ToolPlugin<TodoData> = {
   toolDefinition,
 
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<TodoData>>(API_ENDPOINT, args);
+    const endpoints = pluginEndpoints<TodoEndpoints>("todos");
+    const result = await apiPost<ToolResult<TodoData>>(endpoints.dispatch, args);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

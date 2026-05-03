@@ -27,19 +27,6 @@ import { BUILT_IN_PLUGIN_METAS, filterPluginKeys, type BuiltInPluginMetas, type 
 // registration, MCP bridge) keep their current import paths. A
 // plugin's local edit + `definition.ts` re-export is the only place
 // that URL appears — no drift between plugin and config.
-import { API_ENDPOINT as canvasEndpoint } from "../plugins/canvas/definition";
-import { API_ENDPOINT as chartEndpoint } from "../plugins/chart/definition";
-import { API_ENDPOINT as editImagesEndpoint } from "../plugins/editImages/definition";
-import { API_ENDPOINT as generateImageEndpoint } from "../plugins/generateImage/definition";
-import { API_ENDPOINT as manageRolesEndpoint } from "../plugins/manageRoles/definition";
-import { API_ENDPOINT as manageSkillsEndpoint } from "../plugins/manageSkills/definition";
-import { API_ENDPOINT as manageSourceEndpoint } from "../plugins/manageSource/definition";
-import { API_ENDPOINT as markdownEndpoint } from "../plugins/markdown/definition";
-import { API_ENDPOINT as presentHtmlEndpoint } from "../plugins/presentHtml/definition";
-import { API_ENDPOINT as presentMulmoScriptEndpoint } from "../plugins/presentMulmoScript/definition";
-import { API_ENDPOINT as schedulerEndpoint } from "../plugins/scheduler/automationsDefinition";
-import { API_ENDPOINT as spreadsheetEndpoint } from "../plugins/spreadsheet/definition";
-import { API_ENDPOINT as todosEndpoint } from "../plugins/todo/definition";
 
 // Plugin-owned API routes auto-merged from each plugin's META. Each
 // plugin's `apiRoutesKey` becomes the outer key under `API_ROUTES`
@@ -77,7 +64,7 @@ const HOST_API_ROUTES = {
   },
 
   chart: {
-    present: chartEndpoint,
+    present: "/api/present-chart",
   },
 
   chatIndex: {
@@ -107,7 +94,7 @@ const HOST_API_ROUTES = {
   html: {
     generate: "/api/generate-html",
     edit: "/api/edit-html",
-    present: presentHtmlEndpoint,
+    present: "/api/present-html",
     // Body carries the workspace-relative path so the route doesn't
     // have to reconstruct one from a basename — same shape as
     // plugins.updateMarkdown / image.update.
@@ -115,8 +102,8 @@ const HOST_API_ROUTES = {
   },
 
   image: {
-    generate: generateImageEndpoint,
-    edit: editImagesEndpoint,
+    generate: "/api/generate-image",
+    edit: "/api/edit-image",
     upload: "/api/images",
     // Body carries the workspace-relative path so the route doesn't
     // have to reconstruct one from a basename — required after #764
@@ -154,7 +141,7 @@ const HOST_API_ROUTES = {
   },
 
   mulmoScript: {
-    save: presentMulmoScriptEndpoint,
+    save: "/api/mulmo-script",
     updateBeat: "/api/mulmo-script/update-beat",
     updateScript: "/api/mulmo-script/update-script",
     beatImage: "/api/mulmo-script/beat-image",
@@ -177,18 +164,18 @@ const HOST_API_ROUTES = {
   // Plugin-owned endpoints that don't follow a single naming pattern.
   // Names match the plugin tool name or the short verb the plugin uses.
   plugins: {
-    presentDocument: markdownEndpoint,
+    presentDocument: "/api/present-document",
     // Body carries the workspace-relative path so the route doesn't
     // have to reconstruct one from a basename — required after #764
     // sharded artifact storage by YYYY/MM. Same shape as
     // image.update.
     updateMarkdown: "/api/markdowns/update",
-    presentSpreadsheet: spreadsheetEndpoint,
+    presentSpreadsheet: "/api/present-spreadsheet",
     updateSpreadsheet: "/api/spreadsheets/update",
     mindmap: "/api/mindmap",
     quiz: "/api/quiz",
     form: "/api/form",
-    canvas: canvasEndpoint,
+    canvas: "/api/canvas",
     present3d: "/api/present3d",
     // Runtime-loaded plugins (#1043 C-2). One generic dispatch
     // endpoint shared by every workspace-installed plugin; the URL
@@ -216,11 +203,11 @@ const HOST_API_ROUTES = {
 
   roles: {
     list: "/api/roles",
-    manage: manageRolesEndpoint,
+    manage: "/api/roles/manage",
   },
 
   scheduler: {
-    base: schedulerEndpoint,
+    base: "/api/scheduler",
     tasks: "/api/scheduler/tasks",
     task: "/api/scheduler/tasks/:id",
     taskRun: "/api/scheduler/tasks/:id/run",
@@ -236,9 +223,9 @@ const HOST_API_ROUTES = {
   },
 
   skills: {
-    list: manageSkillsEndpoint,
+    list: "/api/skills",
     detail: "/api/skills/:name",
-    create: manageSkillsEndpoint,
+    create: "/api/skills",
     update: "/api/skills/:name",
     remove: "/api/skills/:name",
   },
@@ -248,7 +235,7 @@ const HOST_API_ROUTES = {
     create: "/api/sources",
     remove: "/api/sources/:slug",
     rebuild: "/api/sources/rebuild",
-    manage: manageSourceEndpoint,
+    manage: "/api/sources/manage",
   },
 
   news: {
@@ -258,8 +245,8 @@ const HOST_API_ROUTES = {
   },
 
   todos: {
-    list: todosEndpoint,
-    dispatch: todosEndpoint,
+    list: "/api/todos",
+    dispatch: "/api/todos",
     items: "/api/todos/items",
     item: "/api/todos/items/:id",
     itemMove: "/api/todos/items/:id/move",

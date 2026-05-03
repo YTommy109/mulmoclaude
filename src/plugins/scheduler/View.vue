@@ -255,7 +255,8 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { SchedulerData, ScheduledItem } from "./index";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
+import type { SchedulerEndpoints } from "./automationsDefinition";
 import TasksTab from "./TasksTab.vue";
 import { isToday } from "../../utils/format/date";
 import { errorMessage } from "../../utils/errors";
@@ -290,8 +291,10 @@ watch(
 );
 const items = ref<ScheduledItem[]>(props.selectedResult?.data?.items ?? []);
 
+const endpoints = pluginEndpoints<SchedulerEndpoints>("scheduler");
+
 const { refresh } = useFreshPluginData<ScheduledItem[]>({
-  endpoint: () => API_ROUTES.scheduler.base,
+  endpoint: () => endpoints.base,
   extract: (json) => {
     const payload = (json as { data?: { items?: ScheduledItem[] } }).data?.items;
     return Array.isArray(payload) ? payload : null;
@@ -535,7 +538,7 @@ const apiError = ref<string | null>(null);
 const isModified = computed(() => editorText.value !== toJson(items.value));
 
 async function callApi(body: Record<string, unknown>): Promise<boolean> {
-  const response = await apiPost<{ data?: { items?: ScheduledItem[] } }>(API_ROUTES.scheduler.base, body);
+  const response = await apiPost<{ data?: { items?: ScheduledItem[] } }>(endpoints.base, body);
   if (!response.ok) {
     apiError.value = response.error;
     return false;

@@ -4,6 +4,15 @@ import Preview from "./Preview.vue";
 
 const TOOL_NAME = "manageWiki";
 
+export interface WikiEndpoints {
+  [key: string]: string;
+  base: string;
+  pageHistory: string;
+  pageHistorySnapshot: string;
+  pageHistoryRestore: string;
+  internalSnapshot: string;
+}
+
 export interface WikiPageEntry {
   title: string;
   slug: string;

@@ -10,7 +10,8 @@
 
 import { ref, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { API_ROUTES } from "../../../config/apiRoutes";
+import { pluginEndpoints } from "../../api";
+import type { TodoEndpoints } from "../definition";
 import { useFreshPluginData } from "../../../composables/useFreshPluginData";
 import { errorMessage } from "../../../utils/errors";
 import { apiCall } from "../../../utils/api";
@@ -110,11 +111,13 @@ export function useTodos(initialItems: TodoItem[] = [], initialColumns: StatusCo
   const columns = ref<StatusColumn[]>(initialColumns);
   const error = ref<string | null>(null);
 
+  const endpoints = pluginEndpoints<TodoEndpoints>("todos");
+
   const { refresh: rawRefresh } = useFreshPluginData<{
     items: TodoItem[];
     columns: StatusColumn[];
   }>({
-    endpoint: () => API_ROUTES.todos.list,
+    endpoint: () => endpoints.list,
     extract: (json) => {
       const extractedItems = extractItems(json);
       const extractedColumns = extractColumns(json);
@@ -167,13 +170,13 @@ export function useTodos(initialItems: TodoItem[] = [], initialColumns: StatusCo
     columns,
     error,
     refresh,
-    createItem: (input) => call(API_ROUTES.todos.items, "POST", input),
-    patchItem: (itemId, input) => call(API_ROUTES.todos.item.replace(":id", encodeURIComponent(itemId)), "PATCH", input),
-    moveItem: (itemId, input) => call(API_ROUTES.todos.itemMove.replace(":id", encodeURIComponent(itemId)), "POST", input),
-    deleteItem: (itemId) => call(API_ROUTES.todos.item.replace(":id", encodeURIComponent(itemId)), "DELETE"),
-    addColumn: (input) => call(API_ROUTES.todos.columns, "POST", input),
-    patchColumn: (colId, input) => call(API_ROUTES.todos.column.replace(":id", encodeURIComponent(colId)), "PATCH", input),
-    deleteColumn: (colId) => call(API_ROUTES.todos.column.replace(":id", encodeURIComponent(colId)), "DELETE"),
-    reorderColumns: (ids) => call(API_ROUTES.todos.columnsOrder, "PUT", { ids }),
+    createItem: (input) => call(endpoints.items, "POST", input),
+    patchItem: (itemId, input) => call(endpoints.item.replace(":id", encodeURIComponent(itemId)), "PATCH", input),
+    moveItem: (itemId, input) => call(endpoints.itemMove.replace(":id", encodeURIComponent(itemId)), "POST", input),
+    deleteItem: (itemId) => call(endpoints.item.replace(":id", encodeURIComponent(itemId)), "DELETE"),
+    addColumn: (input) => call(endpoints.columns, "POST", input),
+    patchColumn: (colId, input) => call(endpoints.column.replace(":id", encodeURIComponent(colId)), "PATCH", input),
+    deleteColumn: (colId) => call(endpoints.column.replace(":id", encodeURIComponent(colId)), "DELETE"),
+    reorderColumns: (ids) => call(endpoints.columnsOrder, "PUT", { ids }),
   };
 }

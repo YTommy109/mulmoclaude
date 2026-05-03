@@ -1,10 +1,15 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 
 export const TOOL_NAME = "manageSkills";
-// `apiGet`'s skills list endpoint. The plugin's execute() reads from
-// here; the server's create/update/remove sit at the same
-// `/api/skills` (sub-paths via :name) — see API_ROUTES.skills.
-export const API_ENDPOINT = "/api/skills";
+
+export interface SkillsEndpoints {
+  [key: string]: string;
+  list: string;
+  detail: string;
+  create: string;
+  update: string;
+  remove: string;
+}
 
 const toolDefinition: ToolDefinition = {
   type: "function",

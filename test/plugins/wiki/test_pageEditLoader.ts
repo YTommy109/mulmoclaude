@@ -5,9 +5,14 @@
 // Stubs `globalThis.fetch` since `apiGet` (the loader's transport)
 // goes through the global. Same pattern as test_useSkillsList.ts.
 
-import { describe, it, afterEach } from "node:test";
+import { describe, it, afterEach, before } from "node:test";
 import assert from "node:assert/strict";
 import { loadPageEdit } from "../../../src/plugins/wiki/pageEditLoader.js";
+import { installTestHostContext } from "../../helpers/installHostContext.js";
+
+before(() => {
+  installTestHostContext();
+});
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const originalFetch: any = (globalThis as { fetch: unknown }).fetch;

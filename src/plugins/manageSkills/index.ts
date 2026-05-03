@@ -1,5 +1,6 @@
 import type { PluginRegistration, ToolPlugin } from "../../tools/types";
-import toolDefinition, { API_ENDPOINT, TOOL_NAME } from "./definition";
+import toolDefinition, { TOOL_NAME, type SkillsEndpoints } from "./definition";
+import { pluginEndpoints } from "../api";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiGet } from "../../utils/api";
@@ -21,7 +22,8 @@ const manageSkillsPlugin: ToolPlugin<ManageSkillsData> = {
     // Claude invokes this tool to show the user their skills list.
     // The server exposes GET /api/skills (discovery + merge); we just
     // shape it for the View component.
-    const result = await apiGet<{ skills: SkillSummary[] }>(API_ENDPOINT);
+    const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
+    const result = await apiGet<{ skills: SkillSummary[] }>(endpoints.list);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

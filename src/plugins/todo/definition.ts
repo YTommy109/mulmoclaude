@@ -1,7 +1,26 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 
 export const TOOL_NAME = "manageTodoList";
-export const API_ENDPOINT = "/api/todos";
+
+/** Endpoint contract — declares which URLs the plugin needs from
+ *  the host. The host wires the actual URLs at boot via
+ *  `installHostContext` (see `src/main.ts`); plugin code reads them
+ *  via `pluginEndpoints<TodoEndpoints>("todos")`. */
+// Index signature lets TS treat this interface as assignable to
+// `Record<string, string>` for the `pluginEndpoints<E>` generic.
+// Without `[key: string]: string`, an interface is "open" and TS
+// won't accept it where the constraint demands a flat string record.
+export interface TodoEndpoints {
+  [key: string]: string;
+  list: string;
+  dispatch: string;
+  items: string;
+  item: string;
+  itemMove: string;
+  columns: string;
+  column: string;
+  columnsOrder: string;
+}
 
 const toolDefinition: ToolDefinition = {
   type: "function",

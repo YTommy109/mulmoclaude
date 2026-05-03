@@ -8,7 +8,8 @@ import AutomationsView from "./AutomationsView.vue";
 import Preview from "./Preview.vue";
 import AutomationsPreview from "./AutomationsPreview.vue";
 import calendarDefinition, { TOOL_NAME as MANAGE_CALENDAR } from "./calendarDefinition";
-import automationsDefinition, { API_ENDPOINT, TOOL_NAME as MANAGE_AUTOMATIONS } from "./automationsDefinition";
+import automationsDefinition, { TOOL_NAME as MANAGE_AUTOMATIONS, type SchedulerEndpoints } from "./automationsDefinition";
+import { pluginEndpoints } from "../api";
 import { apiPost } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
@@ -26,7 +27,8 @@ export interface SchedulerData {
 // `toolName` is captured so the result carries the matching name through to chat history and View lookup.
 function makeExecute(toolName: typeof MANAGE_CALENDAR | typeof MANAGE_AUTOMATIONS): ToolPlugin<SchedulerData>["execute"] {
   return async function execute(_context, args) {
-    const result = await apiPost<ToolResult<SchedulerData>>(API_ENDPOINT, args);
+    const endpoints = pluginEndpoints<SchedulerEndpoints>("scheduler");
+    const result = await apiPost<ToolResult<SchedulerData>>(endpoints.base, args);
     if (!result.ok) {
       return {
         toolName,

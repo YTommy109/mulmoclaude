@@ -110,7 +110,8 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TodoData, TodoItem } from "./index";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
+import type { TodoEndpoints } from "./definition";
 import { colorForLabel, filterByLabels, listLabelsWithCount, subtractLabels } from "./labels";
 
 const { t } = useI18n();
@@ -122,8 +123,10 @@ const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 
 const items = ref<TodoItem[]>(props.selectedResult.data?.items ?? []);
 
+const endpoints = pluginEndpoints<TodoEndpoints>("todos");
+
 const { refresh } = useFreshPluginData<TodoItem[]>({
-  endpoint: () => API_ROUTES.todos.list,
+  endpoint: () => endpoints.list,
   extract: (json) => {
     const extracted = (json as { data?: { items?: TodoItem[] } }).data?.items;
     return Array.isArray(extracted) ? extracted : null;
@@ -347,7 +350,7 @@ async function applyItemEdit() {
 const todoApiError = ref<string | null>(null);
 
 async function callApi(body: Record<string, unknown>): Promise<boolean> {
-  const response = await apiPost<{ data?: { items?: TodoItem[] } }>(API_ROUTES.todos.dispatch, body);
+  const response = await apiPost<{ data?: { items?: TodoItem[] } }>(endpoints.dispatch, body);
   if (!response.ok) {
     todoApiError.value = response.error;
     return false;
