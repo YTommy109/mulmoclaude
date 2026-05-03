@@ -35,7 +35,7 @@ import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TodoData, TodoItem } from "./index";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
-import { pluginEndpoints } from "../api";
+import { useRuntime } from "gui-chat-protocol/vue";
 import type { TodoEndpoints } from "./definition";
 import { colorForLabel } from "./labels";
 
@@ -45,7 +45,7 @@ const props = defineProps<{ result: ToolResultComplete<TodoData> }>();
 
 const items = ref<TodoItem[]>(props.result.data?.items ?? []);
 
-const endpoints = pluginEndpoints<TodoEndpoints>("todos");
+const endpoints = useRuntime().endpoints as TodoEndpoints;
 
 const { refresh } = useFreshPluginData<TodoItem[]>({
   endpoint: () => endpoints.list,

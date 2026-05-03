@@ -10,7 +10,7 @@
 
 import { ref, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { pluginEndpoints } from "../../api";
+import { useRuntime } from "gui-chat-protocol/vue";
 import type { TodoEndpoints } from "../definition";
 import { useFreshPluginData } from "../../../composables/useFreshPluginData";
 import { errorMessage } from "../../../utils/errors";
@@ -111,7 +111,7 @@ export function useTodos(initialItems: TodoItem[] = [], initialColumns: StatusCo
   const columns = ref<StatusColumn[]>(initialColumns);
   const error = ref<string | null>(null);
 
-  const endpoints = pluginEndpoints<TodoEndpoints>("todos");
+  const endpoints = useRuntime().endpoints as TodoEndpoints;
 
   const { refresh: rawRefresh } = useFreshPluginData<{
     items: TodoItem[];

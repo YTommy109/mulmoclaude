@@ -4,6 +4,7 @@ import View from "./View.vue";
 import Preview from "./Preview.vue";
 import toolDefinition, { TOOL_NAME, type TodoEndpoints } from "./definition";
 import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import { apiPost } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
@@ -56,8 +57,12 @@ const todoPlugin: ToolPlugin<TodoData> = {
 
   isEnabled: () => true,
   generatingMessage: "Managing todos...",
-  viewComponent: View,
-  previewComponent: Preview,
+  // Wrap so descendants can pull `BrowserPluginRuntime` via
+  // `useRuntime()` from `gui-chat-protocol/vue` — same pattern as
+  // runtime-loaded plugins. The `endpoints` field on the runtime
+  // carries the `TodoEndpoints` group from the host's DI registry.
+  viewComponent: wrapWithScope("todos", View),
+  previewComponent: wrapWithScope("todos", Preview),
 };
 
 export default todoPlugin;

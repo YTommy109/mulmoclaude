@@ -110,7 +110,7 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TodoData, TodoItem } from "./index";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { apiPost } from "../../utils/api";
-import { pluginEndpoints } from "../api";
+import { useRuntime } from "gui-chat-protocol/vue";
 import type { TodoEndpoints } from "./definition";
 import { colorForLabel, filterByLabels, listLabelsWithCount, subtractLabels } from "./labels";
 
@@ -123,7 +123,11 @@ const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 
 const items = ref<TodoItem[]>(props.selectedResult.data?.items ?? []);
 
-const endpoints = pluginEndpoints<TodoEndpoints>("todos");
+// `runtime.endpoints` is host-populated and typed as
+// `Record<string, string> | undefined` per the protocol; cast to
+// the plugin's typed contract. The `<PluginScopedRoot>` wrapper in
+// `index.ts#wrapWithScope("todos", ...)` guarantees presence.
+const endpoints = useRuntime().endpoints as TodoEndpoints;
 
 const { refresh } = useFreshPluginData<TodoItem[]>({
   endpoint: () => endpoints.list,

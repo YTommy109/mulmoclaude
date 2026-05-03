@@ -13,15 +13,13 @@
 
 import path from "node:path";
 import { readFile, readdir, stat as fsStat, unlink as fsUnlink } from "node:fs/promises";
-import type { FileOps, PluginNotifyMessage, PluginRuntime } from "gui-chat-protocol";
+import type { FileOps, PluginRuntime } from "gui-chat-protocol";
 
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
 import { writeFileAtomic } from "../utils/files/atomic.js";
 import { log as hostLog, type Logger } from "../system/logger/index.js";
 import { ensureInsideBase } from "./runtime-loader.js";
 import { ONE_SECOND_MS } from "../utils/time.js";
-import { publishNotification } from "../events/notifications.js";
-import { NOTIFICATION_KINDS } from "../../src/types/notification.js";
 import type { IPubSub } from "../events/pub-sub/index.js";
 
 const DEFAULT_FETCH_TIMEOUT_MS = 10 * ONE_SECOND_MS;
@@ -224,25 +222,6 @@ function makeScopedFetchJson(pkgName: string, scopedFetch: PluginRuntime["fetch"
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Scoped notify
-// ─────────────────────────────────────────────────────────────────────
-
-function makeScopedNotify(pkgName: string): PluginRuntime["notify"] {
-  return (msg: PluginNotifyMessage) => {
-    publishNotification({
-      kind: NOTIFICATION_KINDS.push,
-      title: msg.title,
-      body: msg.body,
-      // Plugin notifications carry no built-in deep link. The host
-      // notification panel will show title + body and the bell icon.
-      // Plugins that want navigation can publish a custom pubsub
-      // event their own View subscribes to.
-    });
-    hostLog.info(`plugin/${pkgName}`, "notify", { title: msg.title, level: msg.level ?? "info" });
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────
 // Scoped pubsub publisher
 // ─────────────────────────────────────────────────────────────────────
 
@@ -293,7 +272,6 @@ export function makePluginRuntime(deps: MakePluginRuntimeDeps): PluginRuntime {
     log: makeScopedLogger(pkgName),
     fetch: scopedFetch,
     fetchJson: makeScopedFetchJson(pkgName, scopedFetch),
-    notify: makeScopedNotify(pkgName),
   };
 }
 
