@@ -63,7 +63,15 @@ function mulmoclaudeAuthTokenPlugin(): Plugin {
 // importmap target so runtime-loaded plugins still share the host's
 // Vue instance after `yarn build` and `npx mulmoclaude` distribution.
 function runtimeImportmapBuildPlugin(): Plugin {
-  const DEV_IMPORTMAP_TARGET = '/src/_runtime/vue.ts'
+  // Each importmap entry maps `(dev URL → chunk name)`. The dev URL is
+  // the static path the browser sees during `yarn dev`; the chunk
+  // name matches the Rollup input key registered in
+  // `build.rollupOptions.input` below. After build, the dev URL gets
+  // rewritten to the hashed asset path.
+  const ENTRIES: Array<{ devUrl: string; chunkName: string }> = [
+    { devUrl: '/src/_runtime/vue.ts', chunkName: 'runtime-vue' },
+    { devUrl: '/src/_runtime/protocol-vue.ts', chunkName: 'runtime-protocol-vue' },
+  ]
   return {
     name: 'mulmoclaude-runtime-importmap',
     apply: 'build',
@@ -71,24 +79,30 @@ function runtimeImportmapBuildPlugin(): Plugin {
       order: 'post',
       handler(html, ctx) {
         if (!ctx.bundle) return html
-        // The runtime/vue.ts entry input is registered in
-        // `build.rollupOptions.input` below; Vite emits it as a
-        // chunk whose `name` matches the input key.
-        let runtimeFile: string | null = null
-        for (const [fileName, chunk] of Object.entries(ctx.bundle)) {
-          if (chunk.type === 'chunk' && chunk.name === 'runtime-vue') {
-            runtimeFile = fileName
-            break
+        let next = html
+        for (const { devUrl, chunkName } of ENTRIES) {
+          let runtimeFile: string | null = null
+          for (const [fileName, chunk] of Object.entries(ctx.bundle)) {
+            if (chunk.type === 'chunk' && chunk.name === chunkName) {
+              runtimeFile = fileName
+              break
+            }
           }
+          if (!runtimeFile) {
+            // Surface explicitly so a future input rename (or a
+            // tree-shake regression on the runtime entry) doesn't
+            // silently leave the dev URL in the built importmap and
+            // break runtime-loaded plugins in production with no
+            // diagnostic. CodeRabbit review on PR #1124.
+            console.warn(`[mulmoclaude] runtime importmap chunk not emitted: ${chunkName} (importmap entry "${devUrl}" left as dev URL)`)
+            continue
+          }
+          // `replaceAll` (not `replace`) so both occurrences get
+          // rewritten — the importmap target AND any comment that
+          // documents the dev URL.
+          next = next.replaceAll(devUrl, `/${runtimeFile}`)
         }
-        if (!runtimeFile) return html
-        // `replaceAll` (not `replace`) so both occurrences get
-        // rewritten — the importmap target AND the comment that
-        // documents where the dev URL lives. Otherwise `replace`
-        // only handles the first match (the comment, which precedes
-        // the importmap), and the actual `<script type="importmap">`
-        // body keeps the broken dev URL.
-        return html.replaceAll(DEV_IMPORTMAP_TARGET, `/${runtimeFile}`)
+        return next
       },
     },
   }
@@ -108,6 +122,10 @@ export default defineConfig({
       input: {
         index: path.resolve(__dirname, 'index.html'),
         'runtime-vue': path.resolve(__dirname, 'src/_runtime/vue.ts'),
+        // Same pattern as runtime-vue: the importmap consumer is the
+        // browser, not Vite's static analysis, so without this entry
+        // the chunk gets tree-shaken out of the build.
+        'runtime-protocol-vue': path.resolve(__dirname, 'src/_runtime/protocol-vue.ts'),
       },
       // Force every named re-export from `src/_runtime/vue.ts` to be
       // preserved in the emitted chunk. Without `'strict'`, Rolldown
