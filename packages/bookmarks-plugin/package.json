@@ -19,7 +19,8 @@
   ],
   "scripts": {
     "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'no in-package tests; covered by host integration test test/plugins/test_bookmarks_integration.ts'"
   },
   "peerDependencies": {
     "gui-chat-protocol": "^0.3.0",
