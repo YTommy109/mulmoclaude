@@ -16,7 +16,7 @@
 // atomic helper, so a crashed install can't leave a corrupt file.
 
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { loadJsonFile, writeJsonAtomic } from "./json.js";
 import { WORKSPACE_PATHS } from "../../workspace/paths.js";
@@ -55,4 +55,46 @@ export async function writeLedger(entries: readonly LedgerEntry[]): Promise<void
     await mkdir(dir, { recursive: true });
   }
   await writeJsonAtomic(WORKSPACE_PATHS.pluginsLedger, [...entries]);
+}
+
+/** Read a runtime-plugin asset (extracted under
+ *  `plugins/.cache/<name>/<version>/`) and return its bytes plus
+ *  the inferred Content-Type. The route handler in
+ *  `runtime-plugin.ts` was previously calling `fs.readFile` directly
+ *  — per `CLAUDE.md` route handlers must go through a domain helper,
+ *  so the lookup table + read live here (#1077 review). */
+export interface PluginAsset {
+  data: Buffer;
+  contentType: string;
+}
+
+export async function readPluginAsset(absPath: string): Promise<PluginAsset> {
+  const data = await readFile(absPath);
+  const ext = path.extname(absPath).toLowerCase();
+  return { data, contentType: pluginAssetContentType(ext) };
+}
+
+// Lookup table over a switch — flat data structure stays under
+// `sonarjs/cognitive-complexity` while keeping the per-extension
+// mapping easy to scan.
+const PLUGIN_ASSET_CONTENT_TYPES: Readonly<Record<string, string>> = {
+  ".js": "application/javascript; charset=utf-8",
+  ".mjs": "application/javascript; charset=utf-8",
+  ".cjs": "application/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".map": "application/json; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+};
+
+export function pluginAssetContentType(ext: string): string {
+  return PLUGIN_ASSET_CONTENT_TYPES[ext] ?? "application/octet-stream";
 }

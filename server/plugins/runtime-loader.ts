@@ -57,7 +57,7 @@ export interface RuntimePlugin {
 interface PackageJson {
   name?: string;
   version?: string;
-  exports?: Record<string, unknown>;
+  exports?: string | Record<string, unknown>;
   main?: string;
   module?: string;
 }
@@ -69,15 +69,69 @@ const isToolDefinition = (value: unknown): value is ToolDefinition => {
   return typeof value.name === "string" && typeof value.description === "string";
 };
 
-/** Resolve the entry-point path from a plugin's `package.json`. Falls
- *  through `exports["."].import` → `module` → `main` so we cover both
- *  the modern `exports` shape and legacy `main`-only packages. */
+/** Resolve the entry-point path from a plugin's `package.json`. Covers
+ *  the four legal `exports` shapes per the Node.js spec, then falls
+ *  through to `module` / `main` for legacy packages.
+ *
+ *  Legal `exports` forms (Node.js docs):
+ *    1. String sugar:     `"exports": "./index.js"`
+ *    2. Conditional root: `"exports": { "import": "./esm.js", … }`
+ *    3. Subpath map:      `"exports": { ".": "./index.js", "./util": "./util.js", … }`
+ *    4. Subpath + cond.:  `"exports": { ".": { "import": "./esm.js", "require": "./cjs.js" } }`
+ *
+ *  Earlier the loader only matched form (4) and fell straight through
+ *  to `module` / `main`. Real npm packages using forms (1)-(3) failed
+ *  to load (#1077 review). */
 function resolveEntrySpecifier(pkg: PackageJson): string | null {
-  const root = pkg.exports?.["."];
-  if (isRecord(root) && typeof root.import === "string") return root.import;
+  const fromExports = resolveExportsField(pkg.exports);
+  if (fromExports) return fromExports;
   if (typeof pkg.module === "string") return pkg.module;
   if (typeof pkg.main === "string") return pkg.main;
   return null;
+}
+
+function resolveExportsField(exportsField: PackageJson["exports"]): string | null {
+  // Form 1: top-level string sugar.
+  // Form A: array fallback chain (e.g. ["./dist/index.js", "./fallback.js"]).
+  // Form 2: conditional root (e.g. `{ import, require, default }`).
+  // Form 3 / 4: subpath map keyed by `.` — value can be a string,
+  //   array, or condition object (Codex review iter-2 on #1116).
+  const root = pickExportsTarget(exportsField);
+  if (root) return root;
+  if (isRecord(exportsField)) {
+    return pickExportsTarget(exportsField["."]);
+  }
+  return null;
+}
+
+/** Walk a Node.js `exports` value and return the first string entry
+ *  point this ESM loader can use. Handles every legal target shape:
+ *
+ *    - string: return it directly.
+ *    - array: try each element in order; first resolvable wins.
+ *      Per the spec arrays are a fallback chain — Node tries each
+ *      until one resolves on disk. We don't probe disk here, so
+ *      "first string-or-resolvable-condition" approximates that.
+ *    - condition object: prefer `import` (ESM-specific), then
+ *      `default` (universal fallback).
+ *    - everything else (e.g. only `require`, only nested arrays of
+ *      condition objects with no string targets): null. */
+function pickExportsTarget(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const resolved = pickExportsTarget(entry);
+      if (resolved) return resolved;
+    }
+    return null;
+  }
+  if (!isRecord(value)) return null;
+  // Condition object — `import` first (the ESM-specific condition
+  // match), then `default` (the universal fallback that "always
+  // matches" per the Node.js spec).
+  const fromImport = pickExportsTarget(value.import);
+  if (fromImport) return fromImport;
+  return pickExportsTarget(value.default);
 }
 
 /** Sentinel file written at the end of a successful extract. The

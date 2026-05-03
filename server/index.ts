@@ -863,7 +863,22 @@ process.on("SIGTERM", () => {
   try {
     const presets = await loadPresetPlugins();
     const userInstalled = await loadRuntimePlugins();
-    const result = registerRuntimePlugins(MCP_PLUGIN_NAMES, [...presets, ...userInstalled]);
+    // Pass the full static-tool set (MCP plugins + ENABLED MCP tools
+    // like readXPost / searchX) as the collision policy. The standalone
+    // mcp-server already does this via STATIC_TOOL_NAMES; keeping
+    // index.ts narrower meant a runtime plugin could shadow an MCP
+    // tool in the parent registry while colliding cleanly in the
+    // bridge — visibly inconsistent (#1077 review).
+    //
+    // Filter via `isMcpToolEnabled` so the floor matches the child
+    // process exactly. The mcp-server's `mcpToolDefs` only includes
+    // enabled tools (`mcpTools.filter(isMcpToolEnabled)`), so if the
+    // parent reserved DISABLED tools too, a runtime plugin colliding
+    // with a disabled tool would be rejected here but accepted by the
+    // child — and the child's `/dispatch` would 404 because the
+    // parent never registered a route for it (#1116 review).
+    const staticToolNames = new Set([...MCP_PLUGIN_NAMES, ...mcpTools.filter(isMcpToolEnabled).map((tool) => tool.definition.name)]);
+    const result = registerRuntimePlugins(staticToolNames, [...presets, ...userInstalled]);
     log.info("plugins/runtime", "registered runtime plugins", {
       presets: presets.length,
       userInstalled: userInstalled.length,
