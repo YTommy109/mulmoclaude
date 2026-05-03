@@ -16,6 +16,11 @@ export const NOTIFICATION_KINDS = {
   journal: "journal",
   push: "push",
   bridge: "bridge",
+  // System diagnostics — server boot warnings (e.g. plugin META key
+  // collisions). Surfaced through the same bell + toast pipeline so
+  // a user with a buggy plugin sees the issue instead of staring at
+  // a silently mis-routed app.
+  system: "system",
 } as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[keyof typeof NOTIFICATION_KINDS];
@@ -27,6 +32,7 @@ export const NOTIFICATION_ICONS: Record<NotificationKind, string> = {
   journal: "auto_stories",
   push: "notifications",
   bridge: "chat",
+  system: "warning",
 };
 
 export const NOTIFICATION_ACTION_TYPES = {

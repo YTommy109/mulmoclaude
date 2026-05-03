@@ -12,6 +12,7 @@ import { fillMarkdownImagePlaceholders } from "../../utils/files/markdown-image-
 import { saveMarkdown, overwriteMarkdown, isMarkdownPath } from "../../utils/files/markdown-store.js";
 import { saveSpreadsheet, overwriteSpreadsheet, isSpreadsheetPath } from "../../utils/files/spreadsheet-store.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { collectPluginMetaDiagnostics } from "../../plugins/diagnostics.js";
 import { log } from "../../system/logger/index.js";
 import { previewSnippet } from "../../utils/logPreview.js";
 import { publishFileChange } from "../../events/file-change.js";
@@ -258,5 +259,13 @@ router.post(
   API_ROUTES.plugins.present3d,
   wrapPluginExecute((req) => executePresent3D(null as never, req.body)),
 );
+
+// META aggregator diagnostics — boot-time host/plugin or plugin/plugin
+// key collisions. The frontend fetches this once at mount so a tab
+// that opens after the boot-time `publishNotification` fired still
+// gets the warning. Empty array when clean.
+router.get(API_ROUTES.plugins.diagnostics, (_req, res) => {
+  res.json({ diagnostics: collectPluginMetaDiagnostics() });
+});
 
 export default router;

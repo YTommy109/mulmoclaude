@@ -81,6 +81,12 @@ export function useNotifications(): {
   markRead: (id: string) => void;
   markAllRead: () => void;
   dismiss: (id: string) => void;
+  /** Inject a notification straight into the local store WITHOUT
+   *  going through the server pubsub. Used by the boot-time
+   *  diagnostics fetch (`/api/plugins/diagnostics`) so a tab that
+   *  mounts after the server's boot-time publish still surfaces the
+   *  warning. Idempotent on `payload.id`. */
+  addLocal: (payload: NotificationPayload) => void;
 } {
   const { subscribe } = usePubSub();
   ensureSubscribed(subscribe);
@@ -121,5 +127,10 @@ export function useNotifications(): {
     }
   }
 
-  return { notifications, latest, unreadCount, isRead, markRead, markAllRead, dismiss };
+  function addLocal(payload: NotificationPayload): void {
+    if (notifications.value.some((notif) => notif.id === payload.id)) return;
+    notifications.value = [payload, ...notifications.value].slice(0, MAX_RECENT);
+  }
+
+  return { notifications, latest, unreadCount, isRead, markRead, markAllRead, dismiss, addLocal };
 }

@@ -293,6 +293,7 @@ import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
 import { useEventListeners } from "./composables/useEventListeners";
 import { provideAppApi } from "./composables/useAppApi";
+import { usePluginDiagnostics } from "./composables/usePluginDiagnostics";
 import { provideActiveSession } from "./composables/useActiveSession";
 import { useRoute, useRouter } from "vue-router";
 import { apiGet } from "./utils/api";
@@ -457,6 +458,9 @@ const { mergedSessions, tabSessions } = useMergedSessions({
 // /api/sessions refetch.
 useFaviconState({ isRunning, sessions: mergedSessions, sessionsUnreadCount: unreadCount, cpuLoadRatio });
 useGlobalImageErrorRepair();
+// Boot-time plugin META aggregator collisions surfaced via the
+// notifications bell + toast. Empty when the registry is clean.
+usePluginDiagnostics();
 
 const sessionSidebarRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);

@@ -19,7 +19,7 @@
 //
 // First slice of issue #289 (item 4: tool name literals).
 
-import { BUILT_IN_PLUGIN_METAS, assertNoPluginCollision, type BuiltInPluginMetas } from "../plugins/metas";
+import { BUILT_IN_PLUGIN_METAS, filterPluginKeys, type BuiltInPluginMetas, type HostPluginCollision } from "../plugins/metas";
 
 const HOST_TOOL_NAMES = {
   // Text / base
@@ -73,14 +73,29 @@ type PluginToolNamesMap<T extends BuiltInPluginMetas> = {
 
 const PLUGIN_TOOL_NAMES = Object.fromEntries(BUILT_IN_PLUGIN_METAS.map((meta) => [meta.toolName, meta.toolName])) as PluginToolNamesMap<BuiltInPluginMetas>;
 
-// Fail-fast at module load if any plugin's `toolName` collides with
-// a host literal — silent override would route the LLM's calls to
-// the wrong handler.
-assertNoPluginCollision(HOST_TOOL_NAMES, PLUGIN_TOOL_NAMES, "TOOL_NAMES");
+// Each plugin owns exactly one tool name (= the key it claims).
+const TOOL_NAME_OWNER: Readonly<Record<string, string>> = Object.fromEntries(BUILT_IN_PLUGIN_METAS.map((meta) => [meta.toolName, meta.toolName]));
+
+// Drop any plugin tool name that collides with a host literal —
+// silent override would route the LLM's calls to the wrong handler,
+// so the host literal wins. Diagnostics are surfaced via the
+// `TOOL_NAMES_HOST_COLLISIONS` export below (consumed by the server
+// boot diagnostics module).
+// Cast back to the literal-preserving map: `filterPluginKeys` only
+// drops keys, so the surviving subset is still a valid
+// `PluginToolNamesMap` shape.
+const { cleaned: cleanedToolNames, dropped: TOOL_NAMES_DROPPED } = filterPluginKeys(
+  "TOOL_NAMES",
+  new Set(Object.keys(HOST_TOOL_NAMES)),
+  PLUGIN_TOOL_NAMES,
+  TOOL_NAME_OWNER,
+);
+const SAFE_PLUGIN_TOOL_NAMES = cleanedToolNames as PluginToolNamesMap<BuiltInPluginMetas>;
+export const TOOL_NAMES_HOST_COLLISIONS: readonly HostPluginCollision[] = TOOL_NAMES_DROPPED;
 
 export const TOOL_NAMES = {
   ...HOST_TOOL_NAMES,
-  ...PLUGIN_TOOL_NAMES,
+  ...SAFE_PLUGIN_TOOL_NAMES,
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];

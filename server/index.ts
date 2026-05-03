@@ -34,6 +34,7 @@ import { MCP_PLUGIN_NAMES } from "./agent/plugin-names.js";
 import { createNotificationsRouter } from "./api/routes/notifications.js";
 import { createJournalRouter } from "./api/routes/journal.js";
 import { type NotificationDeps, initNotifications } from "./events/notifications.js";
+import { announcePluginMetaDiagnostics } from "./plugins/diagnostics.js";
 import { createChatService } from "@mulmobridge/chat-service";
 import { readSessionJsonl } from "./utils/files/session-io.js";
 import { onSessionEvent, initSessionStore } from "./events/session-store/index.js";
@@ -683,6 +684,12 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
     publish: (channel, payload) => pubsub.publish(channel, payload),
     pushToBridge: chatService.pushToBridge,
   });
+
+  // --- Plugin META aggregator diagnostics ---
+  // After initNotifications so publishNotification has a publish
+  // sink. Surfaces any host/plugin or plugin/plugin key collision
+  // detected at module load via log.warn + a system notification.
+  announcePluginMetaDiagnostics();
 
   // --- Chat socket transport (Phase A of #268) ---
   chatService.attachSocket(httpServer);

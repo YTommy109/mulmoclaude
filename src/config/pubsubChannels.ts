@@ -18,7 +18,7 @@
 //
 // First slice of issue #289 (item 6: pub-sub channels).
 
-import { BUILT_IN_PLUGIN_METAS, assertNoPluginCollision, type BuiltInPluginMetas } from "../plugins/metas";
+import { BUILT_IN_PLUGIN_METAS, filterPluginKeys, type BuiltInPluginMetas, type HostPluginCollision } from "../plugins/metas";
 import {
   bookChannel as accountingBookChannelFromMeta,
   BOOK_EVENT_KINDS as ACCOUNTING_BOOK_EVENT_KINDS_FROM_META,
@@ -119,6 +119,20 @@ const PLUGIN_STATIC_CHANNELS = Object.assign(
   ...BUILT_IN_PLUGIN_METAS.map((meta) => meta.staticChannels ?? {}),
 ) as PluginStaticChannelsMap<BuiltInPluginMetas>;
 
+// Map each static-channel key back to the plugin that registered it
+// (first plugin to declare a key wins on intra-plugin collision).
+// Used for diagnostics attribution when a plugin key collides with
+// a host key.
+const PUBSUB_CHANNELS_OWNER: Readonly<Record<string, string>> = (() => {
+  const owner: Record<string, string> = {};
+  for (const meta of BUILT_IN_PLUGIN_METAS) {
+    for (const key of Object.keys(meta.staticChannels ?? {})) {
+      if (!(key in owner)) owner[key] = meta.toolName;
+    }
+  }
+  return owner;
+})();
+
 const HOST_STATIC_CHANNELS = {
   /** Sidebar "a session updated, please refetch" notification.
    *  Publisher: `server/session-store/index.ts#publishSessionsChanged`.
@@ -139,11 +153,23 @@ const HOST_STATIC_CHANNELS = {
   notifications: "notifications",
 } as const;
 
-// Fail-fast at module load if any plugin's static-channel key
-// collides with a host channel (e.g. a plugin claiming `sessions`).
-// Silent override would route session-list refetch hints to the
-// wrong subscribers.
-assertNoPluginCollision(HOST_STATIC_CHANNELS, PLUGIN_STATIC_CHANNELS, "PUBSUB_CHANNELS");
+// Drop any plugin static-channel key that collides with a host
+// channel (e.g. a plugin claiming `sessions`) — host wins. The
+// dropped entries are reported via `PUBSUB_CHANNELS_HOST_COLLISIONS`
+// for server-side diagnostics.
+//
+// The cast back to `PluginStaticChannelsMap<...>` is safe because
+// `filterPluginKeys` only ever drops keys (never mutates values),
+// so the surviving subset still types-checks under the original
+// literal-preserving shape.
+const { cleaned: cleanedStaticChannels, dropped: PUBSUB_CHANNELS_DROPPED } = filterPluginKeys(
+  "PUBSUB_CHANNELS",
+  new Set(Object.keys(HOST_STATIC_CHANNELS)),
+  PLUGIN_STATIC_CHANNELS,
+  PUBSUB_CHANNELS_OWNER,
+);
+const SAFE_PLUGIN_STATIC_CHANNELS = cleanedStaticChannels as PluginStaticChannelsMap<BuiltInPluginMetas>;
+export const PUBSUB_CHANNELS_HOST_COLLISIONS: readonly HostPluginCollision[] = PUBSUB_CHANNELS_DROPPED;
 
 /** Static pub/sub channel names. Factories for parameterised channels
  *  (e.g. `sessionChannel(id)`) live alongside as named helpers. */
@@ -151,7 +177,7 @@ export const PUBSUB_CHANNELS = {
   ...HOST_STATIC_CHANNELS,
   // Plugin-owned channels (currently: accountingBooks). Subscribers:
   // BookSwitcher.vue. Payload: empty `{}`.
-  ...PLUGIN_STATIC_CHANNELS,
+  ...SAFE_PLUGIN_STATIC_CHANNELS,
 } as const;
 
 export type StaticPubSubChannel = (typeof PUBSUB_CHANNELS)[keyof typeof PUBSUB_CHANNELS];

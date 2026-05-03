@@ -1,55 +1,101 @@
-// Regression tests for the plugin-META aggregator collision guard.
+// Regression tests for the plugin-META aggregator collision helpers.
+//
 // Aggregators in src/config/* and server/workspace/paths.ts spread
-// plugin-owned keys after host-owned keys, so without this check a
-// plugin could silently shadow a host route / dir / channel.
+// plugin-owned keys after host-owned keys. Without filtering, a
+// plugin would silently shadow a host route / dir / channel; with
+// two plugins that both claim the same key, the second silently
+// wins. The helpers below detect and drop such keys at module load
+// time so server-side diagnostics can warn the user — without
+// crashing the app, which is important once user-installed runtime
+// plugins land.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { assertNoPluginCollision } from "../../src/plugins/metas.js";
+import { findHostPluginCollisions, findIntraPluginCollisions, filterPluginKeys, INTRA_PLUGIN_COLLISIONS } from "../../src/plugins/metas.js";
+import type { PluginMeta } from "../../src/plugins/meta-types.js";
 
-test("assertNoPluginCollision throws when a plugin key shadows a host key", () => {
+test("findHostPluginCollisions returns colliding keys", () => {
   const host = { agent: "/api/agent", roles: "/api/roles" };
-  const plugin = { agent: "/api/some-plugin" };
-  assert.throws(() => assertNoPluginCollision(host, plugin, "API_ROUTES"), /API_ROUTES.*agent/);
+  const plugin = { agent: "/api/some-plugin", brand: "/api/brand" };
+  assert.deepEqual(findHostPluginCollisions(host, plugin), ["agent"]);
 });
 
-test("assertNoPluginCollision lists every colliding key", () => {
-  const host = { a: 1, b: 2, c: 3 };
-  const plugin = { a: 9, c: 9, d: 9 };
-  assert.throws(
-    () => assertNoPluginCollision(host, plugin, "TOOL_NAMES"),
-    (err: unknown) => {
-      assert.ok(err instanceof Error);
-      assert.match(err.message, /a/);
-      assert.match(err.message, /c/);
-      assert.doesNotMatch(err.message, /\bd\b/);
-      return true;
-    },
-  );
-});
-
-test("assertNoPluginCollision is a no-op when there is no overlap", () => {
-  const host = { sessions: "sessions", debugBeat: "debug.beat" };
+test("findHostPluginCollisions is empty when records are disjoint", () => {
+  const host = { sessions: "sessions" };
   const plugin = { accountingBooks: "accounting:books" };
-  assert.doesNotThrow(() => assertNoPluginCollision(host, plugin, "PUBSUB_CHANNELS"));
+  assert.deepEqual(findHostPluginCollisions(host, plugin), []);
 });
 
-test("assertNoPluginCollision is a no-op for an empty plugin record", () => {
-  const host = { x: 1 };
-  assert.doesNotThrow(() => assertNoPluginCollision(host, {}, "WORKSPACE_DIRS"));
+test("filterPluginKeys drops host-colliding keys and reports them attributed", () => {
+  const hostKeys = new Set(["agent", "roles"]);
+  const plugin = { agent: "x", brand: "y" };
+  const owner = { agent: "manageX", brand: "manageY" };
+  const { cleaned, dropped } = filterPluginKeys("API_ROUTES", hostKeys, plugin, owner);
+  assert.deepEqual(cleaned, { brand: "y" });
+  assert.deepEqual(dropped, [{ label: "API_ROUTES", key: "agent", plugin: "manageX" }]);
 });
 
-// Importing the live aggregators triggers `assertNoPluginCollision`
-// at module load. If any of these throws, the import itself fails,
-// which is the contract — this test pins the contract so a future
-// drift produces a fast, named test failure rather than a runtime
-// surprise.
-test("live aggregator modules load without collision", async () => {
-  await assert.doesNotReject(async () => {
-    await import("../../src/config/toolNames.js");
-    await import("../../src/config/apiRoutes.js");
-    await import("../../src/config/pubsubChannels.js");
-    await import("../../server/workspace/paths.js");
-  });
+test("filterPluginKeys is a pass-through when there is no collision", () => {
+  const hostKeys = new Set(["x"]);
+  const plugin = { yyy: 1, zzz: 2 };
+  const owner = { yyy: "a", zzz: "a" };
+  const { cleaned, dropped } = filterPluginKeys("LBL", hostKeys, plugin, owner);
+  assert.deepEqual(cleaned, plugin);
+  assert.deepEqual(dropped, []);
+});
+
+test("findIntraPluginCollisions detects duplicate toolName", () => {
+  const first: PluginMeta = { toolName: "manageX" };
+  const second: PluginMeta = { toolName: "manageX" };
+  const collisions = findIntraPluginCollisions([first, second]);
+  assert.equal(collisions.length, 1);
+  assert.deepEqual(collisions[0], { dimension: "toolName", key: "manageX", plugins: ["manageX", "manageX"] });
+});
+
+test("findIntraPluginCollisions detects duplicate apiRoutesKey across plugins", () => {
+  const first: PluginMeta = { toolName: "manageA", apiRoutesKey: "shared", apiRoutes: { dispatch: "/api/a" } };
+  const second: PluginMeta = { toolName: "manageB", apiRoutesKey: "shared", apiRoutes: { dispatch: "/api/b" } };
+  const collisions = findIntraPluginCollisions([first, second]);
+  assert.equal(collisions.length, 1);
+  assert.equal(collisions[0]?.dimension, "apiRoutesKey");
+  assert.equal(collisions[0]?.key, "shared");
+  assert.deepEqual(collisions[0]?.plugins, ["manageA", "manageB"]);
+});
+
+test("findIntraPluginCollisions detects duplicate workspaceDirs key across plugins", () => {
+  const first: PluginMeta = { toolName: "manageA", workspaceDirs: { images: "data/a-images" } };
+  const second: PluginMeta = { toolName: "manageB", workspaceDirs: { images: "data/b-images" } };
+  const collisions = findIntraPluginCollisions([first, second]);
+  assert.equal(collisions.length, 1);
+  assert.equal(collisions[0]?.dimension, "workspaceDirs");
+  assert.equal(collisions[0]?.key, "images");
+});
+
+test("findIntraPluginCollisions detects duplicate staticChannels key across plugins", () => {
+  const first: PluginMeta = { toolName: "manageA", staticChannels: { events: "a:events" } };
+  const second: PluginMeta = { toolName: "manageB", staticChannels: { events: "b:events" } };
+  const collisions = findIntraPluginCollisions([first, second]);
+  assert.equal(collisions.length, 1);
+  assert.equal(collisions[0]?.dimension, "staticChannels");
+});
+
+test("findIntraPluginCollisions returns empty for the live BUILT_IN_PLUGIN_METAS", () => {
+  // The built-ins should never collide. This test pins the contract
+  // so a future drift produces a fast, named test failure.
+  assert.deepEqual(INTRA_PLUGIN_COLLISIONS, []);
+});
+
+// Importing the live aggregators triggers `filterPluginKeys` at
+// module load. They should not throw and they should expose empty
+// host-collision arrays for the current built-ins.
+test("live aggregator modules load without host-vs-plugin collision", async () => {
+  const toolNames = await import("../../src/config/toolNames.js");
+  const apiRoutes = await import("../../src/config/apiRoutes.js");
+  const pubsub = await import("../../src/config/pubsubChannels.js");
+  const paths = await import("../../server/workspace/paths.js");
+  assert.deepEqual([...toolNames.TOOL_NAMES_HOST_COLLISIONS], []);
+  assert.deepEqual([...apiRoutes.API_ROUTES_HOST_COLLISIONS], []);
+  assert.deepEqual([...pubsub.PUBSUB_CHANNELS_HOST_COLLISIONS], []);
+  assert.deepEqual([...paths.WORKSPACE_DIRS_HOST_COLLISIONS], []);
 });

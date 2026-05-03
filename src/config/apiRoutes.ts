@@ -19,7 +19,7 @@
 // key names matched to the last URL segment where possible.
 
 import { CHAT_SERVICE_ROUTES } from "@mulmobridge/protocol";
-import { BUILT_IN_PLUGIN_METAS, assertNoPluginCollision, type BuiltInPluginMetas } from "../plugins/metas";
+import { BUILT_IN_PLUGIN_METAS, filterPluginKeys, type BuiltInPluginMetas, type HostPluginCollision } from "../plugins/metas";
 
 // Plugin-owned API routes auto-merged from each plugin's META. Each
 // plugin's `apiRoutesKey` becomes the outer key under `API_ROUTES`
@@ -36,6 +36,13 @@ type PluginApiRoutesMap<T extends BuiltInPluginMetas> = {
 const PLUGIN_API_ROUTES = Object.fromEntries(
   BUILT_IN_PLUGIN_METAS.filter((meta) => meta.apiRoutes !== undefined).map((meta) => [meta.apiRoutesKey ?? meta.toolName, meta.apiRoutes]),
 ) as PluginApiRoutesMap<BuiltInPluginMetas>;
+
+// Map each `apiRoutesKey` back to the plugin's `toolName` so
+// diagnostics can attribute a host-collision to the offending
+// plugin.
+const API_ROUTES_OWNER: Readonly<Record<string, string>> = Object.fromEntries(
+  BUILT_IN_PLUGIN_METAS.filter((meta) => meta.apiRoutes !== undefined).map((meta) => [meta.apiRoutesKey ?? meta.toolName, meta.toolName]),
+);
 
 const HOST_API_ROUTES = {
   health: "/api/health",
@@ -171,6 +178,12 @@ const HOST_API_ROUTES = {
     // the call.
     runtimeList: "/api/plugins/runtime/list",
     runtimeDispatch: "/api/plugins/runtime/:pkg/dispatch",
+    /** Boot-time META aggregator collisions (host vs plugin, plugin
+     *  vs plugin). Returns an empty array when clean. Frontend
+     *  fetches once at mount so a tab that opens after server boot
+     *  still surfaces the warning toast + bell entry. See
+     *  `server/plugins/diagnostics.ts`. */
+    diagnostics: "/api/plugins/diagnostics",
     /** Static-mount of the extracted plugin tree. The URL pkg is the
      *  un-encoded npm name plus version dir. Used by the frontend
      *  loader's dynamic `import()` to fetch `dist/vue.js`.
@@ -251,16 +264,27 @@ const HOST_API_ROUTES = {
   },
 } as const;
 
-// Fail-fast at module load if any plugin's `apiRoutesKey` collides
-// with a host outer-key (e.g. a plugin trying to claim `agent` /
-// `roles` / `wiki`). Without this guard the spread below would
-// silently shadow the host route group at runtime.
-assertNoPluginCollision(HOST_API_ROUTES, PLUGIN_API_ROUTES, "API_ROUTES");
+// Drop any plugin route group whose `apiRoutesKey` collides with a
+// host outer-key (e.g. a plugin trying to claim `agent` / `roles` /
+// `wiki`). The host wins; the dropped route is reported via
+// `API_ROUTES_HOST_COLLISIONS` so server-side diagnostics can warn
+// the user without the app refusing to start.
+// Cast back to the literal-preserving map: `filterPluginKeys` only
+// drops keys, so the surviving subset is still a valid
+// `PluginApiRoutesMap` shape.
+const { cleaned: cleanedApiRoutes, dropped: API_ROUTES_DROPPED } = filterPluginKeys(
+  "API_ROUTES",
+  new Set(Object.keys(HOST_API_ROUTES)),
+  PLUGIN_API_ROUTES,
+  API_ROUTES_OWNER,
+);
+const SAFE_PLUGIN_API_ROUTES = cleanedApiRoutes as PluginApiRoutesMap<BuiltInPluginMetas>;
+export const API_ROUTES_HOST_COLLISIONS: readonly HostPluginCollision[] = API_ROUTES_DROPPED;
 
 export const API_ROUTES = {
   ...HOST_API_ROUTES,
   // Plugin-owned routes auto-merged from META.apiRoutes (see top of
   // file). Each entry is keyed by the plugin's `apiRoutesKey` —
   // currently: `accounting` (POST /api/accounting dispatch).
-  ...PLUGIN_API_ROUTES,
+  ...SAFE_PLUGIN_API_ROUTES,
 } as const;

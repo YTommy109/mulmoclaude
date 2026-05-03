@@ -35,7 +35,7 @@ import { WORKSPACE_FILES } from "../../src/config/workspacePaths.js";
 // register its META there; this file keeps the central
 // `WORKSPACE_DIRS.<key>` shape via spread so existing consumers
 // don't migrate. Plugin-specific literals never appear here.
-import { BUILT_IN_PLUGIN_METAS, assertNoPluginCollision, type BuiltInPluginMetas } from "../../src/plugins/metas.js";
+import { BUILT_IN_PLUGIN_METAS, filterPluginKeys, type BuiltInPluginMetas, type HostPluginCollision } from "../../src/plugins/metas.js";
 
 // Merge every plugin's `workspaceDirs` into one record. The mapped
 // type below preserves each plugin's literal path strings (e.g.
@@ -49,6 +49,19 @@ type PluginWorkspaceDirsMap<T extends BuiltInPluginMetas> = T[number] extends in
   : Record<string, never>;
 
 const PLUGIN_WORKSPACE_DIRS = Object.assign({}, ...BUILT_IN_PLUGIN_METAS.map((meta) => meta.workspaceDirs ?? {})) as PluginWorkspaceDirsMap<BuiltInPluginMetas>;
+
+// Map each workspace-dir key back to the plugin that registered it
+// (first plugin to declare a key wins). Used for diagnostics
+// attribution when a plugin key collides with a host dir.
+const PLUGIN_WORKSPACE_DIRS_OWNER: Readonly<Record<string, string>> = (() => {
+  const owner: Record<string, string> = {};
+  for (const meta of BUILT_IN_PLUGIN_METAS) {
+    for (const key of Object.keys(meta.workspaceDirs ?? {})) {
+      if (!(key in owner)) owner[key] = meta.toolName;
+    }
+  }
+  return owner;
+})();
 
 // Workspace root. Hard-coded to `~/mulmoclaude` — there is no
 // WORKSPACE_PATH env override today; changing the location
@@ -140,18 +153,29 @@ const HOST_WORKSPACE_DIRS = {
   pluginsConfig: "config/plugins",
 } as const;
 
-// Fail-fast at module load if any plugin's `workspaceDirs` key
-// collides with a host dir (e.g. a plugin claiming `wiki` /
-// `markdowns`). Silent override would point the host's I/O at the
-// wrong on-disk location.
-assertNoPluginCollision(HOST_WORKSPACE_DIRS, PLUGIN_WORKSPACE_DIRS, "WORKSPACE_DIRS");
+// Drop any plugin workspace-dir key that collides with a host dir
+// (e.g. a plugin claiming `wiki` / `markdowns`) — the host wins so
+// server I/O still hits the right on-disk location. Dropped entries
+// are reported via `WORKSPACE_DIRS_HOST_COLLISIONS` for the boot
+// diagnostics module.
+// Cast back to the literal-preserving map: `filterPluginKeys` only
+// drops keys, so the surviving subset is still a valid
+// `PluginWorkspaceDirsMap` shape.
+const { cleaned: cleanedWorkspaceDirs, dropped: WORKSPACE_DIRS_DROPPED } = filterPluginKeys(
+  "WORKSPACE_DIRS",
+  new Set(Object.keys(HOST_WORKSPACE_DIRS)),
+  PLUGIN_WORKSPACE_DIRS,
+  PLUGIN_WORKSPACE_DIRS_OWNER,
+);
+const SAFE_PLUGIN_WORKSPACE_DIRS = cleanedWorkspaceDirs as PluginWorkspaceDirsMap<BuiltInPluginMetas>;
+export const WORKSPACE_DIRS_HOST_COLLISIONS: readonly HostPluginCollision[] = WORKSPACE_DIRS_DROPPED;
 
 export const WORKSPACE_DIRS = {
   ...HOST_WORKSPACE_DIRS,
   // Built-in plugin dirs (auto-merged from every plugin's META —
   // see `src/plugins/metas.ts`). Adding a plugin = register its
   // META there; the keys spread below.
-  ...PLUGIN_WORKSPACE_DIRS,
+  ...SAFE_PLUGIN_WORKSPACE_DIRS,
 } as const;
 export { WORKSPACE_FILES };
 
