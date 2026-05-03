@@ -29,6 +29,7 @@ import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
 import { loadRuntimePlugins } from "./plugins/runtime-loader.js";
 import { loadPresetPlugins } from "./plugins/preset-loader.js";
 import { registerRuntimePlugins } from "./plugins/runtime-registry.js";
+import { makePluginRuntime } from "./plugins/runtime.js";
 import { MCP_PLUGIN_NAMES } from "./agent/plugin-names.js";
 import { createNotificationsRouter } from "./api/routes/notifications.js";
 import { createJournalRouter } from "./api/routes/journal.js";
@@ -699,6 +700,55 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
   // --- Session Store ---
   initSessionStore(pubsub);
 
+  // --- Runtime plugins (#1043 C-2 + #1110) ---
+  // Two sources of plugins, same RuntimePlugin shape:
+  //   1. Presets — server/plugins/preset-list.ts (loaded from node_modules)
+  //   2. User-installed — ~/mulmoclaude/plugins/plugins.json ledger
+  //
+  // Presets are merged FIRST so they win runtime-vs-runtime collision
+  // (first-loaded wins; static MCP built-ins still win over both via
+  // MCP_PLUGIN_NAMES).
+  //
+  // Factory-shape plugins (`export default definePlugin(...)`) receive a
+  // runtime constructed by `makePluginRuntime(...)` which closes over the
+  // live pubsub. Legacy `(context, args)` plugins are loaded unchanged.
+  //
+  // Failures don't abort boot — bad plugins are skipped, healthy ones
+  // still load.
+  void (async () => {
+    try {
+      const runtimeFactory = (pkgName: string) =>
+        makePluginRuntime({
+          pkgName,
+          pubsub,
+          // v1: server-side locale is a static snapshot. The frontend
+          // BrowserPluginRuntime carries the reactive ref. Future
+          // enhancement: per-request locale from Accept-Language.
+          locale: process.env.LANG?.split(/[._]/)[0] || "en",
+        });
+      const [presets, userInstalled] = await Promise.all([loadPresetPlugins({ runtimeFactory }), loadRuntimePlugins({ runtimeFactory })]);
+      // Pass the full static-tool set (MCP plugins + ENABLED MCP tools
+      // like readXPost / searchX) as the collision policy so the floor
+      // matches the standalone mcp-server's STATIC_TOOL_NAMES exactly
+      // (#1077 / #1116 review). Filter via `isMcpToolEnabled` so the
+      // child process's `mcpToolDefs` (only enabled tools) and the
+      // parent's reservation set agree — otherwise a runtime plugin
+      // colliding with a disabled tool would be rejected here but
+      // accepted by the child, and the child's `/dispatch` would 404
+      // because the parent never registered a route for it.
+      const staticToolNames = new Set([...MCP_PLUGIN_NAMES, ...mcpTools.filter(isMcpToolEnabled).map((tool) => tool.definition.name)]);
+      const result = registerRuntimePlugins(staticToolNames, [...presets, ...userInstalled]);
+      log.info("plugins/runtime", "registered runtime plugins", {
+        presets: presets.length,
+        userInstalled: userInstalled.length,
+        registered: result.registered.length,
+        collisions: result.collisions.length,
+      });
+    } catch (err) {
+      log.error("plugins/runtime", "registry init failed; runtime plugins disabled this session", { error: String(err) });
+    }
+  })();
+
   // --- File-change publisher ---
   // Wired here (not at first publish) so the very first save after
   // boot already sees a live publisher.
@@ -846,48 +896,12 @@ process.on("SIGTERM", () => {
     });
   });
 
-  // Runtime-loaded plugins (#1043 C-2). Two sources, both producing
-  // the same RuntimePlugin shape:
-  //   1. Presets — `config/preset-plugins.ts` lists npm packages that
-  //      ship with the repo. Loaded from `node_modules/<pkg>/`. These
-  //      let the runtime path run end-to-end on a fresh checkout.
-  //   2. User-installed — `~/mulmoclaude/plugins/plugins.json` ledger.
-  //      Each entry's tgz is extracted to `.cache/<pkg>/<ver>/` if
-  //      not already cached.
-  //
-  // Presets are merged FIRST so they win the registry-internal
-  // tool-name collision (first-loaded wins; runtime-registry.ts).
-  // Static MCP built-ins still win over both, via MCP_PLUGIN_NAMES.
-  // Failures don't abort boot — bad plugins are skipped, healthy
-  // ones still load.
-  try {
-    const presets = await loadPresetPlugins();
-    const userInstalled = await loadRuntimePlugins();
-    // Pass the full static-tool set (MCP plugins + ENABLED MCP tools
-    // like readXPost / searchX) as the collision policy. The standalone
-    // mcp-server already does this via STATIC_TOOL_NAMES; keeping
-    // index.ts narrower meant a runtime plugin could shadow an MCP
-    // tool in the parent registry while colliding cleanly in the
-    // bridge — visibly inconsistent (#1077 review).
-    //
-    // Filter via `isMcpToolEnabled` so the floor matches the child
-    // process exactly. The mcp-server's `mcpToolDefs` only includes
-    // enabled tools (`mcpTools.filter(isMcpToolEnabled)`), so if the
-    // parent reserved DISABLED tools too, a runtime plugin colliding
-    // with a disabled tool would be rejected here but accepted by the
-    // child — and the child's `/dispatch` would 404 because the
-    // parent never registered a route for it (#1116 review).
-    const staticToolNames = new Set([...MCP_PLUGIN_NAMES, ...mcpTools.filter(isMcpToolEnabled).map((tool) => tool.definition.name)]);
-    const result = registerRuntimePlugins(staticToolNames, [...presets, ...userInstalled]);
-    log.info("plugins/runtime", "registered runtime plugins", {
-      presets: presets.length,
-      userInstalled: userInstalled.length,
-      registered: result.registered.length,
-      collisions: result.collisions.length,
-    });
-  } catch (err) {
-    log.error("plugins/runtime", "registry init failed; runtime plugins disabled this session", { error: String(err) });
-  }
+  // Runtime plugin loading moved into `startRuntimeServices` (#1110)
+  // so factory-shape plugins (`export default definePlugin(...)`) can
+  // receive a runtime that closes over the live pubsub instance.
+  // Legacy `(context, args)` shape unaffected. The collision-set fix
+  // from #1116 (use enabled-MCP-tools + plugin names, not just MCP
+  // plugin names) is applied at the new location, line ~735 above.
 
   // Bind to localhost-only. Using `0.0.0.0` would expose the dev
   // server to the entire LAN (anyone on the same Wi-Fi could reach
