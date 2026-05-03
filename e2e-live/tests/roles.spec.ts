@@ -64,19 +64,28 @@ test.describe("roles (real LLM)", () => {
   });
 });
 
+const SESSION_URL_PATTERN = /\/chat\/[0-9a-f-]+/;
+
 /**
  * Shared B-41 canary for non-default roles. Switches into `roleId`
  * (App.vue's onRoleChange spins up a fresh session in that role on
  * chat pages — see useCurrentRole + createNewSession), runs one
- * tool-free turn, and asserts the session id stuck. The earlier
- * General session is intentionally orphaned without cleanup since it
- * carries no messages and {@link deleteSession} only handles the
- * final session captured in the URL.
+ * tool-free turn, and asserts the session id stuck.
+ *
+ * Cleanup deletes BOTH the auto-created General session and the
+ * role-switched session. Earlier versions only deleted the latter,
+ * which leaked one empty General session per L-07/L-08/L-09 run —
+ * harmless per-run but unbounded across CI cycles. deleteSession is
+ * best-effort + idempotent so the loop is safe even if one delete
+ * misses (e.g., sidebar race).
  */
 async function runRoleSampleTurn(page: Page, roleId: string): Promise<void> {
-  let sessionIdForCleanup: string | null = null;
+  const sessionsToCleanup: string[] = [];
   try {
     await startNewSession(page);
+    await page.waitForURL(SESSION_URL_PATTERN);
+    const generalSessionId = getCurrentSessionId(page);
+    if (generalSessionId !== null) sessionsToCleanup.push(generalSessionId);
     await selectRole(page, roleId);
     // Wait for the role chip to flip to the new id before driving
     // the input — the selection is async (App.vue spins up a new
@@ -88,8 +97,16 @@ async function runRoleSampleTurn(page: Page, roleId: string): Promise<void> {
     await waitForAssistantResponseComplete(page);
     const sessionId = getCurrentSessionId(page);
     expect(sessionId, `session id should be present after a successful ${roleId} turn (B-41 canary)`).not.toBeNull();
-    sessionIdForCleanup = sessionId;
+    if (sessionId !== null && sessionId !== generalSessionId) {
+      sessionsToCleanup.push(sessionId);
+    }
   } finally {
-    if (sessionIdForCleanup !== null) await deleteSession(page, sessionIdForCleanup);
+    // Delete the General placeholder first, then the role-switched
+    // session — keeps the page on a stable /chat/<id> while the
+    // first delete walks the sidebar, and lets deleteSession's own
+    // "step away from current /chat/<id>" branch handle the second.
+    for (const sid of sessionsToCleanup) {
+      await deleteSession(page, sid);
+    }
   }
 }
