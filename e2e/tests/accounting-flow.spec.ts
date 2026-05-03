@@ -69,7 +69,7 @@ test.describe("accounting plugin — flow", () => {
     await expect(page.getByTestId("accounting-no-book")).not.toBeVisible();
   });
 
-  test("New Entry tab exposes the per-line tax-registration ID input", async ({ page }) => {
+  test("New Entry tab exposes the per-line tax-registration ID input when a 14xx account is picked", async ({ page }) => {
     const SEED_BOOK_ID = "book-tax-id-1";
     // `withEmptyOpening: true` lets us land on a book whose
     // opening-gate is already satisfied — without it, the View
@@ -86,14 +86,27 @@ test.describe("accounting plugin — flow", () => {
     await expect(page.getByTestId("accounting-tabs")).toBeVisible();
     await page.getByTestId("accounting-tab-newEntry").click();
 
-    // The per-line input must be present from the first row —
-    // typing into it should not block the form's balance / submit
-    // logic. We assert the field exists and accepts input; the
-    // back-end round-trip is covered by unit tests.
+    // The tax-registration ID input is gated by `isTaxAccountCode`
+    // — it only renders on lines whose account is in the 14xx /
+    // 24xx tax-related band (see
+    // src/plugins/accounting/components/accountNumbering.ts). On a
+    // fresh form every line's accountCode is "", so the column
+    // and input are hidden until the user picks a tax account.
     const taxIdInput = page.getByTestId("accounting-entry-line-tax-registration-id-0");
+    await expect(taxIdInput).toHaveCount(0);
+    await page.getByTestId("accounting-entry-line-account-0").selectOption("1410");
+
     await expect(taxIdInput).toBeVisible();
     await taxIdInput.fill("T1234567890123");
     await expect(taxIdInput).toHaveValue("T1234567890123");
+
+    // Switching the line back to a non-tax account must hide the
+    // input again. (The "typed value is dropped on submit" guarantee
+    // is enforced in `toApiLines` — gated by `isTaxLine` — but
+    // verifying that requires a network round-trip that's out of
+    // scope for this UI smoke test.)
+    await page.getByTestId("accounting-entry-line-account-0").selectOption("1000");
+    await expect(taxIdInput).toHaveCount(0);
   });
 
   test("renders full-page first-run form when the workspace is empty (defensive fallback)", async ({ page }) => {

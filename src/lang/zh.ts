@@ -627,6 +627,7 @@ const zhMessages = {
         debit: "借方",
         credit: "贷方",
         balance: "余额",
+        taxRegistrationId: "税务登记号",
       },
     },
     balanceSheet: {

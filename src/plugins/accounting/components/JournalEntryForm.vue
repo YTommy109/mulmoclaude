@@ -28,7 +28,7 @@
           <th class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.accountLabel") }}</th>
           <th class="text-right py-1 px-2 w-32">{{ t("pluginAccounting.entryForm.debitLabel") }}</th>
           <th class="text-right py-1 px-2 w-32">{{ t("pluginAccounting.entryForm.creditLabel") }}</th>
-          <th class="text-left py-1 px-2 w-40">{{ t("pluginAccounting.entryForm.taxRegistrationIdLabel") }}</th>
+          <th v-if="anyTaxLine" class="text-left py-1 px-2 w-40">{{ t("pluginAccounting.entryForm.taxRegistrationIdLabel") }}</th>
           <th class="py-1 px-2"></th>
         </tr>
       </thead>
@@ -66,12 +66,15 @@
               @input="onCreditInput(line)"
             />
           </td>
-          <td class="py-1 px-2">
-            <!-- Optional counterparty tax-registration ID per line —
-                 JP T-number, EU VAT ID, GSTIN, ABN, etc. Realtime
-                 length-cap red border matches the AccountEditor
-                 pattern; the cap is enforced server-side too. -->
+          <!-- Tax-registration ID column appears only when at least
+               one line picks a tax-related account (14xx / 24xx —
+               see isTaxAccountCode). Within a column-visible row,
+               the input itself only renders for the lines that
+               actually pick a tax account; other lines render an
+               empty cell so the row keeps its column alignment. -->
+          <td v-if="anyTaxLine" class="py-1 px-2">
             <input
+              v-if="isTaxLine(line)"
               v-model="line.taxRegistrationId"
               type="text"
               :maxlength="MAX_TAX_REGISTRATION_ID_LENGTH"
@@ -131,6 +134,7 @@ import { useI18n } from "vue-i18n";
 import { addEntry, type Account, type JournalLine } from "../api";
 import { formatAmount, inputStepFor } from "../currencies";
 import { localDateString } from "../dates";
+import { isTaxAccountCode } from "./accountNumbering";
 import AccountsModal from "./AccountsModal.vue";
 
 const { t } = useI18n();
@@ -175,6 +179,10 @@ function blankLine(): FormLine {
 
 function isTaxRegistrationIdInvalid(line: FormLine): boolean {
   return line.taxRegistrationId.trim().length > MAX_TAX_REGISTRATION_ID_LENGTH;
+}
+
+function isTaxLine(line: FormLine): boolean {
+  return line.accountCode !== "" && isTaxAccountCode(line.accountCode);
 }
 
 const date = ref(localDateString());
@@ -222,6 +230,10 @@ const hasAtLeastTwoPostableLines = computed(() => {
   }
   return false;
 });
+// Show the tax-registration ID column only when at least one line
+// targets a 14xx / 24xx account; otherwise the column is wasted
+// space for the typical entry that has no tax line.
+const anyTaxLine = computed(() => lines.value.some(isTaxLine));
 const hasTaxRegistrationIdError = computed(() => lines.value.some(isTaxRegistrationIdInvalid));
 const balanced = computed(() => Math.abs(imbalance.value) <= 0.005 && hasAtLeastTwoPostableLines.value && !hasTaxRegistrationIdError.value);
 const imbalanceText = computed(() => formatAmount(imbalance.value, props.currency));
@@ -256,8 +268,15 @@ function toApiLines(): JournalLine[] {
     const apiLine: JournalLine = { accountCode: line.accountCode };
     if (isPositiveAmount(line.debit)) apiLine.debit = line.debit;
     if (isPositiveAmount(line.credit)) apiLine.credit = line.credit;
-    const trimmedTaxId = line.taxRegistrationId.trim();
-    if (trimmedTaxId !== "") apiLine.taxRegistrationId = trimmedTaxId;
+    // Only persist taxRegistrationId on tax-related lines —
+    // otherwise a value typed against an earlier account choice
+    // would leak through after the user switched the line to a
+    // non-tax account (the input field disappears but the form
+    // state lingers).
+    if (isTaxLine(line)) {
+      const trimmedTaxId = line.taxRegistrationId.trim();
+      if (trimmedTaxId !== "") apiLine.taxRegistrationId = trimmedTaxId;
+    }
     out.push(apiLine);
   }
   return out;

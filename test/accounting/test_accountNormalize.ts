@@ -60,4 +60,17 @@ describe("normalizeStoredAccount", () => {
       assert.equal(normalizeStoredAccount(BASE, undefined).active, undefined);
     });
   });
+
+  describe("legacy field cleanup", () => {
+    it("drops the now-removed tracksTaxRegistration field from upserted accounts", () => {
+      // Older books seeded `1310` / `2400` with `tracksTaxRegistration: true`
+      // before the convention-driven `isTaxAccountCode` (14xx / 24xx)
+      // landed. The whitelist no longer includes the field, so the
+      // next upsert silently sloughs it off — old JSON keeps it on
+      // disk until touched, but new writes don't propagate it.
+      const legacy = { ...BASE, tracksTaxRegistration: true } as unknown as Account;
+      const stored = normalizeStoredAccount(legacy);
+      assert.equal((stored as unknown as { tracksTaxRegistration?: boolean }).tracksTaxRegistration, undefined);
+    });
+  });
 });

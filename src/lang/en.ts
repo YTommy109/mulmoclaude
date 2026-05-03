@@ -642,7 +642,7 @@ const enMessages = {
     ledger: {
       selectAccount: "Select account",
       closingBalance: "Closing balance",
-      columns: { date: "Date", memo: "Memo", debit: "Debit", credit: "Credit", balance: "Balance" },
+      columns: { date: "Date", memo: "Memo", debit: "Debit", credit: "Credit", balance: "Balance", taxRegistrationId: "Tax registration ID" },
     },
     balanceSheet: {
       asOfLabel: "Period",

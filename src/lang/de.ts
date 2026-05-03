@@ -641,6 +641,7 @@ const deMessages = {
         debit: "Soll",
         credit: "Haben",
         balance: "Saldo",
+        taxRegistrationId: "Steuernummer",
       },
     },
     balanceSheet: {

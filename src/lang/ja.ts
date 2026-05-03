@@ -632,6 +632,7 @@ const jaMessages = {
         debit: "借方",
         credit: "貸方",
         balance: "残高",
+        taxRegistrationId: "登録番号",
       },
     },
     balanceSheet: {

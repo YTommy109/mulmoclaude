@@ -95,6 +95,11 @@ export interface LedgerRow {
   debit: number;
   credit: number;
   runningBalance: number;
+  /** Counterparty tax-registration ID per source line. The Ledger
+   *  view shows it as its own column when the selected account is
+   *  in the tax-related code band (14xx / 24xx — see
+   *  `isTaxAccountCode`). */
+  taxRegistrationId?: string;
 }
 
 export interface Ledger {

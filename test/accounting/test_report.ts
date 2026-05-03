@@ -205,4 +205,31 @@ describe("buildLedger", () => {
     assert.equal(ledger.rows[1].runningBalance, 70);
     assert.equal(ledger.closingBalance, 70);
   });
+
+  it("surfaces taxRegistrationId per row when the source line carries one", () => {
+    // Pin the per-row pass-through used by the Ledger view's
+    // T-number column. The 14xx-band tax-receivable row carries
+    // the supplier's ID; the offsetting Cash row doesn't, so its
+    // row leaves the field undefined.
+    const purchase = makePurchaseWithTaxId();
+    const taxReceivable: Account = { code: "1410", name: "Sales Tax Receivable", type: "asset" };
+    const ledger = buildLedger({ account: taxReceivable, entries: [purchase] });
+    assert.equal(ledger.rows.length, 1);
+    assert.equal(ledger.rows[0].taxRegistrationId, "T1234567890123");
+
+    const cash = findAccount("1000");
+    const cashLedger = buildLedger({ account: cash, entries: [purchase] });
+    assert.equal(cashLedger.rows.length, 1);
+    assert.equal(cashLedger.rows[0].taxRegistrationId, undefined);
+  });
 });
+
+function makePurchaseWithTaxId() {
+  return makeEntry({
+    date: "2026-04-01",
+    lines: [
+      { accountCode: "1410", debit: 10, taxRegistrationId: "T1234567890123" },
+      { accountCode: "1000", credit: 10 },
+    ],
+  });
+}

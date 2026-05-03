@@ -636,6 +636,7 @@ const frMessages = {
         debit: "Débit",
         credit: "Crédit",
         balance: "Solde",
+        taxRegistrationId: "N° d'identification fiscale",
       },
     },
     balanceSheet: {

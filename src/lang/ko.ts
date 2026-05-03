@@ -632,6 +632,7 @@ const koMessages = {
         debit: "차변",
         credit: "대변",
         balance: "잔액",
+        taxRegistrationId: "세무 등록번호",
       },
     },
     balanceSheet: {
