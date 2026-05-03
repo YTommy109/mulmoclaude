@@ -212,7 +212,7 @@ describe("buildLedger", () => {
     // the supplier's ID; the offsetting Cash row doesn't, so its
     // row leaves the field undefined.
     const purchase = makePurchaseWithTaxId();
-    const taxReceivable: Account = { code: "1400", name: "Sales Tax Receivable", type: "asset" };
+    const taxReceivable: Account = { code: "1400", name: "Input Tax Receivable", type: "asset" };
     const ledger = buildLedger({ account: taxReceivable, entries: [purchase] });
     assert.equal(ledger.rows.length, 1);
     assert.equal(ledger.rows[0].taxRegistrationId, "T1234567890123");

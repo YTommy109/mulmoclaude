@@ -296,6 +296,37 @@ describe("voidEntry", () => {
     assert.ok(list.entries.some((entry) => entry.kind === "void-marker"));
     assert.deepEqual(list.voidedEntryIds, [added.entry.id]);
   });
+  // Regression for makeVoidEntries — when the original entry has
+  // a tax-line carrying `taxRegistrationId`, the reverse entry MUST
+  // copy that ID over so the audit trail (T-number / VAT ID /
+  // GSTIN) survives the void. Without this the input-tax-credit
+  // documentation would silently drop on void and a later report
+  // scan couldn't reconstruct which counterparty the original
+  // input-tax line was tied to. CodeRabbit review on PR #1120.
+  it("preserves taxRegistrationId on the reverse entry when voiding a tax-bearing entry", async () => {
+    const root = makeTmp();
+    const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
+    const added = await addEntry(
+      {
+        bookId,
+        date: "2026-04-01",
+        lines: [
+          { accountCode: "1400", debit: 10, taxRegistrationId: "T1234567890123" },
+          { accountCode: "5000", debit: 100 },
+          { accountCode: "1000", credit: 110 },
+        ],
+      },
+      root,
+    );
+    const voided = await voidEntry({ bookId, entryId: added.entry.id, reason: "typo" }, root);
+    const reversedTaxLine = voided.reverseEntry.lines.find((line) => line.accountCode === "1400");
+    assert.ok(reversedTaxLine, "reverse entry must contain the 1400 line");
+    assert.equal(reversedTaxLine.taxRegistrationId, "T1234567890123");
+    // Counter-line that didn't carry the ID stays clean (no leak).
+    const reversedExpense = voided.reverseEntry.lines.find((line) => line.accountCode === "5000");
+    assert.equal(reversedExpense?.taxRegistrationId, undefined);
+  });
   it("listEntries: voidedEntryIds covers void-markers even when an account filter excludes them", async () => {
     // Regression for the JournalList strikeout bug: filtering by
     // accountCode drops the void-marker row (no lines), so the
