@@ -72,15 +72,23 @@ async function remove(id: string): Promise<void> {
   }
 }
 
-let unsub: (() => void) | undefined;
+// Subscribe to BOTH "changed" (data mutations from add/remove) AND
+// "prefs-changed" (sort/hidden preference changes from setSort). The
+// server emits the prefs event on a separate channel because pure
+// pref changes don't change the underlying bookmark records, but the
+// rendered ORDER depends on prefs — so the View must refetch on
+// either signal to stay in sync across tabs (Codex review on PR
+// #1124).
+const unsubs: Array<() => void> = [];
 onMounted(() => {
-  unsub = pubsub.subscribe("changed", () => {
-    void refetch();
-  });
+  unsubs.push(pubsub.subscribe("changed", () => void refetch()));
+  unsubs.push(pubsub.subscribe("prefs-changed", () => void refetch()));
   // Refetch on mount in case the inline `result` is stale (page refresh).
   void refetch();
 });
-onUnmounted(() => unsub?.());
+onUnmounted(() => {
+  for (const unsub of unsubs) unsub();
+});
 </script>
 
 <template>
