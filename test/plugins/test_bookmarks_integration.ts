@@ -56,23 +56,29 @@ describe("Bookmarks plugin — end-to-end through the loader", () => {
     }
   });
 
-  let savedDataRoot: string;
-  let savedConfigRoot: string;
+  // Capture the FULL property descriptor so afterEach restores
+  // writability + enumerability flags too. The earlier
+  // `Object.defineProperty(..., {value, configurable})` shape silently
+  // flipped the property to non-writable + non-enumerable, leaking
+  // that mutation across tests (Codex review iter on PR #1124, same
+  // fix as test_plugin_runtime.ts).
+  let savedDataDescriptor: PropertyDescriptor | undefined;
+  let savedConfigDescriptor: PropertyDescriptor | undefined;
   let dataRoot: string;
   let configRoot: string;
 
   beforeEach(() => {
-    savedDataRoot = WORKSPACE_PATHS.pluginsData;
-    savedConfigRoot = WORKSPACE_PATHS.pluginsConfig;
+    savedDataDescriptor = Object.getOwnPropertyDescriptor(WORKSPACE_PATHS, "pluginsData");
+    savedConfigDescriptor = Object.getOwnPropertyDescriptor(WORKSPACE_PATHS, "pluginsConfig");
     dataRoot = mkdtempSync(path.join(tmpdir(), "bookmarks-int-data-"));
     configRoot = mkdtempSync(path.join(tmpdir(), "bookmarks-int-config-"));
-    Object.defineProperty(WORKSPACE_PATHS, "pluginsData", { value: dataRoot, configurable: true });
-    Object.defineProperty(WORKSPACE_PATHS, "pluginsConfig", { value: configRoot, configurable: true });
+    if (savedDataDescriptor) Object.defineProperty(WORKSPACE_PATHS, "pluginsData", { ...savedDataDescriptor, value: dataRoot });
+    if (savedConfigDescriptor) Object.defineProperty(WORKSPACE_PATHS, "pluginsConfig", { ...savedConfigDescriptor, value: configRoot });
   });
 
   afterEach(() => {
-    Object.defineProperty(WORKSPACE_PATHS, "pluginsData", { value: savedDataRoot, configurable: true });
-    Object.defineProperty(WORKSPACE_PATHS, "pluginsConfig", { value: savedConfigRoot, configurable: true });
+    if (savedDataDescriptor) Object.defineProperty(WORKSPACE_PATHS, "pluginsData", savedDataDescriptor);
+    if (savedConfigDescriptor) Object.defineProperty(WORKSPACE_PATHS, "pluginsConfig", savedConfigDescriptor);
     rmSync(dataRoot, { recursive: true, force: true });
     rmSync(configRoot, { recursive: true, force: true });
   });
