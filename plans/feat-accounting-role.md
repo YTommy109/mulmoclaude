@@ -51,7 +51,7 @@ The prompt teaches the agent the four things a brand-new bookkeeping agent gets 
 
 1. **Double-entry mechanics** — every entry has Σ debit = Σ credit; debit ≠ "money in," credit ≠ "money out" (sign convention is per account type); never post without confirming the lines balance.
 2. **Append-only contract** — there is no `editEntry`. Corrections are `voidEntry` of the original followed by a fresh `addEntry`. Don't suggest "let me fix that for you" without naming the void-and-repost flow.
-3. **Tax-registration ID for input-tax lines** — when the user is recording a purchase that includes consumption / sales / VAT tax (any line touching `1310 Sales Tax Receivable` or the equivalent), ask for the supplier's tax-registration ID and populate `JournalLine.taxRegistrationId`. In Japan this is the 適格請求書発行事業者登録番号 (T-number); under the インボイス制度 (effective 2023-10-01) input-tax credit is forfeit without it. In the EU it's the VAT identification number; in India GSTIN; Australia ABN. The agent doesn't need to know which jurisdiction the book belongs to (that's coming via the country idea) — it asks every time on input-tax lines and treats the field as required for those lines and optional everywhere else.
+3. **Tax-registration ID for input-tax lines** — when the user is recording a purchase that includes consumption / sales / VAT tax (any line whose account code is in the tax-related band — 14xx asset / 24xx liability — e.g. `1410 Sales Tax Receivable`, `2400 Sales Tax Payable`), ask for the supplier's tax-registration ID and populate `JournalLine.taxRegistrationId`. In Japan this is the 適格請求書発行事業者登録番号 (T-number); under the インボイス制度 (effective 2023-10-01) input-tax credit is forfeit without it. In the EU it's the VAT identification number; in India GSTIN; Australia ABN. The agent doesn't need to know which jurisdiction the book belongs to (that's coming via the country idea) — it asks every time on input-tax lines and treats the field as required for those lines and optional everywhere else.
 4. **Forms over chat** — every data-collection prompt (date, memo, account picks, amounts, T-numbers, void confirmations, opening balances) is a `presentForm` call, not a chat question. Pre-post confirmation of a journal entry is also a form: render the proposed entry as a structured form, accept the user's edits, then call `addEntry`. This is non-negotiable; the prompt names it as a hard rule.
 
 Draft (will iterate during implementation; ~600 chars to start, expanding to ~2 KB):
@@ -70,11 +70,11 @@ Draft (will iterate during implementation; ~600 chars to start, expanding to ~2 
 >
 > ## Tax-registration ID (T-number / VAT ID / GSTIN / ABN)
 >
-> When the user is recording a purchase that includes consumption / sales / VAT tax — any line that touches `1310 Sales Tax Receivable` or the equivalent suspense account — you MUST ask for the supplier's tax-registration ID and populate `JournalLine.taxRegistrationId` on that line.
+> When the user is recording a purchase that includes consumption / sales / VAT tax — any line whose account code is in the tax-related band (14xx asset / 24xx liability — e.g. `1410 Sales Tax Receivable`, `2400 Sales Tax Payable`) — you MUST ask for the supplier's tax-registration ID and populate `JournalLine.taxRegistrationId` on that line.
 >
 > - In Japan this is the 適格請求書発行事業者登録番号 (T-number, format `T` + 13 digits). Under the インボイス制度 (effective 2023-10-01), input-tax credit is forfeit without it.
 > - In the EU it's the VAT identification number; in the UK the VAT registration number; in India GSTIN; in Australia ABN.
-> - Ask via a `presentForm` field labelled "Supplier's tax-registration ID" with a placeholder showing a plausible format. If the user can't provide it, ask whether to post the entry without input-tax credit (book the gross amount to the expense / asset, not split through 1310) — don't silently leave the field blank.
+> - Ask via a `presentForm` field labelled "Supplier's tax-registration ID" with a placeholder showing a plausible format. If the user can't provide it, ask whether to post the entry without input-tax credit (book the gross amount to the expense / asset, not split through 1410) — don't silently leave the field blank.
 >
 > ## Reports and narratives
 >

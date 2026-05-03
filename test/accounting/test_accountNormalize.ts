@@ -61,26 +61,16 @@ describe("normalizeStoredAccount", () => {
     });
   });
 
-  describe("tracksTaxRegistration policy", () => {
-    it("explicit true → stored true (tag as tax-suspense)", () => {
-      assert.equal(normalizeStoredAccount({ ...BASE, tracksTaxRegistration: true }).tracksTaxRegistration, true);
-    });
-
-    it("explicit false → omitted (default-false)", () => {
-      const tagged: Account = { ...BASE, tracksTaxRegistration: true };
-      assert.equal(normalizeStoredAccount({ ...BASE, tracksTaxRegistration: false }, tagged).tracksTaxRegistration, undefined);
-    });
-
-    it("omitted on a tagged existing → inherit true (rename of 1310 keeps the column)", () => {
-      // Same rationale as `active`: a routine name/note edit must
-      // not silently strip the flag and make the Ledger lose the
-      // T-number column.
-      const tagged: Account = { ...BASE, tracksTaxRegistration: true };
-      assert.equal(normalizeStoredAccount(BASE, tagged).tracksTaxRegistration, true);
-    });
-
-    it("omitted on a brand-new account → omitted (default-false)", () => {
-      assert.equal(normalizeStoredAccount(BASE, undefined).tracksTaxRegistration, undefined);
+  describe("legacy field cleanup", () => {
+    it("drops the now-removed tracksTaxRegistration field from upserted accounts", () => {
+      // Older books seeded `1310` / `2400` with `tracksTaxRegistration: true`
+      // before the convention-driven `isTaxAccountCode` (14xx / 24xx)
+      // landed. The whitelist no longer includes the field, so the
+      // next upsert silently sloughs it off — old JSON keeps it on
+      // disk until touched, but new writes don't propagate it.
+      const legacy = { ...BASE, tracksTaxRegistration: true } as unknown as Account;
+      const stored = normalizeStoredAccount(legacy);
+      assert.equal((stored as unknown as { tracksTaxRegistration?: boolean }).tracksTaxRegistration, undefined);
     });
   });
 });

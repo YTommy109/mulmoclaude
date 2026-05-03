@@ -208,17 +208,17 @@ describe("buildLedger", () => {
 
   it("surfaces taxRegistrationId per row when the source line carries one", () => {
     // Pin the per-row pass-through used by the Ledger view's
-    // T-number column. The tax-suspense row carries the supplier's
-    // ID; the offsetting Cash row doesn't, so its row leaves the
-    // field undefined.
+    // T-number column. The 14xx-band tax-receivable row carries
+    // the supplier's ID; the offsetting Cash row doesn't, so its
+    // row leaves the field undefined.
     const purchase = makeEntry({
       date: "2026-04-01",
       lines: [
-        { accountCode: "1310", debit: 10, taxRegistrationId: "T1234567890123" },
+        { accountCode: "1410", debit: 10, taxRegistrationId: "T1234567890123" },
         { accountCode: "1000", credit: 10 },
       ],
     });
-    const taxReceivable: Account = { code: "1310", name: "Sales Tax Receivable", type: "asset", tracksTaxRegistration: true };
+    const taxReceivable: Account = { code: "1410", name: "Sales Tax Receivable", type: "asset" };
     const ledger = buildLedger({ account: taxReceivable, entries: [purchase] });
     assert.equal(ledger.rows.length, 1);
     assert.equal(ledger.rows[0].taxRegistrationId, "T1234567890123");

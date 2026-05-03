@@ -69,6 +69,7 @@ import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { getLedger, type Account, type Ledger } from "../api";
 import { formatAmount as formatAmountWithCurrency } from "../currencies";
+import { isTaxAccountCode } from "./accountNumbering";
 import { useLatestRequest } from "./useLatestRequest";
 
 const { t } = useI18n();
@@ -98,16 +99,14 @@ function formatAccountLabel(account: Account): string {
 // so the past stays queryable).
 const selectableAccounts = computed<Account[]>(() => props.accounts.filter((account) => account.active !== false));
 
-// Surface the T-number column only when the active account is
-// tagged as a tax-suspense account (e.g. 1310 Sales Tax
-// Receivable, 2400 Sales Tax Payable). Driven by the per-account
-// `tracksTaxRegistration` flag rather than a hard-coded code list
-// so a custom suspense account a user adds via Manage Accounts
-// participates without a code change here.
+// Surface the T-number column when the active account is in the
+// tax-related code band (14xx asset / 24xx liability — e.g. 1410
+// Sales Tax Receivable, 2400 Sales Tax Payable). Convention-driven
+// so any custom account a user adds in the band participates
+// without an opt-in flag.
 const showTaxRegistrationColumn = computed<boolean>(() => {
   if (!ledger.value) return false;
-  const account = props.accounts.find((entry) => entry.code === ledger.value?.accountCode);
-  return account?.tracksTaxRegistration === true;
+  return isTaxAccountCode(ledger.value.accountCode);
 });
 
 async function refresh(): Promise<void> {

@@ -21,16 +21,18 @@ export const DEFAULT_ACCOUNTS: readonly Account[] = [
   { code: "1100", name: "Accounts Receivable", type: "asset" },
   { code: "1200", name: "Inventory", type: "asset", active: false },
   { code: "1300", name: "Prepaid Expenses", type: "asset", active: false },
-  // Pairs with 2400 Sales Tax Payable for the tax-excluded (税抜)
+  // 14xx is the reserved "tax-related current assets" band — pairs
+  // with 24xx on the liability side for the tax-excluded (税抜)
   // booking method: input tax paid on purchases sits here as an
-  // asset and is netted against output-tax collected at filing time.
-  // Active by default — most jurisdictions levy a consumption /
-  // sales / VAT tax, so flipping this on out of the box matches
-  // first-run expectations. Users in genuinely tax-free contexts
-  // can deactivate from Manage Accounts. `tracksTaxRegistration`
-  // tells the Ledger view to surface the T-number column when
-  // this account is selected.
-  { code: "1310", name: "Sales Tax Receivable", type: "asset", tracksTaxRegistration: true },
+  // asset and is netted against output-tax collected at filing
+  // time. The Ledger view's T-number column and the
+  // JournalEntryForm's per-line taxRegistrationId input both key
+  // off the 14xx / 24xx prefix (see `isTaxAccountCode`), so any
+  // custom account a user adds in this band participates without
+  // an opt-in step. Active by default — most jurisdictions levy a
+  // consumption / sales / VAT tax; tax-free contexts can
+  // deactivate from Manage Accounts.
+  { code: "1410", name: "Sales Tax Receivable", type: "asset" },
   { code: "1500", name: "Equipment", type: "asset" },
   { code: "1510", name: "Furniture & Fixtures", type: "asset", active: false },
   { code: "1520", name: "Vehicles", type: "asset", active: false },
@@ -40,10 +42,9 @@ export const DEFAULT_ACCOUNTS: readonly Account[] = [
   { code: "2100", name: "Credit Card", type: "liability" },
   { code: "2200", name: "Loans Payable", type: "liability" },
   { code: "2300", name: "Accrued Expenses", type: "liability", active: false },
-  // Active by default; pairs with 1310 Sales Tax Receivable.
-  // `tracksTaxRegistration` surfaces the T-number column on the
-  // Ledger when viewing this account.
-  { code: "2400", name: "Sales Tax Payable", type: "liability", tracksTaxRegistration: true },
+  // 24xx is the reserved "tax-related current liabilities" band;
+  // pairs with 14xx on the asset side. See the 1410 comment above.
+  { code: "2400", name: "Sales Tax Payable", type: "liability" },
   { code: "2500", name: "Payroll Liabilities", type: "liability", active: false },
   // Equity
   // Required for opening balances: setOpeningBalances dumps the
