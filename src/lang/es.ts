@@ -579,6 +579,7 @@ const esMessages = {
       nameLabel: "Nombre",
       currencyLabel: "Moneda",
       countryLabel: "País",
+      countryPlaceholder: "Selecciona un país…",
       countryHint: "El país define la jurisdicción fiscal para que el asistente pueda dar consejos específicos (T-number en Japón, ID de IVA en la UE, etc.).",
       placeholder: "Elige un libro…",
       firstRunHint:

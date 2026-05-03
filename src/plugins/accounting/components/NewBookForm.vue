@@ -25,6 +25,7 @@
       <label class="text-sm flex flex-col gap-1">
         {{ t("pluginAccounting.bookSwitcher.countryLabel") }}
         <select v-model="country" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white" data-testid="accounting-new-book-country">
+          <option value="">{{ t("pluginAccounting.bookSwitcher.countryPlaceholder") }}</option>
           <option v-for="opt in countryOptions" :key="opt.code" :value="opt.code">{{ opt.label }}</option>
         </select>
       </label>
@@ -56,13 +57,8 @@ import { SUPPORTED_COUNTRY_CODES, localizedCountryName, type SupportedCountryCod
 
 const { t, locale } = useI18n();
 
-function guessDefaultCountry(): SupportedCountryCode {
-  // Best-effort: lift the country segment from the active browser
-  // locale (e.g. "ja-JP" → "JP", "pt-BR" → "BR"). Falls back to "US"
-  // so the dropdown always has a valid initial value, since
-  // `SUPPORTED_COUNTRY_CODES` is the authoritative enum.
+function regionFromLocaleTag(tag: string): SupportedCountryCode | "" {
   try {
-    const tag = (typeof navigator !== "undefined" && navigator.language) || "en-US";
     const { region } = new Intl.Locale(tag).maximize();
     if (region && (SUPPORTED_COUNTRY_CODES as readonly string[]).includes(region)) {
       return region as SupportedCountryCode;
@@ -70,7 +66,22 @@ function guessDefaultCountry(): SupportedCountryCode {
   } catch {
     /* fall through */
   }
-  return "US";
+  return "";
+}
+
+function guessDefaultCountry(uiLocaleTag: string): SupportedCountryCode | "" {
+  // Try the active vue-i18n locale first (the user's *app* language
+  // setting, e.g. "ja-JP"), then fall back to the browser's
+  // navigator.language. Either may produce a region segment that maps
+  // to a curated `SupportedCountryCode`. If neither does, leave the
+  // field unset rather than silently picking a default — the
+  // dropdown's "(choose a country)" option lets the user finish the
+  // selection themselves so an unsupported locale doesn't quietly
+  // become a US-jurisdiction book.
+  const fromUi = regionFromLocaleTag(uiLocaleTag);
+  if (fromUi !== "") return fromUi;
+  const browserTag = typeof navigator !== "undefined" && typeof navigator.language === "string" ? navigator.language : "";
+  return regionFromLocaleTag(browserTag);
 }
 
 const props = withDefaults(
@@ -89,7 +100,7 @@ const emit = defineEmits<{
 
 const name = ref("");
 const currency = ref<string>("USD");
-const country = ref<SupportedCountryCode>(guessDefaultCountry());
+const country = ref<SupportedCountryCode | "">(guessDefaultCountry(locale.value));
 const creating = ref(false);
 const error = ref<string | null>(null);
 const nameInput = ref<HTMLInputElement | null>(null);
@@ -152,7 +163,11 @@ async function onSubmit(): Promise<void> {
   creating.value = true;
   error.value = null;
   try {
-    const result = await createBook({ name: name.value.trim(), currency: currency.value, country: country.value });
+    // Only forward `country` when the user actually picked one — the
+    // empty string is the dropdown's "(choose a country)" sentinel
+    // and must not land on disk as a literal "" value.
+    const pickedCountry: SupportedCountryCode | undefined = country.value === "" ? undefined : country.value;
+    const result = await createBook({ name: name.value.trim(), currency: currency.value, country: pickedCountry });
     if (!result.ok) {
       error.value = result.error;
       return;

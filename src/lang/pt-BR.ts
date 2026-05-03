@@ -572,6 +572,7 @@ const ptBRMessages = {
       nameLabel: "Nome",
       currencyLabel: "Moeda",
       countryLabel: "País",
+      countryPlaceholder: "Selecione um país…",
       countryHint: "O país define a jurisdição fiscal para que o assistente possa dar conselhos específicos (T-number no Japão, ID de IVA na UE, etc.).",
       placeholder: "Selecione um livro…",
       firstRunHint: "Escolha o nome, a moeda e o país do seu primeiro livro. A moeda é definida por livro e fica difícil alterar depois de começar a lançar.",

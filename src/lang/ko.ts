@@ -570,6 +570,7 @@ const koMessages = {
       nameLabel: "이름",
       currencyLabel: "통화",
       countryLabel: "국가",
+      countryPlaceholder: "국가 선택…",
       countryHint: "국가를 설정하면 세무 관할이 결정되어 어시스턴트가 국가별 안내(일본 T-번호, EU VAT ID 등)를 제공할 수 있습니다.",
       placeholder: "장부 선택…",
       firstRunHint: "첫 장부의 이름, 통화, 국가를 선택하세요. 통화는 장부별로 설정되며 분개를 시작한 뒤에는 변경이 어렵습니다.",

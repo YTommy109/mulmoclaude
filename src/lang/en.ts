@@ -595,6 +595,7 @@ const enMessages = {
       nameLabel: "Name",
       currencyLabel: "Currency",
       countryLabel: "Country",
+      countryPlaceholder: "Select a country…",
       countryHint: "The country sets the tax jurisdiction so the assistant can give country-specific advice (T-number for Japan, VAT ID for the EU, etc.).",
       placeholder: "Pick a book…",
       firstRunHint:

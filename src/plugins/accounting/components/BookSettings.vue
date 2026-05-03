@@ -162,8 +162,11 @@ async function onDelete(): Promise<void> {
   }
 }
 
-// Reset feedback / confirmation when the user navigates between
-// books while this tab is open.
+// Reset feedback / confirmation AND the dropdown selection when the
+// user navigates between books while this tab is open. Without the
+// `selectedCountry` reset, switching from book A (country=JP) to
+// book B (also country=JP) leaves a previously-typed unsaved value
+// staged on B — a save would then misattribute the edit.
 watch(
   () => props.bookId,
   () => {
@@ -173,6 +176,7 @@ watch(
     confirmName.value = "";
     updateOk.value = null;
     updateError.value = null;
+    selectedCountry.value = props.country ?? "";
   },
 );
 

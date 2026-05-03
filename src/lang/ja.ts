@@ -570,6 +570,7 @@ const jaMessages = {
       nameLabel: "名前",
       currencyLabel: "通貨",
       countryLabel: "国",
+      countryPlaceholder: "国を選択…",
       countryHint: "国を設定すると税の管轄が決まり、アシスタントが国別のアドバイス（日本のT番号、EUのVAT IDなど）を提供できます。",
       placeholder: "帳簿を選択…",
       firstRunHint: "最初の帳簿の名前・通貨・国を選んでください。通貨は帳簿ごとに固定で、仕訳を入力した後の変更は難しくなります。",

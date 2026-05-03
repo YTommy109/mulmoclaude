@@ -579,6 +579,7 @@ const deMessages = {
       nameLabel: "Name",
       currencyLabel: "Währung",
       countryLabel: "Land",
+      countryPlaceholder: "Land auswählen…",
       countryHint:
         "Das Land legt die Steuerjurisdiktion fest, damit der Assistent länderspezifische Hinweise geben kann (T-Nummer in Japan, USt-IdNr. in der EU usw.).",
       placeholder: "Buch auswählen…",

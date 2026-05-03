@@ -573,6 +573,7 @@ const frMessages = {
       nameLabel: "Nom",
       currencyLabel: "Devise",
       countryLabel: "Pays",
+      countryPlaceholder: "Sélectionner un pays…",
       countryHint: "Le pays définit la juridiction fiscale afin que l'assistant puisse donner des conseils ciblés (T-number au Japon, ID TVA dans l'UE, etc.).",
       placeholder: "Sélectionner un livre…",
       firstRunHint:

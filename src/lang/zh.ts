@@ -566,6 +566,7 @@ const zhMessages = {
       nameLabel: "名称",
       currencyLabel: "货币",
       countryLabel: "国家/地区",
+      countryPlaceholder: "选择国家/地区…",
       countryHint: "国家/地区决定税务管辖,助手可据此提供本地化建议（日本T号、欧盟VAT ID等）。",
       placeholder: "选择账簿…",
       firstRunHint: "请为第一本账簿选择名称、货币和国家/地区。货币按账簿固定,登账后再更改会比较困难。",
