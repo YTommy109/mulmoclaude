@@ -90,6 +90,11 @@ const toolDefinition: ToolDefinition = {
         },
       },
       memo: { type: "string", description: "Optional entry-level memo." },
+      replacesEntryId: {
+        type: "string",
+        description:
+          "For 'addEntry' only — id of an entry this one replaces (the 'edit' flow). The caller MUST issue a 'voidEntry' for that id immediately before this addEntry; the two calls are not atomic on the server.",
+      },
       // void
       entryId: { type: "string", description: "For 'voidEntry': id of the entry to void. The reverse + marker pair is appended (journal stays append-only)." },
       reason: { type: "string", description: "For 'voidEntry': human-readable reason." },

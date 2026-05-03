@@ -45,6 +45,7 @@ interface FakeEntry {
   memo?: string;
   voidedEntryId?: string;
   voidReason?: string;
+  replacesEntryId?: string;
   createdAt: string;
 }
 
@@ -197,6 +198,9 @@ function handleAddEntry(state: AccountingState, body: DispatchBody): MockRespons
     memo: typeof body.memo === "string" ? body.memo : undefined,
     createdAt: new Date().toISOString(),
   };
+  if (typeof body.replacesEntryId === "string" && body.replacesEntryId !== "") {
+    entry.replacesEntryId = body.replacesEntryId;
+  }
   const list = state.entriesByBook.get(resolved) ?? [];
   list.push(entry);
   state.entriesByBook.set(resolved, list);

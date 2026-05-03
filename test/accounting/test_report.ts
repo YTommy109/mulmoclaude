@@ -206,6 +206,57 @@ describe("buildLedger", () => {
     assert.equal(ledger.closingBalance, 70);
   });
 
+  it("combines entry memo and line memo so each ledger row shows the transaction + line context", () => {
+    // The tax-receivable line in this entry carries its own memo
+    // ("仮払消費税 10%"); previously that string alone landed in
+    // the Ledger row, hiding the originating "Starbucks Tokyo —
+    // coffee" entry memo. The combined form preserves both.
+    const purchase = makeEntry({
+      date: "2026-04-01",
+      memo: "Starbucks Tokyo — coffee",
+      lines: [
+        { accountCode: "5900", debit: 600, memo: "Coffee (net)" },
+        { accountCode: "1400", debit: 60, memo: "仮払消費税 10%" },
+        { accountCode: "1000", credit: 660, memo: "Paid in cash" },
+      ],
+    });
+    const taxReceivable: Account = { code: "1400", name: "Sales Tax Receivable", type: "asset" };
+    const taxLedger = buildLedger({ account: taxReceivable, entries: [purchase] });
+    assert.equal(taxLedger.rows[0].memo, "Starbucks Tokyo — coffee · 仮払消費税 10%");
+
+    // The "Coffee (net)" expense ledger row gets the same prefix.
+    const coffeeExpense: Account = { code: "5900", name: "Coffee", type: "expense" };
+    const coffeeLedger = buildLedger({ account: coffeeExpense, entries: [purchase] });
+    assert.equal(coffeeLedger.rows[0].memo, "Starbucks Tokyo — coffee · Coffee (net)");
+
+    // No-line-memo case: the line memo is absent, so the row falls
+    // back cleanly to the entry memo with no separator.
+    const plain = makeEntry({
+      date: "2026-04-02",
+      memo: "Office supplies",
+      lines: [
+        { accountCode: "5000", debit: 30 },
+        { accountCode: "1000", credit: 30 },
+      ],
+    });
+    const office: Account = { code: "5000", name: "Office", type: "expense" };
+    const officeLedger = buildLedger({ account: office, entries: [plain] });
+    assert.equal(officeLedger.rows[0].memo, "Office supplies");
+
+    // Identity-collapse: same string on both sides shouldn't render twice.
+    const dup = makeEntry({
+      date: "2026-04-03",
+      memo: "Cash deposit",
+      lines: [
+        { accountCode: "1000", debit: 100, memo: "Cash deposit" },
+        { accountCode: "4000", credit: 100 },
+      ],
+    });
+    const cash = findAccount("1000");
+    const cashLedger = buildLedger({ account: cash, entries: [dup] });
+    assert.equal(cashLedger.rows[0].memo, "Cash deposit");
+  });
+
   it("surfaces taxRegistrationId per row when the source line carries one", () => {
     // Pin the per-row pass-through used by the Ledger view's
     // T-number column. The 14xx-band tax-receivable row carries

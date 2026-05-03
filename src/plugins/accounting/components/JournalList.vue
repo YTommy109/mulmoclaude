@@ -54,15 +54,15 @@
               <span v-if="line.credit">{{ formatCredit(line.credit) }}</span>
             </div>
           </td>
-          <td class="py-1 px-2 text-right">
-            <button
-              v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)"
-              class="text-xs text-red-500 hover:underline"
-              :data-testid="`accounting-void-${entry.id}`"
-              @click="onVoid(entry)"
-            >
-              {{ t("pluginAccounting.journalList.void") }}
-            </button>
+          <td class="py-1 px-2 text-right whitespace-nowrap">
+            <template v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)">
+              <button class="text-xs text-blue-600 hover:underline mr-2" :data-testid="`accounting-edit-${entry.id}`" @click="emit('editEntry', entry)">
+                {{ t("pluginAccounting.journalList.edit") }}
+              </button>
+              <button class="text-xs text-red-500 hover:underline" :data-testid="`accounting-void-${entry.id}`" @click="onVoid(entry)">
+                {{ t("pluginAccounting.journalList.void") }}
+              </button>
+            </template>
             <button
               v-else-if="entry.kind === 'opening' && !voidedEntryIds.has(entry.id)"
               class="text-xs text-blue-600 hover:underline"
@@ -88,7 +88,7 @@ import { useLatestRequest } from "./useLatestRequest";
 const { t } = useI18n();
 
 const props = defineProps<{ bookId: string; accounts: Account[]; currency: string; version: number }>();
-const emit = defineEmits<{ changed: []; editOpening: [] }>();
+const emit = defineEmits<{ changed: []; editOpening: []; editEntry: [JournalEntry] }>();
 
 const from = ref("");
 const toDate = ref("");

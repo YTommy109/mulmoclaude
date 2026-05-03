@@ -175,6 +175,20 @@ interface LedgerLineAccumulator {
   running: number;
 }
 
+/** Concatenate the entry-level memo (the *what-happened*) with the
+ *  line-level memo (the *why-this-account*) so a per-account ledger
+ *  view shows both. Without this combine, a Sales Tax Receivable
+ *  ledger row would show "仮払消費税 10%" but lose the originating
+ *  "Starbucks Tokyo — coffee" — and the user can't tell which
+ *  transaction the row came from. Identity-collapse handles the
+ *  case where someone set both fields to the same string. */
+function combineMemo(entryMemo: string | undefined, lineMemo: string | undefined): string | undefined {
+  if (!entryMemo) return lineMemo;
+  if (!lineMemo) return entryMemo;
+  if (entryMemo === lineMemo) return entryMemo;
+  return `${entryMemo} · ${lineMemo}`;
+}
+
 function accumulateLedgerEntry(
   entry: JournalEntry,
   accountCode: string,
@@ -194,7 +208,7 @@ function accumulateLedgerEntry(
       entryId: entry.id,
       date: entry.date,
       kind: entry.kind,
-      memo: line.memo ?? entry.memo,
+      memo: combineMemo(entry.memo, line.memo),
       debit,
       credit,
       runningBalance: acc.running,
