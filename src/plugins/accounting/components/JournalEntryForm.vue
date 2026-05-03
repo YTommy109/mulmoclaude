@@ -128,7 +128,7 @@
       <button
         type="submit"
         class="h-8 px-3 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:opacity-50"
-        :disabled="!balanced || submitting"
+        :disabled="!balanced || submitting || editLocked"
         data-testid="accounting-entry-submit"
       >
         {{ submitButtonLabel }}
@@ -214,6 +214,16 @@ const submitButtonLabel = computed<string>(() => {
   }
   return isEditing.value ? t("pluginAccounting.entryForm.update") : t("pluginAccounting.entryForm.submit");
 });
+
+// One-shot lock: once the user has clicked Update on an edit, the
+// submit button is dead until they Cancel (or land on a different
+// entry). Edit = void + addEntry as two sequential calls; if the
+// void succeeds and the add fails, a second Submit would try to
+// void an already-voided original. We don't add retry plumbing
+// for that — policy is "report the error, do not retry". The user
+// cancels out and re-enters manually.
+const editAttempted = ref(false);
+const editLocked = computed(() => isEditing.value && editAttempted.value);
 
 function addLine(): void {
   lines.value.push(blankLine());
@@ -306,19 +316,22 @@ function toApiLines(): JournalLine[] {
 }
 
 async function onSubmit(): Promise<void> {
-  if (submitting.value || !balanced.value) return;
+  if (submitting.value || !balanced.value || editLocked.value) return;
   submitting.value = true;
   error.value = null;
   successMessage.value = null;
   try {
-    // Edit flow: void the original first, then post the replacement.
-    // Two sequential calls — not atomic. If the void succeeds and
-    // the addEntry fails, the original is already gone from the
-    // active set and the user has to retry the post (or re-enter
-    // it manually). The trade-off was chosen explicitly to keep
-    // the server contract simple — no transaction support.
+    // Edit flow: void the original, then post the replacement.
+    // Two sequential calls — not atomic, no retry. Marking
+    // `editAttempted` *before* the void disables the submit button
+    // for the rest of this edit session (the `editLocked` guard
+    // and the button's :disabled both honour it), so a partial
+    // failure can't trigger a second void on the already-voided
+    // original. On any error: show the message, user must Cancel
+    // and re-enter manually.
     const editingId = props.entryToEdit?.id;
     if (editingId) {
+      editAttempted.value = true;
       const voidResult = await voidEntry({
         bookId: props.bookId,
         entryId: editingId,
@@ -385,6 +398,9 @@ watch(
   (entry) => {
     error.value = null;
     successMessage.value = null;
+    // Fresh edit (or exit from edit mode) → unlock the submit
+    // button so the new edit session has a clean shot.
+    editAttempted.value = false;
     if (!entry) {
       lines.value = [blankLine(), blankLine()];
       memo.value = "";
