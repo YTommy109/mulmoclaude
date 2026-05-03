@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 
 export const TOOL_NAME = "manageSource";
+export const API_ENDPOINT = "/api/sources/manage";
 
 const toolDefinition: ToolDefinition = {
   type: "function",

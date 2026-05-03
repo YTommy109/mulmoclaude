@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 
 export const TOOL_NAME = "editImages";
+export const API_ENDPOINT = "/api/edit-image";
 
 export interface ImageToolData {
   imageData: string;

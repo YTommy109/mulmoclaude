@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 
 export const TOOL_NAME = "presentMulmoScript";
+export const API_ENDPOINT = "/api/mulmo-script";
 
 const toolDefinition: ToolDefinition = {
   type: "function",

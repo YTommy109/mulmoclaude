@@ -1,10 +1,9 @@
 import type { ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
-import toolDefinition, { TOOL_NAME } from "./definition";
+import toolDefinition, { API_ENDPOINT, TOOL_NAME } from "./definition";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
 import { makeUuid } from "../../utils/id";
 
 export interface CustomRole {
@@ -23,7 +22,7 @@ export interface ManageRolesData {
 const manageRolesPlugin: ToolPlugin = {
   toolDefinition,
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<ManageRolesData>>(API_ROUTES.roles.manage, args);
+    const result = await apiPost<ToolResult<ManageRolesData>>(API_ENDPOINT, args);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

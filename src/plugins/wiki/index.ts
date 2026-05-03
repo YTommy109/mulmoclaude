@@ -1,7 +1,8 @@
 import type { PluginEntry, PluginRegistration } from "../../tools/types";
-import { TOOL_NAMES } from "../../config/toolNames";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
+
+const TOOL_NAME = "manageWiki";
 
 export interface WikiPageEntry {
   title: string;
@@ -37,7 +38,7 @@ export interface WikiData {
 const wikiPlugin: PluginEntry = {
   toolDefinition: {
     type: "function",
-    name: "manageWiki",
+    name: TOOL_NAME,
     prompt: "[deprecated] Replaced by inline page-edit rendering (#963). Kept registered for historical chat-history rendering only.",
     description: "[deprecated] Replaced by inline page-edit rendering (#963). Kept registered for historical chat-history rendering only.",
     parameters: { type: "object", properties: {}, required: [] },
@@ -49,6 +50,6 @@ const wikiPlugin: PluginEntry = {
 export default wikiPlugin;
 
 export const REGISTRATION: PluginRegistration = {
-  toolName: TOOL_NAMES.manageWiki,
+  toolName: TOOL_NAME,
   entry: wikiPlugin,
 };

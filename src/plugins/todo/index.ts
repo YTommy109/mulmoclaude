@@ -1,11 +1,9 @@
 import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
-import { TOOL_NAMES } from "../../config/toolNames";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
-import toolDefinition from "./definition";
+import toolDefinition, { API_ENDPOINT, TOOL_NAME } from "./definition";
 import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
 import { makeUuid } from "../../utils/id";
 
 export type TodoPriority = "low" | "medium" | "high" | "urgent";
@@ -39,17 +37,17 @@ const todoPlugin: ToolPlugin<TodoData> = {
   toolDefinition,
 
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<TodoData>>(API_ROUTES.todos.dispatch, args);
+    const result = await apiPost<ToolResult<TodoData>>(API_ENDPOINT, args);
     if (!result.ok) {
       return {
-        toolName: "manageTodoList",
+        toolName: TOOL_NAME,
         uuid: makeUuid(),
         message: result.error,
       };
     }
     return {
       ...result.data,
-      toolName: "manageTodoList",
+      toolName: TOOL_NAME,
       uuid: result.data.uuid ?? makeUuid(),
     };
   },
@@ -63,6 +61,6 @@ const todoPlugin: ToolPlugin<TodoData> = {
 export default todoPlugin;
 
 export const REGISTRATION: PluginRegistration = {
-  toolName: TOOL_NAMES.manageTodoList,
+  toolName: TOOL_NAME,
   entry: todoPlugin,
 };

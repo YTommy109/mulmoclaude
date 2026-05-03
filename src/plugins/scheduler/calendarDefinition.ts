@@ -1,11 +1,13 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 import { SCHEDULER_ACTIONS } from "../../config/schedulerActions";
 
+export const TOOL_NAME = "manageCalendar";
+
 const CALENDAR_ACTIONS = [SCHEDULER_ACTIONS.show, SCHEDULER_ACTIONS.add, SCHEDULER_ACTIONS.update, SCHEDULER_ACTIONS.delete] as const;
 
 const toolDefinition: ToolDefinition = {
   type: "function",
-  name: "manageCalendar",
+  name: TOOL_NAME,
   prompt:
     "When users mention calendar events, appointments, meetings, or one-off reminders that have a date/time, use manageCalendar. " +
     "Use show to display the calendar, add to create an event, update to edit one, delete to remove one. " +

@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 
 export const TOOL_NAME = "presentSpreadsheet";
+export const API_ENDPOINT = "/api/present-spreadsheet";
 
 export interface SpreadsheetCell {
   v: string | number;

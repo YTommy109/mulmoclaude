@@ -1,11 +1,9 @@
 import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
-import toolDefinition, { TOOL_NAME } from "./definition";
-import { TOOL_NAMES } from "../../config/toolNames";
+import toolDefinition, { API_ENDPOINT, TOOL_NAME } from "./definition";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
 import { makeUuid } from "../../utils/id";
 
 export interface PresentHtmlData {
@@ -17,7 +15,7 @@ const presentHtmlPlugin: ToolPlugin<PresentHtmlData> = {
   toolDefinition,
 
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<PresentHtmlData>>(API_ROUTES.html.present, args);
+    const result = await apiPost<ToolResult<PresentHtmlData>>(API_ENDPOINT, args);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,
@@ -42,6 +40,6 @@ export default presentHtmlPlugin;
 export { TOOL_NAME };
 
 export const REGISTRATION: PluginRegistration = {
-  toolName: TOOL_NAMES.presentHtml,
+  toolName: TOOL_NAME,
   entry: presentHtmlPlugin,
 };

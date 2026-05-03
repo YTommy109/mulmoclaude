@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 
 export const TOOL_NAME = "presentHtml";
+export const API_ENDPOINT = "/api/present-html";
 
 const toolDefinition: ToolDefinition = {
   type: "function",

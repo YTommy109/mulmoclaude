@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 
 export const TOOL_NAME = "presentDocument";
+export const API_ENDPOINT = "/api/present-document";
 
 export interface MarkdownToolData {
   markdown: string;

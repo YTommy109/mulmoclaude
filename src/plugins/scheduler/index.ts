@@ -7,11 +7,9 @@ import CalendarView from "./CalendarView.vue";
 import AutomationsView from "./AutomationsView.vue";
 import Preview from "./Preview.vue";
 import AutomationsPreview from "./AutomationsPreview.vue";
-import calendarDefinition from "./calendarDefinition";
-import automationsDefinition from "./automationsDefinition";
+import calendarDefinition, { TOOL_NAME as MANAGE_CALENDAR } from "./calendarDefinition";
+import automationsDefinition, { API_ENDPOINT, TOOL_NAME as MANAGE_AUTOMATIONS } from "./automationsDefinition";
 import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
-import { TOOL_NAMES } from "../../config/toolNames";
 import { makeUuid } from "../../utils/id";
 
 export interface ScheduledItem {
@@ -26,9 +24,9 @@ export interface SchedulerData {
 }
 
 // `toolName` is captured so the result carries the matching name through to chat history and View lookup.
-function makeExecute(toolName: "manageCalendar" | "manageAutomations"): ToolPlugin<SchedulerData>["execute"] {
+function makeExecute(toolName: typeof MANAGE_CALENDAR | typeof MANAGE_AUTOMATIONS): ToolPlugin<SchedulerData>["execute"] {
   return async function execute(_context, args) {
-    const result = await apiPost<ToolResult<SchedulerData>>(API_ROUTES.scheduler.base, args);
+    const result = await apiPost<ToolResult<SchedulerData>>(API_ENDPOINT, args);
     if (!result.ok) {
       return {
         toolName,
@@ -46,7 +44,7 @@ function makeExecute(toolName: "manageCalendar" | "manageAutomations"): ToolPlug
 
 export const manageCalendarPlugin: ToolPlugin<SchedulerData> = {
   toolDefinition: calendarDefinition,
-  execute: makeExecute("manageCalendar"),
+  execute: makeExecute(MANAGE_CALENDAR),
   isEnabled: () => true,
   generatingMessage: "Updating calendar...",
   viewComponent: CalendarView,
@@ -55,7 +53,7 @@ export const manageCalendarPlugin: ToolPlugin<SchedulerData> = {
 
 export const manageAutomationsPlugin: ToolPlugin<SchedulerData> = {
   toolDefinition: automationsDefinition,
-  execute: makeExecute("manageAutomations"),
+  execute: makeExecute(MANAGE_AUTOMATIONS),
   isEnabled: () => true,
   generatingMessage: "Managing automations...",
   viewComponent: AutomationsView,
@@ -66,6 +64,6 @@ export const manageAutomationsPlugin: ToolPlugin<SchedulerData> = {
 
 // One plugin module, two tool registrations — see #824 split.
 export const REGISTRATIONS: PluginRegistration[] = [
-  { toolName: TOOL_NAMES.manageCalendar, entry: manageCalendarPlugin },
-  { toolName: TOOL_NAMES.manageAutomations, entry: manageAutomationsPlugin },
+  { toolName: MANAGE_CALENDAR, entry: manageCalendarPlugin },
+  { toolName: MANAGE_AUTOMATIONS, entry: manageAutomationsPlugin },
 ];

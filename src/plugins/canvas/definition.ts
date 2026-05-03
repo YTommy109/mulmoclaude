@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 
 export const TOOL_NAME = "openCanvas";
+export const API_ENDPOINT = "/api/canvas";
 
 export interface ImageToolData {
   imageData: string;
