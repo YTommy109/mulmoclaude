@@ -247,6 +247,13 @@ async function refetchBooks(): Promise<void> {
       return;
     }
     books.value = result.data.books;
+    // Sticky-true once a successful fetch lands. Setting it here (in
+    // the success branch) rather than in `finally` means a first-load
+    // transport / 5xx failure leaves BookSwitcher hidden — the user
+    // sees only the `accounting-load-error` message rather than an
+    // empty dropdown with a live "+ New book" path that has nothing
+    // to fall back on.
+    initialLoadDone.value = true;
     // While the deleted-notice panel is already up, leave activeBookId
     // alone — the user has to pick the next book themselves via
     // the BookSwitcher (and onBookSelected then clears the notice).
@@ -284,7 +291,6 @@ async function refetchBooks(): Promise<void> {
     bookLoadError.value = err instanceof Error ? err.message : String(err);
   } finally {
     loadingBooks.value = false;
-    initialLoadDone.value = true;
   }
 }
 
