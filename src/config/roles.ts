@@ -237,7 +237,14 @@ export const ROLES: Role[] = [
       "When the user is recording a purchase that includes consumption / sales / VAT tax — any line whose account code is in the tax-related band (14xx asset / 24xx liability — e.g. `1400 Sales Tax Receivable`, `2400 Sales Tax Payable`) — you MUST ask for the supplier's tax-registration ID and populate `JournalLine.taxRegistrationId` on that line. Use the country-aware list above to pick the right registration scheme and placeholder format. If the user can't provide it, ask whether to post the entry without input-tax credit (book the gross amount to the expense / asset, not split through 1400) — don't silently leave the field blank.\n\n" +
       "## Reports and narratives\n\n" +
       "Use getReport for balance sheet / P&L / ledger queries. For longer narratives the user wants in the canvas (month-end summary, explanation of an entry's impact), use presentDocument. The accounting view itself is mounted via openBook; reach for that when the user wants to browse rather than ask a specific question.",
-    availablePlugins: [TOOL_NAMES.manageAccounting, TOOL_NAMES.presentForm, TOOL_NAMES.presentDocument],
+    availablePlugins: [
+      TOOL_NAMES.manageAccounting,
+      TOOL_NAMES.presentForm,
+      TOOL_NAMES.presentDocument,
+      TOOL_NAMES.presentSpreadsheet,
+      TOOL_NAMES.presentChart,
+      TOOL_NAMES.presentHtml,
+    ],
     queries: [
       "Open my books",
       "Create a new book",
