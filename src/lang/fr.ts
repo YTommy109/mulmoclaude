@@ -572,8 +572,16 @@ const frMessages = {
       create: "Créer",
       nameLabel: "Nom",
       currencyLabel: "Devise",
+      countryLabel: "Pays",
+      countryPlaceholder: "Sélectionner un pays…",
+      countryHint: "Le pays définit la juridiction fiscale afin que l'assistant puisse donner des conseils ciblés (T-number au Japon, ID TVA dans l'UE, etc.).",
+      placeholder: "Sélectionner un livre…",
       firstRunHint:
-        "Choisissez le nom et la devise de votre premier livre. La devise est figée par livre et difficile à changer une fois les écritures commencées.",
+        "Choisissez le nom, la devise et le pays de votre premier livre. La devise est figée par livre et difficile à changer une fois les écritures commencées.",
+    },
+    deletedNotice: {
+      title: "« {bookName} » a été supprimé.",
+      body: "Choisissez un autre livre dans la liste ci-dessus ou créez-en un nouveau.",
     },
     journalList: {
       fromLabel: "Du",
@@ -636,6 +644,7 @@ const frMessages = {
         debit: "Débit",
         credit: "Crédit",
         balance: "Solde",
+        taxRegistrationId: "N° d'identification fiscale",
       },
     },
     balanceSheet: {
@@ -698,6 +707,12 @@ const frMessages = {
       noteOptional: "(facultatif)",
     },
     settings: {
+      bookInfo: "Informations du livre",
+      bookInfoExplain:
+        "Modifiez le pays pour mettre à jour les conseils selon la juridiction fiscale. La devise ne peut pas être changée une fois des écritures saisies.",
+      countryUnset: "(non défini)",
+      saveChanges: "Enregistrer les modifications",
+      updateOk: "Livre mis à jour.",
       rebuild: "Reconstruire les snapshots",
       rebuildExplain: "Supprime tous les snapshots mensuels et les recalcule depuis le journal. Utile après modification manuelle du journal.",
       rebuildOk: "{count} période(s) reconstruite(s).",

@@ -16,6 +16,7 @@ import {
   AccountingError,
   addEntry,
   createBook,
+  updateBook,
   deleteBook,
   getBalanceSheetReport,
   getLedgerReport,
@@ -120,6 +121,15 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     const result = await createBook({
       name: String(rest.name ?? ""),
       currency: typeof rest.currency === "string" ? rest.currency : undefined,
+      country: typeof rest.country === "string" ? rest.country : undefined,
+    });
+    return { bookId: result.book.id, ...result };
+  },
+  [ACCOUNTING_ACTIONS.updateBook]: async (rest) => {
+    const result = await updateBook({
+      bookId: String(rest.bookId ?? ""),
+      name: typeof rest.name === "string" ? rest.name : undefined,
+      country: typeof rest.country === "string" ? rest.country : undefined,
     });
     return { bookId: result.book.id, ...result };
   },
@@ -173,6 +183,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
 const PREVIEW_ACTIONS = new Set<string>([
   ACCOUNTING_ACTIONS.openBook,
   ACCOUNTING_ACTIONS.createBook,
+  ACCOUNTING_ACTIONS.updateBook,
   ACCOUNTING_ACTIONS.upsertAccount,
   ACCOUNTING_ACTIONS.addEntry,
   ACCOUNTING_ACTIONS.voidEntry,
@@ -205,7 +216,14 @@ const MESSAGE_BUILDERS: Record<string, MessageBuilder> = {
     // book (getAccounts, addEntry, etc.), so include it in the
     // status message instead of forcing a round-trip via getBooks.
     const idFragment = book?.id ? ` (id: ${book.id})` : "";
-    return `${subject} has been created${idFragment}.`;
+    // The View's opening-gate hides every tab except `opening` and
+    // `settings` until an opening entry is on file (even a zero-line
+    // one). If the agent doesn't tell the user to set opening
+    // balances first, the user's "can I add an entry?" attempt
+    // silently fails because the New Entry tab isn't even visible.
+    // Include the next-step instruction inline so the agent's reply
+    // matches the UI's actual constraints.
+    return `${subject} has been created${idFragment}. Next required step: set opening balances via setOpeningBalances — the journal-entry, ledger, and report tabs are locked until an opening (even an empty one) is saved.`;
   },
   [ACCOUNTING_ACTIONS.upsertAccount]: (fields) => {
     const account = fields.account as { code?: string; name?: string } | undefined;
@@ -243,6 +261,12 @@ const MESSAGE_BUILDERS: Record<string, MessageBuilder> = {
     const subject = name ? `the book ${JSON.stringify(name)}` : "the book";
     const idFragment = bookId ? ` (id: ${bookId})` : "";
     return `Deleted ${subject}${idFragment}.`;
+  },
+  [ACCOUNTING_ACTIONS.updateBook]: (fields) => {
+    const book = fields.book as { id?: string; name?: string; country?: string; currency?: string } | undefined;
+    const name = book?.name ? JSON.stringify(book.name) : "the book";
+    const countryFragment = book?.country ? ` (country: ${book.country})` : "";
+    return `Updated ${name}${countryFragment}.`;
   },
 };
 

@@ -146,26 +146,34 @@ wiring* on save failure needs manual verification.
 
 ## 7. Accounting plugin (test rollout)
 
-**Why manual**: the accounting plugin is opt-in only — no built-in
-Role exposes it, no `/accounting` route exists, no PluginLauncher
-button. It is reachable only by users who hand-build a custom Role
-that lists `manageAccounting` in its `availablePlugins`. The E2E
-isolation test asserts the negative invariants; the positive flow
+**Why manual**: the accounting plugin is opt-in. The default
+(General) role doesn't expose it, no `/accounting` route exists, no
+PluginLauncher button. The built-in **Accounting** role surfaces it
+via the role picker; custom roles that list `manageAccounting` in
+their `availablePlugins` work too. The E2E isolation test asserts
+the General role still doesn't see the plugin; the positive flow
 needs a human walking through real journal data.
 
 ### Setup
 
-Create a custom Role with the plugin enabled. Two paths, both supported:
+Pick the entry point that matches what you're testing:
 
-- **GUI**: `/roles` → "New role" → in the plugin picker, check
-  `manageAccounting` (the picker auto-populates from `TOOL_NAMES`).
-- **File-edit**: drop a JSON role definition into
-  `~/mulmoclaude/config/roles/accounting.json` containing
-  `{"id":"accounting","label":"Accounting","availablePlugins":["manageAccounting"]}`
+- **Recommended**: switch to the built-in **Accounting** role from
+  the role picker. The role exposes `manageAccounting`,
+  `presentForm`, and `presentDocument` — enough for the bookkeeping
+  flow with structured user prompts.
+- **Custom role (legacy / advanced)**: `/roles` → "New role" → in
+  the plugin picker, check `manageAccounting` (the picker
+  auto-populates from `TOOL_NAMES`). Useful when you want a
+  different plugin mix than the built-in role ships.
+- **File-edit (legacy / advanced)**: drop a JSON role definition
+  into `~/mulmoclaude/config/roles/<your-id>.json` containing
+  `{"id":"<your-id>","label":"<Label>","availablePlugins":["manageAccounting"]}`
   and restart the server.
 
-Switch to the new role in the role picker. Claude can now call
-`manageAccounting` and the `openBook` action mounts `<AccountingApp>`.
+In every case, switch to the role in the role picker. Claude can
+then call `manageAccounting` and the `openBook` action mounts
+`<AccountingApp>`.
 
 ### Smoke checklist for a fresh book
 

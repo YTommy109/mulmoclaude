@@ -7,6 +7,22 @@
 //   4xxx → income
 //   5xxx → expense
 //
+// Within those bands, the second digit `4` is reserved for tax-
+// related accounts on both sides of the balance sheet:
+//
+//   14xx → tax-related current assets
+//          (1400 Input Tax Receivable / 仮払消費税, plus future
+//           withholding-tax-receivable / etc. siblings)
+//   24xx → tax-related current liabilities
+//          (2400 Sales Tax Payable / 仮受消費税, plus future
+//           withholding-tax-payable / etc. siblings)
+//
+// Special-case UI (Ledger T-number column, JournalEntryForm
+// per-line tax-registration ID input) keys off this convention via
+// `isTaxAccountCode` rather than a per-account flag, so a custom
+// suspense account a user adds in the 14xx / 24xx band participates
+// without any opt-in step.
+//
 // Lives in its own module so AccountsModal, AccountEditor, and the
 // validation helper can share the same constants without circular
 // imports between Vue components.
@@ -20,6 +36,16 @@ export const ACCOUNT_TYPE_PREFIX: Record<AccountType, number> = {
   income: 4,
   expense: 5,
 };
+
+const TAX_ACCOUNT_PREFIXES: readonly string[] = ["14", "24"];
+
+/** Returns `true` for codes whose first two digits identify a
+ *  tax-related current asset (`14xx`) or current liability (`24xx`).
+ *  Drives Ledger column visibility and the JournalEntryForm
+ *  per-line tax-registration ID input. */
+export function isTaxAccountCode(code: string): boolean {
+  return TAX_ACCOUNT_PREFIXES.some((prefix) => code.startsWith(prefix));
+}
 
 const ACCOUNT_CODE_RE = /^\d{4}$/;
 const SUGGESTED_GAP = 10;

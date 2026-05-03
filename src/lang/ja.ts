@@ -569,7 +569,15 @@ const jaMessages = {
       create: "作成",
       nameLabel: "名前",
       currencyLabel: "通貨",
-      firstRunHint: "最初の帳簿の名前と通貨を選んでください。通貨は帳簿ごとに固定で、仕訳を入力した後の変更は難しくなります。",
+      countryLabel: "国",
+      countryPlaceholder: "国を選択…",
+      countryHint: "国を設定すると税の管轄が決まり、アシスタントが国別のアドバイス（日本のT番号、EUのVAT IDなど）を提供できます。",
+      placeholder: "帳簿を選択…",
+      firstRunHint: "最初の帳簿の名前・通貨・国を選んでください。通貨は帳簿ごとに固定で、仕訳を入力した後の変更は難しくなります。",
+    },
+    deletedNotice: {
+      title: "「{bookName}」を削除しました。",
+      body: "上のドロップダウンから別の帳簿を選ぶか、新しい帳簿を作成してください。",
     },
     journalList: {
       fromLabel: "開始日",
@@ -632,6 +640,7 @@ const jaMessages = {
         debit: "借方",
         credit: "貸方",
         balance: "残高",
+        taxRegistrationId: "登録番号",
       },
     },
     balanceSheet: {
@@ -694,6 +703,11 @@ const jaMessages = {
       noteOptional: "(任意)",
     },
     settings: {
+      bookInfo: "帳簿情報",
+      bookInfoExplain: "国を編集すると税の管轄に応じたアドバイスが更新されます。通貨は仕訳を入力した後は変更できません。",
+      countryUnset: "(未設定)",
+      saveChanges: "変更を保存",
+      updateOk: "帳簿を更新しました。",
       rebuild: "スナップショット再構築",
       rebuildExplain: "月次スナップショットキャッシュをすべて削除し、journal から再計算します。journal を手で編集した後のリカバリに使えます。",
       rebuildOk: "{count} 期間を再構築しました。",

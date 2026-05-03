@@ -5,9 +5,11 @@
 // guideline.
 //
 // Policy summary (mirrored in the `upsertAccount` JSDoc):
-//   - whitelist: only `code`, `name`, `type`, optional `note`,
-//     and `active` are persisted. Unknown keys from a mistyped
-//     caller are dropped.
+//   - whitelist: only `code`, `name`, `type`, optional `note`, and
+//     `active` are persisted. Unknown keys from a mistyped caller
+//     are dropped — this includes the now-removed
+//     `tracksTaxRegistration` flag from older books, which is
+//     silently sloughed off the next time an account is upserted.
 //   - `note`: stored only when a non-empty trimmed string. An
 //     empty string is treated the same as omitted.
 //   - `active`:

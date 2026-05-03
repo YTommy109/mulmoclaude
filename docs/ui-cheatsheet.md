@@ -398,9 +398,10 @@ The preview pane reuses plugin views — clicking a `config/scheduler/items.json
 
 Mounted via the tool-result envelope `{ kind: "accounting-app" }`
 returned by `manageAccounting({action:"openBook", bookId})`. **No `/accounting`
-route exists.** The default Role cannot reach this surface; only
-custom Roles whose `availablePlugins` include `manageAccounting` can
-trigger the mount.
+route exists.** The default (General) role cannot reach this
+surface; the built-in **Accounting** role and any custom role whose
+`availablePlugins` includes `manageAccounting` can trigger the
+mount.
 
 ```text
 ┌─[<AccountingApp>] data-testid="accounting-app"───────────────────────┐

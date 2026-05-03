@@ -41,6 +41,7 @@ import { publishBookChange, publishBooksChanged } from "./eventPublisher.js";
 import { DEFAULT_ACCOUNTS } from "./defaultAccounts.js";
 import { log } from "../system/logger/index.js";
 import { ACCOUNTING_BOOK_EVENT_KINDS } from "../../src/config/pubsubChannels.js";
+import { isSupportedCountryCode, SUPPORTED_COUNTRY_CODES, type SupportedCountryCode } from "../../src/plugins/accounting/countries.js";
 import type { Account, AccountingConfig, BookSummary, JournalEntry, JournalLine, ReportPeriod } from "./types.js";
 
 export class AccountingError extends Error {
@@ -122,9 +123,23 @@ export async function listBooks(workspaceRoot?: string): Promise<{ books: BookSu
   return { books: config.books };
 }
 
-export async function createBook(input: { id?: string; name: string; currency?: string }, workspaceRoot?: string): Promise<{ book: BookSummary }> {
+function unsupportedCountryError(received: unknown): AccountingError {
+  return new AccountingError(400, `unsupported country code ${JSON.stringify(received)} — must be one of: ${SUPPORTED_COUNTRY_CODES.join(", ")}`);
+}
+
+export async function createBook(
+  input: { id?: string; name: string; currency?: string; country?: string },
+  workspaceRoot?: string,
+): Promise<{ book: BookSummary }> {
   if (typeof input.name !== "string" || input.name.trim() === "") {
     throw new AccountingError(400, "name is required");
+  }
+  // Country, when supplied, must be one of the curated codes — keeps
+  // the UI dropdown, the role prompt's per-jurisdiction guidance, and
+  // the on-disk JSON in sync. A typo from the LLM or an untrusted
+  // client is rejected here rather than silently persisted.
+  if (input.country !== undefined && !isSupportedCountryCode(input.country)) {
+    throw unsupportedCountryError(input.country);
   }
   const config = await loadOrInitConfig(workspaceRoot);
   // Auto-generate when no caller id is supplied — every book,
@@ -149,6 +164,8 @@ export async function createBook(input: { id?: string; name: string; currency?: 
     id: bookId,
     name: input.name,
     currency: input.currency ?? DEFAULT_CURRENCY,
+    // Narrowed by the isSupportedCountryCode check above.
+    ...(input.country ? { country: input.country as SupportedCountryCode } : {}),
     createdAt: new Date().toISOString(),
   };
   await ensureBookDir(bookId, workspaceRoot);
@@ -157,6 +174,40 @@ export async function createBook(input: { id?: string; name: string; currency?: 
   await writeConfig(nextConfig, workspaceRoot);
   publishBooksChanged();
   return { book };
+}
+
+export async function updateBook(input: { bookId: string; name?: string; country?: string }, workspaceRoot?: string): Promise<{ book: BookSummary }> {
+  const config = await loadOrInitConfig(workspaceRoot);
+  const target = findBook(config, input.bookId);
+  if (!target) {
+    throw new AccountingError(404, `book ${JSON.stringify(input.bookId)} not found`);
+  }
+  if (input.name !== undefined && (typeof input.name !== "string" || input.name.trim() === "")) {
+    throw new AccountingError(400, "name must be a non-empty string when supplied");
+  }
+  // Empty string is the explicit "clear the field" sentinel from the
+  // settings UI; anything else has to land in the curated list, same
+  // contract as createBook.
+  if (input.country !== undefined && input.country !== "" && !isSupportedCountryCode(input.country)) {
+    throw unsupportedCountryError(input.country);
+  }
+  // Currency intentionally absent — once entries reference per-book
+  // amounts, switching currency would silently re-interpret every
+  // historical figure. Country / name are pure metadata; safe to swap.
+  const next: BookSummary = {
+    ...target,
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.country !== undefined && input.country !== "" ? { country: input.country as SupportedCountryCode } : {}),
+  };
+  // Strip an explicitly-cleared country so the JSON file stays clean
+  // (matches the createBook policy of omitting the field when unset).
+  if (input.country === "") delete next.country;
+  const nextConfig: AccountingConfig = {
+    books: config.books.map((book) => (book.id === input.bookId ? next : book)),
+  };
+  await writeConfig(nextConfig, workspaceRoot);
+  publishBooksChanged();
+  return { book: next };
 }
 
 export async function deleteBook(

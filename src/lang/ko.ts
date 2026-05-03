@@ -569,7 +569,15 @@ const koMessages = {
       create: "생성",
       nameLabel: "이름",
       currencyLabel: "통화",
-      firstRunHint: "첫 장부의 이름과 통화를 선택하세요. 통화는 장부별로 설정되며 분개를 시작한 뒤에는 변경이 어렵습니다.",
+      countryLabel: "국가",
+      countryPlaceholder: "국가 선택…",
+      countryHint: "국가를 설정하면 세무 관할이 결정되어 어시스턴트가 국가별 안내(일본 T-번호, EU VAT ID 등)를 제공할 수 있습니다.",
+      placeholder: "장부 선택…",
+      firstRunHint: "첫 장부의 이름, 통화, 국가를 선택하세요. 통화는 장부별로 설정되며 분개를 시작한 뒤에는 변경이 어렵습니다.",
+    },
+    deletedNotice: {
+      title: "“{bookName}” 장부가 삭제되었습니다.",
+      body: "위 드롭다운에서 다른 장부를 선택하거나 새 장부를 만드세요.",
     },
     journalList: {
       fromLabel: "시작",
@@ -632,6 +640,7 @@ const koMessages = {
         debit: "차변",
         credit: "대변",
         balance: "잔액",
+        taxRegistrationId: "세무 등록번호",
       },
     },
     balanceSheet: {
@@ -694,6 +703,11 @@ const koMessages = {
       noteOptional: "(선택)",
     },
     settings: {
+      bookInfo: "장부 정보",
+      bookInfoExplain: "국가를 변경하면 세무 관할 기반 안내가 갱신됩니다. 분개를 시작한 뒤에는 통화를 변경할 수 없습니다.",
+      countryUnset: "(미설정)",
+      saveChanges: "변경 저장",
+      updateOk: "장부를 업데이트했습니다.",
       rebuild: "스냅샷 재구축",
       rebuildExplain: "모든 월별 스냅샷 캐시를 지우고 분개장에서 재계산합니다. 분개 파일을 직접 편집한 뒤 복구할 때 유용합니다.",
       rebuildOk: "{count}개 기간을 재구축했습니다.",
