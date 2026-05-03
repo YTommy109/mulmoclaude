@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PRESET_PLUGINS } from "./preset-list.js";
-import { loadPluginFromCacheDir, type RuntimePlugin } from "./runtime-loader.js";
+import { loadPluginFromCacheDir, type LoaderDeps, type RuntimePlugin } from "./runtime-loader.js";
 import { log } from "../system/logger/index.js";
 
 const LOG_PREFIX = "plugins/preset";
@@ -71,7 +71,7 @@ function resolvePresetRoot(packageName: string): string | null {
   }
 }
 
-async function loadOnePreset(packageName: string): Promise<RuntimePlugin | null> {
+async function loadOnePreset(packageName: string, deps: LoaderDeps = {}): Promise<RuntimePlugin | null> {
   const cachePath = resolvePresetRoot(packageName);
   if (!cachePath) {
     log.warn(LOG_PREFIX, "preset package not resolvable — run `yarn install`?", { packageName });
@@ -90,17 +90,21 @@ async function loadOnePreset(packageName: string): Promise<RuntimePlugin | null>
     log.warn(LOG_PREFIX, "preset package has no version", { packageName });
     return null;
   }
-  return loadPluginFromCacheDir(packageName, version, cachePath);
+  return loadPluginFromCacheDir(packageName, version, cachePath, deps);
 }
 
 /** Load every preset declared in `server/plugins/preset-list.ts`.
  *  Returns the loaded set; failures are logged and silently
- *  skipped. */
-export async function loadPresetPlugins(): Promise<RuntimePlugin[]> {
+ *  skipped.
+ *
+ *  Pass `deps.runtimeFactory` from the parent server so factory-shape
+ *  presets get a real runtime; the MCP child can omit it (definition-
+ *  only). */
+export async function loadPresetPlugins(deps: LoaderDeps = {}): Promise<RuntimePlugin[]> {
   if (PRESET_PLUGINS.length === 0) return [];
   const loaded: RuntimePlugin[] = [];
   for (const entry of PRESET_PLUGINS) {
-    const plugin = await loadOnePreset(entry.packageName);
+    const plugin = await loadOnePreset(entry.packageName, deps);
     if (plugin) loaded.push(plugin);
   }
   log.info(LOG_PREFIX, "loaded", { requested: PRESET_PLUGINS.length, succeeded: loaded.length });

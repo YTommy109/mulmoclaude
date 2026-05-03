@@ -133,6 +133,11 @@ const HOST_WORKSPACE_DIRS = {
   // so the install / extract artefacts persist across npx invocations.
   plugins: "plugins",
   pluginCache: "plugins/.cache",
+  // Per-runtime-plugin storage roots (#1110). The platform creates
+  // `<root>/<sanitized-pkg-name>/` lazily on first write. data is the
+  // backup target; config holds per-machine UI state / defaults.
+  pluginsData: "data/plugins",
+  pluginsConfig: "config/plugins",
 } as const;
 
 // Fail-fast at module load if any plugin's `workspaceDirs` key
@@ -182,6 +187,8 @@ export const WORKSPACE_PATHS = {
   github: path.join(workspacePath, WORKSPACE_DIRS.github),
   plugins: path.join(workspacePath, WORKSPACE_DIRS.plugins),
   pluginCache: path.join(workspacePath, WORKSPACE_DIRS.pluginCache),
+  pluginsData: path.join(workspacePath, WORKSPACE_DIRS.pluginsData),
+  pluginsConfig: path.join(workspacePath, WORKSPACE_DIRS.pluginsConfig),
   accounting: path.join(workspacePath, WORKSPACE_DIRS.accounting),
   accountingBooks: path.join(workspacePath, WORKSPACE_DIRS.accountingBooks),
   // nested subdirs
