@@ -166,3 +166,33 @@ describe("BUILTIN_ROLES", () => {
     assert.strictEqual(ids.length, uniqueIds.size, "Role ids must be unique");
   });
 });
+
+describe("Accounting role", () => {
+  // Pins the exact plugin set so a future change has to come through
+  // a deliberate edit to this test, not slip in via a routine "add
+  // one more tool" change. The role is intentionally narrow:
+  // manageAccounting (the bookkeeping engine), presentForm (every
+  // user prompt and pre-post confirmation), presentDocument (longer
+  // narrative outputs like month-end notes).
+  const role = BUILTIN_ROLES.find((entry) => entry.id === "accounting");
+
+  it("exists in BUILTIN_ROLES", () => {
+    assert.ok(role, "expected an accounting role in BUILTIN_ROLES");
+  });
+
+  it("exposes exactly manageAccounting + presentForm + presentDocument", () => {
+    assert.ok(role);
+    assert.deepStrictEqual([...role.availablePlugins].sort(), ["manageAccounting", "presentDocument", "presentForm"]);
+  });
+
+  it("system prompt names the インボイス制度 / T-number requirement", () => {
+    // The agent's job hinges on asking for the supplier's
+    // tax-registration ID on input-tax lines. If a refactor ever
+    // strips this guidance the agent will silently start posting
+    // 1310 lines without taxRegistrationId — this test makes that a
+    // build-time failure.
+    assert.ok(role);
+    assert.match(role.prompt, /インボイス制度/u);
+    assert.match(role.prompt, /T-number|taxRegistrationId/u);
+  });
+});
