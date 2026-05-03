@@ -17,11 +17,11 @@
 // running and gives the user a clear signal to fix or remove the
 // offending plugin.
 
-import { INTRA_PLUGIN_COLLISIONS, type HostPluginCollision, type IntraPluginCollision } from "../../src/plugins/metas.js";
-import { TOOL_NAMES_HOST_COLLISIONS } from "../../src/config/toolNames.js";
-import { API_ROUTES_HOST_COLLISIONS } from "../../src/config/apiRoutes.js";
-import { PUBSUB_CHANNELS_HOST_COLLISIONS } from "../../src/config/pubsubChannels.js";
-import { WORKSPACE_DIRS_HOST_COLLISIONS } from "../workspace/paths.js";
+import type { HostPluginCollision, IntraPluginCollision } from "../../src/plugins/metas.js";
+import { TOOL_NAMES_HOST_COLLISIONS, TOOL_NAMES_INTRA_COLLISIONS } from "../../src/config/toolNames.js";
+import { API_ROUTES_HOST_COLLISIONS, API_ROUTES_INTRA_COLLISIONS } from "../../src/config/apiRoutes.js";
+import { PUBSUB_CHANNELS_HOST_COLLISIONS, PUBSUB_CHANNELS_INTRA_COLLISIONS } from "../../src/config/pubsubChannels.js";
+import { WORKSPACE_DIRS_HOST_COLLISIONS, WORKSPACE_DIRS_INTRA_COLLISIONS } from "../workspace/paths.js";
 import { log } from "../system/logger/index.js";
 import { publishNotification } from "../events/notifications.js";
 import { NOTIFICATION_ACTION_TYPES, NOTIFICATION_PRIORITIES } from "../../src/types/notification.js";
@@ -60,9 +60,14 @@ function describeHostCollision(collision: HostPluginCollision): PluginMetaDiagno
 
 function describeIntraCollision(collision: IntraPluginCollision): PluginMetaDiagnostic {
   const [first, second] = collision.plugins;
+  // Message matches actual runtime: each aggregator now uses
+  // `buildPluginAggregate` which is first-write-wins, so the
+  // second plugin's registration is genuinely dropped (was
+  // last-write-wins via Object.assign before Codex iter-7's #1125
+  // catch).
   return {
     id: `intra:${collision.dimension}:${collision.key}:${first}:${second}`,
-    message: `Plugins "${first}" and "${second}" both register ${collision.dimension} "${collision.key}". The second registration is ignored.`,
+    message: `Plugins "${first}" and "${second}" both register ${collision.dimension} "${collision.key}". "${first}" claimed it first, so "${second}"'s registration is ignored.`,
     kind: "intra-plugin",
     scope: collision.dimension,
     key: collision.key,
@@ -76,7 +81,13 @@ let cachedDiagnostics: readonly PluginMetaDiagnostic[] | null = null;
 export function collectPluginMetaDiagnostics(): readonly PluginMetaDiagnostic[] {
   if (cachedDiagnostics !== null) return cachedDiagnostics;
   const hostCollisions = [...TOOL_NAMES_HOST_COLLISIONS, ...API_ROUTES_HOST_COLLISIONS, ...PUBSUB_CHANNELS_HOST_COLLISIONS, ...WORKSPACE_DIRS_HOST_COLLISIONS];
-  const list: PluginMetaDiagnostic[] = [...hostCollisions.map(describeHostCollision), ...INTRA_PLUGIN_COLLISIONS.map(describeIntraCollision)];
+  const intraCollisions = [
+    ...TOOL_NAMES_INTRA_COLLISIONS,
+    ...API_ROUTES_INTRA_COLLISIONS,
+    ...PUBSUB_CHANNELS_INTRA_COLLISIONS,
+    ...WORKSPACE_DIRS_INTRA_COLLISIONS,
+  ];
+  const list: PluginMetaDiagnostic[] = [...hostCollisions.map(describeHostCollision), ...intraCollisions.map(describeIntraCollision)];
   cachedDiagnostics = Object.freeze(list);
   return cachedDiagnostics;
 }
@@ -101,6 +112,14 @@ export function announcePluginMetaDiagnostics(): readonly PluginMetaDiagnostic[]
   for (const diag of diagnostics) {
     log.warn("[plugin-meta]", diag.message, { id: diag.id, scope: diag.scope, key: diag.key, plugins: diag.plugins });
     publishNotification({
+      // Use the deterministic diagnostic id (rather than letting
+      // `publishNotification` auto-generate a fresh UUID). The same
+      // id flows out of `/api/plugins/diagnostics` and into the
+      // late-mount `usePluginDiagnostics` injection — id-based
+      // dedup in `useNotifications` then collapses the live
+      // boot-time push and the catch-up fetch into one bell entry
+      // (Codex review iter-4 #1125).
+      id: diag.id,
       kind: "system",
       title: "Plugin configuration issue",
       body: diag.message,

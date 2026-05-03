@@ -19,7 +19,14 @@
 // key names matched to the last URL segment where possible.
 
 import { CHAT_SERVICE_ROUTES } from "@mulmobridge/protocol";
-import { BUILT_IN_PLUGIN_METAS, filterPluginKeys, type BuiltInPluginMetas, type HostPluginCollision } from "../plugins/metas";
+import {
+  BUILT_IN_PLUGIN_METAS,
+  buildPluginAggregate,
+  filterPluginKeys,
+  type BuiltInPluginMetas,
+  type HostPluginCollision,
+  type IntraPluginCollision,
+} from "../plugins/metas";
 
 // Plugin-owned endpoint constants. Each plugin owns its dispatch
 // URL string in its own definition.ts; this file re-keys them under
@@ -40,16 +47,25 @@ type PluginApiRoutesMap<T extends BuiltInPluginMetas> = {
     : never]: M extends { readonly apiRoutes: infer R } ? R : never;
 };
 
-const PLUGIN_API_ROUTES = Object.fromEntries(
-  BUILT_IN_PLUGIN_METAS.filter((meta) => meta.apiRoutes !== undefined).map((meta) => [meta.apiRoutesKey ?? meta.toolName, meta.apiRoutes]),
-) as PluginApiRoutesMap<BuiltInPluginMetas>;
-
-// Map each `apiRoutesKey` back to the plugin's `toolName` so
-// diagnostics can attribute a host-collision to the offending
-// plugin.
-const API_ROUTES_OWNER: Readonly<Record<string, string>> = Object.fromEntries(
-  BUILT_IN_PLUGIN_METAS.filter((meta) => meta.apiRoutes !== undefined).map((meta) => [meta.apiRoutesKey ?? meta.toolName, meta.toolName]),
+// First-write-wins aggregation. `buildPluginAggregate` enforces
+// "first plugin to claim an `apiRoutesKey` wins; later collisions
+// are rejected and reported" instead of `Object.fromEntries`'
+// silent last-write-wins. Result: the diagnostic message ("the
+// second plugin's registration is ignored") matches actual
+// runtime — Codex iter-3+ kept flagging this until the merge
+// itself enforced first-write semantics.
+const {
+  aggregate: pluginApiRoutesAggregate,
+  owner: API_ROUTES_OWNER,
+  collisions: API_ROUTES_INTRA_COLLISIONS_RAW,
+} = buildPluginAggregate(
+  BUILT_IN_PLUGIN_METAS,
+  (meta) => (meta.apiRoutes !== undefined ? { [meta.apiRoutesKey ?? meta.toolName]: meta.apiRoutes } : undefined),
+  "apiRoutesKey",
 );
+export const API_ROUTES_INTRA_COLLISIONS: readonly IntraPluginCollision[] = API_ROUTES_INTRA_COLLISIONS_RAW;
+
+const PLUGIN_API_ROUTES = pluginApiRoutesAggregate as PluginApiRoutesMap<BuiltInPluginMetas>;
 
 const HOST_API_ROUTES = {
   health: "/api/health",

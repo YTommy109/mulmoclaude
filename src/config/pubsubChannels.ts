@@ -18,7 +18,14 @@
 //
 // First slice of issue #289 (item 6: pub-sub channels).
 
-import { BUILT_IN_PLUGIN_METAS, filterPluginKeys, type BuiltInPluginMetas, type HostPluginCollision } from "../plugins/metas";
+import {
+  BUILT_IN_PLUGIN_METAS,
+  buildPluginAggregate,
+  filterPluginKeys,
+  type BuiltInPluginMetas,
+  type HostPluginCollision,
+  type IntraPluginCollision,
+} from "../plugins/metas";
 import {
   bookChannel as accountingBookChannelFromMeta,
   BOOK_EVENT_KINDS as ACCOUNTING_BOOK_EVENT_KINDS_FROM_META,
@@ -114,24 +121,18 @@ type PluginStaticChannelsMap<T extends BuiltInPluginMetas> = T[number] extends i
     : Record<string, never>
   : Record<string, never>;
 
-const PLUGIN_STATIC_CHANNELS = Object.assign(
-  {},
-  ...BUILT_IN_PLUGIN_METAS.map((meta) => meta.staticChannels ?? {}),
-) as PluginStaticChannelsMap<BuiltInPluginMetas>;
+// First-write-wins aggregation. See `buildPluginAggregate`'s
+// docblock — the merge itself enforces "first plugin claiming a
+// channel key wins; later collisions are reported and dropped"
+// (was last-write-wins via `Object.assign`).
+const {
+  aggregate: pluginStaticChannelsAggregate,
+  owner: PUBSUB_CHANNELS_OWNER,
+  collisions: PUBSUB_CHANNELS_INTRA_COLLISIONS_RAW,
+} = buildPluginAggregate(BUILT_IN_PLUGIN_METAS, (meta) => meta.staticChannels, "staticChannels");
+export const PUBSUB_CHANNELS_INTRA_COLLISIONS: readonly IntraPluginCollision[] = PUBSUB_CHANNELS_INTRA_COLLISIONS_RAW;
 
-// Map each static-channel key back to the plugin that registered it
-// (first plugin to declare a key wins on intra-plugin collision).
-// Used for diagnostics attribution when a plugin key collides with
-// a host key.
-const PUBSUB_CHANNELS_OWNER: Readonly<Record<string, string>> = (() => {
-  const owner: Record<string, string> = {};
-  for (const meta of BUILT_IN_PLUGIN_METAS) {
-    for (const key of Object.keys(meta.staticChannels ?? {})) {
-      if (!(key in owner)) owner[key] = meta.toolName;
-    }
-  }
-  return owner;
-})();
+const PLUGIN_STATIC_CHANNELS = pluginStaticChannelsAggregate as PluginStaticChannelsMap<BuiltInPluginMetas>;
 
 const HOST_STATIC_CHANNELS = {
   /** Sidebar "a session updated, please refetch" notification.

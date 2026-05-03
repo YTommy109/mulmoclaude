@@ -90,55 +90,53 @@ export function attributeHostPluginCollisions(
   return findHostPluginCollisions(hostRecord, pluginRecord).map((key) => ({ label, key, plugin: pluginByKey[key] ?? "" }));
 }
 
-interface KeyClaim {
-  plugin: string;
-  keys: readonly string[];
-}
-
-function findDuplicate(claims: readonly KeyClaim[], dimension: IntraPluginCollision["dimension"]): IntraPluginCollision[] {
-  const seen = new Map<string, string>();
+/** Build a first-write-wins aggregate of a per-plugin record across
+ *  all plugins. Duplicate keys (= "intra-plugin collision") are
+ *  reported in the returned `collisions` list with the first-claiming
+ *  plugin AND the offender; the offender's value is dropped — runtime
+ *  routes to the first plugin's handler.
+ *
+ *  This is the fix for Codex review iter-3+: previously each
+ *  aggregator used `Object.fromEntries` / `Object.assign` to merge,
+ *  which is JS-level last-write-wins. The diagnostic ran AFTER the
+ *  merge and could only describe what was already lost, with the
+ *  warning text contradicting actual behavior ("second is ignored"
+ *  vs runtime's "second wins"). With this builder the merge IS the
+ *  detection point — first-write semantics are enforced. */
+export function buildPluginAggregate<V>(
+  metas: readonly PluginMeta[],
+  extract: (meta: PluginMeta) => Readonly<Record<string, V>> | undefined,
+  dimension: IntraPluginCollision["dimension"],
+): { aggregate: Record<string, V>; owner: Record<string, string>; collisions: IntraPluginCollision[] } {
+  const aggregate: Record<string, V> = {};
+  const owner: Record<string, string> = {};
   const collisions: IntraPluginCollision[] = [];
-  for (const { plugin, keys } of claims) {
-    for (const key of keys) {
-      const prior = seen.get(key);
-      if (prior !== undefined) {
-        // Two different plugins claim this key (or two plugins
-        // share the same `toolName`, which is itself the bug).
-        collisions.push({ dimension, key, plugins: [prior, plugin] });
-      } else {
-        seen.set(key, plugin);
+  for (const meta of metas) {
+    const record = extract(meta);
+    if (!record) continue;
+    for (const [key, value] of Object.entries(record)) {
+      const priorPlugin = owner[key];
+      if (priorPlugin !== undefined) {
+        // Two distinct plugins claim the same key. Keep the first
+        // entry; report the offender so diagnostics can warn.
+        collisions.push({ dimension, key, plugins: [priorPlugin, meta.toolName] });
+        continue;
       }
+      aggregate[key] = value;
+      owner[key] = meta.toolName;
     }
   }
-  return collisions;
-}
-
-/** Pure check — across all plugins, does any (toolName / apiRoutesKey
- *  / workspaceDirs key / staticChannels key) appear twice? Empty
- *  when clean. */
-export function findIntraPluginCollisions(metas: readonly PluginMeta[]): IntraPluginCollision[] {
-  const toolNameClaims: KeyClaim[] = metas.map((meta) => ({ plugin: meta.toolName, keys: [meta.toolName] }));
-  const apiKeyClaims: KeyClaim[] = metas
-    .filter((meta) => meta.apiRoutes !== undefined)
-    .map((meta) => ({ plugin: meta.toolName, keys: [meta.apiRoutesKey ?? meta.toolName] }));
-  const dirClaims: KeyClaim[] = metas
-    .filter((meta) => meta.workspaceDirs !== undefined)
-    .map((meta) => ({ plugin: meta.toolName, keys: Object.keys(meta.workspaceDirs ?? {}) }));
-  const channelClaims: KeyClaim[] = metas
-    .filter((meta) => meta.staticChannels !== undefined)
-    .map((meta) => ({ plugin: meta.toolName, keys: Object.keys(meta.staticChannels ?? {}) }));
-  return [
-    ...findDuplicate(toolNameClaims, "toolName"),
-    ...findDuplicate(apiKeyClaims, "apiRoutesKey"),
-    ...findDuplicate(dirClaims, "workspaceDirs"),
-    ...findDuplicate(channelClaims, "staticChannels"),
-  ];
+  return { aggregate, owner, collisions };
 }
 
 /** Filter a plugin record so only the keys that survive the merge
- *  policy remain: keys not claimed by the host, and not already
- *  claimed by an earlier plugin. Returns the cleaned record AND the
- *  list of (label, key, plugin) drops so diagnostics can report them. */
+ *  policy remain: keys not claimed by the host. Returns the cleaned
+ *  record AND the list of (label, key, plugin) drops so diagnostics
+ *  can report them.
+ *
+ *  Intra-plugin collisions are filtered EARLIER by
+ *  `buildPluginAggregate`; by the time this function runs the input
+ *  is already first-write-wins-clean. */
 export function filterPluginKeys<V>(
   label: string,
   hostKeys: ReadonlySet<string>,
@@ -156,10 +154,3 @@ export function filterPluginKeys<V>(
   }
   return { cleaned, dropped };
 }
-
-// Module-level: the intra-plugin collision list for the current
-// `BUILT_IN_PLUGIN_METAS`. Computed once at module load.
-// `server/plugins/diagnostics.ts` imports this; aggregators don't
-// need to inspect it (they already drop second-registered keys at
-// merge time — see `buildPluginAggregate` callers).
-export const INTRA_PLUGIN_COLLISIONS: readonly IntraPluginCollision[] = findIntraPluginCollisions(BUILT_IN_PLUGIN_METAS);

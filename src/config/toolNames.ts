@@ -19,7 +19,14 @@
 //
 // First slice of issue #289 (item 4: tool name literals).
 
-import { BUILT_IN_PLUGIN_METAS, filterPluginKeys, type BuiltInPluginMetas, type HostPluginCollision } from "../plugins/metas";
+import {
+  BUILT_IN_PLUGIN_METAS,
+  buildPluginAggregate,
+  filterPluginKeys,
+  type BuiltInPluginMetas,
+  type HostPluginCollision,
+  type IntraPluginCollision,
+} from "../plugins/metas";
 
 const HOST_TOOL_NAMES = {
   // Text / base
@@ -71,10 +78,17 @@ type PluginToolNamesMap<T extends BuiltInPluginMetas> = {
   readonly [K in T[number]["toolName"]]: K;
 };
 
-const PLUGIN_TOOL_NAMES = Object.fromEntries(BUILT_IN_PLUGIN_METAS.map((meta) => [meta.toolName, meta.toolName])) as PluginToolNamesMap<BuiltInPluginMetas>;
+// First-write-wins aggregation. See `buildPluginAggregate`'s
+// docblock — the merge itself enforces "first plugin claiming a
+// `toolName` wins; later collisions are reported and dropped".
+const {
+  aggregate: pluginToolNamesAggregate,
+  owner: TOOL_NAME_OWNER,
+  collisions: TOOL_NAMES_INTRA_COLLISIONS_RAW,
+} = buildPluginAggregate(BUILT_IN_PLUGIN_METAS, (meta) => ({ [meta.toolName]: meta.toolName }), "toolName");
+export const TOOL_NAMES_INTRA_COLLISIONS: readonly IntraPluginCollision[] = TOOL_NAMES_INTRA_COLLISIONS_RAW;
 
-// Each plugin owns exactly one tool name (= the key it claims).
-const TOOL_NAME_OWNER: Readonly<Record<string, string>> = Object.fromEntries(BUILT_IN_PLUGIN_METAS.map((meta) => [meta.toolName, meta.toolName]));
+const PLUGIN_TOOL_NAMES = pluginToolNamesAggregate as PluginToolNamesMap<BuiltInPluginMetas>;
 
 // Drop any plugin tool name that collides with a host literal —
 // silent override would route the LLM's calls to the wrong handler,

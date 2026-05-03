@@ -57,12 +57,19 @@ export interface PublishNotificationOpts {
   priority?: NotificationPriority;
   sessionId?: string;
   transportId?: string;
+  /** Override the auto-generated UUID with a caller-supplied stable
+   *  id. Used by the plugin-meta diagnostics: the same diagnostic
+   *  id is also returned from `/api/plugins/diagnostics`, so the
+   *  bell's id-based dedup collapses the boot-time live publish and
+   *  the late-mount fetch into one entry instead of double-counting
+   *  (Codex review iter-4 #1125). */
+  id?: string;
 }
 
 export function publishNotification(opts: PublishNotificationOpts): void {
   try {
     const payload: NotificationPayload = {
-      id: makeUuid(),
+      id: opts.id ?? makeUuid(),
       kind: opts.kind,
       title: opts.title,
       body: opts.body,

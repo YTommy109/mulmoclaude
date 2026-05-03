@@ -129,7 +129,14 @@ export function useNotifications(): {
 
   function addLocal(payload: NotificationPayload): void {
     if (notifications.value.some((notif) => notif.id === payload.id)) return;
-    notifications.value = [payload, ...notifications.value].slice(0, MAX_RECENT);
+    const next = [payload, ...notifications.value].slice(0, MAX_RECENT);
+    notifications.value = next;
+    // Mirror the pubsub-side truncation guard — without this,
+    // `readIds` keeps stale entries for notifications that already
+    // rolled off the end of `notifications`. Same path as
+    // `ensureSubscribed`'s subscriber callback above (CodeRabbit
+    // review #1125).
+    pruneReadIds(next);
   }
 
   return { notifications, latest, unreadCount, isRead, markRead, markAllRead, dismiss, addLocal };
