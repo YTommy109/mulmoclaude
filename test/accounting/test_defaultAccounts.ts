@@ -11,10 +11,10 @@ import assert from "node:assert/strict";
 import { DEFAULT_ACCOUNTS } from "../../server/accounting/defaultAccounts.js";
 
 describe("DEFAULT_ACCOUNTS", () => {
-  it("seeds 1400 Sales Tax Receivable as an active current asset", () => {
+  it("seeds 1400 Input Tax Receivable as an active current asset", () => {
     const account = DEFAULT_ACCOUNTS.find((entry) => entry.code === "1400");
     assert.ok(account, "1400 missing from default chart");
-    assert.equal(account?.name, "Sales Tax Receivable");
+    assert.equal(account?.name, "Input Tax Receivable");
     assert.equal(account?.type, "asset");
     assert.equal(account?.active, undefined, "1400 should be active by default (active flag omitted)");
   });

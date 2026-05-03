@@ -225,7 +225,7 @@ describe("Accounting role", () => {
     // The agent's job hinges on asking for the supplier's
     // tax-registration ID on input-tax lines. If a refactor ever
     // strips this guidance the agent will silently start posting
-    // 14xx (Sales Tax Receivable / 仮払消費税) lines without
+    // 14xx (Input Tax Receivable / 仮払消費税) lines without
     // taxRegistrationId — this test makes that a build-time
     // failure.
     assert.ok(role);

@@ -34,7 +34,13 @@ export const DEFAULT_ACCOUNTS: readonly Account[] = [
   // an opt-in step. Active by default — most jurisdictions levy a
   // consumption / sales / VAT tax; tax-free contexts can
   // deactivate from Manage Accounts.
-  { code: "1400", name: "Sales Tax Receivable", type: "asset" },
+  // 1400 was briefly named "Sales Tax Receivable" — that label
+  // conventionally means *output* tax billed to customers but not
+  // yet collected. Renamed to "Input Tax Receivable" so the
+  // purchase-side meaning matches the 14xx / 24xx booking pair and
+  // the non-US naming the rest of the world uses (EU "Input VAT" /
+  // UK VAT input / Japan 仮払消費税). CodeRabbit review on PR #1120.
+  { code: "1400", name: "Input Tax Receivable", type: "asset" },
   { code: "1500", name: "Equipment", type: "asset" },
   { code: "1510", name: "Furniture & Fixtures", type: "asset", active: false },
   { code: "1520", name: "Vehicles", type: "asset", active: false },
