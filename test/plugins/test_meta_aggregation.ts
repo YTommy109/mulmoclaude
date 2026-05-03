@@ -17,7 +17,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { findHostPluginCollisions, buildPluginAggregate, filterPluginKeys } from "../../src/plugins/metas.js";
+import { findHostPluginCollisions, buildPluginAggregate, filterPluginKeys, BUILT_IN_PLUGIN_METAS } from "../../src/plugins/metas.js";
+import { BUILT_IN_SERVER_BINDINGS } from "../../src/plugins/server.js";
 import type { PluginMeta } from "../../src/plugins/meta-types.js";
 
 test("findHostPluginCollisions returns colliding keys", () => {
@@ -95,6 +96,47 @@ test("buildPluginAggregate skips plugins where extract returns undefined", () =>
   const { aggregate, collisions } = buildPluginAggregate([withoutDirs, withDirs, withoutDirs], (meta) => meta.workspaceDirs, "workspaceDirs");
   assert.deepEqual(aggregate, { x: "data/x" });
   assert.deepEqual(collisions, []);
+});
+
+// Sync-invariant: every plugin that exposes a META must also be
+// registered under the same `toolName` in
+// `src/plugins/server.ts#BUILT_IN_SERVER_BINDINGS` (the Vue-free
+// barrel of every built-in plugin's MCP definition). Catches the
+// "I added META but forgot the registration" / "I added the
+// registration but forgot to extend metas.ts" footgun before it
+// silently corrupts MCP routing.
+//
+// This is the Vue-free sync — the matching `BUILT_IN_PLUGINS`
+// barrel in `src/plugins/index.ts` carries Vue components, so
+// node-side tests can't import it. `BUILT_IN_SERVER_BINDINGS`
+// covers every plugin with an MCP tool definition, which is
+// strictly broader than (currently equal to) the META set.
+test("every BUILT_IN_PLUGIN_METAS entry has a matching toolName in BUILT_IN_SERVER_BINDINGS", () => {
+  const registeredNames = new Set(BUILT_IN_SERVER_BINDINGS.map((binding) => binding.def.name));
+  for (const meta of BUILT_IN_PLUGIN_METAS) {
+    assert.ok(
+      registeredNames.has(meta.toolName),
+      `Plugin META "${meta.toolName}" has no matching binding in src/plugins/server.ts. ` +
+        `Either add a row to BUILT_IN_SERVER_BINDINGS, or remove the entry from BUILT_IN_PLUGIN_METAS.`,
+    );
+  }
+});
+
+test("apiRoutesKey defaults to toolName when omitted from META", () => {
+  // Synthetic plugin without `apiRoutesKey` — the aggregator should
+  // key it under `toolName`. This pins the documented default in
+  // `src/plugins/meta-types.ts#PluginMeta.apiRoutesKey` so a future
+  // refactor can't silently drop the fallback.
+  const meta: PluginMeta = {
+    toolName: "manageWidget",
+    apiRoutes: { dispatch: "/api/widget" },
+  };
+  const { aggregate } = buildPluginAggregate(
+    [meta],
+    (entry) => (entry.apiRoutes !== undefined ? { [entry.apiRoutesKey ?? entry.toolName]: entry.apiRoutes } : undefined),
+    "apiRoutesKey",
+  );
+  assert.deepEqual(aggregate, { manageWidget: { dispatch: "/api/widget" } });
 });
 
 // Importing the live aggregators triggers `filterPluginKeys` +
