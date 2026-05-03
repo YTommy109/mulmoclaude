@@ -122,6 +122,36 @@ describe("journal append + read", () => {
     await appendJournal("default", sampleEntry("2026-06-01", "gamma"), root);
     assert.deepEqual(await listJournalPeriods("default", root), ["2026-04", "2026-05", "2026-06"]);
   });
+  it("round-trips taxRegistrationId on a line and omits it when absent", async () => {
+    const root = makeTmp();
+    await ensureBookDir("default", root);
+    const entry: JournalEntry = {
+      id: "with-tax-id",
+      date: "2026-04-01",
+      kind: "normal",
+      lines: [
+        { accountCode: "1000", debit: 100, taxRegistrationId: "T1234567890123" },
+        { accountCode: "4000", credit: 100 },
+      ],
+      createdAt: "2026-04-30T10:00:00.000Z",
+    };
+    await appendJournal("default", entry, root);
+    const apr = await readJournalMonth("default", "2026-04", root);
+    assert.equal(apr.entries.length, 1);
+    assert.equal(apr.entries[0].lines[0].taxRegistrationId, "T1234567890123");
+    assert.equal(apr.entries[0].lines[1].taxRegistrationId, undefined);
+    // The on-disk JSONL must not carry a "taxRegistrationId":""
+    // sentinel for the line that didn't set it — JSON.stringify
+    // drops undefined keys, which is the contract callers rely on
+    // for backward-compatibility of older entries.
+    const fsModule = await import("node:fs/promises");
+    const file = path.join(root, "data/accounting/books/default/journal/2026-04.jsonl");
+    const raw = await fsModule.readFile(file, "utf-8");
+    assert.match(raw, /"taxRegistrationId":"T1234567890123"/);
+    // Second line has no taxRegistrationId field at all on disk.
+    const parsed = JSON.parse(raw.trim()) as { lines: { taxRegistrationId?: string }[] };
+    assert.equal(Object.prototype.hasOwnProperty.call(parsed.lines[1], "taxRegistrationId"), false);
+  });
 });
 
 describe("snapshots", () => {

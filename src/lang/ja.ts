@@ -600,6 +600,8 @@ const jaMessages = {
       accountLabel: "勘定科目",
       debitLabel: "借方",
       creditLabel: "貸方",
+      taxRegistrationIdLabel: "登録番号",
+      taxRegistrationIdPlaceholder: "T1234567890123",
       addLine: "行を追加",
       removeLine: "削除",
       submit: "起票",

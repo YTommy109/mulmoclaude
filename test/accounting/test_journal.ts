@@ -1,7 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { isValidCalendarDate, makeEntry, makeVoidEntries, netBalance, validateEntry, voidedIdSet } from "../../server/accounting/journal.js";
+import {
+  MAX_TAX_REGISTRATION_ID_LENGTH,
+  isValidCalendarDate,
+  makeEntry,
+  makeVoidEntries,
+  netBalance,
+  validateEntry,
+  voidedIdSet,
+} from "../../server/accounting/journal.js";
 import type { Account, JournalEntry, JournalLine } from "../../server/accounting/types.js";
 
 const ACCOUNTS: Account[] = [
@@ -110,6 +118,45 @@ describe("validateEntry", () => {
     });
     assert.equal(result.ok, true);
   });
+  it("accepts a line with a taxRegistrationId at the length cap", () => {
+    const taxId = "T".repeat(MAX_TAX_REGISTRATION_ID_LENGTH);
+    const result = validateEntry({
+      date: "2026-04-01",
+      lines: [
+        { accountCode: "1000", debit: 100, taxRegistrationId: taxId },
+        { accountCode: "4000", credit: 100 },
+      ],
+      accounts: ACCOUNTS,
+    });
+    assert.equal(result.ok, true);
+  });
+  it("rejects a taxRegistrationId longer than the length cap (after trim)", () => {
+    const tooLong = "T".repeat(MAX_TAX_REGISTRATION_ID_LENGTH + 1);
+    const result = validateEntry({
+      date: "2026-04-01",
+      lines: [
+        { accountCode: "1000", debit: 100, taxRegistrationId: tooLong },
+        { accountCode: "4000", credit: 100 },
+      ],
+      accounts: ACCOUNTS,
+    });
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.some((err) => err.field === "lines[0].taxRegistrationId"));
+  });
+  it("ignores leading/trailing whitespace when checking the length cap", () => {
+    // 32 chars padded with whitespace on both sides: trimmed length
+    // is at the cap, so the entry should still be accepted.
+    const padded = `  ${"T".repeat(MAX_TAX_REGISTRATION_ID_LENGTH)}  `;
+    const result = validateEntry({
+      date: "2026-04-01",
+      lines: [
+        { accountCode: "1000", debit: 100, taxRegistrationId: padded },
+        { accountCode: "4000", credit: 100 },
+      ],
+      accounts: ACCOUNTS,
+    });
+    assert.equal(result.ok, true);
+  });
 });
 
 describe("makeEntry", () => {
@@ -124,6 +171,28 @@ describe("makeEntry", () => {
     const entry = makeEntry({ date: "2026-04-01", lines });
     lines[0].debit = 999;
     assert.equal(entry.lines[0].debit, 100);
+  });
+  it("trims taxRegistrationId and preserves it on the persisted line", () => {
+    const entry = makeEntry({
+      date: "2026-04-01",
+      lines: [
+        { accountCode: "1000", debit: 100, taxRegistrationId: "  T1234567890123  " },
+        { accountCode: "4000", credit: 100 },
+      ],
+    });
+    assert.equal(entry.lines[0].taxRegistrationId, "T1234567890123");
+    assert.equal(entry.lines[1].taxRegistrationId, undefined);
+  });
+  it("normalizes empty / whitespace-only taxRegistrationId to absent", () => {
+    const entry = makeEntry({
+      date: "2026-04-01",
+      lines: [
+        { accountCode: "1000", debit: 100, taxRegistrationId: "" },
+        { accountCode: "4000", credit: 100, taxRegistrationId: "   " },
+      ],
+    });
+    assert.equal(entry.lines[0].taxRegistrationId, undefined);
+    assert.equal(entry.lines[1].taxRegistrationId, undefined);
   });
 });
 
@@ -165,6 +234,18 @@ describe("makeVoidEntries", () => {
     const original = makeEntry({ date: "2026-04-01", lines: balancedLines(), memo: "Office rent" });
     const { reverse } = makeVoidEntries(original, "duplicate", "2026-04-30");
     assert.equal(reverse.memo, "void of 'Office rent' on 2026-04-01: duplicate");
+  });
+  it("preserves taxRegistrationId on each reversed line", () => {
+    const original = makeEntry({
+      date: "2026-04-01",
+      lines: [
+        { accountCode: "1000", debit: 100, taxRegistrationId: "T1234567890123" },
+        { accountCode: "4000", credit: 100 },
+      ],
+    });
+    const { reverse } = makeVoidEntries(original, undefined, "2026-04-30");
+    assert.equal(reverse.lines[0].taxRegistrationId, "T1234567890123");
+    assert.equal(reverse.lines[1].taxRegistrationId, undefined);
   });
 });
 

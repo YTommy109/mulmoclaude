@@ -438,6 +438,8 @@ Key testids and what they target:
 | `accounting-journal-table` | `<JournalList>` `<table>` | entries grid |
 | `accounting-journal-row-{id}` / `accounting-journal-row-voided-{id}` | per-entry `<tr>` | voided rows use the `-voided-` variant **and** carry the strikeout class — bind to `voidedEntryIds` (server-side `voidedIdSet`), **not** to `kind === 'void'` |
 | `accounting-void-{id}` | per-row void button | only on `kind === 'normal'` rows |
+| `accounting-entry-line-account-{idx}` / `-debit-{idx}` / `-credit-{idx}` | per-line inputs in `<JournalEntryForm>` | one set per row |
+| `accounting-entry-line-tax-registration-id-{idx}` | per-line counterparty tax-registration ID input | optional; covers JP T-number, EU VAT ID, GSTIN, ABN, … (max 32 chars; canonical home = `JournalLine.taxRegistrationId`) |
 | `accounting-settings` | `<BookSettings>` root | settings tab body |
 | `accounting-settings-rebuild` | rebuild snapshots button | |
 | `accounting-settings-delete` | confirm-then-delete button | enabled once the typed name matches |

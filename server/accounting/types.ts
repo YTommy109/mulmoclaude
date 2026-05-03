@@ -60,6 +60,14 @@ export interface JournalLine {
   credit?: number;
   /** Per-line memo (the entry-level memo lives on JournalEntry). */
   memo?: string;
+  /** Counterparty's tax-authority-issued registration ID for this
+   *  line — Japanese 適格請求書発行事業者登録番号 (T-number), EU
+   *  VAT identification number, UK VAT registration number, India
+   *  GSTIN, Australia ABN, etc. Required for input-tax-credit
+   *  eligibility under the Japanese インボイス制度 (effective
+   *  2023-10-01) and equivalent regimes elsewhere. Free-form string;
+   *  format validation belongs upstream (per-jurisdiction). */
+  taxRegistrationId?: string;
 }
 
 export interface JournalEntry {
