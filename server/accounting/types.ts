@@ -33,6 +33,15 @@ export interface Account {
    *  (treated as active) by default to keep the JSON files clean
    *  for books created before this field existed. */
   active?: boolean;
+  /** When `true`, the account is a tax-suspense account whose
+   *  journal lines are expected to carry a counterparty
+   *  `taxRegistrationId` (Japan T-number, EU VAT ID, GSTIN, ABN,
+   *  etc.). The Ledger view reads this flag to decide whether to
+   *  surface the T-number column. Seeded on `1310 Sales Tax
+   *  Receivable` and `2400 Sales Tax Payable` in the default chart;
+   *  users can flip it on for any custom suspense account they
+   *  add. Omitted (treated as `false`) by default. */
+  tracksTaxRegistration?: boolean;
 }
 
 export interface BookSummary {

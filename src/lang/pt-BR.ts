@@ -634,6 +634,7 @@ const ptBRMessages = {
         debit: "Débito",
         credit: "Crédito",
         balance: "Saldo",
+        taxRegistrationId: "Inscrição fiscal",
       },
     },
     balanceSheet: {

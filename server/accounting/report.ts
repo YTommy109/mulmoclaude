@@ -152,6 +152,13 @@ export interface LedgerRow {
   credit: number;
   /** Running netDebit balance for this account, in entry order. */
   runningBalance: number;
+  /** Counterparty tax-registration ID copied from the source
+   *  journal line (T-number / VAT ID / GSTIN / ABN). Surfaced as a
+   *  Ledger column when the active account has
+   *  `tracksTaxRegistration: true`. Carried per row even on
+   *  non-tax-suspense accounts, so a future view that wants to
+   *  show it elsewhere doesn't need a server change. */
+  taxRegistrationId?: string;
 }
 
 export interface Ledger {
@@ -182,7 +189,7 @@ function accumulateLedgerEntry(
     acc.running += debit - credit;
     if (fromDate && entry.date < fromDate) continue;
     if (toDate && entry.date > toDate) continue;
-    acc.rows.push({
+    const row: LedgerRow = {
       entryId: entry.id,
       date: entry.date,
       kind: entry.kind,
@@ -190,7 +197,9 @@ function accumulateLedgerEntry(
       debit,
       credit,
       runningBalance: acc.running,
-    });
+    };
+    if (line.taxRegistrationId !== undefined) row.taxRegistrationId = line.taxRegistrationId;
+    acc.rows.push(row);
   }
 }
 

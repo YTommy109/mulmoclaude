@@ -642,6 +642,7 @@ const esMessages = {
         debit: "Debe",
         credit: "Haber",
         balance: "Saldo",
+        taxRegistrationId: "ID fiscal",
       },
     },
     balanceSheet: {

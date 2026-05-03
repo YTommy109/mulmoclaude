@@ -23,6 +23,11 @@ export interface Account {
    *  entry/ledger dropdowns but stays visible in Manage Accounts
    *  and historical entries. */
   active?: boolean;
+  /** Marks a tax-suspense account whose journal lines are expected
+   *  to carry a counterparty taxRegistrationId. The Ledger view
+   *  surfaces a T-number column when this is true. See
+   *  server/accounting/types.ts for the full doc. */
+  tracksTaxRegistration?: boolean;
 }
 
 export interface JournalLine {
@@ -95,6 +100,10 @@ export interface LedgerRow {
   debit: number;
   credit: number;
   runningBalance: number;
+  /** Counterparty tax-registration ID per source line. The Ledger
+   *  view shows it as its own column when the selected account
+   *  has `tracksTaxRegistration: true`. */
+  taxRegistrationId?: string;
 }
 
 export interface Ledger {

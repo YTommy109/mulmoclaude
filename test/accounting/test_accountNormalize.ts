@@ -60,4 +60,27 @@ describe("normalizeStoredAccount", () => {
       assert.equal(normalizeStoredAccount(BASE, undefined).active, undefined);
     });
   });
+
+  describe("tracksTaxRegistration policy", () => {
+    it("explicit true → stored true (tag as tax-suspense)", () => {
+      assert.equal(normalizeStoredAccount({ ...BASE, tracksTaxRegistration: true }).tracksTaxRegistration, true);
+    });
+
+    it("explicit false → omitted (default-false)", () => {
+      const tagged: Account = { ...BASE, tracksTaxRegistration: true };
+      assert.equal(normalizeStoredAccount({ ...BASE, tracksTaxRegistration: false }, tagged).tracksTaxRegistration, undefined);
+    });
+
+    it("omitted on a tagged existing → inherit true (rename of 1310 keeps the column)", () => {
+      // Same rationale as `active`: a routine name/note edit must
+      // not silently strip the flag and make the Ledger lose the
+      // T-number column.
+      const tagged: Account = { ...BASE, tracksTaxRegistration: true };
+      assert.equal(normalizeStoredAccount(BASE, tagged).tracksTaxRegistration, true);
+    });
+
+    it("omitted on a brand-new account → omitted (default-false)", () => {
+      assert.equal(normalizeStoredAccount(BASE, undefined).tracksTaxRegistration, undefined);
+    });
+  });
 });

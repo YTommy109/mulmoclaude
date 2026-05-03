@@ -15,11 +15,14 @@
     <p v-if="loading" class="text-xs text-gray-400">{{ t("pluginAccounting.common.loading") }}</p>
     <p v-else-if="error" class="text-xs text-red-500">{{ t("pluginAccounting.common.error", { error }) }}</p>
     <template v-else-if="ledger">
-      <table class="w-full text-sm">
+      <table class="w-full text-sm" :data-testid="showTaxRegistrationColumn ? 'accounting-ledger-table-with-tax-id' : 'accounting-ledger-table'">
         <thead>
           <tr class="text-xs text-gray-500 border-b border-gray-200">
             <th class="text-left py-1 px-2">{{ t("pluginAccounting.ledger.columns.date") }}</th>
             <th class="text-left py-1 px-2">{{ t("pluginAccounting.ledger.columns.memo") }}</th>
+            <th v-if="showTaxRegistrationColumn" class="text-left py-1 px-2 w-40">
+              {{ t("pluginAccounting.ledger.columns.taxRegistrationId") }}
+            </th>
             <th class="text-right py-1 px-2 w-28">{{ t("pluginAccounting.ledger.columns.debit") }}</th>
             <th class="text-right py-1 px-2 w-28">{{ t("pluginAccounting.ledger.columns.credit") }}</th>
             <th class="text-right py-1 px-2 w-28">{{ t("pluginAccounting.ledger.columns.balance") }}</th>
@@ -36,6 +39,9 @@
             <td class="py-1 px-2">
               <span v-if="row.memo">{{ row.memo }}</span>
             </td>
+            <td v-if="showTaxRegistrationColumn" class="py-1 px-2 font-mono text-xs">
+              <span v-if="row.taxRegistrationId">{{ row.taxRegistrationId }}</span>
+            </td>
             <td class="py-1 px-2 text-right">
               <span v-if="row.debit">{{ formatAmount(row.debit) }}</span>
             </td>
@@ -47,7 +53,9 @@
         </tbody>
         <tfoot>
           <tr class="font-semibold border-t border-gray-300">
-            <td colspan="4" class="py-1 px-2 text-right">{{ t("pluginAccounting.ledger.closingBalance") }}</td>
+            <td :colspan="showTaxRegistrationColumn ? 5 : 4" class="py-1 px-2 text-right">
+              {{ t("pluginAccounting.ledger.closingBalance") }}
+            </td>
             <td class="py-1 px-2 text-right">{{ formatAmount(ledger.closingBalance) }}</td>
           </tr>
         </tfoot>
@@ -89,6 +97,18 @@ function formatAccountLabel(account: Account): string {
 // the journal-list filter (which intentionally shows every code
 // so the past stays queryable).
 const selectableAccounts = computed<Account[]>(() => props.accounts.filter((account) => account.active !== false));
+
+// Surface the T-number column only when the active account is
+// tagged as a tax-suspense account (e.g. 1310 Sales Tax
+// Receivable, 2400 Sales Tax Payable). Driven by the per-account
+// `tracksTaxRegistration` flag rather than a hard-coded code list
+// so a custom suspense account a user adds via Manage Accounts
+// participates without a code change here.
+const showTaxRegistrationColumn = computed<boolean>(() => {
+  if (!ledger.value) return false;
+  const account = props.accounts.find((entry) => entry.code === ledger.value?.accountCode);
+  return account?.tracksTaxRegistration === true;
+});
 
 async function refresh(): Promise<void> {
   const token = beginRequest();
