@@ -30,6 +30,10 @@ export interface JournalLine {
   debit?: number;
   credit?: number;
   memo?: string;
+  /** Counterparty's tax-authority-issued registration ID — JP
+   *  T-number, EU VAT ID, UK VAT registration number, GSTIN, ABN,
+   *  etc. See server/accounting/types.ts for the full doc. */
+  taxRegistrationId?: string;
 }
 
 export interface JournalEntry {

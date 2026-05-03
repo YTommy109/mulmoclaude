@@ -610,6 +610,8 @@ const esMessages = {
       accountLabel: "Cuenta",
       debitLabel: "Debe",
       creditLabel: "Haber",
+      taxRegistrationIdLabel: "ID fiscal",
+      taxRegistrationIdPlaceholder: "NIF / VAT ID / RFC…",
       addLine: "Añadir línea",
       removeLine: "Quitar",
       submit: "Asentar",

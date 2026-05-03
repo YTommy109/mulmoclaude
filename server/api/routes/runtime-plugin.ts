@@ -19,8 +19,7 @@
 // routes means the plugin isn't installed (or failed to load — see
 // boot logs).
 
-import path from "node:path";
-import { realpathSync, promises as fsp } from "node:fs";
+import { realpathSync } from "node:fs";
 import { Router, type Request, type Response } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { getRuntimePlugins } from "../../plugins/runtime-registry.js";
@@ -28,6 +27,7 @@ import { notFound, serverError } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
 import { isRecord } from "../../utils/types.js";
 import { resolveWithinRoot } from "../../utils/files/safe.js";
+import { readPluginAsset } from "../../utils/files/plugins-io.js";
 import { log } from "../../system/logger/index.js";
 
 const LOG_PREFIX = "api/plugins/runtime";
@@ -139,9 +139,7 @@ router.get(API_ROUTES.plugins.runtimeAsset, async (req: Request<{ pkg: string; v
     return;
   }
   try {
-    const data = await fsp.readFile(resolved);
-    const ext = path.extname(resolved).toLowerCase();
-    const contentType = contentTypeFor(ext);
+    const { data, contentType } = await readPluginAsset(resolved);
     res.setHeader("Content-Type", contentType);
     res.send(data);
   } catch (err) {
@@ -149,35 +147,5 @@ router.get(API_ROUTES.plugins.runtimeAsset, async (req: Request<{ pkg: string; v
     serverError(res, "asset read failed");
   }
 });
-
-function contentTypeFor(ext: string): string {
-  switch (ext) {
-    case ".js":
-    case ".mjs":
-    case ".cjs":
-      return "application/javascript; charset=utf-8";
-    case ".css":
-      return "text/css; charset=utf-8";
-    case ".json":
-      return "application/json; charset=utf-8";
-    case ".map":
-      return "application/json; charset=utf-8";
-    case ".html":
-      return "text/html; charset=utf-8";
-    case ".svg":
-      return "image/svg+xml";
-    case ".png":
-      return "image/png";
-    case ".jpg":
-    case ".jpeg":
-      return "image/jpeg";
-    case ".woff":
-      return "font/woff";
-    case ".woff2":
-      return "font/woff2";
-    default:
-      return "application/octet-stream";
-  }
-}
 
 export default router;

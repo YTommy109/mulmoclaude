@@ -609,6 +609,8 @@ const deMessages = {
       accountLabel: "Konto",
       debitLabel: "Soll",
       creditLabel: "Haben",
+      taxRegistrationIdLabel: "Steuernummer",
+      taxRegistrationIdPlaceholder: "USt-IdNr. / VAT ID / GSTIN…",
       addLine: "Zeile hinzufügen",
       removeLine: "Entfernen",
       submit: "Buchen",

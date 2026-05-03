@@ -727,7 +727,17 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
           locale: process.env.LANG?.split(/[._]/)[0] || "en",
         });
       const [presets, userInstalled] = await Promise.all([loadPresetPlugins({ runtimeFactory }), loadRuntimePlugins({ runtimeFactory })]);
-      const result = registerRuntimePlugins(MCP_PLUGIN_NAMES, [...presets, ...userInstalled]);
+      // Pass the full static-tool set (MCP plugins + ENABLED MCP tools
+      // like readXPost / searchX) as the collision policy so the floor
+      // matches the standalone mcp-server's STATIC_TOOL_NAMES exactly
+      // (#1077 / #1116 review). Filter via `isMcpToolEnabled` so the
+      // child process's `mcpToolDefs` (only enabled tools) and the
+      // parent's reservation set agree — otherwise a runtime plugin
+      // colliding with a disabled tool would be rejected here but
+      // accepted by the child, and the child's `/dispatch` would 404
+      // because the parent never registered a route for it.
+      const staticToolNames = new Set([...MCP_PLUGIN_NAMES, ...mcpTools.filter(isMcpToolEnabled).map((tool) => tool.definition.name)]);
+      const result = registerRuntimePlugins(staticToolNames, [...presets, ...userInstalled]);
       log.info("plugins/runtime", "registered runtime plugins", {
         presets: presets.length,
         userInstalled: userInstalled.length,
@@ -886,10 +896,12 @@ process.on("SIGTERM", () => {
     });
   });
 
-  // Runtime plugin loading moved into `startRuntimeServices` so the
-  // factory-shape plugins (#1110, `export default definePlugin(...)`)
-  // can receive a runtime that closes over the live pubsub instance.
-  // The legacy `(context, args)` shape is unaffected.
+  // Runtime plugin loading moved into `startRuntimeServices` (#1110)
+  // so factory-shape plugins (`export default definePlugin(...)`) can
+  // receive a runtime that closes over the live pubsub instance.
+  // Legacy `(context, args)` shape unaffected. The collision-set fix
+  // from #1116 (use enabled-MCP-tools + plugin names, not just MCP
+  // plugin names) is applied at the new location, line ~735 above.
 
   // Bind to localhost-only. Using `0.0.0.0` would expose the dev
   // server to the entire LAN (anyone on the same Wi-Fi could reach

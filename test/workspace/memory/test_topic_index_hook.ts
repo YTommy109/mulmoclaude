@@ -69,6 +69,11 @@ describe("memory/topic-index-hook — isTopicFilePath", () => {
     assert.equal(isTopicFilePath("conversations/memory/fact/-leading.md"), false); // leading -
     assert.equal(isTopicFilePath("conversations/memory/fact/trailing-.md"), false); // trailing -
     assert.equal(isTopicFilePath(`conversations/memory/fact/${"a".repeat(61)}.md`), false); // too long
+    // The reserved slug `memory` would land on disk as
+    // `<type>/memory.md`, which aliases the index file `MEMORY.md`
+    // on case-insensitive filesystems. `isSafeTopicSlug` rejects it
+    // (#1109 review).
+    assert.equal(isTopicFilePath("conversations/memory/fact/memory.md"), false);
   });
 
   it("rejects absolute paths and backslash-using inputs (defensive — caller is expected POSIX-relative)", () => {

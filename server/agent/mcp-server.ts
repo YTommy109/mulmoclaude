@@ -129,7 +129,10 @@ const runtimeReady: Promise<void> = (async () => {
     const userInstalled = await loadRuntimePlugins();
     registerRuntimePlugins(STATIC_TOOL_NAMES, [...presets, ...userInstalled]);
     for (const plugin of getRuntimePlugins()) {
-      const endpoint = `/api/plugins/runtime/${encodeURIComponent(plugin.name)}/dispatch`;
+      // Build from the canonical route constant so a future rename
+      // ripples here automatically — `runtime-plugin.ts` registers
+      // the same `:pkg` pattern (#1077 review).
+      const endpoint = API_ROUTES.plugins.runtimeDispatch.replace(":pkg", encodeURIComponent(plugin.name));
       ALL_TOOLS[plugin.definition.name] = fromPackage(plugin.definition, endpoint);
     }
     // Runtime plugins are auto-included regardless of role.availablePlugins

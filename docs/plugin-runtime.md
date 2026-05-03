@@ -42,7 +42,7 @@ mv gui-chat-plugin-weather-*.tgz ~/mulmoclaude/plugins/
 
 Restart the server. Boot log:
 
-```
+```text
 [plugins/runtime] loaded requested=1 succeeded=1
 [plugins/runtime] registered runtime plugins presets=0 userInstalled=1 registered=1 collisions=0
 ```
@@ -65,7 +65,7 @@ There are three flavours of collision and the behaviour differs by source:
 
 1. **Runtime plugin name collides with a manifest-listed GUI plugin or a pure MCP tool** (everything fed into `MCP_PLUGIN_NAMES` plus `mcpToolDefs` keys: `notify`, `readXPost`, `searchX`, plus the manifest entries in [`config/plugins.registry.ts`](../config/plugins.registry.ts)). The runtime loader **rejects** the entry at registration time. The boot log records this:
 
-   ```
+   ```text
    [plugins/registry] skipping runtime plugin — name collides with static tool plugin=@x/notify-clone tool=notify
    ```
 
@@ -88,7 +88,7 @@ yarn dev
 
 Expected boot log (with weather installed in the ledger):
 
-```
+```text
 [plugins/runtime] loaded requested=1 succeeded=1
 [plugins/runtime] registered runtime plugins presets=0 userInstalled=1 registered=1 collisions=0
 ```
