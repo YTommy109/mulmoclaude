@@ -45,6 +45,11 @@ export interface JournalEntry {
   memo?: string;
   voidedEntryId?: string;
   voidReason?: string;
+  /** Set on the new entry posted via the "edit" flow — id of the
+   *  original entry that was voided in the same operation. The
+   *  void + new-entry pair is two sequential calls on the client,
+   *  not an atomic transaction. */
+  replacesEntryId?: string;
   createdAt: string;
 }
 
@@ -163,6 +168,11 @@ export function addEntry(input: {
   lines: JournalLine[];
   memo?: string;
   bookId: string;
+  /** When set, marks this new entry as the replacement posted via
+   *  the "edit" flow. The caller is expected to have voided
+   *  `replacesEntryId` separately just before this call — there is
+   *  no atomic transaction. */
+  replacesEntryId?: string;
 }): Promise<ApiResult<{ bookId: string; entry: JournalEntry }>> {
   return call(ACCOUNTING_ACTIONS.addEntry, input);
 }

@@ -291,7 +291,7 @@ export async function upsertAccount(
 // ── journal entries ────────────────────────────────────────────────
 
 export async function addEntry(
-  input: { bookId?: string; date: string; lines: JournalLine[]; memo?: string },
+  input: { bookId?: string; date: string; lines: JournalLine[]; memo?: string; replacesEntryId?: string },
   workspaceRoot?: string,
 ): Promise<{ bookId: string; entry: JournalEntry }> {
   const config = await loadOrInitConfig(workspaceRoot);
@@ -301,7 +301,7 @@ export async function addEntry(
   if (!validation.ok) {
     throw new AccountingError(400, "invalid journal entry", validation.errors);
   }
-  const entry = makeEntry({ date: input.date, lines: input.lines, memo: input.memo, kind: "normal" });
+  const entry = makeEntry({ date: input.date, lines: input.lines, memo: input.memo, kind: "normal", replacesEntryId: input.replacesEntryId });
   await appendJournal(bookId, entry, workspaceRoot);
   const period = periodFromDate(input.date);
   // scheduleRebuild first (sync, sets pendingFromPeriod) so any
