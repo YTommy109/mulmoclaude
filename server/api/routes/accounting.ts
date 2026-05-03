@@ -205,7 +205,14 @@ const MESSAGE_BUILDERS: Record<string, MessageBuilder> = {
     // book (getAccounts, addEntry, etc.), so include it in the
     // status message instead of forcing a round-trip via getBooks.
     const idFragment = book?.id ? ` (id: ${book.id})` : "";
-    return `${subject} has been created${idFragment}.`;
+    // The View's opening-gate hides every tab except `opening` and
+    // `settings` until an opening entry is on file (even a zero-line
+    // one). If the agent doesn't tell the user to set opening
+    // balances first, the user's "can I add an entry?" attempt
+    // silently fails because the New Entry tab isn't even visible.
+    // Include the next-step instruction inline so the agent's reply
+    // matches the UI's actual constraints.
+    return `${subject} has been created${idFragment}. Next required step: set opening balances via setOpeningBalances — the journal-entry, ledger, and report tabs are locked until an opening (even an empty one) is saved.`;
   },
   [ACCOUNTING_ACTIONS.upsertAccount]: (fields) => {
     const account = fields.account as { code?: string; name?: string } | undefined;
