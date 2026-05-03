@@ -1,5 +1,6 @@
-import type { ToolPlugin } from "../../tools/types";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import toolDefinition, { TOOL_NAME } from "./definition";
+import { TOOL_NAMES } from "../../config/toolNames";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiGet } from "../../utils/api";
@@ -48,3 +49,8 @@ const manageSkillsPlugin: ToolPlugin<ManageSkillsData> = {
 
 export default manageSkillsPlugin;
 export { TOOL_NAME };
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: TOOL_NAMES.manageSkills,
+  entry: manageSkillsPlugin,
+};

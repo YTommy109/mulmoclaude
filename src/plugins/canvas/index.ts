@@ -1,7 +1,8 @@
-import type { ToolPlugin } from "../../tools/types";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import toolDefinition, { TOOL_NAME } from "./definition";
 import type { ImageToolData } from "./definition";
+import { TOOL_NAMES } from "../../config/toolNames";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -35,3 +36,8 @@ const canvasPlugin: ToolPlugin<ImageToolData> = {
 
 export default canvasPlugin;
 export { TOOL_NAME };
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: TOOL_NAMES.openCanvas,
+  entry: canvasPlugin,
+};

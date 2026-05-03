@@ -19,19 +19,27 @@
 // key names matched to the last URL segment where possible.
 
 import { CHAT_SERVICE_ROUTES } from "@mulmobridge/protocol";
+import { BUILT_IN_PLUGIN_METAS, type BuiltInPluginMetas } from "../plugins/metas";
+
+// Plugin-owned API routes auto-merged from each plugin's META. Each
+// plugin's `apiRoutesKey` becomes the outer key under `API_ROUTES`
+// (defaulting to `toolName` when omitted); its `apiRoutes` record
+// becomes the value. Plugins without `apiRoutes` are skipped.
+type PluginApiRoutesMap<T extends BuiltInPluginMetas> = {
+  readonly [M in T[number] as M extends { readonly apiRoutes: Readonly<Record<string, string>> }
+    ? M extends { readonly apiRoutesKey: infer K extends string }
+      ? K
+      : M["toolName"]
+    : never]: M extends { readonly apiRoutes: infer R } ? R : never;
+};
+
+const PLUGIN_API_ROUTES = Object.fromEntries(
+  BUILT_IN_PLUGIN_METAS.filter((meta) => meta.apiRoutes !== undefined).map((meta) => [meta.apiRoutesKey ?? meta.toolName, meta.apiRoutes]),
+) as PluginApiRoutesMap<BuiltInPluginMetas>;
 
 export const API_ROUTES = {
   health: "/api/health",
   sandbox: "/api/sandbox",
-
-  // Accounting plugin (opt-in, custom-Role only). One dispatch
-  // endpoint per the action discriminator pattern (matches
-  // todos.dispatch). UI route registration is intentionally absent
-  // from src/router — the View is mounted via tool-result rendering,
-  // never via a URL path. See plans/feat-accounting.md.
-  accounting: {
-    dispatch: "/api/accounting",
-  },
 
   agent: {
     run: "/api/agent",
@@ -241,4 +249,9 @@ export const API_ROUTES = {
      *  snapshot pipeline. Never called by the Vue client. */
     internalSnapshot: "/api/wiki/internal/snapshot",
   },
+
+  // Plugin-owned routes auto-merged from META.apiRoutes (see top of
+  // file). Each entry is keyed by the plugin's `apiRoutesKey` —
+  // currently: `accounting` (POST /api/accounting dispatch).
+  ...PLUGIN_API_ROUTES,
 } as const;

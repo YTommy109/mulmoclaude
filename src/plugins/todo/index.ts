@@ -1,5 +1,6 @@
-import type { ToolPlugin } from "../../tools/types";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
+import { TOOL_NAMES } from "../../config/toolNames";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import toolDefinition from "./definition";
@@ -60,3 +61,8 @@ const todoPlugin: ToolPlugin<TodoData> = {
 };
 
 export default todoPlugin;
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: TOOL_NAMES.manageTodoList,
+  entry: todoPlugin,
+};

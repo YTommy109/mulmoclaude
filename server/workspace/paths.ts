@@ -30,6 +30,26 @@ import path from "path";
 // same `import { WORKSPACE_FILES } from "./paths.js"` they use.
 import { WORKSPACE_FILES } from "../../src/config/workspacePaths.js";
 
+// Plugin-owned workspace dirs are auto-aggregated from every
+// plugin's META in `src/plugins/metas.ts`. Adding a new plugin =
+// register its META there; this file keeps the central
+// `WORKSPACE_DIRS.<key>` shape via spread so existing consumers
+// don't migrate. Plugin-specific literals never appear here.
+import { BUILT_IN_PLUGIN_METAS, type BuiltInPluginMetas } from "../../src/plugins/metas.js";
+
+// Merge every plugin's `workspaceDirs` into one record. The mapped
+// type below preserves each plugin's literal path strings (e.g.
+// `"data/accounting"`) so consumers like `WORKSPACE_DIRS.accounting`
+// keep their narrow types — without it, TypeScript widens to
+// `string` and downstream `WORKSPACE_PATHS.accounting` lookups break.
+type PluginWorkspaceDirsMap<T extends BuiltInPluginMetas> = T[number] extends infer M
+  ? M extends { readonly workspaceDirs: infer D }
+    ? { readonly [K in keyof D]: D[K] }
+    : Record<string, never>
+  : Record<string, never>;
+
+const PLUGIN_WORKSPACE_DIRS = Object.assign({}, ...BUILT_IN_PLUGIN_METAS.map((meta) => meta.workspaceDirs ?? {})) as PluginWorkspaceDirsMap<BuiltInPluginMetas>;
+
 // Workspace root. Hard-coded to `~/mulmoclaude` — there is no
 // WORKSPACE_PATH env override today; changing the location
 // requires a code edit or a symlink. Re-exported by
@@ -72,13 +92,6 @@ export const WORKSPACE_DIRS = {
   // the original under the same YYYY/MM partition.
   attachments: "data/attachments",
   transports: "data/transports",
-  // Accounting plugin (opt-in, custom-Role only). Books live under
-  // `accounting/books/<bookId>/{accounts.json, journal/YYYY-MM.jsonl,
-  //  snapshots/YYYY-MM.json}`. The directory is created lazily on
-  // first createBook so default workspaces don't get a stub
-  // `accounting/` they never use.
-  accounting: "data/accounting",
-  accountingBooks: "data/accounting/books",
   // artifacts/
   charts: "artifacts/charts",
   // `markdowns` key preserved for call-site compatibility; on-disk
@@ -120,6 +133,10 @@ export const WORKSPACE_DIRS = {
   // so the install / extract artefacts persist across npx invocations.
   plugins: "plugins",
   pluginCache: "plugins/.cache",
+  // Built-in plugin dirs (auto-merged from every plugin's META —
+  // see `src/plugins/metas.ts`). Adding a plugin = register its
+  // META there; the keys spread below.
+  ...PLUGIN_WORKSPACE_DIRS,
 } as const;
 export { WORKSPACE_FILES };
 

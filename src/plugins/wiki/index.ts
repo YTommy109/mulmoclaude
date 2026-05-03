@@ -1,4 +1,5 @@
-import type { PluginEntry } from "../../tools/types";
+import type { PluginEntry, PluginRegistration } from "../../tools/types";
+import { TOOL_NAMES } from "../../config/toolNames";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 
@@ -26,10 +27,9 @@ export interface WikiData {
   pagePath?: string;
 }
 
-// View-only registry entry (Stage 3b, #963). Same pattern as
-// `legacyManageSchedulerEntry` in `src/plugins/scheduler/index.ts`:
-// the plugin no longer exposes an MCP tool to the LLM, but the
-// canvas dispatch (`getPlugin("manageWiki")`) still finds it so:
+// View-only registry entry (Stage 3b, #963). The plugin no longer
+// exposes an MCP tool to the LLM, but the canvas dispatch
+// (`getPlugin("manageWiki")`) still finds it so:
 // (a) the server-emitted `page-edit` action toolResult renders
 //     via the same `View.vue` branches the live page action used,
 // (b) historical chat sessions saved with `toolName: "manageWiki"`
@@ -47,3 +47,8 @@ const wikiPlugin: PluginEntry = {
 };
 
 export default wikiPlugin;
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: TOOL_NAMES.manageWiki,
+  entry: wikiPlugin,
+};

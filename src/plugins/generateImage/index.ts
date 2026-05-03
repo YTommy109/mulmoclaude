@@ -1,7 +1,8 @@
 import type { ToolResult } from "gui-chat-protocol";
-import type { ToolPlugin } from "../../tools/types";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import toolDefinition, { TOOL_NAME } from "./definition";
 import type { ImageToolData } from "./definition";
+import { TOOL_NAMES } from "../../config/toolNames";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -55,3 +56,8 @@ const generateImagePlugin: ToolPlugin<ImageToolData> = {
 
 export default generateImagePlugin;
 export { TOOL_NAME };
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: TOOL_NAMES.generateImage,
+  entry: generateImagePlugin,
+};

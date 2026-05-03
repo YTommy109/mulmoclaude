@@ -1,17 +1,17 @@
 // #824: two plugins share /api/scheduler — the server already dispatches per-action via TASK_ACTIONS, so each plugin
 // just differs in the tool definition (action enum the LLM sees) and the View component.
 
-import type { PluginEntry, ToolPlugin } from "../../tools/types";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import CalendarView from "./CalendarView.vue";
 import AutomationsView from "./AutomationsView.vue";
-import LegacySchedulerView from "./LegacySchedulerView.vue";
 import Preview from "./Preview.vue";
 import AutomationsPreview from "./AutomationsPreview.vue";
 import calendarDefinition from "./calendarDefinition";
 import automationsDefinition from "./automationsDefinition";
 import { apiPost } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
+import { TOOL_NAMES } from "../../config/toolNames";
 import { makeUuid } from "../../utils/id";
 
 export interface ScheduledItem {
@@ -64,16 +64,8 @@ export const manageAutomationsPlugin: ToolPlugin<SchedulerData> = {
   previewComponent: AutomationsPreview,
 };
 
-// View-only legacy fallback so historical sessions saved under the pre-split `manageScheduler` name still render.
-// `PluginEntry` (no execute/isEnabled) makes it explicit: no LLM exposure, no fresh dispatch, render-only.
-export const legacyManageSchedulerEntry: PluginEntry = {
-  toolDefinition: {
-    type: "function",
-    name: "manageScheduler",
-    prompt: "[deprecated] Split into manageCalendar + manageAutomations (#824).",
-    description: "[deprecated] Split into manageCalendar + manageAutomations (#824). Kept registered for legacy chat-history rendering only.",
-    parameters: { type: "object", properties: {}, required: [] },
-  },
-  viewComponent: LegacySchedulerView,
-  previewComponent: Preview,
-};
+// One plugin module, two tool registrations — see #824 split.
+export const REGISTRATIONS: PluginRegistration[] = [
+  { toolName: TOOL_NAMES.manageCalendar, entry: manageCalendarPlugin },
+  { toolName: TOOL_NAMES.manageAutomations, entry: manageAutomationsPlugin },
+];

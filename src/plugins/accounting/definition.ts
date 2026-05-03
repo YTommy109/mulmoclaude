@@ -1,5 +1,5 @@
 import type { ToolDefinition } from "gui-chat-protocol";
-import { TOOL_NAMES } from "../../config/toolNames";
+import { META } from "./meta";
 import { ACCOUNTING_ACTIONS } from "./actions";
 
 // MCP tool definition for the accounting plugin.
@@ -16,7 +16,7 @@ import { ACCOUNTING_ACTIONS } from "./actions";
 
 const toolDefinition: ToolDefinition = {
   type: "function",
-  name: TOOL_NAMES.manageAccounting,
+  name: META.toolName,
   prompt:
     "When the user asks to open / view their books, or to record, look up, or summarise journal entries / balances / opening balances, use manageAccounting. Use action='openBook' (with the target bookId) to bring up the full accounting UI; use the specific action (addEntry / getReport / etc.) for narrowly-scoped operations the user asked about by name. On a fresh workspace call 'createBook' first, then 'openBook' with the new id.",
   description:

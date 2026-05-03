@@ -9,7 +9,22 @@
 //   - a new channel gets declared here first, then wired — the
 //     declaration serves as a lightweight registry / audit list
 //
+// **Aggregator shape**: plugins that own static channels declare
+// them in their `meta.ts` under `staticChannels` and the host
+// auto-merges via `BUILT_IN_PLUGIN_METAS`. Channel factories
+// (e.g. `bookChannel(bookId)`) stay as named exports in each
+// plugin's meta.ts because their signatures are plugin-specific —
+// re-exported below under the existing public names.
+//
 // First slice of issue #289 (item 6: pub-sub channels).
+
+import { BUILT_IN_PLUGIN_METAS, type BuiltInPluginMetas } from "../plugins/metas";
+import {
+  bookChannel as accountingBookChannelFromMeta,
+  BOOK_EVENT_KINDS as ACCOUNTING_BOOK_EVENT_KINDS_FROM_META,
+  type BookEventKind as AccountingBookEventKindFromMeta,
+  type BookChannelPayload as AccountingBookChannelPayloadFromMeta,
+} from "../plugins/accounting/meta";
 
 /**
  * Channel for the per-session event stream. One per chat session.
@@ -82,47 +97,27 @@ export interface SessionsChannelPayload {
  * channel below — kept separate so a `JournalList.vue` viewing book
  * A doesn't repaint when the user creates book B from another window.
  */
-export function accountingBookChannel(bookId: string): string {
-  return `accounting:${bookId}`;
-}
+// Plugin-owned: re-export accounting helpers from `meta.ts` under
+// the existing public names so external consumers don't have to
+// migrate their imports.
+export const accountingBookChannel = accountingBookChannelFromMeta;
+export const ACCOUNTING_BOOK_EVENT_KINDS = ACCOUNTING_BOOK_EVENT_KINDS_FROM_META;
+export type AccountingBookEventKind = AccountingBookEventKindFromMeta;
+export type AccountingBookChannelPayload = AccountingBookChannelPayloadFromMeta;
 
-/** Event kinds that ride `accountingBookChannel(bookId)`. Single
- *  source of truth for both publishers (server/accounting) and
- *  subscribers (the View) — anyone branching on event kind imports
- *  from here and the type system catches drift on either side.
- *
- *  - `journal`            — addEntry / voidEntry hit the books at `period`.
- *                           Refetch the journal list and (if the View is
- *                           showing balances at or after `period`) the
- *                           relevant report.
- *  - `opening`            — setOpeningBalances. Affects every period from
- *                           the opening date forward; refetch everything.
- *  - `accounts`           — chart-of-accounts mutation that may affect
- *                           aggregation (account type changed). Refetch
- *                           accounts and the active report.
- *  - `snapshotsRebuilding` / `snapshotsReady` — purely informational;
- *                           the View can show a "calculating" spinner
- *                           during rebuild, but the lazy-rebuild safety
- *                           net means a refetch always returns the right
- *                           answer regardless. */
-export const ACCOUNTING_BOOK_EVENT_KINDS = {
-  journal: "journal",
-  opening: "opening",
-  accounts: "accounts",
-  snapshotsRebuilding: "snapshots-rebuilding",
-  snapshotsReady: "snapshots-ready",
-} as const;
+// Plugin-owned static channel names auto-merged from each plugin's
+// META. Mapped type preserves the literal channel string (e.g.
+// `"accounting:books"`) so consumers get string-literal types.
+type PluginStaticChannelsMap<T extends BuiltInPluginMetas> = T[number] extends infer M
+  ? M extends { readonly staticChannels: infer C }
+    ? { readonly [K in keyof C]: C[K] }
+    : Record<string, never>
+  : Record<string, never>;
 
-export type AccountingBookEventKind = (typeof ACCOUNTING_BOOK_EVENT_KINDS)[keyof typeof ACCOUNTING_BOOK_EVENT_KINDS];
-
-/** Payload published on `accountingBookChannel(bookId)`. */
-export interface AccountingBookChannelPayload {
-  kind: AccountingBookEventKind;
-  /** YYYY-MM. Present for `journal` (entry month) and the snapshot
-   *  events (the earliest invalidated month). Absent for `opening`
-   *  (which invalidates everything) and `accounts`. */
-  period?: string;
-}
+const PLUGIN_STATIC_CHANNELS = Object.assign(
+  {},
+  ...BUILT_IN_PLUGIN_METAS.map((meta) => meta.staticChannels ?? {}),
+) as PluginStaticChannelsMap<BuiltInPluginMetas>;
 
 /** Static pub/sub channel names. Factories for parameterised channels
  *  (e.g. `sessionChannel(id)`) live alongside as named helpers. */
@@ -144,11 +139,9 @@ export const PUBSUB_CHANNELS = {
    *  the same channel. Subscriber list starts empty — the UI lands
    *  in a separate PR. Payload: `{ message: string, firedAt: ISO8601 }`. */
   notifications: "notifications",
-  /** Sent when the *list of books* changes in the accounting plugin
-   *  (createBook / deleteBook / renames). Per-book data changes ride
-   *  `accountingBookChannel(bookId)` instead.
-   *  Subscribers: BookSwitcher.vue. Payload: empty `{}`. */
-  accountingBooks: "accounting:books",
+  // Plugin-owned channels (currently: accountingBooks). Subscribers:
+  // BookSwitcher.vue. Payload: empty `{}`.
+  ...PLUGIN_STATIC_CHANNELS,
 } as const;
 
 export type StaticPubSubChannel = (typeof PUBSUB_CHANNELS)[keyof typeof PUBSUB_CHANNELS];

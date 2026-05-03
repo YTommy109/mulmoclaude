@@ -1,7 +1,8 @@
-import type { ToolPlugin } from "../../tools/types";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import type { MulmoScript } from "mulmocast";
 import toolDefinition, { TOOL_NAME } from "./definition";
+import { TOOL_NAMES } from "../../config/toolNames";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -44,3 +45,8 @@ const presentMulmoScriptPlugin: ToolPlugin<MulmoScriptData> = {
 };
 
 export default presentMulmoScriptPlugin;
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: TOOL_NAMES.presentMulmoScript,
+  entry: presentMulmoScriptPlugin,
+};

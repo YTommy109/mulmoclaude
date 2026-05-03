@@ -1,10 +1,10 @@
-import type { ToolPlugin } from "../../tools/types";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import toolDefinition from "./definition";
+import { META } from "./meta";
 import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
 import { makeUuid } from "../../utils/id";
 
 // MulmoClaude never invokes `execute()` at runtime (see ToolPlugin
@@ -18,7 +18,7 @@ const accountingPlugin: ToolPlugin<AccountingActionData> = {
 
   async execute(_context, args) {
     const toolName = toolDefinition.name;
-    const result = await apiPost<ToolResult<AccountingActionData>>(API_ROUTES.accounting.dispatch, args);
+    const result = await apiPost<ToolResult<AccountingActionData>>(META.apiRoutes.dispatch, args);
     if (!result.ok) {
       return {
         toolName,
@@ -40,3 +40,8 @@ const accountingPlugin: ToolPlugin<AccountingActionData> = {
 };
 
 export default accountingPlugin;
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: META.toolName,
+  entry: accountingPlugin,
+};

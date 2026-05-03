@@ -6,22 +6,26 @@
 //     plugin at runtime
 //   - grep for "every place that handles this tool" returns a list
 //     of `TOOL_NAMES.x` references rather than free-form strings
-//   - adding a new plugin is a one-line change here + register in
-//     `src/tools/index.ts` — and `typeof TOOL_NAMES` keeps both in
-//     sync through the type system
 //
 // Naming is intentionally the literal string the server / MCP
-// protocol / jsonl files expect — rename-touching requires a
-// coordinated server + client update, which is exactly when having
-// a central list here helps.
+// protocol / jsonl files expect.
+//
+// **Aggregator shape**: plugins that own their identity export their
+// `toolName` from their `meta.ts` (via `BUILT_IN_PLUGIN_METAS`). This
+// file auto-merges them into `TOOL_NAMES` so adding a plugin =
+// register its META in `src/plugins/metas.ts`; this file untouched.
+// Host-only tool names (textResponse, MCP tools, plus plugins not yet
+// migrated to META) keep their literals in `HOST_TOOL_NAMES` below.
 //
 // First slice of issue #289 (item 4: tool name literals).
 
-export const TOOL_NAMES = {
+import { BUILT_IN_PLUGIN_METAS, type BuiltInPluginMetas } from "../plugins/metas";
+
+const HOST_TOOL_NAMES = {
   // Text / base
   textResponse: "text-response",
 
-  // Management plugins
+  // Management plugins (not yet migrated to META)
   manageTodoList: "manageTodoList",
   // Calendar / Automations split (#824) — replaced the unified
   // `manageScheduler` so the LLM and chat-tool-result UI both have
@@ -31,11 +35,6 @@ export const TOOL_NAMES = {
   manageSkills: "manageSkills",
   manageSource: "manageSource",
   manageWiki: "manageWiki",
-  // Accounting plugin (opt-in, custom-Role only — see
-  // plans/feat-accounting.md). Registered here so the plugin-picker
-  // UI for custom Roles surfaces it; deliberately absent from every
-  // built-in Role's `availablePlugins`.
-  manageAccounting: "manageAccounting",
 
   // Presentational plugins
   presentMulmoScript: "presentMulmoScript",
@@ -62,6 +61,21 @@ export const TOOL_NAMES = {
   readXPost: "readXPost",
   searchX: "searchX",
   notify: "notify",
+} as const;
+
+// Plugin-owned tool names auto-merged from each plugin's META.
+// The mapped type below preserves each plugin's literal toolName
+// (e.g. `"manageAccounting"`) so `TOOL_NAMES.manageAccounting` is
+// typed as the literal, not just `string`.
+type PluginToolNamesMap<T extends BuiltInPluginMetas> = {
+  readonly [K in T[number]["toolName"]]: K;
+};
+
+const PLUGIN_TOOL_NAMES = Object.fromEntries(BUILT_IN_PLUGIN_METAS.map((meta) => [meta.toolName, meta.toolName])) as PluginToolNamesMap<BuiltInPluginMetas>;
+
+export const TOOL_NAMES = {
+  ...HOST_TOOL_NAMES,
+  ...PLUGIN_TOOL_NAMES,
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
