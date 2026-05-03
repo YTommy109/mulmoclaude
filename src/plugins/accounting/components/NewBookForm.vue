@@ -52,19 +52,21 @@ import { computed, nextTick, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { createBook, type BookSummary } from "../api";
 import { SUPPORTED_CURRENCY_CODES, localizedCurrencyName } from "../currencies";
-import { SUPPORTED_COUNTRY_CODES, localizedCountryName } from "../countries";
+import { SUPPORTED_COUNTRY_CODES, localizedCountryName, type SupportedCountryCode } from "../countries";
 
 const { t, locale } = useI18n();
 
-function guessDefaultCountry(): string {
-  // Best-effort: lift the country segment from the active locale
-  // (e.g. "ja-JP" → "JP", "pt-BR" → "BR"). When missing we fall
-  // back to a small map keyed off the language portion. Last-resort
-  // is "US" so the dropdown always has a valid initial value.
+function guessDefaultCountry(): SupportedCountryCode {
+  // Best-effort: lift the country segment from the active browser
+  // locale (e.g. "ja-JP" → "JP", "pt-BR" → "BR"). Falls back to "US"
+  // so the dropdown always has a valid initial value, since
+  // `SUPPORTED_COUNTRY_CODES` is the authoritative enum.
   try {
     const tag = (typeof navigator !== "undefined" && navigator.language) || "en-US";
     const { region } = new Intl.Locale(tag).maximize();
-    if (region && (SUPPORTED_COUNTRY_CODES as readonly string[]).includes(region)) return region;
+    if (region && (SUPPORTED_COUNTRY_CODES as readonly string[]).includes(region)) {
+      return region as SupportedCountryCode;
+    }
   } catch {
     /* fall through */
   }
@@ -87,7 +89,7 @@ const emit = defineEmits<{
 
 const name = ref("");
 const currency = ref<string>("USD");
-const country = ref<string>(guessDefaultCountry());
+const country = ref<SupportedCountryCode>(guessDefaultCountry());
 const creating = ref(false);
 const error = ref<string | null>(null);
 const nameInput = ref<HTMLInputElement | null>(null);

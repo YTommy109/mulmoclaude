@@ -200,7 +200,7 @@ const deletedNoticeName = ref<string | null>(null);
 const activeBook = computed(() => books.value.find((book) => book.id === activeBookId.value) ?? null);
 const activeBookName = computed(() => activeBook.value?.name ?? "");
 const activeCurrency = computed(() => activeBook.value?.currency ?? "USD");
-const activeCountry = computed(() => activeBook.value?.country ?? "");
+const activeCountry = computed(() => activeBook.value?.country);
 
 const { version: pubsubVersion } = useAccountingChannel(activeBookId);
 useAccountingBooksChannel(() => void refetchBooks());

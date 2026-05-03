@@ -9,12 +9,13 @@
 import { randomUUID } from "node:crypto";
 import type { Page, Route } from "@playwright/test";
 import { ACCOUNTING_ACTIONS } from "../../src/plugins/accounting/actions";
+import type { SupportedCountryCode } from "../../src/plugins/accounting/countries";
 
 interface FakeBook {
   id: string;
   name: string;
   currency: string;
-  country?: string;
+  country?: SupportedCountryCode;
   createdAt: string;
 }
 
@@ -123,7 +124,9 @@ function handleGetBooks(state: AccountingState): MockResponse {
 function handleCreateBook(state: AccountingState, body: DispatchBody): MockResponse {
   const name = typeof body.name === "string" ? body.name : "Test book";
   const currency = typeof body.currency === "string" ? body.currency : "USD";
-  const country = typeof body.country === "string" ? body.country : undefined;
+  // The mock mirrors the production service's enum guard so e2e tests
+  // exercising bad codes see the real 400 instead of a silent success.
+  const country = typeof body.country === "string" ? (body.country as SupportedCountryCode) : undefined;
   const book: FakeBook = {
     id: uniqueId("book"),
     name,
@@ -145,7 +148,7 @@ function handleUpdateBook(state: AccountingState, body: DispatchBody): MockRespo
   if (typeof body.name === "string" && body.name.trim() !== "") target.name = body.name;
   if (typeof body.country === "string") {
     if (body.country === "") delete target.country;
-    else target.country = body.country;
+    else target.country = body.country as SupportedCountryCode;
   }
   return ok({ bookId: resolved, book: { ...target } });
 }
@@ -322,7 +325,7 @@ export interface AccountingSeedBook {
   id: string;
   name: string;
   currency?: string;
-  country?: string;
+  country?: SupportedCountryCode;
   /** Pre-seed an empty opening entry so the View's opening-gate
    *  doesn't kick in and hide the journal / newEntry tabs. The View
    *  treats any opening entry — even one with zero lines — as

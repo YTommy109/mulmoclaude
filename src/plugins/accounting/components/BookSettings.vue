@@ -76,11 +76,11 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { deleteBook, rebuildSnapshots, updateBook } from "../api";
-import { SUPPORTED_COUNTRY_CODES, localizedCountryName } from "../countries";
+import { SUPPORTED_COUNTRY_CODES, isSupportedCountryCode, localizedCountryName, type SupportedCountryCode } from "../countries";
 
 const { t, locale } = useI18n();
 
-const props = defineProps<{ bookId: string; bookName: string; currency: string; country?: string }>();
+const props = defineProps<{ bookId: string; bookName: string; currency: string; country?: SupportedCountryCode }>();
 const emit = defineEmits<{ deleted: [bookName: string]; "books-changed": [] }>();
 
 const rebuilding = ref(false);
@@ -128,7 +128,12 @@ async function onSaveCountry(): Promise<void> {
   updateOk.value = null;
   updateError.value = null;
   try {
-    const result = await updateBook({ bookId: props.bookId, country: selectedCountry.value });
+    // The select v-model is a plain `string` (HTML form value); narrow
+    // it back to the union before handing it to the API helper. The
+    // empty string is the sentinel that clears the field server-side.
+    const raw = selectedCountry.value;
+    const country: SupportedCountryCode | "" = raw === "" || isSupportedCountryCode(raw) ? raw : "";
+    const result = await updateBook({ bookId: props.bookId, country });
     if (!result.ok) {
       updateError.value = result.error;
       return;

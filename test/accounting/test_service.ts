@@ -179,6 +179,17 @@ describe("books lifecycle", () => {
     await assert.rejects(() => updateBook({ bookId: "nope", name: "Y" }, root), AccountingError);
     await assert.rejects(() => updateBook({ bookId: book.book.id, name: "   " }, root), AccountingError);
   });
+  it("rejects unsupported country codes at every ingress", async () => {
+    // Pin the enum guard. `createBook` and `updateBook` both narrow
+    // through `isSupportedCountryCode`; a typo or an obsolete code
+    // must 400 rather than land on disk and propagate to the role
+    // prompt's per-jurisdiction switch.
+    const root = makeTmp();
+    await assert.rejects(() => createBook({ name: "Bad", country: "ZZ" }, root), AccountingError);
+    await assert.rejects(() => createBook({ name: "Bad", country: "japan" }, root), AccountingError);
+    const book = await createBook({ name: "Good", country: "JP" }, root);
+    await assert.rejects(() => updateBook({ bookId: book.book.id, country: "ZZ" }, root), AccountingError);
+  });
 });
 
 describe("addEntry / listEntries", () => {

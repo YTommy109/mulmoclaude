@@ -8,6 +8,8 @@
 //
 // Snapshots are cache only — journal is the single source of truth.
 
+import type { SupportedCountryCode } from "../../src/plugins/accounting/countries.js";
+
 export const ACCOUNT_TYPES = ["asset", "liability", "equity", "income", "expense"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
@@ -44,10 +46,14 @@ export interface BookSummary {
   /** ISO 3166-1 alpha-2 country code (e.g. "US" / "JP" / "GB").
    *  Identifies the tax jurisdiction the book is kept under so the
    *  Accounting role can give country-aware advice (Japanese T-number
-   *  under インボイス制度, EU VAT ID, GSTIN, ABN, etc.). Optional for
-   *  backward compatibility with books created before the field was
-   *  introduced; the UI / role prompts existing books to set it. */
-  country?: string;
+   *  under インボイス制度, EU VAT ID, GSTIN, ABN, etc.). Constrained
+   *  to `SupportedCountryCode` (the curated list shared with the UI
+   *  dropdown and the LLM tool's JSON-schema enum) so a typo from any
+   *  ingress path is rejected at the service layer rather than silently
+   *  persisted. Optional for backward compatibility with books created
+   *  before the field was introduced; the UI prompts existing books
+   *  to set it. */
+  country?: SupportedCountryCode;
   createdAt: string;
 }
 

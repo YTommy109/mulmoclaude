@@ -90,3 +90,11 @@ export function localizedCountryName(code: string, locale: string): string {
     return code;
   }
 }
+
+/** Runtime guard for `BookSummary.country`. The type is the union
+ *  `SupportedCountryCode`, but every entry point that takes user /
+ *  LLM input arrives as raw `string` (form submit, JSON-RPC body),
+ *  so the service layer narrows here before persisting. */
+export function isSupportedCountryCode(value: unknown): value is SupportedCountryCode {
+  return typeof value === "string" && (SUPPORTED_COUNTRY_CODES as readonly string[]).includes(value);
+}

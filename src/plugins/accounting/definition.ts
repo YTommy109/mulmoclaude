@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 import { TOOL_NAMES } from "../../config/toolNames";
 import { ACCOUNTING_ACTIONS } from "./actions";
+import { SUPPORTED_COUNTRY_CODES } from "./countries";
 
 // MCP tool definition for the accounting plugin.
 //
@@ -43,8 +44,14 @@ const toolDefinition: ToolDefinition = {
       },
       country: {
         type: "string",
+        // Pinning the enum locks the LLM to the same curated set the
+        // UI dropdown offers and the service-layer guard accepts —
+        // any value outside this list 400s, so emitting a typo or an
+        // unsupported jurisdiction is a wasted tool call. Pass `""`
+        // to 'updateBook' to explicitly clear the country.
+        enum: [...SUPPORTED_COUNTRY_CODES, ""],
         description:
-          "For 'createBook' / 'updateBook': ISO 3166-1 alpha-2 country code (e.g. 'JP', 'US', 'GB', 'DE') identifying the tax jurisdiction. Drives country-aware advice — e.g. when set to 'JP', strongly suggest the supplier's T-number (適格請求書発行事業者登録番号) on tax-related lines under インボイス制度.",
+          "For 'createBook' / 'updateBook': ISO 3166-1 alpha-2 country code identifying the tax jurisdiction. Drives country-aware advice — e.g. when set to 'JP', strongly suggest the supplier's T-number (適格請求書発行事業者登録番号) on tax-related lines under インボイス制度. Only the codes listed in the enum are accepted; pass an empty string to 'updateBook' to clear the field.",
       },
       initialTab: { type: "string", description: "For 'openBook': initial tab to show (e.g. 'journal', 'opening', 'balanceSheet')." },
       confirm: { type: "boolean", description: "For 'deleteBook': must be true to actually delete (guard against accidental deletion)." },

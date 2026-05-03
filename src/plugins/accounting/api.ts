@@ -10,6 +10,7 @@
 import { apiPost, type ApiResult } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { ACCOUNTING_ACTIONS } from "./actions";
+import type { SupportedCountryCode } from "./countries";
 
 export type AccountType = "asset" | "liability" | "equity" | "income" | "expense";
 export type JournalEntryKind = "normal" | "opening" | "void" | "void-marker";
@@ -52,9 +53,10 @@ export interface BookSummary {
   name: string;
   currency: string;
   /** ISO 3166-1 alpha-2 country code identifying the tax jurisdiction
-   *  the book is kept under. Optional for backward compatibility with
+   *  the book is kept under. Constrained to `SupportedCountryCode` —
+   *  see `countries.ts`. Optional for backward compatibility with
    *  books created before the field was introduced. */
-  country?: string;
+  country?: SupportedCountryCode;
   createdAt: string;
 }
 
@@ -125,11 +127,18 @@ export function getBooks(): Promise<ApiResult<{ books: BookSummary[] }>> {
   return call(ACCOUNTING_ACTIONS.getBooks);
 }
 
-export function createBook(input: { name: string; currency?: string; country?: string }): Promise<ApiResult<{ book: BookSummary }>> {
+export function createBook(input: { name: string; currency?: string; country?: SupportedCountryCode }): Promise<ApiResult<{ book: BookSummary }>> {
   return call(ACCOUNTING_ACTIONS.createBook, input);
 }
 
-export function updateBook(input: { bookId: string; name?: string; country?: string }): Promise<ApiResult<{ book: BookSummary }>> {
+export function updateBook(input: {
+  bookId: string;
+  name?: string;
+  /** Pass `""` to explicitly clear the country (server treats it as
+   *  the "drop the field" sentinel). Any other value must be one of
+   *  the curated `SupportedCountryCode`s. */
+  country?: SupportedCountryCode | "";
+}): Promise<ApiResult<{ book: BookSummary }>> {
   return call(ACCOUNTING_ACTIONS.updateBook, input);
 }
 
