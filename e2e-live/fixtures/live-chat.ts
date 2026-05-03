@@ -162,8 +162,30 @@ export function getCurrentSessionId(page: Page): string | null {
  */
 const DELETE_BUTTON_TIMEOUT_MS = 10_000;
 
+// Opt-in QA hold-mode. When the runner sets E2E_LIVE_KEEP_SESSIONS=1
+// every spec leaves its session intact in history so a human can
+// inspect the residue (chat transcript, generated artifacts, plugin
+// state) after the test finishes — pair with HEADED=1 for the
+// "watch it drive, then poke at the result" flow. Cleanup falls to
+// the user (sidebar kebab → 削除) once they're done.
+//
+// We gate inside deleteSession itself so every existing spec
+// (L-01..L-14 and onwards) inherits the behaviour without any
+// per-spec retrofit — every cleanup site already routes through
+// here in a `finally { ... }` block.
+const KEEP_SESSIONS_ENV = "E2E_LIVE_KEEP_SESSIONS";
+
+function shouldKeepSessions(): boolean {
+  return process.env[KEEP_SESSIONS_ENV] === "1";
+}
+
 export async function deleteSession(page: Page, sessionId: string): Promise<void> {
   if (page.isClosed()) return;
+  if (shouldKeepSessions()) {
+    // QA-mode breadcrumb so the runner can confirm the gate fired.
+    console.log(`[${KEEP_SESSIONS_ENV}=1] keeping session ${sessionId} for inspection`);
+    return;
+  }
   try {
     // Step away from /chat/<id> first — the server's isRunning
     // guard rejects DELETE on whichever session the page is

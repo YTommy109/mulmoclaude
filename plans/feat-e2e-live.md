@@ -671,6 +671,28 @@ HEADED=1 yarn test:e2e:live:media   # Chromium ウィンドウが開き、slowMo
 - 新規シナリオ実装中・既存シナリオ修正時に使用
 - 通常の定期実行は headless で OK
 
+#### QA hold-mode（C: テスト後にセッションを残して目視）
+
+`E2E_LIVE_KEEP_SESSIONS=1` を立てて走らせると、 各 spec が `finally` で呼ぶ `deleteSession` が **early-return に切り替わり session が history に残る**。 spec 側は 1 行も触らない。 全既存 spec (L-01 以降すべて) と今後追加する spec が retrofit ゼロでこのモードに対応する。
+
+```bash
+# QA 目視: HEADED で動作を見つつ、 終了後も session が残る
+E2E_LIVE_KEEP_SESSIONS=1 HEADED=1 yarn test:e2e:live:media -g "L-05" --project=chromium
+
+# テスト終了後:
+#   - http://localhost:5173 を開く
+#   - SPA 右側の session 履歴サイドパネルから残った session をクリック
+#   - chat 内容 / 生成 artifact / plugin view の状態を目視確認
+#   - OK なら sidebar の kebab → 削除 で手動 cleanup
+```
+
+意図と非意図:
+- **意図**: 「spec を編集して cleanup を一旦消す → 確認 → spec を戻す → もう一度走らせる」 という二度手間 (旧フロー) を消すこと。 QA 目視のたびに spec を書き換える運用は時間ロスが大きい
+- **非意図**: 自動回帰 / CI 用途。 history が膨らむので routine 実行では立てない
+- **scope**: 残すのは session のみ。 `placeFixtureInWorkspace` で seed したファイル (画像 / mulmo json) は別経路 (`removeFromWorkspace`) で消える。 fixture も残したい場合は別フラグの導入を検討
+
+実装は `e2e-live/fixtures/live-chat.ts` の `deleteSession` 冒頭の env gate 1 ブロックのみ。
+
 #### Claude / skill 側の実行
 
 | 観点 | やり方 | 理由 |
