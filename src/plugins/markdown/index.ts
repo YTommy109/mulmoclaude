@@ -2,6 +2,7 @@ import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import toolDefinition, { TOOL_NAME, type DocumentEndpoints, type MarkdownToolData } from "./definition";
 import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -29,8 +30,8 @@ const markdownPlugin: ToolPlugin<MarkdownToolData> = {
 
   isEnabled: () => true,
   generatingMessage: "Creating document...",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("presentDocument", View),
+  previewComponent: wrapWithScope("presentDocument", Preview),
 };
 
 export default markdownPlugin;

@@ -1,4 +1,5 @@
 import type { PluginEntry, PluginRegistration } from "../../tools/types";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 
@@ -52,8 +53,8 @@ const wikiPlugin: PluginEntry = {
     description: "[deprecated] Replaced by inline page-edit rendering (#963). Kept registered for historical chat-history rendering only.",
     parameters: { type: "object", properties: {}, required: [] },
   },
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("wiki", View),
+  previewComponent: wrapWithScope("wiki", Preview),
 };
 
 export default wikiPlugin;

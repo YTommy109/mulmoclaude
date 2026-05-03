@@ -50,6 +50,9 @@ const pluginEndpointRegistry: EndpointRegistry = {
   chart: API_ROUTES.chart,
   wiki: API_ROUTES.wiki,
   roles: API_ROUTES.roles,
+  // accounting is the META-driven plugin's apiRoutesKey; see
+  // `src/plugins/accounting/meta.ts`.
+  accounting: API_ROUTES.accounting,
   // generateImage + editImages share `image.*`; both ask for scope "image".
   image: API_ROUTES.image,
   // Nested under API_ROUTES.plugins.* — promoted to flat plugin scopes.

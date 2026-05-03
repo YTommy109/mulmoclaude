@@ -4,6 +4,7 @@ import View from "./View.vue";
 import Preview from "./Preview.vue";
 import toolDefinition from "./definition";
 import { META } from "./meta";
+import { wrapWithScope } from "../scope";
 import { apiPost } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
@@ -35,8 +36,8 @@ const accountingPlugin: ToolPlugin<AccountingActionData> = {
 
   isEnabled: () => true,
   generatingMessage: "Working on the books...",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("accounting", View),
+  previewComponent: wrapWithScope("accounting", Preview),
 };
 
 export default accountingPlugin;

@@ -2,6 +2,7 @@ import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import toolDefinition, { TOOL_NAME, type CanvasEndpoints, type ImageToolData } from "./definition";
 import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -29,8 +30,8 @@ const canvasPlugin: ToolPlugin<ImageToolData> = {
 
   isEnabled: () => true,
   generatingMessage: "Opening drawing canvas...",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("canvas", View),
+  previewComponent: wrapWithScope("canvas", Preview),
 };
 
 export default canvasPlugin;

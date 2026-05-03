@@ -2,6 +2,7 @@ import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import toolDefinition, { TOOL_NAME, type SpreadsheetEndpoints, type SpreadsheetToolData } from "./definition";
 import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -29,8 +30,8 @@ const spreadsheetPlugin: ToolPlugin<SpreadsheetToolData> = {
 
   isEnabled: () => true,
   generatingMessage: "Creating spreadsheet...",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("presentSpreadsheet", View),
+  previewComponent: wrapWithScope("presentSpreadsheet", Preview),
 };
 
 export default spreadsheetPlugin;

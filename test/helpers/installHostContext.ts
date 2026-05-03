@@ -34,6 +34,7 @@ export function installTestHostContext(overrides: Partial<HostContext> = {}): vo
     chart: API_ROUTES.chart,
     wiki: API_ROUTES.wiki,
     roles: API_ROUTES.roles,
+    accounting: API_ROUTES.accounting,
     image: API_ROUTES.image,
     canvas: { dispatch: API_ROUTES.plugins.canvas },
     presentDocument: {

@@ -3,6 +3,7 @@ import type { ToolResult } from "gui-chat-protocol";
 import type { MulmoScript } from "mulmocast";
 import toolDefinition, { TOOL_NAME, type MulmoScriptEndpoints } from "./definition";
 import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -40,8 +41,8 @@ const presentMulmoScriptPlugin: ToolPlugin<MulmoScriptData> = {
 
   isEnabled: () => true,
   generatingMessage: "Generating MulmoScript storyboard…",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("mulmoScript", View),
+  previewComponent: wrapWithScope("mulmoScript", Preview),
 };
 
 export default presentMulmoScriptPlugin;

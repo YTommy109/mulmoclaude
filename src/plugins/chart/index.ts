@@ -2,6 +2,7 @@ import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import toolDefinition, { TOOL_NAME, type ChartEndpoints } from "./definition";
 import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -46,8 +47,8 @@ const presentChartPlugin: ToolPlugin<PresentChartData> = {
 
   isEnabled: () => true,
   generatingMessage: "Rendering chart…",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("chart", View),
+  previewComponent: wrapWithScope("chart", Preview),
 };
 
 export default presentChartPlugin;

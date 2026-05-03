@@ -2,6 +2,7 @@ import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import toolDefinition, { TOOL_NAME, type SourcesEndpoints } from "./definition";
 import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -60,8 +61,8 @@ const manageSourcePlugin: ToolPlugin<ManageSourceData> = {
   },
   isEnabled: () => true,
   generatingMessage: "Managing sources…",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("sources", View),
+  previewComponent: wrapWithScope("sources", Preview),
 };
 
 export default manageSourcePlugin;

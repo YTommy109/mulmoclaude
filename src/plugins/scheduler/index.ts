@@ -10,6 +10,7 @@ import AutomationsPreview from "./AutomationsPreview.vue";
 import calendarDefinition, { TOOL_NAME as MANAGE_CALENDAR } from "./calendarDefinition";
 import automationsDefinition, { TOOL_NAME as MANAGE_AUTOMATIONS, type SchedulerEndpoints } from "./automationsDefinition";
 import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import { apiPost } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
@@ -49,8 +50,8 @@ export const manageCalendarPlugin: ToolPlugin<SchedulerData> = {
   execute: makeExecute(MANAGE_CALENDAR),
   isEnabled: () => true,
   generatingMessage: "Updating calendar...",
-  viewComponent: CalendarView,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("scheduler", CalendarView),
+  previewComponent: wrapWithScope("scheduler", Preview),
 };
 
 export const manageAutomationsPlugin: ToolPlugin<SchedulerData> = {
@@ -58,10 +59,10 @@ export const manageAutomationsPlugin: ToolPlugin<SchedulerData> = {
   execute: makeExecute(MANAGE_AUTOMATIONS),
   isEnabled: () => true,
   generatingMessage: "Managing automations...",
-  viewComponent: AutomationsView,
+  viewComponent: wrapWithScope("scheduler", AutomationsView),
   // Cannot share Preview.vue with manageCalendar — Preview auto-refreshes from /api/scheduler (calendar items), and
   // the automations sidebar would otherwise show calendar data after the first refresh tick (#828 follow-up).
-  previewComponent: AutomationsPreview,
+  previewComponent: wrapWithScope("scheduler", AutomationsPreview),
 };
 
 // One plugin module, two tool registrations — see #824 split.

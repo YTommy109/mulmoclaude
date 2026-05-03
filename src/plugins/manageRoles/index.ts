@@ -2,6 +2,7 @@ import type { ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import toolDefinition, { TOOL_NAME, type RolesEndpoints } from "./definition";
 import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -40,8 +41,8 @@ const manageRolesPlugin: ToolPlugin = {
   },
   isEnabled: () => true,
   generatingMessage: "Managing roles…",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("roles", View),
+  previewComponent: wrapWithScope("roles", Preview),
 };
 
 export default manageRolesPlugin;

@@ -3,6 +3,7 @@ import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import toolDefinition, { TOOL_NAME } from "./definition";
 import type { ImageToolData } from "./definition";
 import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import type { ImageEndpoints } from "../editImages/definition";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
@@ -51,8 +52,8 @@ const generateImagePlugin: ToolPlugin<ImageToolData> = {
       handleInput: (imageData: string) => createUploadedImageResult(imageData, "clipboard-image.png", ""),
     },
   ],
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("image", View),
+  previewComponent: wrapWithScope("image", Preview),
 };
 
 export default generateImagePlugin;

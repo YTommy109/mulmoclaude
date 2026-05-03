@@ -2,6 +2,7 @@ import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import toolDefinition, { TOOL_NAME, type HtmlEndpoints } from "./definition";
 import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
@@ -34,8 +35,8 @@ const presentHtmlPlugin: ToolPlugin<PresentHtmlData> = {
 
   isEnabled: () => true,
   generatingMessage: "Presenting HTML page…",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("html", View),
+  previewComponent: wrapWithScope("html", Preview),
 };
 
 export default presentHtmlPlugin;

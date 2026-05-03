@@ -1,6 +1,7 @@
 import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import toolDefinition, { TOOL_NAME, type SkillsEndpoints } from "./definition";
 import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiGet } from "../../utils/api";
@@ -43,8 +44,8 @@ const manageSkillsPlugin: ToolPlugin<ManageSkillsData> = {
   },
   isEnabled: () => true,
   generatingMessage: "Loading skills…",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("skills", View),
+  previewComponent: wrapWithScope("skills", Preview),
 };
 
 export default manageSkillsPlugin;
