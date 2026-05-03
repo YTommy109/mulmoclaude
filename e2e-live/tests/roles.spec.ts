@@ -87,6 +87,18 @@ async function runRoleSampleTurn(page: Page, roleId: string): Promise<void> {
     const generalSessionId = getCurrentSessionId(page);
     if (generalSessionId !== null) sessionsToCleanup.push(generalSessionId);
     await selectRole(page, roleId);
+    // Capture the role-switched session id as soon as the URL
+    // settles on /chat/<id>, BEFORE the downstream assertions —
+    // otherwise an early failure (role chip mismatch, disabled
+    // input, send failure) would skip the capture and leak the
+    // role session into history (Codex iter 2 question-level
+    // catch). waitForURL forces a real navigation rather than
+    // re-reading the General id.
+    await page.waitForURL((url) => SESSION_URL_PATTERN.test(url.pathname) && !url.pathname.endsWith(generalSessionId ?? ""));
+    const roleSessionId = getCurrentSessionId(page);
+    if (roleSessionId !== null && roleSessionId !== generalSessionId) {
+      sessionsToCleanup.push(roleSessionId);
+    }
     // Wait for the role chip to flip to the new id before driving
     // the input — the selection is async (App.vue spins up a new
     // session in the new role) and a too-eager send would land in
@@ -97,9 +109,7 @@ async function runRoleSampleTurn(page: Page, roleId: string): Promise<void> {
     await waitForAssistantResponseComplete(page);
     const sessionId = getCurrentSessionId(page);
     expect(sessionId, `session id should be present after a successful ${roleId} turn (B-41 canary)`).not.toBeNull();
-    if (sessionId !== null && sessionId !== generalSessionId) {
-      sessionsToCleanup.push(sessionId);
-    }
+    expect(sessionId, "post-turn session id should match the role-switched id captured earlier").toBe(roleSessionId);
   } finally {
     // Delete the General placeholder first, then the role-switched
     // session — keeps the page on a stable /chat/<id> while the
