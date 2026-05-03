@@ -19,7 +19,7 @@
 //
 // First slice of issue #289 (item 4: tool name literals).
 
-import { BUILT_IN_PLUGIN_METAS, type BuiltInPluginMetas } from "../plugins/metas";
+import { BUILT_IN_PLUGIN_METAS, assertNoPluginCollision, type BuiltInPluginMetas } from "../plugins/metas";
 
 const HOST_TOOL_NAMES = {
   // Text / base
@@ -72,6 +72,11 @@ type PluginToolNamesMap<T extends BuiltInPluginMetas> = {
 };
 
 const PLUGIN_TOOL_NAMES = Object.fromEntries(BUILT_IN_PLUGIN_METAS.map((meta) => [meta.toolName, meta.toolName])) as PluginToolNamesMap<BuiltInPluginMetas>;
+
+// Fail-fast at module load if any plugin's `toolName` collides with
+// a host literal — silent override would route the LLM's calls to
+// the wrong handler.
+assertNoPluginCollision(HOST_TOOL_NAMES, PLUGIN_TOOL_NAMES, "TOOL_NAMES");
 
 export const TOOL_NAMES = {
   ...HOST_TOOL_NAMES,

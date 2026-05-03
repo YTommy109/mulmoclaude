@@ -25,3 +25,17 @@ import { META as accountingMeta } from "./accounting/meta";
 export const BUILT_IN_PLUGIN_METAS = [accountingMeta] as const satisfies readonly PluginMeta[];
 
 export type BuiltInPluginMetas = typeof BUILT_IN_PLUGIN_METAS;
+
+/** Throw at module load if a plugin record's keys collide with the
+ *  host record. Aggregators spread plugin keys *after* host keys,
+ *  so without this guard a typo / rename in a plugin's meta.ts
+ *  (e.g. a plugin claiming `apiRoutesKey: "agent"`) would silently
+ *  shadow the host's `API_ROUTES.agent`. We'd rather fail fast with
+ *  a named error than ship a silently-mis-routed app. */
+export function assertNoPluginCollision(hostRecord: Readonly<Record<string, unknown>>, pluginRecord: Readonly<Record<string, unknown>>, label: string): void {
+  const hostKeys = new Set(Object.keys(hostRecord));
+  const collisions = Object.keys(pluginRecord).filter((key) => hostKeys.has(key));
+  if (collisions.length > 0) {
+    throw new Error(`${label}: plugin key(s) collide with host key(s): ${collisions.join(", ")}. Rename the colliding key in the plugin's meta.ts.`);
+  }
+}

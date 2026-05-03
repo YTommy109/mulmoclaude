@@ -18,7 +18,7 @@
 //
 // First slice of issue #289 (item 6: pub-sub channels).
 
-import { BUILT_IN_PLUGIN_METAS, type BuiltInPluginMetas } from "../plugins/metas";
+import { BUILT_IN_PLUGIN_METAS, assertNoPluginCollision, type BuiltInPluginMetas } from "../plugins/metas";
 import {
   bookChannel as accountingBookChannelFromMeta,
   BOOK_EVENT_KINDS as ACCOUNTING_BOOK_EVENT_KINDS_FROM_META,
@@ -119,9 +119,7 @@ const PLUGIN_STATIC_CHANNELS = Object.assign(
   ...BUILT_IN_PLUGIN_METAS.map((meta) => meta.staticChannels ?? {}),
 ) as PluginStaticChannelsMap<BuiltInPluginMetas>;
 
-/** Static pub/sub channel names. Factories for parameterised channels
- *  (e.g. `sessionChannel(id)`) live alongside as named helpers. */
-export const PUBSUB_CHANNELS = {
+const HOST_STATIC_CHANNELS = {
   /** Sidebar "a session updated, please refetch" notification.
    *  Publisher: `server/session-store/index.ts#publishSessionsChanged`.
    *  Subscribers: `useSessionHistory` (purges deletedIds from the
@@ -139,6 +137,18 @@ export const PUBSUB_CHANNELS = {
    *  the same channel. Subscriber list starts empty — the UI lands
    *  in a separate PR. Payload: `{ message: string, firedAt: ISO8601 }`. */
   notifications: "notifications",
+} as const;
+
+// Fail-fast at module load if any plugin's static-channel key
+// collides with a host channel (e.g. a plugin claiming `sessions`).
+// Silent override would route session-list refetch hints to the
+// wrong subscribers.
+assertNoPluginCollision(HOST_STATIC_CHANNELS, PLUGIN_STATIC_CHANNELS, "PUBSUB_CHANNELS");
+
+/** Static pub/sub channel names. Factories for parameterised channels
+ *  (e.g. `sessionChannel(id)`) live alongside as named helpers. */
+export const PUBSUB_CHANNELS = {
+  ...HOST_STATIC_CHANNELS,
   // Plugin-owned channels (currently: accountingBooks). Subscribers:
   // BookSwitcher.vue. Payload: empty `{}`.
   ...PLUGIN_STATIC_CHANNELS,

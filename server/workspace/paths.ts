@@ -35,7 +35,7 @@ import { WORKSPACE_FILES } from "../../src/config/workspacePaths.js";
 // register its META there; this file keeps the central
 // `WORKSPACE_DIRS.<key>` shape via spread so existing consumers
 // don't migrate. Plugin-specific literals never appear here.
-import { BUILT_IN_PLUGIN_METAS, type BuiltInPluginMetas } from "../../src/plugins/metas.js";
+import { BUILT_IN_PLUGIN_METAS, assertNoPluginCollision, type BuiltInPluginMetas } from "../../src/plugins/metas.js";
 
 // Merge every plugin's `workspaceDirs` into one record. The mapped
 // type below preserves each plugin's literal path strings (e.g.
@@ -60,7 +60,7 @@ export const workspacePath = path.join(homedir(), "mulmoclaude");
 // Workspace-relative paths. Keys are the stable code-side identifiers
 // (e.g. `markdowns` — unchanged for call-site compatibility); values
 // are the on-disk paths, grouped per issue #284.
-export const WORKSPACE_DIRS = {
+const HOST_WORKSPACE_DIRS = {
   // conversations/
   chat: "conversations/chat",
   // Typed memory entries (#1029). One markdown file per fact, indexed
@@ -133,6 +133,16 @@ export const WORKSPACE_DIRS = {
   // so the install / extract artefacts persist across npx invocations.
   plugins: "plugins",
   pluginCache: "plugins/.cache",
+} as const;
+
+// Fail-fast at module load if any plugin's `workspaceDirs` key
+// collides with a host dir (e.g. a plugin claiming `wiki` /
+// `markdowns`). Silent override would point the host's I/O at the
+// wrong on-disk location.
+assertNoPluginCollision(HOST_WORKSPACE_DIRS, PLUGIN_WORKSPACE_DIRS, "WORKSPACE_DIRS");
+
+export const WORKSPACE_DIRS = {
+  ...HOST_WORKSPACE_DIRS,
   // Built-in plugin dirs (auto-merged from every plugin's META —
   // see `src/plugins/metas.ts`). Adding a plugin = register its
   // META there; the keys spread below.

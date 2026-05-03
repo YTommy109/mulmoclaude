@@ -19,7 +19,7 @@
 // key names matched to the last URL segment where possible.
 
 import { CHAT_SERVICE_ROUTES } from "@mulmobridge/protocol";
-import { BUILT_IN_PLUGIN_METAS, type BuiltInPluginMetas } from "../plugins/metas";
+import { BUILT_IN_PLUGIN_METAS, assertNoPluginCollision, type BuiltInPluginMetas } from "../plugins/metas";
 
 // Plugin-owned API routes auto-merged from each plugin's META. Each
 // plugin's `apiRoutesKey` becomes the outer key under `API_ROUTES`
@@ -37,7 +37,7 @@ const PLUGIN_API_ROUTES = Object.fromEntries(
   BUILT_IN_PLUGIN_METAS.filter((meta) => meta.apiRoutes !== undefined).map((meta) => [meta.apiRoutesKey ?? meta.toolName, meta.apiRoutes]),
 ) as PluginApiRoutesMap<BuiltInPluginMetas>;
 
-export const API_ROUTES = {
+const HOST_API_ROUTES = {
   health: "/api/health",
   sandbox: "/api/sandbox",
 
@@ -249,7 +249,16 @@ export const API_ROUTES = {
      *  snapshot pipeline. Never called by the Vue client. */
     internalSnapshot: "/api/wiki/internal/snapshot",
   },
+} as const;
 
+// Fail-fast at module load if any plugin's `apiRoutesKey` collides
+// with a host outer-key (e.g. a plugin trying to claim `agent` /
+// `roles` / `wiki`). Without this guard the spread below would
+// silently shadow the host route group at runtime.
+assertNoPluginCollision(HOST_API_ROUTES, PLUGIN_API_ROUTES, "API_ROUTES");
+
+export const API_ROUTES = {
+  ...HOST_API_ROUTES,
   // Plugin-owned routes auto-merged from META.apiRoutes (see top of
   // file). Each entry is keyed by the plugin's `apiRoutesKey` —
   // currently: `accounting` (POST /api/accounting dispatch).
