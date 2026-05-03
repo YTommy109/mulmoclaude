@@ -18,7 +18,7 @@ const toolDefinition: ToolDefinition = {
   type: "function",
   name: TOOL_NAMES.manageAccounting,
   prompt:
-    "When the user asks to open / view their books, or to record, look up, or summarise journal entries / balances / opening balances, use manageAccounting. Use action='openBook' (with the target bookId) to bring up the full accounting UI; use the specific action (addEntry / getReport / etc.) for narrowly-scoped operations the user asked about by name. On a fresh workspace call 'createBook' — it mounts the new book's view automatically.",
+    "When the user asks to open / view their books, or to record, look up, or summarise journal entries / balances / opening balances, use manageAccounting. Use action='openBook' (with the target bookId) to switch the canvas to a specific existing book; use the specific action (addEntry / getReport / etc.) for narrowly-scoped operations the user asked about by name. On a fresh workspace call 'createBook' — the accounting view picks up the new book automatically (no follow-up 'openBook' needed for this id). Reach for 'openBook' only when switching to a different existing book.",
   description:
     "Manage a double-entry accounting book stored in the workspace file system. Supports multiple books (entities), opening balances for adoption from existing books, journal entries, voiding (append-only — corrections are reversing pairs), and balance-sheet / profit-loss / ledger reports. Action='openBook' mounts the full accounting UI in the canvas (requires bookId); specific actions return compact results that render inline.",
   parameters: {

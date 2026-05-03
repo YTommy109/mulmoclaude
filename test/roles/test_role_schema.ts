@@ -167,6 +167,33 @@ describe("BUILTIN_ROLES", () => {
   });
 });
 
+describe("General role isolation", () => {
+  // Hard regression: the default (General) role must never expose
+  // manageAccounting. The accounting plugin is opt-in via the
+  // built-in Accounting role or any user-defined custom role; if a
+  // refactor of the General role's plugin list silently picked up
+  // the tool name, the original "no built-in default surfaces
+  // accounting" invariant from plans/feat-accounting.md would be
+  // gone. This test is the precise gate that the e2e isolation
+  // spec's text-search proxy was meant to capture (the e2e check
+  // happens to pass for incidental reasons because /roles only
+  // renders custom roles on a fresh workspace).
+  const role = BUILTIN_ROLES.find((entry) => entry.id === "general");
+
+  it("exists in BUILTIN_ROLES", () => {
+    assert.ok(role, "expected a general role in BUILTIN_ROLES");
+  });
+
+  it("does not list manageAccounting in availablePlugins", () => {
+    assert.ok(role);
+    assert.equal(
+      role.availablePlugins.includes("manageAccounting" as never),
+      false,
+      "general.availablePlugins must not include manageAccounting (use the Accounting role instead)",
+    );
+  });
+});
+
 describe("Accounting role", () => {
   // Pins the exact plugin set so a future change has to come through
   // a deliberate edit to this test, not slip in via a routine "add
@@ -189,8 +216,9 @@ describe("Accounting role", () => {
     // The agent's job hinges on asking for the supplier's
     // tax-registration ID on input-tax lines. If a refactor ever
     // strips this guidance the agent will silently start posting
-    // 1310 lines without taxRegistrationId — this test makes that a
-    // build-time failure.
+    // 14xx (Sales Tax Receivable / 仮払消費税) lines without
+    // taxRegistrationId — this test makes that a build-time
+    // failure.
     assert.ok(role);
     assert.match(role.prompt, /インボイス制度/u);
     assert.match(role.prompt, /T-number|taxRegistrationId/u);

@@ -211,13 +211,7 @@ describe("buildLedger", () => {
     // T-number column. The 14xx-band tax-receivable row carries
     // the supplier's ID; the offsetting Cash row doesn't, so its
     // row leaves the field undefined.
-    const purchase = makeEntry({
-      date: "2026-04-01",
-      lines: [
-        { accountCode: "1410", debit: 10, taxRegistrationId: "T1234567890123" },
-        { accountCode: "1000", credit: 10 },
-      ],
-    });
+    const purchase = makePurchaseWithTaxId();
     const taxReceivable: Account = { code: "1410", name: "Sales Tax Receivable", type: "asset" };
     const ledger = buildLedger({ account: taxReceivable, entries: [purchase] });
     assert.equal(ledger.rows.length, 1);
@@ -229,3 +223,13 @@ describe("buildLedger", () => {
     assert.equal(cashLedger.rows[0].taxRegistrationId, undefined);
   });
 });
+
+function makePurchaseWithTaxId() {
+  return makeEntry({
+    date: "2026-04-01",
+    lines: [
+      { accountCode: "1410", debit: 10, taxRegistrationId: "T1234567890123" },
+      { accountCode: "1000", credit: 10 },
+    ],
+  });
+}

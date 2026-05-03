@@ -4,11 +4,13 @@
 // post their first entries, without overwhelming a brand-new user.
 //
 // A second tier of `active: false` entries is included so the user
-// can flip on common-but-not-universal accounts (Inventory, Sales
-// Tax Payable, Travel, Depreciation Expense, …) from Manage
-// Accounts with one click rather than typing them in by hand.
-// Inactive accounts stay hidden from journal entry / ledger
-// dropdowns until the user reactivates them.
+// can flip on common-but-not-universal accounts (Inventory, Travel,
+// Depreciation Expense, …) from Manage Accounts with one click
+// rather than typing them in by hand. Inactive accounts stay
+// hidden from journal entry / ledger dropdowns until the user
+// reactivates them. Tax-related accounts (1410 / 2400) are an
+// exception — they ship active by default since almost every
+// jurisdiction levies a consumption / sales / VAT tax.
 
 import type { Account } from "./types.js";
 
