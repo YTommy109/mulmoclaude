@@ -147,6 +147,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
       date: String(rest.date ?? ""),
       lines: (rest.lines ?? []) as never,
       memo: rest.memo as string | undefined,
+      replacesEntryId: rest.replacesEntryId as string | undefined,
     }),
   [ACCOUNTING_ACTIONS.voidEntry]: (rest) =>
     voidEntry({

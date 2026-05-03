@@ -101,6 +101,12 @@ export interface JournalEntry {
   voidedEntryId?: string;
   /** Reason supplied by the user when voiding. */
   voidReason?: string;
+  /** When this entry was posted via the "edit" flow (void-then-add),
+   *  this is the id of the entry it replaces. The void + new-entry
+   *  pair is *not* atomic on the server — the client issues two
+   *  sequential calls — but recording the link here makes the
+   *  edit chain queryable later (e.g. "what corrected entry X?"). */
+  replacesEntryId?: string;
   /** ISO timestamp the entry was appended to the journal — the
    *  authoritative "when did this hit the books" clock. Distinct
    *  from `date`, which is the user-visible booking date. */

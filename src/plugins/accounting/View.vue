@@ -66,14 +66,17 @@
             :version="bookVersion"
             @changed="bumpLocalVersion"
             @edit-opening="currentTab = 'opening'"
+            @edit-entry="onEditEntry"
           />
           <JournalEntryForm
             v-else-if="currentTab === 'newEntry'"
             :book-id="activeBookId"
             :accounts="accounts"
             :currency="activeCurrency"
+            :entry-to-edit="entryBeingEdited"
             @submitted="onEntrySubmitted"
             @accounts-changed="bumpLocalVersion"
+            @cancel-edit="onCancelEdit"
           />
           <OpeningBalancesForm
             v-else-if="currentTab === 'opening'"
@@ -115,7 +118,7 @@ import Ledger from "./components/Ledger.vue";
 import BalanceSheet from "./components/BalanceSheet.vue";
 import ProfitLoss from "./components/ProfitLoss.vue";
 import BookSettings from "./components/BookSettings.vue";
-import { getOpeningBalances, getAccounts, getBooks, type Account, type BookSummary } from "./api";
+import { getOpeningBalances, getAccounts, getBooks, type Account, type BookSummary, type JournalEntry } from "./api";
 import { useAccountingChannel, useAccountingBooksChannel } from "../../composables/useAccountingChannel";
 
 const { t } = useI18n();
@@ -376,7 +379,25 @@ function onBookSelected(bookId: string): void {
   deletedNoticeName.value = null;
 }
 
+// "Edit" on a normal journal row: stash the entry on the parent,
+// switch to the New Entry tab, let the form prefill from the prop.
+// The actual void + addEntry(replacesEntryId) sequence happens
+// inside the form's submit handler.
+const entryBeingEdited = ref<JournalEntry | null>(null);
+function onEditEntry(entry: JournalEntry): void {
+  entryBeingEdited.value = entry;
+  currentTab.value = "newEntry";
+}
+function onCancelEdit(): void {
+  entryBeingEdited.value = null;
+  currentTab.value = "journal";
+}
+
 function onEntrySubmitted(): void {
+  // Edit mode is implicit on the form via `entryBeingEdited`; we
+  // clear it here so the next visit to "New entry" starts from a
+  // blank draft instead of re-prefilling the just-replaced entry.
+  entryBeingEdited.value = null;
   bumpLocalVersion();
   // After posting an opening or a normal entry, switch to the
   // journal so the user immediately sees what they booked. The
@@ -416,6 +437,13 @@ watch(
   },
   { immediate: true },
 );
+
+// Drop any in-flight "edit this entry" intent when the active
+// book changes, so a switch-mid-edit doesn't carry a stale entry
+// from book A into book B's New Entry form.
+watch(activeBookId, () => {
+  entryBeingEdited.value = null;
+});
 
 // Stash a target bookId that we want to land on but haven't been
 // able to apply yet (book not in `books` at the moment the

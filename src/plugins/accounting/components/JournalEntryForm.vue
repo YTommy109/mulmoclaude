@@ -1,7 +1,9 @@
 <template>
   <form class="flex flex-col gap-3" data-testid="accounting-entry-form" @submit.prevent="onSubmit">
     <div class="flex items-center justify-between gap-2">
-      <h3 class="text-base font-semibold">{{ t("pluginAccounting.entryForm.title") }}</h3>
+      <h3 class="text-base font-semibold">
+        {{ isEditing ? t("pluginAccounting.entryForm.editTitle") : t("pluginAccounting.entryForm.title") }}
+      </h3>
       <button
         type="button"
         class="h-8 px-2.5 flex items-center gap-1 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
@@ -12,6 +14,9 @@
         <span>{{ t("pluginAccounting.accounts.manageButton") }}</span>
       </button>
     </div>
+    <p v-if="isEditing" class="text-xs text-gray-500" data-testid="accounting-entry-edit-banner">
+      {{ t("pluginAccounting.entryForm.editBanner") }}
+    </p>
     <div class="flex flex-wrap gap-3">
       <label class="text-xs text-gray-500 flex flex-col gap-1">
         {{ t("pluginAccounting.entryForm.dateLabel") }}
@@ -109,14 +114,24 @@
     </div>
     <p v-if="error" class="text-xs text-red-500" data-testid="accounting-entry-error">{{ error }}</p>
     <p v-if="successMessage" class="text-xs text-green-600" data-testid="accounting-entry-success">{{ successMessage }}</p>
-    <div class="flex justify-end">
+    <div class="flex justify-end gap-2">
+      <button
+        v-if="isEditing"
+        type="button"
+        class="h-8 px-3 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
+        :disabled="submitting"
+        data-testid="accounting-entry-cancel-edit"
+        @click="emit('cancelEdit')"
+      >
+        {{ t("pluginAccounting.entryForm.cancelEdit") }}
+      </button>
       <button
         type="submit"
         class="h-8 px-3 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:opacity-50"
         :disabled="!balanced || submitting"
         data-testid="accounting-entry-submit"
       >
-        {{ submitting ? t("pluginAccounting.entryForm.submitting") : t("pluginAccounting.entryForm.submit") }}
+        {{ submitButtonLabel }}
       </button>
     </div>
   </form>
@@ -131,7 +146,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { addEntry, type Account, type JournalLine } from "../api";
+import { addEntry, voidEntry, type Account, type JournalEntry, type JournalLine } from "../api";
 import { formatAmount, inputStepFor } from "../currencies";
 import { localDateString } from "../dates";
 import { isTaxAccountCode } from "./accountNumbering";
@@ -139,8 +154,8 @@ import AccountsModal from "./AccountsModal.vue";
 
 const { t } = useI18n();
 
-const props = defineProps<{ bookId: string; accounts: Account[]; currency: string }>();
-const emit = defineEmits<{ submitted: []; accountsChanged: [] }>();
+const props = defineProps<{ bookId: string; accounts: Account[]; currency: string; entryToEdit?: JournalEntry | null }>();
+const emit = defineEmits<{ submitted: []; accountsChanged: []; cancelEdit: [] }>();
 
 const showAccountsModal = ref(false);
 
@@ -191,6 +206,14 @@ const lines = ref<FormLine[]>([blankLine(), blankLine()]);
 const submitting = ref(false);
 const error = ref<string | null>(null);
 const successMessage = ref<string | null>(null);
+
+const isEditing = computed<boolean>(() => Boolean(props.entryToEdit));
+const submitButtonLabel = computed<string>(() => {
+  if (submitting.value) {
+    return isEditing.value ? t("pluginAccounting.entryForm.updating") : t("pluginAccounting.entryForm.submitting");
+  }
+  return isEditing.value ? t("pluginAccounting.entryForm.update") : t("pluginAccounting.entryForm.submit");
+});
 
 function addLine(): void {
   lines.value.push(blankLine());
@@ -288,17 +311,36 @@ async function onSubmit(): Promise<void> {
   error.value = null;
   successMessage.value = null;
   try {
+    // Edit flow: void the original first, then post the replacement.
+    // Two sequential calls — not atomic. If the void succeeds and
+    // the addEntry fails, the original is already gone from the
+    // active set and the user has to retry the post (or re-enter
+    // it manually). The trade-off was chosen explicitly to keep
+    // the server contract simple — no transaction support.
+    const editingId = props.entryToEdit?.id;
+    if (editingId) {
+      const voidResult = await voidEntry({
+        bookId: props.bookId,
+        entryId: editingId,
+        reason: t("pluginAccounting.entryForm.editVoidReason"),
+      });
+      if (!voidResult.ok) {
+        error.value = voidResult.error;
+        return;
+      }
+    }
     const result = await addEntry({
       bookId: props.bookId,
       date: date.value,
       memo: memo.value.trim() || undefined,
       lines: toApiLines(),
+      ...(editingId ? { replacesEntryId: editingId } : {}),
     });
     if (!result.ok) {
       error.value = result.error;
       return;
     }
-    successMessage.value = t("pluginAccounting.entryForm.success");
+    successMessage.value = editingId ? t("pluginAccounting.entryForm.editSuccess") : t("pluginAccounting.entryForm.success");
     lines.value = [blankLine(), blankLine()];
     memo.value = "";
     emit("submitted");
@@ -328,6 +370,40 @@ watch(
     error.value = null;
     successMessage.value = null;
   },
+);
+
+// Edit mode: when the parent hands us an entry to edit, pre-fill
+// every field so the user can tweak and resubmit. When it clears
+// the prop (after submit / cancel / book switch), wipe back to a
+// blank draft so the next "New entry" tab visit is fresh. Mapping
+// `entry.lines` (the wire shape with optional `debit` / `credit`)
+// onto `FormLine` (which uses nullable numbers + a string
+// taxRegistrationId) is straightforward — pad missing optionals
+// to null / "".
+watch(
+  () => props.entryToEdit,
+  (entry) => {
+    error.value = null;
+    successMessage.value = null;
+    if (!entry) {
+      lines.value = [blankLine(), blankLine()];
+      memo.value = "";
+      date.value = localDateString();
+      return;
+    }
+    date.value = entry.date;
+    memo.value = entry.memo ?? "";
+    lines.value = entry.lines.map((line) => ({
+      accountCode: line.accountCode,
+      debit: typeof line.debit === "number" ? line.debit : null,
+      credit: typeof line.credit === "number" ? line.credit : null,
+      taxRegistrationId: line.taxRegistrationId ?? "",
+    }));
+    if (lines.value.length < 2) {
+      while (lines.value.length < 2) lines.value.push(blankLine());
+    }
+  },
+  { immediate: true },
 );
 
 // If an account the user already picked gets deactivated mid-edit

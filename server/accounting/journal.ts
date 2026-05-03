@@ -152,8 +152,14 @@ export function validateEntry(input: { date: string; lines: readonly JournalLine
  *  UUID; createdAt is the wall clock at the moment of creation.
  *  Lines are normalized so optional string fields don't persist as
  *  empty strings. */
-export function makeEntry(input: { date: string; lines: readonly JournalLine[]; memo?: string; kind?: JournalEntry["kind"] }): JournalEntry {
-  return {
+export function makeEntry(input: {
+  date: string;
+  lines: readonly JournalLine[];
+  memo?: string;
+  kind?: JournalEntry["kind"];
+  replacesEntryId?: string;
+}): JournalEntry {
+  const entry: JournalEntry = {
     id: randomUUID(),
     date: input.date,
     kind: input.kind ?? "normal",
@@ -161,6 +167,8 @@ export function makeEntry(input: { date: string; lines: readonly JournalLine[]; 
     memo: input.memo,
     createdAt: new Date().toISOString(),
   };
+  if (input.replacesEntryId) entry.replacesEntryId = input.replacesEntryId;
+  return entry;
 }
 
 /** Pick the most descriptive memo from the original entry to quote
