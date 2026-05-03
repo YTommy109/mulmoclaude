@@ -3,7 +3,7 @@
 // taxRegistrationId input both key off `isTaxAccountCode` (14xx
 // asset / 24xx liability — see
 // src/plugins/accounting/components/accountNumbering.ts), so a
-// regression that moves `1410` or `2400` out of those bands would
+// regression that moves `1400` or `2400` out of those bands would
 // silently break both surfaces for every fresh book.
 
 import { describe, it } from "node:test";
@@ -11,12 +11,12 @@ import assert from "node:assert/strict";
 import { DEFAULT_ACCOUNTS } from "../../server/accounting/defaultAccounts.js";
 
 describe("DEFAULT_ACCOUNTS", () => {
-  it("seeds 1410 Sales Tax Receivable as an active current asset", () => {
-    const account = DEFAULT_ACCOUNTS.find((entry) => entry.code === "1410");
-    assert.ok(account, "1410 missing from default chart");
+  it("seeds 1400 Sales Tax Receivable as an active current asset", () => {
+    const account = DEFAULT_ACCOUNTS.find((entry) => entry.code === "1400");
+    assert.ok(account, "1400 missing from default chart");
     assert.equal(account?.name, "Sales Tax Receivable");
     assert.equal(account?.type, "asset");
-    assert.equal(account?.active, undefined, "1410 should be active by default (active flag omitted)");
+    assert.equal(account?.active, undefined, "1400 should be active by default (active flag omitted)");
   });
 
   it("seeds 2400 Sales Tax Payable as an active current liability", () => {
@@ -42,7 +42,7 @@ describe("DEFAULT_ACCOUNTS", () => {
     // 14xx tax-related band was reserved. The seed should no
     // longer use it; existing books that still hold 1310 are not
     // migrated (per the design call), but new books must land on
-    // 1410.
+    // 1400.
     const legacy = DEFAULT_ACCOUNTS.find((entry) => entry.code === "1310");
     assert.equal(legacy, undefined);
   });

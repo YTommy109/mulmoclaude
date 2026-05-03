@@ -22,6 +22,13 @@
           <option v-for="opt in options" :key="opt.code" :value="opt.code">{{ opt.label }}</option>
         </select>
       </label>
+      <label class="text-sm flex flex-col gap-1">
+        {{ t("pluginAccounting.bookSwitcher.countryLabel") }}
+        <select v-model="country" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white" data-testid="accounting-new-book-country">
+          <option v-for="opt in countryOptions" :key="opt.code" :value="opt.code">{{ opt.label }}</option>
+        </select>
+      </label>
+      <p class="text-xs text-gray-500">{{ t("pluginAccounting.bookSwitcher.countryHint") }}</p>
       <p v-if="error" class="text-xs text-red-500" data-testid="accounting-new-book-error">{{ error }}</p>
       <div class="flex justify-end gap-2 mt-1">
         <button v-if="showCancel" type="button" class="h-8 px-2.5 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-50" @click="onCancel">
@@ -45,8 +52,24 @@ import { computed, nextTick, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { createBook, type BookSummary } from "../api";
 import { SUPPORTED_CURRENCY_CODES, localizedCurrencyName } from "../currencies";
+import { SUPPORTED_COUNTRY_CODES, localizedCountryName } from "../countries";
 
 const { t, locale } = useI18n();
+
+function guessDefaultCountry(): string {
+  // Best-effort: lift the country segment from the active locale
+  // (e.g. "ja-JP" → "JP", "pt-BR" → "BR"). When missing we fall
+  // back to a small map keyed off the language portion. Last-resort
+  // is "US" so the dropdown always has a valid initial value.
+  try {
+    const tag = (typeof navigator !== "undefined" && navigator.language) || "en-US";
+    const { region } = new Intl.Locale(tag).maximize();
+    if (region && (SUPPORTED_COUNTRY_CODES as readonly string[]).includes(region)) return region;
+  } catch {
+    /* fall through */
+  }
+  return "US";
+}
 
 const props = withDefaults(
   defineProps<{
@@ -64,6 +87,7 @@ const emit = defineEmits<{
 
 const name = ref("");
 const currency = ref<string>("USD");
+const country = ref<string>(guessDefaultCountry());
 const creating = ref(false);
 const error = ref<string | null>(null);
 const nameInput = ref<HTMLInputElement | null>(null);
@@ -85,6 +109,18 @@ const options = computed<CurrencyOption[]>(() =>
   SUPPORTED_CURRENCY_CODES.map((code) => ({
     code,
     label: `${code} — ${localizedCurrencyName(code, locale.value)}`,
+  })),
+);
+
+interface CountryOption {
+  code: string;
+  label: string;
+}
+
+const countryOptions = computed<CountryOption[]>(() =>
+  SUPPORTED_COUNTRY_CODES.map((code) => ({
+    code,
+    label: `${code} — ${localizedCountryName(code, locale.value)}`,
   })),
 );
 
@@ -114,7 +150,7 @@ async function onSubmit(): Promise<void> {
   creating.value = true;
   error.value = null;
   try {
-    const result = await createBook({ name: name.value.trim(), currency: currency.value });
+    const result = await createBook({ name: name.value.trim(), currency: currency.value, country: country.value });
     if (!result.ok) {
       error.value = result.error;
       return;

@@ -122,7 +122,10 @@ export async function listBooks(workspaceRoot?: string): Promise<{ books: BookSu
   return { books: config.books };
 }
 
-export async function createBook(input: { id?: string; name: string; currency?: string }, workspaceRoot?: string): Promise<{ book: BookSummary }> {
+export async function createBook(
+  input: { id?: string; name: string; currency?: string; country?: string },
+  workspaceRoot?: string,
+): Promise<{ book: BookSummary }> {
   if (typeof input.name !== "string" || input.name.trim() === "") {
     throw new AccountingError(400, "name is required");
   }
@@ -149,6 +152,7 @@ export async function createBook(input: { id?: string; name: string; currency?: 
     id: bookId,
     name: input.name,
     currency: input.currency ?? DEFAULT_CURRENCY,
+    ...(input.country ? { country: input.country } : {}),
     createdAt: new Date().toISOString(),
   };
   await ensureBookDir(bookId, workspaceRoot);
@@ -157,6 +161,34 @@ export async function createBook(input: { id?: string; name: string; currency?: 
   await writeConfig(nextConfig, workspaceRoot);
   publishBooksChanged();
   return { book };
+}
+
+export async function updateBook(input: { bookId: string; name?: string; country?: string }, workspaceRoot?: string): Promise<{ book: BookSummary }> {
+  const config = await loadOrInitConfig(workspaceRoot);
+  const target = findBook(config, input.bookId);
+  if (!target) {
+    throw new AccountingError(404, `book ${JSON.stringify(input.bookId)} not found`);
+  }
+  if (input.name !== undefined && (typeof input.name !== "string" || input.name.trim() === "")) {
+    throw new AccountingError(400, "name must be a non-empty string when supplied");
+  }
+  // Currency intentionally absent — once entries reference per-book
+  // amounts, switching currency would silently re-interpret every
+  // historical figure. Country / name are pure metadata; safe to swap.
+  const next: BookSummary = {
+    ...target,
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.country !== undefined ? (input.country === "" ? { country: undefined } : { country: input.country }) : {}),
+  };
+  // Strip an explicitly-cleared country so the JSON file stays clean
+  // (matches the createBook policy of omitting the field when unset).
+  if (input.country === "") delete (next as { country?: string }).country;
+  const nextConfig: AccountingConfig = {
+    books: config.books.map((book) => (book.id === input.bookId ? next : book)),
+  };
+  await writeConfig(nextConfig, workspaceRoot);
+  publishBooksChanged();
+  return { book: next };
 }
 
 export async function deleteBook(

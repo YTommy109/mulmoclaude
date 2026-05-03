@@ -8,7 +8,7 @@
 // Depreciation Expense, …) from Manage Accounts with one click
 // rather than typing them in by hand. Inactive accounts stay
 // hidden from journal entry / ledger dropdowns until the user
-// reactivates them. Tax-related accounts (1410 / 2400) are an
+// reactivates them. Tax-related accounts (1400 / 2400) are an
 // exception — they ship active by default since almost every
 // jurisdiction levies a consumption / sales / VAT tax.
 
@@ -34,7 +34,7 @@ export const DEFAULT_ACCOUNTS: readonly Account[] = [
   // an opt-in step. Active by default — most jurisdictions levy a
   // consumption / sales / VAT tax; tax-free contexts can
   // deactivate from Manage Accounts.
-  { code: "1410", name: "Sales Tax Receivable", type: "asset" },
+  { code: "1400", name: "Sales Tax Receivable", type: "asset" },
   { code: "1500", name: "Equipment", type: "asset" },
   { code: "1510", name: "Furniture & Fixtures", type: "asset", active: false },
   { code: "1520", name: "Vehicles", type: "asset", active: false },
@@ -45,7 +45,7 @@ export const DEFAULT_ACCOUNTS: readonly Account[] = [
   { code: "2200", name: "Loans Payable", type: "liability" },
   { code: "2300", name: "Accrued Expenses", type: "liability", active: false },
   // 24xx is the reserved "tax-related current liabilities" band;
-  // pairs with 14xx on the asset side. See the 1410 comment above.
+  // pairs with 14xx on the asset side. See the 1400 comment above.
   { code: "2400", name: "Sales Tax Payable", type: "liability" },
   { code: "2500", name: "Payroll Liabilities", type: "liability", active: false },
   // Equity

@@ -571,7 +571,14 @@ const ptBRMessages = {
       create: "Criar",
       nameLabel: "Nome",
       currencyLabel: "Moeda",
-      firstRunHint: "Escolha o nome e a moeda do seu primeiro livro. A moeda é definida por livro e fica difícil alterar depois de começar a lançar.",
+      countryLabel: "País",
+      countryHint: "O país define a jurisdição fiscal para que o assistente possa dar conselhos específicos (T-number no Japão, ID de IVA na UE, etc.).",
+      placeholder: "Selecione um livro…",
+      firstRunHint: "Escolha o nome, a moeda e o país do seu primeiro livro. A moeda é definida por livro e fica difícil alterar depois de começar a lançar.",
+    },
+    deletedNotice: {
+      title: "“{bookName}” foi excluído.",
+      body: "Selecione outro livro no menu acima ou crie um novo.",
     },
     journalList: {
       fromLabel: "De",
@@ -697,6 +704,11 @@ const ptBRMessages = {
       noteOptional: "(opcional)",
     },
     settings: {
+      bookInfo: "Informações do livro",
+      bookInfoExplain: "Edite o país para atualizar as recomendações conforme a jurisdição fiscal. A moeda não pode ser alterada após registrar lançamentos.",
+      countryUnset: "(não definido)",
+      saveChanges: "Salvar alterações",
+      updateOk: "Livro atualizado.",
       rebuild: "Reconstruir snapshots",
       rebuildExplain: "Apaga todos os snapshots mensais e recalcula a partir do diário. Útil após editar o diário manualmente.",
       rebuildOk: "Reconstruído(s) {count} período(s).",

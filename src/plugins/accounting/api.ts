@@ -51,6 +51,10 @@ export interface BookSummary {
   id: string;
   name: string;
   currency: string;
+  /** ISO 3166-1 alpha-2 country code identifying the tax jurisdiction
+   *  the book is kept under. Optional for backward compatibility with
+   *  books created before the field was introduced. */
+  country?: string;
   createdAt: string;
 }
 
@@ -121,8 +125,12 @@ export function getBooks(): Promise<ApiResult<{ books: BookSummary[] }>> {
   return call(ACCOUNTING_ACTIONS.getBooks);
 }
 
-export function createBook(input: { name: string; currency?: string }): Promise<ApiResult<{ book: BookSummary }>> {
+export function createBook(input: { name: string; currency?: string; country?: string }): Promise<ApiResult<{ book: BookSummary }>> {
   return call(ACCOUNTING_ACTIONS.createBook, input);
+}
+
+export function updateBook(input: { bookId: string; name?: string; country?: string }): Promise<ApiResult<{ book: BookSummary }>> {
+  return call(ACCOUNTING_ACTIONS.updateBook, input);
 }
 
 export function deleteBook(bookId: string): Promise<ApiResult<{ deletedBookId: string; deletedBookName: string }>> {

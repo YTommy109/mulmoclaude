@@ -100,7 +100,7 @@ function formatAccountLabel(account: Account): string {
 const selectableAccounts = computed<Account[]>(() => props.accounts.filter((account) => account.active !== false));
 
 // Surface the T-number column when the active account is in the
-// tax-related code band (14xx asset / 24xx liability — e.g. 1410
+// tax-related code band (14xx asset / 24xx liability — e.g. 1400
 // Sales Tax Receivable, 2400 Sales Tax Payable). Convention-driven
 // so any custom account a user adds in the band participates
 // without an opt-in flag.

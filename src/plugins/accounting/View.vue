@@ -12,7 +12,7 @@
           <h2 class="text-lg font-semibold text-gray-800">{{ t("pluginAccounting.title") }}</h2>
         </div>
         <BookSwitcher
-          v-if="!loadingBooks"
+          v-if="initialLoadDone"
           :model-value="activeBookId ?? ''"
           :books="books"
           @update:model-value="onBookSelected"
@@ -26,9 +26,14 @@
           :key="tab.key"
           :class="[
             'h-8 px-2.5 flex items-center gap-1 rounded text-sm whitespace-nowrap',
-            currentTab === tab.key ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600 hover:bg-gray-50',
+            deletedNoticeName !== null
+              ? 'text-gray-400 cursor-not-allowed'
+              : currentTab === tab.key
+                ? 'bg-blue-50 text-blue-600 font-medium'
+                : 'text-gray-600 hover:bg-gray-50',
           ]"
           :data-testid="`accounting-tab-${tab.key}`"
+          :disabled="deletedNoticeName !== null"
           @click="currentTab = tab.key"
         >
           <span class="material-icons text-base">{{ tab.icon }}</span>
@@ -36,7 +41,18 @@
         </button>
       </nav>
       <main class="flex-1 overflow-auto p-4">
-        <p v-if="loadingBooks" class="text-sm text-gray-400">{{ t("pluginAccounting.common.loading") }}</p>
+        <div
+          v-if="deletedNoticeName !== null"
+          class="text-center text-sm text-gray-600 flex flex-col gap-2 items-center justify-center h-full"
+          data-testid="accounting-deleted-notice"
+        >
+          <span class="material-icons text-gray-400" style="font-size: 48px">delete_outline</span>
+          <p class="font-medium" data-testid="accounting-deleted-notice-title">
+            {{ t("pluginAccounting.deletedNotice.title", { bookName: deletedNoticeName }) }}
+          </p>
+          <p class="text-xs text-gray-500">{{ t("pluginAccounting.deletedNotice.body") }}</p>
+        </div>
+        <p v-else-if="loadingBooks && !initialLoadDone" class="text-sm text-gray-400">{{ t("pluginAccounting.common.loading") }}</p>
         <p v-else-if="bookLoadError" class="text-sm text-red-500" data-testid="accounting-load-error">
           {{ t("pluginAccounting.common.error", { error: bookLoadError }) }}
         </p>
@@ -75,6 +91,8 @@
             v-else-if="currentTab === 'settings'"
             :book-id="activeBookId"
             :book-name="activeBookName"
+            :currency="activeCurrency"
+            :country="activeCountry"
             @deleted="onBookDeleted"
             @books-changed="refetchBooks"
           />
@@ -141,6 +159,11 @@ const books = ref<BookSummary[]>([]);
 const activeBookId = ref<string | null>(null);
 const accounts = ref<Account[]>([]);
 const loadingBooks = ref(true);
+// Sticky once the first books fetch lands. Lets the BookSwitcher stay
+// mounted across subsequent refetches (delete, create, pubsub-driven)
+// so the user sees the dropdown smoothly update its selection rather
+// than having the whole component flash in and out via `v-if`.
+const initialLoadDone = ref(false);
 // First-run flow: when the user opens the app on a fresh
 // workspace (zero books), we render NewBookForm in full-page
 // mode in place of the regular chrome (header + tabs + main),
@@ -164,10 +187,20 @@ const localVersion = ref(0);
 // explicit `false` so we don't disable tabs during the cold load
 // while the first getOpeningBalances request is still in flight.
 const hasOpening = ref<boolean | null>(null);
+// Special "you just deleted this book" UI state. When set to a
+// non-null book name, the entire tab strip + main content are
+// replaced by an explicit "<book> has been deleted — pick another
+// from the dropdown" panel. Cleared the moment the user picks a
+// book from the BookSwitcher (or creates a new one). The View does
+// NOT auto-route to books[0] because that hides the fact that the
+// previously-active book is gone — issue #1126 (1) calls this
+// experience "very confusing".
+const deletedNoticeName = ref<string | null>(null);
 
 const activeBook = computed(() => books.value.find((book) => book.id === activeBookId.value) ?? null);
 const activeBookName = computed(() => activeBook.value?.name ?? "");
 const activeCurrency = computed(() => activeBook.value?.currency ?? "USD");
+const activeCountry = computed(() => activeBook.value?.country ?? "");
 
 const { version: pubsubVersion } = useAccountingChannel(activeBookId);
 useAccountingBooksChannel(() => void refetchBooks());
@@ -198,6 +231,12 @@ function pickInitialBookId(): string | null {
 async function refetchBooks(): Promise<void> {
   loadingBooks.value = true;
   bookLoadError.value = null;
+  // Capture the current active book BEFORE the fetch so we can
+  // surface its name in the deleted-notice panel if the fetch
+  // reveals it's gone. Without this snapshot, an SSE-driven refetch
+  // racing ahead of the local deleteBook HTTP response would resolve
+  // with `activeBook` already pointing at a now-stale entry.
+  const previousActive = activeBook.value;
   try {
     const result = await getBooks();
     if (!result.ok) {
@@ -208,8 +247,32 @@ async function refetchBooks(): Promise<void> {
       return;
     }
     books.value = result.data.books;
-    const stillExists = activeBookId.value !== null && books.value.some((book) => book.id === activeBookId.value);
-    if (!stillExists) activeBookId.value = pickInitialBookId();
+    // While the deleted-notice panel is already up, leave activeBookId
+    // alone — the user has to pick the next book themselves via
+    // the BookSwitcher (and onBookSelected then clears the notice).
+    // Otherwise pickInitialBookId would silently re-select books[0]
+    // and undo the entire deletion-state UX.
+    if (deletedNoticeName.value === null) {
+      const stillExists = activeBookId.value !== null && books.value.some((book) => book.id === activeBookId.value);
+      if (!stillExists) {
+        // The active book just disappeared from the server's list.
+        // Race-source possibilities, all converging here:
+        //   • local deleteBook → publishBooksChanged → SSE arrives
+        //     before the HTTP response handler can call onBookDeleted;
+        //   • a sibling tab / LLM tool deleted the book out-of-band.
+        // In all cases the user needs to know what happened — show
+        // the deleted-notice panel keyed off the previously-active
+        // book's name, rather than silently snapping to books[0].
+        // Falls back to the previous pickInitialBookId behaviour only
+        // when there was no active book to lose (cold start).
+        if (previousActive) {
+          activeBookId.value = null;
+          deletedNoticeName.value = previousActive.name;
+        } else {
+          activeBookId.value = pickInitialBookId();
+        }
+      }
+    }
     // Auto-open the New Book modal exactly once on first arrival
     // when the workspace is empty. After that, the user can still
     // open it manually via the "+ New book" button.
@@ -221,6 +284,7 @@ async function refetchBooks(): Promise<void> {
     bookLoadError.value = err instanceof Error ? err.message : String(err);
   } finally {
     loadingBooks.value = false;
+    initialLoadDone.value = true;
   }
 }
 
@@ -251,6 +315,15 @@ async function onBookCreated(book: BookSummary): Promise<void> {
     books.value = [...books.value, book];
   }
   activeBookId.value = book.id;
+  // Creating a new book is also the "exit" out of the deleted-notice
+  // panel — the user explicitly chose the new book, so re-enable the
+  // tab strip and let the opening-gate watcher route them to Opening.
+  deletedNoticeName.value = null;
+  // currentTab may be on "settings" (the user opened the create
+  // modal from there) — reset to journal so the openingGateActive
+  // watcher's "if (currentTab.value === 'opening') return" gate
+  // doesn't strand the user on settings while the gate is active.
+  currentTab.value = "journal";
   await refetchBooks();
 }
 
@@ -291,6 +364,10 @@ const visibleTabs = computed<readonly TabDef[]>(() => {
 
 function onBookSelected(bookId: string): void {
   activeBookId.value = bookId;
+  // Picking a book from the dropdown is the explicit "I'm done
+  // looking at the deleted notice" exit. Clear it so the tab strip
+  // re-enables for the freshly selected book.
+  deletedNoticeName.value = null;
 }
 
 function onEntrySubmitted(): void {
@@ -305,12 +382,18 @@ function onEntrySubmitted(): void {
   }
 }
 
-async function onBookDeleted(): Promise<void> {
+async function onBookDeleted(deletedName: string): Promise<void> {
   // Reset the tab BEFORE awaiting so a fast delete-then-create
   // can't race: if the new book's gate engages while we're still
   // awaiting refetchBooks, the gate watcher needs to see a
   // non-"settings" currentTab to route the user to Opening.
   currentTab.value = "journal";
+  // Drop the active selection so refetchBooks doesn't auto-pick
+  // books[0] — the user should see the deleted-notice panel and
+  // explicitly switch via the BookSwitcher rather than be silently
+  // moved to a different book (issue #1126).
+  activeBookId.value = null;
+  deletedNoticeName.value = deletedName;
   await refetchBooks();
 }
 

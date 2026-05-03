@@ -1,6 +1,40 @@
 <template>
   <div class="flex flex-col gap-4" data-testid="accounting-settings">
     <section class="border border-gray-200 rounded p-3 flex flex-col gap-2">
+      <h4 class="text-sm font-semibold">{{ t("pluginAccounting.settings.bookInfo") }}</h4>
+      <p class="text-xs text-gray-500">{{ t("pluginAccounting.settings.bookInfoExplain") }}</p>
+      <dl class="text-xs text-gray-700 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1">
+        <dt class="text-gray-500">{{ t("pluginAccounting.bookSwitcher.nameLabel") }}</dt>
+        <dd>{{ bookName }}</dd>
+        <dt class="text-gray-500">{{ t("pluginAccounting.bookSwitcher.currencyLabel") }}</dt>
+        <dd>{{ currency }}</dd>
+      </dl>
+      <label class="text-sm flex flex-col gap-1 mt-1">
+        {{ t("pluginAccounting.bookSwitcher.countryLabel") }}
+        <select
+          v-model="selectedCountry"
+          class="h-8 px-2 rounded border border-gray-300 text-sm bg-white"
+          data-testid="accounting-settings-country"
+          :disabled="updating"
+        >
+          <option value="">{{ t("pluginAccounting.settings.countryUnset") }}</option>
+          <option v-for="opt in countryOptions" :key="opt.code" :value="opt.code">{{ opt.label }}</option>
+        </select>
+      </label>
+      <p v-if="updateOk" class="text-xs text-green-600" data-testid="accounting-settings-update-ok">{{ updateOk }}</p>
+      <p v-if="updateError" class="text-xs text-red-500" data-testid="accounting-settings-update-error">{{ updateError }}</p>
+      <div>
+        <button
+          class="h-8 px-3 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:opacity-50"
+          :disabled="updating || selectedCountry === (country ?? '')"
+          data-testid="accounting-settings-save"
+          @click="onSaveCountry"
+        >
+          {{ updating ? t("pluginAccounting.common.loading") : t("pluginAccounting.settings.saveChanges") }}
+        </button>
+      </div>
+    </section>
+    <section class="border border-gray-200 rounded p-3 flex flex-col gap-2">
       <h4 class="text-sm font-semibold">{{ t("pluginAccounting.settings.rebuild") }}</h4>
       <p class="text-xs text-gray-500">{{ t("pluginAccounting.settings.rebuildExplain") }}</p>
       <p v-if="rebuildOk" class="text-xs text-green-600" data-testid="accounting-settings-rebuild-ok">{{ rebuildOk }}</p>
@@ -39,14 +73,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { deleteBook, rebuildSnapshots } from "../api";
+import { deleteBook, rebuildSnapshots, updateBook } from "../api";
+import { SUPPORTED_COUNTRY_CODES, localizedCountryName } from "../countries";
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
-const props = defineProps<{ bookId: string; bookName: string }>();
-const emit = defineEmits<{ deleted: []; "books-changed": [] }>();
+const props = defineProps<{ bookId: string; bookName: string; currency: string; country?: string }>();
+const emit = defineEmits<{ deleted: [bookName: string]; "books-changed": [] }>();
 
 const rebuilding = ref(false);
 const rebuildOk = ref<string | null>(null);
@@ -54,6 +89,22 @@ const rebuildError = ref<string | null>(null);
 const deleting = ref(false);
 const deleteError = ref<string | null>(null);
 const confirmName = ref("");
+const updating = ref(false);
+const updateOk = ref<string | null>(null);
+const updateError = ref<string | null>(null);
+const selectedCountry = ref<string>(props.country ?? "");
+
+interface CountryOption {
+  code: string;
+  label: string;
+}
+
+const countryOptions = computed<CountryOption[]>(() =>
+  SUPPORTED_COUNTRY_CODES.map((code) => ({
+    code,
+    label: `${code} — ${localizedCountryName(code, locale.value)}`,
+  })),
+);
 
 async function onRebuild(): Promise<void> {
   rebuilding.value = true;
@@ -71,6 +122,24 @@ async function onRebuild(): Promise<void> {
   }
 }
 
+async function onSaveCountry(): Promise<void> {
+  if (updating.value) return;
+  updating.value = true;
+  updateOk.value = null;
+  updateError.value = null;
+  try {
+    const result = await updateBook({ bookId: props.bookId, country: selectedCountry.value });
+    if (!result.ok) {
+      updateError.value = result.error;
+      return;
+    }
+    updateOk.value = t("pluginAccounting.settings.updateOk");
+    emit("books-changed");
+  } finally {
+    updating.value = false;
+  }
+}
+
 async function onDelete(): Promise<void> {
   if (deleting.value) return;
   deleting.value = true;
@@ -81,7 +150,7 @@ async function onDelete(): Promise<void> {
       deleteError.value = result.error;
       return;
     }
-    emit("deleted");
+    emit("deleted", props.bookName);
     emit("books-changed");
   } finally {
     deleting.value = false;
@@ -97,6 +166,15 @@ watch(
     rebuildError.value = null;
     deleteError.value = null;
     confirmName.value = "";
+    updateOk.value = null;
+    updateError.value = null;
+  },
+);
+
+watch(
+  () => props.country,
+  (next) => {
+    selectedCountry.value = next ?? "";
   },
 );
 </script>

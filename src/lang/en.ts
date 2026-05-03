@@ -594,7 +594,15 @@ const enMessages = {
       create: "Create",
       nameLabel: "Name",
       currencyLabel: "Currency",
-      firstRunHint: "Pick a name and currency for your first book. The currency is set per-book and is hard to change once you start booking entries.",
+      countryLabel: "Country",
+      countryHint: "The country sets the tax jurisdiction so the assistant can give country-specific advice (T-number for Japan, VAT ID for the EU, etc.).",
+      placeholder: "Pick a book…",
+      firstRunHint:
+        "Pick a name, currency, and country for your first book. The currency is set per-book and is hard to change once you start booking entries.",
+    },
+    deletedNotice: {
+      title: '"{bookName}" has been deleted.',
+      body: "Pick another book from the dropdown above, or create a new one.",
     },
     journalList: {
       fromLabel: "From",
@@ -694,6 +702,11 @@ const enMessages = {
       noteOptional: "(optional)",
     },
     settings: {
+      bookInfo: "Book information",
+      bookInfoExplain: "Edit the country to update tax-jurisdiction-specific advice. Currency cannot be changed once entries are booked.",
+      countryUnset: "(not set)",
+      saveChanges: "Save changes",
+      updateOk: "Book updated.",
       rebuild: "Rebuild snapshots",
       rebuildExplain: "Drops every cached monthly snapshot and recomputes them from the journal. Safe to run; useful after editing journal files by hand.",
       rebuildOk: "Rebuilt {count} period(s).",

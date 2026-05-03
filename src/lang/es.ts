@@ -578,8 +578,15 @@ const esMessages = {
       create: "Crear",
       nameLabel: "Nombre",
       currencyLabel: "Moneda",
+      countryLabel: "País",
+      countryHint: "El país define la jurisdicción fiscal para que el asistente pueda dar consejos específicos (T-number en Japón, ID de IVA en la UE, etc.).",
+      placeholder: "Elige un libro…",
       firstRunHint:
-        "Elige el nombre y la moneda de tu primer libro. La moneda se fija por libro y es difícil cambiarla una vez que empieces a registrar asientos.",
+        "Elige el nombre, la moneda y el país de tu primer libro. La moneda se fija por libro y es difícil cambiarla una vez que empieces a registrar asientos.",
+    },
+    deletedNotice: {
+      title: "“{bookName}” se ha eliminado.",
+      body: "Elige otro libro en el desplegable de arriba o crea uno nuevo.",
     },
     journalList: {
       fromLabel: "Desde",
@@ -705,6 +712,12 @@ const esMessages = {
       noteOptional: "(opcional)",
     },
     settings: {
+      bookInfo: "Información del libro",
+      bookInfoExplain:
+        "Edita el país para actualizar los consejos según la jurisdicción fiscal. La moneda no puede cambiarse una vez registrados los asientos.",
+      countryUnset: "(sin definir)",
+      saveChanges: "Guardar cambios",
+      updateOk: "Libro actualizado.",
       rebuild: "Reconstruir snapshots",
       rebuildExplain: "Borra todos los snapshots mensuales y los recalcula desde el diario. Útil tras editar el diario a mano.",
       rebuildOk: "Reconstruidos {count} período(s).",

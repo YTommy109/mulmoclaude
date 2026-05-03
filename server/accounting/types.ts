@@ -41,6 +41,13 @@ export interface BookSummary {
   /** ISO 4217 (e.g. "USD" / "JPY"). Single-currency per book — no
    *  cross-book aggregation. */
   currency: string;
+  /** ISO 3166-1 alpha-2 country code (e.g. "US" / "JP" / "GB").
+   *  Identifies the tax jurisdiction the book is kept under so the
+   *  Accounting role can give country-aware advice (Japanese T-number
+   *  under インボイス制度, EU VAT ID, GSTIN, ABN, etc.). Optional for
+   *  backward compatibility with books created before the field was
+   *  introduced; the UI / role prompts existing books to set it. */
+  country?: string;
   createdAt: string;
 }
 
