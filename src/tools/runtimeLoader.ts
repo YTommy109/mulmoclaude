@@ -14,11 +14,12 @@
 // Failures don't abort boot — a single broken plugin logs a warning
 // and the rest of the app starts normally.
 
-import { reactive } from "vue";
+import { defineComponent, h, markRaw, reactive } from "vue";
 import type { Component } from "vue";
 import type { ToolDefinition } from "gui-chat-protocol";
 import { apiGet } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
+import PluginScopedRoot from "../components/PluginScopedRoot.vue";
 import type { PluginEntry } from "./types";
 
 interface RuntimePluginListing {
@@ -93,10 +94,35 @@ async function loadOne(listing: RuntimePluginListing): Promise<void> {
   }
   const entry: PluginEntry = {
     toolDefinition: plugin.toolDefinition,
-    viewComponent: plugin.viewComponent,
-    previewComponent: plugin.previewComponent,
+    viewComponent: wrapWithScopedRoot(plugin.viewComponent, listing.name),
+    previewComponent: wrapWithScopedRoot(plugin.previewComponent, listing.name),
   };
   runtimeRegistry.set(listing.toolName, entry);
+}
+
+/** Wrap a plugin's component in `<PluginScopedRoot>` so descendants can
+ *  pick up the per-plugin BrowserPluginRuntime via `useRuntime()` from
+ *  `gui-chat-protocol/vue` (#1110). The wrapper forwards every prop /
+ *  attr / slot through to the inner component, so the host's render
+ *  path stays unchanged.
+ *
+ *  Returns `undefined` when the plugin doesn't export the slot — the
+ *  host's `getPlugin()` consumer treats absence as "no preview" /
+ *  "no view". */
+function wrapWithScopedRoot(inner: Component | undefined, pkgName: string): Component | undefined {
+  if (!inner) return undefined;
+  // `markRaw` so the host's reactive `runtimeRegistry` doesn't try to
+  // proxy the component object — Vue warns + the proxy can interfere
+  // with internal component identity tracking.
+  return markRaw(
+    defineComponent({
+      name: `RuntimePluginScope:${pkgName}`,
+      inheritAttrs: false,
+      setup(_props, { attrs, slots }) {
+        return () => h(PluginScopedRoot, { pkgName }, () => h(inner, attrs, slots));
+      },
+    }),
+  );
 }
 
 /** Fetch the install list and dynamic-import each plugin in parallel.

@@ -22,7 +22,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import type { ToolDefinition } from "gui-chat-protocol";
+import type { PluginRuntime, ToolDefinition } from "gui-chat-protocol";
+import { isPluginFactory } from "gui-chat-protocol";
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
 import { readLedger, type LedgerEntry } from "../utils/files/plugins-io.js";
 import { log } from "../system/logger/index.js";
@@ -130,12 +131,95 @@ function readPackageJson(cachePath: string): PackageJson | null {
   }
 }
 
+/** Optional per-plugin runtime factory (#1110). When provided, plugins
+ *  whose `dist/index.js` exports a factory via `export default
+ *  definePlugin(...)` get the constructed runtime injected at load
+ *  time. When omitted, factory plugins are loaded with a stub runtime
+ *  whose handler call throws — fine for the MCP child process which
+ *  only needs `TOOL_DEFINITION` for `tools/list`; not OK for the
+ *  parent server which actually invokes the handler. The parent
+ *  always passes `runtimeFactory`; the child does not. */
+export interface LoaderDeps {
+  runtimeFactory?: (pkgName: string) => PluginRuntime;
+}
+
+/** Stub runtime — the factory pattern requires SOME runtime to call,
+ *  even if we only care about extracting `TOOL_DEFINITION`. Methods
+ *  throw rather than silently no-op so a plugin that mistakenly does
+ *  I/O at setup time fails loudly during boot instead of at first
+ *  call. */
+function makeStubRuntime(name: string): PluginRuntime {
+  const error = (operation: string) => () => {
+    throw new Error(`plugin/${name}: runtime.${operation} unavailable in this process (definition-only load)`);
+  };
+  const fileOps = {
+    read: error("files.read"),
+    readBytes: error("files.readBytes"),
+    write: error("files.write"),
+    readDir: error("files.readDir"),
+    stat: error("files.stat"),
+    exists: error("files.exists"),
+    unlink: error("files.unlink"),
+  };
+  return {
+    pubsub: { publish: () => undefined },
+    locale: "en",
+    files: { data: fileOps, config: fileOps },
+    log: { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined },
+    fetch: error("fetch") as unknown as PluginRuntime["fetch"],
+    fetchJson: error("fetchJson") as unknown as PluginRuntime["fetchJson"],
+    notify: () => undefined,
+  };
+}
+
+/** Two carrier shapes (#1110 backward compatibility):
+ *
+ *   1. **Factory** (`export default definePlugin(setup)`) — `mod.default`
+ *      is a function. Call it with the plugin's runtime; the return
+ *      value carries `TOOL_DEFINITION` and the handler keyed by
+ *      `TOOL_DEFINITION.name`. Closure over runtime gives the handler
+ *      access to scoped pubsub / files / log without per-call context
+ *      threading.
+ *   2. **Legacy** (`export const TOOL_DEFINITION = ...; export async
+ *      function <name>(context, args) ...`) — `mod.TOOL_DEFINITION` and
+ *      `mod[<name>]` directly. Continues to work; existing
+ *      @gui-chat-plugin packages don't need to migrate.
+ */
+function resolveCarrier(name: string, mod: Record<string, unknown>, deps: LoaderDeps): { carrier: Record<string, unknown>; usingFactory: boolean } {
+  const defaultExport = mod.default;
+  if (isPluginFactory(defaultExport)) {
+    const runtime = deps.runtimeFactory ? deps.runtimeFactory(name) : makeStubRuntime(name);
+    return { carrier: defaultExport(runtime) as unknown as Record<string, unknown>, usingFactory: true };
+  }
+  return { carrier: mod, usingFactory: false };
+}
+
+/** Pull the executable from a carrier. Factory-shape handlers take
+ *  `(args)` only (runtime is closed over) so we wrap to discard the
+ *  legacy `context` arg the dispatch route passes. Legacy-shape
+ *  handlers keep the `(context, args)` signature unchanged. Returns
+ *  null when no function is exported under `definition.name` — the
+ *  plugin still appears in `tools/list` but dispatch logs + 500s. */
+function resolveExecute(
+  carrier: Record<string, unknown>,
+  definitionName: string,
+  usingFactory: boolean,
+): ((context: unknown, args: unknown) => unknown) | null {
+  const handler = carrier[definitionName];
+  if (typeof handler !== "function") return null;
+  if (usingFactory) {
+    const factoryHandler = handler as (args: unknown) => unknown;
+    return (_context, args) => factoryHandler(args);
+  }
+  return handler as (context: unknown, args: unknown) => unknown;
+}
+
 /** Load a plugin from an already-extracted cache directory. Pure
  *  function — accepts paths explicitly, so tests don't need a real
  *  workspace. Returns null on any structural failure (missing
  *  package.json, missing TOOL_DEFINITION, broken import); the caller
  *  treats nulls as "skip". */
-export async function loadPluginFromCacheDir(name: string, version: string, cachePath: string): Promise<RuntimePlugin | null> {
+export async function loadPluginFromCacheDir(name: string, version: string, cachePath: string, deps: LoaderDeps = {}): Promise<RuntimePlugin | null> {
   const pkg = readPackageJson(cachePath);
   if (!pkg) return null;
   const entrySpec = resolveEntrySpecifier(pkg);
@@ -146,22 +230,19 @@ export async function loadPluginFromCacheDir(name: string, version: string, cach
   const entryAbs = path.join(cachePath, entrySpec);
   try {
     const mod = (await import(pathToFileURL(entryAbs).href)) as Record<string, unknown>;
-    const definition = mod.TOOL_DEFINITION;
+    const { carrier, usingFactory } = resolveCarrier(name, mod, deps);
+    const definition = carrier.TOOL_DEFINITION;
     if (!isToolDefinition(definition)) {
-      log.warn(LOG_PREFIX, "no TOOL_DEFINITION export — skipping", { name, entrySpec });
+      log.warn(LOG_PREFIX, "no TOOL_DEFINITION export — skipping", { name, entrySpec, shape: usingFactory ? "factory" : "legacy" });
       return null;
     }
-    // The @gui-chat-plugin convention: the server-side handler is
-    // exported under the same key as `TOOL_DEFINITION.name` (weather
-    // → `fetchWeather`, browse → `browse`, camera → `takePhoto`).
-    // Captured here so the dispatch route doesn't have to re-import
-    // the module on every call. A missing handler is non-fatal — the
-    // plugin still appears in tools/list but the dispatch will fail
-    // with a clear server log + 500.
-    const handler = mod[definition.name];
-    const execute = typeof handler === "function" ? (handler as (context: unknown, args: unknown) => unknown) : null;
+    const execute = resolveExecute(carrier, definition.name, usingFactory);
     if (!execute) {
-      log.warn(LOG_PREFIX, "no execute handler matching TOOL_DEFINITION.name — dispatch will fail", { name, expectedExport: definition.name });
+      log.warn(LOG_PREFIX, "no execute handler matching TOOL_DEFINITION.name — dispatch will fail", {
+        name,
+        expectedExport: definition.name,
+        shape: usingFactory ? "factory" : "legacy",
+      });
     }
     return { name, version, cachePath, definition, execute };
   } catch (err) {
@@ -183,7 +264,7 @@ export function ensureInsideBase(candidate: string, base: string): boolean {
   return resolvedCandidate === resolvedBase || resolvedCandidate.startsWith(resolvedBase + path.sep);
 }
 
-async function loadOne(entry: LedgerEntry): Promise<RuntimePlugin | null> {
+async function loadOne(entry: LedgerEntry, deps: LoaderDeps = {}): Promise<RuntimePlugin | null> {
   const tgzAbs = path.join(WORKSPACE_PATHS.plugins, entry.tgz);
   const cachePath = path.join(WORKSPACE_PATHS.pluginCache, entry.name, entry.version);
   // Anchor checks BEFORE any disk probe (`existsSync` / `realpath`).
@@ -216,18 +297,23 @@ async function loadOne(entry: LedgerEntry): Promise<RuntimePlugin | null> {
       return null;
     }
   }
-  return loadPluginFromCacheDir(entry.name, entry.version, cachePath);
+  return loadPluginFromCacheDir(entry.name, entry.version, cachePath, deps);
 }
 
 /** Read the ledger and load every healthy plugin. Returns the loaded
  *  set; failures are logged and silently skipped (see module
- *  comment). */
-export async function loadRuntimePlugins(): Promise<RuntimePlugin[]> {
+ *  comment).
+ *
+ *  Pass `deps.runtimeFactory` from the parent server so factory-shape
+ *  plugins (`export default definePlugin(...)`) get a real runtime.
+ *  The MCP child can call without deps — its only consumer is
+ *  `tools/list` which needs `TOOL_DEFINITION` only. */
+export async function loadRuntimePlugins(deps: LoaderDeps = {}): Promise<RuntimePlugin[]> {
   const entries = readLedger();
   if (entries.length === 0) return [];
   const loaded: RuntimePlugin[] = [];
   for (const entry of entries) {
-    const plugin = await loadOne(entry);
+    const plugin = await loadOne(entry, deps);
     if (plugin) loaded.push(plugin);
   }
   log.info(LOG_PREFIX, "loaded", { requested: entries.length, succeeded: loaded.length });

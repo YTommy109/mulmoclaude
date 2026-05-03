@@ -36,6 +36,8 @@ describe("WORKSPACE_DIRS expected keys", () => {
     "news",
     "pluginCache",
     "plugins",
+    "pluginsConfig",
+    "pluginsData",
     "roles",
     "scheduler",
     "searches",

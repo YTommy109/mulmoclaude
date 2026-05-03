@@ -170,16 +170,200 @@ The plugin's tool name must NOT collide with any static MCP tool or any other ru
 
 ## How to write a plugin
 
-Use [`gui-chat-protocol`](https://www.npmjs.com/package/gui-chat-protocol) — see [`@gui-chat-plugin/weather`](https://www.npmjs.com/package/@gui-chat-plugin/weather) for a reference shape:
+There are two supported plugin shapes. **For new plugins prefer the factory shape** — it gives the plugin a scoped `runtime` with `pubsub` / `files` / `log` / `fetch` / `notify` and lets the host enforce per-plugin namespaces. The legacy shape stays supported so existing `@gui-chat-plugin/*` packages keep working without changes.
 
-- `TOOL_DEFINITION` (the MCP tool schema)
-- `executeWeather` (server-side handler — runs when the LLM calls the tool)
-- `plugin.viewComponent` / `plugin.previewComponent` (Vue components for the canvas / message preview)
+### Factory shape (recommended, requires `gui-chat-protocol@^0.3`)
 
-The package's `dist/index.js` is what the server dynamic-imports for `TOOL_DEFINITION`; `dist/vue.js` is what the browser dynamic-imports for the components. Both must be pre-bundled (no bare imports beyond `vue`, which is resolved via importmap to the host's Vue instance).
+```ts
+// src/index.ts — server side
+import { definePlugin } from "gui-chat-protocol";
+import { z } from "zod";
+
+const Args = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("save"), payload: z.unknown() }),
+  z.object({ kind: z.literal("load") }),
+]);
+
+export default definePlugin(({ pubsub, files, log }) => ({
+  TOOL_DEFINITION: {
+    type: "function",
+    name: "myTool",
+    description: "…",
+    parameters: { type: "object", properties: { /* … */ }, required: ["kind"] },
+  },
+  async myTool(rawArgs: unknown) {
+    const args = Args.parse(rawArgs);
+    switch (args.kind) {
+      case "save": {
+        await files.data.write("state.json", JSON.stringify(args.payload));
+        pubsub.publish("changed", {});
+        log.info("state saved");
+        return { ok: true };
+      }
+      case "load":
+        return { ok: true, state: (await files.data.exists("state.json"))
+          ? JSON.parse(await files.data.read("state.json"))
+          : null };
+      default: {
+        const exhaustive: never = args;
+        throw new Error(`unknown kind: ${JSON.stringify(exhaustive)}`);
+      }
+    }
+  },
+}));
+```
+
+```vue
+<!-- src/View.vue — browser side -->
+<script setup lang="ts">
+import { onMounted, onUnmounted, ref } from "vue";
+import { useRuntime } from "gui-chat-protocol/vue";
+
+const { pubsub, openUrl, locale } = useRuntime();
+
+const items = ref<{ id: string; url: string }[]>([]);
+
+let unsub: (() => void) | undefined;
+onMounted(() => {
+  unsub = pubsub.subscribe("changed", () => { /* refetch */ });
+});
+onUnmounted(() => unsub?.());
+</script>
+```
+
+> **`<script setup>` ref-unwrap gotcha**: top-level refs (including any `ComputedRef` you return from a composable like `useT()`) are **auto-unwrapped** in the template. Write `{{ t.title }}`, never `{{ t.value.title }}` — the latter compiles to `unref(t).value.title` (double unwrap = `undefined.value.title` at runtime).
+
+The `setup` function passed to `definePlugin` runs **once** at plugin load. Destructure the runtime in the closure and reference `pubsub` / `files` / etc. as bare names from inside handlers — no `context.` threading per call. The setup must NOT do real I/O (`await files.data.read(...)` etc.) at top level; only define handlers that do I/O when called.
+
+The factory pattern's per-plugin scoping (closure over `pkgName`) is what makes the namespace enforcement structural rather than convention-based — the plugin literally cannot spell another plugin's pubsub channel or write into another plugin's data dir through the API.
+
+### Legacy shape (`@gui-chat-plugin/weather` and friends)
+
+```ts
+// src/index.ts
+export const TOOL_DEFINITION = { type: "function", name: "fetchWeather", description: "…", parameters: { /* … */ } };
+export async function fetchWeather(_context: unknown, args: { city: string }) { /* … */ }
+```
+
+The package's `dist/index.js` is what the server dynamic-imports for `TOOL_DEFINITION`; `dist/vue.js` is what the browser dynamic-imports for the components. Both must be pre-bundled (no bare imports beyond `vue` and `gui-chat-protocol*`, which the host resolves via importmap / its own `node_modules`).
+
+### Reference plugin
+
+[`packages/bookmarks-plugin/`](../packages/bookmarks-plugin/) is a small (~70-line server / ~50-line View) reference plugin built on the factory shape. It exercises every API surface — pubsub publish + subscribe, `files.data` for the bookmarks JSON, `files.config` for sort prefs, locale-aware view text, Zod-discriminated args with exhaustive switch. Read this before writing your first plugin.
+
+## API reference (factory shape)
+
+```ts
+interface PluginRuntime {
+  pubsub: { publish<T>(eventName: string, payload: T): void };
+  locale: string;                                    // host snapshot at plugin load time
+  files:  { data: FileOps; config: FileOps };        // see below
+  log:    { debug; info; warn; error };              // (msg, data?) → void
+  fetch:  (url, opts?: PluginFetchOptions) => Promise<Response>;
+  fetchJson: <T>(url, opts?: PluginFetchJsonOptions<T>) => Promise<T>;
+  notify: (msg: { title; body?; level? }) => void;   // → host notifications channel
+}
+
+interface FileOps {
+  read(rel): Promise<string>;
+  readBytes(rel): Promise<Uint8Array>;
+  write(rel, content): Promise<void>;                // atomic
+  readDir(rel): Promise<string[]>;
+  stat(rel): Promise<{ mtimeMs; size }>;
+  exists(rel): Promise<boolean>;
+  unlink(rel): Promise<void>;
+}
+```
+
+```ts
+// Browser side (gui-chat-protocol/vue)
+interface BrowserPluginRuntime {
+  pubsub:  { subscribe<T>(eventName, handler): () => void };
+  locale:  Ref<string>;                              // reactive — host locale picker safe
+  log:     { debug; info; warn; error };
+  openUrl: (url: string) => void;                    // target=_blank + noopener,noreferrer
+  notify:  (msg: { title; body?; level? }) => void;
+}
+```
+
+`pubsub.publish("changed")` on the server fans to channel `plugin:<pkg>:changed`. `pubsub.subscribe("changed", h)` on the browser subscribes to the same channel. Plugin authors only ever see the short event name (`"changed"`); the platform handles the prefix.
+
+## Path conventions (platform contract)
+
+> All `runtime.files.{data,config}.*` `rel` arguments are **POSIX-relative paths** (`/` separated). The platform internally:
+>
+> 1. Replaces `\` with `/` (Windows `path.join` repair)
+> 2. Runs `path.posix.normalize` to fold `..`, `.`, repeated `/`
+> 3. Resolves against the plugin's scope root (`~/mulmoclaude/data/plugins/<sanitised-pkg>/` or `~/mulmoclaude/config/plugins/<sanitised-pkg>/`)
+> 4. Rejects (`throw`) anything that escapes the scope root
+>
+> Plugin authors should never need `node:path`. The recommended ESLint preset (below) enforces that. If a plugin author misuses `node:path` on Windows anyway, the normalisation step still produces a valid POSIX path — the contract handles the mistake gracefully without compromising the traversal anchor.
+
+Example:
+
+```ts
+await files.data.write("books/2026/journal.jsonl", json);   // ✓
+await files.data.write(`books/${bookId}/journal.jsonl`, j); // ✓ template literal
+await files.data.read("../../etc/passwd");                  // ✗ throws
+```
+
+## ESLint preset
+
+`gui-chat-protocol` exports a flat-config preset that bans the platform-bypass imports:
+
+```js
+// plugin/eslint.config.mjs
+import tseslint from "typescript-eslint";
+import vueParser from "vue-eslint-parser";
+import pluginPreset from "gui-chat-protocol/eslint-preset";
+
+export default [
+  { files: ["src/**/*.ts"],  languageOptions: { parser: tseslint.parser, parserOptions: { ecmaVersion: "latest", sourceType: "module" } } },
+  { files: ["src/**/*.vue"], languageOptions: { parser: vueParser, parserOptions: { parser: tseslint.parser, ecmaVersion: "latest", sourceType: "module" } } },
+  ...pluginPreset.map((entry) => ({ ...entry, files: ["src/**/*.{ts,vue}"] })),
+];
+```
+
+The preset turns these into errors:
+
+| Rule | Why |
+|---|---|
+| `no-restricted-imports` for `fs` / `node:fs` / `fs/promises` / `node:fs/promises` | Use `runtime.files.data` / `runtime.files.config` |
+| `no-restricted-imports` for `path` / `node:path` | Use POSIX template literals — paths are platform-normalised |
+| `no-console` | Use `runtime.log.*` so output lands in the central log files |
+
+Allowed Node built-ins: `node:crypto` (`randomUUID` etc.), `node:url` (URL parsing).
+
+When you see `import { something } from "node:fs"` in plugin source — even one — that's the audit signal. The plugin is reaching around the platform; review carefully.
+
+## Action discriminator pattern (recommended)
+
+The runtime plugin dispatch route hands the LLM's `tool_use` block to your handler unchanged. The LLM can put anything in there, so handlers must validate before branching. The idiomatic pattern is a Zod discriminated union + exhaustive `switch`:
+
+```ts
+const Args = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("save"),   payload: SomeSchema }),
+  z.object({ kind: z.literal("load") }),
+  z.object({ kind: z.literal("delete"), id: z.string() }),
+]);
+
+async function handler(rawArgs: unknown) {
+  const args = Args.parse(rawArgs);   // type-narrow + validate in one step
+  switch (args.kind) {
+    case "save":   return save(args.payload);
+    case "load":   return load();
+    case "delete": return remove(args.id);
+    default: { const exhaustive: never = args; throw new Error(`unknown: ${JSON.stringify(exhaustive)}`); }
+  }
+}
+```
+
+The `default: never` line is the safety net — if you add a new `kind` to `Args` later but forget to add a `case`, TypeScript fails the build instead of the new path silently dropping into the throw at runtime.
 
 ## Related
 
 - [`docs/manual-testing.md`](manual-testing.md) — broader manual test scenarios for the app
-- [`plans/feat-plugin-c2-impl.md`](../plans/feat-plugin-c2-impl.md) — the rollout plan
+- [`plans/feat-plugin-c2-impl.md`](../plans/feat-plugin-c2-impl.md) — the original C-2 rollout plan
+- [`plans/feat-plugin-runtime-extensions-1110.md`](../plans/feat-plugin-runtime-extensions-1110.md) — this PR's plan
 - Issue [#1043](https://github.com/receptron/mulmoclaude/issues/1043) — plugin SDK / dynamic install / marketplace umbrella
+- Issue [#1110](https://github.com/receptron/mulmoclaude/issues/1110) — runtime extensions spec (factory pattern, scoped pubsub, files split, ESLint preset)
