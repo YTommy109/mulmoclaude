@@ -31,23 +31,48 @@ const DEFAULT_FETCH_TIMEOUT_MS = 10 * ONE_SECOND_MS;
 //
 //   1. Replace `\` with `/` (Windows path.join leak repair).
 //   2. `path.posix.normalize` (folds `..`, `.`, `//`).
-//   3. `path.posix.resolve(scopeRoot, normalized)`.
-//   4. `ensureInsideBase` — throw if the result escapes the scope root.
+//   3. Reject if the normalised form starts with `..` or `/`
+//      (would escape the scope root or be absolute).
+//   4. `path.join(scopeRoot, ...segments)` — platform-aware join so
+//      the returned absolute path uses the host OS separator
+//      (backslashes on Windows, forward slashes on POSIX). Critical
+//      for `ensureInsideBase` to accept the result.
 //
 // Plugin authors should never need `node:path`; the platform meets
 // them where they are even if they mis-import it on Windows.
 // ─────────────────────────────────────────────────────────────────────
 
 /** Resolve a plugin-supplied path to an absolute path inside the
- *  plugin's scope root. Throws on traversal. Exported for tests. */
+ *  plugin's scope root. Throws on traversal. Exported for tests.
+ *
+ *  Cross-platform: `scopeRoot` is the host OS's native form (drive
+ *  letter + backslashes on Windows, forward slashes on POSIX). The
+ *  user-supplied `rel` is POSIX-relative by contract; we sanitise
+ *  for the lexical traversal check via `path.posix.*`, then join
+ *  with `path.join` so the returned absolute path is in the host's
+ *  native form (which `ensureInsideBase` requires). */
 export function normalizePluginPath(scopeRoot: string, rel: string): string {
   // Defang Windows path.join output and any mixed-separator inputs.
   const slashed = rel.replace(/\\/g, "/");
   // Fold `..` / `.` / repeated `/` lexically (no fs touch yet).
   const normalised = path.posix.normalize(slashed);
-  // Resolve against scopeRoot. `posix.resolve` is correct because the
-  // scope root is also POSIX-shaped on disk (we control it).
-  const absolute = path.posix.resolve(scopeRoot, normalised);
+  // Reject lexically — anything that escapes the scope root after
+  // normalisation either starts with `..` (parent-traversal) or is
+  // absolute (`/etc/passwd`). `path.posix.normalize` produces `..`
+  // alone if the input is `..` itself, hence the equality branch.
+  if (normalised === ".." || normalised.startsWith("../") || normalised.startsWith("/")) {
+    throw new Error(`path escapes plugin scope: ${rel}`);
+  }
+  const segments = normalised === "." ? [] : normalised.split("/");
+  // `path.join` (platform-aware) so the result uses the host
+  // separator. On Windows that's backslashes; on POSIX, forward
+  // slashes — matching `scopeRoot`'s existing form so
+  // `ensureInsideBase`'s `path.resolve` + `path.sep` comparison
+  // works across both platforms.
+  const absolute = path.join(scopeRoot, ...segments);
+  // Defence in depth: even though the lexical check above should
+  // catch every escape, run `ensureInsideBase` so a future change to
+  // either step doesn't silently regress the safety guarantee.
   if (!ensureInsideBase(absolute, scopeRoot)) {
     throw new Error(`path escapes plugin scope: ${rel}`);
   }

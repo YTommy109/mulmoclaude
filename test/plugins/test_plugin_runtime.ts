@@ -36,25 +36,33 @@ function makeRecordingPubSub(): { pubsub: IPubSub; published: { channel: string;
 }
 
 describe("normalizePluginPath", () => {
-  const root = "/tmp/scope-root";
+  // `path.join` for the expected values so the tests pass on both POSIX
+  // (forward slashes) and Windows (backslashes). `normalizePluginPath`
+  // uses `path.join` internally for the same reason — `ensureInsideBase`
+  // compares with `path.resolve` + `path.sep`, which is platform-aware.
+  // Using a Windows-style root (`C:\\tmp\\scope-root`) on Windows
+  // would also work; the test root just needs to be absolute on the
+  // host OS — `path.resolve("/tmp/scope-root")` produces a usable
+  // absolute on both platforms.
+  const root = path.resolve("/tmp/scope-root");
 
   it("returns the absolute path for a simple relative file", () => {
-    assert.equal(normalizePluginPath(root, "foo.json"), `${root}/foo.json`);
+    assert.equal(normalizePluginPath(root, "foo.json"), path.join(root, "foo.json"));
   });
 
   it("accepts nested POSIX paths", () => {
-    assert.equal(normalizePluginPath(root, "books/2026/journal.jsonl"), `${root}/books/2026/journal.jsonl`);
+    assert.equal(normalizePluginPath(root, "books/2026/journal.jsonl"), path.join(root, "books", "2026", "journal.jsonl"));
   });
 
   it("repairs Windows backslash separators", () => {
     // Plugin authors who slip up and use `node:path.join` on Windows
     // get `"books\\2026\\journal.jsonl"`. The platform should still
-    // resolve that to a sane POSIX path under the scope root.
-    assert.equal(normalizePluginPath(root, "books\\2026\\journal.jsonl"), `${root}/books/2026/journal.jsonl`);
+    // resolve that to a sane absolute path under the scope root.
+    assert.equal(normalizePluginPath(root, "books\\2026\\journal.jsonl"), path.join(root, "books", "2026", "journal.jsonl"));
   });
 
   it("folds redundant `.` and `//` segments", () => {
-    assert.equal(normalizePluginPath(root, "./a//b/./c.json"), `${root}/a/b/c.json`);
+    assert.equal(normalizePluginPath(root, "./a//b/./c.json"), path.join(root, "a", "b", "c.json"));
   });
 
   it("rejects traversal that escapes the scope root", () => {
@@ -67,10 +75,9 @@ describe("normalizePluginPath", () => {
   });
 
   it("treats absolute paths as anchored to scope root (lexical normalisation)", () => {
-    // path.posix.resolve(root, "/foo") returns "/foo" — but our
-    // ensureInsideBase check then rejects it because /foo is outside
-    // the scope root. This protects against plugins that try to bypass
-    // by passing absolute paths.
+    // After `path.posix.normalize`, `/etc/passwd` keeps its leading
+    // `/` — the lexical-reject branch catches it before it ever
+    // reaches the filesystem.
     assert.throws(() => normalizePluginPath(root, "/etc/passwd"), /escapes plugin scope/);
   });
 });
