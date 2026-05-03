@@ -578,7 +578,16 @@ const deMessages = {
       create: "Anlegen",
       nameLabel: "Name",
       currencyLabel: "Währung",
-      firstRunHint: "Wählen Sie Name und Währung für Ihr erstes Buch. Die Währung ist pro Buch fest und nach den ersten Buchungen schwer zu ändern.",
+      countryLabel: "Land",
+      countryPlaceholder: "Land auswählen…",
+      countryHint:
+        "Das Land legt die Steuerjurisdiktion fest, damit der Assistent länderspezifische Hinweise geben kann (T-Nummer in Japan, USt-IdNr. in der EU usw.).",
+      placeholder: "Buch auswählen…",
+      firstRunHint: "Wählen Sie Name, Währung und Land für Ihr erstes Buch. Die Währung ist pro Buch fest und nach den ersten Buchungen schwer zu ändern.",
+    },
+    deletedNotice: {
+      title: 'Das Buch "{bookName}" wurde gelöscht.',
+      body: "Wählen Sie oben ein anderes Buch aus oder legen Sie ein neues an.",
     },
     journalList: {
       fromLabel: "Von",
@@ -704,6 +713,12 @@ const deMessages = {
       noteOptional: "(optional)",
     },
     settings: {
+      bookInfo: "Buchinformationen",
+      bookInfoExplain:
+        "Ändern Sie das Land, um die Hinweise zur Steuerjurisdiktion zu aktualisieren. Die Währung kann nach gebuchten Einträgen nicht mehr geändert werden.",
+      countryUnset: "(nicht gesetzt)",
+      saveChanges: "Änderungen speichern",
+      updateOk: "Buch aktualisiert.",
       rebuild: "Snapshots neu aufbauen",
       rebuildExplain: "Verwirft alle Monats-Snapshots und berechnet sie aus dem Journal neu. Nützlich nach manueller Bearbeitung.",
       rebuildOk: "{count} Periode(n) neu aufgebaut.",

@@ -565,7 +565,15 @@ const zhMessages = {
       create: "创建",
       nameLabel: "名称",
       currencyLabel: "货币",
-      firstRunHint: "请为第一本账簿选择名称和货币。货币按账簿固定,登账后再更改会比较困难。",
+      countryLabel: "国家/地区",
+      countryPlaceholder: "选择国家/地区…",
+      countryHint: "国家/地区决定税务管辖,助手可据此提供本地化建议（日本T号、欧盟VAT ID等）。",
+      placeholder: "选择账簿…",
+      firstRunHint: "请为第一本账簿选择名称、货币和国家/地区。货币按账簿固定,登账后再更改会比较困难。",
+    },
+    deletedNotice: {
+      title: "“{bookName}” 已删除。",
+      body: "请从上方下拉菜单选择其他账簿,或新建一本。",
     },
     journalList: {
       fromLabel: "起始",
@@ -690,6 +698,11 @@ const zhMessages = {
       noteOptional: "(可选)",
     },
     settings: {
+      bookInfo: "账簿信息",
+      bookInfoExplain: "修改国家/地区可更新税务管辖相关建议。开始登账后货币不可更改。",
+      countryUnset: "(未设置)",
+      saveChanges: "保存更改",
+      updateOk: "账簿已更新。",
       rebuild: "重建快照",
       rebuildExplain: "删除全部月度快照缓存并从日记账重新计算。手动编辑日记账后可用。",
       rebuildOk: "已重建 {count} 期。",

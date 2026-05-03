@@ -197,19 +197,28 @@ describe("General role isolation", () => {
 describe("Accounting role", () => {
   // Pins the exact plugin set so a future change has to come through
   // a deliberate edit to this test, not slip in via a routine "add
-  // one more tool" change. The role is intentionally narrow:
-  // manageAccounting (the bookkeeping engine), presentForm (every
-  // user prompt and pre-post confirmation), presentDocument (longer
-  // narrative outputs like month-end notes).
+  // one more tool" change. The role exposes:
+  // - manageAccounting (the bookkeeping engine)
+  // - presentForm (every user prompt and pre-post confirmation)
+  // - presentDocument (longer narrative outputs like month-end notes)
+  // - presentSpreadsheet / presentChart / presentHtml (rich report
+  //   surfaces for B/S, P&L, ratio analysis, dashboards)
   const role = BUILTIN_ROLES.find((entry) => entry.id === "accounting");
 
   it("exists in BUILTIN_ROLES", () => {
     assert.ok(role, "expected an accounting role in BUILTIN_ROLES");
   });
 
-  it("exposes exactly manageAccounting + presentForm + presentDocument", () => {
+  it("exposes manageAccounting + the form/document/spreadsheet/chart/html present-* surfaces", () => {
     assert.ok(role);
-    assert.deepStrictEqual([...role.availablePlugins].sort(), ["manageAccounting", "presentDocument", "presentForm"]);
+    assert.deepStrictEqual([...role.availablePlugins].sort(), [
+      "manageAccounting",
+      "presentChart",
+      "presentDocument",
+      "presentForm",
+      "presentHtml",
+      "presentSpreadsheet",
+    ]);
   });
 
   it("system prompt names the インボイス制度 / T-number requirement", () => {

@@ -11,7 +11,7 @@
 // related accounts on both sides of the balance sheet:
 //
 //   14xx → tax-related current assets
-//          (1410 Sales Tax Receivable / 仮払消費税, plus future
+//          (1400 Sales Tax Receivable / 仮払消費税, plus future
 //           withholding-tax-receivable / etc. siblings)
 //   24xx → tax-related current liabilities
 //          (2400 Sales Tax Payable / 仮受消費税, plus future

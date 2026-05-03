@@ -17,6 +17,7 @@ export const ACCOUNTING_ACTIONS = {
   openBook: "openBook",
   getBooks: "getBooks",
   createBook: "createBook",
+  updateBook: "updateBook",
   deleteBook: "deleteBook",
   getAccounts: "getAccounts",
   upsertAccount: "upsertAccount",

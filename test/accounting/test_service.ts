@@ -15,6 +15,7 @@ import {
   listBooks,
   listEntries,
   setOpeningBalances,
+  updateBook,
   voidEntry,
 } from "../../server/accounting/service.js";
 import { _resetRebuildQueueForTesting, awaitRebuildIdle } from "../../server/accounting/snapshotCache.js";
@@ -159,6 +160,35 @@ describe("books lifecycle", () => {
     const first = await createBook({ name: "A" }, root);
     await createBook({ name: "B" }, root);
     await assert.rejects(() => deleteBook({ bookId: first.book.id, confirm: false }, root), AccountingError);
+  });
+  it("createBook persists country when supplied; updateBook can change it later", async () => {
+    const root = makeTmp();
+    const initial = await createBook({ name: "Tokyo Books", currency: "JPY", country: "JP" }, root);
+    assert.equal(initial.book.country, "JP");
+    const list = await listBooks(root);
+    assert.equal(list.books[0].country, "JP");
+    const updated = await updateBook({ bookId: initial.book.id, country: "US" }, root);
+    assert.equal(updated.book.country, "US");
+    // Cleared via empty-string sentinel — drops the field entirely.
+    const cleared = await updateBook({ bookId: initial.book.id, country: "" }, root);
+    assert.equal(cleared.book.country, undefined);
+  });
+  it("updateBook 404s on unknown bookId, 400s on empty name", async () => {
+    const root = makeTmp();
+    const book = await createBook({ name: "X" }, root);
+    await assert.rejects(() => updateBook({ bookId: "nope", name: "Y" }, root), AccountingError);
+    await assert.rejects(() => updateBook({ bookId: book.book.id, name: "   " }, root), AccountingError);
+  });
+  it("rejects unsupported country codes at every ingress", async () => {
+    // Pin the enum guard. `createBook` and `updateBook` both narrow
+    // through `isSupportedCountryCode`; a typo or an obsolete code
+    // must 400 rather than land on disk and propagate to the role
+    // prompt's per-jurisdiction switch.
+    const root = makeTmp();
+    await assert.rejects(() => createBook({ name: "Bad", country: "ZZ" }, root), AccountingError);
+    await assert.rejects(() => createBook({ name: "Bad", country: "japan" }, root), AccountingError);
+    const book = await createBook({ name: "Good", country: "JP" }, root);
+    await assert.rejects(() => updateBook({ bookId: book.book.id, country: "ZZ" }, root), AccountingError);
   });
 });
 

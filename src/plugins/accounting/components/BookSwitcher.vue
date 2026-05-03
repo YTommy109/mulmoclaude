@@ -8,6 +8,7 @@
       data-testid="accounting-book-select"
       @change="onSelect"
     >
+      <option v-if="modelValue === ''" value="" disabled>{{ t("pluginAccounting.bookSwitcher.placeholder") }}</option>
       <option v-for="book in books" :key="book.id" :value="book.id">{{ formatBookOption(book) }}</option>
       <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -- decorative separator inside the books <select>, not user copy -->
       <option disabled>──────────</option>
@@ -41,7 +42,12 @@ const NEW_BOOK_SENTINEL = "__new__";
 const showNewBook = ref(false);
 
 function formatBookOption(book: BookSummary): string {
-  return `${book.name} (${book.currency})`;
+  // `Name (CCY · Country)` when a country is set; otherwise fall back
+  // to `Name (CCY)`. Keeps the option label compact while surfacing
+  // the country so a multi-jurisdiction user can pick the right book
+  // by tax regime, not just currency.
+  const suffix = book.country ? `${book.currency} · ${book.country}` : book.currency;
+  return `${book.name} (${suffix})`;
 }
 
 function onSelect(event: Event): void {

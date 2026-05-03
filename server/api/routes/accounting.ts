@@ -16,6 +16,7 @@ import {
   AccountingError,
   addEntry,
   createBook,
+  updateBook,
   deleteBook,
   getBalanceSheetReport,
   getLedgerReport,
@@ -120,6 +121,15 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     const result = await createBook({
       name: String(rest.name ?? ""),
       currency: typeof rest.currency === "string" ? rest.currency : undefined,
+      country: typeof rest.country === "string" ? rest.country : undefined,
+    });
+    return { bookId: result.book.id, ...result };
+  },
+  [ACCOUNTING_ACTIONS.updateBook]: async (rest) => {
+    const result = await updateBook({
+      bookId: String(rest.bookId ?? ""),
+      name: typeof rest.name === "string" ? rest.name : undefined,
+      country: typeof rest.country === "string" ? rest.country : undefined,
     });
     return { bookId: result.book.id, ...result };
   },
@@ -173,6 +183,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
 const PREVIEW_ACTIONS = new Set<string>([
   ACCOUNTING_ACTIONS.openBook,
   ACCOUNTING_ACTIONS.createBook,
+  ACCOUNTING_ACTIONS.updateBook,
   ACCOUNTING_ACTIONS.upsertAccount,
   ACCOUNTING_ACTIONS.addEntry,
   ACCOUNTING_ACTIONS.voidEntry,
@@ -250,6 +261,12 @@ const MESSAGE_BUILDERS: Record<string, MessageBuilder> = {
     const subject = name ? `the book ${JSON.stringify(name)}` : "the book";
     const idFragment = bookId ? ` (id: ${bookId})` : "";
     return `Deleted ${subject}${idFragment}.`;
+  },
+  [ACCOUNTING_ACTIONS.updateBook]: (fields) => {
+    const book = fields.book as { id?: string; name?: string; country?: string; currency?: string } | undefined;
+    const name = book?.name ? JSON.stringify(book.name) : "the book";
+    const countryFragment = book?.country ? ` (country: ${book.country})` : "";
+    return `Updated ${name}${countryFragment}.`;
   },
 };
 

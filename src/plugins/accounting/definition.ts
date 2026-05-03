@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 import { TOOL_NAMES } from "../../config/toolNames";
 import { ACCOUNTING_ACTIONS } from "./actions";
+import { SUPPORTED_COUNTRY_CODES } from "./countries";
 
 // MCP tool definition for the accounting plugin.
 //
@@ -18,7 +19,7 @@ const toolDefinition: ToolDefinition = {
   type: "function",
   name: TOOL_NAMES.manageAccounting,
   prompt:
-    "When the user asks to open / view their books, or to record, look up, or summarise journal entries / balances / opening balances, use manageAccounting. Use action='openBook' (with the target bookId) to switch the canvas to a specific existing book; use the specific action (addEntry / getReport / etc.) for narrowly-scoped operations the user asked about by name. On a fresh workspace call 'createBook' — the accounting view picks up the new book automatically (no follow-up 'openBook' needed for this id). Reach for 'openBook' only when switching to a different existing book.",
+    "When the user asks to open / view their books, or to record, look up, or summarise journal entries / balances / opening balances, use manageAccounting. Use action='openBook' (with the target bookId) to switch the canvas to a specific existing book; use the specific action (addEntry / getReport / etc.) for narrowly-scoped operations the user asked about by name. On a fresh workspace call 'createBook' (always pass `country` so tax-registration advice is country-aware) — the accounting view picks up the new book automatically (no follow-up 'openBook' needed for this id). Use 'updateBook' to change a book's name or country (currency cannot be changed). Reach for 'openBook' only when switching to a different existing book.",
   description:
     "Manage a double-entry accounting book stored in the workspace file system. Supports multiple books (entities), opening balances for adoption from existing books, journal entries, voiding (append-only — corrections are reversing pairs), and balance-sheet / profit-loss / ledger reports. Action='openBook' mounts the full accounting UI in the canvas (requires bookId); specific actions return compact results that render inline.",
   parameters: {
@@ -35,9 +36,23 @@ const toolDefinition: ToolDefinition = {
         description:
           "Target book id. Required for every action that reads or writes book data, including 'openBook'; call 'getBooks' first to enumerate available ids. The only actions that do NOT take a bookId are 'getBooks' and 'createBook' (which creates a fresh one).",
       },
-      // openBook / createBook
-      name: { type: "string", description: "For 'createBook': human-readable book name." },
-      currency: { type: "string", description: "For 'createBook': ISO 4217 currency code (default USD). Single-currency per book." },
+      // openBook / createBook / updateBook
+      name: { type: "string", description: "For 'createBook' / 'updateBook': human-readable book name." },
+      currency: {
+        type: "string",
+        description: "For 'createBook': ISO 4217 currency code (default USD). Single-currency per book — cannot be changed once set.",
+      },
+      country: {
+        type: "string",
+        // Pinning the enum locks the LLM to the same curated set the
+        // UI dropdown offers and the service-layer guard accepts —
+        // any value outside this list 400s, so emitting a typo or an
+        // unsupported jurisdiction is a wasted tool call. Pass `""`
+        // to 'updateBook' to explicitly clear the country.
+        enum: [...SUPPORTED_COUNTRY_CODES, ""],
+        description:
+          "For 'createBook' / 'updateBook': ISO 3166-1 alpha-2 country code identifying the tax jurisdiction. Drives country-aware advice — e.g. when set to 'JP', strongly suggest the supplier's T-number (適格請求書発行事業者登録番号) on tax-related lines under インボイス制度. Only the codes listed in the enum are accepted; pass an empty string to 'updateBook' to clear the field.",
+      },
       initialTab: { type: "string", description: "For 'openBook': initial tab to show (e.g. 'journal', 'opening', 'balanceSheet')." },
       confirm: { type: "boolean", description: "For 'deleteBook': must be true to actually delete (guard against accidental deletion)." },
       // accounts
