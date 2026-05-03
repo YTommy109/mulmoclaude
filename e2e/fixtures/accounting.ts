@@ -54,6 +54,11 @@ interface AccountingState {
 
 const SEED_ACCOUNTS: FakeAccount[] = [
   { code: "1000", name: "Cash", type: "asset" },
+  // 1410 ships seeded so the JournalEntryForm e2e can exercise the
+  // tax-account branch (the per-line taxRegistrationId input is
+  // gated by `isTaxAccountCode`, which only matches 14xx / 24xx —
+  // see src/plugins/accounting/components/accountNumbering.ts).
+  { code: "1410", name: "Sales Tax Receivable", type: "asset" },
   { code: "2000", name: "Accounts payable", type: "liability" },
   { code: "3000", name: "Equity", type: "equity" },
   { code: "4000", name: "Sales", type: "income" },
