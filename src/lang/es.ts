@@ -580,6 +580,7 @@ const esMessages = {
       journal: "Diario",
       newEntry: "Nueva entrada",
       opening: "Apertura",
+      accounts: "Cuentas",
       ledger: "Mayor",
       balanceSheet: "Balance",
       profitLoss: "P&L",
@@ -594,9 +595,15 @@ const esMessages = {
       countryLabel: "País",
       countryPlaceholder: "Selecciona un país…",
       countryHint: "El país define la jurisdicción fiscal para que el asistente pueda dar consejos específicos (T-number en Japón, ID de IVA en la UE, etc.).",
+      fiscalYearEndLabel: "Cierre del ejercicio",
+      fiscalYearEndQ1: "31 de marzo (Q1)",
+      fiscalYearEndQ2: "30 de junio (Q2)",
+      fiscalYearEndQ3: "30 de septiembre (Q3)",
+      fiscalYearEndQ4: "31 de diciembre (Q4)",
+      fiscalYearEndHint: "Define el límite del ejercicio para los atajos de rango de fechas de este libro. Por defecto: 31 de diciembre (Q4 — año natural).",
       placeholder: "Elige un libro…",
       firstRunHint:
-        "Elige el nombre, la moneda y el país de tu primer libro. La moneda se fija por libro y es difícil cambiarla una vez que empieces a registrar asientos.",
+        "Elige el nombre, la moneda, el país y el cierre de ejercicio de tu primer libro. La moneda se fija por libro y es difícil cambiarla una vez que empieces a registrar asientos.",
     },
     deletedNotice: {
       title: "“{bookName}” se ha eliminado.",
@@ -674,6 +681,17 @@ const esMessages = {
         taxRegistrationId: "ID fiscal",
       },
     },
+    dateRange: {
+      shortcutLabel: "Rango",
+      currentQuarter: "Trimestre actual",
+      previousQuarter: "Último trimestre",
+      currentYear: "Año en curso",
+      previousYear: "Año anterior",
+      lifetime: "Desde la apertura",
+      all: "Todo",
+      fromLabel: "Desde",
+      toLabel: "Hasta",
+    },
     balanceSheet: {
       asOfLabel: "Período",
       sections: {
@@ -693,6 +711,8 @@ const esMessages = {
       netIncome: "Resultado neto:",
     },
     accounts: {
+      listEmpty: "No hay cuentas en esta categoría.",
+      openLedgerAria: "Abrir mayor de {code} {name}",
       manageButton: "Gestionar cuentas",
       modalTitle: "Gestionar cuentas",
       addAccount: "Añadir cuenta",
@@ -738,6 +758,7 @@ const esMessages = {
       bookInfoExplain:
         "Edita el país para actualizar los consejos según la jurisdicción fiscal. La moneda no puede cambiarse una vez registrados los asientos.",
       countryUnset: "(sin definir)",
+      fiscalYearEndExplain: "Solo cambia cómo se resuelven los atajos de rango de fechas en adelante; los asientos existentes no se mueven.",
       saveChanges: "Guardar cambios",
       updateOk: "Libro actualizado.",
       rebuild: "Reconstruir snapshots",

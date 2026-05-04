@@ -11,6 +11,7 @@ import { apiCall, type ApiResult } from "../../utils/api";
 import { META } from "./meta";
 import { ACCOUNTING_ACTIONS } from "./actions";
 import type { SupportedCountryCode } from "./countries";
+import type { FiscalYearEnd } from "./fiscalYear";
 
 export type AccountType = "asset" | "liability" | "equity" | "income" | "expense";
 export type JournalEntryKind = "normal" | "opening" | "void" | "void-marker";
@@ -62,6 +63,12 @@ export interface BookSummary {
    *  see `countries.ts`. Optional for backward compatibility with
    *  books created before the field was introduced. */
   country?: SupportedCountryCode;
+  /** Which calendar-quarter end is the book's fiscal year end:
+   *  Q1 → March 31, Q2 → June 30, Q3 → September 30, Q4 → December 31.
+   *  Optional in the persisted shape for backward compatibility —
+   *  read-side code treats absence as Q4 via `resolveFiscalYearEnd`.
+   *  See `./fiscalYear.ts`. */
+  fiscalYearEnd?: FiscalYearEnd;
   createdAt: string;
 }
 
@@ -138,7 +145,14 @@ export function getBooks(): Promise<ApiResult<{ books: BookSummary[] }>> {
   return call(ACCOUNTING_ACTIONS.getBooks);
 }
 
-export function createBook(input: { name: string; currency?: string; country?: SupportedCountryCode }): Promise<ApiResult<{ book: BookSummary }>> {
+export function createBook(input: {
+  name: string;
+  currency?: string;
+  country?: SupportedCountryCode;
+  /** Q1..Q4 — required at the form boundary, but the server silently
+   *  defaults absent / empty to Q4 for back-compat. */
+  fiscalYearEnd?: FiscalYearEnd;
+}): Promise<ApiResult<{ book: BookSummary }>> {
   return call(ACCOUNTING_ACTIONS.createBook, input);
 }
 
@@ -149,6 +163,10 @@ export function updateBook(input: {
    *  the "drop the field" sentinel). Any other value must be one of
    *  the curated `SupportedCountryCode`s. */
   country?: SupportedCountryCode | "";
+  /** Q1..Q4 — pure metadata, only changes how the date-range
+   *  shortcuts resolve. No "clear" path; absence leaves the existing
+   *  value untouched. */
+  fiscalYearEnd?: FiscalYearEnd;
 }): Promise<ApiResult<{ book: BookSummary }>> {
   return call(ACCOUNTING_ACTIONS.updateBook, input);
 }

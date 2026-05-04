@@ -136,14 +136,13 @@
     <p v-if="successMessage" class="text-xs text-green-600" data-testid="accounting-entry-success">{{ successMessage }}</p>
     <div class="flex justify-end gap-2">
       <button
-        v-if="isEditing"
         type="button"
         class="h-8 px-3 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
         :disabled="submitting"
         data-testid="accounting-entry-cancel-edit"
-        @click="emit('cancelEdit')"
+        @click="emit('cancel')"
       >
-        {{ t("pluginAccounting.entryForm.cancelEdit") }}
+        {{ t("pluginAccounting.common.cancel") }}
       </button>
       <button
         type="submit"
@@ -176,7 +175,7 @@ import AccountsModal from "./AccountsModal.vue";
 const { t } = useI18n();
 
 const props = defineProps<{ bookId: string; accounts: Account[]; currency: string; country?: SupportedCountryCode; entryToEdit?: JournalEntry | null }>();
-const emit = defineEmits<{ submitted: []; cancelEdit: [] }>();
+const emit = defineEmits<{ submitted: []; cancel: [] }>();
 
 const showAccountsModal = ref(false);
 

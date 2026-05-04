@@ -69,13 +69,13 @@ test.describe("accounting plugin — flow", () => {
     await expect(page.getByTestId("accounting-no-book")).not.toBeVisible();
   });
 
-  test("New Entry tab exposes the per-line tax-registration ID input when a 14xx account is picked", async ({ page }) => {
+  test("Journal-tab inline New Entry form exposes the per-line tax-registration ID input when a 14xx account is picked", async ({ page }) => {
     const SEED_BOOK_ID = "book-tax-id-1";
     // `withEmptyOpening: true` lets us land on a book whose
     // opening-gate is already satisfied — without it, the View
     // hides every tab except `opening` and `settings` until the
-    // user saves an opening, and `accounting-tab-newEntry` would
-    // never render.
+    // user saves an opening, so the Journal tab (which now hosts
+    // the "+ New entry" button) wouldn't render.
     await setupSession(page, {
       books: [{ id: SEED_BOOK_ID, name: "Seeded Book", withEmptyOpening: true }],
       envelope: { bookId: SEED_BOOK_ID },
@@ -84,7 +84,10 @@ test.describe("accounting plugin — flow", () => {
     await page.goto(`/chat/${SESSION_ID}`);
     await expect(page.getByTestId("accounting-app")).toBeVisible();
     await expect(page.getByTestId("accounting-tabs")).toBeVisible();
-    await page.getByTestId("accounting-tab-newEntry").click();
+    // The New Entry form lives inline on the Journal tab now —
+    // open it via the "+ New entry" button, not a tab click.
+    await page.getByTestId("accounting-journal-new-entry").click();
+    await expect(page.getByTestId("accounting-journal-inline-form")).toBeVisible();
 
     // The tax-registration ID input is gated by `isTaxAccountCode`
     // — it only renders on lines whose account is in the 14xx
@@ -117,6 +120,107 @@ test.describe("accounting plugin — flow", () => {
     // not that 24xx specifically does.
     await page.getByTestId("accounting-entry-line-account-0").selectOption("2400");
     await expect(taxIdInput).toHaveCount(0);
+  });
+
+  test("Journal-tab inline form: open / cancel / re-open from row Edit", async ({ page }) => {
+    // Pin the inline-form contract introduced when the New Entry tab
+    // was retired in favour of an inline form on the Journal tab:
+    //   • The "+ New entry" button replaces its toolbar slot when
+    //     clicked, mounting the form in place.
+    //   • The form's Cancel button dismisses the panel and the
+    //     toolbar button reappears.
+    //   • Clicking Edit on a row mounts the same form prefilled.
+    const SEED_BOOK_ID = "book-inline-form";
+    await setupSession(page, {
+      books: [{ id: SEED_BOOK_ID, name: "Inline Form Book", withEmptyOpening: true }],
+      envelope: { bookId: SEED_BOOK_ID },
+    });
+
+    await page.goto(`/chat/${SESSION_ID}`);
+    await expect(page.getByTestId("accounting-app")).toBeVisible();
+
+    // Default state: button visible, form not mounted.
+    const newEntryButton = page.getByTestId("accounting-journal-new-entry");
+    const inlineForm = page.getByTestId("accounting-journal-inline-form");
+    await expect(newEntryButton).toBeVisible();
+    await expect(inlineForm).toHaveCount(0);
+
+    // Open the form. The button slot is replaced by the form panel,
+    // so the button itself goes away while the form is up.
+    await newEntryButton.click();
+    await expect(inlineForm).toBeVisible();
+    await expect(newEntryButton).toHaveCount(0);
+
+    // Submit a balanced two-line entry against the seeded chart.
+    await page.getByTestId("accounting-entry-line-account-0").selectOption("1000");
+    await page.getByTestId("accounting-entry-line-debit-0").fill("100");
+    await page.getByTestId("accounting-entry-line-account-1").selectOption("4000");
+    await page.getByTestId("accounting-entry-line-credit-1").fill("100");
+    await page.getByTestId("accounting-entry-submit").click();
+
+    // Form dismisses on submit; the journal table re-renders with the
+    // posted row and the toolbar button is back.
+    await expect(inlineForm).toHaveCount(0);
+    await expect(newEntryButton).toBeVisible();
+    const journalTable = page.getByTestId("accounting-journal-table");
+    await expect(journalTable).toBeVisible();
+    // Normal-entry Edit buttons only — the opening row uses the
+    // distinct `accounting-edit-opening-…` testid and routes to a
+    // different handler (it switches to the Opening tab instead of
+    // the inline form).
+    const normalEditButtons = page.locator("[data-testid^='accounting-edit-']:not([data-testid*='accounting-edit-opening-'])");
+    await expect(normalEditButtons.first()).toBeVisible();
+
+    // Click Edit on the just-posted row → form re-opens prefilled.
+    await normalEditButtons.first().click();
+    await expect(inlineForm).toBeVisible();
+    // The date input should hold the posted date (today by default).
+    const dateInput = page.getByTestId("accounting-entry-date");
+    await expect(dateInput).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
+
+    // Cancel from edit mode dismisses the panel and the toolbar
+    // button comes back.
+    await page.getByTestId("accounting-entry-cancel-edit").click();
+    await expect(inlineForm).toHaveCount(0);
+    await expect(newEntryButton).toBeVisible();
+  });
+
+  test("Accounts tab rows are keyboard-accessible (Enter / Space activate)", async ({ page }) => {
+    // a11y regression guard for #1140 review: rows in the new
+    // Accounts tab must be operable without a mouse so the
+    // Accounts → Ledger handoff is keyboard-reachable.
+    const SEED_BOOK_ID = "book-a11y-accounts";
+    await setupSession(page, {
+      books: [{ id: SEED_BOOK_ID, name: "A11y Book", withEmptyOpening: true }],
+      envelope: { bookId: SEED_BOOK_ID, initialTab: "accounts" },
+    });
+
+    await page.goto(`/chat/${SESSION_ID}`);
+    await expect(page.getByTestId("accounting-app")).toBeVisible();
+    await expect(page.getByTestId("accounting-accounts-list")).toBeVisible();
+
+    // Pick a row from the seeded chart and verify it carries the
+    // accessibility primitives mouse-only rows would lack.
+    const cashRow = page.getByTestId("accounting-account-row-1000");
+    await expect(cashRow).toBeVisible();
+    await expect(cashRow).toHaveAttribute("tabindex", "0");
+    await expect(cashRow).toHaveAttribute("role", "button");
+
+    // Enter on the focused row routes to the Ledger tab with the
+    // selected account preselected — same effect as a mouse click.
+    await cashRow.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("accounting-ledger")).toBeVisible();
+    await expect(page.getByTestId("accounting-ledger-account")).toHaveValue("1000");
+
+    // Space on a different row works the same way (verifying both
+    // activation keys, not just one).
+    await page.getByTestId("accounting-tab-accounts").click();
+    const apRow = page.getByTestId("accounting-account-row-2000");
+    await apRow.focus();
+    await page.keyboard.press("Space");
+    await expect(page.getByTestId("accounting-ledger")).toBeVisible();
+    await expect(page.getByTestId("accounting-ledger-account")).toHaveValue("2000");
   });
 
   test("deleting a book with siblings shows the deleted-notice panel; tabs are disabled until the user picks another book", async ({ page }) => {

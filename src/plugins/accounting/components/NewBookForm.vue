@@ -30,6 +30,18 @@
         </select>
       </label>
       <p class="text-xs text-gray-500">{{ t("pluginAccounting.bookSwitcher.countryHint") }}</p>
+      <label class="text-sm flex flex-col gap-1">
+        {{ t("pluginAccounting.bookSwitcher.fiscalYearEndLabel") }}
+        <select
+          v-model="fiscalYearEnd"
+          required
+          class="h-8 px-2 rounded border border-gray-300 text-sm bg-white"
+          data-testid="accounting-new-book-fiscal-year-end"
+        >
+          <option v-for="opt in fiscalYearEndOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </label>
+      <p class="text-xs text-gray-500">{{ t("pluginAccounting.bookSwitcher.fiscalYearEndHint") }}</p>
       <p v-if="error" class="text-xs text-red-500" data-testid="accounting-new-book-error">{{ error }}</p>
       <div class="flex justify-end gap-2 mt-1">
         <button v-if="showCancel" type="button" class="h-8 px-2.5 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-50" @click="onCancel">
@@ -54,6 +66,7 @@ import { useI18n } from "vue-i18n";
 import { createBook, type BookSummary } from "../api";
 import { SUPPORTED_CURRENCY_CODES, localizedCurrencyName } from "../currencies";
 import { SUPPORTED_COUNTRY_CODES, localizedCountryName, type SupportedCountryCode } from "../countries";
+import { DEFAULT_FISCAL_YEAR_END, FISCAL_YEAR_ENDS, type FiscalYearEnd } from "../fiscalYear";
 
 const { t, locale } = useI18n();
 
@@ -101,6 +114,7 @@ const emit = defineEmits<{
 const name = ref("");
 const currency = ref<string>("USD");
 const country = ref<SupportedCountryCode | "">(guessDefaultCountry(locale.value));
+const fiscalYearEnd = ref<FiscalYearEnd>(DEFAULT_FISCAL_YEAR_END);
 const creating = ref(false);
 const error = ref<string | null>(null);
 const nameInput = ref<HTMLInputElement | null>(null);
@@ -137,6 +151,18 @@ const countryOptions = computed<CountryOption[]>(() =>
   })),
 );
 
+interface FiscalYearEndOption {
+  value: FiscalYearEnd;
+  label: string;
+}
+
+const fiscalYearEndOptions = computed<FiscalYearEndOption[]>(() =>
+  FISCAL_YEAR_ENDS.map((value) => ({
+    value,
+    label: t(`pluginAccounting.bookSwitcher.fiscalYearEnd${value}`),
+  })),
+);
+
 // Full-page mode replaces the AccountingApp chrome — fill the
 // parent flex column with the form centered, no backdrop. Modal
 // mode keeps the original viewport overlay behaviour.
@@ -167,7 +193,12 @@ async function onSubmit(): Promise<void> {
     // empty string is the dropdown's "(choose a country)" sentinel
     // and must not land on disk as a literal "" value.
     const pickedCountry: SupportedCountryCode | undefined = country.value === "" ? undefined : country.value;
-    const result = await createBook({ name: name.value.trim(), currency: currency.value, country: pickedCountry });
+    const result = await createBook({
+      name: name.value.trim(),
+      currency: currency.value,
+      country: pickedCountry,
+      fiscalYearEnd: fiscalYearEnd.value,
+    });
     if (!result.ok) {
       error.value = result.error;
       return;

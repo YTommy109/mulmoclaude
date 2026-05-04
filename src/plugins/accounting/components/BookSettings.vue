@@ -21,14 +21,26 @@
           <option v-for="opt in countryOptions" :key="opt.code" :value="opt.code">{{ opt.label }}</option>
         </select>
       </label>
+      <label class="text-sm flex flex-col gap-1 mt-1">
+        {{ t("pluginAccounting.bookSwitcher.fiscalYearEndLabel") }}
+        <select
+          v-model="selectedFiscalYearEnd"
+          class="h-8 px-2 rounded border border-gray-300 text-sm bg-white"
+          data-testid="accounting-settings-fiscal-year-end"
+          :disabled="updating"
+        >
+          <option v-for="opt in fiscalYearEndOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </label>
+      <p class="text-xs text-gray-500">{{ t("pluginAccounting.settings.fiscalYearEndExplain") }}</p>
       <p v-if="updateOk" class="text-xs text-green-600" data-testid="accounting-settings-update-ok">{{ updateOk }}</p>
       <p v-if="updateError" class="text-xs text-red-500" data-testid="accounting-settings-update-error">{{ updateError }}</p>
       <div>
         <button
           class="h-8 px-3 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:opacity-50"
-          :disabled="updating || selectedCountry === (country ?? '')"
+          :disabled="updating || !hasPendingChanges"
           data-testid="accounting-settings-save"
-          @click="onSaveCountry"
+          @click="onSaveBookInfo"
         >
           {{ updating ? t("pluginAccounting.common.loading") : t("pluginAccounting.settings.saveChanges") }}
         </button>
@@ -77,10 +89,17 @@ import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { deleteBook, rebuildSnapshots, updateBook } from "../api";
 import { SUPPORTED_COUNTRY_CODES, isSupportedCountryCode, localizedCountryName, type SupportedCountryCode } from "../countries";
+import { DEFAULT_FISCAL_YEAR_END, FISCAL_YEAR_ENDS, resolveFiscalYearEnd, type FiscalYearEnd } from "../fiscalYear";
 
 const { t, locale } = useI18n();
 
-const props = defineProps<{ bookId: string; bookName: string; currency: string; country?: SupportedCountryCode }>();
+const props = defineProps<{
+  bookId: string;
+  bookName: string;
+  currency: string;
+  country?: SupportedCountryCode;
+  fiscalYearEnd?: FiscalYearEnd;
+}>();
 const emit = defineEmits<{ deleted: [bookName: string]; "books-changed": [] }>();
 
 const rebuilding = ref(false);
@@ -93,6 +112,10 @@ const updating = ref(false);
 const updateOk = ref<string | null>(null);
 const updateError = ref<string | null>(null);
 const selectedCountry = ref<string>(props.country ?? "");
+// Resolved at the boundary so the dropdown always shows a concrete
+// value — books without a `fiscalYearEnd` field on disk land here as
+// the default Q4 (matches the back-compat read policy).
+const selectedFiscalYearEnd = ref<FiscalYearEnd>(props.fiscalYearEnd ?? DEFAULT_FISCAL_YEAR_END);
 
 interface CountryOption {
   code: string;
@@ -105,6 +128,24 @@ const countryOptions = computed<CountryOption[]>(() =>
     label: `${code} — ${localizedCountryName(code, locale.value)}`,
   })),
 );
+
+interface FiscalYearEndOption {
+  value: FiscalYearEnd;
+  label: string;
+}
+
+const fiscalYearEndOptions = computed<FiscalYearEndOption[]>(() =>
+  FISCAL_YEAR_ENDS.map((value) => ({
+    value,
+    label: t(`pluginAccounting.bookSwitcher.fiscalYearEnd${value}`),
+  })),
+);
+
+const hasPendingChanges = computed<boolean>(() => {
+  const countryChanged = selectedCountry.value !== (props.country ?? "");
+  const fiscalChanged = selectedFiscalYearEnd.value !== resolveFiscalYearEnd(props.fiscalYearEnd);
+  return countryChanged || fiscalChanged;
+});
 
 async function onRebuild(): Promise<void> {
   rebuilding.value = true;
@@ -122,7 +163,7 @@ async function onRebuild(): Promise<void> {
   }
 }
 
-async function onSaveCountry(): Promise<void> {
+async function onSaveBookInfo(): Promise<void> {
   if (updating.value) return;
   updating.value = true;
   updateOk.value = null;
@@ -130,10 +171,14 @@ async function onSaveCountry(): Promise<void> {
   try {
     // The select v-model is a plain `string` (HTML form value); narrow
     // it back to the union before handing it to the API helper. The
-    // empty string is the sentinel that clears the field server-side.
-    const raw = selectedCountry.value;
-    const country: SupportedCountryCode | "" = raw === "" || isSupportedCountryCode(raw) ? raw : "";
-    const result = await updateBook({ bookId: props.bookId, country });
+    // empty string is the sentinel that clears the country server-side.
+    const rawCountry = selectedCountry.value;
+    const country: SupportedCountryCode | "" = rawCountry === "" || isSupportedCountryCode(rawCountry) ? rawCountry : "";
+    const result = await updateBook({
+      bookId: props.bookId,
+      country,
+      fiscalYearEnd: selectedFiscalYearEnd.value,
+    });
     if (!result.ok) {
       updateError.value = result.error;
       return;
@@ -177,6 +222,7 @@ watch(
     updateOk.value = null;
     updateError.value = null;
     selectedCountry.value = props.country ?? "";
+    selectedFiscalYearEnd.value = props.fiscalYearEnd ?? DEFAULT_FISCAL_YEAR_END;
   },
 );
 
@@ -184,6 +230,13 @@ watch(
   () => props.country,
   (next) => {
     selectedCountry.value = next ?? "";
+  },
+);
+
+watch(
+  () => props.fiscalYearEnd,
+  (next) => {
+    selectedFiscalYearEnd.value = next ?? DEFAULT_FISCAL_YEAR_END;
   },
 );
 </script>
