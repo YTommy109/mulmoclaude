@@ -344,8 +344,9 @@ e2e-live/
 | **L-09** Storyteller role 1 ターン | ✅ 実装済 | roles.spec.ts、 `runRoleSampleTurn(page, "storyteller")` (B-41 canary、 L-07 と同型) |
 | **L-11** session reload 復元 | ✅ 実装済 | session.spec.ts、 `Reply with the single word: pong` 後に reload → 2 段階の locale-agnostic assertion (B-14): (1) `getCurrentSessionId(page)` で URL `/chat/<id>` から session id を抽出して reload 前後の equality を比較、 (2) `page.getByText("Reply with ...")` で **ユーザーが送ったプロンプト文字列** (locale 非依存) が DOM に visible なことを assert して transcript hydration を検証。 visible 系の chrome-side 文字列 (e.g. 「Start a conversation」) は 8 locale lockstep の都合で使わない |
 | **L-14** wiki 内部リンク | ✅ 実装済 | wiki-nav.spec.ts、 fixture wiki page 2 件 seed → wikilink `[[slug]]` を click → `/wiki/pages/<target>` に遷移 (B-23/B-24/B-25)、 catch-all で `/chat` に飛ばないこと |
+| **L-15** 非 ASCII slug の wiki ページ | ✅ 実装済 | wiki-nav.spec.ts、 `日本語タイトル-nonascii-target-${project}-${nonce}` 型 slug の page を 2 件 seed → (A) URL 直叩き (`encodeURIComponent` round trip) と (B) `[[…]]` wikilink クリックの両経路で `wiki-page-body` に Japanese 本文が描画され `/chat` に飛ばないことを assert (B-26 / B-27)。 server `wikiSlugify` が Japanese を落として exact-key match が外れる前提で `resolvePagePath` の fuzzy `key.includes(slug)` 分岐に乗せる設計 (`data/wiki/index.md` 直接編集を避けるため)。 fuzzy が source page と target page の両方にマッチする落とし穴 (両 slug の ASCII tail が共通になる) を踏んだので、 target slug 側に `nonascii-target` という source 名に含まれない unique token を入れて衝突回避 |
 | **L-EDIT** beat 編集永続化 | 🟡 skip 中 | mulmo-script-edit.spec.ts、 #1074 で報告された「`Saving…` から戻らない」 症状を再現する spec として on disk。 **unskip trigger**: issue #1074 が close + その fix を merge した状態で `yarn test:e2e:live:mulmo-script-edit --project=chromium` を 1 回手動実行 (任意で `HEADED=1` を付けて UI で挙動を観察すると false-negative を避けやすい) し、 pass が確認できたら `test.skip(true, ...)` を削除する。 dormant 化を防ぐオーナーは #1074 を close する人 |
-| L-04, L-10, L-12〜L-30 | 未実装 | 後続 PR で順次。 横串で 「未登録系」 (リソース不在時の UI、 #1073 系) を機能別 spec として追加予定 |
+| L-04, L-10, L-12, L-13, L-16〜L-30 | 未実装 | 後続 PR で順次。 横串で 「未登録系」 (リソース不在時の UI、 #1073 系) を機能別 spec として追加予定 |
 
 ## 実装の詳細
 
