@@ -25,10 +25,19 @@ import { BUILT_IN_PLUGINS } from "../plugins";
 // would slip past `Object.fromEntries` silently with last-writer-wins.
 // Throwing at boot is the right move — silent dispatch hijack is
 // strictly worse than a hard error during start-up (CR review #1125).
+//
+// Use a null-prototype dictionary so:
+//   1. The `in` / `hasOwn` check doesn't walk a prototype chain — a
+//      legitimate `toolName` like `"toString"` or `"hasOwnProperty"`
+//      can't false-positive as a duplicate.
+//   2. The bracket assign at the end can't trigger `__proto__`
+//      prototype-mutation semantics if a future registration value
+//      ever flows from less-trusted code.
+// Codex review on PR #1156.
 const plugins: Record<string, PluginEntry> = (() => {
-  const out: Record<string, PluginEntry> = {};
+  const out: Record<string, PluginEntry> = Object.create(null);
   for (const registration of BUILT_IN_PLUGINS) {
-    if (registration.toolName in out) {
+    if (Object.prototype.hasOwnProperty.call(out, registration.toolName)) {
       throw new Error(`Duplicate built-in plugin registration for "${registration.toolName}"`);
     }
     out[registration.toolName] = registration.entry;
