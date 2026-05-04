@@ -70,6 +70,13 @@ const ptBRMessages = {
     intraBody:
       'Os plugins "{first}" e "{second}" registram o mesmo {dimension} "{key}". "{first}" o reivindicou primeiro, portanto o registro de "{second}" é ignorado.',
   },
+  pluginErrorBoundary: {
+    title: "O plugin {pkg} travou",
+    subtitle: "O plugin falhou ao renderizar. O erro foi registrado no console.",
+    showDetails: "Mostrar detalhes",
+    hideDetails: "Ocultar detalhes",
+    retry: "Tentar novamente",
+  },
   sidebarHeader: {
     home: "Ir para o chat mais recente",
     toolCallHistory: "Histórico de chamadas de ferramentas",

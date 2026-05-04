@@ -91,6 +91,13 @@ const enMessages = {
     hostBody: 'Plugin "{plugin}" tried to register the {label} key "{key}" but it is reserved by the host. The plugin\'s entry has been dropped.',
     intraBody: 'Plugins "{first}" and "{second}" both register {dimension} "{key}". "{first}" claimed it first, so "{second}"\'s registration is ignored.',
   },
+  pluginErrorBoundary: {
+    title: "Plugin {pkg} crashed",
+    subtitle: "The plugin failed to render. The error has been logged to the console.",
+    showDetails: "Show details",
+    hideDetails: "Hide details",
+    retry: "Retry",
+  },
   sidebarHeader: {
     home: "Go to latest chat",
     toolCallHistory: "Tool call history",

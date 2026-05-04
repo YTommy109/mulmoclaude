@@ -77,6 +77,13 @@ const jaMessages = {
     intraBody:
       "プラグイン「{first}」と「{second}」が同じ {dimension}「{key}」を登録しています。「{first}」が先に確保したため、「{second}」の登録は無視されます。",
   },
+  pluginErrorBoundary: {
+    title: "プラグイン {pkg} がクラッシュしました",
+    subtitle: "プラグインのレンダリングに失敗しました。エラーはコンソールに記録されています。",
+    showDetails: "詳細を表示",
+    hideDetails: "詳細を隠す",
+    retry: "再試行",
+  },
   sidebarHeader: {
     home: "最新のチャットに移動",
     toolCallHistory: "ツール呼び出し履歴",
