@@ -1,18 +1,12 @@
 import type { ToolDefinition } from "gui-chat-protocol";
+import { META } from "./meta";
 
-export const TOOL_NAME = "presentHtml";
-
-export interface HtmlEndpoints {
-  [key: string]: string;
-  generate: string;
-  edit: string;
-  present: string;
-  update: string;
-}
+export const TOOL_NAME = META.toolName;
+export type HtmlEndpoints = typeof META.apiRoutes;
 
 const toolDefinition: ToolDefinition = {
   type: "function",
-  name: TOOL_NAME,
+  name: META.toolName,
   description: "Save and present a complete, self-contained HTML page in the canvas.",
   prompt: `Use ${TOOL_NAME} when the user asks for HTML output, dashboards, custom layouts, or interactive content. The HTML must be a full self-contained document (\`<!DOCTYPE html>\`, \`<html>\`, \`<body>\`) with all CSS / JavaScript inlined or loaded via CDN. Saved to \`artifacts/html/<YYYY>/<MM>/...\`, so when referencing other workspace assets use a relative path with exactly three \`../\` (example: \`<img src="../../../images/2026/04/foo.png">\`). For the full path conventions and rationale, read \`config/helps/presenthtml.md\` in the workspace.`,
   parameters: {

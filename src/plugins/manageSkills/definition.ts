@@ -1,15 +1,8 @@
 import type { ToolDefinition } from "gui-chat-protocol";
+import { META } from "./meta";
 
-export const TOOL_NAME = "manageSkills";
-
-export interface SkillsEndpoints {
-  [key: string]: string;
-  list: string;
-  detail: string;
-  create: string;
-  update: string;
-  remove: string;
-}
+export const TOOL_NAME = META.toolName;
+export type SkillsEndpoints = typeof META.apiRoutes;
 
 const toolDefinition: ToolDefinition = {
   type: "function",

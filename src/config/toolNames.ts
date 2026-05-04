@@ -39,15 +39,15 @@ const HOST_TOOL_NAMES = {
   // a 1:1 mapping between tool name and domain.
   manageCalendar: "manageCalendar",
   manageAutomations: "manageAutomations",
-  manageSkills: "manageSkills",
-  manageSource: "manageSource",
+  // manageSkills migrated — see `src/plugins/manageSkills/meta.ts`.
+  // manageSource migrated — see `src/plugins/manageSource/meta.ts`.
   manageWiki: "manageWiki",
 
   // Presentational plugins
-  presentMulmoScript: "presentMulmoScript",
+  // presentMulmoScript migrated — see `src/plugins/presentMulmoScript/meta.ts`.
   presentDocument: "presentDocument",
   presentSpreadsheet: "presentSpreadsheet",
-  presentHtml: "presentHtml",
+  // presentHtml migrated — see `src/plugins/presentHtml/meta.ts`.
   // presentChart migrated to META — see `src/plugins/chart/meta.ts`.
   presentForm: "presentForm",
   present3D: "present3D",

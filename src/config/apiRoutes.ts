@@ -106,15 +106,8 @@ const HOST_API_ROUTES = {
     refRoots: "/api/files/ref-roots",
   },
 
-  html: {
-    generate: "/api/generate-html",
-    edit: "/api/edit-html",
-    present: "/api/present-html",
-    // Body carries the workspace-relative path so the route doesn't
-    // have to reconstruct one from a basename — same shape as
-    // plugins.updateMarkdown / image.update.
-    update: "/api/htmls/update",
-  },
+  // `html` group migrated to META — see `src/plugins/presentHtml/meta.ts`.
+  // Auto-merged via `apiRoutesKey: "html"`.
 
   image: {
     generate: "/api/generate-image",
@@ -155,22 +148,8 @@ const HOST_API_ROUTES = {
     latestDaily: "/api/journal/latest-daily",
   },
 
-  mulmoScript: {
-    save: "/api/mulmo-script",
-    updateBeat: "/api/mulmo-script/update-beat",
-    updateScript: "/api/mulmo-script/update-script",
-    beatImage: "/api/mulmo-script/beat-image",
-    beatAudio: "/api/mulmo-script/beat-audio",
-    generateBeatAudio: "/api/mulmo-script/generate-beat-audio",
-    renderBeat: "/api/mulmo-script/render-beat",
-    uploadBeatImage: "/api/mulmo-script/upload-beat-image",
-    characterImage: "/api/mulmo-script/character-image",
-    renderCharacter: "/api/mulmo-script/render-character",
-    uploadCharacterImage: "/api/mulmo-script/upload-character-image",
-    movieStatus: "/api/mulmo-script/movie-status",
-    generateMovie: "/api/mulmo-script/generate-movie",
-    downloadMovie: "/api/mulmo-script/download-movie",
-  },
+  // `mulmoScript` group migrated to META — see `src/plugins/presentMulmoScript/meta.ts`.
+  // Auto-merged via `apiRoutesKey: "mulmoScript"`.
 
   pdf: {
     markdown: "/api/pdf/markdown",
@@ -237,21 +216,8 @@ const HOST_API_ROUTES = {
     bookmark: "/api/sessions/:id/bookmark",
   },
 
-  skills: {
-    list: "/api/skills",
-    detail: "/api/skills/:name",
-    create: "/api/skills",
-    update: "/api/skills/:name",
-    remove: "/api/skills/:name",
-  },
-
-  sources: {
-    list: "/api/sources",
-    create: "/api/sources",
-    remove: "/api/sources/:slug",
-    rebuild: "/api/sources/rebuild",
-    manage: "/api/sources/manage",
-  },
+  // `skills` group migrated to META — see `src/plugins/manageSkills/meta.ts`.
+  // `sources` group migrated to META — see `src/plugins/manageSource/meta.ts`.
 
   news: {
     items: "/api/news/items",
