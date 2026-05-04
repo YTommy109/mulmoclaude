@@ -608,6 +608,7 @@ const zhMessages = {
       creditLabel: "贷方",
       taxRegistrationIdLabel: "税务登记号",
       taxRegistrationIdPlaceholder: "T-number / VAT ID / GSTIN…",
+      taxRegistrationIdMissingPlaceholder: "缺失 — 留空时提交将丢弃该值",
       addLine: "添加行",
       removeLine: "删除",
       submit: "登账",

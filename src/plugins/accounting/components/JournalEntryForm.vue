@@ -83,7 +83,11 @@
               v-model="line.taxRegistrationId"
               type="text"
               :maxlength="MAX_TAX_REGISTRATION_ID_LENGTH"
-              :placeholder="t('pluginAccounting.entryForm.taxRegistrationIdPlaceholder')"
+              :placeholder="
+                isTaxRegistrationIdMissing(line)
+                  ? t('pluginAccounting.entryForm.taxRegistrationIdMissingPlaceholder')
+                  : t('pluginAccounting.entryForm.taxRegistrationIdPlaceholder')
+              "
               :class="[
                 'h-8 px-2 w-full rounded border text-sm font-mono focus:outline-none',
                 isTaxRegistrationIdInvalid(line)
