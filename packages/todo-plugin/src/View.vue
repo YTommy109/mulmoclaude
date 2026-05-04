@@ -116,7 +116,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { useRuntime } from "gui-chat-protocol/vue";
 import type { TodoData, TodoItem } from "./types";
-import { colorForLabel, filterByLabels, listLabelsWithCount, subtractLabels } from "./labels";
+import { colorForLabel, filterByLabels, listLabelsWithCount } from "./labels";
 import { useT, format } from "./lang";
 
 const messages = useT();
@@ -295,8 +295,6 @@ function parseYaml(text: string): { text: string; note: string; labels: string[]
 // ── Item selection & YAML edit ────────────────────────────────────────────────
 
 const selectedId = ref<string | null>(null);
-const selectedOriginalText = ref<string>("");
-const selectedOriginalLabels = ref<string[]>([]);
 const yamlText = ref("");
 const yamlError = ref("");
 
@@ -306,23 +304,15 @@ function selectItem(item: TodoItem) {
     return;
   }
   selectedId.value = item.id;
-  selectedOriginalText.value = item.text;
-  selectedOriginalLabels.value = [...(item.labels ?? [])];
   yamlText.value = serializeYaml(item);
   yamlError.value = "";
 }
 
 watch(items, () => {
-  if (selectedId.value) {
-    const item = items.value.find((i) => i.id === selectedId.value);
-    if (item) {
-      yamlText.value = serializeYaml(item);
-      selectedOriginalText.value = item.text;
-      selectedOriginalLabels.value = [...(item.labels ?? [])];
-    } else {
-      selectedId.value = null;
-    }
-  }
+  if (!selectedId.value) return;
+  const item = items.value.find((i) => i.id === selectedId.value);
+  if (item) yamlText.value = serializeYaml(item);
+  else selectedId.value = null;
 });
 
 async function applyItemEdit() {
@@ -332,37 +322,22 @@ async function applyItemEdit() {
     yamlError.value = t("yamlParseError");
     return;
   }
-  // 1. text / note go through `update` (label-agnostic on the server).
+  // Single id-based UI patch — `handlePatch` accepts text + note +
+  // labels in one call and applies them atomically. The earlier
+  // multi-call LLM-action flow (`update` + `add_label` + `remove_label`)
+  // resolved items by case-insensitive substring match on text, so two
+  // todos with similar titles could clobber each other; the UI knows
+  // the id, so use it.
+  const id = selectedId.value;
+  if (!id) return;
   const ok = await callApi({
-    action: "update",
-    text: selectedOriginalText.value,
-    newText: parsed.text,
+    kind: "itemPatch",
+    id,
+    text: parsed.text,
     note: parsed.note,
+    labels: parsed.labels,
   });
   if (!ok) return;
-  // 2. labels are diffed against the prior state and applied as
-  //    `add_label` / `remove_label` calls. `update` deliberately
-  //    does not touch labels — this keeps each LLM action
-  //    single-purpose and matches the add_label/remove_label
-  //    semantics the LLM uses.
-  const originalLabels = selectedOriginalLabels.value;
-  const removed = subtractLabels(originalLabels, parsed.labels);
-  const added = subtractLabels(parsed.labels, originalLabels);
-  // Use the already-renamed `parsed.text` to match the updated item.
-  if (removed.length > 0) {
-    await callApi({
-      action: "remove_label",
-      text: parsed.text,
-      labels: removed,
-    });
-  }
-  if (added.length > 0) {
-    await callApi({
-      action: "add_label",
-      text: parsed.text,
-      labels: added,
-    });
-  }
   selectedId.value = null;
 }
 
@@ -402,15 +377,24 @@ async function callApi(body: Record<string, unknown>): Promise<boolean> {
 }
 
 function toggle(item: TodoItem) {
-  callApi({ action: item.completed ? "uncheck" : "check", text: item.text });
+  // id-based patch — server's `applyCompletedPatch` flips the
+  // completed flag and moves the item between the done column
+  // and the default open column the obvious way. The previous
+  // text-based `check` / `uncheck` LLM actions resolved by
+  // case-insensitive substring and could mutate the wrong row
+  // when two todos share a prefix.
+  callApi({ kind: "itemPatch", id: item.id, completed: !item.completed });
 }
 
 function remove(item: TodoItem) {
   if (selectedId.value === item.id) selectedId.value = null;
-  callApi({ action: "delete", text: item.text });
+  callApi({ kind: "itemDelete", id: item.id });
 }
 
 function clearCompleted() {
+  // The LLM `clear_completed` action filters by the boolean flag
+  // (no text matching), so it's safe to keep as a single
+  // round-trip rather than fanning out into N `itemDelete` calls.
   callApi({ action: "clear_completed" });
 }
 </script>

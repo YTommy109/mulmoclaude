@@ -343,6 +343,40 @@ describe("Todo plugin — end-to-end through the loader", () => {
     assert.equal(res.status, 400);
   });
 
+  it("Robustness: id-based UI patch mutates the right row when two items share a text prefix", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    // Pre-#1145 the View dispatched LLM-style `{ action: "update",
+    // text: "..." }` calls that resolved by case-insensitive
+    // substring match — two todos sharing a prefix would clobber
+    // each other. The migrated View now uses `{ kind: "itemPatch",
+    // id: ... }`, which the `handlePatch` handler resolves by
+    // exact id. Pin that contract so a future regression to text-
+    // based dispatch shows up here. Codex review iter on PR #1149.
+    const { pubsub } = makeRecordingPubSub();
+    const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+    });
+    assert.ok(plugin?.execute);
+
+    const first = (await plugin.execute({}, { kind: "itemCreate", text: "Buy milk" })) as TodoResult;
+    const second = (await plugin.execute({}, { kind: "itemCreate", text: "Buy milk and bread" })) as TodoResult;
+    const idA = first.data?.items?.find((entry) => entry.text === "Buy milk")?.id;
+    const idB = second.data?.items?.find((entry) => entry.text === "Buy milk and bread")?.id;
+    assert.ok(idA);
+    assert.ok(idB);
+    assert.notEqual(idA, idB);
+
+    // Patch only the second one. With a substring text match against
+    // "Buy milk" the first one would also flip; with id-based dispatch
+    // only the targeted row mutates.
+    const patched = (await plugin.execute({}, { kind: "itemPatch", id: idB, completed: true })) as TodoResult;
+    assert.equal(patched.data?.items?.find((entry) => entry.id === idA)?.completed, false, "first item must remain unchanged");
+    assert.equal(patched.data?.items?.find((entry) => entry.id === idB)?.completed, true, "targeted item flipped");
+  });
+
   it("Robustness: a malformed todos.json (object instead of array) degrades to an empty list rather than crashing dispatch", async (ctx) => {
     if (!existsSync(PLUGIN_DIST_INDEX)) {
       ctx.skip("dist not built");
