@@ -53,6 +53,21 @@ describe("getTimeSeriesReport — input validation", () => {
     );
   });
 
+  it("rejects impossible calendar dates (Feb 30, month 13, day 0)", async () => {
+    // Regex-shaped but not real days — without round-trip validation
+    // they'd silently normalise into the wrong month and produce
+    // malformed bucket boundaries instead of a clean 400.
+    const root = makeTmp();
+    const book = await createBook({ name: "X" }, root);
+    for (const bad of ["2025-02-30", "2025-13-01", "2025-04-31", "2025-00-15", "2025-01-00"]) {
+      await assert.rejects(
+        () => getTimeSeriesReport({ bookId: book.book.id, metric: "revenue", granularity: "month", from: bad, to: "2025-12-31" }, root),
+        AccountingError,
+        `should reject from=${bad}`,
+      );
+    }
+  });
+
   it("rejects from > to", async () => {
     const root = makeTmp();
     const book = await createBook({ name: "X" }, root);

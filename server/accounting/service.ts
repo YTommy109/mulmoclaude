@@ -599,9 +599,22 @@ export async function getLedgerReport(
 
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** True iff `value` is a YYYY-MM-DD string for a real calendar day.
+ *  The regex check rejects shape garbage; the round-trip check
+ *  rejects impossible days like `2025-02-30` or `2025-13-01` that
+ *  would otherwise normalise into the wrong month and produce
+ *  malformed bucket boundaries. */
+function isValidYmd(value: string): boolean {
+  if (!YMD_RE.test(value)) return false;
+  const [year, month, day] = value.split("-").map((segment) => parseInt(segment, 10));
+  if (month < 1 || month > 12 || day < 1) return false;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return day <= lastDay;
+}
+
 function ensureValidYmd(label: string, value: unknown): string {
-  if (typeof value !== "string" || !YMD_RE.test(value)) {
-    throw new AccountingError(400, `getTimeSeries: ${label} must be a YYYY-MM-DD string`);
+  if (typeof value !== "string" || !isValidYmd(value)) {
+    throw new AccountingError(400, `getTimeSeries: ${label} must be a valid YYYY-MM-DD calendar date`);
   }
   return value;
 }
@@ -652,30 +665,50 @@ export interface TimeSeriesReport {
   points: TimeSeriesPoint[];
 }
 
-export async function getTimeSeriesReport(input: TimeSeriesReportInput, workspaceRoot?: string): Promise<TimeSeriesReport> {
+interface ValidatedTimeSeriesInput {
+  metric: TimeSeriesMetric;
+  granularity: TimeSeriesGranularity;
+  from: string;
+  toDate: string;
+  accountCode: string | undefined;
+}
+
+function validateTimeSeriesInput(input: TimeSeriesReportInput): ValidatedTimeSeriesInput {
   const metric = ensureMetric(input.metric);
   const granularity = ensureGranularity(input.granularity);
   const from = ensureValidYmd("from", input.from);
   const toDate = ensureValidYmd("to", input.to);
   if (from > toDate) throw new AccountingError(400, "getTimeSeries: from must be on or before to");
-
   const accountCode = resolveAccountCode(metric, input.accountCode);
+  return { metric, granularity, from, toDate, accountCode };
+}
 
+interface TimeSeriesBookContext {
+  bookId: string;
+  fiscalYearEnd: FiscalYearEnd;
+  accounts: Account[];
+}
+
+async function loadTimeSeriesBookContext(requestedBookId: string | undefined, workspaceRoot?: string): Promise<TimeSeriesBookContext> {
   const config = await loadOrInitConfig(workspaceRoot);
-  const bookId = resolveBookId(config, input.bookId);
+  const bookId = resolveBookId(config, requestedBookId);
   const book = findBook(config, bookId);
-  // resolveBookId guarantees the book exists; fallback for the
-  // type-checker.
+  // resolveBookId guarantees the book exists; this fallback is for
+  // the type-checker only.
   const fiscalYearEnd: FiscalYearEnd = book?.fiscalYearEnd ?? DEFAULT_FISCAL_YEAR_END;
-
   const accounts = await readAccounts(bookId, workspaceRoot);
+  return { bookId, fiscalYearEnd, accounts };
+}
+
+export async function getTimeSeriesReport(input: TimeSeriesReportInput, workspaceRoot?: string): Promise<TimeSeriesReport> {
+  const { metric, granularity, from, toDate, accountCode } = validateTimeSeriesInput(input);
+  const { bookId, fiscalYearEnd, accounts } = await loadTimeSeriesBookContext(input.bookId, workspaceRoot);
   if (accountCode && !accounts.some((acct) => acct.code === accountCode)) {
     throw new AccountingError(404, `getTimeSeries: account ${JSON.stringify(accountCode)} not found`);
   }
   const entries = await readAllEntries(bookId, workspaceRoot);
   const buckets = bucketize({ from, to: toDate, granularity, fiscalYearEnd });
   const points = buildTimeSeries({ buckets, entries, accounts, metric, accountCode });
-
   const report: TimeSeriesReport = { bookId, metric, granularity, from, to: toDate, points };
   if (accountCode) report.accountCode = accountCode;
   return report;

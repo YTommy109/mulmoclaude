@@ -45,7 +45,7 @@ Reuses the top-level `bookId` already on the schema. No new `period` shape.
 ```ts
 interface TimeSeriesPoint {
   /** Bucket label intended for chart axes. Format depends on
-   *  granularity: "2025-Q3" / "2025-09" / "FY2025". */
+   *  granularity: "2025-09" / "FY2025-Q3" / "FY2025". */
   label: string;
   /** Inclusive start of the bucket, YYYY-MM-DD. */
   from: string;

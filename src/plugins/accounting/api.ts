@@ -262,7 +262,7 @@ export interface TimeSeriesPoint {
   value: number;
 }
 
-export function getTimeSeries(input: {
+export interface TimeSeriesInput {
   bookId: string;
   metric: TimeSeriesMetric;
   granularity: TimeSeriesGranularity;
@@ -275,18 +275,23 @@ export function getTimeSeries(input: {
   /** Required when metric === "accountBalance"; forbidden otherwise.
    *  The server returns a 400 either way. */
   accountCode?: string;
-}): Promise<
-  ApiResult<{
-    bookId: string;
-    metric: TimeSeriesMetric;
-    granularity: TimeSeriesGranularity;
-    from: string;
-    to: string;
-    accountCode?: string;
-    points: TimeSeriesPoint[];
-  }>
-> {
-  return call(ACCOUNTING_ACTIONS.getTimeSeries, input);
+}
+
+export interface TimeSeriesResult {
+  bookId: string;
+  metric: TimeSeriesMetric;
+  granularity: TimeSeriesGranularity;
+  from: string;
+  to: string;
+  accountCode?: string;
+  points: TimeSeriesPoint[];
+}
+
+export function getTimeSeries(input: TimeSeriesInput): Promise<ApiResult<TimeSeriesResult>> {
+  // Spread so the named interface is widened into a fresh object
+  // literal — `call()` takes `Record<string, unknown>` which a
+  // declared interface doesn't satisfy structurally in TS.
+  return call(ACCOUNTING_ACTIONS.getTimeSeries, { ...input });
 }
 
 // ── Admin ────────────────────────────────────────────────────────────
