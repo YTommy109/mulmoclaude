@@ -705,6 +705,11 @@ const deMessages = {
       total: "Summe",
       imbalance: "Differenz: {amount}",
       currentEarnings: "Periodenergebnis",
+      shortcutLabel: "Schnellauswahl",
+      thisMonth: "Dieser Monat",
+      lastMonth: "Letzter Monat",
+      lastQuarter: "Letztes Quartal",
+      lastYear: "Letztes Jahr",
     },
     profitLoss: {
       fromLabel: "Von",

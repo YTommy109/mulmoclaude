@@ -627,7 +627,7 @@ const ptBRMessages = {
     entryForm: {
       title: "Novo lançamento",
       editTitle: "Editar lançamento",
-      editBanner: "Ao enviar, o lançamento original é estornado e substituído por este.",
+      editBanner: "Ao enviar, o lançamento original será estornado e substituído por este.",
       dateLabel: "Data",
       memoLabel: "Memo",
       accountLabel: "Conta",
@@ -695,6 +695,11 @@ const ptBRMessages = {
       total: "Total",
       imbalance: "Diferença: {amount}",
       currentEarnings: "Resultado do período",
+      shortcutLabel: "Atalho",
+      thisMonth: "Este mês",
+      lastMonth: "Mês anterior",
+      lastQuarter: "Último trimestre",
+      lastYear: "Ano anterior",
     },
     profitLoss: {
       fromLabel: "De",

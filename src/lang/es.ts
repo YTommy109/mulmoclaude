@@ -634,7 +634,7 @@ const esMessages = {
     entryForm: {
       title: "Nueva entrada",
       editTitle: "Editar entrada",
-      editBanner: "Al enviar, la entrada original se anula y se sustituye por esta.",
+      editBanner: "Al enviar, la entrada original será anulada y sustituida por esta.",
       dateLabel: "Fecha",
       memoLabel: "Memo",
       accountLabel: "Cuenta",
@@ -702,6 +702,11 @@ const esMessages = {
       total: "Total",
       imbalance: "Descuadre: {amount}",
       currentEarnings: "Resultado del período",
+      shortcutLabel: "Atajo",
+      thisMonth: "Este mes",
+      lastMonth: "Mes anterior",
+      lastQuarter: "Último trimestre",
+      lastYear: "Año anterior",
     },
     profitLoss: {
       fromLabel: "Desde",

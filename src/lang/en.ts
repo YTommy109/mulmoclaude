@@ -639,7 +639,7 @@ const enMessages = {
     entryForm: {
       title: "New journal entry",
       editTitle: "Edit journal entry",
-      editBanner: "The original entry is voided and replaced by this one when you submit.",
+      editBanner: "When you submit, the original entry will be voided and replaced by this one.",
       dateLabel: "Date",
       memoLabel: "Memo",
       accountLabel: "Account",
@@ -697,6 +697,11 @@ const enMessages = {
       total: "Total",
       imbalance: "Imbalance: {amount}",
       currentEarnings: "Current period earnings",
+      shortcutLabel: "Shortcut",
+      thisMonth: "This month",
+      lastMonth: "Last month",
+      lastQuarter: "Last quarter",
+      lastYear: "Last year",
     },
     profitLoss: { fromLabel: "From", toLabel: "To", income: "Income", expense: "Expense", netIncome: "Net income:" },
     accounts: {

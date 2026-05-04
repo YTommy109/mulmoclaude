@@ -88,7 +88,13 @@
             :opening-date="activeOpeningDate"
             :preselect-account-code="ledgerPreselectAccountCode"
           />
-          <BalanceSheet v-else-if="currentTab === 'balanceSheet'" :book-id="activeBookId" :currency="activeCurrency" :version="bookVersion" />
+          <BalanceSheet
+            v-else-if="currentTab === 'balanceSheet'"
+            :book-id="activeBookId"
+            :currency="activeCurrency"
+            :version="bookVersion"
+            @select-account="onAccountSelected"
+          />
           <ProfitLoss
             v-else-if="currentTab === 'profitLoss'"
             :book-id="activeBookId"
@@ -96,6 +102,7 @@
             :version="bookVersion"
             :fiscal-year-end="activeFiscalYearEnd"
             :opening-date="activeOpeningDate"
+            @select-account="onAccountSelected"
           />
           <BookSettings
             v-else-if="currentTab === 'settings'"

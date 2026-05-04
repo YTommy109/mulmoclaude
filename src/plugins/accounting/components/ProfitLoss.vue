@@ -13,7 +13,18 @@
         <h4 class="text-sm font-semibold mb-2">{{ t("pluginAccounting.profitLoss.income") }}</h4>
         <table class="w-full text-sm">
           <tbody>
-            <tr v-for="row in profitLoss.income.rows" :key="row.accountCode" class="border-b border-gray-100">
+            <tr
+              v-for="row in profitLoss.income.rows"
+              :key="row.accountCode"
+              class="border-b border-gray-100 hover:bg-blue-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+              tabindex="0"
+              role="button"
+              :aria-label="t('pluginAccounting.accounts.openLedgerAria', { code: row.accountCode, name: row.accountName })"
+              :data-testid="`accounting-pl-row-${row.accountCode}`"
+              @click="onRowClick(row.accountCode)"
+              @keydown.enter.prevent.self="onKeyActivate($event, row.accountCode)"
+              @keydown.space.prevent.self="onKeyActivate($event, row.accountCode)"
+            >
               <td class="py-1 px-1">
                 <span class="font-mono text-[10px] text-gray-400 mr-2">{{ row.accountCode }}</span
                 >{{ row.accountName }}
@@ -33,7 +44,18 @@
         <h4 class="text-sm font-semibold mb-2">{{ t("pluginAccounting.profitLoss.expense") }}</h4>
         <table class="w-full text-sm">
           <tbody>
-            <tr v-for="row in profitLoss.expense.rows" :key="row.accountCode" class="border-b border-gray-100">
+            <tr
+              v-for="row in profitLoss.expense.rows"
+              :key="row.accountCode"
+              class="border-b border-gray-100 hover:bg-blue-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+              tabindex="0"
+              role="button"
+              :aria-label="t('pluginAccounting.accounts.openLedgerAria', { code: row.accountCode, name: row.accountName })"
+              :data-testid="`accounting-pl-row-${row.accountCode}`"
+              @click="onRowClick(row.accountCode)"
+              @keydown.enter.prevent.self="onKeyActivate($event, row.accountCode)"
+              @keydown.space.prevent.self="onKeyActivate($event, row.accountCode)"
+            >
               <td class="py-1 px-1">
                 <span class="font-mono text-[10px] text-gray-400 mr-2">{{ row.accountCode }}</span
                 >{{ row.accountName }}
@@ -79,7 +101,18 @@ const props = defineProps<{
   openingDate?: string;
 }>();
 
+const emit = defineEmits<{ selectAccount: [code: string] }>();
+
 const resolvedFiscalYearEnd = computed<FiscalYearEnd>(() => resolveFiscalYearEnd(props.fiscalYearEnd));
+
+function onRowClick(code: string): void {
+  emit("selectAccount", code);
+}
+
+function onKeyActivate(event: KeyboardEvent, code: string): void {
+  if (event.repeat) return;
+  emit("selectAccount", code);
+}
 
 // Default = current fiscal year. Reset by the bookId/fiscalYearEnd
 // watcher below so switching books or changing the FY-end in

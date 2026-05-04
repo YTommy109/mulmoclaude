@@ -692,6 +692,11 @@ const jaMessages = {
       total: "合計",
       imbalance: "差額: {amount}",
       currentEarnings: "当期純損益",
+      shortcutLabel: "ショートカット",
+      thisMonth: "今月",
+      lastMonth: "先月",
+      lastQuarter: "前四半期",
+      lastYear: "前年",
     },
     profitLoss: {
       fromLabel: "開始日",
