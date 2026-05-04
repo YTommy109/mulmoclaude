@@ -11,7 +11,7 @@ import calendarDefinition, { TOOL_NAME as MANAGE_CALENDAR } from "./calendarDefi
 import automationsDefinition, { TOOL_NAME as MANAGE_AUTOMATIONS, type SchedulerEndpoints } from "./automationsDefinition";
 import { pluginEndpoints } from "../api";
 import { wrapWithScope } from "../scope";
-import { apiPost } from "../../utils/api";
+import { apiCall } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
 export interface ScheduledItem {
@@ -29,7 +29,8 @@ export interface SchedulerData {
 function makeExecute(toolName: typeof MANAGE_CALENDAR | typeof MANAGE_AUTOMATIONS): ToolPlugin<SchedulerData>["execute"] {
   return async function execute(_context, args) {
     const endpoints = pluginEndpoints<SchedulerEndpoints>("scheduler");
-    const result = await apiPost<ToolResult<SchedulerData>>(endpoints.base, args);
+    const { method, url } = endpoints.dispatch;
+    const result = await apiCall<ToolResult<SchedulerData>>(url, { method, body: args });
     if (!result.ok) {
       return {
         toolName,

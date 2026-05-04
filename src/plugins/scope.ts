@@ -49,7 +49,7 @@ export function wrapWithScope<TInner extends Component | undefined>(scope: strin
       name: `BuiltInPluginScope:${scope}`,
       inheritAttrs: false,
       setup(_props, { attrs, slots }) {
-        const endpoints = pluginEndpoints<Record<string, string>>(scope);
+        const endpoints = pluginEndpoints<Record<string, unknown>>(scope);
         return () => h(PluginScopedRoot, { pkgName: scope, endpoints }, () => h(inner, attrs, slots));
       },
     }),

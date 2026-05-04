@@ -18,10 +18,13 @@ interface Props {
   pkgName: string;
   /** Optional URL map exposed to the plugin via `runtime.endpoints`.
    *  Multi-URL built-in plugins (todos, scheduler, mulmoScript, …)
-   *  pass their endpoint group; runtime-loaded plugins (the common
-   *  single-dispatch shape) omit this. Contract:
-   *  `gui-chat-protocol@>=0.3.1`. */
-  endpoints?: Readonly<Record<string, string>>;
+   *  pass their endpoint group ({ method, url } records since #1141);
+   *  runtime-loaded plugins (the common single-dispatch shape) omit
+   *  this AND host-shared scopes (`files`, `imageStore`, `mcpTools`)
+   *  pass plain string URLs. Treated opaquely here — each consumer
+   *  asserts the shape it expects via `pluginEndpoints<E>(scope)`.
+   *  Contract: `gui-chat-protocol@>=0.3.1`. */
+  endpoints?: Readonly<Record<string, unknown>>;
 }
 
 const props = defineProps<Props>();

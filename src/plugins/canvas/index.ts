@@ -5,7 +5,7 @@ import { pluginEndpoints } from "../api";
 import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
-import { apiPost } from "../../utils/api";
+import { apiCall } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
 const canvasPlugin: ToolPlugin<ImageToolData> = {
@@ -13,7 +13,8 @@ const canvasPlugin: ToolPlugin<ImageToolData> = {
 
   async execute(_context, args) {
     const endpoints = pluginEndpoints<CanvasEndpoints>("canvas");
-    const result = await apiPost<ToolResult<ImageToolData>>(endpoints.dispatch, args);
+    const { method, url } = endpoints.dispatch;
+    const result = await apiCall<ToolResult<ImageToolData>>(url, { method, body: args });
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

@@ -1,8 +1,9 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 import { META } from "./meta";
+import type { ResolvedRoute } from "../meta-types";
 
 export const TOOL_NAME = META.toolName;
-export type SourcesEndpoints = typeof META.apiRoutes;
+export type SourcesEndpoints = { readonly [K in keyof typeof META.apiRoutes]: ResolvedRoute };
 
 const toolDefinition: ToolDefinition = {
   type: "function",

@@ -12,6 +12,7 @@ import { fillMarkdownImagePlaceholders } from "../../utils/files/markdown-image-
 import { saveMarkdown, overwriteMarkdown, isMarkdownPath } from "../../utils/files/markdown-store.js";
 import { saveSpreadsheet, overwriteSpreadsheet, isSpreadsheetPath } from "../../utils/files/spreadsheet-store.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { bindRoute } from "../../utils/router.js";
 import { collectPluginMetaDiagnostics } from "../../plugins/diagnostics.js";
 import { log } from "../../system/logger/index.js";
 import { previewSnippet } from "../../utils/logPreview.js";
@@ -77,8 +78,9 @@ interface PresentDocumentError {
   error: string;
 }
 
-router.post(
-  API_ROUTES.presentDocument.presentDocument,
+bindRoute(
+  router,
+  API_ROUTES.markdown.create,
   async (req: Request<object, unknown, PresentDocumentBody>, res: Response<PresentDocumentSuccess | PresentDocumentError>) => {
     const { title, markdown, filenamePrefix } = req.body;
     log.info("plugins", "presentDocument: start", {
@@ -121,8 +123,9 @@ interface UpdateMarkdownError {
   error: string;
 }
 
-router.put(
-  API_ROUTES.presentDocument.updateMarkdown,
+bindRoute(
+  router,
+  API_ROUTES.markdown.update,
   async (req: Request<object, unknown, UpdateMarkdownBody>, res: Response<UpdateMarkdownResponse | UpdateMarkdownError>) => {
     const { relativePath, markdown } = req.body;
     log.info("plugins", "updateMarkdown: start", {
@@ -161,8 +164,9 @@ router.put(
 // than fabricating a fake context.
 
 // presentSpreadsheet — validate, then save sheets to disk
-router.post(
-  API_ROUTES.presentSpreadsheet.presentSpreadsheet,
+bindRoute(
+  router,
+  API_ROUTES.spreadsheet.create,
   wrapPluginExecute<SpreadsheetArgs, unknown>(async (req) => {
     const result = await executeSpreadsheet(req.body);
     if (!Array.isArray(result.data.sheets)) {
@@ -189,8 +193,9 @@ interface UpdateSpreadsheetError {
   error: string;
 }
 
-router.put(
-  API_ROUTES.presentSpreadsheet.updateSpreadsheet,
+bindRoute(
+  router,
+  API_ROUTES.spreadsheet.update,
   async (req: Request<object, unknown, UpdateSpreadsheetBody>, res: Response<UpdateSpreadsheetResponse | UpdateSpreadsheetError>) => {
     const { relativePath, sheets } = req.body;
     log.info("plugins", "updateSpreadsheet: start", {
@@ -233,8 +238,9 @@ router.post(
 );
 
 // presentForm — form
-router.post(
-  API_ROUTES.presentForm.dispatch,
+bindRoute(
+  router,
+  API_ROUTES.form.dispatch,
   wrapPluginExecute((req) => executeForm(null as never, req.body)),
 );
 
@@ -245,7 +251,8 @@ router.post(
 const BLANK_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=";
 
 // openCanvas — drawing canvas
-router.post(
+bindRoute(
+  router,
   API_ROUTES.canvas.dispatch,
   wrapPluginExecute(async () => {
     const imagePath = await saveImage(BLANK_PNG_BASE64);

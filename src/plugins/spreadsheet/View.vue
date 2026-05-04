@@ -133,7 +133,7 @@ import { pluginEndpoints } from "../api";
 import type { FilesContentResponseLike } from "./engine/responseDecoder";
 import { isObj, isRecord } from "../../utils/types";
 
-const endpoints = pluginEndpoints<SpreadsheetEndpoints>("presentSpreadsheet");
+const endpoints = pluginEndpoints<SpreadsheetEndpoints>("spreadsheet");
 const filesEndpoints = pluginEndpoints<{ content: string }>("files");
 
 const { t } = useI18n();
@@ -260,7 +260,7 @@ async function persistSheets(sheets: SpreadsheetSheet[]): Promise<void> {
     // Send the full workspace-relative path so the route doesn't have
     // to reconstruct one from a basename — paths under
     // `artifacts/spreadsheets/` are now sharded by YYYY/MM (#764).
-    const result = await apiPut<unknown>(endpoints.updateSpreadsheet, {
+    const result = await apiPut<unknown>(endpoints.update.url, {
       relativePath: raw,
       sheets,
     });

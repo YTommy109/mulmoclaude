@@ -1,8 +1,12 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 import { META } from "./meta";
+import type { ResolvedRoute } from "../meta-types";
 
 export const TOOL_NAME = META.toolName;
-export type DocumentEndpoints = typeof META.apiRoutes;
+/** Resolved-URL view of the markdown plugin's routes — `{ method,
+ *  url }` per route key, with the `/api/markdown` prefix already
+ *  composed by the host. */
+export type DocumentEndpoints = { readonly [K in keyof typeof META.apiRoutes]: ResolvedRoute };
 
 export interface MarkdownToolData {
   markdown: string;

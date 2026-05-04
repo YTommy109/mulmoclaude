@@ -35,6 +35,7 @@ import { normalizeCategories, type CategorySlug } from "../../workspace/sources/
 import { badRequest, conflict, sendError, serverError } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { bindRoute } from "../../utils/router.js";
 import { isNonEmptyString, isRecord } from "../../utils/types.js";
 
 const router = Router();
@@ -55,7 +56,7 @@ interface ErrorResponse {
   error: string;
 }
 
-router.get(API_ROUTES.sources.list, async (_req: Request, res: Response<ListSourcesResponse | ErrorResponse>) => {
+bindRoute(router, API_ROUTES.sources.list, async (_req: Request, res: Response<ListSourcesResponse | ErrorResponse>) => {
   try {
     const sources = await listSources(workspacePath);
     res.json({ sources });
@@ -88,45 +89,49 @@ interface RegisterSourceResponse {
   classifyRationale?: string;
 }
 
-router.post(API_ROUTES.sources.create, async (req: Request<object, unknown, RegisterSourceBody>, res: Response<RegisterSourceResponse | ErrorResponse>) => {
-  const parsed = parseRegisterBody(req.body ?? {});
-  if ("error" in parsed) {
-    sendError(res, parsed.status, parsed.error);
-    return;
-  }
-  const existing = await readSource(workspacePath, parsed.slug);
-  if (existing) {
-    conflict(res, `source "${parsed.slug}" already exists`);
-    return;
-  }
-  const { categories, rationale } = await resolveCategories(parsed);
-  const source: Source = {
-    slug: parsed.slug,
-    title: parsed.title,
-    url: parsed.url,
-    fetcherKind: parsed.fetcherKind,
-    fetcherParams: parsed.fetcherParams,
-    schedule: parsed.schedule,
-    categories,
-    maxItemsPerFetch: parsed.maxItemsPerFetch,
-    addedAt: new Date().toISOString(),
-    notes: parsed.notes,
-  };
-  try {
-    await writeSource(workspacePath, source);
-  } catch (err) {
-    serverError(res, errorMessage(err, "failed to write source"));
-    return;
-  }
-  log.info("sources", "source registered", {
-    slug: parsed.slug,
-    fetcherKind: parsed.fetcherKind,
-  });
-  res.status(201).json({
-    source,
-    ...(rationale !== undefined && { classifyRationale: rationale }),
-  });
-});
+bindRoute(
+  router,
+  API_ROUTES.sources.create,
+  async (req: Request<object, unknown, RegisterSourceBody>, res: Response<RegisterSourceResponse | ErrorResponse>) => {
+    const parsed = parseRegisterBody(req.body ?? {});
+    if ("error" in parsed) {
+      sendError(res, parsed.status, parsed.error);
+      return;
+    }
+    const existing = await readSource(workspacePath, parsed.slug);
+    if (existing) {
+      conflict(res, `source "${parsed.slug}" already exists`);
+      return;
+    }
+    const { categories, rationale } = await resolveCategories(parsed);
+    const source: Source = {
+      slug: parsed.slug,
+      title: parsed.title,
+      url: parsed.url,
+      fetcherKind: parsed.fetcherKind,
+      fetcherParams: parsed.fetcherParams,
+      schedule: parsed.schedule,
+      categories,
+      maxItemsPerFetch: parsed.maxItemsPerFetch,
+      addedAt: new Date().toISOString(),
+      notes: parsed.notes,
+    };
+    try {
+      await writeSource(workspacePath, source);
+    } catch (err) {
+      serverError(res, errorMessage(err, "failed to write source"));
+      return;
+    }
+    log.info("sources", "source registered", {
+      slug: parsed.slug,
+      fetcherKind: parsed.fetcherKind,
+    });
+    res.status(201).json({
+      source,
+      ...(rationale !== undefined && { classifyRationale: rationale }),
+    });
+  },
+);
 
 // --- DELETE /api/sources/:slug ------------------------------------------
 
@@ -139,7 +144,7 @@ interface DeleteSourceResponse {
   stateRemoved: boolean;
 }
 
-router.delete(API_ROUTES.sources.remove, async (req: Request<DeleteSourceParams>, res: Response<DeleteSourceResponse | ErrorResponse>) => {
+bindRoute(router, API_ROUTES.sources.remove, async (req: Request<DeleteSourceParams>, res: Response<DeleteSourceResponse | ErrorResponse>) => {
   const { slug } = req.params;
   if (!isValidSlug(slug)) {
     badRequest(res, "invalid slug");
@@ -159,7 +164,7 @@ interface RebuildBody {
   scheduleType?: unknown;
 }
 
-router.post(API_ROUTES.sources.rebuild, async (req: Request<object, unknown, RebuildBody>, res: Response<ErrorResponse | Record<string, unknown>>) => {
+bindRoute(router, API_ROUTES.sources.rebuild, async (req: Request<object, unknown, RebuildBody>, res: Response<ErrorResponse | Record<string, unknown>>) => {
   const scheduleType = validateSchedule(req.body?.scheduleType, "daily");
   if (!scheduleType) {
     badRequest(res, `scheduleType must be one of: ${[...SOURCE_SCHEDULES].join(", ")}`);
@@ -239,7 +244,7 @@ interface ManageSourceSuccess {
 
 const MANAGE_ACTIONS = new Set(["list", "register", "remove", "rebuild"]);
 
-router.post(API_ROUTES.sources.manage, async (req: Request<object, unknown, ManageSourceBody>, res: Response<ManageSourceSuccess | ErrorResponse>) => {
+bindRoute(router, API_ROUTES.sources.manage, async (req: Request<object, unknown, ManageSourceBody>, res: Response<ManageSourceSuccess | ErrorResponse>) => {
   const action = req.body?.action;
   if (typeof action !== "string" || !MANAGE_ACTIONS.has(action)) {
     badRequest(res, `action must be one of: ${[...MANAGE_ACTIONS].join(", ")}`);

@@ -1,8 +1,9 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 import { META } from "./meta";
+import type { ResolvedRoute } from "../meta-types";
 
 export const TOOL_NAME = META.toolName;
-export type PresentFormEndpoints = typeof META.apiRoutes;
+export type PresentFormEndpoints = { readonly [K in keyof typeof META.apiRoutes]: ResolvedRoute };
 
 export const TOOL_DEFINITION: ToolDefinition = {
   type: "function",

@@ -38,7 +38,7 @@ export interface PluginMetaDiagnostic {
   /** Type of issue — useful when the UI wants to group / icon them. */
   kind: "host-plugin" | "intra-plugin";
   /** Aggregator label (`API_ROUTES`, `WORKSPACE_DIRS`, …) for
-   *  host-plugin collisions; the dimension name (`apiRoutesKey`,
+   *  host-plugin collisions; the dimension name (`apiNamespace`,
    *  …) for intra-plugin duplicates. */
   scope: string;
   /** The colliding key. */

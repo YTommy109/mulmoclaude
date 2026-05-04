@@ -30,7 +30,7 @@ const items = ref<ScheduledItem[]>(props.result.data?.items ?? []);
 const endpoints = pluginEndpoints<SchedulerEndpoints>("scheduler");
 
 const { refresh } = useFreshPluginData<ScheduledItem[]>({
-  endpoint: () => endpoints.base,
+  endpoint: () => endpoints.list.url,
   extract: (json) => {
     const extracted = (json as { data?: { items?: ScheduledItem[] } }).data?.items;
     return Array.isArray(extracted) ? extracted : null;

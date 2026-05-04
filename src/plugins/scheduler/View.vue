@@ -294,7 +294,7 @@ const items = ref<ScheduledItem[]>(props.selectedResult?.data?.items ?? []);
 const endpoints = pluginEndpoints<SchedulerEndpoints>("scheduler");
 
 const { refresh } = useFreshPluginData<ScheduledItem[]>({
-  endpoint: () => endpoints.base,
+  endpoint: () => endpoints.list.url,
   extract: (json) => {
     const payload = (json as { data?: { items?: ScheduledItem[] } }).data?.items;
     return Array.isArray(payload) ? payload : null;
@@ -538,7 +538,7 @@ const apiError = ref<string | null>(null);
 const isModified = computed(() => editorText.value !== toJson(items.value));
 
 async function callApi(body: Record<string, unknown>): Promise<boolean> {
-  const response = await apiPost<{ data?: { items?: ScheduledItem[] } }>(endpoints.base, body);
+  const response = await apiPost<{ data?: { items?: ScheduledItem[] } }>(endpoints.dispatch.url, body);
   if (!response.ok) {
     apiError.value = response.error;
     return false;

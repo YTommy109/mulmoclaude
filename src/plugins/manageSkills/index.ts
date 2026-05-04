@@ -24,7 +24,7 @@ const manageSkillsPlugin: ToolPlugin<ManageSkillsData> = {
     // The server exposes GET /api/skills (discovery + merge); we just
     // shape it for the View component.
     const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
-    const result = await apiGet<{ skills: SkillSummary[] }>(endpoints.list);
+    const result = await apiGet<{ skills: SkillSummary[] }>(endpoints.list.url);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

@@ -28,6 +28,7 @@ import {
 import { respondWithDispatchResult, type DispatchSuccessResponse, type DispatchErrorResponse } from "./dispatchResponse.js";
 
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { bindRoute } from "../../utils/router.js";
 import { log } from "../../system/logger/index.js";
 import { previewSnippet } from "../../utils/logPreview.js";
 
@@ -79,7 +80,7 @@ interface TodosListResponse {
   data: { items: TodoItem[]; columns: StatusColumn[] };
 }
 
-router.get(API_ROUTES.todos.list, (_req: Request, res: Response<TodosListResponse>) => {
+bindRoute(router, API_ROUTES.todos.list, (_req: Request, res: Response<TodosListResponse>) => {
   res.json({ data: { items: loadTodos(), columns: loadColumns() } });
 });
 
@@ -101,20 +102,24 @@ interface TodoBody extends TodosActionInput {
 // are read-only views; persisting their result would be a no-op.
 const READ_ONLY_ACTIONS = new Set(["show", "list_labels"]);
 
-router.post(API_ROUTES.todos.dispatch, (req: Request<object, unknown, TodoBody>, res: Response<DispatchSuccessResponse<TodoItem> | DispatchErrorResponse>) => {
-  const { action, ...input } = req.body;
-  log.info("todos", "POST dispatch: start", { action: previewSnippet(action) });
-  const items = loadTodos();
-  const result = dispatchTodos(action, items, input);
-  if (result.kind === "error") {
-    log.warn("todos", "POST dispatch: error", { action: previewSnippet(action), error: result.error });
-  }
-  respondWithDispatchResult(res, result, {
-    shouldPersist: !READ_ONLY_ACTIONS.has(action),
-    instructions: "Display the updated todo list to the user.",
-    persist: saveTodos,
-  });
-});
+bindRoute(
+  router,
+  API_ROUTES.todos.dispatch,
+  (req: Request<object, unknown, TodoBody>, res: Response<DispatchSuccessResponse<TodoItem> | DispatchErrorResponse>) => {
+    const { action, ...input } = req.body;
+    log.info("todos", "POST dispatch: start", { action: previewSnippet(action) });
+    const items = loadTodos();
+    const result = dispatchTodos(action, items, input);
+    if (result.kind === "error") {
+      log.warn("todos", "POST dispatch: error", { action: previewSnippet(action), error: result.error });
+    }
+    respondWithDispatchResult(res, result, {
+      shouldPersist: !READ_ONLY_ACTIONS.has(action),
+      instructions: "Display the updated todo list to the user.",
+      persist: saveTodos,
+    });
+  },
+);
 
 // ── New REST routes for the file-explorer todo view ──────────────
 //
@@ -136,7 +141,7 @@ interface ColumnIdParams {
 }
 
 // POST /api/todos/items — create a new todo
-router.post(API_ROUTES.todos.items, (req: Request<object, unknown, CreateInput>, res: Response<ItemResponse | DispatchErrorResponse>) => {
+bindRoute(router, API_ROUTES.todos.itemsCreate, (req: Request<object, unknown, CreateInput>, res: Response<ItemResponse | DispatchErrorResponse>) => {
   log.info("todos", "POST item: start");
   const items = loadTodos();
   const columns = loadColumns();
@@ -155,7 +160,7 @@ router.post(API_ROUTES.todos.items, (req: Request<object, unknown, CreateInput>,
 });
 
 // PATCH /api/todos/items/:id — partial update
-router.patch(API_ROUTES.todos.item, (req: Request<ItemIdParams, unknown, PatchInput>, res: Response<ItemResponse | DispatchErrorResponse>) => {
+bindRoute(router, API_ROUTES.todos.itemPatch, (req: Request<ItemIdParams, unknown, PatchInput>, res: Response<ItemResponse | DispatchErrorResponse>) => {
   log.info("todos", "PATCH item: start", { itemId: req.params.id });
   const items = loadTodos();
   const columns = loadColumns();
@@ -174,7 +179,7 @@ router.patch(API_ROUTES.todos.item, (req: Request<ItemIdParams, unknown, PatchIn
 });
 
 // POST /api/todos/items/:id/move — drag & drop persistence
-router.post(API_ROUTES.todos.itemMove, (req: Request<ItemIdParams, unknown, MoveInput>, res: Response<ItemResponse | DispatchErrorResponse>) => {
+bindRoute(router, API_ROUTES.todos.itemMove, (req: Request<ItemIdParams, unknown, MoveInput>, res: Response<ItemResponse | DispatchErrorResponse>) => {
   log.info("todos", "POST item-move: start", { itemId: req.params.id });
   const items = loadTodos();
   const columns = loadColumns();
@@ -193,7 +198,7 @@ router.post(API_ROUTES.todos.itemMove, (req: Request<ItemIdParams, unknown, Move
 });
 
 // DELETE /api/todos/items/:id
-router.delete(API_ROUTES.todos.item, (req: Request<ItemIdParams>, res: Response<ItemResponse | DispatchErrorResponse>) => {
+bindRoute(router, API_ROUTES.todos.itemDelete, (req: Request<ItemIdParams>, res: Response<ItemResponse | DispatchErrorResponse>) => {
   log.info("todos", "DELETE item: start", { itemId: req.params.id });
   const items = loadTodos();
   const columns = loadColumns();
@@ -228,11 +233,11 @@ interface ReorderColumnsBody {
   ids?: string[];
 }
 
-router.get(API_ROUTES.todos.columns, (_req: Request, res: Response<ColumnsResponse>) => {
+bindRoute(router, API_ROUTES.todos.columnsList, (_req: Request, res: Response<ColumnsResponse>) => {
   res.json({ data: { items: loadTodos(), columns: loadColumns() } });
 });
 
-router.post(API_ROUTES.todos.columns, (req: Request<object, unknown, AddColumnBody>, res: Response<ColumnsResponse | DispatchErrorResponse>) => {
+bindRoute(router, API_ROUTES.todos.columnsAdd, (req: Request<object, unknown, AddColumnBody>, res: Response<ColumnsResponse | DispatchErrorResponse>) => {
   log.info("todos", "POST column: start");
   const items = loadTodos();
   const result = handleAddColumn(loadColumns(), items, req.body);
@@ -247,22 +252,26 @@ router.post(API_ROUTES.todos.columns, (req: Request<object, unknown, AddColumnBo
   res.json({ data: { items: loadTodos(), columns: result.columns } });
 });
 
-router.patch(API_ROUTES.todos.column, (req: Request<ColumnIdParams, unknown, PatchColumnBody>, res: Response<ColumnsResponse | DispatchErrorResponse>) => {
-  log.info("todos", "PATCH column: start", { columnId: req.params.id });
-  const items = loadTodos();
-  const result = handlePatchColumn(loadColumns(), req.params.id, req.body, items);
-  if (result.kind === "error") {
-    log.warn("todos", "PATCH column: error", { columnId: req.params.id, error: result.error });
-    res.status(result.status).json({ error: result.error });
-    return;
-  }
-  saveColumns(result.columns);
-  if (result.items) saveTodos(result.items);
-  log.info("todos", "PATCH column: ok", { columnId: req.params.id });
-  res.json({ data: { items: loadTodos(), columns: result.columns } });
-});
+bindRoute(
+  router,
+  API_ROUTES.todos.columnPatch,
+  (req: Request<ColumnIdParams, unknown, PatchColumnBody>, res: Response<ColumnsResponse | DispatchErrorResponse>) => {
+    log.info("todos", "PATCH column: start", { columnId: req.params.id });
+    const items = loadTodos();
+    const result = handlePatchColumn(loadColumns(), req.params.id, req.body, items);
+    if (result.kind === "error") {
+      log.warn("todos", "PATCH column: error", { columnId: req.params.id, error: result.error });
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    saveColumns(result.columns);
+    if (result.items) saveTodos(result.items);
+    log.info("todos", "PATCH column: ok", { columnId: req.params.id });
+    res.json({ data: { items: loadTodos(), columns: result.columns } });
+  },
+);
 
-router.delete(API_ROUTES.todos.column, (req: Request<ColumnIdParams>, res: Response<ColumnsResponse | DispatchErrorResponse>) => {
+bindRoute(router, API_ROUTES.todos.columnDelete, (req: Request<ColumnIdParams>, res: Response<ColumnsResponse | DispatchErrorResponse>) => {
   log.info("todos", "DELETE column: start", { columnId: req.params.id });
   const items = loadTodos();
   const result = handleDeleteColumn(loadColumns(), req.params.id, items);
@@ -277,17 +286,21 @@ router.delete(API_ROUTES.todos.column, (req: Request<ColumnIdParams>, res: Respo
   res.json({ data: { items: loadTodos(), columns: result.columns } });
 });
 
-router.put(API_ROUTES.todos.columnsOrder, (req: Request<object, unknown, ReorderColumnsBody>, res: Response<ColumnsResponse | DispatchErrorResponse>) => {
-  log.info("todos", "PUT columns-order: start", { count: req.body.ids?.length ?? 0 });
-  const result = handleReorderColumns(loadColumns(), req.body.ids ?? []);
-  if (result.kind === "error") {
-    log.warn("todos", "PUT columns-order: error", { error: result.error });
-    res.status(result.status).json({ error: result.error });
-    return;
-  }
-  saveColumns(result.columns);
-  log.info("todos", "PUT columns-order: ok", { columns: result.columns.length });
-  res.json({ data: { items: loadTodos(), columns: result.columns } });
-});
+bindRoute(
+  router,
+  API_ROUTES.todos.columnsOrder,
+  (req: Request<object, unknown, ReorderColumnsBody>, res: Response<ColumnsResponse | DispatchErrorResponse>) => {
+    log.info("todos", "PUT columns-order: start", { count: req.body.ids?.length ?? 0 });
+    const result = handleReorderColumns(loadColumns(), req.body.ids ?? []);
+    if (result.kind === "error") {
+      log.warn("todos", "PUT columns-order: error", { error: result.error });
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    saveColumns(result.columns);
+    log.info("todos", "PUT columns-order: ok", { columns: result.columns.length });
+    res.json({ data: { items: loadTodos(), columns: result.columns } });
+  },
+);
 
 export default router;

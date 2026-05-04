@@ -6,7 +6,7 @@ import { pluginEndpoints } from "../api";
 import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
-import { apiPost } from "../../utils/api";
+import { apiCall } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
 export interface MulmoScriptData {
@@ -24,7 +24,8 @@ const presentMulmoScriptPlugin: ToolPlugin<MulmoScriptData> = {
   // function trivial means the two callers can never drift apart.
   async execute(_context, args) {
     const endpoints = pluginEndpoints<MulmoScriptEndpoints>("mulmoScript");
-    const result = await apiPost<ToolResult<MulmoScriptData>>(endpoints.save, args);
+    const { method, url } = endpoints.save;
+    const result = await apiCall<ToolResult<MulmoScriptData>>(url, { method, body: args });
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

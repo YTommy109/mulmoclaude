@@ -63,7 +63,7 @@ export type BuiltInPluginMetas = typeof BUILT_IN_PLUGIN_METAS;
 // ────────────────────────────────────────────────────────────────
 //
 // Aggregators spread plugin-owned records into host records. Without
-// a guard, a plugin claiming a host-reserved key (`apiRoutesKey:
+// a guard, a plugin claiming a host-reserved key (`apiNamespace:
 // "agent"`) or two plugins claiming the same key (both with
 // `workspaceDirs.images`) would silently win the merge and route
 // real traffic to the wrong handler.
@@ -93,7 +93,7 @@ export interface HostPluginCollision {
 /** Two plugins claiming the same key in the same dimension. */
 export interface IntraPluginCollision {
   /** Which dimension the duplicate appears in. */
-  dimension: "toolName" | "apiRoutesKey" | "workspaceDirs" | "staticChannels";
+  dimension: "toolName" | "apiNamespace" | "workspaceDirs" | "staticChannels";
   /** The duplicated key. */
   key: string;
   /** `toolName`s of the two plugins claiming it (first-registered, second). */

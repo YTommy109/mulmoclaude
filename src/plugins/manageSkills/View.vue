@@ -148,6 +148,7 @@ import type { ManageSkillsData, SkillSummary } from "./index";
 import { useAppApi } from "../../composables/useAppApi";
 import { apiGet, apiPut, apiDelete } from "../../utils/api";
 import { pluginEndpoints } from "../api";
+import { buildRouteUrl } from "../meta-types";
 import type { SkillsEndpoints } from "./definition";
 
 const { t } = useI18n();
@@ -204,7 +205,7 @@ const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
 // list from the API on mount so the view is populated.
 onMounted(async () => {
   if (props.selectedResult || skills.value.length > 0) return;
-  const response = await apiGet<{ skills: SkillSummary[] }>(endpoints.list);
+  const response = await apiGet<{ skills: SkillSummary[] }>(endpoints.list.url);
   if (!response.ok) {
     listError.value = t("pluginManageSkills.errListFailed", { error: response.error });
     return;
@@ -232,7 +233,7 @@ watch(
     editing.value = false;
     detailLoading.value = true;
     detailError.value = null;
-    const response = await apiGet<{ skill: SkillDetail }>(endpoints.detail.replace(":name", encodeURIComponent(name)));
+    const response = await apiGet<{ skill: SkillDetail }>(buildRouteUrl(endpoints.detail, { name }));
     if (selectedName.value !== name) {
       // Selection changed while this request was in flight — drop it.
       return;
@@ -264,7 +265,7 @@ async function saveEdit(): Promise<void> {
   const { name } = detail.value;
   saving.value = true;
   detailError.value = null;
-  const result = await apiPut<{ updated: boolean; path: string }>(endpoints.update.replace(":name", encodeURIComponent(name)), {
+  const result = await apiPut<{ updated: boolean; path: string }>(buildRouteUrl(endpoints.update, { name }), {
     description: editDescription.value,
     body: editBody.value,
   });
@@ -312,7 +313,7 @@ async function deleteSkill(): Promise<void> {
     return;
   }
   deleting.value = true;
-  const result = await apiDelete<unknown>(endpoints.remove.replace(":name", encodeURIComponent(name)));
+  const result = await apiDelete<unknown>(buildRouteUrl(endpoints.remove, { name }));
   deleting.value = false;
   if (!result.ok) {
     detailError.value = result.error || t("pluginManageSkills.errDeleteFailed");
