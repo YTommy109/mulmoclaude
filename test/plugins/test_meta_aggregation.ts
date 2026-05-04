@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { findHostPluginCollisions, buildPluginAggregate, filterPluginKeys, BUILT_IN_PLUGIN_METAS } from "../../src/plugins/metas.js";
+import { findHostPluginCollisions, buildPluginAggregate, defineHostAggregate, filterPluginKeys, BUILT_IN_PLUGIN_METAS } from "../../src/plugins/metas.js";
 import { BUILT_IN_SERVER_BINDINGS } from "../../src/plugins/server.js";
 import type { PluginMeta } from "../../src/plugins/meta-types.js";
 
@@ -162,4 +162,50 @@ test("live aggregator modules load without host-vs-plugin or intra-plugin collis
   assert.deepEqual([...apiRoutes.API_ROUTES_INTRA_COLLISIONS], []);
   assert.deepEqual([...pubsub.PUBSUB_CHANNELS_INTRA_COLLISIONS], []);
   assert.deepEqual([...paths.WORKSPACE_DIRS_INTRA_COLLISIONS], []);
+});
+
+// `additionalReservedKeys` (CR review #1125 follow-up) — used by
+// `WORKSPACE_DIRS` to also reserve `WORKSPACE_FILES` keys so a
+// plugin can't smuggle in a `workspaceDirs.<sameKey>` that would
+// silently disagree with `WORKSPACE_PATHS` (file-side wins on the
+// final spread).
+test("defineHostAggregate honours additionalReservedKeys for collision filtering", () => {
+  const hostMeta: PluginMeta = {
+    toolName: "host",
+    apiNamespace: "host",
+    workspaceDirs: { reservedFile: "data/reserved", legitDir: "data/legit" },
+  };
+  const result = defineHostAggregate<string>([hostMeta], {
+    label: "WORKSPACE_DIRS",
+    hostRecord: { hostKey: "data/host" },
+    extract: (meta) => meta.workspaceDirs,
+    dimension: "workspaceDirs",
+    additionalReservedKeys: new Set(["reservedFile"]),
+  });
+  // `legitDir` survives, `reservedFile` is dropped + reported.
+  assert.equal(result.merged.legitDir, "data/legit");
+  assert.equal("reservedFile" in result.merged, false);
+  // The reserved key must NOT leak into `merged` — the helper only
+  // uses it for filtering, not for spreading into the output.
+  assert.equal("reservedFile" in result.merged, false);
+  const droppedKeys = result.hostCollisions.map((collision) => collision.key);
+  assert.ok(droppedKeys.includes("reservedFile"));
+});
+
+test("defineHostAggregate without additionalReservedKeys preserves original behaviour", () => {
+  const meta: PluginMeta = {
+    toolName: "noop",
+    apiNamespace: "noop",
+    workspaceDirs: { reservedFile: "data/x" },
+  };
+  // Without the reservation, `reservedFile` survives because it
+  // doesn't collide with the (empty) host record.
+  const result = defineHostAggregate<string>([meta], {
+    label: "TEST",
+    hostRecord: {},
+    extract: (entry) => entry.workspaceDirs,
+    dimension: "workspaceDirs",
+  });
+  assert.equal(result.merged.reservedFile, "data/x");
+  assert.equal(result.hostCollisions.length, 0);
 });

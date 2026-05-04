@@ -162,6 +162,12 @@ const HOST_WORKSPACE_DIRS = {
 const WORKSPACE_DIRS_AGGREGATE = defineHostAggregate(BUILT_IN_PLUGIN_METAS, {
   label: "WORKSPACE_DIRS",
   hostRecord: HOST_WORKSPACE_DIRS,
+  // Reserve `WORKSPACE_FILES` keys too — those land in `WORKSPACE_PATHS`
+  // alongside dir paths and would silently overwrite a plugin's
+  // `workspaceDirs.<sameKey>` at the absolute-path step, leaving
+  // `WORKSPACE_DIRS` and `WORKSPACE_PATHS` disagreeing for that key
+  // (CR review #1125).
+  additionalReservedKeys: new Set(Object.keys(WORKSPACE_FILES)),
   extract: (meta) => meta.workspaceDirs,
   dimension: "workspaceDirs",
 });
