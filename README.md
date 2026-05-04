@@ -614,13 +614,15 @@ Full documentation lives in [`docs/`](docs/README.md). Here are the key entry po
 
 ### For developers
 
-| Guide                                              | Description                                             |
-| -------------------------------------------------- | ------------------------------------------------------- |
-| [Developer Guide](docs/developer.md)               | Environment variables, scripts, workspace structure, CI |
-| [Bridge Protocol](docs/bridge-protocol.md)         | Wire-level spec for writing new messaging bridges       |
-| [Sandbox Credentials](docs/sandbox-credentials.md) | Docker sandbox credential forwarding (SSH, GitHub CLI)  |
-| [Logging](docs/logging.md)                         | Log levels, formats, file rotation                      |
-| [CHANGELOG](docs/CHANGELOG.md)                     | Release history                                         |
+| Guide                                                                                | Description                                                                                                                                          |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Developer Guide](docs/developer.md)                                                 | Environment variables, scripts, workspace structure, CI                                                                                              |
+| [Built-in Plugin Development](docs/developer.md#plugin-development)                  | Author a plugin co-located in `src/plugins/<name>/` — META shape, `useRuntime<E>()` API, mounting paths, sync invariants                             |
+| [Runtime-Loaded Plugins](docs/plugin-runtime.md)                                     | Author a plugin distributed as an npm package and installed into a workspace at runtime                                                              |
+| [Bridge Protocol](docs/bridge-protocol.md)                                           | Wire-level spec for writing new messaging bridges                                                                                                    |
+| [Sandbox Credentials](docs/sandbox-credentials.md)                                   | Docker sandbox credential forwarding (SSH, GitHub CLI)                                                                                               |
+| [Logging](docs/logging.md)                                                           | Log levels, formats, file rotation                                                                                                                   |
+| [CHANGELOG](docs/CHANGELOG.md)                                                       | Release history                                                                                                                                      |
 
 ## License
 
