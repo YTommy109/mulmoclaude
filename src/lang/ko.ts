@@ -612,7 +612,7 @@ const koMessages = {
       creditLabel: "대변",
       taxRegistrationIdLabel: "세무 등록번호",
       taxRegistrationIdPlaceholder: "T-number / VAT ID / GSTIN…",
-      taxRegistrationIdMissingPlaceholder: "누락됨 — 비워두면 제출 시 값이 삭제됩니다",
+      taxRegistrationIdMissingWarning: "필수",
       addLine: "라인 추가",
       removeLine: "삭제",
       submit: "등록",

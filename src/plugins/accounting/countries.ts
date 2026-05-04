@@ -99,9 +99,15 @@ export function isSupportedCountryCode(value: unknown): value is SupportedCountr
   return typeof value === "string" && (SUPPORTED_COUNTRY_CODES as readonly string[]).includes(value);
 }
 
-/** Per-country tax-registration-ID requirement, used by the UI to
- *  decide whether to nudge the user when they leave the T-number
- *  / VAT ID field blank on a postable 14xx / 24xx line.
+/** Country-gated UI features. Each key is a feature name; the value
+ *  is the set of country codes for which the feature is enabled.
+ *  Components ask `countryHasFeature("...", country)` instead of
+ *  hard-coding country lists at the call site.
+ *
+ *  Add a new country-specific feature by adding a new key here and
+ *  reading it via `countryHasFeature`. An unknown / undefined
+ *  country never has any feature — components fall back to neutral
+ *  default UI rather than guessing.
  *
  *  Mirrors the "Country-aware tax behaviour" prose in the
  *  Accounting role prompt (`src/config/roles.ts`). The two MUST
@@ -109,50 +115,43 @@ export function isSupportedCountryCode(value: unknown): value is SupportedCountr
  *  contradictory advice. The prompt is the source of truth for
  *  agent behaviour; this table is structured-data sibling for the
  *  form. */
-export type TaxRegistrationRequirement = "required" | "recommended" | "none";
+export const COUNTRY_FEATURES = {
+  /** Show an amber "missing tax ID" warning + helper text on a
+   *  postable 14xx / 24xx line whose taxRegistrationId is blank.
+   *  Limited to jurisdictions where the role prompt explicitly
+   *  requires the counterparty registration number (JP T-number,
+   *  EU VAT ID, GB VAT, GSTIN, ABN, NZ GST, CA BN). The "other
+   *  countries" bucket and US (no federal sales-tax registration)
+   *  intentionally stay quiet. */
+  warnMissingTaxRegistrationId: new Set<SupportedCountryCode>([
+    "JP",
+    "GB",
+    "DE",
+    "FR",
+    "IT",
+    "ES",
+    "NL",
+    "BE",
+    "AT",
+    "IE",
+    "PT",
+    "FI",
+    "SE",
+    "DK",
+    "PL",
+    "IN",
+    "AU",
+    "NZ",
+    "CA",
+  ]),
+} as const;
 
-export const TAX_REGISTRATION_REQUIREMENT: Record<SupportedCountryCode, TaxRegistrationRequirement> = {
-  // Explicitly required by the role prompt.
-  JP: "required",
-  GB: "required",
-  DE: "required",
-  FR: "required",
-  IT: "required",
-  ES: "required",
-  NL: "required",
-  BE: "required",
-  AT: "required",
-  IE: "required",
-  PT: "required",
-  FI: "required",
-  SE: "required",
-  DK: "required",
-  PL: "required",
-  IN: "required",
-  AU: "required",
-  NZ: "required",
-  CA: "required",
-  // Explicitly excluded — US has no federal sales-tax registration.
-  US: "none",
-  // "Other countries" bucket — prompt asks for the equivalent
-  // local registration number but doesn't make it a hard rule.
-  CH: "recommended",
-  NO: "recommended",
-  CN: "recommended",
-  KR: "recommended",
-  TW: "recommended",
-  HK: "recommended",
-  SG: "recommended",
-  BR: "recommended",
-  MX: "recommended",
-};
+export type CountryFeature = keyof typeof COUNTRY_FEATURES;
 
-/** Resolve the requirement level for a (possibly undefined) country
- *  code. Unset country still nudges — the user picked a 14xx / 24xx
- *  account, so something tax-related is happening; staying silent
- *  would replicate the silent-strip path the warning is meant to
- *  flag. */
-export function taxRegistrationRequirement(country: SupportedCountryCode | undefined): TaxRegistrationRequirement {
-  if (!country) return "recommended";
-  return TAX_REGISTRATION_REQUIREMENT[country];
+/** Resolve a country-gated feature flag. Returns `false` when the
+ *  country is undefined / unsupported — components default to the
+ *  neutral path (no warning, no extra UI) rather than guessing. */
+export function countryHasFeature(feature: CountryFeature, country: SupportedCountryCode | undefined): boolean {
+  if (!country) return false;
+  return COUNTRY_FEATURES[feature].has(country);
 }

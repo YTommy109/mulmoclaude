@@ -612,7 +612,7 @@ const jaMessages = {
       creditLabel: "貸方",
       taxRegistrationIdLabel: "登録番号",
       taxRegistrationIdPlaceholder: "T1234567890123",
-      taxRegistrationIdMissingPlaceholder: "未入力 — 空欄のまま送信すると値は削除されます",
+      taxRegistrationIdMissingWarning: "必須",
       addLine: "行を追加",
       removeLine: "削除",
       submit: "起票",
