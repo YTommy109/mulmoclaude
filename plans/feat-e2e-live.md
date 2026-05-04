@@ -689,9 +689,37 @@ E2E_LIVE_KEEP_SESSIONS=1 HEADED=1 yarn test:e2e:live:media -g "L-05" --project=c
 意図と非意図:
 - **意図**: 「spec を編集して cleanup を一旦消す → 確認 → spec を戻す → もう一度走らせる」 という二度手間 (旧フロー) を消すこと。 QA 目視のたびに spec を書き換える運用は時間ロスが大きい
 - **非意図**: 自動回帰 / CI 用途。 history が膨らむので routine 実行では立てない
-- **scope**: 残すのは session のみ。 `placeFixtureInWorkspace` で seed したファイル (画像 / mulmo json) は別経路 (`removeFromWorkspace`) で消える。 fixture も残したい場合は別フラグの導入を検討
+- **scope**: 残すのは session のみ。 `placeFixtureInWorkspace` で seed したファイル (画像 / mulmo json) は別経路 (`removeFromWorkspace`) で消える。 fixture も残したい場合は別フラグの導入を検討 (下記)
 
 実装は `e2e-live/fixtures/live-chat.ts` の `deleteSession` 冒頭の env gate 1 ブロックのみ。
+
+#### 派生: `E2E_LIVE_KEEP_FIXTURES` (将来導入候補、 未実装)
+
+`KEEP_SESSIONS` は session 状態だけを残す。 一方で fixture (テスト用ダミーファイル: `e2e-live/fixtures/images/sample.png` を `~/mulmoclaude/artifacts/images/e2e-live-l01.png` に seed する等) は spec 終了時に `removeFromWorkspace` で消える。
+
+QA 目視で「fixture が server 側でどう serve / 配置されたか」 まで実機で見たい場合 (例: 「L-01 の画像が `artifacts/images/e2e-live-l01.png` に居て、 mtime が想定通りか」 「L-03 の mulmoScript json が `artifacts/stories/...` に居るか」 を確認したい) は session だけ残しても足りない。
+
+その時点で導入する想定の追加フラグ:
+
+```bash
+# fixture も残す (workspace に置きっぱなし)
+E2E_LIVE_KEEP_FIXTURES=1 yarn test:e2e:live:media
+
+# session + fixture の両方を残す (フル QA 目視)
+E2E_LIVE_KEEP_SESSIONS=1 E2E_LIVE_KEEP_FIXTURES=1 HEADED=1 yarn test:e2e:live:media -g "L-01"
+```
+
+実装方針 (実装時用メモ):
+- `removeFromWorkspace` (`e2e-live/fixtures/live-chat.ts`) の冒頭に `process.env.E2E_LIVE_KEEP_FIXTURES === "1"` early-return を 1 ブロック
+- `KEEP_SESSIONS` と同じパターンで spec 側はノータッチ、 全既存 spec が retroactive に対応
+- fixture path 前提のテスト (placeFixtureInWorkspace で seed → 読み取り → 削除) で「seed が確かに行われたか」 「server がそのパスを正しく serve したか」 をユーザーが直接見られる
+- 削除は手動 (`rm ~/mulmoclaude/artifacts/images/e2e-live-*.png` など)、 もしくは次回テスト走行時の seed 上書きで自然解決
+
+導入トリガー:
+- L-01 系 / L-03 系で fixture 配置自体を疑うバグが出たとき
+- QA 目視で「session 残っても workspace の中身は分からない」 という不満が出たとき
+
+それまでは導入しない (デフォルト挙動が増えるほど混乱するため、 必要になったタイミングで初めて入れる)。
 
 #### Claude / skill 側の実行
 
