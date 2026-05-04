@@ -598,3 +598,29 @@ export function makeAccountingAddEntriesToolResult(opts: {
     },
   };
 }
+
+/** Generic factory for any `manageAccounting(<action>)` tool_result
+ *  envelope. Mirrors the route handler's wrapped shape: `data` carries
+ *  `action` + `bookId` + the action-specific fields the View consumes
+ *  (markerEntry for voidEntry, account for upsertAccount, book for
+ *  updateBook, …). Use this when a test only needs to assert the
+ *  view-routing branch — for addEntries-shaped envelopes prefer the
+ *  typed helper above. */
+export function makeAccountingActionToolResult(opts: {
+  action: string;
+  bookId: string;
+  data?: Record<string, unknown>;
+  message?: string;
+  uuid?: string;
+}): Record<string, unknown> {
+  return {
+    type: "tool_result",
+    source: "tool",
+    result: {
+      uuid: opts.uuid ?? `accounting-${opts.action}-result-1`,
+      toolName: "manageAccounting",
+      message: opts.message ?? `Accounting ${opts.action} ready.`,
+      data: { action: opts.action, bookId: opts.bookId, ...(opts.data ?? {}) },
+    },
+  };
+}

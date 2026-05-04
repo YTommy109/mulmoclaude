@@ -72,6 +72,11 @@ const toolDefinition: ToolDefinition = {
           name: { type: "string" },
           type: { type: "string", enum: ["asset", "liability", "equity", "income", "expense"] },
           note: { type: "string" },
+          active: {
+            type: "boolean",
+            description:
+              "Soft-delete flag. `false` deactivates the account (hides it from entry / ledger dropdowns while keeping it visible in Manage Accounts and historical entries — accounting integrity requires that a code referenced by a journal line never disappears). `true` reactivates a previously-deactivated account. Omit to preserve the existing state — handy when updating name / type / note without touching the active flag.",
+          },
         },
         required: ["code", "name", "type"],
       },

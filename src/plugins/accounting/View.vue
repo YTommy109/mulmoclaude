@@ -146,12 +146,17 @@ interface AccountingAppPayload {
   initialTab?: string;
   /** Dispatch verb stamped onto every accounting tool-result envelope
    *  (server/api/routes/accounting.ts dispatch()). We read it here to
-   *  branch on `addEntries` and surface the just-posted row. */
+   *  pick the canvas tab + journal preselect for each PREVIEW action. */
   action?: string;
   /** Present on `addEntries` envelopes — the freshly-built journal
    *  entries returned by the service. Each carries a server-stamped
    *  `id` we use to highlight the row in JournalList. */
   entries?: { id?: string }[];
+  /** Present on `voidEntry` envelopes — the kind="void-marker" row
+   *  posted alongside the reversing entry. We surface this row (not
+   *  the reverseEntry) because the marker is the visual "this entry
+   *  was voided here" indicator the user is looking for. */
+  markerEntry?: { id?: string };
 }
 
 const props = defineProps<{ selectedResult?: ToolResultComplete<AccountingAppPayload, AccountingAppPayload> }>();
@@ -517,26 +522,64 @@ watch(books, () => {
   if (pending) applyTargetBookId(pending);
 });
 
-// Auto-expand the just-posted journal row when an `addEntries`
-// tool result lands in the canvas. The route handler stamps
-// `data: { action, bookId, entries }` (server/api/routes/
-// accounting.ts dispatch + PREVIEW_ACTIONS), so the envelope
-// reaches us via `selectedResult.data`. We pull the LAST entry's
-// id, force the journal tab into view, and blink the preselect
-// ref so JournalList's prop watcher refires even on repeated
-// posts that re-select an envelope referencing the same id.
-// `immediate: true` so a cold open with the addEntries result
-// already selected (e.g., reload after the LLM posted) lands on
-// the highlighted row too.
+// Map a PREVIEW action to the canvas tab the user should land on.
+// Honours an explicit `initialTab` from the envelope (the LLM's
+// stated intent) over the action-default below — only `openBook`
+// currently ships initialTab, but the override is plugin-wide.
+//
+// The `balanceSheet` default for openBook / createBook /
+// setOpeningBalances assumes the book has an opening on file. For a
+// fresh book without one, the existing `openingGateActive` watcher
+// redirects to "opening" — we don't try to short-circuit that here
+// because hasOpening hasn't necessarily resolved when this runs.
+function pickTabForAction(payload: AccountingAppPayload): TabKey | null {
+  if (isTabKey(payload.initialTab)) return payload.initialTab;
+  switch (payload.action) {
+    case ACCOUNTING_ACTIONS.addEntries:
+    case ACCOUNTING_ACTIONS.voidEntry:
+      return "journal";
+    case ACCOUNTING_ACTIONS.upsertAccount:
+      return "accounts";
+    case ACCOUNTING_ACTIONS.updateBook:
+      return "settings";
+    case ACCOUNTING_ACTIONS.openBook:
+    case ACCOUNTING_ACTIONS.createBook:
+    case ACCOUNTING_ACTIONS.setOpeningBalances:
+      return "balanceSheet";
+    default:
+      return null;
+  }
+}
+
+// For tool results that should auto-expand a row in JournalList,
+// derive the entry id from the action's payload. addEntries picks
+// the LAST entry in the batch ("you ended up here" cursor); voidEntry
+// picks the void-MARKER (the visual "voided here" indicator), not
+// the reversing entry.
+function pickJournalPreselectId(payload: AccountingAppPayload): string | undefined {
+  if (payload.action === ACCOUNTING_ACTIONS.addEntries) {
+    const entries = Array.isArray(payload.entries) ? payload.entries : [];
+    return entries[entries.length - 1]?.id;
+  }
+  if (payload.action === ACCOUNTING_ACTIONS.voidEntry) {
+    return payload.markerEntry?.id;
+  }
+  return undefined;
+}
+
+// Drive canvas tab + journal preselect from the active tool-result
+// envelope. The route handler stamps `data: { action, bookId, … }`
+// onto every PREVIEW action's response (server/api/routes/
+// accounting.ts dispatch + PREVIEW_ACTIONS). `immediate: true` so a
+// cold open with the result already selected (e.g., reload after
+// the LLM dispatched) routes to the right surface too.
 watch(
   () => initialPayload.value,
   (payload) => {
-    if (payload.action !== ACCOUNTING_ACTIONS.addEntries) return;
-    const entries = Array.isArray(payload.entries) ? payload.entries : [];
-    const lastId = entries[entries.length - 1]?.id;
-    if (!lastId) return;
-    currentTab.value = "journal";
-    journalPreselectEntryId.value = lastId;
+    const targetTab = pickTabForAction(payload);
+    if (targetTab) currentTab.value = targetTab;
+    const preselect = pickJournalPreselectId(payload);
+    if (preselect) journalPreselectEntryId.value = preselect;
   },
   { immediate: true },
 );
