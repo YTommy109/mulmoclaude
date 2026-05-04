@@ -43,6 +43,7 @@ import { DEFAULT_ACCOUNTS } from "./defaultAccounts.js";
 import { log } from "../system/logger/index.js";
 import { ACCOUNTING_BOOK_EVENT_KINDS } from "../../src/config/pubsubChannels.js";
 import { isSupportedCountryCode, SUPPORTED_COUNTRY_CODES, type SupportedCountryCode } from "../../src/plugins/accounting/countries.js";
+import { DEFAULT_FISCAL_YEAR_END, FISCAL_YEAR_ENDS, isFiscalYearEnd, type FiscalYearEnd } from "../../src/plugins/accounting/fiscalYear.js";
 import type { Account, AccountingConfig, BookSummary, JournalEntry, JournalLine, ReportPeriod } from "./types.js";
 
 export class AccountingError extends Error {
@@ -128,8 +129,43 @@ function unsupportedCountryError(received: unknown): AccountingError {
   return new AccountingError(400, `unsupported country code ${JSON.stringify(received)} — must be one of: ${SUPPORTED_COUNTRY_CODES.join(", ")}`);
 }
 
+function unsupportedFiscalYearEndError(received: unknown): AccountingError {
+  return new AccountingError(400, `unsupported fiscalYearEnd ${JSON.stringify(received)} — must be one of: ${FISCAL_YEAR_ENDS.join(", ")}`);
+}
+
+/** Narrow a free-form `fiscalYearEnd` input. Empty / absent → default
+ *  (back-compat with old callers and pre-field on-disk books); any
+ *  other value must match the enum or 400. */
+function narrowFiscalYearEnd(raw: string | undefined): FiscalYearEnd {
+  if (raw === undefined || raw === "") return DEFAULT_FISCAL_YEAR_END;
+  if (!isFiscalYearEnd(raw)) throw unsupportedFiscalYearEndError(raw);
+  return raw;
+}
+
+/** Boundary checks shared by updateBook. Throws on the first failure
+ *  so the surrounding function stays under the cognitive-complexity
+ *  threshold; each rule is also unit-testable independently via the
+ *  service entry point. */
+function validateUpdateBookInput(input: { name?: string; country?: string; fiscalYearEnd?: string }): void {
+  if (input.name !== undefined && (typeof input.name !== "string" || input.name.trim() === "")) {
+    throw new AccountingError(400, "name must be a non-empty string when supplied");
+  }
+  // Empty string is the explicit "clear the field" sentinel from the
+  // settings UI; anything else has to land in the curated list, same
+  // contract as createBook.
+  if (input.country !== undefined && input.country !== "" && !isSupportedCountryCode(input.country)) {
+    throw unsupportedCountryError(input.country);
+  }
+  // Fiscal-year end has no "clear" path — it always resolves to one
+  // of Q1..Q4 (back-compat reads default absent → Q4). Reject any
+  // non-empty value that isn't in the enum.
+  if (input.fiscalYearEnd !== undefined && input.fiscalYearEnd !== "" && !isFiscalYearEnd(input.fiscalYearEnd)) {
+    throw unsupportedFiscalYearEndError(input.fiscalYearEnd);
+  }
+}
+
 export async function createBook(
-  input: { id?: string; name: string; currency?: string; country?: string },
+  input: { id?: string; name: string; currency?: string; country?: string; fiscalYearEnd?: string },
   workspaceRoot?: string,
 ): Promise<{ book: BookSummary }> {
   if (typeof input.name !== "string" || input.name.trim() === "") {
@@ -142,6 +178,7 @@ export async function createBook(
   if (input.country !== undefined && !isSupportedCountryCode(input.country)) {
     throw unsupportedCountryError(input.country);
   }
+  const fiscalYearEnd = narrowFiscalYearEnd(input.fiscalYearEnd);
   const config = await loadOrInitConfig(workspaceRoot);
   // Auto-generate when no caller id is supplied — every book,
   // including the very first one, gets a generated id. Explicit
@@ -167,6 +204,7 @@ export async function createBook(
     currency: input.currency ?? DEFAULT_CURRENCY,
     // Narrowed by the isSupportedCountryCode check above.
     ...(input.country ? { country: input.country as SupportedCountryCode } : {}),
+    fiscalYearEnd,
     createdAt: new Date().toISOString(),
   };
   await ensureBookDir(bookId, workspaceRoot);
@@ -177,28 +215,26 @@ export async function createBook(
   return { book };
 }
 
-export async function updateBook(input: { bookId: string; name?: string; country?: string }, workspaceRoot?: string): Promise<{ book: BookSummary }> {
+export async function updateBook(
+  input: { bookId: string; name?: string; country?: string; fiscalYearEnd?: string },
+  workspaceRoot?: string,
+): Promise<{ book: BookSummary }> {
   const config = await loadOrInitConfig(workspaceRoot);
   const target = findBook(config, input.bookId);
   if (!target) {
     throw new AccountingError(404, `book ${JSON.stringify(input.bookId)} not found`);
   }
-  if (input.name !== undefined && (typeof input.name !== "string" || input.name.trim() === "")) {
-    throw new AccountingError(400, "name must be a non-empty string when supplied");
-  }
-  // Empty string is the explicit "clear the field" sentinel from the
-  // settings UI; anything else has to land in the curated list, same
-  // contract as createBook.
-  if (input.country !== undefined && input.country !== "" && !isSupportedCountryCode(input.country)) {
-    throw unsupportedCountryError(input.country);
-  }
+  validateUpdateBookInput(input);
   // Currency intentionally absent — once entries reference per-book
   // amounts, switching currency would silently re-interpret every
-  // historical figure. Country / name are pure metadata; safe to swap.
+  // historical figure. Country / name / fiscalYearEnd are pure metadata;
+  // safe to swap. Changing fiscalYearEnd does not move any entries —
+  // it only changes how the date-range shortcuts resolve from now on.
   const next: BookSummary = {
     ...target,
     ...(input.name !== undefined ? { name: input.name } : {}),
     ...(input.country !== undefined && input.country !== "" ? { country: input.country as SupportedCountryCode } : {}),
+    ...(input.fiscalYearEnd !== undefined && input.fiscalYearEnd !== "" ? { fiscalYearEnd: input.fiscalYearEnd as FiscalYearEnd } : {}),
   };
   // Strip an explicitly-cleared country so the JSON file stays clean
   // (matches the createBook policy of omitting the field when unset).

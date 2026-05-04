@@ -1,14 +1,7 @@
 <template>
   <div class="flex flex-col gap-3" data-testid="accounting-profit-loss">
-    <div class="flex items-end gap-3">
-      <label class="text-xs text-gray-500 flex flex-col gap-1">
-        {{ t("pluginAccounting.profitLoss.fromLabel") }}
-        <input v-model="from" type="date" class="h-8 px-2 rounded border border-gray-300 text-sm" data-testid="accounting-pl-from" />
-      </label>
-      <label class="text-xs text-gray-500 flex flex-col gap-1">
-        {{ t("pluginAccounting.profitLoss.toLabel") }}
-        <input v-model="toDate" type="date" class="h-8 px-2 rounded border border-gray-300 text-sm" data-testid="accounting-pl-to" />
-      </label>
+    <div class="flex flex-wrap items-end gap-3">
+      <DateRangePicker v-model="range" :fiscal-year-end="resolvedFiscalYearEnd" :opening-date="openingDate" />
       <button class="h-8 px-2.5 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-50" @click="refresh">
         <span class="material-icons text-base align-middle">refresh</span>
       </button>
@@ -65,19 +58,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { getProfitLoss, type ProfitLoss } from "../api";
 import { formatAmount as formatAmountWithCurrency } from "../currencies";
-import { localDateString, localStartOfYearString } from "../dates";
+import { currentFiscalYearRange, resolveFiscalYearEnd, type DateRange, type FiscalYearEnd } from "../fiscalYear";
 import { useLatestRequest } from "./useLatestRequest";
+import DateRangePicker from "./DateRangePicker.vue";
 
 const { t } = useI18n();
 
-const props = defineProps<{ bookId: string; currency: string; version: number }>();
+const props = defineProps<{
+  bookId: string;
+  currency: string;
+  version: number;
+  fiscalYearEnd?: FiscalYearEnd;
+  /** Opening-balance date for the active book — drives the "All"
+   *  shortcut in the date picker (from = openingDate, to = today). */
+  openingDate?: string;
+}>();
 
-const from = ref(localStartOfYearString());
-const toDate = ref(localDateString());
+const resolvedFiscalYearEnd = computed<FiscalYearEnd>(() => resolveFiscalYearEnd(props.fiscalYearEnd));
+
+// Default = current fiscal year. Reset by the bookId/fiscalYearEnd
+// watcher below so switching books or changing the FY-end in
+// settings drops a stale custom range from the prior book.
+const range = ref<DateRange>(currentFiscalYearRange(resolvedFiscalYearEnd.value));
 const profitLoss = ref<ProfitLoss | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -92,7 +98,11 @@ async function refresh(): Promise<void> {
   loading.value = true;
   error.value = null;
   try {
-    const result = await getProfitLoss({ kind: "range", from: from.value, to: toDate.value }, props.bookId);
+    // P&L always sends a range. Empty-side gets a sentinel so "All"
+    // (both empty) means "every entry" rather than an empty window.
+    const fromBound = range.value.from || "0000-01-01";
+    const toBound = range.value.to || "9999-12-31";
+    const result = await getProfitLoss({ kind: "range", from: fromBound, to: toBound }, props.bookId);
     if (!isCurrent(token)) return;
     if (!result.ok) {
       error.value = result.error;
@@ -105,5 +115,12 @@ async function refresh(): Promise<void> {
   }
 }
 
-watch(() => [props.bookId, props.version, from.value, toDate.value], refresh, { immediate: true });
+watch(
+  () => [props.bookId, resolvedFiscalYearEnd.value],
+  () => {
+    range.value = currentFiscalYearRange(resolvedFiscalYearEnd.value);
+  },
+);
+
+watch(() => [props.bookId, props.version, range.value.from, range.value.to], refresh, { immediate: true });
 </script>

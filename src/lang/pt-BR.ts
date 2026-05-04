@@ -560,6 +560,7 @@ const ptBRMessages = {
       journal: "Diário",
       newEntry: "Novo lançamento",
       opening: "Abertura",
+      accounts: "Contas",
       ledger: "Razão",
       balanceSheet: "Balanço",
       profitLoss: "DRE",
@@ -574,8 +575,15 @@ const ptBRMessages = {
       countryLabel: "País",
       countryPlaceholder: "Selecione um país…",
       countryHint: "O país define a jurisdição fiscal para que o assistente possa dar conselhos específicos (T-number no Japão, ID de IVA na UE, etc.).",
+      fiscalYearEndLabel: "Encerramento do exercício",
+      fiscalYearEndQ1: "31 de março (Q1)",
+      fiscalYearEndQ2: "30 de junho (Q2)",
+      fiscalYearEndQ3: "30 de setembro (Q3)",
+      fiscalYearEndQ4: "31 de dezembro (Q4)",
+      fiscalYearEndHint: "Define o limite do exercício social usado pelos atalhos de período deste livro. Padrão: 31 de dezembro (Q4 — ano civil).",
       placeholder: "Selecione um livro…",
-      firstRunHint: "Escolha o nome, a moeda e o país do seu primeiro livro. A moeda é definida por livro e fica difícil alterar depois de começar a lançar.",
+      firstRunHint:
+        "Escolha o nome, a moeda, o país e o encerramento do exercício do seu primeiro livro. A moeda é definida por livro e fica difícil alterar depois de começar a lançar.",
     },
     deletedNotice: {
       title: "“{bookName}” foi excluído.",
@@ -653,6 +661,16 @@ const ptBRMessages = {
         taxRegistrationId: "Inscrição fiscal",
       },
     },
+    dateRange: {
+      shortcutLabel: "Período",
+      currentQuarter: "Trimestre atual",
+      previousQuarter: "Último trimestre",
+      currentYear: "Ano atual",
+      previousYear: "Ano anterior",
+      all: "Tudo",
+      fromLabel: "De",
+      toLabel: "Até",
+    },
     balanceSheet: {
       asOfLabel: "Período",
       sections: {
@@ -672,6 +690,7 @@ const ptBRMessages = {
       netIncome: "Resultado líquido:",
     },
     accounts: {
+      listEmpty: "Ainda não há contas nesta categoria.",
       manageButton: "Gerenciar contas",
       modalTitle: "Gerenciar contas",
       addAccount: "Adicionar conta",
@@ -716,6 +735,7 @@ const ptBRMessages = {
       bookInfo: "Informações do livro",
       bookInfoExplain: "Edite o país para atualizar as recomendações conforme a jurisdição fiscal. A moeda não pode ser alterada após registrar lançamentos.",
       countryUnset: "(não definido)",
+      fiscalYearEndExplain: "Apenas altera como os atalhos de período são resolvidos a partir de agora; lançamentos existentes não são movidos.",
       saveChanges: "Salvar alterações",
       updateOk: "Livro atualizado.",
       rebuild: "Reconstruir snapshots",

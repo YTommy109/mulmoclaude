@@ -194,6 +194,24 @@ describe("books lifecycle", () => {
     const book = await createBook({ name: "Good", country: "JP" }, root);
     await assert.rejects(() => updateBook({ bookId: book.book.id, country: "ZZ" }, root), AccountingError);
   });
+  it("createBook defaults fiscalYearEnd to Q4; updateBook persists changes", async () => {
+    const root = makeTmp();
+    const defaultFy = await createBook({ name: "Default FY" }, root);
+    assert.equal(defaultFy.book.fiscalYearEnd, "Q4");
+    const explicit = await createBook({ name: "Tokyo FY", fiscalYearEnd: "Q1" }, root);
+    assert.equal(explicit.book.fiscalYearEnd, "Q1");
+    const updated = await updateBook({ bookId: defaultFy.book.id, fiscalYearEnd: "Q2" }, root);
+    assert.equal(updated.book.fiscalYearEnd, "Q2");
+    const list = await listBooks(root);
+    const persisted = list.books.find((entry) => entry.id === defaultFy.book.id);
+    assert.equal(persisted?.fiscalYearEnd, "Q2");
+  });
+  it("rejects unsupported fiscalYearEnd values", async () => {
+    const root = makeTmp();
+    await assert.rejects(() => createBook({ name: "Bad", fiscalYearEnd: "Q5" }, root), AccountingError);
+    const book = await createBook({ name: "Good" }, root);
+    await assert.rejects(() => updateBook({ bookId: book.book.id, fiscalYearEnd: "q1" }, root), AccountingError);
+  });
 });
 
 describe("addEntries / listEntries", () => {

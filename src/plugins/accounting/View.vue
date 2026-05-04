@@ -64,6 +64,8 @@
             :accounts="accounts"
             :currency="activeCurrency"
             :version="bookVersion"
+            :fiscal-year-end="activeFiscalYearEnd"
+            :opening-date="activeOpeningDate"
             @edit-opening="currentTab = 'opening'"
             @edit-entry="onEditEntry"
           />
@@ -85,15 +87,33 @@
             :version="bookVersion"
             @submitted="onEntrySubmitted"
           />
-          <Ledger v-else-if="currentTab === 'ledger'" :book-id="activeBookId" :accounts="accounts" :currency="activeCurrency" :version="bookVersion" />
+          <AccountsList v-else-if="currentTab === 'accounts'" :book-id="activeBookId" :accounts="accounts" @select-account="onAccountSelected" />
+          <Ledger
+            v-else-if="currentTab === 'ledger'"
+            :book-id="activeBookId"
+            :accounts="accounts"
+            :currency="activeCurrency"
+            :version="bookVersion"
+            :fiscal-year-end="activeFiscalYearEnd"
+            :opening-date="activeOpeningDate"
+            :preselect-account-code="ledgerPreselectAccountCode"
+          />
           <BalanceSheet v-else-if="currentTab === 'balanceSheet'" :book-id="activeBookId" :currency="activeCurrency" :version="bookVersion" />
-          <ProfitLoss v-else-if="currentTab === 'profitLoss'" :book-id="activeBookId" :currency="activeCurrency" :version="bookVersion" />
+          <ProfitLoss
+            v-else-if="currentTab === 'profitLoss'"
+            :book-id="activeBookId"
+            :currency="activeCurrency"
+            :version="bookVersion"
+            :fiscal-year-end="activeFiscalYearEnd"
+            :opening-date="activeOpeningDate"
+          />
           <BookSettings
             v-else-if="currentTab === 'settings'"
             :book-id="activeBookId"
             :book-name="activeBookName"
             :currency="activeCurrency"
             :country="activeCountry"
+            :fiscal-year-end="activeFiscalYearEnd"
             @deleted="onBookDeleted"
             @books-changed="refetchBooks"
           />
@@ -112,6 +132,7 @@ import NewBookForm from "./components/NewBookForm.vue";
 import JournalList from "./components/JournalList.vue";
 import JournalEntryForm from "./components/JournalEntryForm.vue";
 import OpeningBalancesForm from "./components/OpeningBalancesForm.vue";
+import AccountsList from "./components/AccountsList.vue";
 import Ledger from "./components/Ledger.vue";
 import BalanceSheet from "./components/BalanceSheet.vue";
 import ProfitLoss from "./components/ProfitLoss.vue";
@@ -129,7 +150,7 @@ interface AccountingAppPayload {
 
 const props = defineProps<{ selectedResult?: ToolResultComplete<AccountingAppPayload, AccountingAppPayload> }>();
 
-const TAB_KEYS = ["journal", "newEntry", "opening", "ledger", "balanceSheet", "profitLoss", "settings"] as const;
+const TAB_KEYS = ["journal", "newEntry", "opening", "accounts", "ledger", "balanceSheet", "profitLoss", "settings"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
 interface TabDef {
@@ -142,6 +163,7 @@ const TABS: readonly TabDef[] = [
   { key: "journal", icon: "list", labelKey: "pluginAccounting.tabs.journal" },
   { key: "newEntry", icon: "add", labelKey: "pluginAccounting.tabs.newEntry" },
   { key: "opening", icon: "play_arrow", labelKey: "pluginAccounting.tabs.opening" },
+  { key: "accounts", icon: "list_alt", labelKey: "pluginAccounting.tabs.accounts" },
   { key: "ledger", icon: "menu_book", labelKey: "pluginAccounting.tabs.ledger" },
   { key: "balanceSheet", icon: "balance", labelKey: "pluginAccounting.tabs.balanceSheet" },
   { key: "profitLoss", icon: "trending_up", labelKey: "pluginAccounting.tabs.profitLoss" },
@@ -183,6 +205,12 @@ const bookLoadError = ref<string | null>(null);
 // explicit `false` so we don't disable tabs during the cold load
 // while the first getOpeningBalances request is still in flight.
 const hasOpening = ref<boolean | null>(null);
+// Date of the active book's opening entry, plumbed down to the
+// DateRangePicker via the children so "All" can resolve to
+// (openingDate → today). `undefined` while loading / for books
+// without an opening on file (the opening gate prevents any tab
+// that would care from being shown in that state).
+const activeOpeningDate = ref<string | undefined>(undefined);
 // Special "you just deleted this book" UI state. When set to a
 // non-null book name, the entire tab strip + main content are
 // replaced by an explicit "<book> has been deleted — pick another
@@ -197,6 +225,7 @@ const activeBook = computed(() => books.value.find((book) => book.id === activeB
 const activeBookName = computed(() => activeBook.value?.name ?? "");
 const activeCurrency = computed(() => activeBook.value?.currency ?? "USD");
 const activeCountry = computed(() => activeBook.value?.country);
+const activeFiscalYearEnd = computed(() => activeBook.value?.fiscalYearEnd);
 
 // Single sync signal: every mutating service function publishes on
 // the accounting book channel after its write, so the sender's own
@@ -336,11 +365,13 @@ async function refetchAccounts(): Promise<void> {
 async function refetchOpening(): Promise<void> {
   if (!activeBookId.value) {
     hasOpening.value = null;
+    activeOpeningDate.value = undefined;
     return;
   }
   const result = await getOpeningBalances(activeBookId.value);
   if (!result.ok) return;
   hasOpening.value = result.data.opening !== null;
+  activeOpeningDate.value = result.data.opening?.date;
 }
 
 // A book without an opening on file is in "gated" mode: the user
@@ -364,6 +395,23 @@ function onBookSelected(bookId: string): void {
   // looking at the deleted notice" exit. Clear it so the tab strip
   // re-enables for the freshly selected book.
   deletedNoticeName.value = null;
+}
+
+// Account preselected by the Accounts tab → click handoff. Cleared
+// once the user picks a different account from the Ledger's own
+// dropdown so a stale preselection doesn't override later edits.
+const ledgerPreselectAccountCode = ref<string | undefined>(undefined);
+
+function onAccountSelected(code: string): void {
+  // Force the ref to a fresh value even when the user clicks the
+  // same account a second time — the Ledger's `watch(preselect…)`
+  // ignores no-op updates, so we'd otherwise leave the user on a
+  // stale Ledger state if they navigated away and clicked back.
+  ledgerPreselectAccountCode.value = undefined;
+  Promise.resolve().then(() => {
+    ledgerPreselectAccountCode.value = code;
+  });
+  currentTab.value = "ledger";
 }
 
 // "Edit" on a normal journal row: stash the entry on the parent,

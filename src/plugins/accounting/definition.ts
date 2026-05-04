@@ -2,6 +2,7 @@ import type { ToolDefinition } from "gui-chat-protocol";
 import { TOOL_NAMES } from "../../config/toolNames";
 import { ACCOUNTING_ACTIONS } from "./actions";
 import { SUPPORTED_COUNTRY_CODES } from "./countries";
+import { FISCAL_YEAR_ENDS } from "./fiscalYear";
 
 // MCP tool definition for the accounting plugin.
 //
@@ -52,6 +53,12 @@ const toolDefinition: ToolDefinition = {
         enum: [...SUPPORTED_COUNTRY_CODES, ""],
         description:
           "For 'createBook' / 'updateBook': ISO 3166-1 alpha-2 country code identifying the tax jurisdiction. Drives country-aware advice — e.g. when set to 'JP', strongly suggest the supplier's T-number (適格請求書発行事業者登録番号) on tax-related lines under インボイス制度. Only the codes listed in the enum are accepted; pass an empty string to 'updateBook' to clear the field.",
+      },
+      fiscalYearEnd: {
+        type: "string",
+        enum: [...FISCAL_YEAR_ENDS],
+        description:
+          "For 'createBook' / 'updateBook': which calendar-quarter end is this book's fiscal year end — Q1 = March 31, Q2 = June 30, Q3 = September 30, Q4 = December 31 (calendar year, the default). Drives the date-range shortcuts in the UI ('current quarter', 'current year', etc.). Pure metadata: changing it does not move existing entries.",
       },
       initialTab: { type: "string", description: "For 'openBook': initial tab to show (e.g. 'journal', 'opening', 'balanceSheet')." },
       confirm: { type: "boolean", description: "For 'deleteBook': must be true to actually delete (guard against accidental deletion)." },
