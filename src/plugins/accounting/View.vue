@@ -73,6 +73,7 @@
             :book-id="activeBookId"
             :accounts="accounts"
             :currency="activeCurrency"
+            :country="activeCountry"
             :entry-to-edit="entryBeingEdited"
             @submitted="onEntrySubmitted"
             @accounts-changed="bumpLocalVersion"

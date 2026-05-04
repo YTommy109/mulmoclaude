@@ -85,8 +85,12 @@
               :maxlength="MAX_TAX_REGISTRATION_ID_LENGTH"
               :placeholder="t('pluginAccounting.entryForm.taxRegistrationIdPlaceholder')"
               :class="[
-                'h-8 px-2 w-full rounded border text-sm font-mono',
-                isTaxRegistrationIdInvalid(line) ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300',
+                'h-8 px-2 w-full rounded border text-sm font-mono focus:outline-none',
+                isTaxRegistrationIdInvalid(line)
+                  ? 'border-red-500 ring-1 ring-red-500'
+                  : isTaxRegistrationIdMissing(line)
+                    ? 'border-amber-500 ring-1 ring-amber-500'
+                    : 'border-gray-300 focus:ring-1 focus:ring-blue-500',
               ]"
               :data-testid="`accounting-entry-line-tax-registration-id-${idx}`"
             />
@@ -149,12 +153,13 @@ import { useI18n } from "vue-i18n";
 import { addEntry, voidEntry, type Account, type JournalEntry, type JournalLine } from "../api";
 import { formatAmount, inputStepFor } from "../currencies";
 import { localDateString } from "../dates";
+import { taxRegistrationRequirement, type SupportedCountryCode } from "../countries";
 import { isTaxAccountCode } from "./accountNumbering";
 import AccountsModal from "./AccountsModal.vue";
 
 const { t } = useI18n();
 
-const props = defineProps<{ bookId: string; accounts: Account[]; currency: string; entryToEdit?: JournalEntry | null }>();
+const props = defineProps<{ bookId: string; accounts: Account[]; currency: string; country?: SupportedCountryCode; entryToEdit?: JournalEntry | null }>();
 const emit = defineEmits<{ submitted: []; accountsChanged: []; cancelEdit: [] }>();
 
 const showAccountsModal = ref(false);
@@ -198,6 +203,20 @@ function isTaxRegistrationIdInvalid(line: FormLine): boolean {
 
 function isTaxLine(line: FormLine): boolean {
   return line.accountCode !== "" && isTaxAccountCode(line.accountCode);
+}
+
+// Soft warning: a postable tax line in a jurisdiction with a
+// registration scheme should carry a counterparty T-number / VAT ID
+// / GSTIN. The form lets the user post anyway (some suppliers
+// genuinely won't have one), but the input gets an amber border so
+// the silent-strip in `toApiLines` doesn't go unnoticed. `function`
+// declarations hoist, so calling `isPostable` here is fine even
+// though it appears later in the file.
+function isTaxRegistrationIdMissing(line: FormLine): boolean {
+  if (!isTaxLine(line)) return false;
+  if (!isPostable(line)) return false;
+  if (taxRegistrationRequirement(props.country) === "none") return false;
+  return line.taxRegistrationId.trim() === "";
 }
 
 const date = ref(localDateString());

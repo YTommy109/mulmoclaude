@@ -98,3 +98,61 @@ export function localizedCountryName(code: string, locale: string): string {
 export function isSupportedCountryCode(value: unknown): value is SupportedCountryCode {
   return typeof value === "string" && (SUPPORTED_COUNTRY_CODES as readonly string[]).includes(value);
 }
+
+/** Per-country tax-registration-ID requirement, used by the UI to
+ *  decide whether to nudge the user when they leave the T-number
+ *  / VAT ID field blank on a postable 14xx / 24xx line.
+ *
+ *  Mirrors the "Country-aware tax behaviour" prose in the
+ *  Accounting role prompt (`src/config/roles.ts`). The two MUST
+ *  stay in sync — drift means the LLM and the form give the user
+ *  contradictory advice. The prompt is the source of truth for
+ *  agent behaviour; this table is structured-data sibling for the
+ *  form. */
+export type TaxRegistrationRequirement = "required" | "recommended" | "none";
+
+export const TAX_REGISTRATION_REQUIREMENT: Record<SupportedCountryCode, TaxRegistrationRequirement> = {
+  // Explicitly required by the role prompt.
+  JP: "required",
+  GB: "required",
+  DE: "required",
+  FR: "required",
+  IT: "required",
+  ES: "required",
+  NL: "required",
+  BE: "required",
+  AT: "required",
+  IE: "required",
+  PT: "required",
+  FI: "required",
+  SE: "required",
+  DK: "required",
+  PL: "required",
+  IN: "required",
+  AU: "required",
+  NZ: "required",
+  CA: "required",
+  // Explicitly excluded — US has no federal sales-tax registration.
+  US: "none",
+  // "Other countries" bucket — prompt asks for the equivalent
+  // local registration number but doesn't make it a hard rule.
+  CH: "recommended",
+  NO: "recommended",
+  CN: "recommended",
+  KR: "recommended",
+  TW: "recommended",
+  HK: "recommended",
+  SG: "recommended",
+  BR: "recommended",
+  MX: "recommended",
+};
+
+/** Resolve the requirement level for a (possibly undefined) country
+ *  code. Unset country still nudges — the user picked a 14xx / 24xx
+ *  account, so something tax-related is happening; staying silent
+ *  would replicate the silent-strip path the warning is meant to
+ *  flag. */
+export function taxRegistrationRequirement(country: SupportedCountryCode | undefined): TaxRegistrationRequirement {
+  if (!country) return "recommended";
+  return TAX_REGISTRATION_REQUIREMENT[country];
+}
