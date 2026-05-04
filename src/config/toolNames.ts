@@ -19,14 +19,7 @@
 //
 // First slice of issue #289 (item 4: tool name literals).
 
-import {
-  BUILT_IN_PLUGIN_METAS,
-  buildPluginAggregate,
-  filterPluginKeys,
-  type BuiltInPluginMetas,
-  type HostPluginCollision,
-  type IntraPluginCollision,
-} from "../plugins/metas";
+import { BUILT_IN_PLUGIN_METAS, defineHostAggregate, type BuiltInPluginMetas, type HostPluginCollision, type IntraPluginCollision } from "../plugins/metas";
 
 const HOST_TOOL_NAMES = {
   // Text / base
@@ -38,7 +31,9 @@ const HOST_TOOL_NAMES = {
   // manageAutomations migrated — see `src/plugins/scheduler/automationsMeta.ts`.
   // manageSkills migrated — see `src/plugins/manageSkills/meta.ts`.
   // manageSource migrated — see `src/plugins/manageSource/meta.ts`.
-  manageWiki: "manageWiki",
+  // manageWiki migrated — see `src/plugins/wiki/meta.ts`. Plugin is
+  // GUI-only (no MCP binding — deprecated #963), so the sync test
+  // pins "every binding → META", not the reverse.
 
   // Presentational plugins
   // presentMulmoScript migrated — see `src/plugins/presentMulmoScript/meta.ts`.
@@ -75,39 +70,20 @@ type PluginToolNamesMap<T extends BuiltInPluginMetas> = {
   readonly [K in T[number]["toolName"]]: K;
 };
 
-// First-write-wins aggregation. See `buildPluginAggregate`'s
-// docblock — the merge itself enforces "first plugin claiming a
-// `toolName` wins; later collisions are reported and dropped".
-const {
-  aggregate: pluginToolNamesAggregate,
-  owner: TOOL_NAME_OWNER,
-  collisions: TOOL_NAMES_INTRA_COLLISIONS_RAW,
-} = buildPluginAggregate(BUILT_IN_PLUGIN_METAS, (meta) => ({ [meta.toolName]: meta.toolName }), "toolName");
-export const TOOL_NAMES_INTRA_COLLISIONS: readonly IntraPluginCollision[] = TOOL_NAMES_INTRA_COLLISIONS_RAW;
+// First-write-wins host+plugin aggregate (see `defineHostAggregate`).
+// Plugin keys colliding with a host literal are dropped (host wins —
+// silent override would route the LLM's calls to the wrong handler).
+// Diagnostics flow through `TOOL_NAMES_*_COLLISIONS` for boot warnings.
+const TOOL_NAMES_AGGREGATE = defineHostAggregate<string>(BUILT_IN_PLUGIN_METAS, {
+  label: "TOOL_NAMES",
+  hostRecord: HOST_TOOL_NAMES,
+  extract: (meta) => ({ [meta.toolName]: meta.toolName }),
+  dimension: "toolName",
+});
+export const TOOL_NAMES_HOST_COLLISIONS: readonly HostPluginCollision[] = TOOL_NAMES_AGGREGATE.hostCollisions;
+export const TOOL_NAMES_INTRA_COLLISIONS: readonly IntraPluginCollision[] = TOOL_NAMES_AGGREGATE.intraCollisions;
 
-const PLUGIN_TOOL_NAMES = pluginToolNamesAggregate as PluginToolNamesMap<BuiltInPluginMetas>;
-
-// Drop any plugin tool name that collides with a host literal —
-// silent override would route the LLM's calls to the wrong handler,
-// so the host literal wins. Diagnostics are surfaced via the
-// `TOOL_NAMES_HOST_COLLISIONS` export below (consumed by the server
-// boot diagnostics module).
-// Cast back to the literal-preserving map: `filterPluginKeys` only
-// drops keys, so the surviving subset is still a valid
-// `PluginToolNamesMap` shape.
-const { cleaned: cleanedToolNames, dropped: TOOL_NAMES_DROPPED } = filterPluginKeys(
-  "TOOL_NAMES",
-  new Set(Object.keys(HOST_TOOL_NAMES)),
-  PLUGIN_TOOL_NAMES,
-  TOOL_NAME_OWNER,
-);
-const SAFE_PLUGIN_TOOL_NAMES = cleanedToolNames as PluginToolNamesMap<BuiltInPluginMetas>;
-export const TOOL_NAMES_HOST_COLLISIONS: readonly HostPluginCollision[] = TOOL_NAMES_DROPPED;
-
-export const TOOL_NAMES = {
-  ...HOST_TOOL_NAMES,
-  ...SAFE_PLUGIN_TOOL_NAMES,
-} as const;
+export const TOOL_NAMES = TOOL_NAMES_AGGREGATE.merged as unknown as typeof HOST_TOOL_NAMES & PluginToolNamesMap<BuiltInPluginMetas>;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
 

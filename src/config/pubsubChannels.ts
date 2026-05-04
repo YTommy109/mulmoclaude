@@ -18,14 +18,7 @@
 //
 // First slice of issue #289 (item 6: pub-sub channels).
 
-import {
-  BUILT_IN_PLUGIN_METAS,
-  buildPluginAggregate,
-  filterPluginKeys,
-  type BuiltInPluginMetas,
-  type HostPluginCollision,
-  type IntraPluginCollision,
-} from "../plugins/metas";
+import { BUILT_IN_PLUGIN_METAS, defineHostAggregate, type BuiltInPluginMetas, type HostPluginCollision, type IntraPluginCollision } from "../plugins/metas";
 import {
   bookChannel as accountingBookChannelFromMeta,
   BOOK_EVENT_KINDS as ACCOUNTING_BOOK_EVENT_KINDS_FROM_META,
@@ -122,22 +115,13 @@ export type AccountingBookChannelPayload = AccountingBookChannelPayloadFromMeta;
 // per-plugin union (which TS won't let you index into safely).
 type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
 
-type PluginStaticChannelsContribution<M> = M extends { readonly staticChannels: infer C } ? { readonly [K in keyof C]: C[K] } : Record<string, never>;
+// `Record<never, never>` (no index signature), not
+// `Record<string, never>` — the latter's index signature collapses
+// `keyof` of the merged intersection back to `string`, breaking
+// literal-key consumers. Same trap as `PluginWorkspaceDirsContribution`.
+type PluginStaticChannelsContribution<M> = M extends { readonly staticChannels: infer C } ? { readonly [K in keyof C]: C[K] } : Record<never, never>;
 
 type PluginStaticChannelsMap<T extends BuiltInPluginMetas> = UnionToIntersection<PluginStaticChannelsContribution<T[number]>>;
-
-// First-write-wins aggregation. See `buildPluginAggregate`'s
-// docblock — the merge itself enforces "first plugin claiming a
-// channel key wins; later collisions are reported and dropped"
-// (was last-write-wins via `Object.assign`).
-const {
-  aggregate: pluginStaticChannelsAggregate,
-  owner: PUBSUB_CHANNELS_OWNER,
-  collisions: PUBSUB_CHANNELS_INTRA_COLLISIONS_RAW,
-} = buildPluginAggregate(BUILT_IN_PLUGIN_METAS, (meta) => meta.staticChannels, "staticChannels");
-export const PUBSUB_CHANNELS_INTRA_COLLISIONS: readonly IntraPluginCollision[] = PUBSUB_CHANNELS_INTRA_COLLISIONS_RAW;
-
-const PLUGIN_STATIC_CHANNELS = pluginStaticChannelsAggregate as PluginStaticChannelsMap<BuiltInPluginMetas>;
 
 const HOST_STATIC_CHANNELS = {
   /** Sidebar "a session updated, please refetch" notification.
@@ -159,31 +143,20 @@ const HOST_STATIC_CHANNELS = {
   notifications: "notifications",
 } as const;
 
-// Drop any plugin static-channel key that collides with a host
-// channel (e.g. a plugin claiming `sessions`) — host wins. The
-// dropped entries are reported via `PUBSUB_CHANNELS_HOST_COLLISIONS`
-// for server-side diagnostics.
-//
-// The cast back to `PluginStaticChannelsMap<...>` is safe because
-// `filterPluginKeys` only ever drops keys (never mutates values),
-// so the surviving subset still types-checks under the original
-// literal-preserving shape.
-const { cleaned: cleanedStaticChannels, dropped: PUBSUB_CHANNELS_DROPPED } = filterPluginKeys(
-  "PUBSUB_CHANNELS",
-  new Set(Object.keys(HOST_STATIC_CHANNELS)),
-  PLUGIN_STATIC_CHANNELS,
-  PUBSUB_CHANNELS_OWNER,
-);
-const SAFE_PLUGIN_STATIC_CHANNELS = cleanedStaticChannels as PluginStaticChannelsMap<BuiltInPluginMetas>;
-export const PUBSUB_CHANNELS_HOST_COLLISIONS: readonly HostPluginCollision[] = PUBSUB_CHANNELS_DROPPED;
+// First-write-wins host+plugin aggregate (see `defineHostAggregate`):
+// host keys win on collision, second-claiming plugin wins are
+// dropped, both diagnostic lists are exposed for boot warnings.
+const PUBSUB_CHANNELS_AGGREGATE = defineHostAggregate(BUILT_IN_PLUGIN_METAS, {
+  label: "PUBSUB_CHANNELS",
+  hostRecord: HOST_STATIC_CHANNELS,
+  extract: (meta) => meta.staticChannels,
+  dimension: "staticChannels",
+});
+export const PUBSUB_CHANNELS_HOST_COLLISIONS: readonly HostPluginCollision[] = PUBSUB_CHANNELS_AGGREGATE.hostCollisions;
+export const PUBSUB_CHANNELS_INTRA_COLLISIONS: readonly IntraPluginCollision[] = PUBSUB_CHANNELS_AGGREGATE.intraCollisions;
 
 /** Static pub/sub channel names. Factories for parameterised channels
  *  (e.g. `sessionChannel(id)`) live alongside as named helpers. */
-export const PUBSUB_CHANNELS = {
-  ...HOST_STATIC_CHANNELS,
-  // Plugin-owned channels (currently: accountingBooks). Subscribers:
-  // BookSwitcher.vue. Payload: empty `{}`.
-  ...SAFE_PLUGIN_STATIC_CHANNELS,
-} as const;
+export const PUBSUB_CHANNELS = PUBSUB_CHANNELS_AGGREGATE.merged as unknown as typeof HOST_STATIC_CHANNELS & PluginStaticChannelsMap<BuiltInPluginMetas>;
 
 export type StaticPubSubChannel = (typeof PUBSUB_CHANNELS)[keyof typeof PUBSUB_CHANNELS];

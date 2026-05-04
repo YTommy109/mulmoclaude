@@ -37,8 +37,7 @@ import { WORKSPACE_FILES } from "../../src/config/workspacePaths.js";
 // don't migrate. Plugin-specific literals never appear here.
 import {
   BUILT_IN_PLUGIN_METAS,
-  buildPluginAggregate,
-  filterPluginKeys,
+  defineHostAggregate,
   type BuiltInPluginMetas,
   type HostPluginCollision,
   type IntraPluginCollision,
@@ -56,22 +55,16 @@ import {
 // register).
 type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
 
-type PluginWorkspaceDirsContribution<M> = M extends { readonly workspaceDirs: infer D } ? { readonly [K in keyof D]: D[K] } : Record<string, never>;
+// Plugins WITHOUT `workspaceDirs` must contribute an empty object
+// (`Record<never, never>`), NOT `Record<string, never>`. The latter
+// carries an index signature that, once intersected with a sibling
+// plugin's narrow contribution, drags `keyof` of the merged type
+// back to `string`. See server/workspace/workspace.ts: indexing
+// `WORKSPACE_PATHS[key]` over `EAGER_WORKSPACE_DIRS` requires
+// `WorkspaceDirKey` to stay a union of literals.
+type PluginWorkspaceDirsContribution<M> = M extends { readonly workspaceDirs: infer D } ? { readonly [K in keyof D]: D[K] } : Record<never, never>;
 
 type PluginWorkspaceDirsMap<T extends BuiltInPluginMetas> = UnionToIntersection<PluginWorkspaceDirsContribution<T[number]>>;
-
-// First-write-wins aggregation. See `buildPluginAggregate`'s
-// docblock — the merge itself enforces "first plugin claiming a
-// dir key wins; later collisions are reported and dropped" (was
-// last-write-wins via `Object.assign`).
-const {
-  aggregate: pluginWorkspaceDirsAggregate,
-  owner: PLUGIN_WORKSPACE_DIRS_OWNER,
-  collisions: WORKSPACE_DIRS_INTRA_COLLISIONS_RAW,
-} = buildPluginAggregate(BUILT_IN_PLUGIN_METAS, (meta) => meta.workspaceDirs, "workspaceDirs");
-export const WORKSPACE_DIRS_INTRA_COLLISIONS: readonly IntraPluginCollision[] = WORKSPACE_DIRS_INTRA_COLLISIONS_RAW;
-
-const PLUGIN_WORKSPACE_DIRS = pluginWorkspaceDirsAggregate as PluginWorkspaceDirsMap<BuiltInPluginMetas>;
 
 // Workspace root. Hard-coded to `~/mulmoclaude` — there is no
 // WORKSPACE_PATH env override today; changing the location
@@ -163,30 +156,19 @@ const HOST_WORKSPACE_DIRS = {
   pluginsConfig: "config/plugins",
 } as const;
 
-// Drop any plugin workspace-dir key that collides with a host dir
-// (e.g. a plugin claiming `wiki` / `markdowns`) — the host wins so
-// server I/O still hits the right on-disk location. Dropped entries
-// are reported via `WORKSPACE_DIRS_HOST_COLLISIONS` for the boot
-// diagnostics module.
-// Cast back to the literal-preserving map: `filterPluginKeys` only
-// drops keys, so the surviving subset is still a valid
-// `PluginWorkspaceDirsMap` shape.
-const { cleaned: cleanedWorkspaceDirs, dropped: WORKSPACE_DIRS_DROPPED } = filterPluginKeys(
-  "WORKSPACE_DIRS",
-  new Set(Object.keys(HOST_WORKSPACE_DIRS)),
-  PLUGIN_WORKSPACE_DIRS,
-  PLUGIN_WORKSPACE_DIRS_OWNER,
-);
-const SAFE_PLUGIN_WORKSPACE_DIRS = cleanedWorkspaceDirs as PluginWorkspaceDirsMap<BuiltInPluginMetas>;
-export const WORKSPACE_DIRS_HOST_COLLISIONS: readonly HostPluginCollision[] = WORKSPACE_DIRS_DROPPED;
+// First-write-wins host+plugin aggregate (see `defineHostAggregate`):
+// host keys win on collision, second-claiming plugin wins are
+// dropped, both diagnostic lists are exposed for boot warnings.
+const WORKSPACE_DIRS_AGGREGATE = defineHostAggregate(BUILT_IN_PLUGIN_METAS, {
+  label: "WORKSPACE_DIRS",
+  hostRecord: HOST_WORKSPACE_DIRS,
+  extract: (meta) => meta.workspaceDirs,
+  dimension: "workspaceDirs",
+});
+export const WORKSPACE_DIRS_HOST_COLLISIONS: readonly HostPluginCollision[] = WORKSPACE_DIRS_AGGREGATE.hostCollisions;
+export const WORKSPACE_DIRS_INTRA_COLLISIONS: readonly IntraPluginCollision[] = WORKSPACE_DIRS_AGGREGATE.intraCollisions;
 
-export const WORKSPACE_DIRS = {
-  ...HOST_WORKSPACE_DIRS,
-  // Built-in plugin dirs (auto-merged from every plugin's META —
-  // see `src/plugins/metas.ts`). Adding a plugin = register its
-  // META there; the keys spread below.
-  ...SAFE_PLUGIN_WORKSPACE_DIRS,
-} as const;
+export const WORKSPACE_DIRS = WORKSPACE_DIRS_AGGREGATE.merged as unknown as typeof HOST_WORKSPACE_DIRS & PluginWorkspaceDirsMap<BuiltInPluginMetas>;
 export { WORKSPACE_FILES };
 
 // Absolute paths, built once at module load from `workspacePath`.

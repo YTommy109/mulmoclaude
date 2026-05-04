@@ -98,26 +98,29 @@ test("buildPluginAggregate skips plugins where extract returns undefined", () =>
   assert.deepEqual(collisions, []);
 });
 
-// Sync-invariant: every plugin that exposes a META must also be
-// registered under the same `toolName` in
-// `src/plugins/server.ts#BUILT_IN_SERVER_BINDINGS` (the Vue-free
-// barrel of every built-in plugin's MCP definition). Catches the
-// "I added META but forgot the registration" / "I added the
-// registration but forgot to extend metas.ts" footgun before it
-// silently corrupts MCP routing.
+// Sync-invariant (one-way): every BUILT_IN_SERVER_BINDINGS entry
+// for a *built-in* plugin must have a matching META in
+// `BUILT_IN_PLUGIN_METAS`. Catches the "I added an MCP binding but
+// forgot the META" footgun.
 //
-// This is the Vue-free sync — the matching `BUILT_IN_PLUGINS`
-// barrel in `src/plugins/index.ts` carries Vue components, so
-// node-side tests can't import it. `BUILT_IN_SERVER_BINDINGS`
-// covers every plugin with an MCP tool definition, which is
-// strictly broader than (currently equal to) the META set.
-test("every BUILT_IN_PLUGIN_METAS entry has a matching toolName in BUILT_IN_SERVER_BINDINGS", () => {
-  const registeredNames = new Set(BUILT_IN_SERVER_BINDINGS.map((binding) => binding.def.name));
-  for (const meta of BUILT_IN_PLUGIN_METAS) {
+// Two directions intentionally NOT asserted:
+//   - META → binding: GUI-only / deprecated plugins (wiki — MCP tool
+//     removed #963 but the plugin entry stays for legacy chat replay)
+//     have META without binding.
+//   - external-package binding → META: plugins shipped as npm
+//     packages (createMindMap from @gui-chat-plugin/mindmap, etc.)
+//     are registered in BUILT_IN_SERVER_BINDINGS without a local
+//     meta.ts because they aren't co-located in this source tree.
+const EXTERNAL_PACKAGE_TOOL_NAMES = new Set(["createMindMap", "putQuestions", "present3D"]);
+
+test("every built-in BUILT_IN_SERVER_BINDINGS entry has a matching toolName in BUILT_IN_PLUGIN_METAS", () => {
+  const metaToolNames: ReadonlySet<string> = new Set(BUILT_IN_PLUGIN_METAS.map((meta) => meta.toolName));
+  for (const binding of BUILT_IN_SERVER_BINDINGS) {
+    if (EXTERNAL_PACKAGE_TOOL_NAMES.has(binding.def.name)) continue;
     assert.ok(
-      registeredNames.has(meta.toolName),
-      `Plugin META "${meta.toolName}" has no matching binding in src/plugins/server.ts. ` +
-        `Either add a row to BUILT_IN_SERVER_BINDINGS, or remove the entry from BUILT_IN_PLUGIN_METAS.`,
+      metaToolNames.has(binding.def.name),
+      `BUILT_IN_SERVER_BINDINGS row for "${binding.def.name}" has no matching META in BUILT_IN_PLUGIN_METAS. ` +
+        `Either add the plugin's META to src/plugins/metas.ts, or drop the row from BUILT_IN_SERVER_BINDINGS.`,
     );
   }
 });

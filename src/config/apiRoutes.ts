@@ -19,14 +19,7 @@
 // key names matched to the last URL segment where possible.
 
 import { CHAT_SERVICE_ROUTES } from "@mulmobridge/protocol";
-import {
-  BUILT_IN_PLUGIN_METAS,
-  buildPluginAggregate,
-  filterPluginKeys,
-  type BuiltInPluginMetas,
-  type HostPluginCollision,
-  type IntraPluginCollision,
-} from "../plugins/metas";
+import { BUILT_IN_PLUGIN_METAS, defineHostAggregate, type BuiltInPluginMetas, type HostPluginCollision, type IntraPluginCollision } from "../plugins/metas";
 
 // Plugin-owned endpoint constants. Each plugin owns its dispatch
 // URL string in its own definition.ts; this file re-keys them under
@@ -46,26 +39,6 @@ type PluginApiRoutesMap<T extends BuiltInPluginMetas> = {
       : M["toolName"]
     : never]: M extends { readonly apiRoutes: infer R } ? R : never;
 };
-
-// First-write-wins aggregation. `buildPluginAggregate` enforces
-// "first plugin to claim an `apiRoutesKey` wins; later collisions
-// are rejected and reported" instead of `Object.fromEntries`'
-// silent last-write-wins. Result: the diagnostic message ("the
-// second plugin's registration is ignored") matches actual
-// runtime — Codex iter-3+ kept flagging this until the merge
-// itself enforced first-write semantics.
-const {
-  aggregate: pluginApiRoutesAggregate,
-  owner: API_ROUTES_OWNER,
-  collisions: API_ROUTES_INTRA_COLLISIONS_RAW,
-} = buildPluginAggregate(
-  BUILT_IN_PLUGIN_METAS,
-  (meta) => (meta.apiRoutes !== undefined ? { [meta.apiRoutesKey ?? meta.toolName]: meta.apiRoutes } : undefined),
-  "apiRoutesKey",
-);
-export const API_ROUTES_INTRA_COLLISIONS: readonly IntraPluginCollision[] = API_ROUTES_INTRA_COLLISIONS_RAW;
-
-const PLUGIN_API_ROUTES = pluginApiRoutesAggregate as PluginApiRoutesMap<BuiltInPluginMetas>;
 
 const HOST_API_ROUTES = {
   health: "/api/health",
@@ -242,27 +215,23 @@ const HOST_API_ROUTES = {
   },
 } as const;
 
-// Drop any plugin route group whose `apiRoutesKey` collides with a
-// host outer-key (e.g. a plugin trying to claim `agent` / `roles` /
-// `wiki`). The host wins; the dropped route is reported via
-// `API_ROUTES_HOST_COLLISIONS` so server-side diagnostics can warn
-// the user without the app refusing to start.
-// Cast back to the literal-preserving map: `filterPluginKeys` only
-// drops keys, so the surviving subset is still a valid
-// `PluginApiRoutesMap` shape.
-const { cleaned: cleanedApiRoutes, dropped: API_ROUTES_DROPPED } = filterPluginKeys(
-  "API_ROUTES",
-  new Set(Object.keys(HOST_API_ROUTES)),
-  PLUGIN_API_ROUTES,
-  API_ROUTES_OWNER,
+// First-write-wins host+plugin aggregate (see `defineHostAggregate`):
+// host outer-keys win on collision (plugins claiming `agent`/`roles`/
+// `wiki` are dropped), the second-claiming plugin's `apiRoutesKey`
+// is dropped, both diagnostic lists are exposed for boot warnings.
+// `defineHostAggregate` is generic over the value type — use the
+// declared host record's value union here so `apiRoutes` records (a
+// nested object, not a string) type-check inside the generic V.
+const API_ROUTES_AGGREGATE = defineHostAggregate<(typeof HOST_API_ROUTES)[keyof typeof HOST_API_ROUTES] | Readonly<Record<string, string>>>(
+  BUILT_IN_PLUGIN_METAS,
+  {
+    label: "API_ROUTES",
+    hostRecord: HOST_API_ROUTES,
+    extract: (meta) => (meta.apiRoutes !== undefined ? { [meta.apiRoutesKey ?? meta.toolName]: meta.apiRoutes } : undefined),
+    dimension: "apiRoutesKey",
+  },
 );
-const SAFE_PLUGIN_API_ROUTES = cleanedApiRoutes as PluginApiRoutesMap<BuiltInPluginMetas>;
-export const API_ROUTES_HOST_COLLISIONS: readonly HostPluginCollision[] = API_ROUTES_DROPPED;
+export const API_ROUTES_HOST_COLLISIONS: readonly HostPluginCollision[] = API_ROUTES_AGGREGATE.hostCollisions;
+export const API_ROUTES_INTRA_COLLISIONS: readonly IntraPluginCollision[] = API_ROUTES_AGGREGATE.intraCollisions;
 
-export const API_ROUTES = {
-  ...HOST_API_ROUTES,
-  // Plugin-owned routes auto-merged from META.apiRoutes (see top of
-  // file). Each entry is keyed by the plugin's `apiRoutesKey` —
-  // currently: `accounting` (POST /api/accounting dispatch).
-  ...SAFE_PLUGIN_API_ROUTES,
-} as const;
+export const API_ROUTES = API_ROUTES_AGGREGATE.merged as unknown as typeof HOST_API_ROUTES & PluginApiRoutesMap<BuiltInPluginMetas>;

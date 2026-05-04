@@ -32,6 +32,7 @@ import { META as schedulerAutomationsMeta } from "./scheduler/automationsMeta";
 import { META as schedulerCalendarMeta } from "./scheduler/calendarMeta";
 import { META as spreadsheetMeta } from "./spreadsheet/meta";
 import { META as todoMeta } from "./todo/meta";
+import { META as wikiMeta } from "./wiki/meta";
 
 // `satisfies` (not `:`) so the literal types of every plugin's
 // META survive into host aggregators — `TOOL_NAMES.manageAccounting`
@@ -52,6 +53,7 @@ export const BUILT_IN_PLUGIN_METAS = [
   schedulerCalendarMeta,
   spreadsheetMeta,
   todoMeta,
+  wikiMeta,
 ] as const satisfies readonly PluginMeta[];
 
 export type BuiltInPluginMetas = typeof BUILT_IN_PLUGIN_METAS;
@@ -183,4 +185,63 @@ export function filterPluginKeys<V>(
     cleaned[key] = value;
   }
   return { cleaned, dropped };
+}
+
+// ────────────────────────────────────────────────────────────────
+// Host aggregate facade
+// ────────────────────────────────────────────────────────────────
+//
+// `buildPluginAggregate` + `filterPluginKeys` always come paired:
+// gather plugin contributions, drop the ones that collide with host
+// keys, spread into the host record. Each of the four aggregator
+// files (toolNames, apiRoutes, pubsubChannels, paths.ts) was repeating
+// the same ~25-line shape. `defineHostAggregate` collapses the
+// runtime half to one call so a new dimension (e.g. featureFlags) is
+// one line at the call site, not five copy-pastes.
+//
+// The TYPE-LEVEL mapped shape stays at the call site — each
+// aggregator's literal-preserving type (`PluginWorkspaceDirsMap`,
+// `PluginApiRoutesMap`, …) is dimension-specific and would lose
+// fidelity if collapsed into a generic helper. The runtime helper
+// returns `Record<string, V>` and the call site narrows it.
+
+export interface HostAggregateOptions<V> {
+  /** Aggregator label used in `HostPluginCollision.label` (e.g.
+   *  `"TOOL_NAMES"`, `"API_ROUTES"`). */
+  readonly label: string;
+  /** Host-owned record. Plugin keys that collide with these are
+   *  dropped from the merge (host wins) and reported in
+   *  `hostCollisions`. */
+  readonly hostRecord: Readonly<Record<string, V>>;
+  /** Per-plugin extractor — returns the contribution this plugin
+   *  makes to this dimension, or `undefined` to skip. */
+  readonly extract: (meta: PluginMeta) => Readonly<Record<string, V>> | undefined;
+  /** Dimension label tagged onto every emitted
+   *  `IntraPluginCollision`. */
+  readonly dimension: IntraPluginCollision["dimension"];
+}
+
+export interface HostAggregate<V> {
+  /** Merged record: host fields plus every plugin contribution that
+   *  survived collision filtering. */
+  readonly merged: Record<string, V>;
+  /** Plugin keys dropped because a host record claimed the same
+   *  key. */
+  readonly hostCollisions: readonly HostPluginCollision[];
+  /** Two plugins claiming the same key — the second is dropped
+   *  (first-write-wins) and reported here. */
+  readonly intraCollisions: readonly IntraPluginCollision[];
+}
+
+/** Run the standard "build per-plugin aggregate, drop host
+ *  collisions, spread into host record" pipeline in one call. The
+ *  caller still owns the literal-preserving type cast on `merged`. */
+export function defineHostAggregate<V>(metas: readonly PluginMeta[], opts: HostAggregateOptions<V>): HostAggregate<V> {
+  const { aggregate, owner, collisions } = buildPluginAggregate(metas, opts.extract, opts.dimension);
+  const { cleaned, dropped } = filterPluginKeys(opts.label, new Set(Object.keys(opts.hostRecord)), aggregate, owner);
+  return {
+    merged: { ...opts.hostRecord, ...cleaned },
+    hostCollisions: dropped,
+    intraCollisions: collisions,
+  };
 }

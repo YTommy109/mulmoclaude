@@ -165,13 +165,30 @@
             @update:layout-mode="setLayoutMode"
             @toggle-right-sidebar="toggleRightSidebar"
           />
-          <!-- Distinct pages -->
+          <!-- Distinct pages. Plugin-owned views (Todo / Calendar /
+               Automations / Wiki / Skills) call `useRuntime()` from
+               `gui-chat-protocol/vue` inside their composables — that
+               throws unless mounted under `<PluginScopedRoot>`. The
+               plugin registry's `wrapWithScope` wraps the chat-mounted
+               variants; standalone routes are wrapped here against the
+               same `pkg-name + endpoints` pair so the `useRuntime()`
+               call resolves. -->
           <FilesView v-else-if="currentPage === 'files'" :refresh-token="filesRefreshToken" @load-session="handleSessionSelect" />
-          <TodoExplorer v-else-if="currentPage === 'todos'" />
-          <CalendarView v-else-if="currentPage === 'calendar'" />
-          <AutomationsView v-else-if="currentPage === 'automations'" />
-          <WikiView v-else-if="currentPage === 'wiki'" />
-          <SkillsView v-else-if="currentPage === 'skills'" />
+          <PluginScopedRoot v-else-if="currentPage === 'todos'" pkg-name="todos" :endpoints="API_ROUTES.todos">
+            <TodoExplorer />
+          </PluginScopedRoot>
+          <PluginScopedRoot v-else-if="currentPage === 'calendar'" pkg-name="scheduler" :endpoints="API_ROUTES.scheduler">
+            <CalendarView />
+          </PluginScopedRoot>
+          <PluginScopedRoot v-else-if="currentPage === 'automations'" pkg-name="scheduler" :endpoints="API_ROUTES.scheduler">
+            <AutomationsView />
+          </PluginScopedRoot>
+          <PluginScopedRoot v-else-if="currentPage === 'wiki'" pkg-name="wiki" :endpoints="API_ROUTES.wiki">
+            <WikiView />
+          </PluginScopedRoot>
+          <PluginScopedRoot v-else-if="currentPage === 'skills'" pkg-name="skills" :endpoints="API_ROUTES.skills">
+            <SkillsView />
+          </PluginScopedRoot>
           <RolesView v-else-if="currentPage === 'roles'" />
           <SourcesView v-else-if="currentPage === 'sources'" />
           <NewsView v-else-if="currentPage === 'news'" />
@@ -252,6 +269,7 @@ import SkillsView from "./plugins/manageSkills/View.vue";
 import RolesView from "./components/RolesView.vue";
 import SourcesView from "./components/SourcesView.vue";
 import NewsView from "./components/NewsView.vue";
+import PluginScopedRoot from "./components/PluginScopedRoot.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import NotificationToast from "./components/NotificationToast.vue";
 import type { NotificationAction } from "./types/notification";
