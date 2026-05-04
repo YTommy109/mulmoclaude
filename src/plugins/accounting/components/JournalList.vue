@@ -54,45 +54,101 @@
         </tr>
       </thead>
       <tbody>
-        <tr
-          v-for="entry in filteredEntries"
-          :key="entry.id"
-          :class="voidedEntryIds.has(entry.id) ? 'text-gray-400 line-through' : ''"
-          :data-testid="voidedEntryIds.has(entry.id) ? `accounting-journal-row-voided-${entry.id}` : `accounting-journal-row-${entry.id}`"
-          class="border-b border-gray-100 align-top"
-        >
-          <td class="py-1 px-2 whitespace-nowrap">{{ entry.date }}</td>
-          <td class="py-1 px-2 text-xs">{{ kindLabel(entry.kind) }}</td>
-          <td class="py-1 px-2">
-            <span v-if="entry.memo">{{ entry.memo }}</span>
-          </td>
-          <td class="py-1 px-2">
-            <div v-for="(line, idx) in entry.lines" :key="idx" class="text-xs flex gap-2 items-baseline">
-              <span class="font-mono text-[10px] text-gray-400">{{ line.accountCode }}</span>
-              <span v-if="accountNameFor(line.accountCode)">{{ accountNameFor(line.accountCode) }}</span>
-              <span v-if="line.debit">{{ formatDebit(line.debit) }}</span>
-              <span v-if="line.credit">{{ formatCredit(line.credit) }}</span>
-            </div>
-          </td>
-          <td class="py-1 px-2 text-right whitespace-nowrap">
-            <template v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)">
-              <button class="text-xs text-blue-600 hover:underline mr-2" :data-testid="`accounting-edit-${entry.id}`" @click="onEditEntry(entry)">
+        <template v-for="entry in filteredEntries" :key="entry.id">
+          <tr
+            :class="[
+              voidedEntryIds.has(entry.id) ? 'text-gray-400 line-through' : '',
+              'border-b border-gray-100 align-top cursor-pointer hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400',
+            ]"
+            :data-testid="voidedEntryIds.has(entry.id) ? `accounting-journal-row-voided-${entry.id}` : `accounting-journal-row-${entry.id}`"
+            tabindex="0"
+            role="button"
+            :aria-expanded="expandedEntryId === entry.id"
+            @click="toggleExpanded(entry.id)"
+            @keydown.enter.prevent.self="onKeyToggle($event, entry.id)"
+            @keydown.space.prevent.self="onKeyToggle($event, entry.id)"
+          >
+            <td class="py-1 px-2 whitespace-nowrap">{{ entry.date }}</td>
+            <td class="py-1 px-2 text-xs">{{ kindLabel(entry.kind) }}</td>
+            <td class="py-1 px-2">
+              <span v-if="entry.memo">{{ entry.memo }}</span>
+            </td>
+            <td class="py-1 px-2">
+              <div v-for="(line, idx) in entry.lines" :key="idx" class="text-xs flex gap-2 items-baseline">
+                <span class="font-mono text-[10px] text-gray-400">{{ line.accountCode }}</span>
+                <span v-if="accountNameFor(line.accountCode)">{{ accountNameFor(line.accountCode) }}</span>
+                <span v-if="line.debit">{{ formatDebit(line.debit) }}</span>
+                <span v-if="line.credit">{{ formatCredit(line.credit) }}</span>
+              </div>
+            </td>
+            <!-- Stop the toggle from firing when the user reaches for
+                 Edit / Void — those rails already handle their own
+                 navigation / confirm dialog and shouldn't double as a
+                 detail-expand trigger. -->
+            <td class="py-1 px-2 text-right whitespace-nowrap" @click.stop>
+              <template v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)">
+                <button class="text-xs text-blue-600 hover:underline mr-2" :data-testid="`accounting-edit-${entry.id}`" @click="onEditEntry(entry)">
+                  {{ t("pluginAccounting.journalList.edit") }}
+                </button>
+                <button class="text-xs text-red-500 hover:underline" :data-testid="`accounting-void-${entry.id}`" @click="onVoid(entry)">
+                  {{ t("pluginAccounting.journalList.void") }}
+                </button>
+              </template>
+              <button
+                v-else-if="entry.kind === 'opening' && !voidedEntryIds.has(entry.id)"
+                class="text-xs text-blue-600 hover:underline"
+                :data-testid="`accounting-edit-opening-${entry.id}`"
+                @click="emit('editOpening')"
+              >
                 {{ t("pluginAccounting.journalList.edit") }}
               </button>
-              <button class="text-xs text-red-500 hover:underline" :data-testid="`accounting-void-${entry.id}`" @click="onVoid(entry)">
-                {{ t("pluginAccounting.journalList.void") }}
+            </td>
+          </tr>
+          <tr v-if="expandedEntryId === entry.id" class="bg-gray-50" :data-testid="`accounting-journal-detail-${entry.id}`">
+            <td :colspan="5" class="px-6 py-2 relative">
+              <button
+                type="button"
+                class="absolute top-1 right-2 h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100"
+                :data-testid="`accounting-journal-detail-close-${entry.id}`"
+                :aria-label="t('pluginAccounting.common.cancel')"
+                @click="expandedEntryId = null"
+              >
+                <span class="material-icons text-base">close</span>
               </button>
-            </template>
-            <button
-              v-else-if="entry.kind === 'opening' && !voidedEntryIds.has(entry.id)"
-              class="text-xs text-blue-600 hover:underline"
-              :data-testid="`accounting-edit-opening-${entry.id}`"
-              @click="emit('editOpening')"
-            >
-              {{ t("pluginAccounting.journalList.edit") }}
-            </button>
-          </td>
-        </tr>
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="text-gray-500 border-b border-gray-200">
+                    <th class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.accountLabel") }}</th>
+                    <th class="text-right py-1 px-2">{{ t("pluginAccounting.entryForm.debitLabel") }}</th>
+                    <th class="text-right py-1 px-2">{{ t("pluginAccounting.entryForm.creditLabel") }}</th>
+                    <th class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.memoLabel") }}</th>
+                    <th v-if="entryHasTaxIds(entry)" class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.taxRegistrationIdLabel") }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(line, idx) in entry.lines" :key="idx" class="border-b border-gray-100 text-gray-700">
+                    <td class="py-1 px-2">
+                      <span class="font-mono text-[10px] text-gray-400 mr-2">{{ line.accountCode }}</span>
+                      <span v-if="accountNameFor(line.accountCode)">{{ accountNameFor(line.accountCode) }}</span>
+                    </td>
+                    <td class="py-1 px-2 text-right font-mono">{{ line.debit ? formatAmount(line.debit, currency) : "" }}</td>
+                    <td class="py-1 px-2 text-right font-mono">{{ line.credit ? formatAmount(line.credit, currency) : "" }}</td>
+                    <td class="py-1 px-2">{{ line.memo ?? "" }}</td>
+                    <td v-if="entryHasTaxIds(entry)" class="py-1 px-2 font-mono text-[10px]">{{ line.taxRegistrationId ?? "" }}</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr class="font-semibold border-t border-gray-300 text-gray-700">
+                    <td class="py-1 px-2 text-gray-500">{{ t("pluginAccounting.balanceSheet.total") }}</td>
+                    <td class="py-1 px-2 text-right font-mono">{{ formatAmount(entryDebitTotal(entry), currency) }}</td>
+                    <td class="py-1 px-2 text-right font-mono">{{ formatAmount(entryCreditTotal(entry), currency) }}</td>
+                    <td :colspan="entryHasTaxIds(entry) ? 2 : 1"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </td>
+          </tr>
+        </template>
       </tbody>
     </table>
   </div>
@@ -101,7 +157,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { getJournalEntries, voidEntry, type Account, type JournalEntry, type JournalEntryKind } from "../api";
+import { getJournalEntries, voidEntry, type Account, type JournalEntry, type JournalEntryKind, type JournalLine } from "../api";
 import { formatAmount } from "../currencies";
 import { currentFiscalYearRange, resolveFiscalYearEnd, type DateRange, type FiscalYearEnd } from "../fiscalYear";
 import type { SupportedCountryCode } from "../countries";
@@ -173,7 +229,10 @@ function onFormCancel(): void {
 // neutral "+ New entry" surface.
 watch(
   () => props.bookId,
-  () => closeForm(),
+  () => {
+    closeForm();
+    expandedEntryId.value = null;
+  },
 );
 
 const resolvedFiscalYearEnd = computed<FiscalYearEnd>(() => resolveFiscalYearEnd(props.fiscalYearEnd));
@@ -215,6 +274,38 @@ const accountNameByCode = computed(() => {
 });
 function accountNameFor(code: string): string | null {
   return accountNameByCode.value.get(code) ?? null;
+}
+
+// Single-selection detail expansion. Clicking a row swaps the
+// selection (or collapses if it's already the selected row).
+// Cleared on book switch via the closeForm watcher; entries deleted
+// between fetches simply drop out of filteredEntries, so a stale id
+// here just renders no detail row.
+const expandedEntryId = ref<string | null>(null);
+
+function toggleExpanded(entryId: string): void {
+  expandedEntryId.value = expandedEntryId.value === entryId ? null : entryId;
+}
+
+function onKeyToggle(event: KeyboardEvent, entryId: string): void {
+  if (event.repeat) return;
+  toggleExpanded(entryId);
+}
+
+function entryHasTaxIds(entry: JournalEntry): boolean {
+  return entry.lines.some((line) => Boolean(line.taxRegistrationId));
+}
+
+function sumLines(lines: JournalLine[], pick: (line: JournalLine) => number | undefined): number {
+  return lines.reduce((acc, line) => acc + (pick(line) ?? 0), 0);
+}
+
+function entryDebitTotal(entry: JournalEntry): number {
+  return sumLines(entry.lines, (line) => line.debit);
+}
+
+function entryCreditTotal(entry: JournalEntry): number {
+  return sumLines(entry.lines, (line) => line.credit);
 }
 
 async function refresh(): Promise<void> {
