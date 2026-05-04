@@ -49,10 +49,45 @@ interface FakeEntry {
   createdAt: string;
 }
 
+/** Minimal shapes for the report mocks. Mirror the public response
+ *  shapes from `server/accounting/report.ts` closely enough that the
+ *  client renders rows; tests only populate the fields they assert on. */
+export interface BalanceSheetRowMock {
+  accountCode: string;
+  accountName: string;
+  balance: number;
+}
+export interface BalanceSheetSectionMock {
+  type: "asset" | "liability" | "equity";
+  rows: BalanceSheetRowMock[];
+  total: number;
+}
+export interface BalanceSheetMock {
+  asOf?: string;
+  sections: BalanceSheetSectionMock[];
+  imbalance?: number;
+}
+export interface ProfitLossRowMock {
+  accountCode: string;
+  accountName: string;
+  amount: number;
+}
+export interface ProfitLossMock {
+  from?: string;
+  to?: string;
+  income: { rows: ProfitLossRowMock[]; total: number };
+  expense: { rows: ProfitLossRowMock[]; total: number };
+  netIncome?: number;
+}
+
 interface AccountingState {
   books: FakeBook[];
   accountsByBook: Map<string, FakeAccount[]>;
   entriesByBook: Map<string, FakeEntry[]>;
+  /** Optional canned report data injected via `mockAccountingApi`'s
+   *  `reports` option. Lets tests render non-empty Balance Sheet /
+   *  P&L tables without standing up the real aggregation pipeline. */
+  reports?: { balanceSheet?: BalanceSheetMock; profitLoss?: ProfitLossMock };
 }
 
 const SEED_ACCOUNTS: FakeAccount[] = [
@@ -306,15 +341,17 @@ function handleGetReport(state: AccountingState, body: DispatchBody): MockRespon
   if (typeof resolved !== "string") return resolved;
   const kind = typeof body.kind === "string" ? body.kind : "balance";
   if (kind === "pl") {
+    const injected = state.reports?.profitLoss;
     return ok({
       bookId: resolved,
-      profitLoss: { from: "2026-04-01", to: "2026-04-30", income: { rows: [], total: 0 }, expense: { rows: [], total: 0 }, netIncome: 0 },
+      profitLoss: injected ?? { from: "2026-04-01", to: "2026-04-30", income: { rows: [], total: 0 }, expense: { rows: [], total: 0 }, netIncome: 0 },
     });
   }
   if (kind === "ledger") {
     return ok({ bookId: resolved, ledger: { accountCode: "1000", accountName: "Cash", rows: [], closingBalance: 0 } });
   }
-  return ok({ bookId: resolved, balanceSheet: { asOf: "2026-04-30", sections: [], imbalance: 0 } });
+  const injected = state.reports?.balanceSheet;
+  return ok({ bookId: resolved, balanceSheet: injected ?? { asOf: "2026-04-30", sections: [], imbalance: 0 } });
 }
 
 const ACTION_HANDLERS: Record<string, ActionHandler> = {
@@ -363,8 +400,12 @@ export interface AccountingSeedBook {
  *  with pre-existing books — useful for tests that need to drive
  *  `openBook` against a real bookId without first running through
  *  the createBook flow. */
-export async function mockAccountingApi(page: Page, opts: { books?: readonly AccountingSeedBook[] } = {}): Promise<AccountingState> {
+export async function mockAccountingApi(
+  page: Page,
+  opts: { books?: readonly AccountingSeedBook[]; reports?: { balanceSheet?: BalanceSheetMock; profitLoss?: ProfitLossMock } } = {},
+): Promise<AccountingState> {
   const state = makeState();
+  if (opts.reports) state.reports = opts.reports;
   for (const seed of opts.books ?? []) {
     state.books.push({
       id: seed.id,

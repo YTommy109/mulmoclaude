@@ -164,23 +164,38 @@ test.describe("accounting plugin — flow", () => {
     await expect(newEntryButton).toBeVisible();
     const journalTable = page.getByTestId("accounting-journal-table");
     await expect(journalTable).toBeVisible();
-    // Normal-entry Edit buttons only — the opening row uses the
-    // distinct `accounting-edit-opening-…` testid and routes to a
-    // different handler (it switches to the Opening tab instead of
-    // the inline form).
+
+    // Edit / Void now live inside the row's expanded detail panel —
+    // collapsed rows expose neither button. Locate the just-posted
+    // normal entry's row by exclusion (skip the opening row + any
+    // voided row) and expand it.
+    const normalRow = page.locator("[data-testid^='accounting-journal-row-']:not([data-testid*='accounting-journal-row-voided-'])").last();
+    await expect(normalRow).toBeVisible();
+    await normalRow.click();
+
+    // Inside the now-expanded panel: normal-entry Edit (the opening
+    // row uses the distinct `accounting-edit-opening-…` testid and
+    // a different handler — it switches to the Opening tab).
     const normalEditButtons = page.locator("[data-testid^='accounting-edit-']:not([data-testid*='accounting-edit-opening-'])");
     await expect(normalEditButtons.first()).toBeVisible();
 
-    // Click Edit on the just-posted row → form re-opens prefilled.
+    // Click Edit on the just-posted row → the JournalEntryForm
+    // mounts in-place inside the expanded detail panel (NOT in the
+    // top-bar, which stays reserved for "+ New entry"), prefilled
+    // from the row.
     await normalEditButtons.first().click();
-    await expect(inlineForm).toBeVisible();
+    await expect(inlineForm).toHaveCount(0);
+    const inPlaceEdit = page.locator("[data-testid^='accounting-journal-detail-edit-']");
+    await expect(inPlaceEdit).toHaveCount(1);
     // The date input should hold the posted date (today by default).
     const dateInput = page.getByTestId("accounting-entry-date");
     await expect(dateInput).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
 
-    // Cancel from edit mode dismisses the panel and the toolbar
-    // button comes back.
+    // Cancel from in-place edit drops the form back to the read-
+    // only detail view for the same row; the top-bar "+ New entry"
+    // button stays visible the whole time (it was never replaced).
     await page.getByTestId("accounting-entry-cancel-edit").click();
+    await expect(inPlaceEdit).toHaveCount(0);
     await expect(inlineForm).toHaveCount(0);
     await expect(newEntryButton).toBeVisible();
   });
