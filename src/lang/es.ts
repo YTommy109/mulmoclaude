@@ -702,6 +702,11 @@ const esMessages = {
       total: "Total",
       imbalance: "Descuadre: {amount}",
       currentEarnings: "Resultado del período",
+      shortcutLabel: "Atajo",
+      thisMonth: "Este mes",
+      lastMonth: "Mes anterior",
+      lastQuarter: "Último trimestre",
+      lastYear: "Año anterior",
     },
     profitLoss: {
       fromLabel: "Desde",

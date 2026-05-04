@@ -693,6 +693,11 @@ const koMessages = {
       total: "합계",
       imbalance: "차액: {amount}",
       currentEarnings: "당기 순손익",
+      shortcutLabel: "바로가기",
+      thisMonth: "이번 달",
+      lastMonth: "지난달",
+      lastQuarter: "지난 분기",
+      lastYear: "지난 연도",
     },
     profitLoss: {
       fromLabel: "시작",

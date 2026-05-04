@@ -695,6 +695,11 @@ const ptBRMessages = {
       total: "Total",
       imbalance: "Diferença: {amount}",
       currentEarnings: "Resultado do período",
+      shortcutLabel: "Atalho",
+      thisMonth: "Este mês",
+      lastMonth: "Mês anterior",
+      lastQuarter: "Último trimestre",
+      lastYear: "Ano anterior",
     },
     profitLoss: {
       fromLabel: "De",

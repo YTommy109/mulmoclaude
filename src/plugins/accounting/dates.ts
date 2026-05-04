@@ -29,3 +29,23 @@ export function localMonthString(now: Date = new Date()): string {
 export function localStartOfYearString(now: Date = new Date()): string {
   return `${now.getFullYear()}-01-01`;
 }
+
+/** Previous calendar month as `YYYY-MM` in the user's local timezone. */
+export function previousMonthString(now: Date = new Date()): string {
+  const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+}
+
+/** Last month of the previous calendar quarter as `YYYY-MM`. Calendar
+ *  quarters: Q1=Jan–Mar, Q2=Apr–Jun, Q3=Jul–Sep, Q4=Oct–Dec. When the
+ *  current month is in Q1, this rolls back to December of last year. */
+export function lastMonthOfPreviousQuarterString(now: Date = new Date()): string {
+  const firstMonthOfCurrentQuarter = Math.floor(now.getMonth() / 3) * 3;
+  const d = new Date(now.getFullYear(), firstMonthOfCurrentQuarter - 1, 1);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+}
+
+/** December of the previous calendar year as `YYYY-MM`. */
+export function decemberOfPreviousYearString(now: Date = new Date()): string {
+  return `${now.getFullYear() - 1}-12`;
+}

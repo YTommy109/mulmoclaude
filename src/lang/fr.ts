@@ -697,6 +697,11 @@ const frMessages = {
       total: "Total",
       imbalance: "Déséquilibre : {amount}",
       currentEarnings: "Résultat de la période",
+      shortcutLabel: "Raccourci",
+      thisMonth: "Ce mois-ci",
+      lastMonth: "Mois précédent",
+      lastQuarter: "Trimestre précédent",
+      lastYear: "Année précédente",
     },
     profitLoss: {
       fromLabel: "Du",

@@ -697,6 +697,11 @@ const enMessages = {
       total: "Total",
       imbalance: "Imbalance: {amount}",
       currentEarnings: "Current period earnings",
+      shortcutLabel: "Shortcut",
+      thisMonth: "This month",
+      lastMonth: "Last month",
+      lastQuarter: "Last quarter",
+      lastYear: "Last year",
     },
     profitLoss: { fromLabel: "From", toLabel: "To", income: "Income", expense: "Expense", netIncome: "Net income:" },
     accounts: {

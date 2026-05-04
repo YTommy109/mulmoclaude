@@ -686,6 +686,11 @@ const zhMessages = {
       total: "合计",
       imbalance: "差额: {amount}",
       currentEarnings: "当期净损益",
+      shortcutLabel: "快捷方式",
+      thisMonth: "本月",
+      lastMonth: "上月",
+      lastQuarter: "上季度",
+      lastYear: "上年",
     },
     profitLoss: {
       fromLabel: "起始",
