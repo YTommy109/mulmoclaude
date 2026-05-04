@@ -147,7 +147,23 @@ artifacts/       ← charts/, documents/, html/, images/, spreadsheets/
 
 Full reference: [`docs/developer.md`](docs/developer.md#plugin-development)
 
-Adding a **local plugin** updates 8 places: `definition.ts`, `index.ts`, `server/api/routes/<name>.ts`, `server/agent/mcp-server.ts`, `src/tools/index.ts`, `src/config/roles.ts`, `server/agent/index.ts`, `src/config/apiRoutes.ts`.
+**Plugin owns its identity.** Each built-in plugin declares its `toolName`, `apiRoutes`, `workspaceDirs`, and `staticChannels` in its own `src/plugins/<name>/meta.ts`. Host aggregators (`API_ROUTES`, `TOOL_NAMES`, `WORKSPACE_DIRS`, `PUBSUB_CHANNELS`) auto-merge those contributions via `defineHostAggregate` — host code holds zero plugin-specific literals.
+
+Adding a built-in plugin touches **6 plugin-local files** and **3 host barrels**:
+
+- `src/plugins/<name>/meta.ts` — `definePluginMeta({ toolName, apiRoutesKey?, apiRoutes?, workspaceDirs?, staticChannels? })`
+- `src/plugins/<name>/definition.ts` — MCP `ToolDefinition`; derive `TOOL_NAME = META.toolName`, endpoint types from `typeof META.apiRoutes`
+- `src/plugins/<name>/index.ts` — `PluginRegistration` (View / Preview wrapped via `wrapWithScope(scope, …)`, executor calls `pluginEndpoints<E>(scope)`)
+- `src/plugins/<name>/View.vue` / `Preview.vue` — Vue surfaces; call `useRuntime()` from `gui-chat-protocol/vue` for the typed `endpoints` map
+- `src/plugins/metas.ts` — append the META to `BUILT_IN_PLUGIN_METAS`
+- `src/plugins/index.ts` — append the registration to `BUILT_IN_PLUGINS`
+- `src/plugins/server.ts` — append `{ def, endpoint }` to `BUILT_IN_SERVER_BINDINGS` (skip for GUI-only plugins like wiki)
+- `server/api/routes/<name>.ts` — Express route handlers (only when the plugin owns endpoints)
+- `src/main.ts` — entry in the host endpoint registry passed to `installHostContext({ endpoints })`
+
+Adding to a Role's `availablePlugins` (`src/config/roles.ts`) is separate — roles gate which plugins each chat sees, independent of plugin registration.
+
+Standalone routes (`/todos`, `/calendar`, …) and inline file previews (`FileContentRenderer` rendering `data/todos/todos.json`) must wrap the plugin component with `<PluginScopedRoot pkg-name :endpoints>` so descendant `useRuntime()` calls resolve. The plugin registry's `wrapWithScope` already covers chat-mounted variants.
 
 ## Centralized Constants
 
@@ -157,11 +173,15 @@ Key ones to remember:
 
 | What | Source of truth |
 |---|---|
-| API routes | `src/config/apiRoutes.ts` → `API_ROUTES` |
+| API routes | `src/config/apiRoutes.ts` → `API_ROUTES` (host-fixed entries + plugin contributions auto-merged from `META.apiRoutes`) |
+| Tool names | `src/config/toolNames.ts` → `TOOL_NAMES` (host-fixed entries + plugin contributions auto-merged from `META.toolName`) |
 | Event types | `src/types/events.ts` → `EVENT_TYPES` |
-| Workspace paths | `server/workspace/paths.ts` → `WORKSPACE_PATHS` |
+| Workspace paths | `server/workspace/paths.ts` → `WORKSPACE_PATHS` (auto-derived from `WORKSPACE_DIRS` + `WORKSPACE_FILES`; plugin contributions merged from `META.workspaceDirs`) |
+| Pub-sub channels | `src/config/pubsubChannels.ts` → `PUBSUB_CHANNELS` (host-fixed + `META.staticChannels`) |
 | Time | `server/utils/time.ts` → `ONE_SECOND_MS` / `ONE_MINUTE_MS` / `ONE_HOUR_MS` |
 | Scheduler | `@receptron/task-scheduler` → `SCHEDULE_TYPES` / `TASK_RESULTS` |
+
+For the four plugin-aware aggregators above, edit the plugin's `meta.ts` rather than the host record — `defineHostAggregate` (`src/plugins/metas.ts`) merges them at module load with first-write-wins semantics; collisions surface as boot-time diagnostics on the bell.
 
 ## Testing
 
