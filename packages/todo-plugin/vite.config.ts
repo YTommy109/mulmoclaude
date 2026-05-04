@@ -12,7 +12,7 @@ export default defineConfig({
   plugins: [vue(), dts({ include: ["src/**/*.{ts,vue}"], rollupTypes: true })],
   build: {
     lib: {
-      entry: { index: "src/index.ts", vue: "src/vue.ts" },
+      entry: { index: "src/index.ts", vue: "src/vue.ts", shared: "src/shared.ts", composables: "src/composables/index.ts" },
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,
     },

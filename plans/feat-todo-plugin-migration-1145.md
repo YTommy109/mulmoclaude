@@ -4,6 +4,12 @@ Move the built-in `todo` plugin (Vue + server + io + lang + config + workspace d
 
 Spec issue: [#1145](https://github.com/receptron/mulmoclaude/issues/1145)
 
+## Realised approach (post-PR1 revision)
+
+PR1 (`packages/todo-plugin/` scaffold + preset registration) merged as #1146. PRs 2–5 then collapsed into a single migration PR (`feat/todo-plugin-full-migration-1145`): server handlers, Vue components, i18n keys, and the static-side deletion all land together. The collision-policy intermediate state turned out to be dead weight — having both copies in the tree at once made every cross-file edit double-work without buying review safety, so we pulled the trigger in one shot.
+
+The "Why split into 5 PRs" section below is the original plan and is preserved for context.
+
 ## Why this is split into 5 PRs
 
 todo is ~2300 LOC across 12 files. A single PR would be unreviewable. The runtime-plugin loader's collision policy (static plugins win over runtime plugins of the same `TOOL_DEFINITION.name`) lets us keep both old and new code coexisting during the chain — the new (runtime) plugin is dormant until the old (static) one is removed in PR5.

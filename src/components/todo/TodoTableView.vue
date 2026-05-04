@@ -78,7 +78,7 @@
               {{ formatShortDate(item.createdAt) }}
             </td>
             <td class="px-3 py-2 text-right">
-              <button class="text-gray-300 hover:text-red-500 text-xs" :title="t('pluginTodo.deleteItem')" @click="emit('delete', item.id)">✕</button>
+              <button class="text-gray-300 hover:text-red-500 text-xs" :title="t('todoTableList.deleteItem')" @click="emit('delete', item.id)">✕</button>
             </td>
           </tr>
           <tr v-if="expandedId === item.id">
@@ -95,10 +95,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { StatusColumn, TodoItem } from "../../plugins/todo/index";
-import { colorForLabel } from "../../plugins/todo/labels";
-import { PRIORITY_CLASSES, PRIORITY_LABELS, PRIORITY_ORDER, dueDateClasses, formatDueLabel } from "../../plugins/todo/priority";
-import type { PatchItemInput } from "../../plugins/todo/composables/useTodos";
+import type { StatusColumn, TodoItem, PatchItemInput } from "@mulmoclaude/todo-plugin/shared";
+import { colorForLabel, PRIORITY_CLASSES, PRIORITY_LABELS, PRIORITY_ORDER, dueDateClasses, formatDueLabel } from "@mulmoclaude/todo-plugin/shared";
 import TodoEditPanel from "./TodoEditPanel.vue";
 import { formatShortDate } from "../../utils/format/date";
 

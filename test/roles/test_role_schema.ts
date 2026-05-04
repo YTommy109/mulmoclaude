@@ -9,7 +9,7 @@ describe("RoleSchema", () => {
       name: "Test Role",
       icon: "star",
       prompt: "You are a test assistant.",
-      availablePlugins: ["manageTodoList", "generateImage"],
+      availablePlugins: ["presentMulmoScript", "generateImage"],
       queries: ["hello"],
     };
     const result = RoleSchema.parse(valid);
@@ -29,10 +29,10 @@ describe("RoleSchema", () => {
       name: "Test",
       icon: "star",
       prompt: "prompt",
-      availablePlugins: ["manageTodoList", "presentHTML", "generateImage"],
+      availablePlugins: ["presentMulmoScript", "presentHTML", "generateImage"],
     };
     const result = RoleSchema.parse(input);
-    assert.deepStrictEqual(result.availablePlugins, ["manageTodoList", "generateImage"]);
+    assert.deepStrictEqual(result.availablePlugins, ["presentMulmoScript", "generateImage"]);
   });
 
   it("recovers a legacy role file that references the removed `manageRoles` tool (#951 regression guard)", () => {
@@ -47,10 +47,10 @@ describe("RoleSchema", () => {
       name: "My Role",
       icon: "star",
       prompt: "prompt",
-      availablePlugins: ["manageRoles", "manageTodoList", "generateImage"],
+      availablePlugins: ["manageRoles", "presentMulmoScript", "generateImage"],
     };
     const result = RoleSchema.parse(legacyRole);
-    assert.deepStrictEqual(result.availablePlugins, ["manageTodoList", "generateImage"]);
+    assert.deepStrictEqual(result.availablePlugins, ["presentMulmoScript", "generateImage"]);
   });
 
   it("accepts a valid role without optional queries", () => {

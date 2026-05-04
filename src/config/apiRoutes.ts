@@ -203,8 +203,11 @@ const HOST_API_ROUTES = {
     readState: "/api/news/read-state",
   },
 
-  // `todos` group migrated to META — see `src/plugins/todo/meta.ts`.
-  // Auto-merged via `apiRoutesKey: "todos"`.
+  // todos: removed — todo is now a runtime plugin
+  // (`@mulmoclaude/todo-plugin`, #1145 migration). The frontend
+  // calls into it via `runtime.dispatch({kind: ...})` from
+  // `useTodos` (`@mulmoclaude/todo-plugin/composables`); no
+  // host-managed routes remain.
 
   wiki: {
     base: "/api/wiki",

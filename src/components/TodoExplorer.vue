@@ -161,15 +161,14 @@ import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { scrollIntoViewByTestId } from "../utils/dom/scrollIntoViewByTestId";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-import type { TodoData, TodoItem } from "../plugins/todo/index";
-import { colorForLabel, filterByLabels, listLabelsWithCount } from "../plugins/todo/labels";
-import { useTodos, type CreateItemInput, type PatchItemInput } from "../plugins/todo/composables/useTodos";
+import type { TodoData, TodoItem, CreateItemInput, PatchItemInput, TodoViewMode as ViewMode } from "@mulmoclaude/todo-plugin/shared";
+import { TODO_VIEW, TODO_VIEW_MODES as VIEW_MODES, colorForLabel, filterByLabels, listLabelsWithCount } from "@mulmoclaude/todo-plugin/shared";
+import { useTodos } from "@mulmoclaude/todo-plugin/composables";
 import TodoKanbanView from "./todo/TodoKanbanView.vue";
 import TodoTableView from "./todo/TodoTableView.vue";
 import TodoListView from "./todo/TodoListView.vue";
 import TodoAddDialog from "./todo/TodoAddDialog.vue";
 import TodoEditDialog from "./todo/TodoEditDialog.vue";
-import { TODO_VIEW, TODO_VIEW_MODES as VIEW_MODES, type TodoViewMode as ViewMode } from "../plugins/todo/viewModes";
 
 const { t } = useI18n();
 

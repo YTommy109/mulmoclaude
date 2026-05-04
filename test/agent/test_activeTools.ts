@@ -47,21 +47,21 @@ afterEach(() => _resetRuntimeRegistryForTest());
 
 describe("getActiveToolDescriptors — single source of truth", () => {
   it("returns at least the static GUI plugins gated by role.availablePlugins", () => {
-    // The role lists `manageTodoList` (a real PLUGIN_DEFS entry); the
+    // The role lists `presentMulmoScript` (a real PLUGIN_DEFS entry); the
     // descriptor for that plugin must surface with source=static-gui.
-    const role = fakeRole(["manageTodoList"]);
+    const role = fakeRole(["presentMulmoScript"]);
     const descriptors = getActiveToolDescriptors(role);
-    const todoEntry = descriptors.find((descriptor) => descriptor.name === "manageTodoList");
-    assert.ok(todoEntry, "manageTodoList should appear in active descriptors when role allows it");
-    assert.equal(todoEntry?.source, "static-gui");
-    assert.ok(todoEntry?.endpoint, "static GUI plugins carry their HTTP endpoint");
+    const entry = descriptors.find((descriptor) => descriptor.name === "presentMulmoScript");
+    assert.ok(entry, "presentMulmoScript should appear in active descriptors when role allows it");
+    assert.equal(entry?.source, "static-gui");
+    assert.ok(entry?.endpoint, "static GUI plugins carry their HTTP endpoint");
   });
 
   it("does NOT surface a static plugin the role does not allow", () => {
     const role = fakeRole([]);
     const descriptors = getActiveToolDescriptors(role);
     assert.equal(
-      descriptors.find((descriptor) => descriptor.name === "manageTodoList"),
+      descriptors.find((descriptor) => descriptor.name === "presentMulmoScript"),
       undefined,
     );
   });
@@ -105,28 +105,28 @@ describe("getActiveToolDescriptors — single source of truth", () => {
     // happen in production. The descriptor builder still has its
     // own `seen` guard to keep the contract robust if the policy
     // is ever loosened.
-    registerRuntimePlugins(new Set(), [fakeRuntimePlugin("@x/clash", "manageTodoList")]);
-    const role = fakeRole(["manageTodoList"]);
+    registerRuntimePlugins(new Set(), [fakeRuntimePlugin("@x/clash", "presentMulmoScript")]);
+    const role = fakeRole(["presentMulmoScript"]);
     const descriptors = getActiveToolDescriptors(role);
-    const matches = descriptors.filter((descriptor) => descriptor.name === "manageTodoList");
+    const matches = descriptors.filter((descriptor) => descriptor.name === "presentMulmoScript");
     assert.equal(matches.length, 1, "name should appear once even with a runtime collision");
     assert.equal(matches[0].source, "static-gui", "static wins over runtime in the unified list");
   });
 
   it("does not include runtime plugins when the registry is empty", () => {
-    const role = fakeRole(["manageTodoList"]);
+    const role = fakeRole(["presentMulmoScript"]);
     const descriptors = getActiveToolDescriptors(role);
     assert.equal(descriptors.filter((descriptor) => descriptor.source === "runtime").length, 0);
   });
 
   it("returned list is the union with no duplicates across all sources", () => {
     registerRuntimePlugins(new Set(), [fakeRuntimePlugin("@x/r1", "r1Tool"), fakeRuntimePlugin("@x/r2", "r2Tool")]);
-    const role = fakeRole(["manageTodoList", "presentMulmoScript"]);
+    const role = fakeRole(["presentMulmoScript", "presentForm"]);
     const descriptors = getActiveToolDescriptors(role);
     const names = descriptors.map((descriptor) => descriptor.name);
     assert.equal(new Set(names).size, names.length, "no duplicate tool names");
     assert.ok(names.includes("r1Tool"));
     assert.ok(names.includes("r2Tool"));
-    assert.ok(names.includes("manageTodoList"));
+    assert.ok(names.includes("presentMulmoScript"));
   });
 });

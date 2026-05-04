@@ -21,8 +21,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
-import type { StatusColumn, TodoItem } from "../../plugins/todo/index";
-import type { PatchItemInput } from "../../plugins/todo/composables/useTodos";
+import type { StatusColumn, TodoItem, PatchItemInput } from "@mulmoclaude/todo-plugin/shared";
 import TodoEditPanel from "./TodoEditPanel.vue";
 
 const { t } = useI18n();

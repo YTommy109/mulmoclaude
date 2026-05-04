@@ -122,9 +122,8 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import draggable from "vuedraggable";
-import type { StatusColumn, TodoItem } from "../../plugins/todo/index";
-import { colorForLabel } from "../../plugins/todo/labels";
-import { PRIORITY_BORDER, PRIORITY_CLASSES, PRIORITY_LABELS, dueDateClasses, formatDueLabel } from "../../plugins/todo/priority";
+import type { StatusColumn, TodoItem } from "@mulmoclaude/todo-plugin/shared";
+import { colorForLabel, PRIORITY_BORDER, PRIORITY_CLASSES, PRIORITY_LABELS, dueDateClasses, formatDueLabel } from "@mulmoclaude/todo-plugin/shared";
 
 const { t } = useI18n();
 

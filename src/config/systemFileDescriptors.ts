@@ -75,13 +75,13 @@ export const SYSTEM_FILE_DESCRIPTORS: readonly Entry[] = [
   },
   {
     kind: "exact",
-    path: "data/todos/todos.json",
-    descriptor: { id: "todosItems", schemaRef: "server/utils/files/todos-io.ts", editPolicy: "agent-managed-but-hand-editable" },
+    path: "data/plugins/%40mulmoclaude%2Ftodo-plugin/todos.json",
+    descriptor: { id: "todosItems", schemaRef: "packages/todo-plugin/src/io.ts", editPolicy: "agent-managed-but-hand-editable" },
   },
   {
     kind: "exact",
-    path: "data/todos/columns.json",
-    descriptor: { id: "todosColumns", schemaRef: "server/utils/files/todos-io.ts", editPolicy: "user-editable" },
+    path: "data/plugins/%40mulmoclaude%2Ftodo-plugin/columns.json",
+    descriptor: { id: "todosColumns", schemaRef: "packages/todo-plugin/src/io.ts", editPolicy: "user-editable" },
   },
   {
     kind: "exact",

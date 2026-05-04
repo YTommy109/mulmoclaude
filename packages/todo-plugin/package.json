@@ -12,6 +12,14 @@
     "./vue": {
       "types": "./dist/vue.d.ts",
       "import": "./dist/vue.js"
+    },
+    "./shared": {
+      "types": "./dist/shared.d.ts",
+      "import": "./dist/shared.js"
+    },
+    "./composables": {
+      "types": "./dist/composables.d.ts",
+      "import": "./dist/composables.js"
     }
   },
   "files": [

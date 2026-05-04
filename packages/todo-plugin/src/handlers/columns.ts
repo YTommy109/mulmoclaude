@@ -11,18 +11,10 @@
 // items have somewhere to live and the legacy `completed` boolean has
 // something to map to.
 
-import { slugify as slugifyCanonical, disambiguateSlug } from "../../utils/slug.js";
-import { isRecord } from "../../utils/types.js";
-import type { TodoItem } from "./todos.js";
+import { slugify as slugifyCanonical, disambiguateSlug, isRecord } from "../internal/utils";
+import type { TodoItem, StatusColumn } from "../types";
 
-export interface StatusColumn {
-  id: string;
-  label: string;
-  // True for the column whose items are considered "completed".
-  // Exactly one column should have isDone: true at any given time;
-  // remove_column / patch_column rules enforce this.
-  isDone?: boolean;
-}
+export type { StatusColumn } from "../types";
 
 export const DEFAULT_COLUMNS: StatusColumn[] = [
   { id: "backlog", label: "Backlog" },

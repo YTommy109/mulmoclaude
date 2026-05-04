@@ -97,7 +97,8 @@ const HOST_WORKSPACE_DIRS = {
   searches: "conversations/searches",
   // data/
   wiki: "data/wiki",
-  todos: "data/todos",
+  // todos: removed (#1145) — todo data now lives under the plugin's
+  // own `files.data` scope at `data/plugins/%40mulmoclaude%2Ftodo-plugin/`.
   calendar: "data/calendar",
   contacts: "data/contacts",
   scheduler: "data/scheduler",
@@ -212,7 +213,6 @@ export type WorkspacePathKey = keyof typeof WORKSPACE_PATHS;
 // list is created lazily (first write) by its owning module.
 export const EAGER_WORKSPACE_DIRS: readonly WorkspaceDirKey[] = [
   "chat",
-  "todos",
   "calendar",
   "contacts",
   "scheduler",

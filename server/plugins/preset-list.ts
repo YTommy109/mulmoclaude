@@ -27,12 +27,10 @@ export interface PresetPlugin {
 }
 
 export const PRESET_PLUGINS: readonly PresetPlugin[] = [
-  // PR1 of #1145 — runtime-plugin shape of the built-in todo plugin.
+  // #1145 — runtime-plugin shape of the built-in todo plugin.
   // Loaded as a preset (resolved via `node_modules/@mulmoclaude/todo-plugin/`
   // through the yarn-workspaces symlink) so it boots on every fresh
-  // checkout. Collides on `TOOL_DEFINITION.name = "manageTodoList"`
-  // with the static plugin in `src/plugins/todo/`; collision policy
-  // (static wins) keeps PR1 a no-op behaviour change. PR5 deletes the
-  // static side, after which this becomes the real handler.
+  // checkout. Owns `manageTodoList` end-to-end now that the static
+  // entry under `src/plugins/todo/` has been removed.
   { packageName: "@mulmoclaude/todo-plugin" },
 ];

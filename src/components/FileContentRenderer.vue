@@ -30,7 +30,7 @@
         </div>
         <!-- Todos todos.json: full kanban / table / list explorer. -->
         <div v-else-if="todoExplorerResult" class="h-full">
-          <PluginScopedRoot pkg-name="todos" :endpoints="API_ROUTES.todos">
+          <PluginScopedRoot pkg-name="@mulmoclaude/todo-plugin">
             <TodoExplorer :selected-result="todoExplorerResult" />
           </PluginScopedRoot>
         </div>
@@ -159,7 +159,7 @@ import type { FileContent } from "../composables/useFileSelection";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TextResponseData } from "../plugins/textResponse/types";
 import type { SchedulerData } from "../plugins/scheduler/index";
-import type { TodoData } from "../plugins/todo/index";
+import type { TodoData } from "@mulmoclaude/todo-plugin/shared";
 import { JSON_TOKEN_CLASS } from "../utils/format/jsonSyntax";
 import type { JsonToken, JsonlLine } from "../utils/format/jsonSyntax";
 import { formatScalarField, type MarkdownDocView } from "../composables/useMarkdownDoc";

@@ -8,10 +8,10 @@
 // and returns a result. The Express route is responsible for loading
 // and saving JSON to disk.
 
-import type { TodoItem, TodoPriority } from "./todos.js";
-import { type StatusColumn, defaultStatusId, doneColumnId } from "./todosColumnsHandlers.js";
-import { mergeLabels } from "../../../src/plugins/todo/labels.js";
-import { makeId } from "../../utils/id.js";
+import type { TodoItem, TodoPriority, StatusColumn } from "../types";
+import { defaultStatusId, doneColumnId } from "./columns";
+import { mergeLabels } from "../labels";
+import { makeId } from "../internal/utils";
 
 const ORDER_STEP = 1000;
 const PRIORITIES: readonly TodoPriority[] = ["low", "medium", "high", "urgent"];

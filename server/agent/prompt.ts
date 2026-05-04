@@ -29,7 +29,7 @@ All data lives in the workspace directory as plain files:
 - \`conversations/chat/\` — chat session history (one .jsonl per session)
 - \`conversations/memory/\` — distilled facts about the user, one entry per file (typed: preference / interest / fact / reference). \`MEMORY.md\` in the same directory is a system-owned index; entry bodies are loaded as context.
 - \`conversations/summaries/\` — journal output (daily / topics / archive)
-- \`data/todos/\` — todo items
+- \`data/plugins/%40mulmoclaude%2Ftodo-plugin/\` — todo items (plugin-scoped after #1145; the encoded segment is \`encodeURIComponent\` of the npm package name)
 - \`data/calendar/\` — calendar events
 - \`data/contacts/\` — address book entries
 - \`data/wiki/\` — personal knowledge wiki (index.md, pages/, sources/, log.md)

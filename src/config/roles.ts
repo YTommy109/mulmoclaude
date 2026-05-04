@@ -48,7 +48,10 @@ export const ROLES: Role[] = [
       "- **Browse / lint**: direct the user to the `/wiki` UI — catalog at `/wiki`, a specific page at `/wiki/pages/<slug>`, activity log at `/wiki/log`, or the Lint button on `/wiki` for a health check.\n\n" +
       "Page format: YAML frontmatter (title, created, updated, tags) + markdown body + `[[wiki links]]` for cross-references. Slugs are lowercase hyphen-separated. Always keep `data/wiki/index.md` current and append to `data/wiki/log.md` after any change. The page-list section of `index.md` is a flat, recency-ordered log: prepend new pages at the top, and when a page is updated (content, description, tags, or rename) move its entry to the top — don't group by category. The Tags section (if present) still needs its per-tag page lists updated on add / rename / delete, but the tag order itself is not reordered by recency. Read `config/helps/wiki.md` for full details.",
     availablePlugins: [
-      TOOL_NAMES.manageTodoList,
+      // manageTodoList: runtime plugin (`@mulmoclaude/todo-plugin`,
+      // #1145) — runtime-loaded plugins are auto-included in every
+      // role's active tool set regardless of `availablePlugins`, so
+      // it doesn't need to be listed here.
       TOOL_NAMES.manageCalendar,
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentForm,
