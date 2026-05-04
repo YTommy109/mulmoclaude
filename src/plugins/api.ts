@@ -23,13 +23,27 @@
 // `HostContext`, a corresponding getter helper here, and update
 // the host's install call in `src/main.ts`.
 
-/** A flat group of endpoint URLs (`{ list: "/api/foo", ... }`).
- *  Each plugin scope maps to one of these. */
-export type EndpointGroup = Readonly<Record<string, string>>;
+import type { ResolvedRoute } from "./meta-types";
+
+/** A flat group of plugin-owned routes (`{ create: { method, url } }`).
+ *  Each plugin scope maps to one of these. The host registry hands
+ *  back resolved-URL records — the plugin author wrote `{ method,
+ *  path }` in `meta.ts`, the host composed `/api/<namespace><path>`. */
+export type EndpointGroup = Readonly<Record<string, ResolvedRoute>>;
+
+/** Host-shared groups (`files`, `imageStore`, `mcpTools`, `wiki`,
+ *  `roles`, `image`) that carry plain string URLs rather than the
+ *  plugin `{ method, url }` shape. Kept around so the same registry
+ *  can host both plugin-owned routes and the cross-cutting host
+ *  endpoints plugins reach for. */
+export type HostEndpointGroup = Readonly<Record<string, string>>;
 
 /** The full registry of plugin endpoint groups, keyed by scope
- *  name (`"todos"`, `"wiki"`, `"mulmoScript"`, …). */
-export type EndpointRegistry = Readonly<Record<string, EndpointGroup>>;
+ *  name (`"todos"`, `"wiki"`, `"mulmoScript"`, …). Values are either
+ *  plugin-owned `EndpointGroup` records or host-owned
+ *  `HostEndpointGroup` records — `pluginEndpoints<E>` narrows to the
+ *  caller-declared shape. */
+export type EndpointRegistry = Readonly<Record<string, EndpointGroup | HostEndpointGroup>>;
 
 /** Everything the host hands to plugins at boot. Each field is
  *  read-only — plugins consume, never mutate. */
@@ -69,14 +83,14 @@ function requireContext(): HostContext {
 /** Returns the URL group for a plugin's scope. The generic `E` lets
  *  the caller declare the expected shape — plugins typically pass
  *  their own typed interface so member access is type-checked
- *  (`pluginEndpoints<TodoEndpoints>("todos").items`).
+ *  (`pluginEndpoints<TodoEndpoints>("todos").create.url`).
  *
- *  Constraint is `Record<string, string>` (not `EndpointGroup` =
- *  `Readonly<Record<...>>`) so plain interfaces with mutable string
- *  fields satisfy it — TS treats `readonly` as a tighter constraint
- *  than the writable counterpart, and plugins shouldn't be forced
- *  to mark every endpoint field `readonly`. */
-export function pluginEndpoints<E extends Record<string, string> = EndpointGroup>(scope: string): E {
+ *  Constraint is `object` (not `EndpointGroup` /
+ *  `HostEndpointGroup`) so plugin-owned `Record<string, ResolvedRoute>`
+ *  shapes AND host-shared `Record<string, string>` shapes both
+ *  satisfy it — `pluginEndpoints` is the indirection that lets a
+ *  caller assert the contract it expects. */
+export function pluginEndpoints<E extends object = EndpointGroup>(scope: string): E {
   const group = requireContext().endpoints[scope];
   if (!group) {
     throw new Error(`Unknown plugin endpoint scope: "${scope}"`);

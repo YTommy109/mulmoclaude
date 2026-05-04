@@ -170,7 +170,7 @@ async function applyHtml() {
   if (!path) return;
   saveError.value = null;
   saving.value = true;
-  const result = await apiPut<{ path: string }>(endpoints.update, {
+  const result = await apiPut<{ path: string }>(endpoints.update.url, {
     relativePath: path,
     html: editableHtml.value,
   });

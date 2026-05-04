@@ -5,7 +5,7 @@ import { pluginEndpoints } from "../api";
 import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
-import { apiPost } from "../../utils/api";
+import { apiCall } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
 export interface ChartEntry {
@@ -30,7 +30,8 @@ const presentChartPlugin: ToolPlugin<PresentChartData> = {
 
   async execute(_context, args) {
     const endpoints = pluginEndpoints<ChartEndpoints>("chart");
-    const result = await apiPost<ToolResult<PresentChartData>>(endpoints.present, args);
+    const { method, url } = endpoints.create;
+    const result = await apiCall<ToolResult<PresentChartData>>(url, { method, body: args });
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

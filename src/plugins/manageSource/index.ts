@@ -5,7 +5,7 @@ import { pluginEndpoints } from "../api";
 import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
-import { apiPost } from "../../utils/api";
+import { apiCall } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
 // Mirrors server/sources/types.ts#Source. Re-declared here so the
@@ -45,7 +45,8 @@ const manageSourcePlugin: ToolPlugin<ManageSourceData> = {
   toolDefinition,
   async execute(_context, args) {
     const endpoints = pluginEndpoints<SourcesEndpoints>("sources");
-    const result = await apiPost<ToolResult<ManageSourceData>>(endpoints.manage, args);
+    const { method, url } = endpoints.manage;
+    const result = await apiCall<ToolResult<ManageSourceData>>(url, { method, body: args });
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

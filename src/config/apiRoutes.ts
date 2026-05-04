@@ -3,42 +3,54 @@
 // registrations and ~57 frontend `fetch("/api/...")` call sites so
 // that typos fail typecheck instead of producing runtime 404s.
 //
-// **Shape**: nested `as const` object grouped by owning route file /
-// resource family. Every value is the literal, full path including
-// the `/api` prefix. Routers in `server/routes/*.ts` register them
-// verbatim — the `app.use("/api", ...)` mount prefix was removed so
-// the constants are the unambiguous source.
+// **Two shapes coexist**:
 //
-// **Express params**: patterns like `:id` / `:filename` are kept as
-// Express-compatible strings. Client-side URL builders (e.g. a
-// `todoItem(id)` helper) are deliberately NOT added here until the
-// frontend migration lands — see plans/done/refactor-api-routes-constants.md.
+//   - **Host routes** (this file's `HOST_API_ROUTES` literal): values
+//     are full URL strings. Used by host-only routes (`/api/agent`,
+//     `/api/wiki`, …) where the method is implicit at the call site.
+//   - **Plugin routes** (auto-merged from each plugin's META): values
+//     are `ResolvedRoute = { method, url }` records. The plugin
+//     declares `{ apiNamespace, apiRoutes: { key: { method, path } } }`
+//     and the host composes `/api/<apiNamespace><path>` with the
+//     `method` flowing through to the value. Plugin-owned dispatch
+//     URLs and HTTP verbs land in the same place at the same time.
 //
-// **Adding a new endpoint**: add it here first, then reference the
-// constant from the router file. Keep the nesting shallow and the
-// key names matched to the last URL segment where possible.
+// **Adding a new host endpoint**: add it to `HOST_API_ROUTES` below;
+// reference it from the route file as a string.
+// **Adding a new plugin endpoint**: edit the plugin's `meta.ts` —
+// the host aggregator picks it up automatically.
 
 import { CHAT_SERVICE_ROUTES } from "@mulmobridge/protocol";
 import { BUILT_IN_PLUGIN_METAS, defineHostAggregate, type BuiltInPluginMetas, type HostPluginCollision, type IntraPluginCollision } from "../plugins/metas";
-
-// Plugin-owned endpoint constants. Each plugin owns its dispatch
-// URL string in its own definition.ts; this file re-keys them under
-// the existing `API_ROUTES` shape so external consumers (route
-// registration, MCP bridge) keep their current import paths. A
-// plugin's local edit + `definition.ts` re-export is the only place
-// that URL appears — no drift between plugin and config.
+import type { ResolvedRoute, RouteSpec } from "../plugins/meta-types";
 
 // Plugin-owned API routes auto-merged from each plugin's META. Each
-// plugin's `apiRoutesKey` becomes the outer key under `API_ROUTES`
-// (defaulting to `toolName` when omitted); its `apiRoutes` record
-// becomes the value. Plugins without `apiRoutes` are skipped.
+// plugin's `apiNamespace` becomes the outer key under `API_ROUTES`
+// (defaulting to `toolName` when omitted); each route key's value
+// is `ResolvedRoute = { method, url }` with `url` composed as
+// `/api/<apiNamespace><path>`. Plugins without `apiRoutes` are skipped.
+type ResolveRoutes<R extends Readonly<Record<string, RouteSpec>>> = {
+  readonly [K in keyof R]: ResolvedRoute;
+};
 type PluginApiRoutesMap<T extends BuiltInPluginMetas> = {
-  readonly [M in T[number] as M extends { readonly apiRoutes: Readonly<Record<string, string>> }
-    ? M extends { readonly apiRoutesKey: infer K extends string }
+  readonly [M in T[number] as M extends { readonly apiRoutes: Readonly<Record<string, RouteSpec>> }
+    ? M extends { readonly apiNamespace: infer K extends string }
       ? K
       : M["toolName"]
-    : never]: M extends { readonly apiRoutes: infer R } ? R : never;
+    : never]: M extends { readonly apiRoutes: infer R extends Readonly<Record<string, RouteSpec>> } ? ResolveRoutes<R> : never;
 };
+
+/** Resolve every plugin route into a `ResolvedRoute` keyed by the
+ *  same name the META used. Used by the aggregator extractor; kept
+ *  exported so server-side helpers can compose the same URLs from
+ *  any META (e.g. `BUILT_IN_SERVER_BINDINGS.mcpDispatch` lookup). */
+export function resolvePluginRoutes(namespace: string, routes: Readonly<Record<string, RouteSpec>>): Record<string, ResolvedRoute> {
+  const resolved: Record<string, ResolvedRoute> = {};
+  for (const [key, spec] of Object.entries(routes)) {
+    resolved[key] = { method: spec.method, url: `/api/${namespace}${spec.path}` };
+  }
+  return resolved;
+}
 
 const HOST_API_ROUTES = {
   health: "/api/health",
@@ -122,7 +134,7 @@ const HOST_API_ROUTES = {
   },
 
   // `mulmoScript` group migrated to META — see `src/plugins/presentMulmoScript/meta.ts`.
-  // Auto-merged via `apiRoutesKey: "mulmoScript"`.
+  // Auto-merged via `apiNamespace: "mulmoScript"`.
 
   pdf: {
     markdown: "/api/pdf/markdown",
@@ -171,13 +183,8 @@ const HOST_API_ROUTES = {
     manage: "/api/roles/manage",
   },
 
-  scheduler: {
-    base: "/api/scheduler",
-    tasks: "/api/scheduler/tasks",
-    task: "/api/scheduler/tasks/:id",
-    taskRun: "/api/scheduler/tasks/:id/run",
-    logs: "/api/scheduler/logs",
-  },
+  // `scheduler` group migrated to META — see `src/plugins/scheduler/calendarMeta.ts`.
+  // Auto-merged via `apiNamespace: "scheduler"`.
 
   sessions: {
     list: "/api/sessions",
@@ -217,20 +224,31 @@ const HOST_API_ROUTES = {
 
 // First-write-wins host+plugin aggregate (see `defineHostAggregate`):
 // host outer-keys win on collision (plugins claiming `agent`/`roles`/
-// `wiki` are dropped), the second-claiming plugin's `apiRoutesKey`
+// `wiki` are dropped), the second-claiming plugin's `apiNamespace`
 // is dropped, both diagnostic lists are exposed for boot warnings.
-// `defineHostAggregate` is generic over the value type — use the
-// declared host record's value union here so `apiRoutes` records (a
-// nested object, not a string) type-check inside the generic V.
-const API_ROUTES_AGGREGATE = defineHostAggregate<(typeof HOST_API_ROUTES)[keyof typeof HOST_API_ROUTES] | Readonly<Record<string, string>>>(
-  BUILT_IN_PLUGIN_METAS,
-  {
-    label: "API_ROUTES",
-    hostRecord: HOST_API_ROUTES,
-    extract: (meta) => (meta.apiRoutes !== undefined ? { [meta.apiRoutesKey ?? meta.toolName]: meta.apiRoutes } : undefined),
-    dimension: "apiRoutesKey",
+//
+// The aggregator's value-type union spans:
+//   - host string URLs (`/api/health`),
+//   - host nested groups (`{ run, cancel, internal }`),
+//   - plugin route maps (`Record<string, ResolvedRoute>` produced by
+//     `resolvePluginRoutes`).
+// `defineHostAggregate` is runtime-generic; the cast on the merged
+// result narrows it back to the literal-preserving shape above.
+type ApiRoutesAggregateValue =
+  | (typeof HOST_API_ROUTES)[keyof typeof HOST_API_ROUTES]
+  | Readonly<Record<string, string>>
+  | Readonly<Record<string, ResolvedRoute>>;
+
+const API_ROUTES_AGGREGATE = defineHostAggregate<ApiRoutesAggregateValue>(BUILT_IN_PLUGIN_METAS, {
+  label: "API_ROUTES",
+  hostRecord: HOST_API_ROUTES,
+  extract: (meta) => {
+    if (meta.apiRoutes === undefined) return undefined;
+    const namespace = meta.apiNamespace ?? meta.toolName;
+    return { [namespace]: resolvePluginRoutes(namespace, meta.apiRoutes) };
   },
-);
+  dimension: "apiNamespace",
+});
 export const API_ROUTES_HOST_COLLISIONS: readonly HostPluginCollision[] = API_ROUTES_AGGREGATE.hostCollisions;
 export const API_ROUTES_INTRA_COLLISIONS: readonly IntraPluginCollision[] = API_ROUTES_AGGREGATE.intraCollisions;
 

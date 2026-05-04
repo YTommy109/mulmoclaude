@@ -7,7 +7,7 @@
 // no separate error-throwing path; all surfaces (network, HTTP, app
 // validation) flow through the same shape.
 
-import { apiPost, type ApiResult } from "../../utils/api";
+import { apiCall, type ApiResult } from "../../utils/api";
 import { META } from "./meta";
 import { ACCOUNTING_ACTIONS } from "./actions";
 import type { SupportedCountryCode } from "./countries";
@@ -121,8 +121,15 @@ export interface Ledger {
 
 export type ReportPeriod = { kind: "month"; period: string } | { kind: "range"; from: string; to: string };
 
+// `META.apiRoutes.dispatch.path` is `""` and `META.apiNamespace` is
+// `"accounting"`, so the URL composes to `/api/accounting`. Resolved
+// inline rather than via the host `pluginEndpoints` registry — this
+// file is plugin-internal and the META is the single source of truth.
+const DISPATCH_URL = `/api/${META.apiNamespace}${META.apiRoutes.dispatch.path}`;
+const DISPATCH_METHOD = META.apiRoutes.dispatch.method;
+
 function call<T>(action: string, args: Record<string, unknown> = {}): Promise<ApiResult<T>> {
-  return apiPost<T>(META.apiRoutes.dispatch, { action, ...args });
+  return apiCall<T>(DISPATCH_URL, { method: DISPATCH_METHOD, body: { action, ...args } });
 }
 
 // ── Books ────────────────────────────────────────────────────────────

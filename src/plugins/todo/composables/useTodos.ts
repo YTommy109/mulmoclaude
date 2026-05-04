@@ -12,6 +12,7 @@ import { ref, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRuntime } from "gui-chat-protocol/vue";
 import type { TodoEndpoints } from "../definition";
+import { buildRouteUrl, type ResolvedRoute } from "../../meta-types";
 import { useFreshPluginData } from "../../../composables/useFreshPluginData";
 import { errorMessage } from "../../../utils/errors";
 import { apiCall } from "../../../utils/api";
@@ -111,13 +112,16 @@ export function useTodos(initialItems: TodoItem[] = [], initialColumns: StatusCo
   const columns = ref<StatusColumn[]>(initialColumns);
   const error = ref<string | null>(null);
 
-  const endpoints = useRuntime().endpoints as TodoEndpoints;
+  // Cast through `unknown`: the protocol's `endpoints` field is typed
+  // as `Record<string, string>` but built-in plugins now hand resolved
+  // `{ method, url }` records. Plugin author asserts the typed shape.
+  const endpoints = useRuntime().endpoints as unknown as TodoEndpoints;
 
   const { refresh: rawRefresh } = useFreshPluginData<{
     items: TodoItem[];
     columns: StatusColumn[];
   }>({
-    endpoint: () => endpoints.list,
+    endpoint: () => endpoints.list.url,
     extract: (json) => {
       const extractedItems = extractItems(json);
       const extractedColumns = extractColumns(json);
@@ -143,12 +147,13 @@ export function useTodos(initialItems: TodoItem[] = [], initialColumns: StatusCo
 
   // Thin wrapper around apiCall that applies the response payload
   // into the local refs and surfaces errors through `error.value`.
-  // Using apiCall (not raw fetch) ensures the #272 bearer token is
-  // attached to every request.
-  async function call(url: string, method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", body?: unknown): Promise<boolean> {
+  // The route's verb + path come from META — `params` substitutes
+  // `:id` placeholders via `buildRouteUrl`. Using apiCall (not raw
+  // fetch) ensures the #272 bearer token is attached to every request.
+  async function call(route: ResolvedRoute, params: Readonly<Record<string, string>> | undefined, body?: unknown): Promise<boolean> {
     error.value = null;
     try {
-      const result = await apiCall<unknown>(url, { method, body });
+      const result = await apiCall<unknown>(buildRouteUrl(route, params), { method: route.method, body });
       if (!result.ok) {
         error.value = result.error;
         return false;
@@ -170,13 +175,13 @@ export function useTodos(initialItems: TodoItem[] = [], initialColumns: StatusCo
     columns,
     error,
     refresh,
-    createItem: (input) => call(endpoints.items, "POST", input),
-    patchItem: (itemId, input) => call(endpoints.item.replace(":id", encodeURIComponent(itemId)), "PATCH", input),
-    moveItem: (itemId, input) => call(endpoints.itemMove.replace(":id", encodeURIComponent(itemId)), "POST", input),
-    deleteItem: (itemId) => call(endpoints.item.replace(":id", encodeURIComponent(itemId)), "DELETE"),
-    addColumn: (input) => call(endpoints.columns, "POST", input),
-    patchColumn: (colId, input) => call(endpoints.column.replace(":id", encodeURIComponent(colId)), "PATCH", input),
-    deleteColumn: (colId) => call(endpoints.column.replace(":id", encodeURIComponent(colId)), "DELETE"),
-    reorderColumns: (ids) => call(endpoints.columnsOrder, "PUT", { ids }),
+    createItem: (input) => call(endpoints.itemsCreate, undefined, input),
+    patchItem: (itemId, input) => call(endpoints.itemPatch, { id: itemId }, input),
+    moveItem: (itemId, input) => call(endpoints.itemMove, { id: itemId }, input),
+    deleteItem: (itemId) => call(endpoints.itemDelete, { id: itemId }),
+    addColumn: (input) => call(endpoints.columnsAdd, undefined, input),
+    patchColumn: (colId, input) => call(endpoints.columnPatch, { id: colId }, input),
+    deleteColumn: (colId) => call(endpoints.columnDelete, { id: colId }),
+    reorderColumns: (ids) => call(endpoints.columnsOrder, undefined, { ids }),
   };
 }

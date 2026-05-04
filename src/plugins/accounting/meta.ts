@@ -19,12 +19,12 @@ import { definePluginMeta } from "../meta-types";
  *  values that aggregate generically. */
 export const META = definePluginMeta({
   toolName: "manageAccounting",
-  // Outer key under the central `API_ROUTES`. The plugin's routes
-  // land at `API_ROUTES[apiRoutesKey]`.
-  apiRoutesKey: "accounting",
+  apiNamespace: "accounting",
   apiRoutes: {
-    dispatch: "/api/accounting",
+    /** POST /api/accounting — single dispatch with action discriminator. */
+    dispatch: { method: "POST", path: "" },
   },
+  mcpDispatch: "dispatch",
   // Flat keys merged into the central `WORKSPACE_DIRS`. Created
   // lazily on first `createBook` so default workspaces don't get a
   // stub `accounting/` they never use.

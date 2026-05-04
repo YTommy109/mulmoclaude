@@ -5,7 +5,7 @@ import { pluginEndpoints } from "../api";
 import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
-import { apiPost } from "../../utils/api";
+import { apiCall } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
 export interface PresentHtmlData {
@@ -18,7 +18,8 @@ const presentHtmlPlugin: ToolPlugin<PresentHtmlData> = {
 
   async execute(_context, args) {
     const endpoints = pluginEndpoints<HtmlEndpoints>("html");
-    const result = await apiPost<ToolResult<PresentHtmlData>>(endpoints.present, args);
+    const { method, url } = endpoints.create;
+    const result = await apiCall<ToolResult<PresentHtmlData>>(url, { method, body: args });
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

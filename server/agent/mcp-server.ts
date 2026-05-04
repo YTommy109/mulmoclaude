@@ -320,7 +320,7 @@ async function handleManageSkillsSave(args: Record<string, unknown>): Promise<st
   // interpolate an accidental object / number into `/${name}`.
   const name = String(args.name ?? "");
   const res = await postJson(
-    API_ROUTES.skills.create,
+    API_ROUTES.skills.create.url,
     {
       name,
       description: args.description,

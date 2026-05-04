@@ -5,7 +5,7 @@ import Preview from "./Preview.vue";
 import toolDefinition from "./definition";
 import { META } from "./meta";
 import { wrapWithScope } from "../scope";
-import { apiPost } from "../../utils/api";
+import { apiCall } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
 // MulmoClaude never invokes `execute()` at runtime (see ToolPlugin
@@ -19,7 +19,8 @@ const accountingPlugin: ToolPlugin<AccountingActionData> = {
 
   async execute(_context, args) {
     const toolName = toolDefinition.name;
-    const result = await apiPost<ToolResult<AccountingActionData>>(META.apiRoutes.dispatch, args);
+    const { method, path } = META.apiRoutes.dispatch;
+    const result = await apiCall<ToolResult<AccountingActionData>>(`/api/${META.apiNamespace}${path}`, { method, body: args });
     if (!result.ok) {
       return {
         toolName,

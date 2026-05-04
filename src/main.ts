@@ -34,13 +34,16 @@ setAuthToken(readAuthTokenFromMeta());
 // has zero direct dependency on `./config/*` — host wires them in
 // here, which is the only place that knows both ends.
 //
-// The endpoint registry is built explicitly per-plugin (rather than
-// a blanket `API_ROUTES` cast) so each plugin's scope name is
-// stable regardless of where the host happens to nest the URLs in
-// the apiRoutes tree. A plugin under `API_ROUTES.plugins.canvas`
-// still gets a clean top-level scope `"canvas"`.
+// The endpoint registry is built explicitly per-plugin so each
+// plugin's scope name is stable regardless of where the host
+// happens to nest the URLs in the apiRoutes tree. Plugin-owned
+// scopes (#1141) match the META's `apiNamespace`; host-shared
+// scopes (`files`, `imageStore`, `mcpTools`, …) carry plain string
+// URLs the host owns directly.
 const pluginEndpointRegistry: EndpointRegistry = {
-  // Top-level groups owned entirely by one plugin.
+  // Plugin-owned top-level groups. Each value is a `Record<string,
+  // ResolvedRoute>` produced by the host aggregator from the
+  // plugin's META `{ apiNamespace, apiRoutes }`.
   todos: API_ROUTES.todos,
   scheduler: API_ROUTES.scheduler,
   mulmoScript: API_ROUTES.mulmoScript,
@@ -48,23 +51,19 @@ const pluginEndpointRegistry: EndpointRegistry = {
   sources: API_ROUTES.sources,
   html: API_ROUTES.html,
   chart: API_ROUTES.chart,
+  accounting: API_ROUTES.accounting,
+  canvas: API_ROUTES.canvas,
+  form: API_ROUTES.form,
+  markdown: API_ROUTES.markdown,
+  spreadsheet: API_ROUTES.spreadsheet,
+  // Host-owned groups. `wiki` / `roles` live in `HOST_API_ROUTES`
+  // as plain string URLs; `image` is a host-shared image store
+  // with both a `generate`/`edit` plugin route and an `update`
+  // endpoint shared with canvas. Plugins read these as
+  // `Record<string, string>` via `pluginEndpoints<HostShape>`.
   wiki: API_ROUTES.wiki,
   roles: API_ROUTES.roles,
-  // accounting is the META-driven plugin's apiRoutesKey; see
-  // `src/plugins/accounting/meta.ts`.
-  accounting: API_ROUTES.accounting,
-  // generateImage + editImages share `image.*`; both ask for scope "image".
   image: API_ROUTES.image,
-  // canvas / presentForm migrated to META — auto-merged at top
-  // level via `apiRoutesKey`. Pulling from `API_ROUTES.canvas`
-  // (instead of the legacy `plugins.canvas`) keeps the registry
-  // sourced from a single, plugin-owned definition.
-  canvas: API_ROUTES.canvas,
-  presentForm: API_ROUTES.presentForm,
-  // markdown / spreadsheet migrated to META — auto-merged at top
-  // level via `apiRoutesKey`.
-  presentDocument: API_ROUTES.presentDocument,
-  presentSpreadsheet: API_ROUTES.presentSpreadsheet,
   // Cross-cutting host-shared services that plugins reach for
   // (read workspace files, look up MCP tools, save canvas image
   // back to disk). Exposed as their own scopes so plugins don't

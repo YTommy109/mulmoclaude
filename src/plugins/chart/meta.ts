@@ -9,8 +9,10 @@ import { definePluginMeta } from "../meta-types";
 
 export const META = definePluginMeta({
   toolName: "presentChart",
-  apiRoutesKey: "chart",
+  apiNamespace: "chart",
   apiRoutes: {
-    present: "/api/present-chart",
+    /** POST /api/chart — render and save a chart document. */
+    create: { method: "POST", path: "" },
   },
+  mcpDispatch: "create",
 });

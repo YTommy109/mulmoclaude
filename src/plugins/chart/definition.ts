@@ -1,16 +1,16 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 import { META } from "./meta";
+import type { ResolvedRoute } from "../meta-types";
 
 // Re-export so existing `import { TOOL_NAME } from "./definition"`
 // callers (server/agent/plugin-names.ts ledger, scope wrapper, …)
 // keep compiling — META.toolName is the source of truth.
 export const TOOL_NAME = META.toolName;
 
-// Plugin's expected endpoint contract — kept as a typed re-export
-// of `META.apiRoutes` so plugin code can `useRuntime().endpoints as
-// ChartEndpoints` without naming the META directly. Auto-derived
-// type means adding a URL to META is the only edit needed.
-export type ChartEndpoints = typeof META.apiRoutes;
+/** Resolved-URL view of the chart plugin's routes. Plugin code reads
+ *  `endpoints.create.{method, url}` to drive `apiCall`. Auto-derived
+ *  from META so adding a route in `meta.ts` is the only edit. */
+export type ChartEndpoints = { readonly [K in keyof typeof META.apiRoutes]: ResolvedRoute };
 
 const toolDefinition: ToolDefinition = {
   type: "function",

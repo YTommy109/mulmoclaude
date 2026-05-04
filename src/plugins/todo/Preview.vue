@@ -45,10 +45,10 @@ const props = defineProps<{ result: ToolResultComplete<TodoData> }>();
 
 const items = ref<TodoItem[]>(props.result.data?.items ?? []);
 
-const endpoints = useRuntime().endpoints as TodoEndpoints;
+const endpoints = useRuntime().endpoints as unknown as TodoEndpoints;
 
 const { refresh } = useFreshPluginData<TodoItem[]>({
-  endpoint: () => endpoints.list,
+  endpoint: () => endpoints.list.url,
   extract: (json) => {
     const extracted = (json as { data?: { items?: TodoItem[] } }).data?.items;
     return Array.isArray(extracted) ? extracted : null;

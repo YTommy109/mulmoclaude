@@ -19,7 +19,7 @@ async function refresh(): Promise<void> {
   if (inflight) return inflight;
   inflight = (async () => {
     try {
-      const result = await apiGet<{ skills: SkillSummary[] }>(API_ROUTES.skills.list);
+      const result = await apiGet<{ skills: SkillSummary[] }>(API_ROUTES.skills.list.url);
       if (result.ok && Array.isArray(result.data.skills)) {
         skills.value = result.data.skills;
         error.value = null;

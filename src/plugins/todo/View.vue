@@ -127,10 +127,10 @@ const items = ref<TodoItem[]>(props.selectedResult.data?.items ?? []);
 // `Record<string, string> | undefined` per the protocol; cast to
 // the plugin's typed contract. The `<PluginScopedRoot>` wrapper in
 // `index.ts#wrapWithScope("todos", ...)` guarantees presence.
-const endpoints = useRuntime().endpoints as TodoEndpoints;
+const endpoints = useRuntime().endpoints as unknown as TodoEndpoints;
 
 const { refresh } = useFreshPluginData<TodoItem[]>({
-  endpoint: () => endpoints.list,
+  endpoint: () => endpoints.list.url,
   extract: (json) => {
     const extracted = (json as { data?: { items?: TodoItem[] } }).data?.items;
     return Array.isArray(extracted) ? extracted : null;
@@ -354,7 +354,7 @@ async function applyItemEdit() {
 const todoApiError = ref<string | null>(null);
 
 async function callApi(body: Record<string, unknown>): Promise<boolean> {
-  const response = await apiPost<{ data?: { items?: TodoItem[] } }>(endpoints.dispatch, body);
+  const response = await apiPost<{ data?: { items?: TodoItem[] } }>(endpoints.dispatch.url, body);
   if (!response.ok) {
     todoApiError.value = response.error;
     return false;

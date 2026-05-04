@@ -6,6 +6,7 @@ import { overwriteHtml, isHtmlPath } from "../../utils/files/html-store.js";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, serverError } from "../../utils/httpError.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { bindRoute } from "../../utils/router.js";
 import { log } from "../../system/logger/index.js";
 import { previewSnippet } from "../../utils/logPreview.js";
 import { publishFileChange } from "../../events/file-change.js";
@@ -29,7 +30,7 @@ interface PresentHtmlErrorResponse {
 
 type PresentHtmlResponse = PresentHtmlSuccessResponse | PresentHtmlErrorResponse;
 
-router.post(API_ROUTES.html.present, async (req: Request<object, unknown, PresentHtmlBody>, res: Response<PresentHtmlResponse>) => {
+bindRoute(router, API_ROUTES.html.create, async (req: Request<object, unknown, PresentHtmlBody>, res: Response<PresentHtmlResponse>) => {
   const { html, title } = req.body;
   log.info("html", "present: start", {
     titlePreview: typeof title === "string" ? previewSnippet(title) : undefined,
@@ -75,7 +76,8 @@ interface UpdateHtmlErrorResponse {
   error: string;
 }
 
-router.put(
+bindRoute(
+  router,
   API_ROUTES.html.update,
   async (req: Request<object, unknown, UpdateHtmlBody>, res: Response<UpdateHtmlSuccessResponse | UpdateHtmlErrorResponse>) => {
     const { relativePath, html } = req.body;

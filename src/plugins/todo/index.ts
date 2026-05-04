@@ -5,7 +5,7 @@ import Preview from "./Preview.vue";
 import toolDefinition, { TOOL_NAME, type TodoEndpoints } from "./definition";
 import { pluginEndpoints } from "../api";
 import { wrapWithScope } from "../scope";
-import { apiPost } from "../../utils/api";
+import { apiCall } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
 export type TodoPriority = "low" | "medium" | "high" | "urgent";
@@ -40,7 +40,8 @@ const todoPlugin: ToolPlugin<TodoData> = {
 
   async execute(_context, args) {
     const endpoints = pluginEndpoints<TodoEndpoints>("todos");
-    const result = await apiPost<ToolResult<TodoData>>(endpoints.dispatch, args);
+    const { method, url } = endpoints.dispatch;
+    const result = await apiCall<ToolResult<TodoData>>(url, { method, body: args });
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,

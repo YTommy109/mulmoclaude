@@ -118,7 +118,7 @@ const loadError = ref<string | null>(null);
 const markdownContent = ref("");
 const editableMarkdown = ref("");
 
-const endpoints = pluginEndpoints<DocumentEndpoints>("presentDocument");
+const endpoints = pluginEndpoints<DocumentEndpoints>("markdown");
 const filesEndpoints = pluginEndpoints<{ content: string }>("files");
 
 async function fetchMarkdownContent(): Promise<void> {
@@ -275,7 +275,7 @@ async function applyMarkdown() {
   // (e.g. the YYYY/MM partitions added in #764).
   if (isFilePath(raw)) {
     saving.value = true;
-    const result = await apiPut<unknown>(endpoints.updateMarkdown, {
+    const result = await apiPut<unknown>(endpoints.update.url, {
       relativePath: raw,
       markdown: editableMarkdown.value,
     });
@@ -327,7 +327,7 @@ async function persistTaskMarkdown(relativePath: string, markdown: string): Prom
   // on screen, and persisting it would clobber unrelated state.
   if (props.selectedResult.data?.markdown !== relativePath) return;
 
-  const result = await apiPut<unknown>(endpoints.updateMarkdown, {
+  const result = await apiPut<unknown>(endpoints.update.url, {
     relativePath,
     markdown,
   });

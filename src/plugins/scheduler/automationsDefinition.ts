@@ -1,19 +1,17 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 import { SCHEDULER_ACTIONS } from "./actions";
+import { META as calendarMeta } from "./calendarMeta";
+import type { ResolvedRoute } from "../meta-types";
 
 export const TOOL_NAME = "manageAutomations";
 
 /** Endpoint contract for the scheduler plugin (shared by calendar +
- *  automations definitions — both dispatch to the same base via
- *  the action enum). */
-export interface SchedulerEndpoints {
-  [key: string]: string;
-  base: string;
-  tasks: string;
-  task: string;
-  taskRun: string;
-  logs: string;
-}
+ *  automations definitions — both dispatch to the same `/api/scheduler`
+ *  via the action enum). Routes are owned by the calendar META; the
+ *  automations META is toolName-only because the binding row in
+ *  `BUILT_IN_SERVER_BINDINGS` points the automations tool at the
+ *  same dispatch URL. */
+export type SchedulerEndpoints = { readonly [K in keyof typeof calendarMeta.apiRoutes]: ResolvedRoute };
 
 const AUTOMATION_ACTIONS = [SCHEDULER_ACTIONS.createTask, SCHEDULER_ACTIONS.listTasks, SCHEDULER_ACTIONS.deleteTask, SCHEDULER_ACTIONS.runTask] as const;
 

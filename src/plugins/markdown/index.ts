@@ -5,15 +5,16 @@ import { pluginEndpoints } from "../api";
 import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
-import { apiPost } from "../../utils/api";
+import { apiCall } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
 const markdownPlugin: ToolPlugin<MarkdownToolData> = {
   toolDefinition,
 
   async execute(_context, args) {
-    const endpoints = pluginEndpoints<DocumentEndpoints>("presentDocument");
-    const result = await apiPost<ToolResult<MarkdownToolData>>(endpoints.presentDocument, args);
+    const endpoints = pluginEndpoints<DocumentEndpoints>("markdown");
+    const { method, url } = endpoints.create;
+    const result = await apiCall<ToolResult<MarkdownToolData>>(url, { method, body: args });
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,
@@ -30,8 +31,8 @@ const markdownPlugin: ToolPlugin<MarkdownToolData> = {
 
   isEnabled: () => true,
   generatingMessage: "Creating document...",
-  viewComponent: wrapWithScope("presentDocument", View),
-  previewComponent: wrapWithScope("presentDocument", Preview),
+  viewComponent: wrapWithScope("markdown", View),
+  previewComponent: wrapWithScope("markdown", Preview),
 };
 
 export default markdownPlugin;

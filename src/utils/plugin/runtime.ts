@@ -99,10 +99,12 @@ export interface MakeBrowserPluginRuntimeDeps {
   pkgName: string;
   /** Optional URL map exposed via `runtime.endpoints` for multi-URL
    *  built-in plugins. Runtime-loaded plugins (the common
-   *  single-dispatch shape) leave this undefined. See
-   *  `BrowserPluginRuntime.endpoints` in `gui-chat-protocol@>=0.3.1`
-   *  for the contract. */
-  endpoints?: Readonly<Record<string, string>>;
+   *  single-dispatch shape) leave this undefined. Built-in plugins
+   *  (#1141) hand `{ method, url }` records; host-shared scopes hand
+   *  plain string URLs — kept opaque here, narrowed at the consumer
+   *  via `pluginEndpoints<E>(scope)`. See `BrowserPluginRuntime.endpoints`
+   *  in `gui-chat-protocol@>=0.3.1` for the contract. */
+  endpoints?: Readonly<Record<string, unknown>>;
 }
 
 export function makeBrowserPluginRuntime(deps: MakeBrowserPluginRuntimeDeps): BrowserPluginRuntime {
@@ -119,6 +121,11 @@ export function makeBrowserPluginRuntime(deps: MakeBrowserPluginRuntimeDeps): Br
     log: makeScopedLogger(pkgName),
     openUrl: makeOpenUrl(pkgName),
     dispatch: makeDispatch(pkgName),
-    endpoints,
+    // `BrowserPluginRuntime.endpoints` types this as `Record<string,
+    // string>` (gui-chat-protocol@>=0.3.1). Built-in plugins (#1141)
+    // now hand `{ method, url }` records — same shape on the wire,
+    // wider type. Cast through `unknown` so consumers can assert the
+    // typed shape they expect via `useRuntime().endpoints as TheirShape`.
+    endpoints: endpoints as unknown as Readonly<Record<string, string>> | undefined,
   };
 }

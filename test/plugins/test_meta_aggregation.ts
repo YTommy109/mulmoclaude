@@ -4,7 +4,7 @@
 // plugin-owned records into host records. Two collision classes:
 //
 //   1. host-vs-plugin — a plugin's key matches a host's reserved key
-//      (e.g. `apiRoutesKey: "agent"`). Filtered + reported by
+//      (e.g. `apiNamespace: "agent"`). Filtered + reported by
 //      `filterPluginKeys` AFTER the cross-plugin merge.
 //   2. plugin-vs-plugin — two plugins claim the same key in the same
 //      dimension. Detected DURING the merge by `buildPluginAggregate`
@@ -66,16 +66,17 @@ test("buildPluginAggregate is first-write-wins on duplicate keys", () => {
   assert.deepEqual(collisions[0], { dimension: "workspaceDirs", key: "shared", plugins: ["manageA", "manageB"] });
 });
 
-test("buildPluginAggregate detects duplicate apiRoutesKey across plugins", () => {
-  const first: PluginMeta = { toolName: "manageA", apiRoutesKey: "shared", apiRoutes: { dispatch: "/api/a" } };
-  const second: PluginMeta = { toolName: "manageB", apiRoutesKey: "shared", apiRoutes: { dispatch: "/api/b" } };
+test("buildPluginAggregate detects duplicate apiNamespace across plugins", () => {
+  const dispatch = { method: "POST", path: "" } as const;
+  const first: PluginMeta = { toolName: "manageA", apiNamespace: "shared", apiRoutes: { dispatch } };
+  const second: PluginMeta = { toolName: "manageB", apiNamespace: "shared", apiRoutes: { dispatch } };
   const { aggregate, collisions } = buildPluginAggregate(
     [first, second],
-    (meta) => (meta.apiRoutes !== undefined ? { [meta.apiRoutesKey ?? meta.toolName]: meta.apiRoutes } : undefined),
-    "apiRoutesKey",
+    (meta) => (meta.apiRoutes !== undefined ? { [meta.apiNamespace ?? meta.toolName]: meta.apiRoutes } : undefined),
+    "apiNamespace",
   );
   // First plugin wins.
-  assert.deepEqual(aggregate.shared, { dispatch: "/api/a" });
+  assert.deepEqual(aggregate.shared, { dispatch });
   assert.equal(collisions.length, 1);
   assert.equal(collisions[0]?.key, "shared");
   assert.deepEqual(collisions[0]?.plugins, ["manageA", "manageB"]);
@@ -125,21 +126,22 @@ test("every built-in BUILT_IN_SERVER_BINDINGS entry has a matching toolName in B
   }
 });
 
-test("apiRoutesKey defaults to toolName when omitted from META", () => {
-  // Synthetic plugin without `apiRoutesKey` — the aggregator should
+test("apiNamespace defaults to toolName when omitted from META", () => {
+  // Synthetic plugin without `apiNamespace` — the aggregator should
   // key it under `toolName`. This pins the documented default in
-  // `src/plugins/meta-types.ts#PluginMeta.apiRoutesKey` so a future
+  // `src/plugins/meta-types.ts#PluginMeta.apiNamespace` so a future
   // refactor can't silently drop the fallback.
+  const dispatch = { method: "POST", path: "" } as const;
   const meta: PluginMeta = {
     toolName: "manageWidget",
-    apiRoutes: { dispatch: "/api/widget" },
+    apiRoutes: { dispatch },
   };
   const { aggregate } = buildPluginAggregate(
     [meta],
-    (entry) => (entry.apiRoutes !== undefined ? { [entry.apiRoutesKey ?? entry.toolName]: entry.apiRoutes } : undefined),
-    "apiRoutesKey",
+    (entry) => (entry.apiRoutes !== undefined ? { [entry.apiNamespace ?? entry.toolName]: entry.apiRoutes } : undefined),
+    "apiNamespace",
   );
-  assert.deepEqual(aggregate, { manageWidget: { dispatch: "/api/widget" } });
+  assert.deepEqual(aggregate, { manageWidget: { dispatch } });
 });
 
 // Importing the live aggregators triggers `filterPluginKeys` +
