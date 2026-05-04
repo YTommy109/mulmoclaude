@@ -76,7 +76,7 @@
             </div>
           </div>
           <button
-            class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 text-xs px-1 shrink-0"
+            class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 text-gray-400 hover:text-red-500 text-xs px-1 shrink-0"
             :title="t('deleteItem')"
             @click.stop="remove(item)"
           >

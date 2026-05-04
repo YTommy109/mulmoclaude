@@ -377,21 +377,41 @@ describe("Todo plugin — end-to-end through the loader", () => {
     assert.equal(patched.data?.items?.find((entry) => entry.id === idB)?.completed, true, "targeted item flipped");
   });
 
-  it("Robustness: a malformed todos.json (object instead of array) degrades to an empty list rather than crashing dispatch", async (ctx) => {
+  it("Robustness: a malformed todos.json (object instead of array) degrades to an empty list", async (ctx) => {
     if (!existsSync(PLUGIN_DIST_INDEX)) {
       ctx.skip("dist not built");
       return;
     }
-    // Pre-seed the data root with a corrupt file that's valid JSON
-    // but the wrong shape. Pre-fix `loadTodos` would call
-    // `migrateItems({}, columns).map(...)` and TypeError-out, taking
-    // every dispatch with it. Codex review iter on PR #1149.
+    // Pre-fix, `loadTodos` would call `migrateItems({}, columns)`
+    // which calls `rawItems.map(...)` on a non-array and TypeError-
+    // outs, taking every dispatch with it. Codex review iter on PR
+    // #1149.
     const sanitisedSeg = encodeURIComponent(PKG_NAME);
     const scopeDir = path.join(dataRoot, sanitisedSeg);
     mkdirSync(scopeDir, { recursive: true });
     writeFileSync(path.join(scopeDir, "todos.json"), JSON.stringify({ this: "is not an array" }));
-    // Also include one valid + one invalid entry to verify the
-    // item-level filter — only the valid one survives.
+
+    const { pubsub } = makeRecordingPubSub();
+    const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+    });
+    assert.ok(plugin?.execute);
+
+    const empty = (await plugin.execute({}, { kind: "listAll" })) as TodoResult;
+    assert.equal(empty.error, undefined, "dispatch must not throw on a non-array todos.json");
+    assert.equal(empty.data?.items?.length ?? 0, 0);
+  });
+
+  it("Robustness: an array with mixed valid + garbage entries filters to just the well-formed ones", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    // Item-level filter: drops anything that doesn't carry
+    // {id, text, completed, createdAt} in the right primitive types.
+    const sanitisedSeg = encodeURIComponent(PKG_NAME);
+    const scopeDir = path.join(dataRoot, sanitisedSeg);
+    mkdirSync(scopeDir, { recursive: true });
     writeFileSync(
       path.join(scopeDir, "todos.json"),
       JSON.stringify([{ id: "good", text: "valid", completed: false, createdAt: 1 }, { not: "a todo item" }, "string item is not a todo either", null]),
@@ -404,15 +424,9 @@ describe("Todo plugin — end-to-end through the loader", () => {
     assert.ok(plugin?.execute);
 
     const listed = (await plugin.execute({}, { kind: "listAll" })) as TodoResult;
-    assert.equal(listed.error, undefined, "dispatch must not throw on malformed JSON");
+    assert.equal(listed.error, undefined, "dispatch must not throw on a partly-corrupt array");
     assert.equal(listed.data?.items?.length, 1, "only the well-formed entry should survive");
     assert.equal(listed.data?.items?.[0]?.id, "good");
-
-    // Now make it the worst case: not an array at all.
-    writeFileSync(path.join(scopeDir, "todos.json"), JSON.stringify({}));
-    const empty = (await plugin.execute({}, { kind: "listAll" })) as TodoResult;
-    assert.equal(empty.error, undefined);
-    assert.equal(empty.data?.items?.length ?? 0, 0);
   });
 
   it("rejects args with neither `action` nor `kind`", async (ctx) => {
