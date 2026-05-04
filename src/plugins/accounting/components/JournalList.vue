@@ -50,7 +50,7 @@
     <div class="flex-1 min-h-0 overflow-auto">
       <p v-if="loading" class="text-xs text-gray-400">{{ t("pluginAccounting.common.loading") }}</p>
       <p v-else-if="error" class="text-xs text-red-500">{{ t("pluginAccounting.common.error", { error }) }}</p>
-      <p v-else-if="filteredEntries.length === 0" class="text-xs text-gray-400">{{ t("pluginAccounting.common.empty") }}</p>
+      <p v-else-if="visibleEntries.length === 0" class="text-xs text-gray-400">{{ t("pluginAccounting.common.empty") }}</p>
       <table v-else class="w-full text-sm" data-testid="accounting-journal-table">
         <thead>
           <tr class="text-xs text-gray-500 border-b border-gray-200">
@@ -67,7 +67,7 @@
           </tr>
         </thead>
         <tbody>
-          <template v-for="entry in filteredEntries" :key="entry.id">
+          <template v-for="entry in visibleEntries" :key="entry.id">
             <tr
               :class="[
                 voidedEntryIds.has(entry.id) ? 'text-gray-400 line-through' : '',
@@ -140,7 +140,7 @@
                       type="button"
                       class="h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100"
                       :data-testid="`accounting-journal-detail-close-${entry.id}`"
-                      :aria-label="t('pluginAccounting.common.cancel')"
+                      :aria-label="t('common.close')"
                       @click="expandedEntryId = null"
                     >
                       <span class="material-icons text-base">close</span>
@@ -428,6 +428,28 @@ async function refresh(): Promise<void> {
 }
 
 const filteredEntries = computed(() => entries.value);
+
+// Visible-list view that pins the entry currently being edited at
+// the top when a filter change or pubsub-driven refetch would
+// otherwise drop it from `filteredEntries`. Without this, the
+// in-place edit form (which is nested under the row's v-if /
+// v-for) would unmount and silently discard the user's draft when:
+//   • the user adjusts the date range or account filter,
+//   • a sibling tab / LLM tool voids the entry out-of-band and the
+//     SSE pubsub bumps `bookVersion`, refetching this list,
+//   • or a sibling tab / LLM tool deletes the underlying book.
+// Pinning the editing entry from the local snapshot (entryBeingEdited)
+// keeps the form mounted across all three. The pinned row sits at
+// the top of the table while editing; on submit / cancel the
+// snapshot clears and the list reverts to filteredEntries.
+const visibleEntries = computed<JournalEntry[]>(() => {
+  const list = filteredEntries.value;
+  const editing = entryBeingEdited.value;
+  if (editing && !list.some((entry) => entry.id === editing.id)) {
+    return [editing, ...list];
+  }
+  return list;
+});
 
 // Set of original entry ids that have been voided. The server
 // computes this from the *unfiltered* journal (so an account-filtered
