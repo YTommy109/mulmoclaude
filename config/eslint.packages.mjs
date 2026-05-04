@@ -26,38 +26,25 @@ export default [
       // into another package's `src/` or into the host's `src/` /
       // `server/`.
       //
-      // The threshold for "boundary-crossing" is at least 2 `../`
-      // segments before `src/` or `server/`. A test inside the
-      // package importing its own `../src/types` (one `../`) is
-      // legitimate same-package and stays allowed. Five levels of
-      // depth cover every realistic file location; extend if the
-      // package layout convention changes.
+      // Depth-agnostic via `regex`: the threshold for "boundary-
+      // crossing" is at least 2 `../` segments before `src/` or
+      // `server/`. A test inside the package importing its own
+      // `../src/types` (one `../`) stays allowed; anything deeper
+      // (`../../*/src/...`, `../../../src/...`, `../../../../src/...`,
+      // …) fires regardless of how nested the source file is. Earlier
+      // depth-enumerated globs left a Codex-flagged bypass at depth 6.
       "no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              group: [
-                "../../src/**",
-                "../../../src/**",
-                "../../../../src/**",
-                "../../../../../src/**",
-                "../../*/src/**",
-                "../../../*/src/**",
-                "../../../../*/src/**",
-                "../../../../../*/src/**",
-              ],
+              regex: "^(\\.\\./){2,}.*src(/|$)",
               message:
                 "Workspace packages must not deep-import another package's `src/` (or the host's `src/`). Use the package name (and its `package.json#exports`) instead — the boundary exists so each package can publish independently.",
               allowTypeImports: true,
             },
             {
-              group: [
-                "../../server/**",
-                "../../../server/**",
-                "../../../../server/**",
-                "../../../../../server/**",
-              ],
+              regex: "^(\\.\\./){2,}.*server(/|$)",
               message:
                 "Workspace packages must not import the host's `server/*` modules. Packages run as their own processes / bundles; reaching into server code couples them to the host runtime.",
               allowTypeImports: true,
