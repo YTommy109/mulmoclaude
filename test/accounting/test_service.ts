@@ -269,9 +269,9 @@ describe("addEntries / listEntries", () => {
     assert.equal(batch.entries.length, 2);
     assert.notEqual(batch.entries[0].id, batch.entries[1].id);
     // Both entries share the 2026-04 period — appendJournalBatch
-    // collapses same-period writes into one staged file + one rename,
-    // so a direct read of the JSONL surfaces both entries from a
-    // single committed write (no append-loop interleaving).
+    // concatenates same-period entries into a single appendFile
+    // call (one O_APPEND syscall, atomic under PIPE_BUF), so a
+    // direct read surfaces both entries from one write.
     const journalFile = path.join(root, "data/accounting/books", bookId, "journal", "2026-04.jsonl");
     const raw = await fsPromises.readFile(journalFile, "utf-8");
     const lines = raw.split("\n").filter((line) => line !== "");
@@ -281,7 +281,7 @@ describe("addEntries / listEntries", () => {
     assert.equal(list.entries.length, 2);
   });
 
-  it("multi-period batch lands one file per period, two-phase committed", async () => {
+  it("multi-period batch lands one file per period", async () => {
     const root = makeTmp();
     const book = await createBook({ name: "Test" }, root);
     const bookId = book.book.id;
@@ -313,15 +313,33 @@ describe("addEntries / listEntries", () => {
     const mayLines = (await fsPromises.readFile(mayFile, "utf-8")).split("\n").filter((line) => line !== "");
     assert.equal(aprilLines.length, 1, "April file should contain the April entry");
     assert.equal(mayLines.length, 1, "May file should contain the May entry");
-    // No leftover .tmp files from the staging phase — the commit
-    // loop must rename every staged tmp into place.
-    const journalDir = path.join(root, "data/accounting/books", bookId, "journal");
-    const dirEntries = await fsPromises.readdir(journalDir);
-    assert.equal(
-      dirEntries.some((name) => name.endsWith(".tmp")),
-      false,
-      "no staged .tmp file should remain after a successful commit",
-    );
+  });
+
+  it("concurrent same-period batches do not lose entries (O_APPEND serialisation)", async () => {
+    // Regression for the read-modify-write race the first iteration
+    // of appendJournalBatch had: parallel addEntries calls into the
+    // same period must both land in full, with no overwrite.
+    const root = makeTmp();
+    const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
+    const makeBatch = (offset: number) =>
+      addEntries(
+        {
+          bookId,
+          entries: Array.from({ length: 5 }, (_, idx) => ({
+            date: "2026-04-10",
+            lines: [
+              { accountCode: "1000", debit: offset + idx + 1 },
+              { accountCode: "4000", credit: offset + idx + 1 },
+            ],
+          })),
+        },
+        root,
+      );
+    await Promise.all([makeBatch(0), makeBatch(100), makeBatch(200)]);
+    await drainRebuilds(bookId);
+    const list = await listEntries({ bookId }, root);
+    assert.equal(list.entries.length, 15, "every entry from every concurrent batch must persist");
   });
 
   it("rejects the whole batch when any entry is invalid (no partial write)", async () => {
