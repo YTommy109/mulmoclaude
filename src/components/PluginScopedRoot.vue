@@ -18,10 +18,11 @@
 // sees a "crashed" panel with optional stack details and a Retry
 // button that re-mounts the plugin.
 
-import { computed, onErrorCaptured, provide, ref } from "vue";
+import { onErrorCaptured, provide } from "vue";
 import { useI18n } from "vue-i18n";
 import { PLUGIN_RUNTIME_KEY } from "gui-chat-protocol/vue";
 import { makeBrowserPluginRuntime } from "../utils/plugin/runtime";
+import { usePluginErrorBoundary } from "../composables/usePluginErrorBoundary";
 
 interface Props {
   /** npm package name of the plugin whose subtree we're scoping. */
@@ -50,44 +51,17 @@ provide(PLUGIN_RUNTIME_KEY, runtime);
 
 // ── Error boundary state ────────────────────────────────────────
 //
-// `error` is null while the plugin is rendering normally; populated
-// with an Error instance once `errorCaptured` fires. `mountKey`
-// drives `<slot :key>`-style remounting on Retry — bumping it
-// re-creates the inner subtree from scratch so transient bugs
-// (a stale ref, a temporarily-unreachable endpoint) clear cleanly.
-const error = ref<Error | null>(null);
-const showDetails = ref(false);
-const mountKey = ref(0);
-
-const errorDetails = computed((): string => {
-  if (!error.value) return "";
-  const message = error.value.message || String(error.value);
-  const stack = error.value.stack ?? "";
-  return stack ? `${message}\n\n${stack}` : message;
-});
-
+// State + reset logic live in `usePluginErrorBoundary` (testable
+// without a DOM). The Vue lifecycle hook `onErrorCaptured` itself
+// must be wired here — the composable can't call `setup()`-only
+// hooks. Returning `false` from the hook tells Vue we've handled
+// the error; without it, the exception propagates to the parent
+// and ultimately to the global error handler.
+const { error, showDetails, mountKey, errorDetails, captureError, retry } = usePluginErrorBoundary(props.pkgName);
 onErrorCaptured((err) => {
-  // Coerce the unknown to Error so `.stack` access in the template
-  // stays type-safe even when a plugin throws a string.
-  const captured = err instanceof Error ? err : new Error(String(err));
-  // Surface to the dev console with a plugin-tagged prefix so the
-  // owner is obvious. Production users see the visible panel; the
-  // console line is for whoever's debugging.
-  console.error(`[plugin/${props.pkgName}] uncaught error`, captured);
-  error.value = captured;
-  // Returning false prevents Vue from re-throwing up to the
-  // enclosing component / global handler. We've handled it here.
+  captureError(err);
   return false;
 });
-
-function retry(): void {
-  error.value = null;
-  showDetails.value = false;
-  // `key` change → Vue treats the slotted subtree as a brand-new
-  // component. Setup runs again; whatever transient state caused
-  // the crash is gone.
-  mountKey.value += 1;
-}
 </script>
 
 <template>
