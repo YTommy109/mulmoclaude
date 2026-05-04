@@ -18,4 +18,7 @@ export default {
   previewPendingIcon: "○",
   previewMoreLabels: "+{count}",
   previewMoreItems: "+ {count}개 더…",
+  collapse: "접기",
+  expand: "펼치기",
+  yamlParseError: "YAML 을 해석하지 못했습니다 — 'text' 필드는 필수입니다",
 };

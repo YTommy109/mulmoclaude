@@ -18,4 +18,7 @@ export default {
   previewPendingIcon: "○",
   previewMoreLabels: "+{count}",
   previewMoreItems: "+ {count} weitere…",
+  collapse: "Einklappen",
+  expand: "Ausklappen",
+  yamlParseError: "YAML konnte nicht geparst werden — Feld 'text' ist erforderlich",
 };

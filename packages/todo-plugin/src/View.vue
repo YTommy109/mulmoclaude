@@ -69,7 +69,7 @@
           >
             {{ t("deleteSymbol") }}
           </button>
-          <span class="material-icons text-gray-400 text-sm" :title="selectedId === item.id ? 'Collapse' : 'Expand'">
+          <span class="material-icons text-gray-400 text-sm" :title="selectedId === item.id ? t('collapse') : t('expand')">
             {{ selectedId === item.id ? "expand_less" : "expand_more" }}
           </span>
         </div>
@@ -316,7 +316,7 @@ async function applyItemEdit() {
   yamlError.value = "";
   const parsed = parseYaml(yamlText.value);
   if (!parsed) {
-    yamlError.value = "Could not parse YAML — 'text' field is required";
+    yamlError.value = t("yamlParseError");
     return;
   }
   // 1. text / note go through `update` (label-agnostic on the server).

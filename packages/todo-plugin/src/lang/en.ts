@@ -18,4 +18,7 @@ export default {
   previewPendingIcon: "○",
   previewMoreLabels: "+{count}",
   previewMoreItems: "+ {count} more…",
+  collapse: "Collapse",
+  expand: "Expand",
+  yamlParseError: "Could not parse YAML — 'text' field is required",
 };

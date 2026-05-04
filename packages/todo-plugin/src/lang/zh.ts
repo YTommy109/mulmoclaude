@@ -18,4 +18,7 @@ export default {
   previewPendingIcon: "○",
   previewMoreLabels: "+{count}",
   previewMoreItems: "+ 还有 {count} 项…",
+  collapse: "收起",
+  expand: "展开",
+  yamlParseError: "无法解析 YAML — 'text' 字段为必填项",
 };

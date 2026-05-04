@@ -18,4 +18,7 @@ export default {
   previewPendingIcon: "○",
   previewMoreLabels: "+{count}",
   previewMoreItems: "+ {count} 件…",
+  collapse: "折りたたむ",
+  expand: "展開",
+  yamlParseError: "YAML を解析できませんでした — 'text' フィールドは必須です",
 };

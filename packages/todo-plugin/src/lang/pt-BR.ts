@@ -18,4 +18,7 @@ export default {
   previewPendingIcon: "○",
   previewMoreLabels: "+{count}",
   previewMoreItems: "+ {count} mais…",
+  collapse: "Recolher",
+  expand: "Expandir",
+  yamlParseError: "Não foi possível analisar o YAML — o campo 'text' é obrigatório",
 };
