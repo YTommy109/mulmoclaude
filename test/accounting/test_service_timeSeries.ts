@@ -59,7 +59,12 @@ describe("getTimeSeriesReport — input validation", () => {
     // malformed bucket boundaries instead of a clean 400.
     const root = makeTmp();
     const book = await createBook({ name: "X" }, root);
-    for (const bad of ["2025-02-30", "2025-13-01", "2025-04-31", "2025-00-15", "2025-01-00"]) {
+    // 0099-01-01 catches the year-drift regression: parseInt-then-
+    // build with `Date.UTC(99, 0, 1)` silently yields year 1999, so
+    // a regex-only check would accept the input but downstream
+    // formatting would emit a non-YYYY year. The journal-side
+    // `isValidCalendarDate` round-trips and catches it.
+    for (const bad of ["2025-02-30", "2025-13-01", "2025-04-31", "2025-00-15", "2025-01-00", "0099-01-01"]) {
       await assert.rejects(
         () => getTimeSeriesReport({ bookId: book.book.id, metric: "revenue", granularity: "month", from: bad, to: "2025-12-31" }, root),
         AccountingError,

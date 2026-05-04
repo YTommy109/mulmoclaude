@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import type { Page, Route } from "@playwright/test";
 import { ACCOUNTING_ACTIONS } from "../../src/plugins/accounting/actions";
 import type { SupportedCountryCode } from "../../src/plugins/accounting/countries";
+import { isValidCalendarDate } from "../../server/accounting/journal";
 
 interface FakeBook {
   id: string;
@@ -367,20 +368,6 @@ function handleGetReport(state: AccountingState, body: DispatchBody): MockRespon
 
 const TIME_SERIES_METRICS = ["revenue", "expense", "netIncome", "accountBalance"] as const;
 const TIME_SERIES_GRANULARITIES = ["month", "quarter", "year"] as const;
-const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Mirrors `isValidYmd` in `server/accounting/service.ts`. Round-
- *  trip the date through UTC so impossible days like `2025-02-30`
- *  or `2025-13-01` get rejected — without this, a fixture-backed
- *  E2E test can pass while the real server returns 400 on the
- *  same payload. */
-function isValidYmd(value: string): boolean {
-  if (!YMD_RE.test(value)) return false;
-  const [year, month, day] = value.split("-").map((segment) => parseInt(segment, 10));
-  if (month < 1 || month > 12 || day < 1) return false;
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  return day <= lastDay;
-}
 
 interface ValidatedTimeSeriesArgs {
   metric: string;
@@ -405,8 +392,8 @@ function validateGetTimeSeriesBody(body: DispatchBody): ValidatedTimeSeriesArgs 
   if (!(TIME_SERIES_GRANULARITIES as readonly string[]).includes(granularity)) {
     return err(400, `getTimeSeries: granularity must be one of ${TIME_SERIES_GRANULARITIES.join(", ")}`);
   }
-  if (!isValidYmd(from)) return err(400, "getTimeSeries: from must be a valid YYYY-MM-DD calendar date");
-  if (!isValidYmd(toDate)) return err(400, "getTimeSeries: to must be a valid YYYY-MM-DD calendar date");
+  if (!isValidCalendarDate(from)) return err(400, "getTimeSeries: from must be a valid YYYY-MM-DD calendar date");
+  if (!isValidCalendarDate(toDate)) return err(400, "getTimeSeries: to must be a valid YYYY-MM-DD calendar date");
   if (from > toDate) return err(400, "getTimeSeries: from must be on or before to");
   if (metric === "accountBalance" && !accountCode) {
     return err(400, "getTimeSeries: accountCode is required when metric is accountBalance");

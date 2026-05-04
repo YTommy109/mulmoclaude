@@ -35,7 +35,7 @@ import {
 } from "../utils/files/accounting-io.js";
 import { findActiveOpening, validateOpening } from "./openingBalances.js";
 import { normalizeStoredAccount } from "./accountNormalize.js";
-import { localDateString, makeEntry, makeVoidEntries, validateEntry, voidedIdSet } from "./journal.js";
+import { isValidCalendarDate, localDateString, makeEntry, makeVoidEntries, validateEntry, voidedIdSet } from "./journal.js";
 import { aggregateBalances, buildBalanceSheet, buildLedger, buildProfitLoss } from "./report.js";
 import {
   bucketize,
@@ -597,23 +597,12 @@ export async function getLedgerReport(
 
 // ── time series ────────────────────────────────────────────────────
 
-const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-/** True iff `value` is a YYYY-MM-DD string for a real calendar day.
- *  The regex check rejects shape garbage; the round-trip check
- *  rejects impossible days like `2025-02-30` or `2025-13-01` that
- *  would otherwise normalise into the wrong month and produce
- *  malformed bucket boundaries. */
-function isValidYmd(value: string): boolean {
-  if (!YMD_RE.test(value)) return false;
-  const [year, month, day] = value.split("-").map((segment) => parseInt(segment, 10));
-  if (month < 1 || month > 12 || day < 1) return false;
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  return day <= lastDay;
-}
-
 function ensureValidYmd(label: string, value: unknown): string {
-  if (typeof value !== "string" || !isValidYmd(value)) {
+  // Reuse the journal-side helper so impossible days (`2025-02-30`,
+  // `2025-13-01`) AND silent year drift (`0099-01-01` → 1999 via
+  // `Date.UTC` legacy two-digit handling) are both rejected — rolling
+  // a separate regex+lastDay check here missed the latter.
+  if (typeof value !== "string" || !isValidCalendarDate(value)) {
     throw new AccountingError(400, `getTimeSeries: ${label} must be a valid YYYY-MM-DD calendar date`);
   }
   return value;
