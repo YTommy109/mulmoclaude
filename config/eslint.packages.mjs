@@ -36,18 +36,24 @@ export default [
       "no-restricted-imports": [
         "error",
         {
+          // `allowTypeImports` deliberately omitted: a type-only
+          // `import type { ... } from "../../sibling/src/..."` still
+          // couples the package's PUBLISHED type surface to a
+          // sibling's internal source, which means publishing the
+          // package independently breaks (the consumer can't resolve
+          // the type from the package alone). Codex iter-2 #1148
+          // flagged the original `allowTypeImports: true` as a real
+          // hole in the boundary policy.
           patterns: [
             {
               regex: "^(\\.\\./){2,}.*src(/|$)",
               message:
-                "Workspace packages must not deep-import another package's `src/` (or the host's `src/`). Use the package name (and its `package.json#exports`) instead — the boundary exists so each package can publish independently.",
-              allowTypeImports: true,
+                "Workspace packages must not deep-import another package's `src/` (or the host's `src/`) — type-only imports included. Use the package name (and its `package.json#exports`) instead — the boundary exists so each package can publish independently.",
             },
             {
               regex: "^(\\.\\./){2,}.*server(/|$)",
               message:
-                "Workspace packages must not import the host's `server/*` modules. Packages run as their own processes / bundles; reaching into server code couples them to the host runtime.",
-              allowTypeImports: true,
+                "Workspace packages must not import the host's `server/*` modules — type-only imports included. Packages run as their own processes / bundles; reaching into server code couples them to the host runtime.",
             },
           ],
         },
