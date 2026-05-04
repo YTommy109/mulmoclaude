@@ -63,21 +63,11 @@
             :book-id="activeBookId"
             :accounts="accounts"
             :currency="activeCurrency"
+            :country="activeCountry"
             :version="bookVersion"
             :fiscal-year-end="activeFiscalYearEnd"
             :opening-date="activeOpeningDate"
             @edit-opening="currentTab = 'opening'"
-            @edit-entry="onEditEntry"
-          />
-          <JournalEntryForm
-            v-else-if="currentTab === 'newEntry'"
-            :book-id="activeBookId"
-            :accounts="accounts"
-            :currency="activeCurrency"
-            :country="activeCountry"
-            :entry-to-edit="entryBeingEdited"
-            @submitted="onEntrySubmitted"
-            @cancel-edit="onCancelEdit"
           />
           <OpeningBalancesForm
             v-else-if="currentTab === 'opening'"
@@ -130,14 +120,13 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import BookSwitcher from "./components/BookSwitcher.vue";
 import NewBookForm from "./components/NewBookForm.vue";
 import JournalList from "./components/JournalList.vue";
-import JournalEntryForm from "./components/JournalEntryForm.vue";
 import OpeningBalancesForm from "./components/OpeningBalancesForm.vue";
 import AccountsList from "./components/AccountsList.vue";
 import Ledger from "./components/Ledger.vue";
 import BalanceSheet from "./components/BalanceSheet.vue";
 import ProfitLoss from "./components/ProfitLoss.vue";
 import BookSettings from "./components/BookSettings.vue";
-import { getOpeningBalances, getAccounts, getBooks, type Account, type BookSummary, type JournalEntry } from "./api";
+import { getOpeningBalances, getAccounts, getBooks, type Account, type BookSummary } from "./api";
 import { useAccountingChannel, useAccountingBooksChannel } from "../../composables/useAccountingChannel";
 
 const { t } = useI18n();
@@ -150,7 +139,7 @@ interface AccountingAppPayload {
 
 const props = defineProps<{ selectedResult?: ToolResultComplete<AccountingAppPayload, AccountingAppPayload> }>();
 
-const TAB_KEYS = ["journal", "newEntry", "opening", "accounts", "ledger", "balanceSheet", "profitLoss", "settings"] as const;
+const TAB_KEYS = ["journal", "opening", "accounts", "ledger", "balanceSheet", "profitLoss", "settings"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
 interface TabDef {
@@ -161,7 +150,6 @@ interface TabDef {
 
 const TABS: readonly TabDef[] = [
   { key: "journal", icon: "list", labelKey: "pluginAccounting.tabs.journal" },
-  { key: "newEntry", icon: "add", labelKey: "pluginAccounting.tabs.newEntry" },
   { key: "opening", icon: "play_arrow", labelKey: "pluginAccounting.tabs.opening" },
   { key: "accounts", icon: "list_alt", labelKey: "pluginAccounting.tabs.accounts" },
   { key: "ledger", icon: "menu_book", labelKey: "pluginAccounting.tabs.ledger" },
@@ -414,31 +402,16 @@ function onAccountSelected(code: string): void {
   currentTab.value = "ledger";
 }
 
-// "Edit" on a normal journal row: stash the entry on the parent,
-// switch to the New Entry tab, let the form prefill from the prop.
-// The actual void + addEntries(replacesEntryId) sequence happens
-// inside the form's submit handler.
-const entryBeingEdited = ref<JournalEntry | null>(null);
-function onEditEntry(entry: JournalEntry): void {
-  entryBeingEdited.value = entry;
-  currentTab.value = "newEntry";
-}
-function onCancelEdit(): void {
-  entryBeingEdited.value = null;
-  currentTab.value = "journal";
-}
-
 function onEntrySubmitted(): void {
-  // Edit mode is implicit on the form via `entryBeingEdited`; we
-  // clear it here so the next visit to "New entry" starts from a
-  // blank draft instead of re-prefilling the just-replaced entry.
-  entryBeingEdited.value = null;
-  // After posting an opening or a normal entry, switch to the
-  // journal so the user immediately sees what they booked. The
-  // server-side publishBookChange triggers the bookVersion watcher
-  // over SSE, which refetches hasOpening, so the gate auto-lifts
-  // shortly after the tab switch — no manual unlock needed here.
-  if (currentTab.value === "newEntry" || currentTab.value === "opening") {
+  // After saving an opening, switch to the journal so the user
+  // immediately sees the unlocked tabs. The server-side
+  // publishBookChange triggers the bookVersion watcher over SSE,
+  // which refetches hasOpening, so the gate auto-lifts shortly after
+  // the tab switch — no manual unlock needed here. Normal entries
+  // are now posted from the inline form inside JournalList; that
+  // form drives its own dismissal and the journal repaints in
+  // place.
+  if (currentTab.value === "opening") {
     currentTab.value = "journal";
   }
 }
@@ -471,13 +444,6 @@ watch(
   },
   { immediate: true },
 );
-
-// Drop any in-flight "edit this entry" intent when the active
-// book changes, so a switch-mid-edit doesn't carry a stale entry
-// from book A into book B's New Entry form.
-watch(activeBookId, () => {
-  entryBeingEdited.value = null;
-});
 
 // Stash a target bookId that we want to land on but haven't been
 // able to apply yet (book not in `books` at the moment the

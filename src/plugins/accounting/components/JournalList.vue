@@ -1,5 +1,32 @@
 <template>
   <div class="flex flex-col gap-3">
+    <!-- Top-row toolbar slot. Renders the embedded entry form
+         in-place when the user opens "New entry" or clicks Edit
+         on a journal row; otherwise just the "+ New entry"
+         button. The date picker / account filter / table below
+         stay visible in either state. -->
+    <div v-if="showForm" class="border border-gray-200 rounded p-3" data-testid="accounting-journal-inline-form">
+      <JournalEntryForm
+        :book-id="bookId"
+        :accounts="accounts"
+        :currency="currency"
+        :country="country"
+        :entry-to-edit="entryBeingEdited"
+        @submitted="onFormSubmitted"
+        @cancel="onFormCancel"
+      />
+    </div>
+    <div v-else class="flex items-center justify-end">
+      <button
+        type="button"
+        class="h-8 px-2.5 flex items-center gap-1 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
+        data-testid="accounting-journal-new-entry"
+        @click="onOpenNewEntry"
+      >
+        <span class="material-icons text-base">add</span>
+        <span>{{ t("pluginAccounting.tabs.newEntry") }}</span>
+      </button>
+    </div>
     <div class="flex flex-wrap items-end gap-2">
       <DateRangePicker v-model="range" :fiscal-year-end="resolvedFiscalYearEnd" :opening-date="openingDate" />
       <label class="text-xs text-gray-500 flex flex-col gap-1">
@@ -49,7 +76,7 @@
           </td>
           <td class="py-1 px-2 text-right whitespace-nowrap">
             <template v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)">
-              <button class="text-xs text-blue-600 hover:underline mr-2" :data-testid="`accounting-edit-${entry.id}`" @click="emit('editEntry', entry)">
+              <button class="text-xs text-blue-600 hover:underline mr-2" :data-testid="`accounting-edit-${entry.id}`" @click="onEditEntry(entry)">
                 {{ t("pluginAccounting.journalList.edit") }}
               </button>
               <button class="text-xs text-red-500 hover:underline" :data-testid="`accounting-void-${entry.id}`" @click="onVoid(entry)">
@@ -77,8 +104,10 @@ import { useI18n } from "vue-i18n";
 import { getJournalEntries, voidEntry, type Account, type JournalEntry, type JournalEntryKind } from "../api";
 import { formatAmount } from "../currencies";
 import { currentFiscalYearRange, resolveFiscalYearEnd, type DateRange, type FiscalYearEnd } from "../fiscalYear";
+import type { SupportedCountryCode } from "../countries";
 import { useLatestRequest } from "./useLatestRequest";
 import DateRangePicker from "./DateRangePicker.vue";
+import JournalEntryForm from "./JournalEntryForm.vue";
 
 const { t } = useI18n();
 
@@ -86,6 +115,7 @@ const props = defineProps<{
   bookId: string;
   accounts: Account[];
   currency: string;
+  country?: SupportedCountryCode;
   version: number;
   fiscalYearEnd?: FiscalYearEnd;
   /** Opening-balance date for the active book — drives the "Lifetime"
@@ -93,7 +123,58 @@ const props = defineProps<{
    *  When absent, the picker hides Lifetime; "All" still works. */
   openingDate?: string;
 }>();
-const emit = defineEmits<{ editOpening: []; editEntry: [JournalEntry] }>();
+const emit = defineEmits<{ editOpening: [] }>();
+
+// Inline-form state. The form replaces the toolbar slot when either
+// rail is active:
+//   • showNewForm = true → blank draft (the "+ New entry" button).
+//   • entryBeingEdited != null → edit mode, prefilled from the row.
+// Both flow through the same <JournalEntryForm>; the form looks at
+// `entryToEdit` to decide its title / submit label.
+const showNewForm = ref(false);
+const entryBeingEdited = ref<JournalEntry | null>(null);
+const showForm = computed<boolean>(() => showNewForm.value || entryBeingEdited.value !== null);
+
+function onOpenNewEntry(): void {
+  entryBeingEdited.value = null;
+  showNewForm.value = true;
+}
+
+function onEditEntry(entry: JournalEntry): void {
+  showNewForm.value = false;
+  entryBeingEdited.value = entry;
+}
+
+function closeForm(): void {
+  showNewForm.value = false;
+  entryBeingEdited.value = null;
+}
+
+function onFormSubmitted(): void {
+  // Submit posts via the form. In production the server-side
+  // publishBookChange round-trips an SSE event that bumps
+  // `bookVersion` and re-runs `refresh` via the watcher below.
+  // We also kick a synchronous refetch here so the freshly-posted
+  // row shows up immediately — the SSE round-trip can race the
+  // tab repaint, and skipping it here also makes the e2e mock
+  // path (no pubsub replay) deterministic.
+  closeForm();
+  void refresh();
+}
+
+function onFormCancel(): void {
+  closeForm();
+}
+
+// Switching books mid-edit would carry the prior book's draft into
+// the new book. Force the panel closed so the next visit starts
+// from a blank toolbar — the form's own bookId watcher would also
+// reset its internal state, but we want the user back in the
+// neutral "+ New entry" surface.
+watch(
+  () => props.bookId,
+  () => closeForm(),
+);
 
 const resolvedFiscalYearEnd = computed<FiscalYearEnd>(() => resolveFiscalYearEnd(props.fiscalYearEnd));
 
