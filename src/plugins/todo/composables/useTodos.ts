@@ -112,10 +112,15 @@ export function useTodos(initialItems: TodoItem[] = [], initialColumns: StatusCo
   const columns = ref<StatusColumn[]>(initialColumns);
   const error = ref<string | null>(null);
 
-  // Cast through `unknown`: the protocol's `endpoints` field is typed
-  // as `Record<string, string>` but built-in plugins now hand resolved
-  // `{ method, url }` records. Plugin author asserts the typed shape.
-  const endpoints = useRuntime().endpoints as unknown as TodoEndpoints;
+  // `useRuntime<TodoEndpoints>()` (gui-chat-protocol@>=0.3.2) pins
+  // the `endpoints` map's shape — no `as` cast needed. The IIFE
+  // narrows the optional once so the returned action closures see
+  // `endpoints: TodoEndpoints`, not `TodoEndpoints | undefined`.
+  const endpoints: TodoEndpoints = (() => {
+    const value = useRuntime<TodoEndpoints>().endpoints;
+    if (!value) throw new Error("useTodos called outside the todo plugin scope");
+    return value;
+  })();
 
   const { refresh: rawRefresh } = useFreshPluginData<{
     items: TodoItem[];
