@@ -159,11 +159,22 @@ export async function setupMutableTodoMocks(page: Page, options: MutableTodoOpti
   // File-explorer wiring so the TodoExplorer view can actually mount
   // when navigated via deep-link to the encoded plugin scope path
   // (`data/plugins/%40mulmoclaude%2Ftodo-plugin/todos.json` after
-  // #1145). Only /api/files/content and /api/files/tree are mocked —
+  // #1145). Vue Router decodes the `%40` / `%2F` once on URL-bar
+  // navigation, so the path the frontend forwards to
+  // `/api/files/content` is the **decoded** form
+  // (`data/plugins/@mulmoclaude/todo-plugin/todos.json`). Match
+  // against both spellings so the mock works whether the test
+  // round-tripped through Vue Router or set selectedPath directly.
+  // Only /api/files/content and /api/files/tree are mocked —
   // /api/files/dir (lazy-expand) is not, because the todo specs
   // deep-link straight into the content view.
+  const todosPathCandidates: ReadonlySet<string> = new Set([WORKSPACE_FILES.todosItems, decodeURIComponent(WORKSPACE_FILES.todosItems)]);
   await page.route(
-    (url) => url.pathname === "/api/files/content" && url.searchParams.get("path") === WORKSPACE_FILES.todosItems,
+    (url) => {
+      if (url.pathname !== "/api/files/content") return false;
+      const queryPath = url.searchParams.get("path");
+      return queryPath !== null && todosPathCandidates.has(queryPath);
+    },
     (route: Route) =>
       route.fulfill({
         json: {

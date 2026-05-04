@@ -186,6 +186,148 @@ describe("Todo plugin — end-to-end through the loader", () => {
     assert.deepEqual(published[published.length - 1].data, { reason: "column-add" });
   });
 
+  it("UI path: itemMove changes status and flips `completed` when moved into the done column", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const { pubsub, published } = makeRecordingPubSub();
+    const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+    });
+    assert.ok(plugin?.execute);
+    const created = (await plugin.execute({}, { kind: "itemCreate", text: "Move me" })) as TodoResult;
+    const itemId = created.data?.items?.[0]?.id;
+    assert.ok(itemId);
+    const moved = (await plugin.execute({}, { kind: "itemMove", id: itemId, status: "done", position: 0 })) as TodoResult;
+    assert.equal(moved.data?.items?.[0]?.status, "done");
+    assert.equal(moved.data?.items?.[0]?.completed, true);
+    assert.deepEqual(published[published.length - 1].data, { reason: "item-move", id: itemId });
+  });
+
+  it("UI path: itemMove clamps an out-of-range position rather than erroring", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const { pubsub } = makeRecordingPubSub();
+    const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+    });
+    assert.ok(plugin?.execute);
+    const created = (await plugin.execute({}, { kind: "itemCreate", text: "Drag me" })) as TodoResult;
+    const itemId = created.data?.items?.[0]?.id;
+    assert.ok(itemId);
+    const clamped = (await plugin.execute({}, { kind: "itemMove", id: itemId, status: "done", position: 9999 })) as TodoResult;
+    assert.equal(clamped.error, undefined);
+    assert.equal(clamped.data?.items?.find((entry) => entry.id === itemId)?.status, "done");
+  });
+
+  it("UI path: itemMove with an unknown id returns 404", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const { pubsub } = makeRecordingPubSub();
+    const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+    });
+    assert.ok(plugin?.execute);
+    const missing = (await plugin.execute({}, { kind: "itemMove", id: "does-not-exist", status: "done" })) as TodoResult;
+    assert.ok(missing.error);
+    assert.equal(missing.status, 404);
+  });
+
+  it("UI path: columnPatch renames a column and publishes 'column-patch'", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const { pubsub, published } = makeRecordingPubSub();
+    const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+    });
+    assert.ok(plugin?.execute);
+    const res = (await plugin.execute({}, { kind: "columnPatch", id: "todo", label: "Doing" })) as TodoResult;
+    assert.equal(res.error, undefined);
+    assert.equal(res.data?.columns?.find((column) => column.id === "todo")?.label, "Doing");
+    assert.deepEqual(published[published.length - 1].data, { reason: "column-patch", id: "todo" });
+
+    const missing = (await plugin.execute({}, { kind: "columnPatch", id: "ghost", label: "x" })) as TodoResult;
+    assert.ok(missing.error);
+    assert.equal(missing.status, 404);
+  });
+
+  it("UI path: columnDelete migrates orphaned items into a refuge column and publishes 'column-delete'", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const { pubsub, published } = makeRecordingPubSub();
+    const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+    });
+    assert.ok(plugin?.execute);
+
+    const created = (await plugin.execute({}, { kind: "itemCreate", text: "Stranded", status: "backlog" })) as TodoResult;
+    const itemId = created.data?.items?.find((entry) => entry.text === "Stranded")?.id;
+    assert.ok(itemId);
+
+    const removed = (await plugin.execute({}, { kind: "columnDelete", id: "backlog" })) as TodoResult;
+    assert.equal(removed.error, undefined);
+    assert.equal(
+      removed.data?.columns?.some((column) => column.id === "backlog"),
+      false,
+    );
+    assert.notEqual(removed.data?.items?.find((entry) => entry.id === itemId)?.status, "backlog");
+    assert.deepEqual(published[published.length - 1].data, { reason: "column-delete", id: "backlog" });
+  });
+
+  it("UI path: columnDelete refuses to delete the last remaining column", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const { pubsub } = makeRecordingPubSub();
+    const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+    });
+    assert.ok(plugin?.execute);
+    await plugin.execute({}, { kind: "columnDelete", id: "backlog" });
+    await plugin.execute({}, { kind: "columnDelete", id: "todo" });
+    await plugin.execute({}, { kind: "columnDelete", id: "in-progress" });
+    const refused = (await plugin.execute({}, { kind: "columnDelete", id: "done" })) as TodoResult;
+    assert.ok(refused.error);
+    assert.equal(refused.status, 400);
+  });
+
+  it("UI path: columnsOrder validates the id set and applies the new order", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const { pubsub, published } = makeRecordingPubSub();
+    const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+    });
+    assert.ok(plugin?.execute);
+
+    // Reverse the four default columns.
+    const reversed = ["done", "in-progress", "todo", "backlog"];
+    const res = (await plugin.execute({}, { kind: "columnsOrder", ids: reversed })) as TodoResult;
+    assert.equal(res.error, undefined);
+    assert.deepEqual(
+      res.data?.columns?.map((column) => column.id),
+      reversed,
+    );
+    assert.deepEqual(published[published.length - 1].data, { reason: "columns-order" });
+
+    // Mismatched id set → 400 (handler enforces a permutation).
+    const bad = (await plugin.execute({}, { kind: "columnsOrder", ids: ["todo", "backlog"] })) as TodoResult;
+    assert.ok(bad.error);
+    assert.equal(bad.status, 400);
+  });
+
   it("UI path: unknown kind returns a 400 error", async (ctx) => {
     if (!existsSync(PLUGIN_DIST_INDEX)) {
       ctx.skip("dist not built");
