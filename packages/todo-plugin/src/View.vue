@@ -43,7 +43,11 @@
         <!-- Item row — `role="button"` + tabindex/keydown rather than
              a real `<button>` because the row hosts nested
              interactives (checkbox, delete) that would be invalid
-             children of a button element. -->
+             children of a button element. The `.self` modifier on
+             both keydown handlers stops Enter/Space pressed on
+             those nested controls from also toggling the row
+             (and from `preventDefault`-ing the child's native
+             activation). -->
         <div
           class="flex items-center gap-3 p-3 cursor-pointer group hover:bg-gray-50 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
           :class="selectedId === item.id ? 'rounded-b-none' : ''"
@@ -52,8 +56,8 @@
           :aria-expanded="selectedId === item.id"
           :aria-label="selectedId === item.id ? t('collapse') : t('expand')"
           @click="selectItem(item)"
-          @keydown.enter.prevent="selectItem(item)"
-          @keydown.space.prevent="selectItem(item)"
+          @keydown.self.enter.prevent="selectItem(item)"
+          @keydown.self.space.prevent="selectItem(item)"
         >
           <input type="checkbox" :checked="item.completed" class="cursor-pointer shrink-0" @click.stop @change="toggle(item)" />
           <div class="flex-1 min-w-0">
