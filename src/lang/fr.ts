@@ -629,7 +629,7 @@ const frMessages = {
     entryForm: {
       title: "Nouvelle écriture",
       editTitle: "Modifier l'écriture",
-      editBanner: "À l'envoi, l'écriture d'origine est contre-passée et remplacée par celle-ci.",
+      editBanner: "À l'envoi, l'écriture d'origine sera contre-passée et remplacée par celle-ci.",
       dateLabel: "Date",
       memoLabel: "Mémo",
       accountLabel: "Compte",

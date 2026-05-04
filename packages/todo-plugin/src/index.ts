@@ -22,10 +22,13 @@ export default definePlugin(({ log }) => ({
   async manageTodoList(_args: unknown) {
     // PR1 stub. PR2/3 fills this in with the items + columns +
     // dispatch logic moved out of `server/api/routes/todos*.ts`.
-    log.warn("manageTodoList runtime-plugin handler called — PR1 scaffold should not be the active handler. Static plugin's collision-win policy was bypassed somehow. Returning explicit error to avoid silent no-op.");
+    log.warn(
+      "manageTodoList runtime-plugin handler called — PR1 scaffold should not be the active handler. Static plugin's collision-win policy was bypassed somehow. Returning explicit error to avoid silent no-op.",
+    );
     return {
       ok: false as const,
-      error: "todo-plugin handler not yet migrated; falling back to the built-in static plugin (which should win the collision). If you see this in production, the runtime-vs-static collision policy regressed.",
+      error:
+        "todo-plugin handler not yet migrated; falling back to the built-in static plugin (which should win the collision). If you see this in production, the runtime-vs-static collision policy regressed.",
     };
   },
 }));

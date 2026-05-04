@@ -639,7 +639,7 @@ const enMessages = {
     entryForm: {
       title: "New journal entry",
       editTitle: "Edit journal entry",
-      editBanner: "The original entry is voided and replaced by this one when you submit.",
+      editBanner: "When you submit, the original entry will be voided and replaced by this one.",
       dateLabel: "Date",
       memoLabel: "Memo",
       accountLabel: "Account",

@@ -627,7 +627,7 @@ const ptBRMessages = {
     entryForm: {
       title: "Novo lançamento",
       editTitle: "Editar lançamento",
-      editBanner: "Ao enviar, o lançamento original é estornado e substituído por este.",
+      editBanner: "Ao enviar, o lançamento original será estornado e substituído por este.",
       dateLabel: "Data",
       memoLabel: "Memo",
       accountLabel: "Conta",
