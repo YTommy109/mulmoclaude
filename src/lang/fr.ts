@@ -574,6 +574,7 @@ const frMessages = {
       journal: "Journal",
       newEntry: "Nouvelle écriture",
       opening: "Ouverture",
+      accounts: "Comptes",
       ledger: "Grand livre",
       balanceSheet: "Bilan",
       profitLoss: "Résultat",
@@ -588,9 +589,16 @@ const frMessages = {
       countryLabel: "Pays",
       countryPlaceholder: "Sélectionner un pays…",
       countryHint: "Le pays définit la juridiction fiscale afin que l'assistant puisse donner des conseils ciblés (T-number au Japon, ID TVA dans l'UE, etc.).",
+      fiscalYearEndLabel: "Clôture de l'exercice",
+      fiscalYearEndQ1: "31 mars (Q1)",
+      fiscalYearEndQ2: "30 juin (Q2)",
+      fiscalYearEndQ3: "30 septembre (Q3)",
+      fiscalYearEndQ4: "31 décembre (Q4)",
+      fiscalYearEndHint:
+        "Définit la limite de l'exercice utilisée par les raccourcis de plage de dates de ce livre. Par défaut : 31 décembre (Q4 — année civile).",
       placeholder: "Sélectionner un livre…",
       firstRunHint:
-        "Choisissez le nom, la devise et le pays de votre premier livre. La devise est figée par livre et difficile à changer une fois les écritures commencées.",
+        "Choisissez le nom, la devise, le pays et la clôture de l'exercice de votre premier livre. La devise est figée par livre et difficile à changer une fois les écritures commencées.",
     },
     deletedNotice: {
       title: "« {bookName} » a été supprimé.",
@@ -621,7 +629,7 @@ const frMessages = {
     entryForm: {
       title: "Nouvelle écriture",
       editTitle: "Modifier l'écriture",
-      editBanner: "À l'envoi, l'écriture d'origine est contre-passée et remplacée par celle-ci.",
+      editBanner: "À l'envoi, l'écriture d'origine sera contre-passée et remplacée par celle-ci.",
       dateLabel: "Date",
       memoLabel: "Mémo",
       accountLabel: "Compte",
@@ -668,6 +676,17 @@ const frMessages = {
         taxRegistrationId: "N° d'identification fiscale",
       },
     },
+    dateRange: {
+      shortcutLabel: "Plage",
+      currentQuarter: "Trimestre en cours",
+      previousQuarter: "Trimestre précédent",
+      currentYear: "Exercice en cours",
+      previousYear: "Exercice précédent",
+      lifetime: "Depuis l'ouverture",
+      all: "Tout",
+      fromLabel: "Du",
+      toLabel: "Au",
+    },
     balanceSheet: {
       asOfLabel: "Période",
       sections: {
@@ -678,6 +697,11 @@ const frMessages = {
       total: "Total",
       imbalance: "Déséquilibre : {amount}",
       currentEarnings: "Résultat de la période",
+      shortcutLabel: "Raccourci",
+      thisMonth: "Ce mois-ci",
+      lastMonth: "Mois précédent",
+      lastQuarter: "Trimestre précédent",
+      lastYear: "Année précédente",
     },
     profitLoss: {
       fromLabel: "Du",
@@ -687,6 +711,8 @@ const frMessages = {
       netIncome: "Résultat net :",
     },
     accounts: {
+      listEmpty: "Aucun compte dans cette catégorie pour l'instant.",
+      openLedgerAria: "Ouvrir le grand livre de {code} {name}",
       manageButton: "Gérer les comptes",
       modalTitle: "Gérer les comptes",
       addAccount: "Ajouter un compte",
@@ -732,6 +758,8 @@ const frMessages = {
       bookInfoExplain:
         "Modifiez le pays pour mettre à jour les conseils selon la juridiction fiscale. La devise ne peut pas être changée une fois des écritures saisies.",
       countryUnset: "(non défini)",
+      fiscalYearEndExplain:
+        "Modifie uniquement la résolution des raccourcis de plage de dates à partir de maintenant ; les écritures existantes ne sont pas déplacées.",
       saveChanges: "Enregistrer les modifications",
       updateOk: "Livre mis à jour.",
       rebuild: "Reconstruire les snapshots",

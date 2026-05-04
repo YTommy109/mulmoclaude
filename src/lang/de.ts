@@ -581,6 +581,7 @@ const deMessages = {
       journal: "Journal",
       newEntry: "Neuer Eintrag",
       opening: "Eröffnung",
+      accounts: "Konten",
       ledger: "Hauptbuch",
       balanceSheet: "Bilanz",
       profitLoss: "GuV",
@@ -596,8 +597,16 @@ const deMessages = {
       countryPlaceholder: "Land auswählen…",
       countryHint:
         "Das Land legt die Steuerjurisdiktion fest, damit der Assistent länderspezifische Hinweise geben kann (T-Nummer in Japan, USt-IdNr. in der EU usw.).",
+      fiscalYearEndLabel: "Geschäftsjahresende",
+      fiscalYearEndQ1: "31. März (Q1)",
+      fiscalYearEndQ2: "30. Juni (Q2)",
+      fiscalYearEndQ3: "30. September (Q3)",
+      fiscalYearEndQ4: "31. Dezember (Q4)",
+      fiscalYearEndHint:
+        "Bestimmt die Geschäftsjahresgrenze, die für die Datumsbereich-Schnellauswahl in diesem Buch verwendet wird. Standard: 31. Dezember (Q4 — Kalenderjahr).",
       placeholder: "Buch auswählen…",
-      firstRunHint: "Wählen Sie Name, Währung und Land für Ihr erstes Buch. Die Währung ist pro Buch fest und nach den ersten Buchungen schwer zu ändern.",
+      firstRunHint:
+        "Wählen Sie Name, Währung, Land und Geschäftsjahresende für Ihr erstes Buch. Die Währung ist pro Buch fest und nach den ersten Buchungen schwer zu ändern.",
     },
     deletedNotice: {
       title: 'Das Buch "{bookName}" wurde gelöscht.',
@@ -675,6 +684,17 @@ const deMessages = {
         taxRegistrationId: "Steuernummer",
       },
     },
+    dateRange: {
+      shortcutLabel: "Bereich",
+      currentQuarter: "Aktuelles Quartal",
+      previousQuarter: "Letztes Quartal",
+      currentYear: "Aktuelles Jahr",
+      previousYear: "Letztes Jahr",
+      lifetime: "Seit Eröffnung",
+      all: "Alle",
+      fromLabel: "Von",
+      toLabel: "Bis",
+    },
     balanceSheet: {
       asOfLabel: "Periode",
       sections: {
@@ -685,6 +705,11 @@ const deMessages = {
       total: "Summe",
       imbalance: "Differenz: {amount}",
       currentEarnings: "Periodenergebnis",
+      shortcutLabel: "Schnellauswahl",
+      thisMonth: "Dieser Monat",
+      lastMonth: "Letzter Monat",
+      lastQuarter: "Letztes Quartal",
+      lastYear: "Letztes Jahr",
     },
     profitLoss: {
       fromLabel: "Von",
@@ -694,6 +719,8 @@ const deMessages = {
       netIncome: "Jahresüberschuss:",
     },
     accounts: {
+      listEmpty: "In dieser Kategorie sind noch keine Konten vorhanden.",
+      openLedgerAria: "Hauptbuch für {code} {name} öffnen",
       manageButton: "Konten verwalten",
       modalTitle: "Konten verwalten",
       addAccount: "Konto hinzufügen",
@@ -739,6 +766,7 @@ const deMessages = {
       bookInfoExplain:
         "Ändern Sie das Land, um die Hinweise zur Steuerjurisdiktion zu aktualisieren. Die Währung kann nach gebuchten Einträgen nicht mehr geändert werden.",
       countryUnset: "(nicht gesetzt)",
+      fiscalYearEndExplain: "Ändert nur, wie die Datumsbereich-Schnellauswahl ab jetzt aufgelöst wird; bestehende Buchungen werden nicht verschoben.",
       saveChanges: "Änderungen speichern",
       updateOk: "Buch aktualisiert.",
       rebuild: "Snapshots neu aufbauen",

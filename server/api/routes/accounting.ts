@@ -123,6 +123,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
       name: String(rest.name ?? ""),
       currency: typeof rest.currency === "string" ? rest.currency : undefined,
       country: typeof rest.country === "string" ? rest.country : undefined,
+      fiscalYearEnd: typeof rest.fiscalYearEnd === "string" ? rest.fiscalYearEnd : undefined,
     });
     return { bookId: result.book.id, ...result };
   },
@@ -131,6 +132,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
       bookId: String(rest.bookId ?? ""),
       name: typeof rest.name === "string" ? rest.name : undefined,
       country: typeof rest.country === "string" ? rest.country : undefined,
+      fiscalYearEnd: typeof rest.fiscalYearEnd === "string" ? rest.fiscalYearEnd : undefined,
     });
     return { bookId: result.book.id, ...result };
   },

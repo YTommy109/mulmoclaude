@@ -9,6 +9,7 @@
 // Snapshots are cache only — journal is the single source of truth.
 
 import type { SupportedCountryCode } from "../../src/plugins/accounting/countries.js";
+import type { FiscalYearEnd } from "../../src/plugins/accounting/fiscalYear.js";
 
 export const ACCOUNT_TYPES = ["asset", "liability", "equity", "income", "expense"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
@@ -54,6 +55,15 @@ export interface BookSummary {
    *  before the field was introduced; the UI prompts existing books
    *  to set it. */
   country?: SupportedCountryCode;
+  /** Which calendar-quarter end is the book's fiscal year end:
+   *    Q1 → March 31, Q2 → June 30, Q3 → September 30, Q4 → December 31.
+   *  Drives the UI's "current quarter / current year" date-range
+   *  shortcuts. Optional in the persisted shape for backward
+   *  compatibility with books written before this field existed —
+   *  read-side code treats the absent value as Q4 via
+   *  `resolveFiscalYearEnd`. New books require it at the create
+   *  boundary; the default is Q4. */
+  fiscalYearEnd?: FiscalYearEnd;
   createdAt: string;
 }
 

@@ -1,30 +1,19 @@
 <template>
   <form class="flex flex-col gap-3" data-testid="accounting-entry-form" @submit.prevent="onSubmit">
-    <div class="flex items-center justify-between gap-2">
-      <h3 class="text-base font-semibold">
-        {{ isEditing ? t("pluginAccounting.entryForm.editTitle") : t("pluginAccounting.entryForm.title") }}
-      </h3>
-      <button
-        type="button"
-        class="h-8 px-2.5 flex items-center gap-1 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
-        data-testid="accounting-entry-manage-accounts"
-        @click="showAccountsModal = true"
-      >
-        <span class="material-icons text-base">tune</span>
-        <span>{{ t("pluginAccounting.accounts.manageButton") }}</span>
-      </button>
-    </div>
-    <p v-if="isEditing" class="text-xs text-gray-500" data-testid="accounting-entry-edit-banner">
-      {{ t("pluginAccounting.entryForm.editBanner") }}
-    </p>
+    <!-- Edit mode mounts inside the row's expanded detail panel,
+         which already gives the user enough context (the row above
+         shows date / kind / memo / lines). Hide the redundant
+         "Edit journal entry" title there; the editBanner below
+         still surfaces the void-and-replace consequence. -->
+    <h3 v-if="!isEditing" class="text-base font-semibold">{{ t("pluginAccounting.entryForm.title") }}</h3>
     <div class="flex flex-wrap gap-3">
       <label class="text-xs text-gray-500 flex flex-col gap-1">
         {{ t("pluginAccounting.entryForm.dateLabel") }}
-        <input v-model="date" type="date" required class="h-8 px-2 rounded border border-gray-300 text-sm" data-testid="accounting-entry-date" />
+        <input v-model="date" type="date" required class="h-8 px-2 rounded border border-gray-300 text-sm bg-white" data-testid="accounting-entry-date" />
       </label>
       <label class="text-xs text-gray-500 flex flex-col gap-1 grow min-w-0">
         {{ t("pluginAccounting.entryForm.memoLabel") }}
-        <input v-model="memo" type="text" class="h-8 px-2 rounded border border-gray-300 text-sm" data-testid="accounting-entry-memo" />
+        <input v-model="memo" type="text" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white" data-testid="accounting-entry-memo" />
       </label>
     </div>
     <table class="w-full text-sm">
@@ -55,7 +44,7 @@
               type="number"
               :step="step"
               min="0"
-              class="h-8 px-2 w-full rounded border border-gray-300 text-sm text-right"
+              class="h-8 px-2 w-full rounded border border-gray-300 text-sm text-right bg-white"
               :data-testid="`accounting-entry-line-debit-${idx}`"
               @input="onDebitInput(line)"
             />
@@ -66,7 +55,7 @@
               type="number"
               :step="step"
               min="0"
-              class="h-8 px-2 w-full rounded border border-gray-300 text-sm text-right"
+              class="h-8 px-2 w-full rounded border border-gray-300 text-sm text-right bg-white"
               :data-testid="`accounting-entry-line-credit-${idx}`"
               @input="onCreditInput(line)"
             />
@@ -85,7 +74,7 @@
                 :maxlength="MAX_TAX_REGISTRATION_ID_LENGTH"
                 :placeholder="t('pluginAccounting.entryForm.taxRegistrationIdPlaceholder')"
                 :class="[
-                  'h-8 px-2 w-full rounded border text-sm font-mono focus:outline-none',
+                  'h-8 px-2 w-full rounded border text-sm font-mono bg-white focus:outline-none',
                   isTaxRegistrationIdInvalid(line)
                     ? 'border-red-500 ring-1 ring-red-500'
                     : isTaxRegistrationIdMissing(line)
@@ -120,39 +109,60 @@
       </tbody>
     </table>
     <div class="flex items-center justify-between">
-      <button
-        type="button"
-        class="h-8 px-2.5 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
-        data-testid="accounting-entry-add-line"
-        @click="addLine"
-      >
-        <span class="material-icons text-base align-middle">add</span>{{ t("pluginAccounting.entryForm.addLine") }}
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="h-8 px-2.5 flex items-center gap-1 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
+          data-testid="accounting-entry-add-line"
+          @click="addLine"
+        >
+          <span class="material-icons text-base">add</span>
+          <span>{{ t("pluginAccounting.entryForm.addLine") }}</span>
+        </button>
+        <button
+          type="button"
+          class="h-8 px-2.5 flex items-center gap-1 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
+          data-testid="accounting-entry-manage-accounts"
+          @click="showAccountsModal = true"
+        >
+          <span class="material-icons text-base">tune</span>
+          <span>{{ t("pluginAccounting.accounts.manageButton") }}</span>
+        </button>
+      </div>
       <span :class="balanced ? 'text-green-600' : 'text-red-500'" class="text-xs" data-testid="accounting-entry-balance">
         {{ balanced ? t("pluginAccounting.entryForm.balanced") : t("pluginAccounting.entryForm.imbalance", { amount: imbalanceText }) }}
       </span>
     </div>
     <p v-if="error" class="text-xs text-red-500" data-testid="accounting-entry-error">{{ error }}</p>
     <p v-if="successMessage" class="text-xs text-green-600" data-testid="accounting-entry-success">{{ successMessage }}</p>
-    <div class="flex justify-end gap-2">
-      <button
-        v-if="isEditing"
-        type="button"
-        class="h-8 px-3 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
-        :disabled="submitting"
-        data-testid="accounting-entry-cancel-edit"
-        @click="emit('cancelEdit')"
-      >
-        {{ t("pluginAccounting.entryForm.cancelEdit") }}
-      </button>
-      <button
-        type="submit"
-        class="h-8 px-3 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:opacity-50"
-        :disabled="!balanced || submitting || editLocked"
-        data-testid="accounting-entry-submit"
-      >
-        {{ submitButtonLabel }}
-      </button>
+    <div class="flex items-center justify-between gap-2">
+      <!-- editBanner sits on the action row in edit mode (instead
+           of as a separate paragraph above the form) so the panel
+           is shorter and the user reads the void-and-replace
+           consequence right next to the button that triggers it. -->
+      <p v-if="isEditing" class="text-xs text-gray-500 flex-1 min-w-0" data-testid="accounting-entry-edit-banner">
+        {{ t("pluginAccounting.entryForm.editBanner") }}
+      </p>
+      <span v-else></span>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="h-8 px-3 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
+          :disabled="submitting"
+          data-testid="accounting-entry-cancel-edit"
+          @click="emit('cancel')"
+        >
+          {{ t("pluginAccounting.common.cancel") }}
+        </button>
+        <button
+          type="submit"
+          class="h-8 px-3 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:opacity-50"
+          :disabled="!balanced || submitting || editLocked"
+          data-testid="accounting-entry-submit"
+        >
+          {{ submitButtonLabel }}
+        </button>
+      </div>
     </div>
   </form>
   <!-- Sibling of the parent <form> on purpose: the modal renders
@@ -176,7 +186,7 @@ import AccountsModal from "./AccountsModal.vue";
 const { t } = useI18n();
 
 const props = defineProps<{ bookId: string; accounts: Account[]; currency: string; country?: SupportedCountryCode; entryToEdit?: JournalEntry | null }>();
-const emit = defineEmits<{ submitted: []; cancelEdit: [] }>();
+const emit = defineEmits<{ submitted: []; cancel: [] }>();
 
 const showAccountsModal = ref(false);
 
