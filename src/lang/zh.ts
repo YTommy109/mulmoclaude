@@ -74,6 +74,13 @@ const zhMessages = {
     hostBody: '插件 "{plugin}" 尝试注册 {label} 键 "{key}",但该键由宿主保留。该插件条目已被丢弃。',
     intraBody: '插件 "{first}" 和 "{second}" 都注册了 {dimension} "{key}"。"{first}" 先注册,因此 "{second}" 的注册被忽略。',
   },
+  pluginErrorBoundary: {
+    title: "插件 {pkg} 已崩溃",
+    subtitle: "插件渲染失败。错误已记录到控制台。",
+    showDetails: "显示详情",
+    hideDetails: "隐藏详情",
+    retry: "重试",
+  },
   sidebarHeader: {
     home: "前往最新对话",
     toolCallHistory: "工具调用历史",

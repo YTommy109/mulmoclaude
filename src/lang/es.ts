@@ -75,6 +75,13 @@ const esMessages = {
     intraBody:
       'Los plugins "{first}" y "{second}" registran ambos el {dimension} "{key}". "{first}" lo reclamó primero, por lo que el registro de "{second}" se ignora.',
   },
+  pluginErrorBoundary: {
+    title: "El plugin {pkg} se ha bloqueado",
+    subtitle: "El plugin no se pudo renderizar. El error se ha registrado en la consola.",
+    showDetails: "Mostrar detalles",
+    hideDetails: "Ocultar detalles",
+    retry: "Reintentar",
+  },
   sidebarHeader: {
     home: "Ir al chat más reciente",
     toolCallHistory: "Historial de llamadas a herramientas",
