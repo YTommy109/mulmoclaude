@@ -1,6 +1,6 @@
 import { describe, it, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, promises as fsPromises } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -268,9 +268,60 @@ describe("addEntries / listEntries", () => {
     );
     assert.equal(batch.entries.length, 2);
     assert.notEqual(batch.entries[0].id, batch.entries[1].id);
+    // Both entries share the 2026-04 period — appendJournalBatch
+    // collapses same-period writes into one staged file + one rename,
+    // so a direct read of the JSONL surfaces both entries from a
+    // single committed write (no append-loop interleaving).
+    const journalFile = path.join(root, "data/accounting/books", bookId, "journal", "2026-04.jsonl");
+    const raw = await fsPromises.readFile(journalFile, "utf-8");
+    const lines = raw.split("\n").filter((line) => line !== "");
+    assert.equal(lines.length, 2, "same-period batch must land in one JSONL with both entries");
     await drainRebuilds(bookId);
     const list = await listEntries({ bookId }, root);
     assert.equal(list.entries.length, 2);
+  });
+
+  it("multi-period batch lands one file per period, two-phase committed", async () => {
+    const root = makeTmp();
+    const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
+    await addEntries(
+      {
+        bookId,
+        entries: [
+          {
+            date: "2026-04-15",
+            lines: [
+              { accountCode: "1000", debit: 100 },
+              { accountCode: "4000", credit: 100 },
+            ],
+          },
+          {
+            date: "2026-05-15",
+            lines: [
+              { accountCode: "5000", debit: 50 },
+              { accountCode: "1000", credit: 50 },
+            ],
+          },
+        ],
+      },
+      root,
+    );
+    const aprilFile = path.join(root, "data/accounting/books", bookId, "journal", "2026-04.jsonl");
+    const mayFile = path.join(root, "data/accounting/books", bookId, "journal", "2026-05.jsonl");
+    const aprilLines = (await fsPromises.readFile(aprilFile, "utf-8")).split("\n").filter((line) => line !== "");
+    const mayLines = (await fsPromises.readFile(mayFile, "utf-8")).split("\n").filter((line) => line !== "");
+    assert.equal(aprilLines.length, 1, "April file should contain the April entry");
+    assert.equal(mayLines.length, 1, "May file should contain the May entry");
+    // No leftover .tmp files from the staging phase — the commit
+    // loop must rename every staged tmp into place.
+    const journalDir = path.join(root, "data/accounting/books", bookId, "journal");
+    const dirEntries = await fsPromises.readdir(journalDir);
+    assert.equal(
+      dirEntries.some((name) => name.endsWith(".tmp")),
+      false,
+      "no staged .tmp file should remain after a successful commit",
+    );
   });
 
   it("rejects the whole batch when any entry is invalid (no partial write)", async () => {

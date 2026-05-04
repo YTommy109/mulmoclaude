@@ -14,6 +14,7 @@ import path from "node:path";
 
 import { workspacePath, WORKSPACE_DIRS } from "../../workspace/paths.js";
 import { writeFileAtomic } from "./atomic.js";
+import { shortId } from "../id.js";
 import type { AccountingConfig, Account, JournalEntry, MonthSnapshot } from "../../accounting/types.js";
 
 const root = (workspaceRoot?: string): string => workspaceRoot ?? workspacePath;
@@ -152,6 +153,73 @@ export async function appendJournal(bookId: string, entry: JournalEntry, workspa
   const file = journalFileFor(bookId, period, workspaceRoot);
   await fsPromises.mkdir(path.dirname(file), { recursive: true });
   await fsPromises.appendFile(file, `${JSON.stringify(entry)}\n`, { encoding: "utf-8" });
+}
+
+function groupEntriesByPeriod(entries: readonly JournalEntry[]): Map<string, JournalEntry[]> {
+  const byPeriod = new Map<string, JournalEntry[]>();
+  for (const entry of entries) {
+    const period = periodFromDate(entry.date);
+    const list = byPeriod.get(period) ?? [];
+    list.push(entry);
+    byPeriod.set(period, list);
+  }
+  return byPeriod;
+}
+
+async function readJournalRaw(file: string): Promise<string> {
+  try {
+    return await fsPromises.readFile(file, "utf-8");
+  } catch (err) {
+    if (isMissingFile(err)) return "";
+    throw err;
+  }
+}
+
+function ensureNewlineSuffix(content: string): string {
+  if (content === "" || content.endsWith("\n")) return content;
+  return `${content}\n`;
+}
+
+interface StagedJournal {
+  file: string;
+  tmp: string;
+}
+
+async function stageJournalAppend(file: string, items: readonly JournalEntry[]): Promise<StagedJournal> {
+  await fsPromises.mkdir(path.dirname(file), { recursive: true });
+  const existing = await readJournalRaw(file);
+  const appended = items.map((entry) => `${JSON.stringify(entry)}\n`).join("");
+  const tmp = `${file}.${shortId()}.tmp`;
+  await fsPromises.writeFile(tmp, ensureNewlineSuffix(existing) + appended, "utf-8");
+  return { file, tmp };
+}
+
+/** Append a batch of entries with two-phase semantics: stage every
+ *  affected month's full new content to a unique tmp file first
+ *  (any read or write failure here throws before any original is
+ *  touched, and partial tmps are cleaned), then commit all renames
+ *  in a tight loop.
+ *
+ *  Single-period batches (the common case — a day's bookings,
+ *  recurring expenses) are fully atomic: one read, one write, one
+ *  rename. Multi-period batches narrow the failure window to the
+ *  rename phase only — much smaller than successive `appendJournal`
+ *  calls, but cross-file 2PC is out of scope for this design. */
+export async function appendJournalBatch(bookId: string, entries: readonly JournalEntry[], workspaceRoot?: string): Promise<void> {
+  if (entries.length === 0) return;
+  const byPeriod = groupEntriesByPeriod(entries);
+  const staged: StagedJournal[] = [];
+  try {
+    for (const [period, items] of byPeriod) {
+      staged.push(await stageJournalAppend(journalFileFor(bookId, period, workspaceRoot), items));
+    }
+    for (const { file, tmp } of staged) {
+      await fsPromises.rename(tmp, file);
+    }
+  } catch (err) {
+    for (const { tmp } of staged) await fsPromises.unlink(tmp).catch(() => {});
+    throw err;
+  }
 }
 
 /** Read a single month's JSONL. Malformed lines are skipped (logged

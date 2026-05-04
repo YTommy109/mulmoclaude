@@ -18,6 +18,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   appendJournal,
+  appendJournalBatch,
   bookExists,
   ensureBookDir,
   invalidateAllSnapshots,
@@ -297,6 +298,36 @@ export interface AddEntriesItem {
   replacesEntryId?: string;
 }
 
+interface BatchValidationFailure {
+  index: number;
+  errors: unknown;
+}
+
+// All-or-nothing validation: collect failures across every entry
+// so the whole batch can be rejected before any write touches disk
+// (a half-applied batch can never end up persisted).
+function collectBatchValidationFailures(items: readonly AddEntriesItem[], accounts: readonly Account[]): BatchValidationFailure[] {
+  const failures: BatchValidationFailure[] = [];
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx];
+    const validation = validateEntry({ date: item.date, lines: item.lines, accounts });
+    if (!validation.ok) failures.push({ index: idx, errors: validation.errors });
+  }
+  return failures;
+}
+
+function buildBatchEntries(items: readonly AddEntriesItem[]): JournalEntry[] {
+  return items.map((item) => makeEntry({ date: item.date, lines: item.lines, memo: item.memo, kind: "normal", replacesEntryId: item.replacesEntryId }));
+}
+
+// Snapshot maintenance is driven from the earliest period in the
+// batch — invalidating from that point covers every later month a
+// single-entry call would have invalidated individually, while
+// collapsing the rebuild + publish work into one round.
+function earliestPeriodOf(entries: readonly JournalEntry[]): string {
+  return entries.map((entry) => periodFromDate(entry.date)).reduce((min, period) => (period < min ? period : min));
+}
+
 export async function addEntries(
   input: { bookId?: string; entries: AddEntriesItem[] },
   workspaceRoot?: string,
@@ -307,29 +338,15 @@ export async function addEntries(
     throw new AccountingError(400, "addEntries: entries must be a non-empty array");
   }
   const accounts = await readAccounts(bookId, workspaceRoot);
-  // All-or-nothing validation: collect failures across every entry
-  // and reject the whole batch before any write touches disk, so a
-  // half-applied batch can never end up persisted.
-  const failures: { index: number; errors: unknown }[] = [];
-  for (let idx = 0; idx < input.entries.length; idx++) {
-    const item = input.entries[idx];
-    const validation = validateEntry({ date: item.date, lines: item.lines, accounts });
-    if (!validation.ok) failures.push({ index: idx, errors: validation.errors });
-  }
-  if (failures.length > 0) {
-    throw new AccountingError(400, "invalid journal entries", failures);
-  }
-  const built = input.entries.map((item) =>
-    makeEntry({ date: item.date, lines: item.lines, memo: item.memo, kind: "normal", replacesEntryId: item.replacesEntryId }),
-  );
-  for (const entry of built) {
-    await appendJournal(bookId, entry, workspaceRoot);
-  }
-  // Snapshot maintenance is driven from the earliest period in the
-  // batch — invalidating from that point covers every later month a
-  // single-entry call would have invalidated individually, while
-  // collapsing the rebuild + publish work into one round.
-  const earliestPeriod = built.map((entry) => periodFromDate(entry.date)).reduce((min, period) => (period < min ? period : min));
+  const failures = collectBatchValidationFailures(input.entries, accounts);
+  if (failures.length > 0) throw new AccountingError(400, "invalid journal entries", failures);
+  const built = buildBatchEntries(input.entries);
+  // Two-phase batched write: stage every affected month's full new
+  // content, then commit all renames at the end. Same-period
+  // batches are fully atomic; multi-period failure window is
+  // narrowed to the rename phase only.
+  await appendJournalBatch(bookId, built, workspaceRoot);
+  const earliestPeriod = earliestPeriodOf(built);
   // scheduleRebuild first (sync, sets pendingFromPeriod) so any
   // in-flight rebuild's `isInvalidatedDuringRebuild` check sees the
   // new pending mark before our invalidate races with its write.
