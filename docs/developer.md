@@ -607,32 +607,91 @@ Runtime-loaded plugins (npm packages installed into a workspace at runtime) have
 
 Plugin-local (lives entirely under `src/plugins/<name>/`):
 
-- **`meta.ts`** — `definePluginMeta({ toolName, apiRoutesKey?, apiRoutes?, workspaceDirs?, staticChannels? })`. Browser- and server-safe (no Vue / no Node-only imports). Single source of truth for the plugin's identity.
-- **`definition.ts`** — MCP `ToolDefinition`. Derive `TOOL_NAME` and the endpoint type from META so the schema and the dispatch URL can't drift:
+- **`meta.ts`** — `definePluginMeta({ toolName, apiNamespace?, apiRoutes?, mcpDispatch?, workspaceDirs?, staticChannels? })`. Browser- and server-safe (no Vue / no Node-only imports). Single source of truth for the plugin's identity. Each route in `apiRoutes` is `{ method, path }`; the host composes `/api/<apiNamespace><path>` and exposes `{ method, url }` to consumers (#1141). `mcpDispatch` names the route key the MCP bridge POSTs to — host derives the binding URL from META, no duplication.
+
   ```ts
-  import { META } from "./meta";
-  export const TOOL_NAME = META.toolName;
-  export type FooEndpoints = typeof META.apiRoutes;
-  const toolDefinition: ToolDefinition = { name: TOOL_NAME, ... };
+  // src/plugins/markdown/meta.ts
+  import { definePluginMeta } from "../meta-types";
+  export const META = definePluginMeta({
+    toolName: "presentDocument",
+    apiNamespace: "markdown",       // → /api/markdown
+    mcpDispatch: "create",
+    apiRoutes: {
+      create: { method: "POST", path: "" },        // POST /api/markdown
+      update: { method: "PUT",  path: "/update" }, // PUT  /api/markdown/update
+    },
+  });
   ```
-- **`index.ts`** — `PluginRegistration` with the executor + Vue components wrapped via `wrapWithScope(scope, View)`. The executor calls `pluginEndpoints<FooEndpoints>(scope)` rather than importing `API_ROUTES` directly — DI keeps `src/plugins/*` zero-dependency on `src/config/*`.
-- **`View.vue` / `Preview.vue`** — Vue surfaces. `useRuntime()` from `gui-chat-protocol/vue` returns a `BrowserPluginRuntime` with a typed `endpoints` map: `const endpoints = useRuntime().endpoints as FooEndpoints`.
 
-Host barrels (registry append-only):
+- **`definition.ts`** — MCP `ToolDefinition`, default-exported. Derive `TOOL_NAME` and the endpoint type from META so the schema, dispatch URL, and HTTP verb can't drift:
 
-- **`src/plugins/metas.ts`** → `BUILT_IN_PLUGIN_METAS`. Drives every aggregator.
-- **`src/plugins/index.ts`** → `BUILT_IN_PLUGINS`. The Vue-bearing registration list (used by the chat canvas).
-- **`src/plugins/server.ts`** → `BUILT_IN_SERVER_BINDINGS`. The MCP `{ def, endpoint }` pairs (used by `server/agent/mcp-server.ts`). Skip this entry only for GUI-only plugins like `wiki` (deprecated MCP, view-only registration).
+  ```ts
+  import type { ToolDefinition } from "gui-chat-protocol";
+  import { META } from "./meta";
+  import type { ResolvedRoute } from "../meta-types";
+
+  export const TOOL_NAME = META.toolName;
+  export type DocumentEndpoints = { readonly [K in keyof typeof META.apiRoutes]: ResolvedRoute };
+
+  const toolDefinition: ToolDefinition = { name: TOOL_NAME, /* ... */ };
+  export default toolDefinition;
+  ```
+
+- **`index.ts`** — `PluginRegistration` exporting `REGISTRATION` (single-entry plugins) or `REGISTRATIONS` (multi-entry, e.g. scheduler's calendar+automations). The executor calls `pluginEndpoints<E>(scope)` from `../api` rather than importing `API_ROUTES` directly — the ESLint rule (#1144) enforces this for every file under `src/plugins/<name>/`. Vue components are wrapped via `wrapWithScope(scope, Component)` so descendants get the plugin runtime via `useRuntime()`.
+
+- **`View.vue` / `Preview.vue`** — Vue surfaces. `useRuntime()` from `gui-chat-protocol/vue` returns a `BrowserPluginRuntime` (see "Plugin runtime API" below). Plain HTTP calls go through `apiCall(url, { method, body })` — pull both fields off the resolved route:
+
+  ```ts
+  import { apiCall } from "../../utils/api";
+  import { useRuntime } from "gui-chat-protocol/vue";
+  import { buildRouteUrl } from "../meta-types";
+  import type { DocumentEndpoints } from "./definition";
+
+  const endpoints = useRuntime().endpoints as DocumentEndpoints;
+  // No path params:
+  await apiCall(endpoints.create.url, { method: endpoints.create.method, body: payload });
+  // With path params (`/:id`, etc.):
+  const url = buildRouteUrl(endpoints.update, { id });
+  await apiCall(url, { method: endpoints.update.method, body: payload });
+  ```
 
 Server-side, only when the plugin owns endpoints:
 
-- **`server/api/routes/<name>.ts`** — Express handlers. Mount them under `API_ROUTES.<scope>.<key>` so the URL flows from META.
+- **`server/api/routes/<name>.ts`** — Express handlers. Use `bindRoute(router, route, ...handlers)` from `server/utils/router.ts` to wire each METHOD+URL pair from META in one line:
+
+  ```ts
+  import { bindRoute } from "../../utils/router.js";
+  import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+  bindRoute(router, API_ROUTES.markdown.create, async (req, res) => { /* ... */ });
+  bindRoute(router, API_ROUTES.markdown.update, async (req, res) => { /* ... */ });
+  ```
 
 Host wiring, exactly once per plugin:
 
-- **`src/main.ts`** — entry in the host endpoint registry passed to `installHostContext({ endpoints })`. The DI registry is the only place that maps a plugin's scope name to its `API_ROUTES.<key>` object; plugin code reads via `pluginEndpoints<E>(scope)` and never sees the host config tree.
+- **`src/main.ts`** — entry in the host endpoint registry passed to `installHostContext({ endpoints })`. The DI registry is the only place that maps a plugin's scope name to its `API_ROUTES.<apiNamespace>` object; plugin code reads via `pluginEndpoints<E>(scope)` and never sees the host config tree.
 
 Role wiring is independent — to expose a plugin to a Role's chat, add its `toolName` to that role's `availablePlugins` in `src/config/roles.ts`.
+
+### Auto-discovery (no host barrel edits)
+
+The 3 host barrels (`src/plugins/metas.ts`, `src/plugins/index.ts`, `src/plugins/server.ts`) used to need a manual append per plugin — easy to forget, the `presentForm` scope mismatch in #1141 was caught the same way. The barrels now re-export from `src/plugins/_generated/{metas,registrations,server-bindings}.ts`, regenerated by `scripts/codegen-plugin-barrels.ts` on every `yarn dev` / `yarn build` (and verifiable in CI via `yarn plugins:codegen:check`). Adding a built-in plugin is the 5 plugin-local files plus `src/main.ts` registry — barrels untouched.
+
+Plugins that don't fit the standard convention (image plugins sharing the host's `/api/image/*`, external npm plugins like `@gui-chat-plugin/mindmap`) live in `src/plugins/_extras.ts` instead. The list there is small and stable.
+
+### Plugin runtime API
+
+`useRuntime()` from `gui-chat-protocol/vue` returns a `BrowserPluginRuntime` scoped to the plugin's package name. Built-in plugins get this surface via `wrapWithScope(scope, …)` (chat canvas) or an `<PluginScopedRoot>` wrapper at the standalone-route call site (see next section). The API:
+
+| field | purpose | example |
+|---|---|---|
+| `endpoints` | resolved route map. Cast to your plugin's `*Endpoints` type. | `(useRuntime().endpoints as TodoEndpoints).list.url` |
+| `dispatch(args)` | MCP-style single-call dispatch (`POST /api/plugins/runtime/:pkg/dispatch`). Built-in plugins typically prefer their own typed routes via `endpoints`; runtime-loaded plugins commonly only have `dispatch`. | `await runtime.dispatch({ action: "create", title })` |
+| `pubsub.subscribe(eventName, handler)` | Subscribe to a plugin-scoped channel. Returns an unsubscribe function. The host fans events as `unknown`; validate the shape at the call site. | `runtime.pubsub.subscribe("changed", (data) => …)` |
+| `log.{debug,info,warn,error}(msg, data?)` | Frontend logger that prefixes `[plugin/<pkg>]` so console output is owner-tagged. | `runtime.log.warn("retrying", { attempt })` |
+| `openUrl(url)` | Open an external link in a new tab with `noopener,noreferrer`. Allowlists `http:` / `https:` only — `javascript:` / `data:` are rejected. | `runtime.openUrl("https://example.com")` |
+| `locale` | `Ref<string>` with the active vue-i18n locale (`en`, `ja`, `zh`, `ko`, `es`, `pt-BR`, `fr`, `de`). Reactive — re-render on locale change. | `<span>{{ runtime.locale }}</span>` |
+
+Plugin code is also bound by ESLint's plugin import rule (#1144): under `src/plugins/<name>/` you cannot import from `src/config/*`, `src/tools/*` (value imports), or `server/*`. Use the runtime API or the DI helpers (`pluginEndpoints<E>(scope)`, `pluginBuiltinRoleIds()`, `pluginPageRoute(name)` from `../api`) instead.
 
 ### Two mounting paths, both must work
 
@@ -647,6 +706,8 @@ A plugin's `View` / `Preview` components mount in two distinct trees, and both m
    ```
    `App.vue` and `FileContentRenderer.vue` carry these wrappers for the routed page and file-preview surfaces respectively. A new standalone route for a plugin needs the same wrapping pattern, or `useRuntime()` will throw at first render.
 
+`PluginScopedRoot` doubles as a per-plugin **error boundary** (#1147): a Vue `errorCaptured` hook catches uncaught throws from the plugin subtree's render / setup / lifecycle and renders an in-place fallback panel ("Plugin X crashed", optional stack via Show details, Retry). The retry remounts the slotted subtree with a fresh setup so transient bugs (stale ref, momentary endpoint outage) clear without a full page reload. Errors are logged to the console with a `[plugin/<pkg>]` prefix; the boundary does NOT forward to the bell to keep its coupling minimal.
+
 ### Diagnostics
 
 Aggregator collisions don't throw — they're filtered and reported. `server/plugins/diagnostics.ts` collects them at boot via `log.warn` and a system notification on the bell; the late-mount `usePluginDiagnostics()` composable fetches `/api/plugins/diagnostics` so a tab opening after the boot push still sees the warning. Notification title/body are localized in all 8 locales via the `pluginDiagnostics.*` i18n keys.
@@ -656,8 +717,10 @@ Aggregator collisions don't throw — they're filtered and reported. `server/plu
 `test/plugins/test_meta_aggregation.ts` enforces:
 
 - `defineHostAggregate` first-write-wins semantics (the second plugin claiming a key is dropped, not silently overwritten).
-- `apiRoutesKey ?? toolName` default when META omits the explicit key.
+- `apiNamespace ?? toolName` default when META omits the explicit namespace.
 - `BUILT_IN_SERVER_BINDINGS` → META — every server-bound built-in plugin has a matching META. The reverse direction is intentionally not asserted: GUI-only / deprecated plugins (e.g. wiki) legitimately have META without a binding. External-package plugins (`@gui-chat-plugin/mindmap` and friends) are exempt via an allowlist.
+
+`test/composables/test_usePluginErrorBoundary.ts` covers the error-boundary state machine (capture / details / retry / mountKey bump). The CI step `yarn plugins:codegen:check` fails the build if a developer added a plugin directory without re-running the codegen.
 
 ---
 
