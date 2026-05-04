@@ -12,6 +12,7 @@ import { META } from "./meta";
 import { ACCOUNTING_ACTIONS } from "./actions";
 import type { SupportedCountryCode } from "./countries";
 import type { FiscalYearEnd } from "./fiscalYear";
+import type { TimeSeriesGranularity, TimeSeriesMetric } from "./timeSeriesEnums";
 
 export type AccountType = "asset" | "liability" | "equity" | "income" | "expense";
 export type JournalEntryKind = "normal" | "opening" | "void" | "void-marker";
@@ -252,6 +253,45 @@ export function getProfitLoss(period: ReportPeriod, bookId: string): Promise<Api
 
 export function getLedger(accountCode: string, period: ReportPeriod | undefined, bookId: string): Promise<ApiResult<{ bookId: string; ledger: Ledger }>> {
   return call(ACCOUNTING_ACTIONS.getReport, { kind: "ledger", accountCode, period, bookId });
+}
+
+export interface TimeSeriesPoint {
+  label: string;
+  from: string;
+  to: string;
+  value: number;
+}
+
+export interface TimeSeriesInput {
+  bookId: string;
+  metric: TimeSeriesMetric;
+  granularity: TimeSeriesGranularity;
+  /** Inclusive YYYY-MM-DD lower bound. The first bucket is the one
+   *  CONTAINING this date — it can extend earlier. */
+  from: string;
+  /** Inclusive YYYY-MM-DD upper bound. The last bucket is the one
+   *  CONTAINING this date — it can extend later. */
+  to: string;
+  /** Required when metric === "accountBalance"; forbidden otherwise.
+   *  The server returns a 400 either way. */
+  accountCode?: string;
+}
+
+export interface TimeSeriesResult {
+  bookId: string;
+  metric: TimeSeriesMetric;
+  granularity: TimeSeriesGranularity;
+  from: string;
+  to: string;
+  accountCode?: string;
+  points: TimeSeriesPoint[];
+}
+
+export function getTimeSeries(input: TimeSeriesInput): Promise<ApiResult<TimeSeriesResult>> {
+  // Spread so the named interface is widened into a fresh object
+  // literal — `call()` takes `Record<string, unknown>` which a
+  // declared interface doesn't satisfy structurally in TS.
+  return call(ACCOUNTING_ACTIONS.getTimeSeries, { ...input });
 }
 
 // ── Admin ────────────────────────────────────────────────────────────
