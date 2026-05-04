@@ -27,7 +27,11 @@ interface Bookmark {
 // The View always re-fetches on mount + on every `changed` pubsub
 // event so the displayed list stays current regardless of which
 // action triggered the mount.
-interface Props {
+// Exported because `vite-plugin-dts` rolls View into `dist/vue.d.ts`
+// via the `plugin = { viewComponent: View }` re-export in `vue.ts`,
+// and the inferred component type names this interface — TS4023
+// fires if it isn't reachable at the public surface.
+export interface Props {
   selectedResult: { bookmarks?: Bookmark[] };
 }
 const props = defineProps<Props>();
