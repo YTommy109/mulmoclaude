@@ -17,7 +17,6 @@ import { REGISTRATION as presentMulmoScriptRegistration } from "../presentMulmoS
 import { REGISTRATIONS as schedulerRegistrations } from "../scheduler";
 import { REGISTRATION as spreadsheetRegistration } from "../spreadsheet";
 import { REGISTRATION as textResponseRegistration } from "../textResponse";
-import { REGISTRATION as todoRegistration } from "../todo";
 import { REGISTRATION as wikiRegistration } from "../wiki";
 
 /** All plugin registrations the codegen discovered under `src/plugins/<name>/index.ts`.
@@ -39,6 +38,5 @@ export const GENERATED_PLUGIN_REGISTRATIONS: readonly PluginRegistration[] = [
   ...schedulerRegistrations,
   spreadsheetRegistration,
   textResponseRegistration,
-  todoRegistration,
   wikiRegistration,
 ];

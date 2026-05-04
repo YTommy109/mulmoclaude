@@ -25,7 +25,7 @@ import { PAGE_ROUTES } from "../../src/router/pageRoutes.js";
 
 export function installTestHostContext(overrides: Partial<HostContext> = {}): void {
   const registry: EndpointRegistry = {
-    todos: API_ROUTES.todos,
+    // todos: removed (#1145) — runtime plugin uses dispatch directly
     scheduler: API_ROUTES.scheduler,
     mulmoScript: API_ROUTES.mulmoScript,
     skills: API_ROUTES.skills,

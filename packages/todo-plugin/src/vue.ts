@@ -1,13 +1,14 @@
-// Vue entry — exports the canvas component the host runtime plugin
-// loader dynamic-imports as `dist/vue.js`. Shape matches the bookmarks
-// reference (`packages/bookmarks-plugin/src/vue.ts`).
-//
-// In PR1 the View is a placeholder; the real one moves here in PR4.
+// Vue entry — exports the canvas + preview components the host
+// runtime plugin loader dynamic-imports as `dist/vue.js`. Same shape
+// as `packages/bookmarks-plugin/src/vue.ts` so the host's loader
+// (src/tools/runtimeLoader.ts) registers them without special-casing.
 
 import View from "./View.vue";
+import Preview from "./Preview.vue";
 import { TOOL_DEFINITION } from "./definition";
 
 export const plugin = {
   toolDefinition: TOOL_DEFINITION,
   viewComponent: View,
+  previewComponent: Preview,
 };

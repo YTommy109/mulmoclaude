@@ -48,7 +48,7 @@ describe("runtime-registry", () => {
     // mcpToolDefs keys (notify / readXPost / searchX). Without this
     // combined set, a runtime plugin named `notify` would shadow the
     // built-in.
-    const staticSet = new Set(["manageTodoList", "presentForm", "notify", "readXPost", "searchX"]);
+    const staticSet = new Set(["presentMulmoScript", "presentForm", "notify", "readXPost", "searchX"]);
     const result = registerRuntimePlugins(staticSet, [fakePlugin("@x/notify-clone", "1.0.0", "notify")]);
     assert.equal(result.registered.length, 0);
     assert.equal(result.collisions.length, 1);

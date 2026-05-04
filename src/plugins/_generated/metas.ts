@@ -17,7 +17,6 @@ import { META as presentMulmoScriptMeta } from "../presentMulmoScript/meta";
 import { META as schedulerAutomationsMeta } from "../scheduler/automationsMeta";
 import { META as schedulerCalendarMeta } from "../scheduler/calendarMeta";
 import { META as spreadsheetMeta } from "../spreadsheet/meta";
-import { META as todoMeta } from "../todo/meta";
 import { META as wikiMeta } from "../wiki/meta";
 
 /** All plugin METAs the codegen discovered under `src/plugins/<name>/{meta,*Meta}.ts`.
@@ -37,7 +36,6 @@ export const GENERATED_PLUGIN_METAS = [
   schedulerAutomationsMeta,
   schedulerCalendarMeta,
   spreadsheetMeta,
-  todoMeta,
   wikiMeta,
 ] as const satisfies readonly PluginMeta[];
 

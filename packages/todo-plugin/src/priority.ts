@@ -3,7 +3,7 @@
 // render a priority badge — kept dependency-free so both the server
 // and the browser can import it.
 
-import type { TodoPriority } from "./index";
+import type { TodoPriority } from "./types";
 
 export const PRIORITY_ORDER: Record<TodoPriority, number> = {
   low: 0,

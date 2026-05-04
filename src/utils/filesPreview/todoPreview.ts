@@ -3,7 +3,7 @@
 // Extracted from FilesView.vue (#507 step 8).
 
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-import type { StatusColumn, TodoData, TodoItem } from "../../plugins/todo/index";
+import type { StatusColumn, TodoData, TodoItem } from "@mulmoclaude/todo-plugin/shared";
 import { WORKSPACE_FILES } from "../../config/workspacePaths";
 import { isRecord } from "../types";
 

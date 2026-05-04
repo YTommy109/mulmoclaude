@@ -9,9 +9,9 @@
 // case unit-testable in isolation, and brings the cognitive
 // complexity of the route handler under the lint threshold.
 
-import type { TodoItem } from "./todos.js";
-import { filterByLabels, listLabelsWithCount, mergeLabels, subtractLabels } from "../../../src/plugins/todo/labels.js";
-import { makeId } from "../../utils/id.js";
+import type { TodoItem } from "../types";
+import { filterByLabels, listLabelsWithCount, mergeLabels, subtractLabels } from "../labels";
+import { makeId } from "../internal/utils";
 
 export interface TodosActionInput {
   text?: string;

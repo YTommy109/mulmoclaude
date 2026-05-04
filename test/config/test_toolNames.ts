@@ -22,7 +22,11 @@ describe("TOOL_NAMES", () => {
     // Spot-check: a rename of any of these requires a coordinated
     // server + client update. If the string changes, this test
     // should fail loudly.
-    assert.equal(TOOL_NAMES.manageTodoList, "manageTodoList");
+    // Note: `manageTodoList` is now a runtime plugin
+    // (`@mulmoclaude/todo-plugin`, #1145) so it isn't in the static
+    // TOOL_NAMES map. The literal string is asserted via the runtime
+    // plugin's `definition.ts` (`name: "manageTodoList" as const`)
+    // and `test_todo_plugin_integration.ts`.
     assert.equal(TOOL_NAMES.presentDocument, "presentDocument");
     assert.equal(TOOL_NAMES.presentHtml, "presentHtml");
   });

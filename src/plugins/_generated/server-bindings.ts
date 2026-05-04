@@ -16,7 +16,6 @@ import presentMulmoScriptDef from "../presentMulmoScript/definition";
 import schedulerAutomationsDef from "../scheduler/automationsDefinition";
 import schedulerCalendarDef from "../scheduler/calendarDefinition";
 import spreadsheetDef from "../spreadsheet/definition";
-import todoDef from "../todo/definition";
 import { META as accountingMeta } from "../accounting/meta";
 import { META as canvasMeta } from "../canvas/meta";
 import { META as chartMeta } from "../chart/meta";
@@ -28,7 +27,6 @@ import { META as presentHtmlMeta } from "../presentHtml/meta";
 import { META as presentMulmoScriptMeta } from "../presentMulmoScript/meta";
 import { META as schedulerCalendarMeta } from "../scheduler/calendarMeta";
 import { META as spreadsheetMeta } from "../spreadsheet/meta";
-import { META as todoMeta } from "../todo/meta";
 
 /** All plugin MCP bindings the codegen discovered for plugins whose META declares
  *  both `apiNamespace` and `mcpDispatch`. Plugins without those fields (image plugins,
@@ -46,5 +44,4 @@ export const GENERATED_SERVER_BINDINGS: readonly ServerPluginBinding[] = [
   { def: schedulerAutomationsDef, endpoint: mcpEndpoint(schedulerCalendarMeta) },
   { def: schedulerCalendarDef, endpoint: mcpEndpoint(schedulerCalendarMeta) },
   { def: spreadsheetDef, endpoint: mcpEndpoint(spreadsheetMeta) },
-  { def: todoDef, endpoint: mcpEndpoint(todoMeta) },
 ];

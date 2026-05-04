@@ -174,7 +174,7 @@
                same `pkg-name + endpoints` pair so the `useRuntime()`
                call resolves. -->
           <FilesView v-else-if="currentPage === 'files'" :refresh-token="filesRefreshToken" @load-session="handleSessionSelect" />
-          <PluginScopedRoot v-else-if="currentPage === 'todos'" pkg-name="todos" :endpoints="API_ROUTES.todos">
+          <PluginScopedRoot v-else-if="currentPage === 'todos'" pkg-name="@mulmoclaude/todo-plugin">
             <TodoExplorer />
           </PluginScopedRoot>
           <PluginScopedRoot v-else-if="currentPage === 'calendar'" pkg-name="scheduler" :endpoints="API_ROUTES.scheduler">
