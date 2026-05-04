@@ -85,7 +85,17 @@ async function runRoleSampleTurn(page: Page, roleId: string): Promise<void> {
     await startNewSession(page);
     await page.waitForURL(SESSION_URL_PATTERN);
     const generalSessionId = getCurrentSessionId(page);
-    if (generalSessionId !== null) sessionsToCleanup.push(generalSessionId);
+    // The waitForURL above guarantees the URL matches /chat/<id>,
+    // so getCurrentSessionId's regex capture cannot fail here.
+    // Fail loud if it ever does so the diagnostic is "URL shape
+    // changed" rather than "60s navigationTimeout" coming from the
+    // ?? "" fallback below silently inverting the predicate
+    // (CodeRabbit + Claude iter-1 convergence: endsWith("") is
+    // always true, which would make the next waitForURL hang).
+    if (generalSessionId === null) {
+      throw new Error("getCurrentSessionId returned null after waitForURL(SESSION_URL_PATTERN) — startNewSession or URL pattern likely drifted");
+    }
+    sessionsToCleanup.push(generalSessionId);
     await selectRole(page, roleId);
     // Capture the role-switched session id as soon as the URL
     // settles on /chat/<id>, BEFORE the downstream assertions —
@@ -94,7 +104,7 @@ async function runRoleSampleTurn(page: Page, roleId: string): Promise<void> {
     // role session into history (Codex iter 2 question-level
     // catch). waitForURL forces a real navigation rather than
     // re-reading the General id.
-    await page.waitForURL((url) => SESSION_URL_PATTERN.test(url.pathname) && !url.pathname.endsWith(generalSessionId ?? ""));
+    await page.waitForURL((url) => SESSION_URL_PATTERN.test(url.pathname) && !url.pathname.endsWith(generalSessionId));
     const roleSessionId = getCurrentSessionId(page);
     if (roleSessionId !== null && roleSessionId !== generalSessionId) {
       sessionsToCleanup.push(roleSessionId);
