@@ -208,7 +208,7 @@ useAccountingBooksChannel(() => void refetchBooks());
 
 function pickInitialBookId(): string | null {
   // Priority: explicit `initialPayload.bookId` (carried in the
-  // tool-result envelope by openBook / createBook / addEntry / …) →
+  // tool-result envelope by openBook / createBook / addEntries / …) →
   // first book in the list → null (empty workspace). The candidate
   // is validated against the live book list so a stale id from a
   // deleted book doesn't poison the View.
@@ -368,7 +368,7 @@ function onBookSelected(bookId: string): void {
 
 // "Edit" on a normal journal row: stash the entry on the parent,
 // switch to the New Entry tab, let the form prefill from the prop.
-// The actual void + addEntry(replacesEntryId) sequence happens
+// The actual void + addEntries(replacesEntryId) sequence happens
 // inside the form's submit handler.
 const entryBeingEdited = ref<JournalEntry | null>(null);
 function onEditEntry(entry: JournalEntry): void {

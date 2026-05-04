@@ -19,7 +19,7 @@ const toolDefinition: ToolDefinition = {
   type: "function",
   name: TOOL_NAMES.manageAccounting,
   prompt:
-    "When the user asks to open / view their books, or to record, look up, or summarise journal entries / balances / opening balances, use manageAccounting. Use action='openBook' (with the target bookId) to switch the canvas to a specific existing book; use the specific action (addEntry / getReport / etc.) for narrowly-scoped operations the user asked about by name. On a fresh workspace call 'createBook' (always pass `country` so tax-registration advice is country-aware) — the accounting view picks up the new book automatically (no follow-up 'openBook' needed for this id). Use 'updateBook' to change a book's name or country (currency cannot be changed). Reach for 'openBook' only when switching to a different existing book.",
+    "When the user asks to open / view their books, or to record, look up, or summarise journal entries / balances / opening balances, use manageAccounting. Use action='openBook' (with the target bookId) to switch the canvas to a specific existing book; use the specific action (addEntries / getReport / etc.) for narrowly-scoped operations the user asked about by name. On a fresh workspace call 'createBook' (always pass `country` so tax-registration advice is country-aware) — the accounting view picks up the new book automatically (no follow-up 'openBook' needed for this id). Use 'updateBook' to change a book's name or country (currency cannot be changed). Reach for 'openBook' only when switching to a different existing book.",
   description:
     "Manage a double-entry accounting book stored in the workspace file system. Supports multiple books (entities), opening balances for adoption from existing books, journal entries, voiding (append-only — corrections are reversing pairs), and balance-sheet / profit-loss / ledger reports. Action='openBook' mounts the full accounting UI in the canvas (requires bookId); specific actions return compact results that render inline.",
   parameters: {
@@ -67,12 +67,49 @@ const toolDefinition: ToolDefinition = {
         },
         required: ["code", "name", "type"],
       },
-      // entry
-      date: { type: "string", description: "For 'addEntry': YYYY-MM-DD booking date." },
+      // entries (addEntries — batched)
+      entries: {
+        type: "array",
+        description:
+          "For 'addEntries': one or more journal entries to post atomically (all-or-nothing — if any entry fails validation, the whole batch is rejected and nothing is written). Use a single-element array to post one entry. Each entry has its own date, lines, optional memo, and optional replacesEntryId.",
+        items: {
+          type: "object",
+          properties: {
+            date: { type: "string", description: "YYYY-MM-DD booking date." },
+            lines: {
+              type: "array",
+              description: "Journal lines for this entry. Each line sets exactly one of debit or credit (positive amount). Σ debit must equal Σ credit.",
+              items: {
+                type: "object",
+                properties: {
+                  accountCode: { type: "string" },
+                  debit: { type: "number" },
+                  credit: { type: "number" },
+                  memo: { type: "string" },
+                  taxRegistrationId: {
+                    type: "string",
+                    description:
+                      "Optional counterparty tax-authority registration ID for this line (Japan T-number, EU VAT ID, UK VAT registration number, India GSTIN, Australia ABN, etc.). Free-form string, max 32 chars. Required for input-tax-credit eligibility under regimes like Japan's インボイス制度.",
+                  },
+                },
+                required: ["accountCode"],
+              },
+            },
+            memo: { type: "string", description: "Optional entry-level memo." },
+            replacesEntryId: {
+              type: "string",
+              description:
+                "Optional — id of an entry this one replaces (the 'edit' flow). The caller MUST issue a 'voidEntry' for that id immediately before this addEntries call; the void + post pair is not atomic on the server.",
+            },
+          },
+          required: ["date", "lines"],
+        },
+      },
+      // setOpeningBalances — single opening entry (top-level lines / memo)
       lines: {
         type: "array",
         description:
-          "For 'addEntry' / 'setOpeningBalances': journal lines. Each line sets exactly one of debit or credit (positive amount). Σ debit must equal Σ credit. For opening balances, only balance-sheet accounts (asset / liability / equity) are accepted.",
+          "For 'setOpeningBalances': journal lines. Each line sets exactly one of debit or credit (positive amount). Σ debit must equal Σ credit. Only balance-sheet accounts (asset / liability / equity) are accepted.",
         items: {
           type: "object",
           properties: {
@@ -80,21 +117,12 @@ const toolDefinition: ToolDefinition = {
             debit: { type: "number" },
             credit: { type: "number" },
             memo: { type: "string" },
-            taxRegistrationId: {
-              type: "string",
-              description:
-                "Optional counterparty tax-authority registration ID for this line (Japan T-number, EU VAT ID, UK VAT registration number, India GSTIN, Australia ABN, etc.). Free-form string, max 32 chars. Required for input-tax-credit eligibility under regimes like Japan's インボイス制度.",
-            },
+            taxRegistrationId: { type: "string" },
           },
           required: ["accountCode"],
         },
       },
-      memo: { type: "string", description: "Optional entry-level memo." },
-      replacesEntryId: {
-        type: "string",
-        description:
-          "For 'addEntry' only — id of an entry this one replaces (the 'edit' flow). The caller MUST issue a 'voidEntry' for that id immediately before this addEntry; the two calls are not atomic on the server.",
-      },
+      memo: { type: "string", description: "For 'setOpeningBalances': optional entry-level memo." },
       // void
       entryId: { type: "string", description: "For 'voidEntry': id of the entry to void. The reverse + marker pair is appended (journal stays append-only)." },
       reason: { type: "string", description: "For 'voidEntry': human-readable reason." },

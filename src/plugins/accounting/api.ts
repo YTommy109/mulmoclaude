@@ -163,18 +163,25 @@ export function upsertAccount(account: Account, bookId: string): Promise<ApiResu
 
 // ── Entries ──────────────────────────────────────────────────────────
 
-export function addEntry(input: {
+export interface AddEntriesItemInput {
   date: string;
   lines: JournalLine[];
   memo?: string;
-  bookId: string;
-  /** When set, marks this new entry as the replacement posted via
-   *  the "edit" flow. The caller is expected to have voided
+  /** When set, marks this entry as the replacement posted via the
+   *  "edit" flow. The caller is expected to have voided
    *  `replacesEntryId` separately just before this call — there is
    *  no atomic transaction. */
   replacesEntryId?: string;
-}): Promise<ApiResult<{ bookId: string; entry: JournalEntry }>> {
-  return call(ACCOUNTING_ACTIONS.addEntry, input);
+}
+
+export function addEntries(input: {
+  bookId: string;
+  /** One or more entries to post. The server validates every entry
+   *  before any write, so a single bad entry rejects the whole
+   *  batch. Pass a single-element array to post just one entry. */
+  entries: AddEntriesItemInput[];
+}): Promise<ApiResult<{ bookId: string; entries: JournalEntry[] }>> {
+  return call(ACCOUNTING_ACTIONS.addEntries, input);
 }
 
 export function voidEntry(input: {

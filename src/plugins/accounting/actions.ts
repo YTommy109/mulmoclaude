@@ -21,7 +21,7 @@ export const ACCOUNTING_ACTIONS = {
   deleteBook: "deleteBook",
   getAccounts: "getAccounts",
   upsertAccount: "upsertAccount",
-  addEntry: "addEntry",
+  addEntries: "addEntries",
   voidEntry: "voidEntry",
   getJournalEntries: "getJournalEntries",
   getOpeningBalances: "getOpeningBalances",

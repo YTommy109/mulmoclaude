@@ -290,27 +290,53 @@ export async function upsertAccount(
 
 // ── journal entries ────────────────────────────────────────────────
 
-export async function addEntry(
-  input: { bookId?: string; date: string; lines: JournalLine[]; memo?: string; replacesEntryId?: string },
+export interface AddEntriesItem {
+  date: string;
+  lines: JournalLine[];
+  memo?: string;
+  replacesEntryId?: string;
+}
+
+export async function addEntries(
+  input: { bookId?: string; entries: AddEntriesItem[] },
   workspaceRoot?: string,
-): Promise<{ bookId: string; entry: JournalEntry }> {
+): Promise<{ bookId: string; entries: JournalEntry[] }> {
   const config = await loadOrInitConfig(workspaceRoot);
   const bookId = resolveBookId(config, input.bookId);
-  const accounts = await readAccounts(bookId, workspaceRoot);
-  const validation = validateEntry({ date: input.date, lines: input.lines, accounts });
-  if (!validation.ok) {
-    throw new AccountingError(400, "invalid journal entry", validation.errors);
+  if (!Array.isArray(input.entries) || input.entries.length === 0) {
+    throw new AccountingError(400, "addEntries: entries must be a non-empty array");
   }
-  const entry = makeEntry({ date: input.date, lines: input.lines, memo: input.memo, kind: "normal", replacesEntryId: input.replacesEntryId });
-  await appendJournal(bookId, entry, workspaceRoot);
-  const period = periodFromDate(input.date);
+  const accounts = await readAccounts(bookId, workspaceRoot);
+  // All-or-nothing validation: collect failures across every entry
+  // and reject the whole batch before any write touches disk, so a
+  // half-applied batch can never end up persisted.
+  const failures: { index: number; errors: unknown }[] = [];
+  for (let idx = 0; idx < input.entries.length; idx++) {
+    const item = input.entries[idx];
+    const validation = validateEntry({ date: item.date, lines: item.lines, accounts });
+    if (!validation.ok) failures.push({ index: idx, errors: validation.errors });
+  }
+  if (failures.length > 0) {
+    throw new AccountingError(400, "invalid journal entries", failures);
+  }
+  const built = input.entries.map((item) =>
+    makeEntry({ date: item.date, lines: item.lines, memo: item.memo, kind: "normal", replacesEntryId: item.replacesEntryId }),
+  );
+  for (const entry of built) {
+    await appendJournal(bookId, entry, workspaceRoot);
+  }
+  // Snapshot maintenance is driven from the earliest period in the
+  // batch — invalidating from that point covers every later month a
+  // single-entry call would have invalidated individually, while
+  // collapsing the rebuild + publish work into one round.
+  const earliestPeriod = built.map((entry) => periodFromDate(entry.date)).reduce((min, period) => (period < min ? period : min));
   // scheduleRebuild first (sync, sets pendingFromPeriod) so any
   // in-flight rebuild's `isInvalidatedDuringRebuild` check sees the
   // new pending mark before our invalidate races with its write.
-  scheduleRebuild(bookId, period, workspaceRoot);
-  await invalidateSnapshotsFrom(bookId, period, workspaceRoot);
-  publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.journal, period });
-  return { bookId, entry };
+  scheduleRebuild(bookId, earliestPeriod, workspaceRoot);
+  await invalidateSnapshotsFrom(bookId, earliestPeriod, workspaceRoot);
+  publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.journal, period: earliestPeriod });
+  return { bookId, entries: built };
 }
 
 async function findEntryById(bookId: string, entryId: string, workspaceRoot?: string): Promise<JournalEntry | null> {
