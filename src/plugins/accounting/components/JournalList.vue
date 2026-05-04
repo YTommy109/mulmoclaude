@@ -50,7 +50,6 @@
           <th class="text-left py-1 px-2">{{ t("pluginAccounting.journalList.columns.kind") }}</th>
           <th class="text-left py-1 px-2">{{ t("pluginAccounting.journalList.columns.memo") }}</th>
           <th class="text-left py-1 px-2">{{ t("pluginAccounting.journalList.columns.lines") }}</th>
-          <th class="py-1 px-2"></th>
         </tr>
       </thead>
       <tbody>
@@ -81,40 +80,45 @@
                 <span v-if="line.credit">{{ formatCredit(line.credit) }}</span>
               </div>
             </td>
-            <!-- Stop the toggle from firing when the user reaches for
-                 Edit / Void — those rails already handle their own
-                 navigation / confirm dialog and shouldn't double as a
-                 detail-expand trigger. -->
-            <td class="py-1 px-2 text-right whitespace-nowrap" @click.stop>
-              <template v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)">
-                <button class="text-xs text-blue-600 hover:underline mr-2" :data-testid="`accounting-edit-${entry.id}`" @click="onEditEntry(entry)">
-                  {{ t("pluginAccounting.journalList.edit") }}
-                </button>
-                <button class="text-xs text-red-500 hover:underline" :data-testid="`accounting-void-${entry.id}`" @click="onVoid(entry)">
-                  {{ t("pluginAccounting.journalList.void") }}
-                </button>
-              </template>
-              <button
-                v-else-if="entry.kind === 'opening' && !voidedEntryIds.has(entry.id)"
-                class="text-xs text-blue-600 hover:underline"
-                :data-testid="`accounting-edit-opening-${entry.id}`"
-                @click="emit('editOpening')"
-              >
-                {{ t("pluginAccounting.journalList.edit") }}
-              </button>
-            </td>
           </tr>
           <tr v-if="expandedEntryId === entry.id" class="bg-gray-50" :data-testid="`accounting-journal-detail-${entry.id}`">
-            <td :colspan="5" class="px-6 py-2 relative">
-              <button
-                type="button"
-                class="absolute top-1 right-2 h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100"
-                :data-testid="`accounting-journal-detail-close-${entry.id}`"
-                :aria-label="t('pluginAccounting.common.cancel')"
-                @click="expandedEntryId = null"
-              >
-                <span class="material-icons text-base">close</span>
-              </button>
+            <td :colspan="4" class="px-6 py-2">
+              <!-- Detail header: Edit / Void on the left (when the
+                   entry kind allows them), Close on the right. The
+                   Edit / Void buttons used to live in a per-row
+                   action cell on the journal table — moving them
+                   here keeps the row clean and gives the buttons
+                   more breathing room next to the detail panel they
+                   act on. -->
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-3">
+                  <template v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)">
+                    <button class="text-xs text-blue-600 hover:underline" :data-testid="`accounting-edit-${entry.id}`" @click="onEditEntry(entry)">
+                      {{ t("pluginAccounting.journalList.edit") }}
+                    </button>
+                    <button class="text-xs text-red-500 hover:underline" :data-testid="`accounting-void-${entry.id}`" @click="onVoid(entry)">
+                      {{ t("pluginAccounting.journalList.void") }}
+                    </button>
+                  </template>
+                  <button
+                    v-else-if="entry.kind === 'opening' && !voidedEntryIds.has(entry.id)"
+                    class="text-xs text-blue-600 hover:underline"
+                    :data-testid="`accounting-edit-opening-${entry.id}`"
+                    @click="emit('editOpening')"
+                  >
+                    {{ t("pluginAccounting.journalList.edit") }}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  class="h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100"
+                  :data-testid="`accounting-journal-detail-close-${entry.id}`"
+                  :aria-label="t('pluginAccounting.common.cancel')"
+                  @click="expandedEntryId = null"
+                >
+                  <span class="material-icons text-base">close</span>
+                </button>
+              </div>
               <table class="w-full text-xs">
                 <thead>
                   <tr class="text-gray-500 border-b border-gray-200">
