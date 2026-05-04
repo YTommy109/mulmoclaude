@@ -33,7 +33,7 @@ const HOST_TOOL_NAMES = {
   textResponse: "text-response",
 
   // Management plugins (not yet migrated to META)
-  manageTodoList: "manageTodoList",
+  // manageTodoList migrated — see `src/plugins/todo/meta.ts`.
   // Calendar / Automations split (#824) — replaced the unified
   // `manageScheduler` so the LLM and chat-tool-result UI both have
   // a 1:1 mapping between tool name and domain.
@@ -48,7 +48,7 @@ const HOST_TOOL_NAMES = {
   presentDocument: "presentDocument",
   presentSpreadsheet: "presentSpreadsheet",
   presentHtml: "presentHtml",
-  presentChart: "presentChart",
+  // presentChart migrated to META — see `src/plugins/chart/meta.ts`.
   presentForm: "presentForm",
   present3D: "present3D",
 

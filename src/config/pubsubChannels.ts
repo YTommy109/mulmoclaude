@@ -115,11 +115,16 @@ export type AccountingBookChannelPayload = AccountingBookChannelPayloadFromMeta;
 // Plugin-owned static channel names auto-merged from each plugin's
 // META. Mapped type preserves the literal channel string (e.g.
 // `"accounting:books"`) so consumers get string-literal types.
-type PluginStaticChannelsMap<T extends BuiltInPluginMetas> = T[number] extends infer M
-  ? M extends { readonly staticChannels: infer C }
-    ? { readonly [K in keyof C]: C[K] }
-    : Record<string, never>
-  : Record<string, never>;
+//
+// Distributive conditional types collapse the union of per-plugin
+// records into an INTERSECTION so consumers see the merged shape
+// (`{ accountingBooks: "..." } & { ... }`) rather than the
+// per-plugin union (which TS won't let you index into safely).
+type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
+
+type PluginStaticChannelsContribution<M> = M extends { readonly staticChannels: infer C } ? { readonly [K in keyof C]: C[K] } : Record<string, never>;
+
+type PluginStaticChannelsMap<T extends BuiltInPluginMetas> = UnionToIntersection<PluginStaticChannelsContribution<T[number]>>;
 
 // First-write-wins aggregation. See `buildPluginAggregate`'s
 // docblock — the merge itself enforces "first plugin claiming a

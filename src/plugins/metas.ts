@@ -18,11 +18,13 @@
 import type { PluginMeta } from "./meta-types";
 
 import { META as accountingMeta } from "./accounting/meta";
+import { META as chartMeta } from "./chart/meta";
+import { META as todoMeta } from "./todo/meta";
 
 // `satisfies` (not `:`) so the literal types of every plugin's
 // META survive into host aggregators — `TOOL_NAMES.manageAccounting`
 // must end up with type `"manageAccounting"`, not `string`.
-export const BUILT_IN_PLUGIN_METAS = [accountingMeta] as const satisfies readonly PluginMeta[];
+export const BUILT_IN_PLUGIN_METAS = [accountingMeta, chartMeta, todoMeta] as const satisfies readonly PluginMeta[];
 
 export type BuiltInPluginMetas = typeof BUILT_IN_PLUGIN_METAS;
 

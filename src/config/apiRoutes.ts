@@ -79,9 +79,8 @@ const HOST_API_ROUTES = {
     },
   },
 
-  chart: {
-    present: "/api/present-chart",
-  },
+  // `chart` group migrated to META — see `src/plugins/chart/meta.ts`.
+  // Auto-merged into `API_ROUTES.chart` via `apiRoutesKey: "chart"`.
 
   chatIndex: {
     rebuild: "/api/chat-index/rebuild",
@@ -260,16 +259,8 @@ const HOST_API_ROUTES = {
     readState: "/api/news/read-state",
   },
 
-  todos: {
-    list: "/api/todos",
-    dispatch: "/api/todos",
-    items: "/api/todos/items",
-    item: "/api/todos/items/:id",
-    itemMove: "/api/todos/items/:id/move",
-    columns: "/api/todos/columns",
-    column: "/api/todos/columns/:id",
-    columnsOrder: "/api/todos/columns/order",
-  },
+  // `todos` group migrated to META — see `src/plugins/todo/meta.ts`.
+  // Auto-merged via `apiRoutesKey: "todos"`.
 
   wiki: {
     base: "/api/wiki",

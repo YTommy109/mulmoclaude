@@ -7,6 +7,26 @@
 // Browser-safe: no Vue / no Node-only imports. Both server and
 // frontend can import this file (and via it, every plugin's META).
 
+/** Type-checking helper for a plugin's `meta.ts` literal. The
+ *  `const` type parameter narrows nested literals (`toolName:
+ *  "manageX"`, `apiRoutes.list: "/api/x"`, …) so host aggregators
+ *  see the same string-literal types they would with
+ *  `as const satisfies PluginMeta` — minus the dual annotation
+ *  noise. Plugin authors write:
+ *
+ *  ```ts
+ *  export const META = definePluginMeta({
+ *    toolName: "manageX",
+ *    apiRoutes: { dispatch: "/api/x" },
+ *  });
+ *  ```
+ *
+ *  …and get exactly the same downstream typing as the older
+ *  `{...} as const satisfies PluginMeta` form. */
+export function definePluginMeta<const T extends PluginMeta>(meta: T): T {
+  return meta;
+}
+
 /** A plugin's central-registry-facing metadata. */
 export interface PluginMeta {
   /** MCP tool name string the LLM and JSONL files use. */

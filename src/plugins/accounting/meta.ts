@@ -8,15 +8,16 @@
 // Browser-safe: no Vue imports, no server-only imports. Both server
 // and frontend code can import this file.
 
-import type { PluginMeta } from "../meta-types";
+import { definePluginMeta } from "../meta-types";
 
-/** Single object the host aggregators iterate over. The shape comes
- *  from `PluginMeta` so a typo or missing field surfaces at compile
- *  time. Helper functions / types specific to this plugin (e.g.
- *  `bookChannel(bookId)`, `BookChannelPayload`) live below as
+/** Single object the host aggregators iterate over. `definePluginMeta`
+ *  type-checks the shape (typo / missing field surfaces at compile
+ *  time) AND preserves nested literal types via TS 5.0+'s `const`
+ *  type parameter. Helper functions / types specific to this plugin
+ *  (e.g. `bookChannel(bookId)`, `BookChannelPayload`) live below as
  *  separate named exports — the META object only carries the static
  *  values that aggregate generically. */
-export const META = {
+export const META = definePluginMeta({
   toolName: "manageAccounting",
   // Outer key under the central `API_ROUTES`. The plugin's routes
   // land at `API_ROUTES[apiRoutesKey]`.
@@ -42,7 +43,7 @@ export const META = {
   staticChannels: {
     accountingBooks: "accounting:books",
   },
-} as const satisfies PluginMeta;
+});
 
 /** Channel factory for per-book event streams. Subscribers:
  *  `useAccountingChannel(bookId)`. Publisher:

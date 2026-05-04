@@ -49,11 +49,16 @@ import {
 // `"data/accounting"`) so consumers like `WORKSPACE_DIRS.accounting`
 // keep their narrow types — without it, TypeScript widens to
 // `string` and downstream `WORKSPACE_PATHS.accounting` lookups break.
-type PluginWorkspaceDirsMap<T extends BuiltInPluginMetas> = T[number] extends infer M
-  ? M extends { readonly workspaceDirs: infer D }
-    ? { readonly [K in keyof D]: D[K] }
-    : Record<string, never>
-  : Record<string, never>;
+//
+// Distributive conditional types collapse the per-plugin union into
+// an INTERSECTION so consumers see the merged shape rather than a
+// union (which TS won't let you index into safely once 2+ plugins
+// register).
+type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
+
+type PluginWorkspaceDirsContribution<M> = M extends { readonly workspaceDirs: infer D } ? { readonly [K in keyof D]: D[K] } : Record<string, never>;
+
+type PluginWorkspaceDirsMap<T extends BuiltInPluginMetas> = UnionToIntersection<PluginWorkspaceDirsContribution<T[number]>>;
 
 // First-write-wins aggregation. See `buildPluginAggregate`'s
 // docblock — the merge itself enforces "first plugin claiming a
