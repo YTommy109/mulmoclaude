@@ -101,9 +101,9 @@ The structured logger (`server/system/logger/`) reads its config fresh at proces
 
 Client-side env vars use the `VITE_` prefix so Vite exposes them to the bundled frontend via `import.meta.env`. They're baked at build/dev time — restart `yarn dev` or rerun `yarn build` after changing.
 
-| Variable      | Default | Effect                                                                                                                                            |
-| ------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VITE_LOCALE` | `en`    | Locale passed to vue-i18n (`src/lib/vue-i18n.ts`). Currently supports `en` / `ja`. Missing keys fall back to English. See [i18n](#i18n-vue-i18n). |
+| Variable      | Default | Effect                                                                                                                                                                                                         |
+| ------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_LOCALE` | `en`    | Locale passed to vue-i18n (`src/lib/vue-i18n.ts`). Supports `en` / `ja` / `zh` / `ko` / `es` / `pt-BR` / `fr` / `de` (see `SUPPORTED_LOCALES`). Missing keys fall back to English. See [i18n](#i18n-vue-i18n). |
 
 ### Container-only env (auto-set)
 
