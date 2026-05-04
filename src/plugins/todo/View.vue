@@ -123,11 +123,17 @@ const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 
 const items = ref<TodoItem[]>(props.selectedResult.data?.items ?? []);
 
-// `runtime.endpoints` is host-populated and typed as
-// `Record<string, string> | undefined` per the protocol; cast to
-// the plugin's typed contract. The `<PluginScopedRoot>` wrapper in
-// `index.ts#wrapWithScope("todos", ...)` guarantees presence.
-const endpoints = useRuntime().endpoints as unknown as TodoEndpoints;
+// `useRuntime<TodoEndpoints>()` (gui-chat-protocol@>=0.3.2) pins the
+// `endpoints` map to the plugin's typed contract — no `as` cast.
+// The `<PluginScopedRoot>` wrapper in `index.ts#wrapWithScope("todos",
+// ...)` guarantees presence; the IIFE below narrows the optional
+// type once at setup time so closures (event handlers, watchers)
+// see `endpoints: TodoEndpoints`, not `TodoEndpoints | undefined`.
+const endpoints: TodoEndpoints = (() => {
+  const value = useRuntime<TodoEndpoints>().endpoints;
+  if (!value) throw new Error("todo plugin View mounted without endpoints — wrap in <PluginScopedRoot>");
+  return value;
+})();
 
 const { refresh } = useFreshPluginData<TodoItem[]>({
   endpoint: () => endpoints.list.url,

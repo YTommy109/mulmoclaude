@@ -45,7 +45,11 @@ const props = defineProps<{ result: ToolResultComplete<TodoData> }>();
 
 const items = ref<TodoItem[]>(props.result.data?.items ?? []);
 
-const endpoints = useRuntime().endpoints as unknown as TodoEndpoints;
+const endpoints: TodoEndpoints = (() => {
+  const value = useRuntime<TodoEndpoints>().endpoints;
+  if (!value) throw new Error("todo plugin Preview mounted without endpoints — wrap in <PluginScopedRoot>");
+  return value;
+})();
 
 const { refresh } = useFreshPluginData<TodoItem[]>({
   endpoint: () => endpoints.list.url,
