@@ -162,8 +162,30 @@ export function getCurrentSessionId(page: Page): string | null {
  */
 const DELETE_BUTTON_TIMEOUT_MS = 10_000;
 
+// Opt-in QA hold-mode. When the runner sets E2E_LIVE_KEEP_SESSIONS=1
+// every spec leaves its session intact in history so a human can
+// inspect the residue (chat transcript, generated artifacts, plugin
+// state) after the test finishes — pair with HEADED=1 for the
+// "watch it drive, then poke at the result" flow. Cleanup falls to
+// the user (sidebar kebab → 削除) once they're done.
+//
+// We gate inside deleteSession itself so every existing spec
+// (L-01..L-14 and onwards) inherits the behaviour without any
+// per-spec retrofit — every cleanup site already routes through
+// here in a `finally { ... }` block.
+const KEEP_SESSIONS_ENV = "E2E_LIVE_KEEP_SESSIONS";
+
+function shouldKeepSessions(): boolean {
+  return process.env[KEEP_SESSIONS_ENV] === "1";
+}
+
 export async function deleteSession(page: Page, sessionId: string): Promise<void> {
   if (page.isClosed()) return;
+  if (shouldKeepSessions()) {
+    // QA-mode breadcrumb so the runner can confirm the gate fired.
+    console.log(`[${KEEP_SESSIONS_ENV}=1] keeping session ${sessionId} for inspection`);
+    return;
+  }
   try {
     // Step away from /chat/<id> first — the server's isRunning
     // guard rejects DELETE on whichever session the page is
@@ -208,6 +230,18 @@ export async function startNewSession(page: Page): Promise<void> {
 export async function sendChatMessage(page: Page, text: string): Promise<void> {
   await page.getByTestId("user-input").fill(text);
   await page.getByTestId("send-btn").click();
+}
+
+/**
+ * Switch the active role via the dropdown. App.vue's `onRoleChange`
+ * spins up a fresh session in the new role on chat pages, so callers
+ * are expected to capture the new session id (after the next user
+ * turn) for cleanup. Idempotent: calling with the already-active role
+ * still works because the dropdown emits `change` on every selection.
+ */
+export async function selectRole(page: Page, roleId: string): Promise<void> {
+  await page.getByTestId("role-selector-btn").click();
+  await page.getByTestId(`role-option-${roleId}`).click();
 }
 
 /**
@@ -296,6 +330,48 @@ export async function readImgRepairAttempted(page: Page, imgSelector: string): P
   if ((await img.count()) === 0) return null;
   const marker = await img.getAttribute("data-image-repair-tried");
   return marker !== null;
+}
+
+const GENERATE_IMAGE_VIEW_SELECTOR = '[data-testid="generate-image-view"]';
+
+/**
+ * Wait for the generateImage canvas view to render an `<img>` — i.e.
+ * the LLM called the tool, the server returned an `imageData` path,
+ * and the SPA mounted ImageView with a non-empty `resolvedSrc`. Use
+ * before reading src / naturalWidth so the spec does not race the
+ * ImageView placeholder ("No image yet").
+ */
+export async function waitForGeneratedImage(page: Page, timeoutMs: number = ONE_MINUTE_MS): Promise<void> {
+  const view = page.locator(GENERATE_IMAGE_VIEW_SELECTOR);
+  await expect(view.locator("img").first()).toBeVisible({ timeout: timeoutMs });
+}
+
+/**
+ * Read the unresolved `src` attribute of the generated image. After
+ * PR #969 / #972 introduced the `/artifacts/images/` static mount,
+ * `resolveImageSrcFresh` produces `/artifacts/images/<path>?v=<bump>`,
+ * so the caller can assert the prefix to catch regressions in the
+ * image storage / resolve chain.
+ */
+export async function readGeneratedImageSrc(page: Page): Promise<string | null> {
+  const img = page.locator(GENERATE_IMAGE_VIEW_SELECTOR).locator("img").first();
+  if ((await img.count()) === 0) return null;
+  return await img.getAttribute("src");
+}
+
+/**
+ * Read `naturalWidth` / `naturalHeight` of the generated image. Both
+ * 0 means the static mount returned a non-decodable response (404,
+ * empty file, wrong MIME) — that is the failure mode we want to
+ * detect end-to-end, paralleling the iframe-side `readImgNaturalSize`.
+ */
+export async function readGeneratedImageNaturalSize(page: Page): Promise<{ width: number; height: number } | null> {
+  const img = page.locator(GENERATE_IMAGE_VIEW_SELECTOR).locator("img").first();
+  if ((await img.count()) === 0) return null;
+  return await img.evaluate((node) => {
+    if (!(node instanceof HTMLImageElement)) return { width: 0, height: 0 };
+    return { width: node.naturalWidth, height: node.naturalHeight };
+  });
 }
 
 const PDF_MAGIC = Buffer.from("%PDF-", "ascii");

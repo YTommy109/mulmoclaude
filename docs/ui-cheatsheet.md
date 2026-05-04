@@ -125,6 +125,7 @@ Stable hooks for tests / chat references when a tool result is selected on the r
 | Plugin | testid | What it points at |
 |---|---|---|
 | `presentHtml` | `[present-html-iframe]` | The `<iframe :src="/artifacts/html/...">` rendering the saved HTML page |
+| `generateImage` | `[generate-image-view]` | The wrapper around `<ImageView>` showing a generated image (`<img src="/artifacts/images/...">`) |
 | `textResponse` | `[text-response-pdf-button]` | The "PDF" button on an assistant text response (`usePdfDownload` → `/api/pdf/markdown`) |
 | `textResponse` | `[text-response-edit]` / `[text-response-edit-summary]` / `[text-response-edit-textarea]` / `[text-response-apply-btn]` | The collapsible source editor on an assistant text response |
 

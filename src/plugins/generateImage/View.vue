@@ -1,5 +1,7 @@
 <template>
-  <ImageView v-if="imageResult" :selected-result="imageResult" />
+  <div data-testid="generate-image-view" class="w-full h-full">
+    <ImageView v-if="imageResult" :selected-result="imageResult" />
+  </div>
 </template>
 
 <script setup lang="ts">
