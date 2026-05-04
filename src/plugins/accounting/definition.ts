@@ -3,6 +3,7 @@ import { META } from "./meta";
 import { ACCOUNTING_ACTIONS } from "./actions";
 import { SUPPORTED_COUNTRY_CODES } from "./countries";
 import { FISCAL_YEAR_ENDS } from "./fiscalYear";
+import { TIME_SERIES_GRANULARITIES, TIME_SERIES_METRICS } from "./timeSeriesEnums";
 
 // MCP tool definition for the accounting plugin.
 //
@@ -20,9 +21,9 @@ const toolDefinition: ToolDefinition = {
   type: "function",
   name: META.toolName,
   prompt:
-    "When the user asks to open / view their books, or to record, look up, or summarise journal entries / balances / opening balances, use manageAccounting. Use action='openBook' (with the target bookId) to switch the canvas to a specific existing book; use the specific action (addEntries / getReport / etc.) for narrowly-scoped operations the user asked about by name. On a fresh workspace call 'createBook' (always pass `country` so tax-registration advice is country-aware) — the accounting view picks up the new book automatically (no follow-up 'openBook' needed for this id). Use 'updateBook' to change a book's name or country (currency cannot be changed). Reach for 'openBook' only when switching to a different existing book.",
+    "When the user asks to open / view their books, or to record, look up, or summarise journal entries / balances / opening balances, use manageAccounting. Use action='openBook' (with the target bookId) to switch the canvas to a specific existing book; use the specific action (addEntries / getReport / etc.) for narrowly-scoped operations the user asked about by name. On a fresh workspace call 'createBook' (always pass `country` so tax-registration advice is country-aware) — the accounting view picks up the new book automatically (no follow-up 'openBook' needed for this id). Use 'updateBook' to change a book's name or country (currency cannot be changed). Reach for 'openBook' only when switching to a different existing book. For cross-period charts and dashboards (\"chart my quarterly revenue over the last two years\", \"show net income month-over-month for this fiscal year\", \"plot the cash balance by month\") use action='getTimeSeries' — it returns one chart-ready point per bucket in a single round-trip; do NOT loop over 'getReport' to assemble a series yourself.",
   description:
-    "Manage a double-entry accounting book stored in the workspace file system. Supports multiple books (entities), opening balances for adoption from existing books, journal entries, voiding (append-only — corrections are reversing pairs), and balance-sheet / profit-loss / ledger reports. Action='openBook' mounts the full accounting UI in the canvas (requires bookId); specific actions return compact results that render inline.",
+    "Manage a double-entry accounting book stored in the workspace file system. Supports multiple books (entities), opening balances for adoption from existing books, journal entries, voiding (append-only — corrections are reversing pairs), and balance-sheet / profit-loss / ledger reports. Action='openBook' mounts the full accounting UI in the canvas (requires bookId); 'getTimeSeries' returns chart-ready (label, value)[] series for revenue / expense / netIncome / accountBalance over time; specific actions return compact results that render inline.",
   parameters: {
     type: "object",
     properties: {
@@ -134,12 +135,34 @@ const toolDefinition: ToolDefinition = {
       entryId: { type: "string", description: "For 'voidEntry': id of the entry to void. The reverse + marker pair is appended (journal stays append-only)." },
       reason: { type: "string", description: "For 'voidEntry': human-readable reason." },
       voidDate: { type: "string", description: "For 'voidEntry': YYYY-MM-DD date for the reverse entry (defaults to today)." },
-      // getJournalEntries / getReport ranges
-      from: { type: "string", description: "For 'getJournalEntries': inclusive YYYY-MM-DD lower bound on entry date." },
-      to: { type: "string", description: "For 'getJournalEntries': inclusive YYYY-MM-DD upper bound on entry date." },
+      // getJournalEntries / getReport / getTimeSeries ranges
+      from: {
+        type: "string",
+        description:
+          "For 'getJournalEntries': inclusive YYYY-MM-DD lower bound on entry date. For 'getTimeSeries': inclusive YYYY-MM-DD lower bound — the first bucket is the one CONTAINING this date (it can extend earlier).",
+      },
+      to: {
+        type: "string",
+        description:
+          "For 'getJournalEntries': inclusive YYYY-MM-DD upper bound on entry date. For 'getTimeSeries': inclusive YYYY-MM-DD upper bound — the last bucket is the one CONTAINING this date (it can extend later).",
+      },
       accountCode: {
         type: "string",
-        description: "For 'getJournalEntries' / 'getReport' (kind=ledger): filter to entries that touch a specific account code.",
+        description:
+          "For 'getJournalEntries' / 'getReport' (kind=ledger): filter to entries that touch a specific account code. For 'getTimeSeries' with metric='accountBalance': REQUIRED — the account whose closing balance to plot per bucket. Forbidden for the other metrics.",
+      },
+      // getTimeSeries
+      metric: {
+        type: "string",
+        enum: [...TIME_SERIES_METRICS],
+        description:
+          "For 'getTimeSeries': what to plot per bucket. 'revenue' = sum of income-account presentation values within the bucket (positive = money earned). 'expense' = sum of expense accounts within the bucket (positive = money spent). 'netIncome' = revenue − expense (positive = profit). 'accountBalance' = closing balance of `accountCode` at the end of each bucket (cumulative, includes opening balances).",
+      },
+      granularity: {
+        type: "string",
+        enum: [...TIME_SERIES_GRANULARITIES],
+        description:
+          "For 'getTimeSeries': bucket size. 'month' uses calendar months (label format YYYY-MM). 'quarter' and 'year' honour the book's fiscalYearEnd — for a Q4 book they coincide with calendar quarters / years; Q1/Q2/Q3 books shift accordingly. Quarter labels are 'FY{endYear}-Q{1..4}', year labels are 'FY{endYear}'; the FY is named by its END calendar year (e.g. an FY running Apr 2025 – Mar 2026 is FY2026).",
       },
       // opening
       asOfDate: {

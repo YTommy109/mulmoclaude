@@ -5183,10 +5183,10 @@ gui-chat-protocol@0.3.0:
   resolved "https://registry.yarnpkg.com/gui-chat-protocol/-/gui-chat-protocol-0.3.0.tgz#06825160b3d1f23250f8d303912cb85f87694f1f"
   integrity sha512-aaDTsiQH/AYMUMlBXiqHmL9q1I8R9FXIB3k9+0DHWKa0BsyxblZpi3Cxrfd5c+LucbiYAjfCjsDoRoIYZQu/kg==
 
-gui-chat-protocol@0.3.1:
-  version "0.3.1"
-  resolved "https://registry.yarnpkg.com/gui-chat-protocol/-/gui-chat-protocol-0.3.1.tgz#fc43de3087ce93201923c5c4a3af5f5ec2c66d7c"
-  integrity sha512-egScB3y6gTtr59v9h5vgv5vhnmZ6F0OkF4pAXuvNPOe77PKsfp8NmKx6z1mdKdPiFB65B5q74Knp+WWjZswWEQ==
+gui-chat-protocol@0.3.2:
+  version "0.3.2"
+  resolved "https://registry.yarnpkg.com/gui-chat-protocol/-/gui-chat-protocol-0.3.2.tgz#2d03580585bfecd031bbbba23414611e40a6faa5"
+  integrity sha512-mZcXj4x4YsVLBqI7GILRwZXP5/6TM7tL2O9gCO2A1Uct/5P2Hk9nHFTsGadeZ9JtY/+eD8eVq1gw4jkR3lsohg==
 
 gui-chat-protocol@^0.1.0:
   version "0.1.0"

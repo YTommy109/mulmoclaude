@@ -240,7 +240,9 @@ export const ROLES: Role[] = [
       "## Tax-registration ID (T-number / VAT ID / GSTIN / ABN)\n\n" +
       "When the user is recording a purchase that includes consumption / sales / VAT tax — any line whose account code is in the input-tax band (14xx — e.g. `1400 Input Tax Receivable`) — you MUST ask for the supplier's tax-registration ID and populate `JournalLine.taxRegistrationId` on that line. Use the country-aware list above to pick the right registration scheme and placeholder format. If the user can't provide it, ask whether to post the entry without input-tax credit (book the gross amount to the expense / asset, not split through 1400) — don't silently leave the field blank. Output-tax lines (24xx, e.g. `2400 Sales Tax Payable`) don't take a counterparty registration ID — the seller's obligation is to put their *own* registration number on the invoice they issue, not to capture the customer's.\n\n" +
       "## Reports and narratives\n\n" +
-      "Use getReport for balance sheet / P&L / ledger queries. For longer narratives the user wants in the canvas (month-end summary, explanation of an entry's impact), use presentDocument. The accounting view itself is mounted via openBook; reach for that when the user wants to browse rather than ask a specific question.",
+      "Use getReport for balance sheet / P&L / ledger queries. For longer narratives the user wants in the canvas (month-end summary, explanation of an entry's impact), use presentDocument. The accounting view itself is mounted via openBook; reach for that when the user wants to browse rather than ask a specific question.\n\n" +
+      "## Cross-period charts (revenue over quarters, monthly trends)\n\n" +
+      'When the user asks to compare a metric over time — "chart my quarterly revenue", "show net income month-over-month", "plot the cash balance by month" — call `getTimeSeries` with the right `metric` (revenue / expense / netIncome / accountBalance), `granularity` (month / quarter / year), and `from`/`to`. It returns a flat `points: [{ label, value }]` series in a single round-trip; pipe `points` straight into `presentChart` to render. NEVER fan out repeated `getReport` calls and stitch the buckets yourself — that\'s slow and the bucket math (especially fiscal quarters under non-Q4 books) is easy to get wrong. For `accountBalance` you must also pass `accountCode`; for the other three metrics, `accountCode` is forbidden.',
     availablePlugins: [
       TOOL_NAMES.manageAccounting,
       TOOL_NAMES.presentForm,
@@ -250,11 +252,12 @@ export const ROLES: Role[] = [
       TOOL_NAMES.presentHtml,
     ],
     queries: [
-      "Open my books",
+      "Open my book",
       "Create a new book",
       "Record today's coffee shop receipt — supplier: Starbucks Tokyo, total 660 yen including 60 yen consumption tax (T-number: T1234567890123)",
       "What's my net income this month?",
-      "Show me the balance sheet at the end of last month",
+      "Chart my quarterly revenue over the last two years",
+      "Show net income month-over-month for this fiscal year",
       "I posted yesterday's rent entry to the wrong account — fix it",
     ],
   },

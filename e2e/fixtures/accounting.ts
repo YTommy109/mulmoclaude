@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import type { Page, Route } from "@playwright/test";
 import { ACCOUNTING_ACTIONS } from "../../src/plugins/accounting/actions";
 import type { SupportedCountryCode } from "../../src/plugins/accounting/countries";
+import { isValidCalendarDate } from "../../server/accounting/journal";
 
 interface FakeBook {
   id: string;
@@ -80,6 +81,17 @@ export interface ProfitLossMock {
   netIncome?: number;
 }
 
+/** Mirror of the `getTimeSeries` response — see
+ *  `server/accounting/timeSeries.ts`. The mock returns an empty
+ *  `points: []` by default; tests that need a populated series
+ *  inject one via `mockAccountingApi`'s `reports.timeSeries` slot. */
+export interface TimeSeriesPointMock {
+  label: string;
+  from: string;
+  to: string;
+  value: number;
+}
+
 interface AccountingState {
   books: FakeBook[];
   accountsByBook: Map<string, FakeAccount[]>;
@@ -87,7 +99,7 @@ interface AccountingState {
   /** Optional canned report data injected via `mockAccountingApi`'s
    *  `reports` option. Lets tests render non-empty Balance Sheet /
    *  P&L tables without standing up the real aggregation pipeline. */
-  reports?: { balanceSheet?: BalanceSheetMock; profitLoss?: ProfitLossMock };
+  reports?: { balanceSheet?: BalanceSheetMock; profitLoss?: ProfitLossMock; timeSeries?: TimeSeriesPointMock[] };
 }
 
 const SEED_ACCOUNTS: FakeAccount[] = [
@@ -354,6 +366,69 @@ function handleGetReport(state: AccountingState, body: DispatchBody): MockRespon
   return ok({ bookId: resolved, balanceSheet: injected ?? { asOf: "2026-04-30", sections: [], imbalance: 0 } });
 }
 
+const TIME_SERIES_METRICS = ["revenue", "expense", "netIncome", "accountBalance"] as const;
+const TIME_SERIES_GRANULARITIES = ["month", "quarter", "year"] as const;
+
+interface ValidatedTimeSeriesArgs {
+  metric: string;
+  granularity: string;
+  from: string;
+  toDate: string;
+  accountCode: string | undefined;
+}
+
+/** Returns the validated args or an early-exit MockResponse. Pulled
+ *  out of `handleGetTimeSeries` so the latter stays under the
+ *  cognitive-complexity threshold. */
+function validateGetTimeSeriesBody(body: DispatchBody): ValidatedTimeSeriesArgs | MockResponse {
+  const metric = typeof body.metric === "string" ? body.metric : "";
+  const granularity = typeof body.granularity === "string" ? body.granularity : "";
+  const from = typeof body.from === "string" ? body.from : "";
+  const toDate = typeof body.to === "string" ? body.to : "";
+  const accountCode = typeof body.accountCode === "string" ? body.accountCode : undefined;
+  if (!(TIME_SERIES_METRICS as readonly string[]).includes(metric)) {
+    return err(400, `getTimeSeries: metric must be one of ${TIME_SERIES_METRICS.join(", ")}`);
+  }
+  if (!(TIME_SERIES_GRANULARITIES as readonly string[]).includes(granularity)) {
+    return err(400, `getTimeSeries: granularity must be one of ${TIME_SERIES_GRANULARITIES.join(", ")}`);
+  }
+  if (!isValidCalendarDate(from)) return err(400, "getTimeSeries: from must be a valid YYYY-MM-DD calendar date");
+  if (!isValidCalendarDate(toDate)) return err(400, "getTimeSeries: to must be a valid YYYY-MM-DD calendar date");
+  if (from > toDate) return err(400, "getTimeSeries: from must be on or before to");
+  if (metric === "accountBalance" && !accountCode) {
+    return err(400, "getTimeSeries: accountCode is required when metric is accountBalance");
+  }
+  if (metric !== "accountBalance" && accountCode) {
+    return err(400, "getTimeSeries: accountCode is only allowed when metric is accountBalance");
+  }
+  return { metric, granularity, from, toDate, accountCode };
+}
+
+/** Mirror of the real `getTimeSeries` validation surface in
+ *  `server/accounting/service.ts` — enough to keep an LLM-driven
+ *  flow that calls `getTimeSeries` (e.g. via the new "Chart my
+ *  quarterly revenue …" sample query) from tripping the
+ *  `unhandled mock action` 400. By default returns an empty
+ *  `points: []`; tests that need a populated series inject one via
+ *  `mockAccountingApi`'s `reports.timeSeries` option. */
+function handleGetTimeSeries(state: AccountingState, body: DispatchBody): MockResponse {
+  const resolved = resolveBookId(state, body);
+  if (typeof resolved !== "string") return resolved;
+  const validated = validateGetTimeSeriesBody(body);
+  if ("status" in validated) return validated;
+  const { metric, granularity, from, toDate, accountCode } = validated;
+  const response: Record<string, unknown> = {
+    bookId: resolved,
+    metric,
+    granularity,
+    from,
+    to: toDate,
+    points: state.reports?.timeSeries ?? [],
+  };
+  if (accountCode) response.accountCode = accountCode;
+  return ok(response);
+}
+
 const ACTION_HANDLERS: Record<string, ActionHandler> = {
   [ACCOUNTING_ACTIONS.openBook]: handleOpenBook,
   [ACCOUNTING_ACTIONS.getBooks]: handleGetBooks,
@@ -367,6 +442,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
   [ACCOUNTING_ACTIONS.getOpeningBalances]: handleGetOpening,
   [ACCOUNTING_ACTIONS.setOpeningBalances]: handleSetOpening,
   [ACCOUNTING_ACTIONS.getReport]: handleGetReport,
+  [ACCOUNTING_ACTIONS.getTimeSeries]: handleGetTimeSeries,
   [ACCOUNTING_ACTIONS.rebuildSnapshots]: (state, body) => {
     const resolved = resolveBookId(state, body);
     if (typeof resolved !== "string") return resolved;
@@ -402,7 +478,10 @@ export interface AccountingSeedBook {
  *  the createBook flow. */
 export async function mockAccountingApi(
   page: Page,
-  opts: { books?: readonly AccountingSeedBook[]; reports?: { balanceSheet?: BalanceSheetMock; profitLoss?: ProfitLossMock } } = {},
+  opts: {
+    books?: readonly AccountingSeedBook[];
+    reports?: { balanceSheet?: BalanceSheetMock; profitLoss?: ProfitLossMock; timeSeries?: TimeSeriesPointMock[] };
+  } = {},
 ): Promise<AccountingState> {
   const state = makeState();
   if (opts.reports) state.reports = opts.reports;

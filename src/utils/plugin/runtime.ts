@@ -121,11 +121,12 @@ export function makeBrowserPluginRuntime(deps: MakeBrowserPluginRuntimeDeps): Br
     log: makeScopedLogger(pkgName),
     openUrl: makeOpenUrl(pkgName),
     dispatch: makeDispatch(pkgName),
-    // `BrowserPluginRuntime.endpoints` types this as `Record<string,
-    // string>` (gui-chat-protocol@>=0.3.1). Built-in plugins (#1141)
-    // now hand `{ method, url }` records — same shape on the wire,
-    // wider type. Cast through `unknown` so consumers can assert the
-    // typed shape they expect via `useRuntime().endpoints as TheirShape`.
-    endpoints: endpoints as unknown as Readonly<Record<string, string>> | undefined,
+    // `BrowserPluginRuntime.endpoints` is now typed as the runtime's
+    // `E` type parameter (gui-chat-protocol@>=0.3.2, default
+    // `Readonly<Record<string, unknown>>`). Plugin authors pin the
+    // shape via `useRuntime<TheirShape>()` and read `runtime.endpoints!`
+    // without a cast. No coercion needed at this construction site —
+    // the host populates the field opaquely; each consumer narrows.
+    endpoints,
   };
 }
