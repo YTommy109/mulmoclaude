@@ -12,6 +12,7 @@ import { META } from "./meta";
 import { ACCOUNTING_ACTIONS } from "./actions";
 import type { SupportedCountryCode } from "./countries";
 import type { FiscalYearEnd } from "./fiscalYear";
+import type { TimeSeriesGranularity, TimeSeriesMetric } from "./timeSeriesEnums";
 
 export type AccountType = "asset" | "liability" | "equity" | "income" | "expense";
 export type JournalEntryKind = "normal" | "opening" | "void" | "void-marker";
@@ -252,6 +253,40 @@ export function getProfitLoss(period: ReportPeriod, bookId: string): Promise<Api
 
 export function getLedger(accountCode: string, period: ReportPeriod | undefined, bookId: string): Promise<ApiResult<{ bookId: string; ledger: Ledger }>> {
   return call(ACCOUNTING_ACTIONS.getReport, { kind: "ledger", accountCode, period, bookId });
+}
+
+export interface TimeSeriesPoint {
+  label: string;
+  from: string;
+  to: string;
+  value: number;
+}
+
+export function getTimeSeries(input: {
+  bookId: string;
+  metric: TimeSeriesMetric;
+  granularity: TimeSeriesGranularity;
+  /** Inclusive YYYY-MM-DD lower bound. The first bucket is the one
+   *  CONTAINING this date — it can extend earlier. */
+  from: string;
+  /** Inclusive YYYY-MM-DD upper bound. The last bucket is the one
+   *  CONTAINING this date — it can extend later. */
+  to: string;
+  /** Required when metric === "accountBalance"; forbidden otherwise.
+   *  The server returns a 400 either way. */
+  accountCode?: string;
+}): Promise<
+  ApiResult<{
+    bookId: string;
+    metric: TimeSeriesMetric;
+    granularity: TimeSeriesGranularity;
+    from: string;
+    to: string;
+    accountCode?: string;
+    points: TimeSeriesPoint[];
+  }>
+> {
+  return call(ACCOUNTING_ACTIONS.getTimeSeries, input);
 }
 
 // ── Admin ────────────────────────────────────────────────────────────

@@ -22,6 +22,7 @@ import {
   getLedgerReport,
   getOpeningBalances,
   getProfitLossReport,
+  getTimeSeriesReport,
   listAccounts,
   listBooks,
   listEntries,
@@ -173,6 +174,15 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
       memo: rest.memo as string | undefined,
     }),
   [ACCOUNTING_ACTIONS.getReport]: handleGetReport,
+  [ACCOUNTING_ACTIONS.getTimeSeries]: (rest) =>
+    getTimeSeriesReport({
+      bookId: rest.bookId as string | undefined,
+      metric: rest.metric,
+      granularity: rest.granularity,
+      from: rest.from,
+      to: rest.to,
+      accountCode: rest.accountCode,
+    }),
   [ACCOUNTING_ACTIONS.rebuildSnapshots]: (rest) => rebuildSnapshots({ bookId: rest.bookId as string | undefined }),
 };
 

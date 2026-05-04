@@ -27,6 +27,7 @@ export const ACCOUNTING_ACTIONS = {
   getOpeningBalances: "getOpeningBalances",
   setOpeningBalances: "setOpeningBalances",
   getReport: "getReport",
+  getTimeSeries: "getTimeSeries",
   rebuildSnapshots: "rebuildSnapshots",
 } as const;
 
