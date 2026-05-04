@@ -40,11 +40,20 @@
 
     <ul v-else class="flex-1 overflow-y-auto p-4 space-y-2">
       <li v-for="item in filteredItems" :key="item.id" class="rounded-lg border" :class="selectedId === item.id ? 'border-blue-400' : 'border-gray-200'">
-        <!-- Item row -->
+        <!-- Item row — `role="button"` + tabindex/keydown rather than
+             a real `<button>` because the row hosts nested
+             interactives (checkbox, delete) that would be invalid
+             children of a button element. -->
         <div
-          class="flex items-center gap-3 p-3 cursor-pointer group hover:bg-gray-50 rounded-lg"
+          class="flex items-center gap-3 p-3 cursor-pointer group hover:bg-gray-50 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
           :class="selectedId === item.id ? 'rounded-b-none' : ''"
+          role="button"
+          tabindex="0"
+          :aria-expanded="selectedId === item.id"
+          :aria-label="selectedId === item.id ? t('collapse') : t('expand')"
           @click="selectItem(item)"
+          @keydown.enter.prevent="selectItem(item)"
+          @keydown.space.prevent="selectItem(item)"
         >
           <input type="checkbox" :checked="item.completed" class="cursor-pointer shrink-0" @click.stop @change="toggle(item)" />
           <div class="flex-1 min-w-0">
