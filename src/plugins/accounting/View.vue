@@ -69,6 +69,7 @@
             :opening-date="activeOpeningDate"
             :preselect-entry-id="journalPreselectEntryId"
             @edit-opening="currentTab = 'opening'"
+            @preselect-consumed="journalPreselectEntryId = undefined"
           />
           <OpeningBalancesForm
             v-else-if="currentTab === 'opening'"
@@ -573,13 +574,19 @@ function pickJournalPreselectId(payload: AccountingAppPayload): string | undefin
 // accounting.ts dispatch + PREVIEW_ACTIONS). `immediate: true` so a
 // cold open with the result already selected (e.g., reload after
 // the LLM dispatched) routes to the right surface too.
+//
+// Preselect is *always* assigned (not `if (preselect)`) so a
+// subsequent non-addEntries/voidEntry tool result clears any stale
+// id left over from a prior addEntries the user has already seen —
+// otherwise the next JournalList remount would replay it. The child
+// also emits `preselectConsumed` after expanding for the same
+// reason.
 watch(
   () => initialPayload.value,
   (payload) => {
     const targetTab = pickTabForAction(payload);
     if (targetTab) currentTab.value = targetTab;
-    const preselect = pickJournalPreselectId(payload);
-    if (preselect) journalPreselectEntryId.value = preselect;
+    journalPreselectEntryId.value = pickJournalPreselectId(payload);
   },
   { immediate: true },
 );

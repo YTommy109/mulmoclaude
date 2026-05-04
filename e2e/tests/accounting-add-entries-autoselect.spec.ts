@@ -170,4 +170,48 @@ test.describe("accounting — addEntries auto-selection", () => {
     // regressing alongside the auto-expand behavior.
     await expect(page.getByTestId(`accounting-journal-row-${ENTRY_ID}`)).toHaveClass(/row-selected/);
   });
+
+  test("preselect is one-shot — leaving and returning to Journal does not re-expand the row", async ({ page }) => {
+    // Regression for the Codex review on PR #1158: JournalList is
+    // mounted via v-if, so navigating away and back unmounts and
+    // remounts it. Without the `preselectConsumed` emit clearing the
+    // parent's `journalPreselectEntryId`, the immediate prop watcher
+    // on the new mount replays the stale preselect — re-expanding a
+    // row the user has already moved past, and scrolling away from
+    // wherever they were when they came back.
+    const ENTRY_ID = "entry-auto-once";
+    await setupSession(page, {
+      entries: [
+        {
+          id: ENTRY_ID,
+          date: "2026-04-15",
+          lines: [
+            { accountCode: "1000", debit: 100 },
+            { accountCode: "4000", credit: 100 },
+          ],
+          memo: "Once-only",
+        },
+      ],
+    });
+
+    await page.goto(`/chat/${SESSION_ID}`);
+    // First mount: auto-expand fires, detail panel visible.
+    await expect(page.getByTestId(`accounting-journal-detail-${ENTRY_ID}`)).toBeVisible();
+
+    // Switch to Settings (unmounts JournalList) then back to Journal
+    // (remounts it). The remount re-evaluates the immediate prop
+    // watcher; if the parent ref is still set, the row would
+    // auto-expand a SECOND time.
+    await page.getByTestId("accounting-tab-settings").click();
+    await expect(page.getByTestId("accounting-settings")).toBeVisible();
+    await page.getByTestId("accounting-tab-journal").click();
+    await expect(page.getByTestId(`accounting-journal-row-${ENTRY_ID}`)).toBeVisible();
+
+    // The row should now be COLLAPSED — the preselect was consumed
+    // on the first mount and the parent cleared it. Use a short
+    // explicit timeout so we don't wait the default 5s for an
+    // assertion that should resolve immediately.
+    await expect(page.getByTestId(`accounting-journal-detail-${ENTRY_ID}`)).toHaveCount(0, { timeout: 1000 });
+    await expect(page.getByTestId(`accounting-journal-row-${ENTRY_ID}`)).not.toHaveClass(/row-selected/);
+  });
 });

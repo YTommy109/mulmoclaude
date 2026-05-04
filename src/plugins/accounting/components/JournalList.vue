@@ -247,7 +247,7 @@ const props = defineProps<{
    *  appears in the fetched list — refetch can race the prop. */
   preselectEntryId?: string;
 }>();
-const emit = defineEmits<{ editOpening: [] }>();
+const emit = defineEmits<{ editOpening: []; preselectConsumed: [] }>();
 
 // Inline-form state. Two distinct surfaces, one component:
 //   • showNewForm = true → blank draft, rendered above the table
@@ -515,11 +515,19 @@ watch(
 watch([pendingPreselectId, entries], async ([targetId, list]) => {
   if (!targetId) return;
   if (!list.some((entry) => entry.id === targetId)) return;
-  // Don't overwrite an in-progress edit on another row — the user's
-  // draft matters more than the highlight. Drop the pending so we
-  // don't keep retrying every refetch.
+  // Always emit `preselectConsumed` (whether we expand or bail) so
+  // the parent can drop its `journalPreselectEntryId` ref. Without
+  // this one-shot signal, leaving and returning to the journal tab
+  // (v-if remount) replays the immediate prop watcher against the
+  // stale value, re-expanding an old row the user has already moved
+  // past. Issue raised by the Codex automated review on PR #1158.
   if (entryBeingEdited.value) {
+    // Don't overwrite an in-progress edit on another row — the
+    // user's draft matters more than the highlight. Drop pending so
+    // we don't keep retrying every refetch, and signal consumed so
+    // the parent doesn't keep re-handing us the same id.
     pendingPreselectId.value = null;
+    emit("preselectConsumed");
     return;
   }
   expandedEntryId.value = targetId;
@@ -529,6 +537,7 @@ watch([pendingPreselectId, entries], async ([targetId, list]) => {
     document.querySelector(`[data-testid="accounting-journal-row-voided-${targetId}"]`);
   row?.scrollIntoView({ behavior: "smooth", block: "center" });
   pendingPreselectId.value = null;
+  emit("preselectConsumed");
 });
 </script>
 
