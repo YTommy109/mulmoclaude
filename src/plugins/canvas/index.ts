@@ -1,18 +1,19 @@
-import type { ToolPlugin } from "../../tools/types";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
-import toolDefinition, { TOOL_NAME } from "./definition";
-import type { ImageToolData } from "./definition";
+import toolDefinition, { TOOL_NAME, type CanvasEndpoints, type ImageToolData } from "./definition";
+import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
 import { makeUuid } from "../../utils/id";
 
 const canvasPlugin: ToolPlugin<ImageToolData> = {
   toolDefinition,
 
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<ImageToolData>>(API_ROUTES.plugins.canvas, args);
+    const endpoints = pluginEndpoints<CanvasEndpoints>("canvas");
+    const result = await apiPost<ToolResult<ImageToolData>>(endpoints.dispatch, args);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,
@@ -29,9 +30,14 @@ const canvasPlugin: ToolPlugin<ImageToolData> = {
 
   isEnabled: () => true,
   generatingMessage: "Opening drawing canvas...",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("canvas", View),
+  previewComponent: wrapWithScope("canvas", Preview),
 };
 
 export default canvasPlugin;
 export { TOOL_NAME };
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: TOOL_NAME,
+  entry: canvasPlugin,
+};

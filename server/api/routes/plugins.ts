@@ -12,6 +12,7 @@ import { fillMarkdownImagePlaceholders } from "../../utils/files/markdown-image-
 import { saveMarkdown, overwriteMarkdown, isMarkdownPath } from "../../utils/files/markdown-store.js";
 import { saveSpreadsheet, overwriteSpreadsheet, isSpreadsheetPath } from "../../utils/files/spreadsheet-store.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { collectPluginMetaDiagnostics } from "../../plugins/diagnostics.js";
 import { log } from "../../system/logger/index.js";
 import { previewSnippet } from "../../utils/logPreview.js";
 import { publishFileChange } from "../../events/file-change.js";
@@ -77,7 +78,7 @@ interface PresentDocumentError {
 }
 
 router.post(
-  API_ROUTES.plugins.presentDocument,
+  API_ROUTES.presentDocument.presentDocument,
   async (req: Request<object, unknown, PresentDocumentBody>, res: Response<PresentDocumentSuccess | PresentDocumentError>) => {
     const { title, markdown, filenamePrefix } = req.body;
     log.info("plugins", "presentDocument: start", {
@@ -121,7 +122,7 @@ interface UpdateMarkdownError {
 }
 
 router.put(
-  API_ROUTES.plugins.updateMarkdown,
+  API_ROUTES.presentDocument.updateMarkdown,
   async (req: Request<object, unknown, UpdateMarkdownBody>, res: Response<UpdateMarkdownResponse | UpdateMarkdownError>) => {
     const { relativePath, markdown } = req.body;
     log.info("plugins", "updateMarkdown: start", {
@@ -161,7 +162,7 @@ router.put(
 
 // presentSpreadsheet — validate, then save sheets to disk
 router.post(
-  API_ROUTES.plugins.presentSpreadsheet,
+  API_ROUTES.presentSpreadsheet.presentSpreadsheet,
   wrapPluginExecute<SpreadsheetArgs, unknown>(async (req) => {
     const result = await executeSpreadsheet(req.body);
     if (!Array.isArray(result.data.sheets)) {
@@ -189,7 +190,7 @@ interface UpdateSpreadsheetError {
 }
 
 router.put(
-  API_ROUTES.plugins.updateSpreadsheet,
+  API_ROUTES.presentSpreadsheet.updateSpreadsheet,
   async (req: Request<object, unknown, UpdateSpreadsheetBody>, res: Response<UpdateSpreadsheetResponse | UpdateSpreadsheetError>) => {
     const { relativePath, sheets } = req.body;
     log.info("plugins", "updateSpreadsheet: start", {
@@ -233,7 +234,7 @@ router.post(
 
 // presentForm — form
 router.post(
-  API_ROUTES.plugins.form,
+  API_ROUTES.presentForm.dispatch,
   wrapPluginExecute((req) => executeForm(null as never, req.body)),
 );
 
@@ -245,7 +246,7 @@ const BLANK_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQV
 
 // openCanvas — drawing canvas
 router.post(
-  API_ROUTES.plugins.canvas,
+  API_ROUTES.canvas.dispatch,
   wrapPluginExecute(async () => {
     const imagePath = await saveImage(BLANK_PNG_BASE64);
     const base = await executeOpenCanvas(imagePath);
@@ -258,5 +259,13 @@ router.post(
   API_ROUTES.plugins.present3d,
   wrapPluginExecute((req) => executePresent3D(null as never, req.body)),
 );
+
+// META aggregator diagnostics — boot-time host/plugin or plugin/plugin
+// key collisions. The frontend fetches this once at mount so a tab
+// that opens after the boot-time `publishNotification` fired still
+// gets the warning. Empty array when clean.
+router.get(API_ROUTES.plugins.diagnostics, (_req, res) => {
+  res.json({ diagnostics: collectPluginMetaDiagnostics() });
+});
 
 export default router;

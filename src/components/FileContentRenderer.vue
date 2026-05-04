@@ -17,12 +17,22 @@
              through CalendarView (force-tab="calendar") to keep the
              dual-tab bar from showing an empty Tasks panel (#828
              follow-up). -->
+        <!-- Plugin-owned views require a `<PluginScopedRoot>` ancestor
+             so descendants' `useRuntime()` calls resolve. The plugin
+             registry's `wrapWithScope` covers the chat-mounted variants;
+             this renderer is a separate mount path (file preview), so
+             the wrappers go here. PluginScopedRoot renders a fragment
+             via <slot/>, so the styling div must be inside. -->
         <div v-if="schedulerResult" class="h-full">
-          <CalendarView :selected-result="schedulerResult" />
+          <PluginScopedRoot pkg-name="scheduler" :endpoints="API_ROUTES.scheduler">
+            <CalendarView :selected-result="schedulerResult" />
+          </PluginScopedRoot>
         </div>
         <!-- Todos todos.json: full kanban / table / list explorer. -->
         <div v-else-if="todoExplorerResult" class="h-full">
-          <TodoExplorer :selected-result="todoExplorerResult" />
+          <PluginScopedRoot pkg-name="todos" :endpoints="API_ROUTES.todos">
+            <TodoExplorer :selected-result="todoExplorerResult" />
+          </PluginScopedRoot>
         </div>
         <!-- Markdown rendered: frontmatter panel + body -->
         <div v-else-if="isMarkdown && !mdRawMode" class="h-full flex flex-col overflow-auto">
@@ -143,6 +153,7 @@ import { useI18n } from "vue-i18n";
 import TextResponseView from "../plugins/textResponse/View.vue";
 import CalendarView from "../plugins/scheduler/CalendarView.vue";
 import TodoExplorer from "./TodoExplorer.vue";
+import PluginScopedRoot from "./PluginScopedRoot.vue";
 import SystemFileBanner from "./SystemFileBanner.vue";
 import type { FileContent } from "../composables/useFileSelection";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";

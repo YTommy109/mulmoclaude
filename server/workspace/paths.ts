@@ -30,6 +30,42 @@ import path from "path";
 // same `import { WORKSPACE_FILES } from "./paths.js"` they use.
 import { WORKSPACE_FILES } from "../../src/config/workspacePaths.js";
 
+// Plugin-owned workspace dirs are auto-aggregated from every
+// plugin's META in `src/plugins/metas.ts`. Adding a new plugin =
+// register its META there; this file keeps the central
+// `WORKSPACE_DIRS.<key>` shape via spread so existing consumers
+// don't migrate. Plugin-specific literals never appear here.
+import {
+  BUILT_IN_PLUGIN_METAS,
+  defineHostAggregate,
+  type BuiltInPluginMetas,
+  type HostPluginCollision,
+  type IntraPluginCollision,
+} from "../../src/plugins/metas.js";
+
+// Merge every plugin's `workspaceDirs` into one record. The mapped
+// type below preserves each plugin's literal path strings (e.g.
+// `"data/accounting"`) so consumers like `WORKSPACE_DIRS.accounting`
+// keep their narrow types — without it, TypeScript widens to
+// `string` and downstream `WORKSPACE_PATHS.accounting` lookups break.
+//
+// Distributive conditional types collapse the per-plugin union into
+// an INTERSECTION so consumers see the merged shape rather than a
+// union (which TS won't let you index into safely once 2+ plugins
+// register).
+type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
+
+// Plugins WITHOUT `workspaceDirs` must contribute an empty object
+// (`Record<never, never>`), NOT `Record<string, never>`. The latter
+// carries an index signature that, once intersected with a sibling
+// plugin's narrow contribution, drags `keyof` of the merged type
+// back to `string`. See server/workspace/workspace.ts: indexing
+// `WORKSPACE_PATHS[key]` over `EAGER_WORKSPACE_DIRS` requires
+// `WorkspaceDirKey` to stay a union of literals.
+type PluginWorkspaceDirsContribution<M> = M extends { readonly workspaceDirs: infer D } ? { readonly [K in keyof D]: D[K] } : Record<never, never>;
+
+type PluginWorkspaceDirsMap<T extends BuiltInPluginMetas> = UnionToIntersection<PluginWorkspaceDirsContribution<T[number]>>;
+
 // Workspace root. Hard-coded to `~/mulmoclaude` — there is no
 // WORKSPACE_PATH env override today; changing the location
 // requires a code edit or a symlink. Re-exported by
@@ -40,7 +76,7 @@ export const workspacePath = path.join(homedir(), "mulmoclaude");
 // Workspace-relative paths. Keys are the stable code-side identifiers
 // (e.g. `markdowns` — unchanged for call-site compatibility); values
 // are the on-disk paths, grouped per issue #284.
-export const WORKSPACE_DIRS = {
+const HOST_WORKSPACE_DIRS = {
   // conversations/
   chat: "conversations/chat",
   // Typed memory entries (#1029). One markdown file per fact, indexed
@@ -72,13 +108,6 @@ export const WORKSPACE_DIRS = {
   // the original under the same YYYY/MM partition.
   attachments: "data/attachments",
   transports: "data/transports",
-  // Accounting plugin (opt-in, custom-Role only). Books live under
-  // `accounting/books/<bookId>/{accounts.json, journal/YYYY-MM.jsonl,
-  //  snapshots/YYYY-MM.json}`. The directory is created lazily on
-  // first createBook so default workspaces don't get a stub
-  // `accounting/` they never use.
-  accounting: "data/accounting",
-  accountingBooks: "data/accounting/books",
   // artifacts/
   charts: "artifacts/charts",
   // `markdowns` key preserved for call-site compatibility; on-disk
@@ -126,65 +155,46 @@ export const WORKSPACE_DIRS = {
   pluginsData: "data/plugins",
   pluginsConfig: "config/plugins",
 } as const;
+
+// First-write-wins host+plugin aggregate (see `defineHostAggregate`):
+// host keys win on collision, second-claiming plugin wins are
+// dropped, both diagnostic lists are exposed for boot warnings.
+const WORKSPACE_DIRS_AGGREGATE = defineHostAggregate(BUILT_IN_PLUGIN_METAS, {
+  label: "WORKSPACE_DIRS",
+  hostRecord: HOST_WORKSPACE_DIRS,
+  extract: (meta) => meta.workspaceDirs,
+  dimension: "workspaceDirs",
+});
+export const WORKSPACE_DIRS_HOST_COLLISIONS: readonly HostPluginCollision[] = WORKSPACE_DIRS_AGGREGATE.hostCollisions;
+export const WORKSPACE_DIRS_INTRA_COLLISIONS: readonly IntraPluginCollision[] = WORKSPACE_DIRS_AGGREGATE.intraCollisions;
+
+export const WORKSPACE_DIRS = WORKSPACE_DIRS_AGGREGATE.merged as unknown as typeof HOST_WORKSPACE_DIRS & PluginWorkspaceDirsMap<BuiltInPluginMetas>;
 export { WORKSPACE_FILES };
 
 // Absolute paths, built once at module load from `workspacePath`.
 // The `workspacePath` const is itself fixed (reads `homedir()`
 // at process start — no env override, see `server/workspace.ts`),
 // so freezing these paths is safe.
+//
+// Auto-derived from `WORKSPACE_DIRS` and `WORKSPACE_FILES`. Adding
+// a new dir or file to the upstream maps now flows into
+// `WORKSPACE_PATHS` automatically — no second hand-curated edit
+// required (CodeRabbit #1125 review: previously plugins adding
+// `workspaceDirs` keys still needed a manual `WORKSPACE_PATHS`
+// patch-up to be reachable in absolute form).
+const WORKSPACE_DIR_PATHS = Object.fromEntries(Object.entries(WORKSPACE_DIRS).map(([key, relativePath]) => [key, path.join(workspacePath, relativePath)])) as {
+  readonly [K in keyof typeof WORKSPACE_DIRS]: string;
+};
+
+const WORKSPACE_FILE_PATHS = Object.fromEntries(
+  Object.entries(WORKSPACE_FILES).map(([key, relativePath]) => [key, path.join(workspacePath, relativePath)]),
+) as {
+  readonly [K in keyof typeof WORKSPACE_FILES]: string;
+};
+
 export const WORKSPACE_PATHS = {
-  chat: path.join(workspacePath, WORKSPACE_DIRS.chat),
-  todos: path.join(workspacePath, WORKSPACE_DIRS.todos),
-  calendar: path.join(workspacePath, WORKSPACE_DIRS.calendar),
-  contacts: path.join(workspacePath, WORKSPACE_DIRS.contacts),
-  scheduler: path.join(workspacePath, WORKSPACE_DIRS.scheduler),
-  roles: path.join(workspacePath, WORKSPACE_DIRS.roles),
-  stories: path.join(workspacePath, WORKSPACE_DIRS.stories),
-  images: path.join(workspacePath, WORKSPACE_DIRS.images),
-  markdowns: path.join(workspacePath, WORKSPACE_DIRS.markdowns),
-  spreadsheets: path.join(workspacePath, WORKSPACE_DIRS.spreadsheets),
-  charts: path.join(workspacePath, WORKSPACE_DIRS.charts),
-  configs: path.join(workspacePath, WORKSPACE_DIRS.configs),
-  helps: path.join(workspacePath, WORKSPACE_DIRS.helps),
-  wiki: path.join(workspacePath, WORKSPACE_DIRS.wiki),
-  news: path.join(workspacePath, WORKSPACE_DIRS.news),
-  sources: path.join(workspacePath, WORKSPACE_DIRS.sources),
-  attachments: path.join(workspacePath, WORKSPACE_DIRS.attachments),
-  memoryDir: path.join(workspacePath, WORKSPACE_DIRS.memoryDir),
-  memoryStaging: path.join(workspacePath, WORKSPACE_DIRS.memoryStaging),
-  summaries: path.join(workspacePath, WORKSPACE_DIRS.summaries),
-  searches: path.join(workspacePath, WORKSPACE_DIRS.searches),
-  htmls: path.join(workspacePath, WORKSPACE_DIRS.htmls),
-  html: path.join(workspacePath, WORKSPACE_DIRS.html),
-  transports: path.join(workspacePath, WORKSPACE_DIRS.transports),
-  github: path.join(workspacePath, WORKSPACE_DIRS.github),
-  plugins: path.join(workspacePath, WORKSPACE_DIRS.plugins),
-  pluginCache: path.join(workspacePath, WORKSPACE_DIRS.pluginCache),
-  pluginsData: path.join(workspacePath, WORKSPACE_DIRS.pluginsData),
-  pluginsConfig: path.join(workspacePath, WORKSPACE_DIRS.pluginsConfig),
-  accounting: path.join(workspacePath, WORKSPACE_DIRS.accounting),
-  accountingBooks: path.join(workspacePath, WORKSPACE_DIRS.accountingBooks),
-  // nested subdirs
-  wikiPages: path.join(workspacePath, WORKSPACE_DIRS.wikiPages),
-  wikiSources: path.join(workspacePath, WORKSPACE_DIRS.wikiSources),
-  wikiHistory: path.join(workspacePath, WORKSPACE_DIRS.wikiHistory),
-  // files
-  memory: path.join(workspacePath, WORKSPACE_FILES.memory),
-  memoryIndex: path.join(workspacePath, WORKSPACE_FILES.memoryIndex),
-  sessionToken: path.join(workspacePath, WORKSPACE_FILES.sessionToken),
-  serverPort: path.join(workspacePath, WORKSPACE_FILES.serverPort),
-  wikiIndex: path.join(workspacePath, WORKSPACE_FILES.wikiIndex),
-  wikiLog: path.join(workspacePath, WORKSPACE_FILES.wikiLog),
-  wikiSchema: path.join(workspacePath, WORKSPACE_FILES.wikiSchema),
-  wikiSummary: path.join(workspacePath, WORKSPACE_FILES.wikiSummary),
-  summariesIndex: path.join(workspacePath, WORKSPACE_FILES.summariesIndex),
-  todosItems: path.join(workspacePath, WORKSPACE_FILES.todosItems),
-  todosColumns: path.join(workspacePath, WORKSPACE_FILES.todosColumns),
-  schedulerItems: path.join(workspacePath, WORKSPACE_FILES.schedulerItems),
-  schedulerUserTasks: path.join(workspacePath, WORKSPACE_FILES.schedulerUserTasks),
-  schedulerOverrides: path.join(workspacePath, WORKSPACE_FILES.schedulerOverrides),
-  newsReadState: path.join(workspacePath, WORKSPACE_FILES.newsReadState),
-  pluginsLedger: path.join(workspacePath, WORKSPACE_FILES.pluginsLedger),
+  ...WORKSPACE_DIR_PATHS,
+  ...WORKSPACE_FILE_PATHS,
 } as const;
 
 export type WorkspaceDirKey = keyof typeof WORKSPACE_DIRS;

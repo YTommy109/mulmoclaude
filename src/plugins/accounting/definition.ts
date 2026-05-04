@@ -1,5 +1,5 @@
 import type { ToolDefinition } from "gui-chat-protocol";
-import { TOOL_NAMES } from "../../config/toolNames";
+import { META } from "./meta";
 import { ACCOUNTING_ACTIONS } from "./actions";
 import { SUPPORTED_COUNTRY_CODES } from "./countries";
 
@@ -17,7 +17,7 @@ import { SUPPORTED_COUNTRY_CODES } from "./countries";
 
 const toolDefinition: ToolDefinition = {
   type: "function",
-  name: TOOL_NAMES.manageAccounting,
+  name: META.toolName,
   prompt:
     "When the user asks to open / view their books, or to record, look up, or summarise journal entries / balances / opening balances, use manageAccounting. Use action='openBook' (with the target bookId) to switch the canvas to a specific existing book; use the specific action (addEntries / getReport / etc.) for narrowly-scoped operations the user asked about by name. On a fresh workspace call 'createBook' (always pass `country` so tax-registration advice is country-aware) — the accounting view picks up the new book automatically (no follow-up 'openBook' needed for this id). Use 'updateBook' to change a book's name or country (currency cannot be changed). Reach for 'openBook' only when switching to a different existing book.",
   description:

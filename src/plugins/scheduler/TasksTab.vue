@@ -130,7 +130,8 @@ import { ref, onMounted, nextTick, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
+import type { SchedulerEndpoints } from "./automationsDefinition";
 import { formatShortTime } from "../../utils/format/date";
 import { formatSchedule as formatTaskSchedule, type TaskSchedule as FormatterTaskSchedule } from "./formatSchedule";
 import { scrollIntoViewByTestId } from "../../utils/dom/scrollIntoViewByTestId";
@@ -177,10 +178,12 @@ const loading = ref(true);
 const error = ref("");
 const mutationError = ref("");
 
+const endpoints = pluginEndpoints<SchedulerEndpoints>("scheduler");
+
 async function fetchTasks(): Promise<void> {
   loading.value = true;
   error.value = "";
-  const result = await apiGet<{ tasks: SchedulerTask[] }>(API_ROUTES.scheduler.tasks);
+  const result = await apiGet<{ tasks: SchedulerTask[] }>(endpoints.tasks);
   loading.value = false;
   if (!result.ok) {
     error.value = result.error;
@@ -213,7 +216,7 @@ function formatSchedule(schedule: TaskSchedule): string {
 
 async function runTask(taskId: string): Promise<void> {
   mutationError.value = "";
-  const url = API_ROUTES.scheduler.taskRun.replace(":id", taskId);
+  const url = endpoints.taskRun.replace(":id", taskId);
   const result = await apiPost(url, {});
   if (!result.ok) {
     mutationError.value = t("pluginSchedulerTasks.runFailed", { error: result.error });
@@ -224,7 +227,7 @@ async function runTask(taskId: string): Promise<void> {
 
 async function toggleEnabled(task: SchedulerTask): Promise<void> {
   mutationError.value = "";
-  const url = API_ROUTES.scheduler.task.replace(":id", task.id);
+  const url = endpoints.task.replace(":id", task.id);
   const result = await apiPut(url, { enabled: task.enabled === false });
   if (!result.ok) {
     mutationError.value = t("pluginSchedulerTasks.toggleFailed", { error: result.error });
@@ -235,7 +238,7 @@ async function toggleEnabled(task: SchedulerTask): Promise<void> {
 
 async function deleteTask(taskId: string): Promise<void> {
   mutationError.value = "";
-  const url = API_ROUTES.scheduler.task.replace(":id", taskId);
+  const url = endpoints.task.replace(":id", taskId);
   const result = await apiDelete(url);
   if (!result.ok) {
     mutationError.value = t("pluginSchedulerTasks.deleteFailed", { error: result.error });

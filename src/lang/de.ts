@@ -64,6 +64,13 @@ const deMessages = {
     noNotifications: "Keine Benachrichtigungen",
     dismiss: "Verwerfen",
   },
+  pluginDiagnostics: {
+    title: "Plugin-Konfigurationsproblem",
+    hostBody:
+      "Das Plugin „{plugin}“ hat versucht, den {label}-Schlüssel „{key}“ zu registrieren, aber er ist vom Host reserviert. Der Plugin-Eintrag wurde verworfen.",
+    intraBody:
+      "Die Plugins „{first}“ und „{second}“ registrieren beide {dimension} „{key}“. „{first}“ hat ihn zuerst beansprucht, daher wird die Registrierung von „{second}“ ignoriert.",
+  },
   sidebarHeader: {
     home: "Zum neuesten Chat",
     toolCallHistory: "Tool-Aufrufverlauf",

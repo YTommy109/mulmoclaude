@@ -1,11 +1,25 @@
 import type { ToolDefinition } from "gui-chat-protocol";
-import { SCHEDULER_ACTIONS } from "../../config/schedulerActions";
+import { SCHEDULER_ACTIONS } from "./actions";
+
+export const TOOL_NAME = "manageAutomations";
+
+/** Endpoint contract for the scheduler plugin (shared by calendar +
+ *  automations definitions — both dispatch to the same base via
+ *  the action enum). */
+export interface SchedulerEndpoints {
+  [key: string]: string;
+  base: string;
+  tasks: string;
+  task: string;
+  taskRun: string;
+  logs: string;
+}
 
 const AUTOMATION_ACTIONS = [SCHEDULER_ACTIONS.createTask, SCHEDULER_ACTIONS.listTasks, SCHEDULER_ACTIONS.deleteTask, SCHEDULER_ACTIONS.runTask] as const;
 
 const toolDefinition: ToolDefinition = {
   type: "function",
-  name: "manageAutomations",
+  name: TOOL_NAME,
   prompt:
     "When users want a recurring automated task — something the agent runs on a schedule, not a single calendar event — use manageAutomations. " +
     "Examples: '毎朝8時にニュースまとめて', 'remind me every day', 'run this prompt hourly'. " +

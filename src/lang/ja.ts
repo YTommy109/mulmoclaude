@@ -71,6 +71,12 @@ const jaMessages = {
     noNotifications: "通知はありません",
     dismiss: "閉じる",
   },
+  pluginDiagnostics: {
+    title: "プラグイン設定の問題",
+    hostBody: "プラグイン「{plugin}」が {label} キー「{key}」を登録しようとしましたが、ホスト予約のため拒否されました。プラグインのエントリは破棄されました。",
+    intraBody:
+      "プラグイン「{first}」と「{second}」が同じ {dimension}「{key}」を登録しています。「{first}」が先に確保したため、「{second}」の登録は無視されます。",
+  },
   sidebarHeader: {
     home: "最新のチャットに移動",
     toolCallHistory: "ツール呼び出し履歴",

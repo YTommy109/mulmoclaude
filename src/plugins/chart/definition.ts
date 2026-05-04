@@ -1,10 +1,20 @@
 import type { ToolDefinition } from "gui-chat-protocol";
+import { META } from "./meta";
 
-export const TOOL_NAME = "presentChart";
+// Re-export so existing `import { TOOL_NAME } from "./definition"`
+// callers (server/agent/plugin-names.ts ledger, scope wrapper, …)
+// keep compiling — META.toolName is the source of truth.
+export const TOOL_NAME = META.toolName;
+
+// Plugin's expected endpoint contract — kept as a typed re-export
+// of `META.apiRoutes` so plugin code can `useRuntime().endpoints as
+// ChartEndpoints` without naming the META directly. Auto-derived
+// type means adding a URL to META is the only edit needed.
+export type ChartEndpoints = typeof META.apiRoutes;
 
 const toolDefinition: ToolDefinition = {
   type: "function",
-  name: TOOL_NAME,
+  name: META.toolName,
   description:
     "Save and present one or more Apache ECharts visualizations as a single document. Use this for line, bar, area, scatter, pie, candlestick, heatmap, sankey, or graph/network charts — anything ECharts supports. Pass ECharts option object(s) directly; the plugin calls setOption on each one. Use `charts: []` array form even for a single chart so multi-chart dashboards share the same slug.",
   parameters: {

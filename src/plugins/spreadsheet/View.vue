@@ -111,7 +111,7 @@ import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import * as XLSX from "xlsx";
 import type { ToolResult } from "gui-chat-protocol";
-import type { SpreadsheetToolData, SpreadsheetSheet } from "./definition";
+import type { SpreadsheetToolData, SpreadsheetSheet, SpreadsheetEndpoints } from "./definition";
 import {
   SpreadsheetEngine,
   indexToColumn,
@@ -129,9 +129,12 @@ import { errorMessage as formatErrorMessage } from "../../utils/errors";
 // Import all spreadsheet functions to populate the function registry
 import "./engine/functions";
 import { apiGet, apiPut } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
 import type { FilesContentResponseLike } from "./engine/responseDecoder";
 import { isObj, isRecord } from "../../utils/types";
+
+const endpoints = pluginEndpoints<SpreadsheetEndpoints>("presentSpreadsheet");
+const filesEndpoints = pluginEndpoints<{ content: string }>("files");
 
 const { t } = useI18n();
 
@@ -225,7 +228,7 @@ async function fetchSheets(): Promise<void> {
     return;
   }
   loading.value = true;
-  const response = await apiGet<FilesContentResponseLike>(API_ROUTES.files.content, { path: raw });
+  const response = await apiGet<FilesContentResponseLike>(filesEndpoints.content, { path: raw });
   if (!response.ok) {
     errorMessage.value = t("pluginSpreadsheet.loadFailed", { error: response.error });
     resolvedSheets.value = [];
@@ -257,7 +260,7 @@ async function persistSheets(sheets: SpreadsheetSheet[]): Promise<void> {
     // Send the full workspace-relative path so the route doesn't have
     // to reconstruct one from a basename — paths under
     // `artifacts/spreadsheets/` are now sharded by YYYY/MM (#764).
-    const result = await apiPut<unknown>(API_ROUTES.plugins.updateSpreadsheet, {
+    const result = await apiPut<unknown>(endpoints.updateSpreadsheet, {
       relativePath: raw,
       sheets,
     });

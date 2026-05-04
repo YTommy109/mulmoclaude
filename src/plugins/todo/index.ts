@@ -1,10 +1,11 @@
-import type { ToolPlugin } from "../../tools/types";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
-import toolDefinition from "./definition";
+import toolDefinition, { TOOL_NAME, type TodoEndpoints } from "./definition";
+import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
 import { makeUuid } from "../../utils/id";
 
 export type TodoPriority = "low" | "medium" | "high" | "urgent";
@@ -38,25 +39,35 @@ const todoPlugin: ToolPlugin<TodoData> = {
   toolDefinition,
 
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<TodoData>>(API_ROUTES.todos.dispatch, args);
+    const endpoints = pluginEndpoints<TodoEndpoints>("todos");
+    const result = await apiPost<ToolResult<TodoData>>(endpoints.dispatch, args);
     if (!result.ok) {
       return {
-        toolName: "manageTodoList",
+        toolName: TOOL_NAME,
         uuid: makeUuid(),
         message: result.error,
       };
     }
     return {
       ...result.data,
-      toolName: "manageTodoList",
+      toolName: TOOL_NAME,
       uuid: result.data.uuid ?? makeUuid(),
     };
   },
 
   isEnabled: () => true,
   generatingMessage: "Managing todos...",
-  viewComponent: View,
-  previewComponent: Preview,
+  // Wrap so descendants can pull `BrowserPluginRuntime` via
+  // `useRuntime()` from `gui-chat-protocol/vue` — same pattern as
+  // runtime-loaded plugins. The `endpoints` field on the runtime
+  // carries the `TodoEndpoints` group from the host's DI registry.
+  viewComponent: wrapWithScope("todos", View),
+  previewComponent: wrapWithScope("todos", Preview),
 };
 
 export default todoPlugin;
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: TOOL_NAME,
+  entry: todoPlugin,
+};

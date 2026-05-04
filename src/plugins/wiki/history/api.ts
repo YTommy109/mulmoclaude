@@ -1,5 +1,6 @@
 import { apiGet, apiPost, type ApiResult } from "../../../utils/api.js";
-import { API_ROUTES } from "../../../config/apiRoutes.js";
+import { pluginEndpoints } from "../../api.js";
+import type { WikiEndpoints } from "../index.js";
 
 export interface SnapshotSummary {
   stamp: string;
@@ -34,14 +35,18 @@ function fillRoute(template: string, params: Record<string, string>): string {
   return template.replace(/:([a-zA-Z]+)/g, (_, key: string) => encodeURIComponent(params[key]));
 }
 
+function endpoints(): WikiEndpoints {
+  return pluginEndpoints<WikiEndpoints>("wiki");
+}
+
 export function fetchHistoryList(slug: string): Promise<ApiResult<ListResponse>> {
-  return apiGet<ListResponse>(fillRoute(API_ROUTES.wiki.pageHistory, { slug }));
+  return apiGet<ListResponse>(fillRoute(endpoints().pageHistory, { slug }));
 }
 
 export function fetchHistorySnapshot(slug: string, stamp: string): Promise<ApiResult<ReadResponse>> {
-  return apiGet<ReadResponse>(fillRoute(API_ROUTES.wiki.pageHistorySnapshot, { slug, stamp }));
+  return apiGet<ReadResponse>(fillRoute(endpoints().pageHistorySnapshot, { slug, stamp }));
 }
 
 export function restoreHistorySnapshot(slug: string, stamp: string): Promise<ApiResult<RestoreResponse>> {
-  return apiPost<RestoreResponse>(fillRoute(API_ROUTES.wiki.pageHistoryRestore, { slug, stamp }));
+  return apiPost<RestoreResponse>(fillRoute(endpoints().pageHistoryRestore, { slug, stamp }));
 }

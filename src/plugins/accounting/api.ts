@@ -8,7 +8,7 @@
 // validation) flow through the same shape.
 
 import { apiPost, type ApiResult } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { META } from "./meta";
 import { ACCOUNTING_ACTIONS } from "./actions";
 import type { SupportedCountryCode } from "./countries";
 
@@ -122,7 +122,7 @@ export interface Ledger {
 export type ReportPeriod = { kind: "month"; period: string } | { kind: "range"; from: string; to: string };
 
 function call<T>(action: string, args: Record<string, unknown> = {}): Promise<ApiResult<T>> {
-  return apiPost<T>(API_ROUTES.accounting.dispatch, { action, ...args });
+  return apiPost<T>(META.apiRoutes.dispatch, { action, ...args });
 }
 
 // ── Books ────────────────────────────────────────────────────────────

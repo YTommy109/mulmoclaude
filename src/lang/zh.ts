@@ -69,6 +69,11 @@ const zhMessages = {
     noNotifications: "暂无通知",
     dismiss: "关闭",
   },
+  pluginDiagnostics: {
+    title: "插件配置问题",
+    hostBody: '插件 "{plugin}" 尝试注册 {label} 键 "{key}",但该键由宿主保留。该插件条目已被丢弃。',
+    intraBody: '插件 "{first}" 和 "{second}" 都注册了 {dimension} "{key}"。"{first}" 先注册,因此 "{second}" 的注册被忽略。',
+  },
   sidebarHeader: {
     home: "前往最新对话",
     toolCallHistory: "工具调用历史",

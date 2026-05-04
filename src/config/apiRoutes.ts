@@ -19,19 +19,30 @@
 // key names matched to the last URL segment where possible.
 
 import { CHAT_SERVICE_ROUTES } from "@mulmobridge/protocol";
+import { BUILT_IN_PLUGIN_METAS, defineHostAggregate, type BuiltInPluginMetas, type HostPluginCollision, type IntraPluginCollision } from "../plugins/metas";
 
-export const API_ROUTES = {
+// Plugin-owned endpoint constants. Each plugin owns its dispatch
+// URL string in its own definition.ts; this file re-keys them under
+// the existing `API_ROUTES` shape so external consumers (route
+// registration, MCP bridge) keep their current import paths. A
+// plugin's local edit + `definition.ts` re-export is the only place
+// that URL appears — no drift between plugin and config.
+
+// Plugin-owned API routes auto-merged from each plugin's META. Each
+// plugin's `apiRoutesKey` becomes the outer key under `API_ROUTES`
+// (defaulting to `toolName` when omitted); its `apiRoutes` record
+// becomes the value. Plugins without `apiRoutes` are skipped.
+type PluginApiRoutesMap<T extends BuiltInPluginMetas> = {
+  readonly [M in T[number] as M extends { readonly apiRoutes: Readonly<Record<string, string>> }
+    ? M extends { readonly apiRoutesKey: infer K extends string }
+      ? K
+      : M["toolName"]
+    : never]: M extends { readonly apiRoutes: infer R } ? R : never;
+};
+
+const HOST_API_ROUTES = {
   health: "/api/health",
   sandbox: "/api/sandbox",
-
-  // Accounting plugin (opt-in, custom-Role only). One dispatch
-  // endpoint per the action discriminator pattern (matches
-  // todos.dispatch). UI route registration is intentionally absent
-  // from src/router — the View is mounted via tool-result rendering,
-  // never via a URL path. See plans/feat-accounting.md.
-  accounting: {
-    dispatch: "/api/accounting",
-  },
 
   agent: {
     run: "/api/agent",
@@ -41,9 +52,8 @@ export const API_ROUTES = {
     },
   },
 
-  chart: {
-    present: "/api/present-chart",
-  },
+  // `chart` group migrated to META — see `src/plugins/chart/meta.ts`.
+  // Auto-merged into `API_ROUTES.chart` via `apiRoutesKey: "chart"`.
 
   chatIndex: {
     rebuild: "/api/chat-index/rebuild",
@@ -69,15 +79,8 @@ export const API_ROUTES = {
     refRoots: "/api/files/ref-roots",
   },
 
-  html: {
-    generate: "/api/generate-html",
-    edit: "/api/edit-html",
-    present: "/api/present-html",
-    // Body carries the workspace-relative path so the route doesn't
-    // have to reconstruct one from a basename — same shape as
-    // plugins.updateMarkdown / image.update.
-    update: "/api/htmls/update",
-  },
+  // `html` group migrated to META — see `src/plugins/presentHtml/meta.ts`.
+  // Auto-merged via `apiRoutesKey: "html"`.
 
   image: {
     generate: "/api/generate-image",
@@ -118,22 +121,8 @@ export const API_ROUTES = {
     latestDaily: "/api/journal/latest-daily",
   },
 
-  mulmoScript: {
-    save: "/api/mulmo-script",
-    updateBeat: "/api/mulmo-script/update-beat",
-    updateScript: "/api/mulmo-script/update-script",
-    beatImage: "/api/mulmo-script/beat-image",
-    beatAudio: "/api/mulmo-script/beat-audio",
-    generateBeatAudio: "/api/mulmo-script/generate-beat-audio",
-    renderBeat: "/api/mulmo-script/render-beat",
-    uploadBeatImage: "/api/mulmo-script/upload-beat-image",
-    characterImage: "/api/mulmo-script/character-image",
-    renderCharacter: "/api/mulmo-script/render-character",
-    uploadCharacterImage: "/api/mulmo-script/upload-character-image",
-    movieStatus: "/api/mulmo-script/movie-status",
-    generateMovie: "/api/mulmo-script/generate-movie",
-    downloadMovie: "/api/mulmo-script/download-movie",
-  },
+  // `mulmoScript` group migrated to META — see `src/plugins/presentMulmoScript/meta.ts`.
+  // Auto-merged via `apiRoutesKey: "mulmoScript"`.
 
   pdf: {
     markdown: "/api/pdf/markdown",
@@ -142,18 +131,16 @@ export const API_ROUTES = {
   // Plugin-owned endpoints that don't follow a single naming pattern.
   // Names match the plugin tool name or the short verb the plugin uses.
   plugins: {
-    presentDocument: "/api/present-document",
-    // Body carries the workspace-relative path so the route doesn't
-    // have to reconstruct one from a basename — required after #764
-    // sharded artifact storage by YYYY/MM. Same shape as
-    // image.update.
-    updateMarkdown: "/api/markdowns/update",
-    presentSpreadsheet: "/api/present-spreadsheet",
-    updateSpreadsheet: "/api/spreadsheets/update",
+    // `presentDocument` / `updateMarkdown` migrated to META — see
+    // `src/plugins/markdown/meta.ts`. Auto-merged via
+    // `apiRoutesKey: "presentDocument"`.
+    // `presentSpreadsheet` / `updateSpreadsheet` migrated to META —
+    // see `src/plugins/spreadsheet/meta.ts`. Auto-merged via
+    // `apiRoutesKey: "presentSpreadsheet"`.
     mindmap: "/api/mindmap",
     quiz: "/api/quiz",
-    form: "/api/form",
-    canvas: "/api/canvas",
+    // `form` and `canvas` migrated to META — exposed at top-level
+    // `API_ROUTES.presentForm.dispatch` / `API_ROUTES.canvas.dispatch`.
     present3d: "/api/present3d",
     // Runtime-loaded plugins (#1043 C-2). One generic dispatch
     // endpoint shared by every workspace-installed plugin; the URL
@@ -163,6 +150,12 @@ export const API_ROUTES = {
     // the call.
     runtimeList: "/api/plugins/runtime/list",
     runtimeDispatch: "/api/plugins/runtime/:pkg/dispatch",
+    /** Boot-time META aggregator collisions (host vs plugin, plugin
+     *  vs plugin). Returns an empty array when clean. Frontend
+     *  fetches once at mount so a tab that opens after server boot
+     *  still surfaces the warning toast + bell entry. See
+     *  `server/plugins/diagnostics.ts`. */
+    diagnostics: "/api/plugins/diagnostics",
     /** Static-mount of the extracted plugin tree. The URL pkg is the
      *  un-encoded npm name plus version dir. Used by the frontend
      *  loader's dynamic `import()` to fetch `dist/vue.js`.
@@ -194,21 +187,8 @@ export const API_ROUTES = {
     bookmark: "/api/sessions/:id/bookmark",
   },
 
-  skills: {
-    list: "/api/skills",
-    detail: "/api/skills/:name",
-    create: "/api/skills",
-    update: "/api/skills/:name",
-    remove: "/api/skills/:name",
-  },
-
-  sources: {
-    list: "/api/sources",
-    create: "/api/sources",
-    remove: "/api/sources/:slug",
-    rebuild: "/api/sources/rebuild",
-    manage: "/api/sources/manage",
-  },
+  // `skills` group migrated to META — see `src/plugins/manageSkills/meta.ts`.
+  // `sources` group migrated to META — see `src/plugins/manageSource/meta.ts`.
 
   news: {
     items: "/api/news/items",
@@ -216,16 +196,8 @@ export const API_ROUTES = {
     readState: "/api/news/read-state",
   },
 
-  todos: {
-    list: "/api/todos",
-    dispatch: "/api/todos",
-    items: "/api/todos/items",
-    item: "/api/todos/items/:id",
-    itemMove: "/api/todos/items/:id/move",
-    columns: "/api/todos/columns",
-    column: "/api/todos/columns/:id",
-    columnsOrder: "/api/todos/columns/order",
-  },
+  // `todos` group migrated to META — see `src/plugins/todo/meta.ts`.
+  // Auto-merged via `apiRoutesKey: "todos"`.
 
   wiki: {
     base: "/api/wiki",
@@ -242,3 +214,24 @@ export const API_ROUTES = {
     internalSnapshot: "/api/wiki/internal/snapshot",
   },
 } as const;
+
+// First-write-wins host+plugin aggregate (see `defineHostAggregate`):
+// host outer-keys win on collision (plugins claiming `agent`/`roles`/
+// `wiki` are dropped), the second-claiming plugin's `apiRoutesKey`
+// is dropped, both diagnostic lists are exposed for boot warnings.
+// `defineHostAggregate` is generic over the value type — use the
+// declared host record's value union here so `apiRoutes` records (a
+// nested object, not a string) type-check inside the generic V.
+const API_ROUTES_AGGREGATE = defineHostAggregate<(typeof HOST_API_ROUTES)[keyof typeof HOST_API_ROUTES] | Readonly<Record<string, string>>>(
+  BUILT_IN_PLUGIN_METAS,
+  {
+    label: "API_ROUTES",
+    hostRecord: HOST_API_ROUTES,
+    extract: (meta) => (meta.apiRoutes !== undefined ? { [meta.apiRoutesKey ?? meta.toolName]: meta.apiRoutes } : undefined),
+    dimension: "apiRoutesKey",
+  },
+);
+export const API_ROUTES_HOST_COLLISIONS: readonly HostPluginCollision[] = API_ROUTES_AGGREGATE.hostCollisions;
+export const API_ROUTES_INTRA_COLLISIONS: readonly IntraPluginCollision[] = API_ROUTES_AGGREGATE.intraCollisions;
+
+export const API_ROUTES = API_ROUTES_AGGREGATE.merged as unknown as typeof HOST_API_ROUTES & PluginApiRoutesMap<BuiltInPluginMetas>;

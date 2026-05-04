@@ -6,51 +6,49 @@
 //     plugin at runtime
 //   - grep for "every place that handles this tool" returns a list
 //     of `TOOL_NAMES.x` references rather than free-form strings
-//   - adding a new plugin is a one-line change here + register in
-//     `src/tools/index.ts` — and `typeof TOOL_NAMES` keeps both in
-//     sync through the type system
 //
 // Naming is intentionally the literal string the server / MCP
-// protocol / jsonl files expect — rename-touching requires a
-// coordinated server + client update, which is exactly when having
-// a central list here helps.
+// protocol / jsonl files expect.
+//
+// **Aggregator shape**: plugins that own their identity export their
+// `toolName` from their `meta.ts` (via `BUILT_IN_PLUGIN_METAS`). This
+// file auto-merges them into `TOOL_NAMES` so adding a plugin =
+// register its META in `src/plugins/metas.ts`; this file untouched.
+// Host-only tool names (textResponse, MCP tools, plus plugins not yet
+// migrated to META) keep their literals in `HOST_TOOL_NAMES` below.
 //
 // First slice of issue #289 (item 4: tool name literals).
 
-export const TOOL_NAMES = {
+import { BUILT_IN_PLUGIN_METAS, defineHostAggregate, type BuiltInPluginMetas, type HostPluginCollision, type IntraPluginCollision } from "../plugins/metas";
+
+const HOST_TOOL_NAMES = {
   // Text / base
   textResponse: "text-response",
 
-  // Management plugins
-  manageTodoList: "manageTodoList",
-  // Calendar / Automations split (#824) — replaced the unified
-  // `manageScheduler` so the LLM and chat-tool-result UI both have
-  // a 1:1 mapping between tool name and domain.
-  manageCalendar: "manageCalendar",
-  manageAutomations: "manageAutomations",
-  manageSkills: "manageSkills",
-  manageSource: "manageSource",
-  manageWiki: "manageWiki",
-  // Accounting plugin (opt-in, custom-Role only — see
-  // plans/feat-accounting.md). Registered here so the plugin-picker
-  // UI for custom Roles surfaces it; deliberately absent from every
-  // built-in Role's `availablePlugins`.
-  manageAccounting: "manageAccounting",
+  // Management plugins (not yet migrated to META)
+  // manageTodoList migrated — see `src/plugins/todo/meta.ts`.
+  // manageCalendar migrated — see `src/plugins/scheduler/calendarMeta.ts`.
+  // manageAutomations migrated — see `src/plugins/scheduler/automationsMeta.ts`.
+  // manageSkills migrated — see `src/plugins/manageSkills/meta.ts`.
+  // manageSource migrated — see `src/plugins/manageSource/meta.ts`.
+  // manageWiki migrated — see `src/plugins/wiki/meta.ts`. Plugin is
+  // GUI-only (no MCP binding — deprecated #963), so the sync test
+  // pins "every binding → META", not the reverse.
 
   // Presentational plugins
-  presentMulmoScript: "presentMulmoScript",
-  presentDocument: "presentDocument",
-  presentSpreadsheet: "presentSpreadsheet",
-  presentHtml: "presentHtml",
-  presentChart: "presentChart",
-  presentForm: "presentForm",
+  // presentMulmoScript migrated — see `src/plugins/presentMulmoScript/meta.ts`.
+  // presentDocument migrated — see `src/plugins/markdown/meta.ts`.
+  // presentSpreadsheet migrated — see `src/plugins/spreadsheet/meta.ts`.
+  // presentHtml migrated — see `src/plugins/presentHtml/meta.ts`.
+  // presentChart migrated to META — see `src/plugins/chart/meta.ts`.
+  // presentForm migrated — see `src/plugins/presentForm/meta.ts`.
   present3D: "present3D",
 
   // Creation / generation
   createMindMap: "createMindMap",
-  generateImage: "generateImage",
-  editImages: "editImages",
-  openCanvas: "openCanvas",
+  // generateImage migrated — see `src/plugins/generateImage/meta.ts`.
+  // editImages migrated — see `src/plugins/editImages/meta.ts`.
+  // openCanvas migrated — see `src/plugins/canvas/meta.ts`.
 
   // Interactive / media
   putQuestions: "putQuestions",
@@ -63,6 +61,29 @@ export const TOOL_NAMES = {
   searchX: "searchX",
   notify: "notify",
 } as const;
+
+// Plugin-owned tool names auto-merged from each plugin's META.
+// The mapped type below preserves each plugin's literal toolName
+// (e.g. `"manageAccounting"`) so `TOOL_NAMES.manageAccounting` is
+// typed as the literal, not just `string`.
+type PluginToolNamesMap<T extends BuiltInPluginMetas> = {
+  readonly [K in T[number]["toolName"]]: K;
+};
+
+// First-write-wins host+plugin aggregate (see `defineHostAggregate`).
+// Plugin keys colliding with a host literal are dropped (host wins —
+// silent override would route the LLM's calls to the wrong handler).
+// Diagnostics flow through `TOOL_NAMES_*_COLLISIONS` for boot warnings.
+const TOOL_NAMES_AGGREGATE = defineHostAggregate<string>(BUILT_IN_PLUGIN_METAS, {
+  label: "TOOL_NAMES",
+  hostRecord: HOST_TOOL_NAMES,
+  extract: (meta) => ({ [meta.toolName]: meta.toolName }),
+  dimension: "toolName",
+});
+export const TOOL_NAMES_HOST_COLLISIONS: readonly HostPluginCollision[] = TOOL_NAMES_AGGREGATE.hostCollisions;
+export const TOOL_NAMES_INTRA_COLLISIONS: readonly IntraPluginCollision[] = TOOL_NAMES_AGGREGATE.intraCollisions;
+
+export const TOOL_NAMES = TOOL_NAMES_AGGREGATE.merged as unknown as typeof HOST_TOOL_NAMES & PluginToolNamesMap<BuiltInPluginMetas>;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
 

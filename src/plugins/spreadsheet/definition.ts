@@ -1,6 +1,8 @@
 import type { ToolDefinition } from "gui-chat-protocol";
+import { META } from "./meta";
 
-export const TOOL_NAME = "presentSpreadsheet";
+export const TOOL_NAME = META.toolName;
+export type SpreadsheetEndpoints = typeof META.apiRoutes;
 
 export interface SpreadsheetCell {
   v: string | number;

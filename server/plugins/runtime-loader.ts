@@ -222,7 +222,6 @@ function makeStubRuntime(name: string): PluginRuntime {
     log: { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined },
     fetch: error("fetch") as unknown as PluginRuntime["fetch"],
     fetchJson: error("fetchJson") as unknown as PluginRuntime["fetchJson"],
-    notify: () => undefined,
   };
 }
 

@@ -1,18 +1,19 @@
-import type { ToolPlugin } from "../../tools/types";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
-import toolDefinition, { TOOL_NAME } from "./definition";
-import type { MarkdownToolData } from "./definition";
+import toolDefinition, { TOOL_NAME, type DocumentEndpoints, type MarkdownToolData } from "./definition";
+import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
 import { makeUuid } from "../../utils/id";
 
 const markdownPlugin: ToolPlugin<MarkdownToolData> = {
   toolDefinition,
 
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<MarkdownToolData>>(API_ROUTES.plugins.presentDocument, args);
+    const endpoints = pluginEndpoints<DocumentEndpoints>("presentDocument");
+    const result = await apiPost<ToolResult<MarkdownToolData>>(endpoints.presentDocument, args);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,
@@ -29,9 +30,14 @@ const markdownPlugin: ToolPlugin<MarkdownToolData> = {
 
   isEnabled: () => true,
   generatingMessage: "Creating document...",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("presentDocument", View),
+  previewComponent: wrapWithScope("presentDocument", Preview),
 };
 
 export default markdownPlugin;
 export { TOOL_NAME };
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: TOOL_NAME,
+  entry: markdownPlugin,
+};

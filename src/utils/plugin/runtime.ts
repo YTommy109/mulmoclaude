@@ -8,7 +8,7 @@
 
 import { computed, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { BrowserPluginRuntime, PluginNotifyMessage } from "gui-chat-protocol/vue";
+import type { BrowserPluginRuntime } from "gui-chat-protocol/vue";
 import { usePubSub } from "../../composables/usePubSub";
 import { apiPost } from "../api";
 import { API_ROUTES } from "../../config/apiRoutes";
@@ -93,25 +93,20 @@ function makeDispatch(pkgName: string): BrowserPluginRuntime["dispatch"] {
   };
 }
 
-function makeNotify(pkgName: string): BrowserPluginRuntime["notify"] {
-  // Browser-side notify mirrors the API surface of the server-side
-  // notify, but actual delivery happens server-side (the bell badge,
-  // macOS Reminder, bridge fan-out, etc.). For v1 we just log;
-  // hooking through to the host's notification channel from the
-  // browser is a follow-up.
-  return (msg: PluginNotifyMessage) => {
-    console.info(`[plugin/${pkgName}] notify`, msg);
-  };
-}
-
 export interface MakeBrowserPluginRuntimeDeps {
   /** npm package name. Used both as the namespace prefix for
    *  pubsub channels and as the log prefix. */
   pkgName: string;
+  /** Optional URL map exposed via `runtime.endpoints` for multi-URL
+   *  built-in plugins. Runtime-loaded plugins (the common
+   *  single-dispatch shape) leave this undefined. See
+   *  `BrowserPluginRuntime.endpoints` in `gui-chat-protocol@>=0.3.1`
+   *  for the contract. */
+  endpoints?: Readonly<Record<string, string>>;
 }
 
 export function makeBrowserPluginRuntime(deps: MakeBrowserPluginRuntimeDeps): BrowserPluginRuntime {
-  const { pkgName } = deps;
+  const { pkgName, endpoints } = deps;
   // `useI18n()` exposes `locale` as `WritableComputedRef<Locales>`.
   // Wrapping in a fresh `computed` widens it to `Ref<string>` for
   // plugin authors (so they don't need to import the host's locale
@@ -123,7 +118,7 @@ export function makeBrowserPluginRuntime(deps: MakeBrowserPluginRuntimeDeps): Br
     locale,
     log: makeScopedLogger(pkgName),
     openUrl: makeOpenUrl(pkgName),
-    notify: makeNotify(pkgName),
     dispatch: makeDispatch(pkgName),
+    endpoints,
   };
 }

@@ -1,6 +1,8 @@
 import type { ToolDefinition } from "gui-chat-protocol";
+import { META } from "./meta";
 
-export const TOOL_NAME = "openCanvas";
+export const TOOL_NAME = META.toolName;
+export type CanvasEndpoints = typeof META.apiRoutes;
 
 export interface ImageToolData {
   imageData: string;

@@ -8,7 +8,7 @@ import { loadUserTasks, validateAndCreate, refreshUserTasks } from "../../worksp
 import { saveUserTasks } from "../../utils/files/user-tasks-io.js";
 import { startChat } from "./agent.js";
 import { log } from "../../system/logger/index.js";
-import { SCHEDULER_ACTIONS, TASK_ACTIONS } from "../../../src/config/schedulerActions.js";
+import { SCHEDULER_ACTIONS, TASK_ACTIONS } from "../../../src/plugins/scheduler/actions.js";
 import { badRequest, notFound, serverError } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
 import { makeUuid } from "../../utils/id.js";

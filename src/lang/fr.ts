@@ -64,6 +64,12 @@ const frMessages = {
     noNotifications: "Aucune notification",
     dismiss: "Ignorer",
   },
+  pluginDiagnostics: {
+    title: "Problème de configuration du plugin",
+    hostBody: "Le plugin « {plugin} » a tenté d'enregistrer la clé {label} « {key} », mais elle est réservée par l'hôte. L'entrée du plugin a été supprimée.",
+    intraBody:
+      "Les plugins « {first} » et « {second} » enregistrent tous deux le {dimension} « {key} ». « {first} » l'a réclamé en premier, donc l'enregistrement de « {second} » est ignoré.",
+  },
   sidebarHeader: {
     home: "Aller à la dernière conversation",
     toolCallHistory: "Historique des appels d'outils",

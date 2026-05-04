@@ -1,8 +1,12 @@
 import type { ToolDefinition } from "gui-chat-protocol";
+import { META } from "./meta";
+
+export const TOOL_NAME = META.toolName;
+export type TodoEndpoints = typeof META.apiRoutes;
 
 const toolDefinition: ToolDefinition = {
   type: "function",
-  name: "manageTodoList",
+  name: TOOL_NAME,
   prompt: "When users mention tasks, things to do, or ask about their todo list, use manageTodoList to help them track items.",
   description:
     "Manage a todo list — show items, add, update, check/uncheck, or delete them. Items can optionally carry labels (tags) for categorisation; use labels to group related todos (e.g. 'Work', 'Groceries', 'Urgent') and filter the list at read time.",

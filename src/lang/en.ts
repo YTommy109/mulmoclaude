@@ -86,6 +86,11 @@ const enMessages = {
     noNotifications: "No notifications",
     dismiss: "Dismiss",
   },
+  pluginDiagnostics: {
+    title: "Plugin configuration issue",
+    hostBody: 'Plugin "{plugin}" tried to register the {label} key "{key}" but it is reserved by the host. The plugin\'s entry has been dropped.',
+    intraBody: 'Plugins "{first}" and "{second}" both register {dimension} "{key}". "{first}" claimed it first, so "{second}"\'s registration is ignored.',
+  },
   sidebarHeader: {
     home: "Go to latest chat",
     toolCallHistory: "Tool call history",

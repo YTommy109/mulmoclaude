@@ -16,14 +16,21 @@ import { makeBrowserPluginRuntime } from "../utils/plugin/runtime";
 interface Props {
   /** npm package name of the plugin whose subtree we're scoping. */
   pkgName: string;
+  /** Optional URL map exposed to the plugin via `runtime.endpoints`.
+   *  Multi-URL built-in plugins (todos, scheduler, mulmoScript, …)
+   *  pass their endpoint group; runtime-loaded plugins (the common
+   *  single-dispatch shape) omit this. Contract:
+   *  `gui-chat-protocol@>=0.3.1`. */
+  endpoints?: Readonly<Record<string, string>>;
 }
 
 const props = defineProps<Props>();
 
-// Construct once — `pkgName` is fixed for the lifetime of a mounted
-// plugin. If the host needs to rotate the scope (rare), it should
-// remount the entire wrapper rather than mutate `pkgName`.
-const runtime = makeBrowserPluginRuntime({ pkgName: props.pkgName });
+// Construct once — `pkgName` and `endpoints` are fixed for the
+// lifetime of a mounted plugin. If the host needs to rotate the
+// scope (rare), it should remount the entire wrapper rather than
+// mutate either prop.
+const runtime = makeBrowserPluginRuntime({ pkgName: props.pkgName, endpoints: props.endpoints });
 provide(PLUGIN_RUNTIME_KEY, runtime);
 </script>
 
