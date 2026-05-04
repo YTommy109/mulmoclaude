@@ -36,7 +36,8 @@ export function installTestHostContext(overrides: Partial<HostContext> = {}): vo
     roles: API_ROUTES.roles,
     accounting: API_ROUTES.accounting,
     image: API_ROUTES.image,
-    canvas: { dispatch: API_ROUTES.plugins.canvas },
+    canvas: API_ROUTES.canvas,
+    presentForm: API_ROUTES.presentForm,
     presentDocument: {
       presentDocument: API_ROUTES.plugins.presentDocument,
       updateMarkdown: API_ROUTES.plugins.updateMarkdown,
@@ -45,7 +46,6 @@ export function installTestHostContext(overrides: Partial<HostContext> = {}): vo
       presentSpreadsheet: API_ROUTES.plugins.presentSpreadsheet,
       updateSpreadsheet: API_ROUTES.plugins.updateSpreadsheet,
     },
-    presentForm: { dispatch: API_ROUTES.plugins.form },
     files: API_ROUTES.files,
     imageStore: { update: API_ROUTES.image.update },
     mcpTools: { list: API_ROUTES.mcpTools.list },

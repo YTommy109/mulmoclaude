@@ -49,14 +49,14 @@ const HOST_TOOL_NAMES = {
   presentSpreadsheet: "presentSpreadsheet",
   // presentHtml migrated — see `src/plugins/presentHtml/meta.ts`.
   // presentChart migrated to META — see `src/plugins/chart/meta.ts`.
-  presentForm: "presentForm",
+  // presentForm migrated — see `src/plugins/presentForm/meta.ts`.
   present3D: "present3D",
 
   // Creation / generation
   createMindMap: "createMindMap",
   generateImage: "generateImage",
   editImages: "editImages",
-  openCanvas: "openCanvas",
+  // openCanvas migrated — see `src/plugins/canvas/meta.ts`.
 
   // Interactive / media
   putQuestions: "putQuestions",

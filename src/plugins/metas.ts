@@ -18,9 +18,11 @@
 import type { PluginMeta } from "./meta-types";
 
 import { META as accountingMeta } from "./accounting/meta";
+import { META as canvasMeta } from "./canvas/meta";
 import { META as chartMeta } from "./chart/meta";
 import { META as manageSkillsMeta } from "./manageSkills/meta";
 import { META as manageSourceMeta } from "./manageSource/meta";
+import { META as presentFormMeta } from "./presentForm/meta";
 import { META as presentHtmlMeta } from "./presentHtml/meta";
 import { META as presentMulmoScriptMeta } from "./presentMulmoScript/meta";
 import { META as todoMeta } from "./todo/meta";
@@ -30,9 +32,11 @@ import { META as todoMeta } from "./todo/meta";
 // must end up with type `"manageAccounting"`, not `string`.
 export const BUILT_IN_PLUGIN_METAS = [
   accountingMeta,
+  canvasMeta,
   chartMeta,
   manageSkillsMeta,
   manageSourceMeta,
+  presentFormMeta,
   presentHtmlMeta,
   presentMulmoScriptMeta,
   todoMeta,

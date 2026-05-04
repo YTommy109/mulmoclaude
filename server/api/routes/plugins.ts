@@ -234,7 +234,7 @@ router.post(
 
 // presentForm — form
 router.post(
-  API_ROUTES.plugins.form,
+  API_ROUTES.presentForm.dispatch,
   wrapPluginExecute((req) => executeForm(null as never, req.body)),
 );
 
@@ -246,7 +246,7 @@ const BLANK_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQV
 
 // openCanvas — drawing canvas
 router.post(
-  API_ROUTES.plugins.canvas,
+  API_ROUTES.canvas.dispatch,
   wrapPluginExecute(async () => {
     const imagePath = await saveImage(BLANK_PNG_BASE64);
     const base = await executeOpenCanvas(imagePath);

@@ -55,8 +55,14 @@ const pluginEndpointRegistry: EndpointRegistry = {
   accounting: API_ROUTES.accounting,
   // generateImage + editImages share `image.*`; both ask for scope "image".
   image: API_ROUTES.image,
-  // Nested under API_ROUTES.plugins.* — promoted to flat plugin scopes.
-  canvas: { dispatch: API_ROUTES.plugins.canvas },
+  // canvas / presentForm migrated to META — auto-merged at top
+  // level via `apiRoutesKey`. Pulling from `API_ROUTES.canvas`
+  // (instead of the legacy `plugins.canvas`) keeps the registry
+  // sourced from a single, plugin-owned definition.
+  canvas: API_ROUTES.canvas,
+  presentForm: API_ROUTES.presentForm,
+  // markdown / spreadsheet still under shared `plugins.*` namespace —
+  // promoted to flat scopes here pending their own META migration.
   presentDocument: {
     presentDocument: API_ROUTES.plugins.presentDocument,
     updateMarkdown: API_ROUTES.plugins.updateMarkdown,
@@ -65,7 +71,6 @@ const pluginEndpointRegistry: EndpointRegistry = {
     presentSpreadsheet: API_ROUTES.plugins.presentSpreadsheet,
     updateSpreadsheet: API_ROUTES.plugins.updateSpreadsheet,
   },
-  presentForm: { dispatch: API_ROUTES.plugins.form },
   // Cross-cutting host-shared services that plugins reach for
   // (read workspace files, look up MCP tools, save canvas image
   // back to disk). Exposed as their own scopes so plugins don't
