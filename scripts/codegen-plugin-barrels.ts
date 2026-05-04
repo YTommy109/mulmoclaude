@@ -31,8 +31,10 @@
 //     a plugin directory without re-running the codegen.
 
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
+
+import type { PluginMeta } from "../src/plugins/meta-types.js";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -75,14 +77,22 @@ interface RegistrationEntry {
 
 const SCRIPT_NAME = path.basename(fileURLToPath(import.meta.url));
 
+/** Sorted directory listing — sorted everywhere we read the FS so
+ *  filesystem ordering can't leak into generated output (Codex iter
+ *  1 #1143). The codegen output is treated as a build artifact whose
+ *  drift is checked in CI; non-deterministic ordering would
+ *  undermine that check. */
+function sortedReaddir(dir: string): string[] {
+  return readdirSync(dir).sort();
+}
+
 function listPluginDirs(): string[] {
-  return readdirSync(PLUGINS_DIR)
+  return sortedReaddir(PLUGINS_DIR)
     .filter((name) => !name.startsWith("_") && !name.endsWith(".ts"))
     .filter((name) => {
       const stat = statSync(path.join(PLUGINS_DIR, name));
       return stat.isDirectory();
-    })
-    .sort();
+    });
 }
 
 function camelize(parts: readonly string[]): string {
@@ -91,40 +101,46 @@ function camelize(parts: readonly string[]): string {
     .join("");
 }
 
-/** Pull a plain string-literal value for a top-level meta field from
- *  source. Skips fields inside nested objects (e.g.
- *  `apiRoutes.create.path: "/foo"`). Tight regex: matches
- *  `apiNamespace: "value"` only when it appears immediately under
- *  `definePluginMeta({` indentation (2 spaces). Good enough for the
- *  current convention; falls back to null when not present. */
-function extractTopLevelString(source: string, field: string): string | null {
-  const re = new RegExp(`^\\s{2}${field}:\\s*"([^"]+)"`, "m");
-  const match = re.exec(source);
-  return match ? match[1] : null;
+/** Load a META by dynamic-importing the meta file under tsx and
+ *  reading the runtime object. Replaces the brittle regex-based
+ *  string extraction (Codex iter 1 #1143): single quotes, varied
+ *  indentation, computed values, or multi-line declarations would
+ *  all silently miss `apiNamespace` / `mcpDispatch` and omit the
+ *  server binding — the exact wiring footgun this codegen exists
+ *  to eliminate. Reading the live object closes that gap because
+ *  TypeScript itself is the parser. */
+async function loadMeta(absoluteMetaPath: string): Promise<PluginMeta> {
+  const mod = (await import(pathToFileURL(absoluteMetaPath).href)) as { META?: unknown };
+  if (!mod.META || typeof mod.META !== "object") {
+    throw new Error(`Meta file ${absoluteMetaPath} does not export a top-level \`META\` object`);
+  }
+  return mod.META as PluginMeta;
 }
 
-function findMetas(pluginDir: string): MetaEntry[] {
+async function findMetas(pluginDir: string): Promise<MetaEntry[]> {
   const dir = path.join(PLUGINS_DIR, pluginDir);
-  const files = readdirSync(dir);
+  const files = sortedReaddir(dir);
   const metaFiles = files.filter((file) => file === "meta.ts" || (file.endsWith("Meta.ts") && file !== "Meta.ts"));
-  return metaFiles.map((file) => {
-    const source = readFileSync(path.join(dir, file), "utf8");
+  const entries: MetaEntry[] = [];
+  for (const file of metaFiles) {
+    const meta = await loadMeta(path.join(dir, file));
     const role = file === "meta.ts" ? "" : file.replace(/Meta\.ts$/, "");
     const importName = role === "" ? `${pluginDir}Meta` : camelize([pluginDir, role, "meta"]);
-    return {
+    entries.push({
       pluginDir,
       file: `${pluginDir}/${file}`,
       importName,
       importPath: `../${pluginDir}/${file.replace(/\.ts$/, "")}`,
-      apiNamespace: extractTopLevelString(source, "apiNamespace"),
-      mcpDispatch: extractTopLevelString(source, "mcpDispatch"),
-    };
-  });
+      apiNamespace: meta.apiNamespace ?? null,
+      mcpDispatch: meta.mcpDispatch ?? null,
+    });
+  }
+  return entries;
 }
 
 function findDefinitions(pluginDir: string): DefEntry[] {
   const dir = path.join(PLUGINS_DIR, pluginDir);
-  const files = readdirSync(dir);
+  const files = sortedReaddir(dir);
   const defFiles = files.filter((file) => file === "definition.ts" || (file.endsWith("Definition.ts") && file !== "Definition.ts"));
   return defFiles.map((file) => {
     const role = file === "definition.ts" ? "" : file.replace(/Definition\.ts$/, "");
@@ -166,12 +182,12 @@ interface ScanResult {
   registrations: RegistrationEntry[];
 }
 
-function scanPlugins(): ScanResult {
+async function scanPlugins(): Promise<ScanResult> {
   const metas: MetaEntry[] = [];
   const definitions: DefEntry[] = [];
   const registrations: RegistrationEntry[] = [];
   for (const pluginDir of listPluginDirs()) {
-    metas.push(...findMetas(pluginDir));
+    metas.push(...(await findMetas(pluginDir)));
     definitions.push(...findDefinitions(pluginDir));
     const reg = findRegistration(pluginDir);
     if (reg) registrations.push(reg);
@@ -307,9 +323,9 @@ function readExisting(filename: string): string | null {
   }
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const checkMode = process.argv.includes("--check");
-  const scan = scanPlugins();
+  const scan = await scanPlugins();
   const outputs = buildOutputs(scan);
   ensureGeneratedDir();
   let drift = false;
@@ -333,4 +349,4 @@ function main(): void {
   }
 }
 
-main();
+await main();
