@@ -288,6 +288,59 @@ test.describe("Journal — clickable rows and inline detail panel", () => {
     await expect(row).toBeVisible();
   });
 
+  test("expanding a row swaps its lines cell for createdAt + Close, and the detail panel skips the duplicate metadata header", async ({ page }) => {
+    // Pins the "no info shown twice" invariant after the journal row /
+    // detail-panel cleanup. Specifically:
+    //   1. The collapsed row's lines cell shows DR/CR amounts (e.g.
+    //      "DR ¥123") — same surface the user sees today.
+    //   2. Selecting that row swaps the cell's content for the
+    //      createdAt timestamp and the Close (✕) button — DR/CR
+    //      strings disappear from the row because the detail panel
+    //      below already breaks them out into their own columns.
+    //   3. The detail panel's first child is the Edit / Void action
+    //      row directly (not a duplicated date / memo / createdAt
+    //      strip above the action row).
+    const SEED_BOOK_ID = "book-journal-dedup";
+    await setupSession(page, {
+      books: [{ id: SEED_BOOK_ID, name: "Dedup Book", withEmptyOpening: true }],
+      envelope: { bookId: SEED_BOOK_ID, initialTab: "journal" },
+    });
+
+    await page.goto(`/chat/${SESSION_ID}`);
+    // Use a non-default amount so "DR 123" / "CR 123" is uniquely
+    // identifiable in the row's text content (vs. the seeded opening
+    // entry's amounts).
+    await postNormalEntry(page, { debit: "123", credit: "123" });
+
+    const row = await findNormalRow(page);
+    // Collapsed: lines cell carries DR/CR amounts.
+    await expect(row).toContainText("DR");
+    await expect(row).toContainText("CR");
+
+    await row.click();
+
+    // Expanded: the row's lines cell drops DR/CR text. We assert on
+    // the row's own .innerText (not the page-wide text) so the inner
+    // detail-panel table — which still has Debit/Credit columns and
+    // the amount itself — doesn't trigger a false positive. The
+    // detail-panel is in a SEPARATE <tr> below, not inside `row`.
+    await expect(row).not.toContainText("DR");
+    await expect(row).not.toContainText("CR");
+
+    // The Close button now lives in the row's lines cell.
+    await expect(page.locator("[data-testid^='accounting-journal-detail-close-']").first()).toBeVisible();
+
+    // The detail panel header dropped its date / memo / createdAt
+    // strip. The first interactive control inside the panel is now
+    // Edit (or Void) — not a metadata line.
+    const detailPanel = page.locator("[data-testid^='accounting-journal-detail-']:not([data-testid*='-close-']):not([data-testid*='-edit-'])");
+    await expect(detailPanel).toHaveCount(1);
+    // The Edit button must still be in the panel; the timestamp from
+    // the row's cell (in `(YYYY-MM-DD HH:MM)` form) must NOT also
+    // appear inside the panel — that's the duplication we removed.
+    await expect(detailPanel).not.toContainText(/\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)/);
+  });
+
   test("clicking Edit in the detail panel replaces it with the in-place form; Cancel returns to read-only", async ({ page }) => {
     const SEED_BOOK_ID = "book-journal-edit-inplace";
     await setupSession(page, {
