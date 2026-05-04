@@ -56,23 +56,23 @@ All env vars are **optional unless flagged "required"**. The server reads them a
 
 ### Runtime
 
-| Variable                    | Default              | Effect                                                                                                                                                                                                                                                                                     |
-| --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PORT`                      | `3001`               | Express listen port (`server/index.ts:47`).                                                                                                                                                                                                                                                |
-| `NODE_ENV`                  | unset / `production` | When `production`, Express serves the built client from `dist/client` and falls back to `index.html` for SPA history-mode routing. Auto-set by tooling — you rarely set this manually.                                                                                                     |
-| `DISABLE_SANDBOX`           | unset                | Set to `1` to bypass the Docker sandbox even when Docker is available. The agent runs `claude` directly on the host. Useful for debugging without container rebuild overhead (`server/system/docker.ts:49`, `server/index.ts:147`).                                                        |
-| `SANDBOX_SSH_AGENT_FORWARD` | unset                | Set to `1` to forward the host's `$SSH_AUTH_SOCK` into the sandbox. Private keys stay on the host; the agent signs on the container's behalf. Full contract: [docs/sandbox-credentials.md](sandbox-credentials.md).                                                                        |
-| `SANDBOX_MOUNT_CONFIGS`     | unset                | CSV of allowlisted config mounts (currently `gh`, `gitconfig`). Each entry resolves to a fixed host→container path pair defined in `server/agent/sandboxMounts.ts`; unknown names are logged and ignored.                                                                                  |
-| `SESSIONS_LIST_WINDOW_DAYS` | `90`                 | Caps how far back the sidebar looks when listing chat sessions (`server/api/routes/sessions.ts`). Set to `0` to disable the cutoff entirely. Introduced in PR #203 to keep `GET /api/sessions` cheap on long-lived workspaces; anything older is still on disk, just hidden from the list. |
-| `MACOS_REMINDER_NOTIFICATIONS` | `1` (Darwin) / unset elsewhere | Set to `0` to disable the macOS Reminders sink. The sink mirrors notifications into the system Reminders app via `osascript`. Title and body are passed via argv (not via `osascript` attribute) so notification text containing `osascript`-meta characters can't escape into the script (#789). |
-| `DISABLE_MACOS_REMINDER_NOTIFICATIONS` | unset | Alternate kill-switch for the same sink — set to `1` to silence it without changing the primary flag. Auto-enabled in `node:test` runs to keep test output clean. |
+| Variable                               | Default                        | Effect                                                                                                                                                                                                                                                                                            |
+| -------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                                 | `3001`                         | Express listen port (`server/index.ts:47`).                                                                                                                                                                                                                                                       |
+| `NODE_ENV`                             | unset / `production`           | When `production`, Express serves the built client from `dist/client` and falls back to `index.html` for SPA history-mode routing. Auto-set by tooling — you rarely set this manually.                                                                                                            |
+| `DISABLE_SANDBOX`                      | unset                          | Set to `1` to bypass the Docker sandbox even when Docker is available. The agent runs `claude` directly on the host. Useful for debugging without container rebuild overhead (`server/system/docker.ts:49`, `server/index.ts:147`).                                                               |
+| `SANDBOX_SSH_AGENT_FORWARD`            | unset                          | Set to `1` to forward the host's `$SSH_AUTH_SOCK` into the sandbox. Private keys stay on the host; the agent signs on the container's behalf. Full contract: [docs/sandbox-credentials.md](sandbox-credentials.md).                                                                               |
+| `SANDBOX_MOUNT_CONFIGS`                | unset                          | CSV of allowlisted config mounts (currently `gh`, `gitconfig`). Each entry resolves to a fixed host→container path pair defined in `server/agent/sandboxMounts.ts`; unknown names are logged and ignored.                                                                                         |
+| `SESSIONS_LIST_WINDOW_DAYS`            | `90`                           | Caps how far back the sidebar looks when listing chat sessions (`server/api/routes/sessions.ts`). Set to `0` to disable the cutoff entirely. Introduced in PR #203 to keep `GET /api/sessions` cheap on long-lived workspaces; anything older is still on disk, just hidden from the list.        |
+| `MACOS_REMINDER_NOTIFICATIONS`         | `1` (Darwin) / unset elsewhere | Set to `0` to disable the macOS Reminders sink. The sink mirrors notifications into the system Reminders app via `osascript`. Title and body are passed via argv (not via `osascript` attribute) so notification text containing `osascript`-meta characters can't escape into the script (#789). |
+| `DISABLE_MACOS_REMINDER_NOTIFICATIONS` | unset                          | Alternate kill-switch for the same sink — set to `1` to silence it without changing the primary flag. Auto-enabled in `node:test` runs to keep test output clean.                                                                                                                                 |
 
 ### Bridges & relay
 
-| Variable                         | Used by                            | Notes                                                                                                                                                                                                                                                                              |
-| -------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SLACK_ACK_REACTION`             | `@mulmobridge/slack` ≥ `0.4.0`     | Set to `1` to react with 👀 on every received Slack message before the agent finishes, so users see the bot saw the message. Off by default (#695).                                                                                                                              |
-| `RELAY_<PLATFORM>_DEFAULT_ROLE`  | `@mulmobridge/<bridge>` (relay mode) | Per-platform default role for the relay flow — e.g. `RELAY_TELEGRAM_DEFAULT_ROLE=guide` makes Telegram-originated chats start under the Guide & Planner role regardless of the host app's current role (#739, #794). Falls back to the host app's `currentRoleId` when unset. |
+| Variable                        | Used by                              | Notes                                                                                                                                                                                                                                                                         |
+| ------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SLACK_ACK_REACTION`            | `@mulmobridge/slack` ≥ `0.4.0`       | Set to `1` to react with 👀 on every received Slack message before the agent finishes, so users see the bot saw the message. Off by default (#695).                                                                                                                           |
+| `RELAY_<PLATFORM>_DEFAULT_ROLE` | `@mulmobridge/<bridge>` (relay mode) | Per-platform default role for the relay flow — e.g. `RELAY_TELEGRAM_DEFAULT_ROLE=guide` makes Telegram-originated chats start under the Guide & Planner role regardless of the host app's current role (#739, #794). Falls back to the host app's `currentRoleId` when unset. |
 
 ### Debug startup hooks
 
@@ -101,27 +101,27 @@ The structured logger (`server/system/logger/`) reads its config fresh at proces
 
 Client-side env vars use the `VITE_` prefix so Vite exposes them to the bundled frontend via `import.meta.env`. They're baked at build/dev time — restart `yarn dev` or rerun `yarn build` after changing.
 
-| Variable      | Default | Effect                                                                                                                                   |
-| ------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Variable      | Default | Effect                                                                                                                                            |
+| ------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `VITE_LOCALE` | `en`    | Locale passed to vue-i18n (`src/lib/vue-i18n.ts`). Currently supports `en` / `ja`. Missing keys fall back to English. See [i18n](#i18n-vue-i18n). |
 
 ### Container-only env (auto-set)
 
 You never set these by hand; the server constructs them when spawning Claude inside the Docker sandbox (`server/agent/config.ts` and `server/agent/mcp-server.ts`). They're listed here so log lines / failures involving them are decodable.
 
-| Variable                         | Set by         | Purpose                                                                                                                                      |
-| -------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SESSION_ID`                     | per agent run  | Session id passed to the MCP stdio bridge.                                                                                                   |
-| `PORT`                           | per agent run  | Host server port the bridge connects back to.                                                                                                |
-| `PLUGIN_NAMES`                   | per agent run  | Comma-separated list of plugins active for this session's role.                                                                              |
-| `ROLE_IDS`                       | per agent run  | Comma-separated list of all role ids.                                                                                                        |
-| `MULMOCLAUDE_CHAT_SESSION_ID`    | per agent run  | Chat session id forwarded to Claude CLI's process env so the wiki-history `PostToolUse` hook can publish a `page-edit` toolResult to the right session. Claude CLI's own hook payload `session_id` is the *CLI* session, which doesn't match our session store (#963 / #989).            |
-| `MULMOCLAUDE_HOST`               | container only | `host.docker.internal` (Docker) so the wiki-history hook can POST back to the parent server from inside the container. Falls back to `127.0.0.1` outside Docker.                                                                                                                          |
-| `MULMOCLAUDE_AUTH_TOKEN`         | per agent run  | Bearer token forwarded to the MCP subprocess so its `/api/*` calls authenticate without re-reading `<workspace>/.session-token`. The file fallback still works in container scenarios where the token file isn't bind-mounted.                                                            |
-| `MCP_HOST`                       | container only | `host.docker.internal` so the bridge inside the container can reach the host's Express server.                                               |
-| `NODE_PATH`                      | container only | `/app/node_modules` — points the container's tsx runtime at the bind-mounted modules.                                                        |
-| `HOME`                           | container only | `/home/node` so Claude CLI finds its credentials at `~/.claude`.                                                                             |
-| Sentinel `X_BEARER_TOKEN=1` etc. | container only | `isMcpToolEnabled()` re-evaluates inside the container; the actual API call still happens on the host, so we only signal "enabled" with `1`. |
+| Variable                         | Set by         | Purpose                                                                                                                                                                                                                                                                       |
+| -------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_ID`                     | per agent run  | Session id passed to the MCP stdio bridge.                                                                                                                                                                                                                                    |
+| `PORT`                           | per agent run  | Host server port the bridge connects back to.                                                                                                                                                                                                                                 |
+| `PLUGIN_NAMES`                   | per agent run  | Comma-separated list of plugins active for this session's role.                                                                                                                                                                                                               |
+| `ROLE_IDS`                       | per agent run  | Comma-separated list of all role ids.                                                                                                                                                                                                                                         |
+| `MULMOCLAUDE_CHAT_SESSION_ID`    | per agent run  | Chat session id forwarded to Claude CLI's process env so the wiki-history `PostToolUse` hook can publish a `page-edit` toolResult to the right session. Claude CLI's own hook payload `session_id` is the _CLI_ session, which doesn't match our session store (#963 / #989). |
+| `MULMOCLAUDE_HOST`               | container only | `host.docker.internal` (Docker) so the wiki-history hook can POST back to the parent server from inside the container. Falls back to `127.0.0.1` outside Docker.                                                                                                              |
+| `MULMOCLAUDE_AUTH_TOKEN`         | per agent run  | Bearer token forwarded to the MCP subprocess so its `/api/*` calls authenticate without re-reading `<workspace>/.session-token`. The file fallback still works in container scenarios where the token file isn't bind-mounted.                                                |
+| `MCP_HOST`                       | container only | `host.docker.internal` so the bridge inside the container can reach the host's Express server.                                                                                                                                                                                |
+| `NODE_PATH`                      | container only | `/app/node_modules` — points the container's tsx runtime at the bind-mounted modules.                                                                                                                                                                                         |
+| `HOME`                           | container only | `/home/node` so Claude CLI finds its credentials at `~/.claude`.                                                                                                                                                                                                              |
+| Sentinel `X_BEARER_TOKEN=1` etc. | container only | `isMcpToolEnabled()` re-evaluates inside the container; the actual API call still happens on the host, so we only signal "enabled" with `1`.                                                                                                                                  |
 
 > **There is no `WORKSPACE_PATH` env var.** The workspace path is hard-coded to `~/mulmoclaude` in `server/workspace/workspace.ts:11`. To experiment with multiple workspaces you currently need a code change or a symlink swap.
 
@@ -285,14 +285,14 @@ curl -X POST http://localhost:3001/api/notifications/test \
 
 Body fields (all optional):
 
-| Field          | Default                | Effect                                                                                                                                  |
-| -------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `message`      | `"Test notification"`  | Title delivered to both targets.                                                                                                        |
-| `body`         | _(none)_               | Optional second-line body in the bell panel.                                                                                            |
-| `delaySeconds` | `60`, capped at `3600` | Timer length. Non-numeric / NaN falls back to the default; negative clamps to `0`; fractional floors.                                   |
-| `transportId`  | `"cli"`                | Bridge target for `chatService.pushToBridge`.                                                                                           |
-| `chatId`       | `"notifications"`      | Bridge chat slot.                                                                                                                       |
-| `kind`         | `"push"`               | One of `todo` / `scheduler` / `agent` / `journal` / `push` / `bridge`. Drives the bell-panel icon — see `NOTIFICATION_ICONS`.           |
+| Field          | Default                | Effect                                                                                                                                 |
+| -------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `message`      | `"Test notification"`  | Title delivered to both targets.                                                                                                       |
+| `body`         | _(none)_               | Optional second-line body in the bell panel.                                                                                           |
+| `delaySeconds` | `60`, capped at `3600` | Timer length. Non-numeric / NaN falls back to the default; negative clamps to `0`; fractional floors.                                  |
+| `transportId`  | `"cli"`                | Bridge target for `chatService.pushToBridge`.                                                                                          |
+| `chatId`       | `"notifications"`      | Bridge chat slot.                                                                                                                      |
+| `kind`         | `"push"`               | One of `todo` / `scheduler` / `agent` / `journal` / `push` / `bridge`. Drives the bell-panel icon — see `NOTIFICATION_ICONS`.          |
 | `action`       | `{ type: "none" }`     | Permalink target — see [Notification permalinks](#notification-permalinks-762) below. Without this the click in the bell does nothing. |
 
 ### Fan-out at fire time
@@ -375,12 +375,12 @@ The browser tab favicon changes color to reflect the agent's state. Implemented 
 
 ### States
 
-| State | Color | Condition |
-|---|---|---|
-| **idle** | Gray (`#6B7280`) | No agent running, no unread replies in the **current** session |
-| **running** | Blue (`#3B82F6`) + glow ring | Agent is executing (`isRunning === true`) |
-| **done** | Green (`#22C55E`) | Current session has `hasUnread === true` (agent finished, user hasn't viewed) |
-| **error** | Red (`#EF4444`) | (Reserved — not currently wired to any state) |
+| State       | Color                        | Condition                                                                     |
+| ----------- | ---------------------------- | ----------------------------------------------------------------------------- |
+| **idle**    | Gray (`#6B7280`)             | No agent running, no unread replies in the **current** session                |
+| **running** | Blue (`#3B82F6`) + glow ring | Agent is executing (`isRunning === true`)                                     |
+| **done**    | Green (`#22C55E`)            | Current session has `hasUnread === true` (agent finished, user hasn't viewed) |
+| **error**   | Red (`#EF4444`)              | (Reserved — not currently wired to any state)                                 |
 
 A notification badge (orange dot, top-right) appears when the notification composable's `unreadCount > 0` (independent of session state).
 
@@ -390,10 +390,10 @@ The favicon reflects the **current session only**. If another session has unread
 
 ### Files
 
-| File | Role |
-|---|---|
-| `src/composables/useDynamicFavicon.ts` | Canvas rendering + `<link rel="icon">` injection |
-| `src/composables/useFaviconState.ts` | State derivation (isRunning / hasUnread / notification badge) |
+| File                                   | Role                                                          |
+| -------------------------------------- | ------------------------------------------------------------- |
+| `src/composables/useDynamicFavicon.ts` | Canvas rendering + `<link rel="icon">` injection              |
+| `src/composables/useFaviconState.ts`   | State derivation (isRunning / hasUnread / notification badge) |
 
 ---
 
@@ -420,11 +420,11 @@ Cross-module string literals (endpoint paths, tool names, role IDs, etc.) are de
 
 CLAUDE.md mandates `$t()` / `useI18n()` for all template strings — never hardcode. The infrastructure lives in three places:
 
-| File                   | Purpose                                                                                                       |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `src/lib/vue-i18n.ts`  | `createI18n({ legacy: false, locale, fallbackLocale: "en", messages })`. Locale comes from `VITE_LOCALE`.     |
-| `src/lang/en.ts`       | English dictionary — the **source of truth** for key shape. Missing keys in other locales fall back here.    |
-| `src/lang/ja.ts`       | Japanese dictionary. Mirror the tree shape of `en.ts`; any missing key silently falls back.                  |
+| File                  | Purpose                                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| `src/lib/vue-i18n.ts` | `createI18n({ legacy: false, locale, fallbackLocale: "en", messages })`. Locale comes from `VITE_LOCALE`. |
+| `src/lang/en.ts`      | English dictionary — the **source of truth** for key shape. Missing keys in other locales fall back here. |
+| `src/lang/ja.ts`      | Japanese dictionary. Mirror the tree shape of `en.ts`; any missing key silently falls back.               |
 
 ### Adding a string
 
@@ -508,20 +508,20 @@ Existing prefixes in use: `agent`, `agent-stderr`, `server`, `workspace`, `sandb
 
 Routes that do anything more than echo state should follow this shape, mirroring [`server/api/routes/image.ts`](../server/api/routes/image.ts) (PR #780) and [`server/api/routes/wiki.ts`](../server/api/routes/wiki.ts):
 
-| Stage | Level | Required payload |
-|---|---|---|
-| Entry, after input validation | `info` | route name + key id (sessionId / slug / path) + `promptMeta(prompt)` for freeform user input, or `previewSnippet(slug)` for identifier-shaped fields |
-| Success | `info` | bytes / item count / generated id |
-| External SDK / fetch returned no data | `warn` | input fingerprint + reason |
-| Internal exception (we threw, not the SDK) | `error` | input fingerprint + `errorMessage(err)` |
-| External SDK request/response shape | `debug` | only inside the SDK wrapper (`server/utils/gemini.ts` etc.); never inside route files |
+| Stage                                      | Level   | Required payload                                                                                                                                     |
+| ------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Entry, after input validation              | `info`  | route name + key id (sessionId / slug / path) + `promptMeta(prompt)` for freeform user input, or `previewSnippet(slug)` for identifier-shaped fields |
+| Success                                    | `info`  | bytes / item count / generated id                                                                                                                    |
+| External SDK / fetch returned no data      | `warn`  | input fingerprint + reason                                                                                                                           |
+| Internal exception (we threw, not the SDK) | `error` | input fingerprint + `errorMessage(err)`                                                                                                              |
+| External SDK request/response shape        | `debug` | only inside the SDK wrapper (`server/utils/gemini.ts` etc.); never inside route files                                                                |
 
 The "input fingerprint" in the warn / error rows is whichever helper the entry log used — `promptMeta` for freeform prompts, `previewSnippet` for identifiers. Pick by call-site shape, per the table below:
 
-| Helper | Use for | Output |
-|---|---|---|
-| [`promptMeta`](../server/utils/promptMeta.ts) | freeform user-supplied prompts / pasted text — anything that could carry credentials, URLs, or PII | `{ length, sha256: <12-hex> }` — fingerprint only |
-| [`previewSnippet`](../server/utils/logPreview.ts) | identifier-shaped fields with grep value (slug, page name, action verb) | first 120 chars + `…` |
+| Helper                                            | Use for                                                                                            | Output                                            |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| [`promptMeta`](../server/utils/promptMeta.ts)     | freeform user-supplied prompts / pasted text — anything that could carry credentials, URLs, or PII | `{ length, sha256: <12-hex> }` — fingerprint only |
+| [`previewSnippet`](../server/utils/logPreview.ts) | identifier-shaped fields with grep value (slug, page name, action verb)                            | first 120 chars + `…`                             |
 
 Default to `promptMeta` for any field a user types or pastes freely; reserve `previewSnippet` for fields the user picks from a closed set (a slug, an action name) or that the system already constrains (a page name routed through a slugifier). **Never log** API keys, bearer tokens, cookies, full prompts, full markdown bodies, or absolute paths that include `/Users/<name>` (use the workspace-relative path instead).
 
@@ -614,11 +614,11 @@ Plugin-local (lives entirely under `src/plugins/<name>/`):
   import { definePluginMeta } from "../meta-types";
   export const META = definePluginMeta({
     toolName: "presentDocument",
-    apiNamespace: "markdown",       // → /api/markdown
+    apiNamespace: "markdown", // → /api/markdown
     mcpDispatch: "create",
     apiRoutes: {
-      create: { method: "POST", path: "" },        // POST /api/markdown
-      update: { method: "PUT",  path: "/update" }, // PUT  /api/markdown/update
+      create: { method: "POST", path: "" }, // POST /api/markdown
+      update: { method: "PUT", path: "/update" }, // PUT  /api/markdown/update
     },
   });
   ```
@@ -633,26 +633,31 @@ Plugin-local (lives entirely under `src/plugins/<name>/`):
   export const TOOL_NAME = META.toolName;
   export type DocumentEndpoints = { readonly [K in keyof typeof META.apiRoutes]: ResolvedRoute };
 
-  const toolDefinition: ToolDefinition = { name: TOOL_NAME, /* ... */ };
+  const toolDefinition: ToolDefinition = { name: TOOL_NAME /* ... */ };
   export default toolDefinition;
   ```
 
 - **`index.ts`** — `PluginRegistration` exporting `REGISTRATION` (single-entry plugins) or `REGISTRATIONS` (multi-entry, e.g. scheduler's calendar+automations). The executor calls `pluginEndpoints<E>(scope)` from `../api` rather than importing `API_ROUTES` directly — the ESLint rule (#1144) enforces this for every file under `src/plugins/<name>/`. Vue components are wrapped via `wrapWithScope(scope, Component)` so descendants get the plugin runtime via `useRuntime()`.
 
-- **`View.vue` / `Preview.vue`** — Vue surfaces. `useRuntime()` from `gui-chat-protocol/vue` returns a `BrowserPluginRuntime` (see "Plugin runtime API" below). Plain HTTP calls go through `apiCall(url, { method, body })` — pull both fields off the resolved route:
+- **`View.vue` / `Preview.vue`** — Vue surfaces. `useRuntime()` from `gui-chat-protocol/vue` returns a `BrowserPluginRuntime` (see "Plugin runtime API" below). Plain HTTP calls go through `apiCall(url, { method, body })` — pull both fields off the resolved route. The two `markdown` routes above have no path parameters, so the View just reads `endpoints.<key>.url`:
 
   ```ts
   import { apiCall } from "../../utils/api";
   import { useRuntime } from "gui-chat-protocol/vue";
-  import { buildRouteUrl } from "../meta-types";
   import type { DocumentEndpoints } from "./definition";
 
   const endpoints = useRuntime().endpoints as DocumentEndpoints;
-  // No path params:
   await apiCall(endpoints.create.url, { method: endpoints.create.method, body: payload });
-  // With path params (`/:id`, etc.):
-  const url = buildRouteUrl(endpoints.update, { id });
-  await apiCall(url, { method: endpoints.update.method, body: payload });
+  await apiCall(endpoints.update.url, { method: endpoints.update.method, body: payload });
+  ```
+
+  When a route DOES carry path parameters — e.g. a hypothetical `delete: { method: "DELETE", path: "/:id" }` → `DELETE /api/markdown/:id` — substitute via `buildRouteUrl` so the literal segment isn't open-coded:
+
+  ```ts
+  import { buildRouteUrl } from "../meta-types";
+  // resolves `/api/markdown/:id` against `{ id: "abc" }` → `/api/markdown/abc`
+  const url = buildRouteUrl(endpoints.delete, { id: docId });
+  await apiCall(url, { method: endpoints.delete.method });
   ```
 
 Server-side, only when the plugin owns endpoints:
@@ -662,8 +667,12 @@ Server-side, only when the plugin owns endpoints:
   ```ts
   import { bindRoute } from "../../utils/router.js";
   import { API_ROUTES } from "../../../src/config/apiRoutes.js";
-  bindRoute(router, API_ROUTES.markdown.create, async (req, res) => { /* ... */ });
-  bindRoute(router, API_ROUTES.markdown.update, async (req, res) => { /* ... */ });
+  bindRoute(router, API_ROUTES.markdown.create, async (req, res) => {
+    /* ... */
+  });
+  bindRoute(router, API_ROUTES.markdown.update, async (req, res) => {
+    /* ... */
+  });
   ```
 
 Host wiring, exactly once per plugin:
@@ -682,14 +691,14 @@ Plugins that don't fit the standard convention (image plugins sharing the host's
 
 `useRuntime()` from `gui-chat-protocol/vue` returns a `BrowserPluginRuntime` scoped to the plugin's package name. Built-in plugins get this surface via `wrapWithScope(scope, …)` (chat canvas) or an `<PluginScopedRoot>` wrapper at the standalone-route call site (see next section). The API:
 
-| field | purpose | example |
-|---|---|---|
-| `endpoints` | resolved route map. Cast to your plugin's `*Endpoints` type. | `(useRuntime().endpoints as TodoEndpoints).list.url` |
-| `dispatch(args)` | MCP-style single-call dispatch (`POST /api/plugins/runtime/:pkg/dispatch`). Built-in plugins typically prefer their own typed routes via `endpoints`; runtime-loaded plugins commonly only have `dispatch`. | `await runtime.dispatch({ action: "create", title })` |
-| `pubsub.subscribe(eventName, handler)` | Subscribe to a plugin-scoped channel. Returns an unsubscribe function. The host fans events as `unknown`; validate the shape at the call site. | `runtime.pubsub.subscribe("changed", (data) => …)` |
-| `log.{debug,info,warn,error}(msg, data?)` | Frontend logger that prefixes `[plugin/<pkg>]` so console output is owner-tagged. | `runtime.log.warn("retrying", { attempt })` |
-| `openUrl(url)` | Open an external link in a new tab with `noopener,noreferrer`. Allowlists `http:` / `https:` only — `javascript:` / `data:` are rejected. | `runtime.openUrl("https://example.com")` |
-| `locale` | `Ref<string>` with the active vue-i18n locale (`en`, `ja`, `zh`, `ko`, `es`, `pt-BR`, `fr`, `de`). Reactive — re-render on locale change. | `<span>{{ runtime.locale }}</span>` |
+| field                                     | purpose                                                                                                                                                                                                     | example                                               |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `endpoints`                               | resolved route map. Cast to your plugin's `*Endpoints` type.                                                                                                                                                | `(useRuntime().endpoints as TodoEndpoints).list.url`  |
+| `dispatch(args)`                          | MCP-style single-call dispatch (`POST /api/plugins/runtime/:pkg/dispatch`). Built-in plugins typically prefer their own typed routes via `endpoints`; runtime-loaded plugins commonly only have `dispatch`. | `await runtime.dispatch({ action: "create", title })` |
+| `pubsub.subscribe(eventName, handler)`    | Subscribe to a plugin-scoped channel. Returns an unsubscribe function. The host fans events as `unknown`; validate the shape at the call site.                                                              | `runtime.pubsub.subscribe("changed", (data) => …)`    |
+| `log.{debug,info,warn,error}(msg, data?)` | Frontend logger that prefixes `[plugin/<pkg>]` so console output is owner-tagged.                                                                                                                           | `runtime.log.warn("retrying", { attempt })`           |
+| `openUrl(url)`                            | Open an external link in a new tab with `noopener,noreferrer`. Allowlists `http:` / `https:` only — `javascript:` / `data:` are rejected.                                                                   | `runtime.openUrl("https://example.com")`              |
+| `locale`                                  | `Ref<string>` with the active vue-i18n locale (`en`, `ja`, `zh`, `ko`, `es`, `pt-BR`, `fr`, `de`). Reactive — re-render on locale change.                                                                   | `<span>{{ runtime.locale }}</span>`                   |
 
 Plugin code is also bound by ESLint's plugin import rule (#1144): under `src/plugins/<name>/` you cannot import from `src/config/*`, `src/tools/*` (value imports), or `server/*`. Use the runtime API or the DI helpers (`pluginEndpoints<E>(scope)`, `pluginBuiltinRoleIds()`, `pluginPageRoute(name)` from `../api`) instead.
 
@@ -737,11 +746,11 @@ Aggregator collisions don't throw — they're filtered and reported. `server/plu
 
 ## Where to file what
 
-| Problem area                  | File / dir                                                                  |
-| ----------------------------- | --------------------------------------------------------------------------- |
-| Adding a new `/api/*` route   | `server/api/routes/<name>.ts`, wire in `server/index.ts`                    |
-| Adding a shared server helper | `server/utils/<concept>.ts` (one concept per file)                          |
-| Adding a Vue composable       | `src/composables/use<Name>.ts`                                              |
+| Problem area                  | File / dir                                                                                                                              |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Adding a new `/api/*` route   | `server/api/routes/<name>.ts`, wire in `server/index.ts`                                                                                |
+| Adding a shared server helper | `server/utils/<concept>.ts` (one concept per file)                                                                                      |
+| Adding a Vue composable       | `src/composables/use<Name>.ts`                                                                                                          |
 | Adding a plugin               | `src/plugins/<name>/{meta,definition,index,View,Preview}.{ts,vue}` + the 3 host barrels — see [Plugin development](#plugin-development) |
-| Adding a test                 | `test/<mirrored-source-path>/test_<module>.ts`                              |
-| New developer-facing doc      | `docs/<name>.md` and link from the table at the top of the README           |
+| Adding a test                 | `test/<mirrored-source-path>/test_<module>.ts`                                                                                          |
+| New developer-facing doc      | `docs/<name>.md` and link from the table at the top of the README                                                                       |
