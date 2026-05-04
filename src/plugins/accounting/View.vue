@@ -67,6 +67,7 @@
             :version="bookVersion"
             :fiscal-year-end="activeFiscalYearEnd"
             :opening-date="activeOpeningDate"
+            :preselect-entry-id="journalPreselectEntryId"
             @edit-opening="currentTab = 'opening'"
           />
           <OpeningBalancesForm
@@ -134,6 +135,7 @@ import BalanceSheet from "./components/BalanceSheet.vue";
 import ProfitLoss from "./components/ProfitLoss.vue";
 import BookSettings from "./components/BookSettings.vue";
 import { getOpeningBalances, getAccounts, getBooks, type Account, type BookSummary } from "./api";
+import { ACCOUNTING_ACTIONS } from "./actions";
 import { useAccountingChannel, useAccountingBooksChannel } from "../../composables/useAccountingChannel";
 
 const { t } = useI18n();
@@ -142,6 +144,14 @@ interface AccountingAppPayload {
   kind?: string;
   bookId?: string;
   initialTab?: string;
+  /** Dispatch verb stamped onto every accounting tool-result envelope
+   *  (server/api/routes/accounting.ts dispatch()). We read it here to
+   *  branch on `addEntries` and surface the just-posted row. */
+  action?: string;
+  /** Present on `addEntries` envelopes — the freshly-built journal
+   *  entries returned by the service. Each carries a server-stamped
+   *  `id` we use to highlight the row in JournalList. */
+  entries?: { id?: string }[];
 }
 
 const props = defineProps<{ selectedResult?: ToolResultComplete<AccountingAppPayload, AccountingAppPayload> }>();
@@ -392,6 +402,13 @@ function onBookSelected(bookId: string): void {
   deletedNoticeName.value = null;
 }
 
+// Entry id to surface in JournalList after an `addEntries` tool
+// result lands — the LLM just posted a journal entry and we want
+// the user's eye on the new row. Multi-entry batches highlight the
+// LAST entry only (matches the "you ended up here" intent of a
+// scroll-to-cursor).
+const journalPreselectEntryId = ref<string | undefined>(undefined);
+
 // Account preselected by the Accounts tab → click handoff. Cleared
 // once the user picks a different account from the Ledger's own
 // dropdown so a stale preselection doesn't override later edits.
@@ -498,6 +515,40 @@ watch(
 watch(books, () => {
   const pending = pendingTargetBookId.value;
   if (pending) applyTargetBookId(pending);
+});
+
+// Auto-expand the just-posted journal row when an `addEntries`
+// tool result lands in the canvas. The route handler stamps
+// `data: { action, bookId, entries }` (server/api/routes/
+// accounting.ts dispatch + PREVIEW_ACTIONS), so the envelope
+// reaches us via `selectedResult.data`. We pull the LAST entry's
+// id, force the journal tab into view, and blink the preselect
+// ref so JournalList's prop watcher refires even on repeated
+// posts that re-select an envelope referencing the same id.
+// `immediate: true` so a cold open with the addEntries result
+// already selected (e.g., reload after the LLM posted) lands on
+// the highlighted row too.
+watch(
+  () => initialPayload.value,
+  (payload) => {
+    if (payload.action !== ACCOUNTING_ACTIONS.addEntries) return;
+    const entries = Array.isArray(payload.entries) ? payload.entries : [];
+    const lastId = entries[entries.length - 1]?.id;
+    if (!lastId) return;
+    currentTab.value = "journal";
+    journalPreselectEntryId.value = lastId;
+  },
+  { immediate: true },
+);
+
+// Drop the journal preselect on a real book SWITCH — leftover ids
+// from the prior book don't exist in the new one. The cold-load
+// transition (null → bookId) doesn't qualify: refetchBooks resolves
+// activeBookId asynchronously and would otherwise clobber a
+// preselect the addEntries watcher just set on initial mount.
+watch(activeBookId, (_next, prev) => {
+  if (!prev) return;
+  journalPreselectEntryId.value = undefined;
 });
 
 // Refetch the opening status whenever the active book changes or
