@@ -29,6 +29,11 @@ export default [
       // would force plugin authors to satisfy mulmoclaude conventions
       // they have no reason to know.
       "packages/bookmarks-plugin",
+      // todo-plugin migration in progress (#1145). Same exemption
+      // rationale as bookmarks-plugin — has its own eslint config
+      // with gui-chat-protocol/eslint-preset enforcing the
+      // platform-bypass restrictions.
+      "packages/todo-plugin",
       // mulmoclaude launcher copies server/client/shared src here at
       // publish time. Original sources are linted at their real paths.
       "packages/mulmoclaude/client",

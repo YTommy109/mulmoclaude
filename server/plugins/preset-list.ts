@@ -27,10 +27,12 @@ export interface PresetPlugin {
 }
 
 export const PRESET_PLUGINS: readonly PresetPlugin[] = [
-  // No presets currently. Plugins like `@gui-chat-plugin/weather` are
-  // discovered through the user's workspace install ledger
-  // (`plugins/plugins.json`) instead — running them as both a preset
-  // and a user-install registered the same package twice and produced
-  // a "name collides" warning on every boot. The framework remains
-  // here for future presets that genuinely should ship pre-loaded.
+  // PR1 of #1145 — runtime-plugin shape of the built-in todo plugin.
+  // Loaded as a preset (resolved via `node_modules/@mulmoclaude/todo-plugin/`
+  // through the yarn-workspaces symlink) so it boots on every fresh
+  // checkout. Collides on `TOOL_DEFINITION.name = "manageTodoList"`
+  // with the static plugin in `src/plugins/todo/`; collision policy
+  // (static wins) keeps PR1 a no-op behaviour change. PR5 deletes the
+  // static side, after which this becomes the real handler.
+  { packageName: "@mulmoclaude/todo-plugin" },
 ];
