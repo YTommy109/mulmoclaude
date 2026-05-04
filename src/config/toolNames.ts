@@ -34,11 +34,8 @@ const HOST_TOOL_NAMES = {
 
   // Management plugins (not yet migrated to META)
   // manageTodoList migrated — see `src/plugins/todo/meta.ts`.
-  // Calendar / Automations split (#824) — replaced the unified
-  // `manageScheduler` so the LLM and chat-tool-result UI both have
-  // a 1:1 mapping between tool name and domain.
-  manageCalendar: "manageCalendar",
-  manageAutomations: "manageAutomations",
+  // manageCalendar migrated — see `src/plugins/scheduler/calendarMeta.ts`.
+  // manageAutomations migrated — see `src/plugins/scheduler/automationsMeta.ts`.
   // manageSkills migrated — see `src/plugins/manageSkills/meta.ts`.
   // manageSource migrated — see `src/plugins/manageSource/meta.ts`.
   manageWiki: "manageWiki",
@@ -54,8 +51,8 @@ const HOST_TOOL_NAMES = {
 
   // Creation / generation
   createMindMap: "createMindMap",
-  generateImage: "generateImage",
-  editImages: "editImages",
+  // generateImage migrated — see `src/plugins/generateImage/meta.ts`.
+  // editImages migrated — see `src/plugins/editImages/meta.ts`.
   // openCanvas migrated — see `src/plugins/canvas/meta.ts`.
 
   // Interactive / media

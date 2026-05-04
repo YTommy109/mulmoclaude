@@ -20,12 +20,16 @@ import type { PluginMeta } from "./meta-types";
 import { META as accountingMeta } from "./accounting/meta";
 import { META as canvasMeta } from "./canvas/meta";
 import { META as chartMeta } from "./chart/meta";
+import { META as editImagesMeta } from "./editImages/meta";
+import { META as generateImageMeta } from "./generateImage/meta";
 import { META as manageSkillsMeta } from "./manageSkills/meta";
 import { META as manageSourceMeta } from "./manageSource/meta";
 import { META as markdownMeta } from "./markdown/meta";
 import { META as presentFormMeta } from "./presentForm/meta";
 import { META as presentHtmlMeta } from "./presentHtml/meta";
 import { META as presentMulmoScriptMeta } from "./presentMulmoScript/meta";
+import { META as schedulerAutomationsMeta } from "./scheduler/automationsMeta";
+import { META as schedulerCalendarMeta } from "./scheduler/calendarMeta";
 import { META as spreadsheetMeta } from "./spreadsheet/meta";
 import { META as todoMeta } from "./todo/meta";
 
@@ -36,12 +40,16 @@ export const BUILT_IN_PLUGIN_METAS = [
   accountingMeta,
   canvasMeta,
   chartMeta,
+  editImagesMeta,
+  generateImageMeta,
   manageSkillsMeta,
   manageSourceMeta,
   markdownMeta,
   presentFormMeta,
   presentHtmlMeta,
   presentMulmoScriptMeta,
+  schedulerAutomationsMeta,
+  schedulerCalendarMeta,
   spreadsheetMeta,
   todoMeta,
 ] as const satisfies readonly PluginMeta[];
