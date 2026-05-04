@@ -761,6 +761,7 @@ const ptBRMessages = {
       rebuild: "Reconstruir snapshots",
       rebuildExplain: "Apaga todos os snapshots mensais e recalcula a partir do diário. Útil após editar o diário manualmente.",
       rebuildOk: "Reconstruído(s) {count} período(s).",
+      advanced: "Avançado…",
       deleteBook: "Excluir livro",
       deleteBookExplain: "Exclui permanentemente o diretório do livro. Não pode ser desfeito.",
       deleteBookConfirm: 'Digite "{bookName}" para confirmar:',

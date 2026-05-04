@@ -765,6 +765,7 @@ const frMessages = {
       rebuild: "Reconstruire les snapshots",
       rebuildExplain: "Supprime tous les snapshots mensuels et les recalcule depuis le journal. Utile après modification manuelle du journal.",
       rebuildOk: "{count} période(s) reconstruite(s).",
+      advanced: "Avancé…",
       deleteBook: "Supprimer le livre",
       deleteBookExplain: "Supprime définitivement le répertoire du livre. Irréversible.",
       deleteBookConfirm: 'Tapez "{bookName}" pour confirmer :',

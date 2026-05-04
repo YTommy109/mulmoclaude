@@ -769,6 +769,7 @@ const esMessages = {
       rebuild: "Reconstruir snapshots",
       rebuildExplain: "Borra todos los snapshots mensuales y los recalcula desde el diario. Útil tras editar el diario a mano.",
       rebuildOk: "Reconstruidos {count} período(s).",
+      advanced: "Avanzado…",
       deleteBook: "Eliminar libro",
       deleteBookExplain: "Elimina permanentemente el directorio del libro. No se puede deshacer.",
       deleteBookConfirm: 'Escribe "{bookName}" para confirmar:',

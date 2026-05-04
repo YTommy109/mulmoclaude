@@ -752,6 +752,7 @@ const zhMessages = {
       rebuild: "重建快照",
       rebuildExplain: "删除全部月度快照缓存并从日记账重新计算。手动编辑日记账后可用。",
       rebuildOk: "已重建 {count} 期。",
+      advanced: "高级设置…",
       deleteBook: "删除账簿",
       deleteBookExplain: "永久删除该账簿目录。无法撤销。",
       deleteBookConfirm: '请输入 "{bookName}" 以确认:',

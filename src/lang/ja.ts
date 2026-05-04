@@ -758,6 +758,7 @@ const jaMessages = {
       rebuild: "スナップショット再構築",
       rebuildExplain: "月次スナップショットキャッシュをすべて削除し、journal から再計算します。journal を手で編集した後のリカバリに使えます。",
       rebuildOk: "{count} 期間を再構築しました。",
+      advanced: "詳細設定…",
       deleteBook: "帳簿を削除",
       deleteBookExplain: "この帳簿のディレクトリを完全に削除します。元に戻せません。",
       deleteBookConfirm: '確認のため "{bookName}" を入力してください:',
