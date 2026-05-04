@@ -746,11 +746,11 @@ Aggregator collisions don't throw — they're filtered and reported. `server/plu
 
 ## Where to file what
 
-| Problem area                  | File / dir                                                                                                                              |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Adding a new `/api/*` route   | `server/api/routes/<name>.ts`, wire in `server/index.ts`                                                                                |
-| Adding a shared server helper | `server/utils/<concept>.ts` (one concept per file)                                                                                      |
-| Adding a Vue composable       | `src/composables/use<Name>.ts`                                                                                                          |
-| Adding a plugin               | `src/plugins/<name>/{meta,definition,index,View,Preview}.{ts,vue}` + the 3 host barrels — see [Plugin development](#plugin-development) |
-| Adding a test                 | `test/<mirrored-source-path>/test_<module>.ts`                                                                                          |
-| New developer-facing doc      | `docs/<name>.md` and link from the table at the top of the README                                                                       |
+| Problem area                  | File / dir                                                                                                                                                                                                          |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Adding a new `/api/*` route   | `server/api/routes/<name>.ts`, wire in `server/index.ts`                                                                                                                                                            |
+| Adding a shared server helper | `server/utils/<concept>.ts` (one concept per file)                                                                                                                                                                  |
+| Adding a Vue composable       | `src/composables/use<Name>.ts`                                                                                                                                                                                      |
+| Adding a plugin               | `src/plugins/<name>/{meta,definition,index,View,Preview}.{ts,vue}` (host barrels regenerate via codegen) — see [Plugin development](#plugin-development) and [Auto-discovery](#auto-discovery-no-host-barrel-edits) |
+| Adding a test                 | `test/<mirrored-source-path>/test_<module>.ts`                                                                                                                                                                      |
+| New developer-facing doc      | `docs/<name>.md` and link from the table at the top of the README                                                                                                                                                   |
