@@ -12,8 +12,8 @@ const presentFormPlugin: ToolPlugin<FormData, FormData, FormArgs> = {
   execute: executeForm,
   generatingMessage: "Preparing form...",
   isEnabled: () => true,
-  viewComponent: wrapWithScope("presentForm", View),
-  previewComponent: wrapWithScope("presentForm", Preview),
+  viewComponent: wrapWithScope("form", View),
+  previewComponent: wrapWithScope("form", Preview),
 };
 
 export default presentFormPlugin;
