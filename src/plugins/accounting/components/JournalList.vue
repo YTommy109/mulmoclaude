@@ -1,17 +1,17 @@
 <template>
   <div class="flex flex-col gap-3">
     <!-- Top-row toolbar slot. Renders the embedded entry form
-         in-place when the user opens "New entry" or clicks Edit
-         on a journal row; otherwise just the "+ New entry"
-         button. The date picker / account filter / table below
-         stay visible in either state. -->
-    <div v-if="showForm" class="border border-gray-200 rounded p-3" data-testid="accounting-journal-inline-form">
+         in "+ New entry" mode here; Edit-mode for a row's existing
+         entry is rendered IN-PLACE inside that row's expanded
+         detail panel below. The date picker / account filter /
+         table below stay visible in either state. -->
+    <div v-if="showNewForm" class="border border-gray-200 rounded p-3" data-testid="accounting-journal-inline-form">
       <JournalEntryForm
         :book-id="bookId"
         :accounts="accounts"
         :currency="currency"
         :country="country"
-        :entry-to-edit="entryBeingEdited"
+        :entry-to-edit="null"
         @submitted="onFormSubmitted"
         @cancel="onFormCancel"
       />
@@ -83,73 +83,87 @@
           </tr>
           <tr v-if="expandedEntryId === entry.id" class="bg-gray-50" :data-testid="`accounting-journal-detail-${entry.id}`">
             <td :colspan="4" class="px-6 py-2">
-              <!-- Detail header: Edit / Void on the left (when the
-                   entry kind allows them), Close on the right. The
-                   Edit / Void buttons used to live in a per-row
-                   action cell on the journal table — moving them
-                   here keeps the row clean and gives the buttons
-                   more breathing room next to the detail panel they
-                   act on. -->
-              <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center gap-3">
-                  <template v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)">
-                    <button class="text-xs text-blue-600 hover:underline" :data-testid="`accounting-edit-${entry.id}`" @click="onEditEntry(entry)">
+              <!-- Edit-in-place: the JournalEntryForm replaces the
+                   read-only detail content for this row when the
+                   user clicks Edit. Submit / cancel collapses back
+                   (submit also voids the original, so we clear the
+                   selection); top-bar "+ New entry" stays a separate
+                   path that opens the same form above the table. -->
+              <div v-if="entryBeingEdited?.id === entry.id" :data-testid="`accounting-journal-detail-edit-${entry.id}`">
+                <JournalEntryForm
+                  :book-id="bookId"
+                  :accounts="accounts"
+                  :currency="currency"
+                  :country="country"
+                  :entry-to-edit="entryBeingEdited"
+                  @submitted="onFormSubmitted"
+                  @cancel="onFormCancel"
+                />
+              </div>
+              <template v-else>
+                <!-- Detail header: Edit / Void on the left (when the
+                     entry kind allows them), Close on the right. -->
+                <div class="flex items-center justify-between mb-2">
+                  <div class="flex items-center gap-3">
+                    <template v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)">
+                      <button class="text-xs text-blue-600 hover:underline" :data-testid="`accounting-edit-${entry.id}`" @click="onEditEntry(entry)">
+                        {{ t("pluginAccounting.journalList.edit") }}
+                      </button>
+                      <button class="text-xs text-red-500 hover:underline" :data-testid="`accounting-void-${entry.id}`" @click="onVoid(entry)">
+                        {{ t("pluginAccounting.journalList.void") }}
+                      </button>
+                    </template>
+                    <button
+                      v-else-if="entry.kind === 'opening' && !voidedEntryIds.has(entry.id)"
+                      class="text-xs text-blue-600 hover:underline"
+                      :data-testid="`accounting-edit-opening-${entry.id}`"
+                      @click="emit('editOpening')"
+                    >
                       {{ t("pluginAccounting.journalList.edit") }}
                     </button>
-                    <button class="text-xs text-red-500 hover:underline" :data-testid="`accounting-void-${entry.id}`" @click="onVoid(entry)">
-                      {{ t("pluginAccounting.journalList.void") }}
-                    </button>
-                  </template>
+                  </div>
                   <button
-                    v-else-if="entry.kind === 'opening' && !voidedEntryIds.has(entry.id)"
-                    class="text-xs text-blue-600 hover:underline"
-                    :data-testid="`accounting-edit-opening-${entry.id}`"
-                    @click="emit('editOpening')"
+                    type="button"
+                    class="h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100"
+                    :data-testid="`accounting-journal-detail-close-${entry.id}`"
+                    :aria-label="t('pluginAccounting.common.cancel')"
+                    @click="expandedEntryId = null"
                   >
-                    {{ t("pluginAccounting.journalList.edit") }}
+                    <span class="material-icons text-base">close</span>
                   </button>
                 </div>
-                <button
-                  type="button"
-                  class="h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100"
-                  :data-testid="`accounting-journal-detail-close-${entry.id}`"
-                  :aria-label="t('pluginAccounting.common.cancel')"
-                  @click="expandedEntryId = null"
-                >
-                  <span class="material-icons text-base">close</span>
-                </button>
-              </div>
-              <table class="w-full text-xs">
-                <thead>
-                  <tr class="text-gray-500 border-b border-gray-200">
-                    <th class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.accountLabel") }}</th>
-                    <th class="text-right py-1 px-2">{{ t("pluginAccounting.entryForm.debitLabel") }}</th>
-                    <th class="text-right py-1 px-2">{{ t("pluginAccounting.entryForm.creditLabel") }}</th>
-                    <th class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.memoLabel") }}</th>
-                    <th v-if="entryHasTaxIds(entry)" class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.taxRegistrationIdLabel") }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(line, idx) in entry.lines" :key="idx" class="border-b border-gray-100 text-gray-700">
-                    <td class="py-1 px-2">
-                      <span class="font-mono text-[10px] text-gray-400 mr-2">{{ line.accountCode }}</span>
-                      <span v-if="accountNameFor(line.accountCode)">{{ accountNameFor(line.accountCode) }}</span>
-                    </td>
-                    <td class="py-1 px-2 text-right font-mono">{{ line.debit ? formatAmount(line.debit, currency) : "" }}</td>
-                    <td class="py-1 px-2 text-right font-mono">{{ line.credit ? formatAmount(line.credit, currency) : "" }}</td>
-                    <td class="py-1 px-2">{{ line.memo ?? "" }}</td>
-                    <td v-if="entryHasTaxIds(entry)" class="py-1 px-2 font-mono text-[10px]">{{ line.taxRegistrationId ?? "" }}</td>
-                  </tr>
-                </tbody>
-                <tfoot>
-                  <tr class="font-semibold border-t border-gray-300 text-gray-700">
-                    <td class="py-1 px-2 text-gray-500">{{ t("pluginAccounting.balanceSheet.total") }}</td>
-                    <td class="py-1 px-2 text-right font-mono">{{ formatAmount(entryDebitTotal(entry), currency) }}</td>
-                    <td class="py-1 px-2 text-right font-mono">{{ formatAmount(entryCreditTotal(entry), currency) }}</td>
-                    <td :colspan="entryHasTaxIds(entry) ? 2 : 1"></td>
-                  </tr>
-                </tfoot>
-              </table>
+                <table class="w-full text-xs">
+                  <thead>
+                    <tr class="text-gray-500 border-b border-gray-200">
+                      <th class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.accountLabel") }}</th>
+                      <th class="text-right py-1 px-2">{{ t("pluginAccounting.entryForm.debitLabel") }}</th>
+                      <th class="text-right py-1 px-2">{{ t("pluginAccounting.entryForm.creditLabel") }}</th>
+                      <th class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.memoLabel") }}</th>
+                      <th v-if="entryHasTaxIds(entry)" class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.taxRegistrationIdLabel") }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(line, idx) in entry.lines" :key="idx" class="border-b border-gray-100 text-gray-700">
+                      <td class="py-1 px-2">
+                        <span class="font-mono text-[10px] text-gray-400 mr-2">{{ line.accountCode }}</span>
+                        <span v-if="accountNameFor(line.accountCode)">{{ accountNameFor(line.accountCode) }}</span>
+                      </td>
+                      <td class="py-1 px-2 text-right font-mono">{{ line.debit ? formatAmount(line.debit, currency) : "" }}</td>
+                      <td class="py-1 px-2 text-right font-mono">{{ line.credit ? formatAmount(line.credit, currency) : "" }}</td>
+                      <td class="py-1 px-2">{{ line.memo ?? "" }}</td>
+                      <td v-if="entryHasTaxIds(entry)" class="py-1 px-2 font-mono text-[10px]">{{ line.taxRegistrationId ?? "" }}</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr class="font-semibold border-t border-gray-300 text-gray-700">
+                      <td class="py-1 px-2 text-gray-500">{{ t("pluginAccounting.balanceSheet.total") }}</td>
+                      <td class="py-1 px-2 text-right font-mono">{{ formatAmount(entryDebitTotal(entry), currency) }}</td>
+                      <td class="py-1 px-2 text-right font-mono">{{ formatAmount(entryCreditTotal(entry), currency) }}</td>
+                      <td :colspan="entryHasTaxIds(entry) ? 2 : 1"></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </template>
             </td>
           </tr>
         </template>
@@ -185,15 +199,16 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ editOpening: [] }>();
 
-// Inline-form state. The form replaces the toolbar slot when either
-// rail is active:
-//   • showNewForm = true → blank draft (the "+ New entry" button).
-//   • entryBeingEdited != null → edit mode, prefilled from the row.
-// Both flow through the same <JournalEntryForm>; the form looks at
-// `entryToEdit` to decide its title / submit label.
+// Inline-form state. Two distinct surfaces, one component:
+//   • showNewForm = true → blank draft, rendered above the table
+//     where the "+ New entry" button used to be.
+//   • entryBeingEdited != null → edit mode, rendered IN-PLACE inside
+//     the matching row's expanded detail panel (replacing the read-
+//     only debit/credit table for that row).
+// `<JournalEntryForm>` looks at `entryToEdit` to decide its title /
+// submit label; the top-bar instance always passes null.
 const showNewForm = ref(false);
 const entryBeingEdited = ref<JournalEntry | null>(null);
-const showForm = computed<boolean>(() => showNewForm.value || entryBeingEdited.value !== null);
 
 function onOpenNewEntry(): void {
   entryBeingEdited.value = null;
@@ -219,6 +234,10 @@ function onFormSubmitted(): void {
   // tab repaint, and skipping it here also makes the e2e mock
   // path (no pubsub replay) deterministic.
   closeForm();
+  // After an in-place edit submit, the original entry is voided
+  // and replaced. Collapse the detail panel since it was pointing
+  // at an entry that's now superseded.
+  expandedEntryId.value = null;
   void refresh();
 }
 
@@ -288,7 +307,16 @@ function accountNameFor(code: string): string | null {
 const expandedEntryId = ref<string | null>(null);
 
 function toggleExpanded(entryId: string): void {
+  // While the row is in edit mode for itself, ignore clicks on the
+  // row chrome (date / kind / memo / lines cells) — the user is
+  // actively typing into the form below and a stray cell click
+  // shouldn't collapse the panel. Cancel / Submit on the form, or
+  // clicking a different row, are the deliberate exits.
+  if (entryBeingEdited.value?.id === entryId) return;
   expandedEntryId.value = expandedEntryId.value === entryId ? null : entryId;
+  // Switching to a different row (or collapsing) drops any
+  // in-progress edit on the prior row.
+  entryBeingEdited.value = null;
 }
 
 function onKeyToggle(event: KeyboardEvent, entryId: string): void {
