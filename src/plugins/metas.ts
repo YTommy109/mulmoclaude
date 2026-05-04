@@ -11,51 +11,16 @@
 // a Vue-free entry point that still co-locates the per-plugin
 // metadata.
 //
-// Adding a new plugin: append the plugin's META import here AND a
-// REGISTRATION import in `src/plugins/index.ts`. Both files live
-// under `src/plugins/` so the change is plugin-local.
+// **Auto-generated**. The list comes from
+// `_generated/metas.ts` which is rewritten by
+// `scripts/codegen-plugin-barrels.ts` (run via `predev` / `prebuild`
+// hooks). Adding a plugin means dropping a `meta.ts` into the new
+// `src/plugins/<name>/` directory; this file does not need editing.
 
 import type { PluginMeta } from "./meta-types";
+import { GENERATED_PLUGIN_METAS } from "./_generated/metas";
 
-import { META as accountingMeta } from "./accounting/meta";
-import { META as canvasMeta } from "./canvas/meta";
-import { META as chartMeta } from "./chart/meta";
-import { META as editImagesMeta } from "./editImages/meta";
-import { META as generateImageMeta } from "./generateImage/meta";
-import { META as manageSkillsMeta } from "./manageSkills/meta";
-import { META as manageSourceMeta } from "./manageSource/meta";
-import { META as markdownMeta } from "./markdown/meta";
-import { META as presentFormMeta } from "./presentForm/meta";
-import { META as presentHtmlMeta } from "./presentHtml/meta";
-import { META as presentMulmoScriptMeta } from "./presentMulmoScript/meta";
-import { META as schedulerAutomationsMeta } from "./scheduler/automationsMeta";
-import { META as schedulerCalendarMeta } from "./scheduler/calendarMeta";
-import { META as spreadsheetMeta } from "./spreadsheet/meta";
-import { META as todoMeta } from "./todo/meta";
-import { META as wikiMeta } from "./wiki/meta";
-
-// `satisfies` (not `:`) so the literal types of every plugin's
-// META survive into host aggregators — `TOOL_NAMES.manageAccounting`
-// must end up with type `"manageAccounting"`, not `string`.
-export const BUILT_IN_PLUGIN_METAS = [
-  accountingMeta,
-  canvasMeta,
-  chartMeta,
-  editImagesMeta,
-  generateImageMeta,
-  manageSkillsMeta,
-  manageSourceMeta,
-  markdownMeta,
-  presentFormMeta,
-  presentHtmlMeta,
-  presentMulmoScriptMeta,
-  schedulerAutomationsMeta,
-  schedulerCalendarMeta,
-  spreadsheetMeta,
-  todoMeta,
-  wikiMeta,
-] as const satisfies readonly PluginMeta[];
-
+export const BUILT_IN_PLUGIN_METAS = GENERATED_PLUGIN_METAS;
 export type BuiltInPluginMetas = typeof BUILT_IN_PLUGIN_METAS;
 
 // ────────────────────────────────────────────────────────────────

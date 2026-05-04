@@ -124,3 +124,5 @@ export const TOOL_DEFINITION: ToolDefinition = {
     required: ["fields"],
   },
 };
+
+export default TOOL_DEFINITION;
