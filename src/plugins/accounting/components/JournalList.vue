@@ -88,11 +88,25 @@
                 <span v-if="entry.memo">{{ entry.memo }}</span>
               </td>
               <td class="py-1 px-2">
-                <div v-for="(line, idx) in entry.lines" :key="idx" class="text-xs flex gap-2 items-baseline">
-                  <span class="font-mono text-[10px] text-gray-400">{{ line.accountCode }}</span>
-                  <span v-if="accountNameFor(line.accountCode)">{{ accountNameFor(line.accountCode) }}</span>
-                  <span v-if="line.debit">{{ formatDebit(line.debit) }}</span>
-                  <span v-if="line.credit">{{ formatCredit(line.credit) }}</span>
+                <template v-if="expandedEntryId !== entry.id">
+                  <div v-for="(line, idx) in entry.lines" :key="idx" class="text-xs flex gap-2 items-baseline">
+                    <span class="font-mono text-[10px] text-gray-400">{{ line.accountCode }}</span>
+                    <span v-if="accountNameFor(line.accountCode)">{{ accountNameFor(line.accountCode) }}</span>
+                    <span v-if="line.debit">{{ formatDebit(line.debit) }}</span>
+                    <span v-if="line.credit">{{ formatCredit(line.credit) }}</span>
+                  </div>
+                </template>
+                <div v-else class="flex items-center justify-between gap-2">
+                  <span class="text-xs text-gray-400 font-mono">{{ formatCreatedAt(entry.createdAt) }}</span>
+                  <button
+                    type="button"
+                    class="h-6 w-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100"
+                    :data-testid="`accounting-journal-detail-close-${entry.id}`"
+                    :aria-label="t('common.close')"
+                    @click.stop="expandedEntryId = null"
+                  >
+                    <span class="material-icons text-base">close</span>
+                  </button>
                 </div>
               </td>
             </tr>
@@ -116,56 +130,23 @@
                   />
                 </div>
                 <template v-else>
-                  <!-- Detail header: Edit / Void on the left (when the
-                     entry kind allows them), Close on the right. -->
-                  <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center gap-3">
-                      <template v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)">
-                        <button class="text-xs text-blue-600 hover:underline" :data-testid="`accounting-edit-${entry.id}`" @click="onEditEntry(entry)">
-                          {{ t("pluginAccounting.journalList.edit") }}
-                        </button>
-                        <button class="text-xs text-red-500 hover:underline" :data-testid="`accounting-void-${entry.id}`" @click="onVoid(entry)">
-                          {{ t("pluginAccounting.journalList.void") }}
-                        </button>
-                      </template>
-                      <button
-                        v-else-if="entry.kind === 'opening' && !voidedEntryIds.has(entry.id)"
-                        class="text-xs text-blue-600 hover:underline"
-                        :data-testid="`accounting-edit-opening-${entry.id}`"
-                        @click="emit('editOpening')"
-                      >
+                  <div class="flex items-center gap-3 mb-2">
+                    <template v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)">
+                      <button class="text-xs text-blue-600 hover:underline" :data-testid="`accounting-edit-${entry.id}`" @click="onEditEntry(entry)">
                         {{ t("pluginAccounting.journalList.edit") }}
                       </button>
-                    </div>
+                      <button class="text-xs text-red-500 hover:underline" :data-testid="`accounting-void-${entry.id}`" @click="onVoid(entry)">
+                        {{ t("pluginAccounting.journalList.void") }}
+                      </button>
+                    </template>
                     <button
-                      type="button"
-                      class="h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100"
-                      :data-testid="`accounting-journal-detail-close-${entry.id}`"
-                      :aria-label="t('common.close')"
-                      @click="expandedEntryId = null"
+                      v-else-if="entry.kind === 'opening' && !voidedEntryIds.has(entry.id)"
+                      class="text-xs text-blue-600 hover:underline"
+                      :data-testid="`accounting-edit-opening-${entry.id}`"
+                      @click="emit('editOpening')"
                     >
-                      <span class="material-icons text-base">close</span>
+                      {{ t("pluginAccounting.journalList.edit") }}
                     </button>
-                  </div>
-                  <!-- Entry-level metadata. The row above the panel
-                     shows these too, but with the new sticky-thead
-                     scroll behaviour the source row can scroll out
-                     of view while the panel remains pinned. Repeating
-                     date and (if present) memo here keeps the panel
-                     self-describing. Memo is only rendered when set
-                     so the line stays compact for terse entries. -->
-                  <div class="text-xs mb-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                    <div class="text-gray-700">
-                      <span class="font-mono">{{ entry.date }}</span>
-                      <span v-if="entry.memo">{{ memoSuffix(entry.memo) }}</span>
-                    </div>
-                    <!-- Posting timestamp (entry.createdAt). Distinct
-                       from entry.date — backdated entries diverge,
-                       and the void-replace edit flow stamps a fresh
-                       createdAt on the replacement. ml-auto keeps it
-                       flush right on wide rows; flex-wrap drops it
-                       to a new line when space is tight. -->
-                    <div class="text-gray-400 ml-auto font-mono">{{ formatCreatedAt(entry.createdAt) }}</div>
                   </div>
                   <table class="w-full text-xs">
                     <thead>
@@ -347,14 +328,6 @@ function formatAccountLabel(account: Account): string {
   // Same convention used by JournalEntryForm and Ledger pickers.
   return `${account.name} (${account.code})`;
 }
-// Memo suffix for the metadata line: turns `"rent payment"` into
-// `": rent payment"`. The leading ": " is built here so the template
-// stays free of raw-text literals (vue-i18n/no-raw-text flags string
-// literals — even in mustache expressions).
-function memoSuffix(memo: string): string {
-  return `: ${memo}`;
-}
-
 // `entry.createdAt` is server-stamped ISO 8601. We render local
 // date+time (no seconds, no timezone) in YYYY-MM-DD HH:MM form to
 // match `entry.date`'s style and keep the line compact. Parens are
