@@ -622,6 +622,7 @@ const frMessages = {
       creditLabel: "Crédit",
       taxRegistrationIdLabel: "N° d'identification fiscale",
       taxRegistrationIdPlaceholder: "TVA / SIRET / GSTIN…",
+      taxRegistrationIdMissingWarning: "Obligatoire",
       addLine: "Ajouter une ligne",
       removeLine: "Supprimer",
       submit: "Comptabiliser",

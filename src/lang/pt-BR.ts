@@ -620,6 +620,7 @@ const ptBRMessages = {
       creditLabel: "Crédito",
       taxRegistrationIdLabel: "Inscrição fiscal",
       taxRegistrationIdPlaceholder: "CNPJ / VAT ID / GSTIN…",
+      taxRegistrationIdMissingWarning: "Obrigatório",
       addLine: "Adicionar linha",
       removeLine: "Remover",
       submit: "Lançar",

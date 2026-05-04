@@ -629,6 +629,7 @@ const deMessages = {
       creditLabel: "Haben",
       taxRegistrationIdLabel: "Steuernummer",
       taxRegistrationIdPlaceholder: "USt-IdNr. / VAT ID / GSTIN…",
+      taxRegistrationIdMissingWarning: "Erforderlich",
       addLine: "Zeile hinzufügen",
       removeLine: "Entfernen",
       submit: "Buchen",

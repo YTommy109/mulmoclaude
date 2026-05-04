@@ -633,6 +633,7 @@ const enMessages = {
       creditLabel: "Credit",
       taxRegistrationIdLabel: "Tax registration ID",
       taxRegistrationIdPlaceholder: "T-number / VAT ID / GSTIN…",
+      taxRegistrationIdMissingWarning: "Required",
       addLine: "Add line",
       removeLine: "Remove",
       submit: "Post entry",

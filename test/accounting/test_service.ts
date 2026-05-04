@@ -1,12 +1,12 @@
 import { describe, it, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, promises as fsPromises } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
   AccountingError,
-  addEntry,
+  addEntries,
   createBook,
   deleteBook,
   getBalanceSheetReport,
@@ -142,12 +142,16 @@ describe("books lifecycle", () => {
     // explicit bookId or the service throws AccountingError(400).
     await assert.rejects(
       () =>
-        addEntry(
+        addEntries(
           {
-            date: "2026-04-01",
-            lines: [
-              { accountCode: "1000", debit: 100 },
-              { accountCode: "4000", credit: 100 },
+            entries: [
+              {
+                date: "2026-04-01",
+                lines: [
+                  { accountCode: "1000", debit: 100 },
+                  { accountCode: "4000", credit: 100 },
+                ],
+              },
             ],
           },
           root,
@@ -192,34 +196,42 @@ describe("books lifecycle", () => {
   });
 });
 
-describe("addEntry / listEntries", () => {
+describe("addEntries / listEntries", () => {
   it("appends, lists, and rejects unbalanced", async () => {
     const root = makeTmp();
     const book = await createBook({ name: "Test" }, root);
     const bookId = book.book.id;
-    const entry = await addEntry(
+    const result = await addEntries(
       {
         bookId,
-        date: "2026-04-01",
-        lines: [
-          { accountCode: "1000", debit: 100 },
-          { accountCode: "4000", credit: 100 },
+        entries: [
+          {
+            date: "2026-04-01",
+            lines: [
+              { accountCode: "1000", debit: 100 },
+              { accountCode: "4000", credit: 100 },
+            ],
+          },
         ],
       },
       root,
     );
-    assert.equal(entry.entry.kind, "normal");
+    assert.equal(result.entries[0].kind, "normal");
     const list = await listEntries({ bookId }, root);
     assert.equal(list.entries.length, 1);
     await assert.rejects(
       () =>
-        addEntry(
+        addEntries(
           {
             bookId,
-            date: "2026-04-02",
-            lines: [
-              { accountCode: "1000", debit: 100 },
-              { accountCode: "4000", credit: 90 },
+            entries: [
+              {
+                date: "2026-04-02",
+                lines: [
+                  { accountCode: "1000", debit: 100 },
+                  { accountCode: "4000", credit: 90 },
+                ],
+              },
             ],
           },
           root,
@@ -228,17 +240,157 @@ describe("addEntry / listEntries", () => {
     );
   });
 
-  it("round-trips taxRegistrationId through addEntry → listEntries", async () => {
+  it("posts a multi-entry batch atomically and surfaces each id", async () => {
     const root = makeTmp();
     const book = await createBook({ name: "Test" }, root);
     const bookId = book.book.id;
-    await addEntry(
+    const batch = await addEntries(
       {
         bookId,
-        date: "2026-04-01",
-        lines: [
-          { accountCode: "1000", debit: 100, taxRegistrationId: "T1234567890123" },
-          { accountCode: "4000", credit: 100 },
+        entries: [
+          {
+            date: "2026-04-01",
+            lines: [
+              { accountCode: "1000", debit: 100 },
+              { accountCode: "4000", credit: 100 },
+            ],
+          },
+          {
+            date: "2026-04-02",
+            lines: [
+              { accountCode: "5000", debit: 30 },
+              { accountCode: "1000", credit: 30 },
+            ],
+          },
+        ],
+      },
+      root,
+    );
+    assert.equal(batch.entries.length, 2);
+    assert.notEqual(batch.entries[0].id, batch.entries[1].id);
+    // Both entries share the 2026-04 period — appendJournalBatch
+    // concatenates same-period entries into a single appendFile
+    // call (one O_APPEND syscall, atomic under PIPE_BUF), so a
+    // direct read surfaces both entries from one write.
+    const journalFile = path.join(root, "data/accounting/books", bookId, "journal", "2026-04.jsonl");
+    const raw = await fsPromises.readFile(journalFile, "utf-8");
+    const lines = raw.split("\n").filter((line) => line !== "");
+    assert.equal(lines.length, 2, "same-period batch must land in one JSONL with both entries");
+    await drainRebuilds(bookId);
+    const list = await listEntries({ bookId }, root);
+    assert.equal(list.entries.length, 2);
+  });
+
+  it("multi-period batch lands one file per period", async () => {
+    const root = makeTmp();
+    const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
+    await addEntries(
+      {
+        bookId,
+        entries: [
+          {
+            date: "2026-04-15",
+            lines: [
+              { accountCode: "1000", debit: 100 },
+              { accountCode: "4000", credit: 100 },
+            ],
+          },
+          {
+            date: "2026-05-15",
+            lines: [
+              { accountCode: "5000", debit: 50 },
+              { accountCode: "1000", credit: 50 },
+            ],
+          },
+        ],
+      },
+      root,
+    );
+    const aprilFile = path.join(root, "data/accounting/books", bookId, "journal", "2026-04.jsonl");
+    const mayFile = path.join(root, "data/accounting/books", bookId, "journal", "2026-05.jsonl");
+    const aprilLines = (await fsPromises.readFile(aprilFile, "utf-8")).split("\n").filter((line) => line !== "");
+    const mayLines = (await fsPromises.readFile(mayFile, "utf-8")).split("\n").filter((line) => line !== "");
+    assert.equal(aprilLines.length, 1, "April file should contain the April entry");
+    assert.equal(mayLines.length, 1, "May file should contain the May entry");
+  });
+
+  it("concurrent same-period batches do not lose entries (O_APPEND serialisation)", async () => {
+    // Regression for the read-modify-write race the first iteration
+    // of appendJournalBatch had: parallel addEntries calls into the
+    // same period must both land in full, with no overwrite.
+    const root = makeTmp();
+    const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
+    const makeBatch = (offset: number) =>
+      addEntries(
+        {
+          bookId,
+          entries: Array.from({ length: 5 }, (_, idx) => ({
+            date: "2026-04-10",
+            lines: [
+              { accountCode: "1000", debit: offset + idx + 1 },
+              { accountCode: "4000", credit: offset + idx + 1 },
+            ],
+          })),
+        },
+        root,
+      );
+    await Promise.all([makeBatch(0), makeBatch(100), makeBatch(200)]);
+    await drainRebuilds(bookId);
+    const list = await listEntries({ bookId }, root);
+    assert.equal(list.entries.length, 15, "every entry from every concurrent batch must persist");
+  });
+
+  it("rejects the whole batch when any entry is invalid (no partial write)", async () => {
+    const root = makeTmp();
+    const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
+    await assert.rejects(
+      () =>
+        addEntries(
+          {
+            bookId,
+            entries: [
+              {
+                date: "2026-04-01",
+                lines: [
+                  { accountCode: "1000", debit: 100 },
+                  { accountCode: "4000", credit: 100 },
+                ],
+              },
+              {
+                date: "2026-04-02",
+                lines: [
+                  { accountCode: "1000", debit: 100 },
+                  { accountCode: "4000", credit: 90 }, // unbalanced
+                ],
+              },
+            ],
+          },
+          root,
+        ),
+      AccountingError,
+    );
+    const list = await listEntries({ bookId }, root);
+    assert.equal(list.entries.length, 0, "no entries should land when any item in the batch fails validation");
+  });
+
+  it("round-trips taxRegistrationId through addEntries → listEntries", async () => {
+    const root = makeTmp();
+    const book = await createBook({ name: "Test" }, root);
+    const bookId = book.book.id;
+    await addEntries(
+      {
+        bookId,
+        entries: [
+          {
+            date: "2026-04-01",
+            lines: [
+              { accountCode: "1000", debit: 100, taxRegistrationId: "T1234567890123" },
+              { accountCode: "4000", credit: 100 },
+            ],
+          },
         ],
       },
       root,
@@ -256,13 +408,17 @@ describe("addEntry / listEntries", () => {
     const bookId = book.book.id;
     await assert.rejects(
       () =>
-        addEntry(
+        addEntries(
           {
             bookId,
-            date: "2026-04-01",
-            lines: [
-              { accountCode: "1000", debit: 100, taxRegistrationId: "T".repeat(33) },
-              { accountCode: "4000", credit: 100 },
+            entries: [
+              {
+                date: "2026-04-01",
+                lines: [
+                  { accountCode: "1000", debit: 100, taxRegistrationId: "T".repeat(33) },
+                  { accountCode: "4000", credit: 100 },
+                ],
+              },
             ],
           },
           root,
@@ -277,24 +433,29 @@ describe("voidEntry", () => {
     const root = makeTmp();
     const book = await createBook({ name: "Test" }, root);
     const bookId = book.book.id;
-    const added = await addEntry(
+    const added = await addEntries(
       {
         bookId,
-        date: "2026-04-01",
-        lines: [
-          { accountCode: "1000", debit: 100 },
-          { accountCode: "4000", credit: 100 },
+        entries: [
+          {
+            date: "2026-04-01",
+            lines: [
+              { accountCode: "1000", debit: 100 },
+              { accountCode: "4000", credit: 100 },
+            ],
+          },
         ],
       },
       root,
     );
-    await voidEntry({ bookId, entryId: added.entry.id, reason: "typo" }, root);
+    const [addedEntry] = added.entries;
+    await voidEntry({ bookId, entryId: addedEntry.id, reason: "typo" }, root);
     const list = await listEntries({ bookId }, root);
     // Original + reverse + marker = 3 rows
     assert.equal(list.entries.length, 3);
     assert.ok(list.entries.some((entry) => entry.kind === "void"));
     assert.ok(list.entries.some((entry) => entry.kind === "void-marker"));
-    assert.deepEqual(list.voidedEntryIds, [added.entry.id]);
+    assert.deepEqual(list.voidedEntryIds, [addedEntry.id]);
   });
   // Regression for makeVoidEntries — when the original entry has
   // a tax-line carrying `taxRegistrationId`, the reverse entry MUST
@@ -307,19 +468,23 @@ describe("voidEntry", () => {
     const root = makeTmp();
     const book = await createBook({ name: "Test" }, root);
     const bookId = book.book.id;
-    const added = await addEntry(
+    const added = await addEntries(
       {
         bookId,
-        date: "2026-04-01",
-        lines: [
-          { accountCode: "1400", debit: 10, taxRegistrationId: "T1234567890123" },
-          { accountCode: "5000", debit: 100 },
-          { accountCode: "1000", credit: 110 },
+        entries: [
+          {
+            date: "2026-04-01",
+            lines: [
+              { accountCode: "1400", debit: 10, taxRegistrationId: "T1234567890123" },
+              { accountCode: "5000", debit: 100 },
+              { accountCode: "1000", credit: 110 },
+            ],
+          },
         ],
       },
       root,
     );
-    const voided = await voidEntry({ bookId, entryId: added.entry.id, reason: "typo" }, root);
+    const voided = await voidEntry({ bookId, entryId: added.entries[0].id, reason: "typo" }, root);
     const reversedTaxLine = voided.reverseEntry.lines.find((line) => line.accountCode === "1400");
     assert.ok(reversedTaxLine, "reverse entry must contain the 1400 line");
     assert.equal(reversedTaxLine.taxRegistrationId, "T1234567890123");
@@ -334,18 +499,23 @@ describe("voidEntry", () => {
     const root = makeTmp();
     const book = await createBook({ name: "Test" }, root);
     const bookId = book.book.id;
-    const added = await addEntry(
+    const added = await addEntries(
       {
         bookId,
-        date: "2026-04-01",
-        lines: [
-          { accountCode: "1000", debit: 100 },
-          { accountCode: "4000", credit: 100 },
+        entries: [
+          {
+            date: "2026-04-01",
+            lines: [
+              { accountCode: "1000", debit: 100 },
+              { accountCode: "4000", credit: 100 },
+            ],
+          },
         ],
       },
       root,
     );
-    await voidEntry({ bookId, entryId: added.entry.id, reason: "typo" }, root);
+    const [addedEntry] = added.entries;
+    await voidEntry({ bookId, entryId: addedEntry.id, reason: "typo" }, root);
     const filtered = await listEntries({ bookId, accountCode: "1000" }, root);
     // Void-marker has empty lines so it's filtered out; original + reverse remain.
     assert.equal(
@@ -353,7 +523,7 @@ describe("voidEntry", () => {
       false,
     );
     // But the server still surfaces the voided id so the View can strike out the original.
-    assert.deepEqual(filtered.voidedEntryIds, [added.entry.id]);
+    assert.deepEqual(filtered.voidedEntryIds, [addedEntry.id]);
   });
 });
 
@@ -395,13 +565,17 @@ describe("opening balances", () => {
     // Now book a normal entry after opening, then try to set
     // opening again at a date that pre-dates the new entry — must
     // refuse.
-    await addEntry(
+    await addEntries(
       {
         bookId,
-        date: "2026-02-01",
-        lines: [
-          { accountCode: "1000", debit: 50 },
-          { accountCode: "4000", credit: 50 },
+        entries: [
+          {
+            date: "2026-02-01",
+            lines: [
+              { accountCode: "1000", debit: 50 },
+              { accountCode: "4000", credit: 50 },
+            ],
+          },
         ],
       },
       root,
@@ -462,15 +636,19 @@ describe("reports end-to-end", () => {
       },
       root,
     );
-    await addEntry(
+    await addEntries(
       {
         bookId,
-        date: "2026-04-08",
-        lines: [
-          { accountCode: "5400", debit: 200.2 },
-          { accountCode: "1010", credit: 200.2 },
+        entries: [
+          {
+            date: "2026-04-08",
+            lines: [
+              { accountCode: "5400", debit: 200.2 },
+              { accountCode: "1010", credit: 200.2 },
+            ],
+            memo: "Printer",
+          },
         ],
-        memo: "Printer",
       },
       root,
     );
@@ -498,24 +676,24 @@ describe("reports end-to-end", () => {
       },
       root,
     );
-    await addEntry(
+    await addEntries(
       {
         bookId,
-        date: "2026-04-10",
-        lines: [
-          { accountCode: "1000", debit: 200 },
-          { accountCode: "4000", credit: 200 },
-        ],
-      },
-      root,
-    );
-    await addEntry(
-      {
-        bookId,
-        date: "2026-04-20",
-        lines: [
-          { accountCode: "5100", debit: 70 },
-          { accountCode: "1000", credit: 70 },
+        entries: [
+          {
+            date: "2026-04-10",
+            lines: [
+              { accountCode: "1000", debit: 200 },
+              { accountCode: "4000", credit: 200 },
+            ],
+          },
+          {
+            date: "2026-04-20",
+            lines: [
+              { accountCode: "5100", debit: 70 },
+              { accountCode: "1000", credit: 70 },
+            ],
+          },
         ],
       },
       root,

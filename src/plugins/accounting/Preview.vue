@@ -2,7 +2,7 @@
   <!-- Compact inline summary for non-openBook tool results. The
        openBook envelope routes to View.vue (full app) instead of
        this component; everything that lands here is a
-       compact-result action (addEntry, getReport, …). -->
+       compact-result action (addEntries, getReport, …). -->
   <div class="text-sm text-gray-700" data-testid="accounting-preview">
     <span class="material-icons text-base align-middle mr-1">account_balance</span>
     <span>{{ summary }}</span>
@@ -27,8 +27,8 @@ interface BalanceSheetLike {
 interface ProfitLossLike {
   profitLoss?: { from?: string; to?: string; netIncome?: number };
 }
-interface EntryLike {
-  entry?: { id?: string; date?: string };
+interface EntriesLike {
+  entries?: { id?: string; date?: string }[];
 }
 interface BookLike {
   book?: { id?: string; name?: string };
@@ -48,9 +48,15 @@ function summariseError(json: Record<string, unknown>): string | null {
 }
 
 function summariseEntry(json: Record<string, unknown>): string | null {
-  const { entry } = json as EntryLike;
-  if (!entry?.id || !entry?.date) return null;
-  return t("pluginAccounting.preview.entry", { date: entry.date });
+  // addEntries returns `{ entries: [...] }`. The compact preview
+  // card shows one date — use the first entry's so single-entry
+  // batches (the common case from the manual UI) read naturally
+  // and multi-entry batches still anchor to a meaningful date.
+  const { entries } = json as EntriesLike;
+  if (!Array.isArray(entries) || entries.length === 0) return null;
+  const [first] = entries;
+  if (!first?.id || !first?.date) return null;
+  return t("pluginAccounting.preview.entry", { date: first.date });
 }
 
 function summarisePl(json: Record<string, unknown>): string | null {

@@ -14,7 +14,7 @@ import { Router, Request, Response } from "express";
 
 import {
   AccountingError,
-  addEntry,
+  addEntries,
   createBook,
   updateBook,
   deleteBook,
@@ -141,13 +141,11 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
       // Service validates the shape — route doesn't reach into it.
       account: rest.account as never,
     }),
-  [ACCOUNTING_ACTIONS.addEntry]: (rest) =>
-    addEntry({
+  [ACCOUNTING_ACTIONS.addEntries]: (rest) =>
+    addEntries({
       bookId: rest.bookId as string | undefined,
-      date: String(rest.date ?? ""),
-      lines: (rest.lines ?? []) as never,
-      memo: rest.memo as string | undefined,
-      replacesEntryId: rest.replacesEntryId as string | undefined,
+      // Service validates each entry's shape — route doesn't reach into it.
+      entries: (rest.entries ?? []) as never,
     }),
   [ACCOUNTING_ACTIONS.voidEntry]: (rest) =>
     voidEntry({
@@ -186,7 +184,7 @@ const PREVIEW_ACTIONS = new Set<string>([
   ACCOUNTING_ACTIONS.createBook,
   ACCOUNTING_ACTIONS.updateBook,
   ACCOUNTING_ACTIONS.upsertAccount,
-  ACCOUNTING_ACTIONS.addEntry,
+  ACCOUNTING_ACTIONS.addEntries,
   ACCOUNTING_ACTIONS.voidEntry,
   ACCOUNTING_ACTIONS.setOpeningBalances,
 ]);
@@ -214,7 +212,7 @@ const MESSAGE_BUILDERS: Record<string, MessageBuilder> = {
     const book = fields.book as { id?: string; name?: string } | undefined;
     const subject = book?.name ? `A new book named ${JSON.stringify(book.name)}` : "A new book";
     // The LLM needs book.id to call any follow-up action on this
-    // book (getAccounts, addEntry, etc.), so include it in the
+    // book (getAccounts, addEntries, etc.), so include it in the
     // status message instead of forcing a round-trip via getBooks.
     const idFragment = book?.id ? ` (id: ${book.id})` : "";
     // The View's opening-gate hides every tab except `opening` and
@@ -233,12 +231,18 @@ const MESSAGE_BUILDERS: Record<string, MessageBuilder> = {
     }
     return "Updated the chart of accounts.";
   },
-  [ACCOUNTING_ACTIONS.addEntry]: (fields) => {
-    const entry = fields.entry as { id?: string; date?: string } | undefined;
-    const idFragment = entry?.id ? ` (id: ${entry.id})` : "";
-    // The LLM needs the entry id to act on this entry later (e.g.
-    // voidEntry), so return it as part of the status message.
-    return `Posted a journal entry on ${entry?.date ?? "the requested date"}${idFragment}.`;
+  [ACCOUNTING_ACTIONS.addEntries]: (fields) => {
+    const entries = Array.isArray(fields.entries) ? (fields.entries as { id?: string; date?: string }[]) : [];
+    if (entries.length === 0) return "Posted 0 journal entries.";
+    if (entries.length === 1) {
+      const [entry] = entries;
+      const idFragment = entry?.id ? ` (id: ${entry.id})` : "";
+      return `Posted a journal entry on ${entry?.date ?? "the requested date"}${idFragment}.`;
+    }
+    // Surface every id so the LLM can later voidEntry any one of
+    // them without a follow-up getJournalEntries round-trip.
+    const summary = entries.map((entry) => `${entry?.date ?? "?"} (id: ${entry?.id ?? "?"})`).join(", ");
+    return `Posted ${entries.length} journal entries: ${summary}.`;
   },
   [ACCOUNTING_ACTIONS.voidEntry]: (fields) => {
     const reverse = fields.reverseEntry as { date?: string } | undefined;
