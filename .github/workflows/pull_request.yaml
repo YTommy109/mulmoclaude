@@ -105,6 +105,12 @@ jobs:
       run: yarn build:packages
     - run: yarn run typecheck
     - run: yarn run lint
+    # Plugin barrel codegen must be in sync — fail the build if a
+    # developer added a plugin dir without re-running the codegen.
+    # `yarn run build` regenerates them via prebuild, but we want a
+    # standalone signal so the PR diff doesn't accidentally hide the
+    # drift inside `node_modules` or the dist artifact.
+    - run: yarn run plugins:codegen:check
     - run: yarn run build
     # Bundle integrity: `yarn build` regenerates committed
     # esbuild artifacts (currently `server/workspace/wiki-history/

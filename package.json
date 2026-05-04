@@ -13,6 +13,10 @@
     "packages/bridges/*"
   ],
   "scripts": {
+    "plugins:codegen": "tsx scripts/codegen-plugin-barrels.ts",
+    "plugins:codegen:check": "tsx scripts/codegen-plugin-barrels.ts --check",
+    "predev": "yarn plugins:codegen",
+    "prebuild": "yarn plugins:codegen",
     "dev": "yarn build:packages:dev && concurrently -n server,client -k \"cross-env FORCE_COLOR=1 npm run server\" \"sleep 2 && vite\"",
     "dev:debug": "yarn build:packages:dev && concurrently -n server,client -k \"cross-env FORCE_COLOR=1 npm run server:debug\" \"sleep 2 && vite\"",
     "dev:client": "vite",
