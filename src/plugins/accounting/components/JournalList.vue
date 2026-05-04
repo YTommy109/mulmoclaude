@@ -71,6 +71,7 @@
             <tr
               :class="[
                 voidedEntryIds.has(entry.id) ? 'text-gray-400 line-through' : '',
+                expandedEntryId === entry.id ? 'row-selected' : '',
                 'border-b border-gray-100 align-top cursor-pointer hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400',
               ]"
               :data-testid="voidedEntryIds.has(entry.id) ? `accounting-journal-row-voided-${entry.id}` : `accounting-journal-row-${entry.id}`"
@@ -95,7 +96,7 @@
                 </div>
               </td>
             </tr>
-            <tr v-if="expandedEntryId === entry.id" class="bg-gray-50" :data-testid="`accounting-journal-detail-${entry.id}`">
+            <tr v-if="expandedEntryId === entry.id" class="bg-gray-50 detail-selected" :data-testid="`accounting-journal-detail-${entry.id}`">
               <td :colspan="4" class="px-6 py-2">
                 <!-- Edit-in-place: the JournalEntryForm replaces the
                    read-only detail content for this row when the
@@ -216,7 +217,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { getJournalEntries, voidEntry, type Account, type JournalEntry, type JournalEntryKind, type JournalLine } from "../api";
 import { formatAmount } from "../currencies";
@@ -239,8 +240,14 @@ const props = defineProps<{
    *  shortcut in the date picker (from = openingDate, to = today).
    *  When absent, the picker hides Lifetime; "All" still works. */
   openingDate?: string;
+  /** Entry id to auto-expand and scroll into view. Surfaced by the
+   *  parent when an `addEntries` tool result lands so the user sees
+   *  the freshly-posted row highlighted. Captured into
+   *  `pendingPreselectId` and consumed once the entry actually
+   *  appears in the fetched list — refetch can race the prop. */
+  preselectEntryId?: string;
 }>();
-const emit = defineEmits<{ editOpening: [] }>();
+const emit = defineEmits<{ editOpening: []; preselectConsumed: [] }>();
 
 // Inline-form state. Two distinct surfaces, one component:
 //   • showNewForm = true → blank draft, rendered above the table
@@ -483,4 +490,79 @@ watch(
 );
 
 watch(() => [props.bookId, props.version, range.value.from, range.value.to, accountCode.value], refresh, { immediate: true });
+
+// Pending preselect: the parent hands us an id via `preselectEntryId`,
+// but the matching entry may not be in `entries` yet (the SSE-driven
+// refetch lands on its own clock). Stash it here, then the
+// [pendingPreselectId, entries] watcher below consumes it once the
+// row actually exists in the list — and clears it so subsequent
+// unrelated refetches (void events, sibling-tab edits) don't
+// re-expand a stale target.
+const pendingPreselectId = ref<string | null>(null);
+
+watch(
+  () => props.preselectEntryId,
+  (incoming) => {
+    if (incoming) pendingPreselectId.value = incoming;
+  },
+  // immediate: true so a late JournalList mount (the View defers our
+  // mount until refetchBooks resolves activeBookId) still captures
+  // a preselect the parent had already set — without this, a normal
+  // watcher misses the "initial value is the target value" case.
+  { immediate: true },
+);
+
+watch([pendingPreselectId, entries], async ([targetId, list]) => {
+  if (!targetId) return;
+  if (!list.some((entry) => entry.id === targetId)) return;
+  // Always emit `preselectConsumed` (whether we expand or bail) so
+  // the parent can drop its `journalPreselectEntryId` ref. Without
+  // this one-shot signal, leaving and returning to the journal tab
+  // (v-if remount) replays the immediate prop watcher against the
+  // stale value, re-expanding an old row the user has already moved
+  // past. Issue raised by the Codex automated review on PR #1158.
+  if (entryBeingEdited.value) {
+    // Don't overwrite an in-progress edit on another row — the
+    // user's draft matters more than the highlight. Drop pending so
+    // we don't keep retrying every refetch, and signal consumed so
+    // the parent doesn't keep re-handing us the same id.
+    pendingPreselectId.value = null;
+    emit("preselectConsumed");
+    return;
+  }
+  expandedEntryId.value = targetId;
+  await nextTick();
+  const row =
+    document.querySelector(`[data-testid="accounting-journal-row-${targetId}"]`) ??
+    document.querySelector(`[data-testid="accounting-journal-row-voided-${targetId}"]`);
+  row?.scrollIntoView({ behavior: "smooth", block: "center" });
+  pendingPreselectId.value = null;
+  emit("preselectConsumed");
+});
 </script>
+
+<style scoped>
+/* Selection frame for the expanded entry. Borders go on the cells
+   (not the <tr>) because border-collapse: collapse — Tailwind's
+   default — eats <tr>-level borders/box-shadows. The entry row owns
+   top/left/right; the detail-panel row directly below owns
+   left/right/bottom, so together they read as one rectangle around
+   the selection. Color matches the focus-ring blue used elsewhere
+   in this list. */
+.row-selected > td {
+  background-color: rgb(239 246 255); /* tailwind blue-50 */
+  border-top: 2px solid rgb(59 130 246); /* tailwind blue-500 */
+}
+.row-selected > td:first-child {
+  border-left: 2px solid rgb(59 130 246);
+}
+.row-selected > td:last-child {
+  border-right: 2px solid rgb(59 130 246);
+}
+.detail-selected > td {
+  background-color: rgb(239 246 255);
+  border-left: 2px solid rgb(59 130 246);
+  border-right: 2px solid rgb(59 130 246);
+  border-bottom: 2px solid rgb(59 130 246);
+}
+</style>

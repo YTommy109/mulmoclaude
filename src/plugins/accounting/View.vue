@@ -67,7 +67,9 @@
             :version="bookVersion"
             :fiscal-year-end="activeFiscalYearEnd"
             :opening-date="activeOpeningDate"
+            :preselect-entry-id="journalPreselectEntryId"
             @edit-opening="currentTab = 'opening'"
+            @preselect-consumed="journalPreselectEntryId = undefined"
           />
           <OpeningBalancesForm
             v-else-if="currentTab === 'opening'"
@@ -134,6 +136,7 @@ import BalanceSheet from "./components/BalanceSheet.vue";
 import ProfitLoss from "./components/ProfitLoss.vue";
 import BookSettings from "./components/BookSettings.vue";
 import { getOpeningBalances, getAccounts, getBooks, type Account, type BookSummary } from "./api";
+import { ACCOUNTING_ACTIONS } from "./actions";
 import { useAccountingChannel, useAccountingBooksChannel } from "../../composables/useAccountingChannel";
 
 const { t } = useI18n();
@@ -142,6 +145,19 @@ interface AccountingAppPayload {
   kind?: string;
   bookId?: string;
   initialTab?: string;
+  /** Dispatch verb stamped onto every accounting tool-result envelope
+   *  (server/api/routes/accounting.ts dispatch()). We read it here to
+   *  pick the canvas tab + journal preselect for each PREVIEW action. */
+  action?: string;
+  /** Present on `addEntries` envelopes — the freshly-built journal
+   *  entries returned by the service. Each carries a server-stamped
+   *  `id` we use to highlight the row in JournalList. */
+  entries?: { id?: string }[];
+  /** Present on `voidEntry` envelopes — the kind="void-marker" row
+   *  posted alongside the reversing entry. We surface this row (not
+   *  the reverseEntry) because the marker is the visual "this entry
+   *  was voided here" indicator the user is looking for. */
+  markerEntry?: { id?: string };
 }
 
 const props = defineProps<{ selectedResult?: ToolResultComplete<AccountingAppPayload, AccountingAppPayload> }>();
@@ -392,6 +408,13 @@ function onBookSelected(bookId: string): void {
   deletedNoticeName.value = null;
 }
 
+// Entry id to surface in JournalList after an `addEntries` tool
+// result lands — the LLM just posted a journal entry and we want
+// the user's eye on the new row. Multi-entry batches highlight the
+// LAST entry only (matches the "you ended up here" intent of a
+// scroll-to-cursor).
+const journalPreselectEntryId = ref<string | undefined>(undefined);
+
 // Account preselected by the Accounts tab → click handoff. Cleared
 // once the user picks a different account from the Ledger's own
 // dropdown so a stale preselection doesn't override later edits.
@@ -498,6 +521,84 @@ watch(
 watch(books, () => {
   const pending = pendingTargetBookId.value;
   if (pending) applyTargetBookId(pending);
+});
+
+// Map a PREVIEW action to the canvas tab the user should land on.
+// Honours an explicit `initialTab` from the envelope (the LLM's
+// stated intent) over the action-default below — only `openBook`
+// currently ships initialTab, but the override is plugin-wide.
+//
+// The `balanceSheet` default for openBook / createBook /
+// setOpeningBalances assumes the book has an opening on file. For a
+// fresh book without one, the existing `openingGateActive` watcher
+// redirects to "opening" — we don't try to short-circuit that here
+// because hasOpening hasn't necessarily resolved when this runs.
+function pickTabForAction(payload: AccountingAppPayload): TabKey | null {
+  if (isTabKey(payload.initialTab)) return payload.initialTab;
+  switch (payload.action) {
+    case ACCOUNTING_ACTIONS.addEntries:
+    case ACCOUNTING_ACTIONS.voidEntry:
+      return "journal";
+    case ACCOUNTING_ACTIONS.upsertAccount:
+      return "accounts";
+    case ACCOUNTING_ACTIONS.updateBook:
+      return "settings";
+    case ACCOUNTING_ACTIONS.openBook:
+    case ACCOUNTING_ACTIONS.createBook:
+    case ACCOUNTING_ACTIONS.setOpeningBalances:
+      return "balanceSheet";
+    default:
+      return null;
+  }
+}
+
+// For tool results that should auto-expand a row in JournalList,
+// derive the entry id from the action's payload. addEntries picks
+// the LAST entry in the batch ("you ended up here" cursor); voidEntry
+// picks the void-MARKER (the visual "voided here" indicator), not
+// the reversing entry.
+function pickJournalPreselectId(payload: AccountingAppPayload): string | undefined {
+  if (payload.action === ACCOUNTING_ACTIONS.addEntries) {
+    const entries = Array.isArray(payload.entries) ? payload.entries : [];
+    return entries[entries.length - 1]?.id;
+  }
+  if (payload.action === ACCOUNTING_ACTIONS.voidEntry) {
+    return payload.markerEntry?.id;
+  }
+  return undefined;
+}
+
+// Drive canvas tab + journal preselect from the active tool-result
+// envelope. The route handler stamps `data: { action, bookId, … }`
+// onto every PREVIEW action's response (server/api/routes/
+// accounting.ts dispatch + PREVIEW_ACTIONS). `immediate: true` so a
+// cold open with the result already selected (e.g., reload after
+// the LLM dispatched) routes to the right surface too.
+//
+// Preselect is *always* assigned (not `if (preselect)`) so a
+// subsequent non-addEntries/voidEntry tool result clears any stale
+// id left over from a prior addEntries the user has already seen —
+// otherwise the next JournalList remount would replay it. The child
+// also emits `preselectConsumed` after expanding for the same
+// reason.
+watch(
+  () => initialPayload.value,
+  (payload) => {
+    const targetTab = pickTabForAction(payload);
+    if (targetTab) currentTab.value = targetTab;
+    journalPreselectEntryId.value = pickJournalPreselectId(payload);
+  },
+  { immediate: true },
+);
+
+// Drop the journal preselect on a real book SWITCH — leftover ids
+// from the prior book don't exist in the new one. The cold-load
+// transition (null → bookId) doesn't qualify: refetchBooks resolves
+// activeBookId asynchronously and would otherwise clobber a
+// preselect the addEntries watcher just set on initial mount.
+watch(activeBookId, (_next, prev) => {
+  if (!prev) return;
+  journalPreselectEntryId.value = undefined;
 });
 
 // Refetch the opening status whenever the active book changes or

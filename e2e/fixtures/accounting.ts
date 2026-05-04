@@ -456,6 +456,32 @@ function dispatch(state: AccountingState, body: DispatchBody): MockResponse {
   return handler(state, body);
 }
 
+/** Minimal shape for pre-seeding journal lines. Mirrors `FakeLine`
+ *  but stays exported so test specs can build `entries` without
+ *  reaching into the fixture's internal types. */
+export interface SeedJournalLine {
+  accountCode: string;
+  debit?: number;
+  credit?: number;
+  memo?: string;
+  taxRegistrationId?: string;
+}
+
+/** Minimal shape for pre-seeding a journal entry into the mock state.
+ *  `kind` defaults to "normal" — opening / void entries are produced
+ *  by their own dispatch handlers and rarely need to be hand-seeded.
+ *  Use this when the test's assertion is on what the View does with
+ *  an entry that already exists (e.g. auto-selection driven by a
+ *  session-transcript tool result), not on the addEntries dispatch
+ *  path itself. */
+export interface SeedJournalEntry {
+  id: string;
+  date: string;
+  kind?: "normal" | "opening" | "void" | "void-marker";
+  lines?: readonly SeedJournalLine[];
+  memo?: string;
+}
+
 export interface AccountingSeedBook {
   id: string;
   name: string;
@@ -467,6 +493,10 @@ export interface AccountingSeedBook {
    *  satisfying the gate. Tests that drive flows past the gate set
    *  this to true so they can land directly on those tabs. */
   withEmptyOpening?: boolean;
+  /** Pre-seed normal journal entries on the book. Pushed after the
+   *  empty-opening row so the journal renders in the same order as
+   *  a real append: opening first, then these. */
+  entries?: readonly SeedJournalEntry[];
 }
 
 /** Register a mock /api/accounting route on `page`. The mock keeps
@@ -504,6 +534,16 @@ export async function mockAccountingApi(
         createdAt: new Date().toISOString(),
       });
     }
+    for (const seedEntry of seed.entries ?? []) {
+      entries.push({
+        id: seedEntry.id,
+        date: seedEntry.date,
+        kind: seedEntry.kind ?? "normal",
+        lines: (seedEntry.lines ?? []).map((line) => ({ ...line })),
+        memo: seedEntry.memo,
+        createdAt: new Date().toISOString(),
+      });
+    }
     state.entriesByBook.set(seed.id, entries);
   }
   await page.route(
@@ -529,6 +569,58 @@ export function makeAccountingToolResult(opts: { bookId?: string | null; initial
       toolName: "manageAccounting",
       message: "Accounting app ready",
       data: { kind: "accounting-app", bookId: opts.bookId ?? null, initialTab: opts.initialTab },
+    },
+  };
+}
+
+/** Build a `manageAccounting(addEntries)` tool_result envelope. The
+ *  shape mirrors what `server/api/routes/accounting.ts` returns when
+ *  the LLM dispatches addEntries: `data: { action, bookId, entries }`
+ *  with each entry carrying a server-stamped id. The View reads this
+ *  to surface the just-posted row in JournalList. */
+export function makeAccountingAddEntriesToolResult(opts: {
+  bookId: string;
+  entries: readonly { id: string; date: string }[];
+  uuid?: string;
+}): Record<string, unknown> {
+  return {
+    type: "tool_result",
+    source: "tool",
+    result: {
+      uuid: opts.uuid ?? "accounting-add-entries-result-1",
+      toolName: "manageAccounting",
+      message: `Posted ${opts.entries.length} journal ${opts.entries.length === 1 ? "entry" : "entries"}.`,
+      data: {
+        action: ACCOUNTING_ACTIONS.addEntries,
+        bookId: opts.bookId,
+        entries: opts.entries.map((entry) => ({ id: entry.id, date: entry.date })),
+      },
+    },
+  };
+}
+
+/** Generic factory for any `manageAccounting(<action>)` tool_result
+ *  envelope. Mirrors the route handler's wrapped shape: `data` carries
+ *  `action` + `bookId` + the action-specific fields the View consumes
+ *  (markerEntry for voidEntry, account for upsertAccount, book for
+ *  updateBook, …). Use this when a test only needs to assert the
+ *  view-routing branch — for addEntries-shaped envelopes prefer the
+ *  typed helper above. */
+export function makeAccountingActionToolResult(opts: {
+  action: string;
+  bookId: string;
+  data?: Record<string, unknown>;
+  message?: string;
+  uuid?: string;
+}): Record<string, unknown> {
+  return {
+    type: "tool_result",
+    source: "tool",
+    result: {
+      uuid: opts.uuid ?? `accounting-${opts.action}-result-1`,
+      toolName: "manageAccounting",
+      message: opts.message ?? `Accounting ${opts.action} ready.`,
+      data: { action: opts.action, bookId: opts.bookId, ...(opts.data ?? {}) },
     },
   };
 }

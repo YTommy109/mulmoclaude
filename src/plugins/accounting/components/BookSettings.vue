@@ -3,9 +3,18 @@
     <section class="border border-gray-200 rounded p-3 flex flex-col gap-2">
       <h4 class="text-sm font-semibold">{{ t("pluginAccounting.settings.bookInfo") }}</h4>
       <p class="text-xs text-gray-500">{{ t("pluginAccounting.settings.bookInfoExplain") }}</p>
+      <label class="text-sm flex flex-col gap-1">
+        {{ t("pluginAccounting.bookSwitcher.nameLabel") }}
+        <input
+          v-model="selectedName"
+          type="text"
+          class="h-8 px-2 rounded border border-gray-300 text-sm bg-white"
+          data-testid="accounting-settings-name"
+          :disabled="updating"
+          maxlength="200"
+        />
+      </label>
       <dl class="text-xs text-gray-700 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1">
-        <dt class="text-gray-500">{{ t("pluginAccounting.bookSwitcher.nameLabel") }}</dt>
-        <dd>{{ bookName }}</dd>
         <dt class="text-gray-500">{{ t("pluginAccounting.bookSwitcher.currencyLabel") }}</dt>
         <dd>{{ currency }}</dd>
       </dl>
@@ -111,6 +120,7 @@ const confirmName = ref("");
 const updating = ref(false);
 const updateOk = ref<string | null>(null);
 const updateError = ref<string | null>(null);
+const selectedName = ref<string>(props.bookName);
 const selectedCountry = ref<string>(props.country ?? "");
 // Resolved at the boundary so the dropdown always shows a concrete
 // value — books without a `fiscalYearEnd` field on disk land here as
@@ -142,9 +152,16 @@ const fiscalYearEndOptions = computed<FiscalYearEndOption[]>(() =>
 );
 
 const hasPendingChanges = computed<boolean>(() => {
+  // Compare against the trimmed value so a no-op edit (typing then
+  // backspacing back to the original) doesn't keep the Save button
+  // hot. Server-side validateUpdateBookInput rejects empty / whitespace
+  // names with a 400 — the disabled binding below mirrors that contract
+  // so the button can't fire a doomed request.
+  const nameChanged = selectedName.value.trim() !== props.bookName;
+  const nameValid = selectedName.value.trim().length > 0;
   const countryChanged = selectedCountry.value !== (props.country ?? "");
   const fiscalChanged = selectedFiscalYearEnd.value !== resolveFiscalYearEnd(props.fiscalYearEnd);
-  return countryChanged || fiscalChanged;
+  return nameValid && (nameChanged || countryChanged || fiscalChanged);
 });
 
 async function onRebuild(): Promise<void> {
@@ -176,6 +193,7 @@ async function onSaveBookInfo(): Promise<void> {
     const country: SupportedCountryCode | "" = rawCountry === "" || isSupportedCountryCode(rawCountry) ? rawCountry : "";
     const result = await updateBook({
       bookId: props.bookId,
+      name: selectedName.value.trim(),
       country,
       fiscalYearEnd: selectedFiscalYearEnd.value,
     });
@@ -221,8 +239,19 @@ watch(
     confirmName.value = "";
     updateOk.value = null;
     updateError.value = null;
+    selectedName.value = props.bookName;
     selectedCountry.value = props.country ?? "";
     selectedFiscalYearEnd.value = props.fiscalYearEnd ?? DEFAULT_FISCAL_YEAR_END;
+  },
+);
+
+// Follow external bookName updates — e.g. an LLM-driven updateBook in
+// another tab, or pubsub-driven refetch. Without this, an out-of-band
+// rename leaves a stale draft staged in the input.
+watch(
+  () => props.bookName,
+  (next) => {
+    selectedName.value = next;
   },
 );
 
