@@ -87,11 +87,11 @@ test.describe("accounting plugin — flow", () => {
     await page.getByTestId("accounting-tab-newEntry").click();
 
     // The tax-registration ID input is gated by `isTaxAccountCode`
-    // — it only renders on lines whose account is in the 14xx /
-    // 24xx tax-related band (see
+    // — it only renders on lines whose account is in the 14xx
+    // input-tax band (see
     // src/plugins/accounting/components/accountNumbering.ts). On a
     // fresh form every line's accountCode is "", so the column
-    // and input are hidden until the user picks a tax account.
+    // and input are hidden until the user picks a 14xx account.
     const taxIdInput = page.getByTestId("accounting-entry-line-tax-registration-id-0");
     await expect(taxIdInput).toHaveCount(0);
     await page.getByTestId("accounting-entry-line-account-0").selectOption("1400");
@@ -106,6 +106,16 @@ test.describe("accounting plugin — flow", () => {
     // verifying that requires a network round-trip that's out of
     // scope for this UI smoke test.)
     await page.getByTestId("accounting-entry-line-account-0").selectOption("1000");
+    await expect(taxIdInput).toHaveCount(0);
+
+    // Pin the negative-side rule introduced in PR #1137: 24xx
+    // output-tax accounts (e.g. 2400 Sales Tax Payable) must NOT
+    // surface the T-number column. Without this assertion a
+    // regression that re-broadened `isTaxAccountCode` back to
+    // `["14", "24"]` would slip through e2e — the existing 1000
+    // check above only proves a non-tax account hides the input,
+    // not that 24xx specifically does.
+    await page.getByTestId("accounting-entry-line-account-0").selectOption("2400");
     await expect(taxIdInput).toHaveCount(0);
   });
 

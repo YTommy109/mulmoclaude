@@ -154,8 +154,8 @@ export interface LedgerRow {
   runningBalance: number;
   /** Counterparty tax-registration ID copied from the source
    *  journal line (T-number / VAT ID / GSTIN / ABN). Surfaced as a
-   *  Ledger column when the active account is in the tax-related
-   *  code band (14xx / 24xx — see `isTaxAccountCode` in
+   *  Ledger column when the active account is in the input-tax
+   *  band (14xx — see `isTaxAccountCode` in
    *  src/plugins/accounting/components/accountNumbering.ts).
    *  Carried per row even on non-tax accounts so a future view
    *  that wants to show it elsewhere doesn't need a server change. */

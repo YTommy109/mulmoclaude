@@ -72,11 +72,11 @@
             />
           </td>
           <!-- Tax-registration ID column appears only when at least
-               one line picks a tax-related account (14xx / 24xx —
-               see isTaxAccountCode). Within a column-visible row,
-               the input itself only renders for the lines that
-               actually pick a tax account; other lines render an
-               empty cell so the row keeps its column alignment. -->
+               one line picks an input-tax account (14xx — see
+               isTaxAccountCode). Within a column-visible row, the
+               input itself only renders for the lines that actually
+               pick a 14xx account; other lines render an empty cell
+               so the row keeps its column alignment. -->
           <td v-if="anyTaxLine" class="py-1 px-2">
             <template v-if="isTaxLine(line)">
               <input
@@ -300,8 +300,8 @@ const hasAtLeastTwoPostableLines = computed(() => {
   return false;
 });
 // Show the tax-registration ID column only when at least one line
-// targets a 14xx / 24xx account; otherwise the column is wasted
-// space for the typical entry that has no tax line.
+// targets a 14xx (input-tax) account; otherwise the column is
+// wasted space for the typical entry that has no input-tax line.
 const anyTaxLine = computed(() => lines.value.some(isTaxLine));
 const hasTaxRegistrationIdError = computed(() => lines.value.some(isTaxRegistrationIdInvalid));
 const balanced = computed(() => Math.abs(imbalance.value) <= 0.005 && hasAtLeastTwoPostableLines.value && !hasTaxRegistrationIdError.value);

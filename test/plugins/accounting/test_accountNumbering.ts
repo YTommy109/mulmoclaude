@@ -10,20 +10,20 @@ import assert from "node:assert/strict";
 import { isTaxAccountCode } from "../../../src/plugins/accounting/components/accountNumbering.ts";
 
 describe("isTaxAccountCode", () => {
-  it("recognizes 14xx asset codes (tax-related current assets)", () => {
+  it("recognizes 14xx asset codes (input-tax current assets)", () => {
     assert.equal(isTaxAccountCode("1410"), true);
     assert.equal(isTaxAccountCode("1400"), true);
     assert.equal(isTaxAccountCode("1499"), true);
   });
 
-  it("recognizes 24xx liability codes (tax-related current liabilities)", () => {
-    assert.equal(isTaxAccountCode("2400"), true);
-    assert.equal(isTaxAccountCode("2410"), true);
-    assert.equal(isTaxAccountCode("2499"), true);
+  it("rejects 24xx liability codes (output-tax — counterparty registration ID is not load-bearing on the seller side)", () => {
+    assert.equal(isTaxAccountCode("2400"), false);
+    assert.equal(isTaxAccountCode("2410"), false);
+    assert.equal(isTaxAccountCode("2499"), false);
   });
 
   it("rejects neighboring asset / liability bands", () => {
-    // Right next to the tax bands but explicitly out of scope —
+    // Right next to the input-tax band but explicitly out of scope —
     // these must not surface the T-number column.
     assert.equal(isTaxAccountCode("1310"), false); // legacy Sales Tax Receivable code
     assert.equal(isTaxAccountCode("1500"), false);

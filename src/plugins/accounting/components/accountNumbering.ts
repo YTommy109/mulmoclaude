@@ -18,10 +18,15 @@
 //           withholding-tax-payable / etc. siblings)
 //
 // Special-case UI (Ledger T-number column, JournalEntryForm
-// per-line tax-registration ID input) keys off this convention via
-// `isTaxAccountCode` rather than a per-account flag, so a custom
-// suspense account a user adds in the 14xx / 24xx band participates
-// without any opt-in step.
+// per-line tax-registration ID input) is **input-tax-only** — it
+// keys off `isTaxAccountCode`, which matches 14xx (purchase side)
+// only. Output-tax / sales-side lines (24xx) intentionally don't
+// surface a counterparty registration field: the seller's
+// obligation is to put their *own* registration number on the
+// invoice they issue, not to capture the customer's. So a custom
+// suspense account added in the 14xx band participates without
+// any opt-in step; 24xx accounts book the liability without the
+// extra column.
 //
 // Lives in its own module so AccountsModal, AccountEditor, and the
 // validation helper can share the same constants without circular
@@ -37,12 +42,15 @@ export const ACCOUNT_TYPE_PREFIX: Record<AccountType, number> = {
   expense: 5,
 };
 
-const TAX_ACCOUNT_PREFIXES: readonly string[] = ["14", "24"];
+const TAX_ACCOUNT_PREFIXES: readonly string[] = ["14"];
 
 /** Returns `true` for codes whose first two digits identify a
- *  tax-related current asset (`14xx`) or current liability (`24xx`).
- *  Drives Ledger column visibility and the JournalEntryForm
- *  per-line tax-registration ID input. */
+ *  tax-related current asset (`14xx`) — i.e. the input-tax /
+ *  purchase side of consumption / sales / VAT bookkeeping. Drives
+ *  Ledger column visibility and the JournalEntryForm per-line
+ *  tax-registration ID input. Output-tax (24xx) is intentionally
+ *  excluded: the counterparty's registration ID is only
+ *  load-bearing for input-tax-credit eligibility on purchases. */
 export function isTaxAccountCode(code: string): boolean {
   return TAX_ACCOUNT_PREFIXES.some((prefix) => code.startsWith(prefix));
 }
