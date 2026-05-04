@@ -659,6 +659,7 @@ const zhMessages = {
       previousQuarter: "上季度",
       currentYear: "本年度",
       previousYear: "上年度",
+      lifetime: "自开账以来",
       all: "全部",
       fromLabel: "起始",
       toLabel: "结束",

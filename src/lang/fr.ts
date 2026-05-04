@@ -669,6 +669,7 @@ const frMessages = {
       previousQuarter: "Trimestre précédent",
       currentYear: "Exercice en cours",
       previousYear: "Exercice précédent",
+      lifetime: "Depuis l'ouverture",
       all: "Tout",
       fromLabel: "Du",
       toLabel: "Au",

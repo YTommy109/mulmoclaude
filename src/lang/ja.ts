@@ -664,6 +664,7 @@ const jaMessages = {
       previousQuarter: "前四半期",
       currentYear: "今年度",
       previousYear: "前年度",
+      lifetime: "開設以来",
       all: "すべて",
       fromLabel: "開始日",
       toLabel: "終了日",

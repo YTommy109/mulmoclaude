@@ -674,6 +674,7 @@ const esMessages = {
       previousQuarter: "Último trimestre",
       currentYear: "Año en curso",
       previousYear: "Año anterior",
+      lifetime: "Desde la apertura",
       all: "Todo",
       fromLabel: "Desde",
       toLabel: "Hasta",

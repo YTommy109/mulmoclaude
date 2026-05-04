@@ -667,6 +667,7 @@ const ptBRMessages = {
       previousQuarter: "Último trimestre",
       currentYear: "Ano atual",
       previousYear: "Ano anterior",
+      lifetime: "Desde a abertura",
       all: "Tudo",
       fromLabel: "De",
       toLabel: "Até",

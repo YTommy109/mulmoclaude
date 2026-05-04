@@ -676,6 +676,7 @@ const deMessages = {
       previousQuarter: "Letztes Quartal",
       currentYear: "Aktuelles Jahr",
       previousYear: "Letztes Jahr",
+      lifetime: "Seit Eröffnung",
       all: "Alle",
       fromLabel: "Von",
       toLabel: "Bis",

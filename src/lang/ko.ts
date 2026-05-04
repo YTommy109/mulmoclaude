@@ -664,6 +664,7 @@ const koMessages = {
       previousQuarter: "지난 분기",
       currentYear: "이번 연도",
       previousYear: "지난 연도",
+      lifetime: "개설 이후",
       all: "전체",
       fromLabel: "시작",
       toLabel: "종료",

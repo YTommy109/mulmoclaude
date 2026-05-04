@@ -674,6 +674,7 @@ const enMessages = {
       previousQuarter: "Last quarter",
       currentYear: "Current year",
       previousYear: "Last year",
+      lifetime: "Lifetime",
       all: "All",
       fromLabel: "From",
       toLabel: "To",
