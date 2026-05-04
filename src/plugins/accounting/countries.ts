@@ -117,12 +117,13 @@ export function isSupportedCountryCode(value: unknown): value is SupportedCountr
  *  form. */
 export const COUNTRY_FEATURES = {
   /** Show an amber "missing tax ID" warning + helper text on a
-   *  postable 14xx / 24xx line whose taxRegistrationId is blank.
-   *  Limited to jurisdictions where the role prompt explicitly
-   *  requires the counterparty registration number (JP T-number,
-   *  EU VAT ID, GB VAT, GSTIN, ABN, NZ GST, CA BN). The "other
-   *  countries" bucket and US (no federal sales-tax registration)
-   *  intentionally stay quiet. */
+   *  postable 14xx (input-tax) line whose taxRegistrationId is
+   *  blank. Limited to jurisdictions where the role prompt
+   *  explicitly requires the counterparty registration number
+   *  (JP T-number, EU VAT ID, GB VAT, GSTIN, ABN, NZ GST, CA BN).
+   *  The "other countries" bucket and US (no federal sales-tax
+   *  registration) intentionally stay quiet. 24xx output-tax
+   *  lines don't trigger the warning — see `isTaxAccountCode`. */
   warnMissingTaxRegistrationId: new Set<SupportedCountryCode>([
     "JP",
     "GB",

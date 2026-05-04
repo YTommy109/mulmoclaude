@@ -64,7 +64,7 @@ describe("normalizeStoredAccount", () => {
   describe("legacy field cleanup", () => {
     it("drops the now-removed tracksTaxRegistration field from upserted accounts", () => {
       // Older books seeded `1310` / `2400` with `tracksTaxRegistration: true`
-      // before the convention-driven `isTaxAccountCode` (14xx / 24xx)
+      // before the convention-driven `isTaxAccountCode` (14xx)
       // landed. The whitelist no longer includes the field, so the
       // next upsert silently sloughs it off — old JSON keeps it on
       // disk until touched, but new writes don't propagate it.

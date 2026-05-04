@@ -87,11 +87,11 @@ test.describe("accounting plugin — flow", () => {
     await page.getByTestId("accounting-tab-newEntry").click();
 
     // The tax-registration ID input is gated by `isTaxAccountCode`
-    // — it only renders on lines whose account is in the 14xx /
-    // 24xx tax-related band (see
+    // — it only renders on lines whose account is in the 14xx
+    // input-tax band (see
     // src/plugins/accounting/components/accountNumbering.ts). On a
     // fresh form every line's accountCode is "", so the column
-    // and input are hidden until the user picks a tax account.
+    // and input are hidden until the user picks a 14xx account.
     const taxIdInput = page.getByTestId("accounting-entry-line-tax-registration-id-0");
     await expect(taxIdInput).toHaveCount(0);
     await page.getByTestId("accounting-entry-line-account-0").selectOption("1400");

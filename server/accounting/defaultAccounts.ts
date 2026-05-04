@@ -28,10 +28,12 @@ export const DEFAULT_ACCOUNTS: readonly Account[] = [
   // booking method: input tax paid on purchases sits here as an
   // asset and is netted against output-tax collected at filing
   // time. The Ledger view's T-number column and the
-  // JournalEntryForm's per-line taxRegistrationId input both key
-  // off the 14xx / 24xx prefix (see `isTaxAccountCode`), so any
-  // custom account a user adds in this band participates without
-  // an opt-in step. Active by default — most jurisdictions levy a
+  // JournalEntryForm's per-line taxRegistrationId input key off
+  // the 14xx prefix only (see `isTaxAccountCode`) — the
+  // counterparty registration ID is load-bearing for input-tax
+  // credit on purchases, not for the seller-side liability — so
+  // any custom 14xx account a user adds participates without an
+  // opt-in step. Active by default — most jurisdictions levy a
   // consumption / sales / VAT tax; tax-free contexts can
   // deactivate from Manage Accounts.
   // 1400 was briefly named "Sales Tax Receivable" — that label

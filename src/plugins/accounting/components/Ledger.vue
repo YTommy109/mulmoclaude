@@ -100,10 +100,12 @@ function formatAccountLabel(account: Account): string {
 const selectableAccounts = computed<Account[]>(() => props.accounts.filter((account) => account.active !== false));
 
 // Surface the T-number column when the active account is in the
-// tax-related code band (14xx asset / 24xx liability — e.g. 1400
-// Input Tax Receivable, 2400 Sales Tax Payable). Convention-driven
-// so any custom account a user adds in the band participates
-// without an opt-in flag.
+// input-tax band (14xx — e.g. 1400 Input Tax Receivable).
+// Convention-driven so any custom account a user adds in the band
+// participates without an opt-in flag. 24xx (Sales Tax Payable
+// and friends) intentionally doesn't get the column — the
+// counterparty registration ID matters for input-tax-credit
+// eligibility on purchases, not for the seller-side liability.
 const showTaxRegistrationColumn = computed<boolean>(() => {
   if (!ledger.value) return false;
   return isTaxAccountCode(ledger.value.accountCode);

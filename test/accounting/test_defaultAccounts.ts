@@ -1,10 +1,12 @@
 // Pins the seeded chart's tax-related accounts. The Ledger view's
 // T-number column and the JournalEntryForm's per-line
-// taxRegistrationId input both key off `isTaxAccountCode` (14xx
-// asset / 24xx liability — see
+// taxRegistrationId input both key off `isTaxAccountCode`, which
+// matches the 14xx input-tax band only (see
 // src/plugins/accounting/components/accountNumbering.ts), so a
-// regression that moves `1400` or `2400` out of those bands would
-// silently break both surfaces for every fresh book.
+// regression that moves `1400` out of that band would silently
+// break both surfaces for every fresh book. `2400` stays pinned
+// for the booking pair; the T-number column intentionally does
+// not surface for it.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
