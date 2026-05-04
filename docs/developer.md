@@ -409,9 +409,10 @@ Cross-module string literals (endpoint paths, tool names, role IDs, etc.) are de
 | `TOOL_NAMES` / `ToolName`              | `src/config/toolNames.ts`      | Role definitions (`availablePlugins`), plugin registry, session-store tool matching                                                                  |
 | `BUILTIN_ROLE_IDS` / `BuiltInRoleId`   | `src/config/roles.ts`          | Anywhere a built-in role ID appears outside the role definition itself                                                                               |
 | `PUBSUB_CHANNELS` / `sessionChannel()` | `src/config/pubsubChannels.ts` | Pub-sub publish/subscribe sites in session-store and task-manager                                                                                    |
-| `EVENT_TYPES` / `EventType`            | `src/types/events.ts`          | SSE event type discriminants in agent loop, session store, and frontend dispatch                                                                     |
 
 **Convention**: add new entries to the appropriate module before writing the first consumer. Keep the `as const` assertion so TypeScript infers literal types, not `string`.
+
+**Plugin-aware aggregators** — `API_ROUTES`, `TOOL_NAMES`, `WORKSPACE_DIRS`, and `PUBSUB_CHANNELS` are not pure host records. Each is built via `defineHostAggregate(BUILT_IN_PLUGIN_METAS, { hostRecord, extract, … })` (see `src/plugins/metas.ts`) which merges per-plugin contributions from each plugin's `meta.ts` into the host record at module load. First-write-wins semantics: a plugin claiming a key the host already owns is dropped and reported on the bell; two plugins claiming the same key keep the first registration and drop the second. To add a plugin's tool name, route, dir, or channel, edit the plugin's `meta.ts` rather than the host module — the aggregator does the rest.
 
 ---
 
@@ -428,7 +429,7 @@ CLAUDE.md mandates `$t()` / `useI18n()` for all template strings — never hardc
 ### Adding a string
 
 1. Add the key to `src/lang/en.ts` first, grouped by feature area (e.g. `common.*`, `chat.*`, `session.*`). Keep nested objects over flat `dot.keys` strings so related entries stay together.
-2. Mirror in `src/lang/ja.ts` — if you don't have a translation yet, either leave the key out (falls back to English) or add a TODO-style placeholder; don't duplicate the English string.
+2. Mirror the new key in **all 7 sibling locales** (`ja.ts`, `ko.ts`, `zh.ts`, `es.ts`, `pt-BR.ts`, `fr.ts`, `de.ts`). `src/lang/en.ts` is the schema source of truth — `typeof enMessages` is threaded through `createI18n` in `src/lib/vue-i18n.ts`, so `vue-tsc` treats every missing key as a type error. Translate properly per locale (don't copy the English string); placeholders like `{count}` / `{error}` stay verbatim.
 3. In a component:
 
    ```vue
@@ -445,7 +446,7 @@ CLAUDE.md mandates `$t()` / `useI18n()` for all template strings — never hardc
 
 ### Changing the running locale
 
-Set `VITE_LOCALE=ja` (or `en`) in `.env` and restart `yarn dev`. Vite inlines env vars at build time, so the app must be re-bundled for a new locale — there's no runtime selector.
+Set `VITE_LOCALE` in `.env` and restart `yarn dev`. Supported values: `en`, `ja`, `ko`, `zh`, `es`, `pt-BR`, `fr`, `de` (see `SUPPORTED_LOCALES` in `src/lib/vue-i18n.ts`). Vite inlines env vars at build time, so the app must be re-bundled for a new locale — there's no runtime selector.
 
 ### Scope today vs. plans
 
@@ -596,13 +597,77 @@ See [`packages/README.md`](../packages/README.md) for the MulmoBridge architectu
 
 ---
 
+## Plugin development
+
+Built-in plugins live under `src/plugins/<name>/` and own their entire identity — `toolName`, dispatch URL(s), workspace dirs, pubsub channels — in their own `meta.ts`. Host aggregator records (`API_ROUTES`, `TOOL_NAMES`, `WORKSPACE_DIRS`, `PUBSUB_CHANNELS`) auto-merge those contributions at module load via `defineHostAggregate` (`src/plugins/metas.ts`). Host code holds zero plugin-specific literals — adding a plugin doesn't touch `src/config/apiRoutes.ts`, `src/config/toolNames.ts`, `src/config/pubsubChannels.ts`, or `server/workspace/paths.ts`.
+
+Runtime-loaded plugins (npm packages installed into a workspace at runtime) have a separate contract — see [`docs/plugin-runtime.md`](./plugin-runtime.md). The `meta.ts` pattern below is for built-in plugins only.
+
+### Files per plugin
+
+Plugin-local (lives entirely under `src/plugins/<name>/`):
+
+- **`meta.ts`** — `definePluginMeta({ toolName, apiRoutesKey?, apiRoutes?, workspaceDirs?, staticChannels? })`. Browser- and server-safe (no Vue / no Node-only imports). Single source of truth for the plugin's identity.
+- **`definition.ts`** — MCP `ToolDefinition`. Derive `TOOL_NAME` and the endpoint type from META so the schema and the dispatch URL can't drift:
+  ```ts
+  import { META } from "./meta";
+  export const TOOL_NAME = META.toolName;
+  export type FooEndpoints = typeof META.apiRoutes;
+  const toolDefinition: ToolDefinition = { name: TOOL_NAME, ... };
+  ```
+- **`index.ts`** — `PluginRegistration` with the executor + Vue components wrapped via `wrapWithScope(scope, View)`. The executor calls `pluginEndpoints<FooEndpoints>(scope)` rather than importing `API_ROUTES` directly — DI keeps `src/plugins/*` zero-dependency on `src/config/*`.
+- **`View.vue` / `Preview.vue`** — Vue surfaces. `useRuntime()` from `gui-chat-protocol/vue` returns a `BrowserPluginRuntime` with a typed `endpoints` map: `const endpoints = useRuntime().endpoints as FooEndpoints`.
+
+Host barrels (registry append-only):
+
+- **`src/plugins/metas.ts`** → `BUILT_IN_PLUGIN_METAS`. Drives every aggregator.
+- **`src/plugins/index.ts`** → `BUILT_IN_PLUGINS`. The Vue-bearing registration list (used by the chat canvas).
+- **`src/plugins/server.ts`** → `BUILT_IN_SERVER_BINDINGS`. The MCP `{ def, endpoint }` pairs (used by `server/agent/mcp-server.ts`). Skip this entry only for GUI-only plugins like `wiki` (deprecated MCP, view-only registration).
+
+Server-side, only when the plugin owns endpoints:
+
+- **`server/api/routes/<name>.ts`** — Express handlers. Mount them under `API_ROUTES.<scope>.<key>` so the URL flows from META.
+
+Host wiring, exactly once per plugin:
+
+- **`src/main.ts`** — entry in the host endpoint registry passed to `installHostContext({ endpoints })`. The DI registry is the only place that maps a plugin's scope name to its `API_ROUTES.<key>` object; plugin code reads via `pluginEndpoints<E>(scope)` and never sees the host config tree.
+
+Role wiring is independent — to expose a plugin to a Role's chat, add its `toolName` to that role's `availablePlugins` in `src/config/roles.ts`.
+
+### Two mounting paths, both must work
+
+A plugin's `View` / `Preview` components mount in two distinct trees, and both must provide the plugin runtime so descendant `useRuntime()` calls resolve:
+
+1. **Chat canvas** (tool-result rendering). The `wrapWithScope(scope, View)` helper in `src/plugins/scope.ts` produces a component that mounts `<PluginScopedRoot pkg-name :endpoints>` around the inner View. Used by `BUILT_IN_PLUGINS` entries.
+2. **Standalone routes / file previews** (`/todos`, `/calendar`, `FileContentRenderer` showing `data/todos/todos.json`, etc.). These mount the View directly, outside the plugin registry, so the host wraps them at the call site:
+   ```vue
+   <PluginScopedRoot pkg-name="todos" :endpoints="API_ROUTES.todos">
+     <TodoExplorer />
+   </PluginScopedRoot>
+   ```
+   `App.vue` and `FileContentRenderer.vue` carry these wrappers for the routed page and file-preview surfaces respectively. A new standalone route for a plugin needs the same wrapping pattern, or `useRuntime()` will throw at first render.
+
+### Diagnostics
+
+Aggregator collisions don't throw — they're filtered and reported. `server/plugins/diagnostics.ts` collects them at boot via `log.warn` and a system notification on the bell; the late-mount `usePluginDiagnostics()` composable fetches `/api/plugins/diagnostics` so a tab opening after the boot push still sees the warning. Notification title/body are localized in all 8 locales via the `pluginDiagnostics.*` i18n keys.
+
+### Sync invariants
+
+`test/plugins/test_meta_aggregation.ts` enforces:
+
+- `defineHostAggregate` first-write-wins semantics (the second plugin claiming a key is dropped, not silently overwritten).
+- `apiRoutesKey ?? toolName` default when META omits the explicit key.
+- `BUILT_IN_SERVER_BINDINGS` → META — every server-bound built-in plugin has a matching META. The reverse direction is intentionally not asserted: GUI-only / deprecated plugins (e.g. wiki) legitimately have META without a binding. External-package plugins (`@gui-chat-plugin/mindmap` and friends) are exempt via an allowlist.
+
+---
+
 ## Common gotchas
 
 - **Playwright uses its own port `:45173`** (`dev:client:e2e` in `package.json` + `webServer` in `e2e/playwright.config.ts`), so it doesn't collide with a running `yarn dev` on `:5173`. `reuseExistingServer: true` is still on for that port — if a stale `vite` process from a different working tree is already serving `:45173`, Playwright will happily talk to _that_ one. Symptom: tests fail because UI changes "haven't landed". Kill the stray process: `lsof -i :45173 | grep LISTEN`.
 - **CSRF guard is strict.** `requireSameOrigin` (`server/api/csrfGuard.ts`) rejects state-changing requests from non-localhost origins. Requests with no `Origin` header (CLI tools, server-to-server) are allowed because the listener is bound to `127.0.0.1`. If you ever expose the listener publicly, tighten this middleware first.
 - **Workspace is git-init'd.** The first server start creates `~/mulmoclaude/.git`. Don't be surprised when journal / wiki edits show up in `git log`.
 - **`.vue` cognitive-complexity is warn-only.** A few legacy components exceed 15. The override demotes the rule to warn so CI isn't blocked. Each fix should re-raise to error in `eslint.config.mjs`.
-- **MCP plugin registration touches 4–7 places.** See the "Plugin Development" section in [CLAUDE.md](../CLAUDE.md). Forgetting one location silently drops the plugin (no error, just missing tool).
+- **MCP plugin registration touches several places.** See the [Plugin development](#plugin-development) section below. Forgetting one location silently drops the plugin (no error, just missing tool); a sync-invariant test (`test/plugins/test_meta_aggregation.ts`) catches the most common mismatch — a `BUILT_IN_SERVER_BINDINGS` row without a matching META in `BUILT_IN_PLUGIN_METAS`.
 - **Settings reload is per-agent-call, not per-process.** `loadSettings()` runs every time `runAgent` spawns Claude, so the Settings UI takes effect on the next message — but a long-running script that holds an agent reference won't pick up changes mid-stream.
 
 ---
@@ -614,6 +679,6 @@ See [`packages/README.md`](../packages/README.md) for the MulmoBridge architectu
 | Adding a new `/api/*` route   | `server/api/routes/<name>.ts`, wire in `server/index.ts`                    |
 | Adding a shared server helper | `server/utils/<concept>.ts` (one concept per file)                          |
 | Adding a Vue composable       | `src/composables/use<Name>.ts`                                              |
-| Adding a plugin               | `src/plugins/<name>/{definition,index,View,Preview}.ts/vue` — see CLAUDE.md |
+| Adding a plugin               | `src/plugins/<name>/{meta,definition,index,View,Preview}.{ts,vue}` + the 3 host barrels — see [Plugin development](#plugin-development) |
 | Adding a test                 | `test/<mirrored-source-path>/test_<module>.ts`                              |
 | New developer-facing doc      | `docs/<name>.md` and link from the table at the top of the README           |
