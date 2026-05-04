@@ -103,7 +103,7 @@
                     class="h-6 w-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100"
                     :data-testid="`accounting-journal-detail-close-${entry.id}`"
                     :aria-label="t('common.close')"
-                    @click.stop="expandedEntryId = null"
+                    @click.stop="onCloseDetail"
                   >
                     <span class="material-icons text-base">close</span>
                   </button>
@@ -346,6 +346,18 @@ const accountNameByCode = computed(() => {
 });
 function accountNameFor(code: string): string | null {
   return accountNameByCode.value.get(code) ?? null;
+}
+
+// Close button on the selected row's lines cell. Has to clear BOTH
+// expandedEntryId AND entryBeingEdited — if the user clicks Edit
+// (which sets entryBeingEdited) and then clicks Close, leaving
+// entryBeingEdited stale would block reopening: toggleExpanded's
+// edit-mode guard early-returns when entryBeingEdited.id matches the
+// clicked row, so the user could never reopen that entry from the
+// list. Issue surfaced by the CodeRabbit review on PR #1161.
+function onCloseDetail(): void {
+  expandedEntryId.value = null;
+  entryBeingEdited.value = null;
 }
 
 function toggleExpanded(entryId: string): void {

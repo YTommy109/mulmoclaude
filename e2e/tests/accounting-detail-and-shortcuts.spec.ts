@@ -377,4 +377,43 @@ test.describe("Journal — clickable rows and inline detail panel", () => {
     await expect(page.locator("[data-testid^='accounting-edit-']:not([data-testid*='accounting-edit-opening-'])").first()).toBeVisible();
     await expect(page.locator("[data-testid^='accounting-journal-detail-close-']").first()).toBeVisible();
   });
+
+  test("Close from inside Edit mode resets edit state so the row can be reopened", async ({ page }) => {
+    // Pins the CodeRabbit-flagged bug on PR #1161: clicking Close
+    // while the detail panel was in edit mode used to clear
+    // expandedEntryId but leave entryBeingEdited set. The next click
+    // on the row would hit toggleExpanded's edit-mode guard, which
+    // early-returns when entryBeingEdited.id matches the row, so the
+    // user could never reopen that entry. onCloseDetail now clears
+    // both refs.
+    const SEED_BOOK_ID = "book-journal-close-from-edit";
+    await setupSession(page, {
+      books: [{ id: SEED_BOOK_ID, name: "Close-from-edit Book", withEmptyOpening: true }],
+      envelope: { bookId: SEED_BOOK_ID, initialTab: "journal" },
+    });
+
+    await page.goto(`/chat/${SESSION_ID}`);
+    await postNormalEntry(page);
+
+    const row = await findNormalRow(page);
+    await row.click();
+
+    // Enter edit mode, then close from the row's lines-cell button.
+    await page.locator("[data-testid^='accounting-edit-']:not([data-testid*='accounting-edit-opening-'])").first().click();
+    await expect(page.locator("[data-testid^='accounting-journal-detail-edit-']")).toHaveCount(1);
+    await page.locator("[data-testid^='accounting-journal-detail-close-']").first().click();
+
+    // Detail panel collapsed; row stays in the list.
+    await expect(page.locator("[data-testid^='accounting-journal-detail-']:not([data-testid*='-close-']):not([data-testid*='-edit-'])")).toHaveCount(0);
+    await expect(row).toBeVisible();
+
+    // Re-open the same row — must succeed (the bug was that the
+    // toggle was a no-op because entryBeingEdited was still set).
+    await row.click();
+    await expect(page.locator("[data-testid^='accounting-journal-detail-']:not([data-testid*='-close-']):not([data-testid*='-edit-'])")).toHaveCount(1);
+    // And the panel reopens in read-only mode (Edit button visible),
+    // not back into the in-place edit form.
+    await expect(page.locator("[data-testid^='accounting-journal-detail-edit-']")).toHaveCount(0);
+    await expect(page.locator("[data-testid^='accounting-edit-']:not([data-testid*='accounting-edit-opening-'])").first()).toBeVisible();
+  });
 });
