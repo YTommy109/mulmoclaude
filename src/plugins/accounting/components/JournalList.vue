@@ -148,10 +148,18 @@
                         <span class="font-mono text-[10px] text-gray-400 mr-2">{{ line.accountCode }}</span>
                         <span v-if="accountNameFor(line.accountCode)">{{ accountNameFor(line.accountCode) }}</span>
                       </td>
-                      <td class="py-1 px-2 text-right font-mono">{{ line.debit ? formatAmount(line.debit, currency) : "" }}</td>
-                      <td class="py-1 px-2 text-right font-mono">{{ line.credit ? formatAmount(line.credit, currency) : "" }}</td>
-                      <td class="py-1 px-2">{{ line.memo ?? "" }}</td>
-                      <td v-if="entryHasTaxIds(entry)" class="py-1 px-2 font-mono text-[10px]">{{ line.taxRegistrationId ?? "" }}</td>
+                      <td class="py-1 px-2 text-right font-mono">
+                        <template v-if="line.debit">{{ formatAmount(line.debit, currency) }}</template>
+                      </td>
+                      <td class="py-1 px-2 text-right font-mono">
+                        <template v-if="line.credit">{{ formatAmount(line.credit, currency) }}</template>
+                      </td>
+                      <td class="py-1 px-2">
+                        <template v-if="line.memo">{{ line.memo }}</template>
+                      </td>
+                      <td v-if="entryHasTaxIds(entry)" class="py-1 px-2 font-mono text-[10px]">
+                        <template v-if="line.taxRegistrationId">{{ line.taxRegistrationId }}</template>
+                      </td>
                     </tr>
                   </tbody>
                   <tfoot>
@@ -209,6 +217,13 @@ const emit = defineEmits<{ editOpening: [] }>();
 // submit label; the top-bar instance always passes null.
 const showNewForm = ref(false);
 const entryBeingEdited = ref<JournalEntry | null>(null);
+// Single-selection detail expansion. Clicking a row swaps the
+// selection (or collapses if it's already the selected row).
+// Cleared on book switch via the closeForm watcher; entries deleted
+// between fetches simply drop out of filteredEntries, so a stale id
+// here just renders no detail row. Declared early so the
+// onFormSubmitted / bookId-watcher callbacks below can reference it.
+const expandedEntryId = ref<string | null>(null);
 
 function onOpenNewEntry(): void {
   entryBeingEdited.value = null;
@@ -298,13 +313,6 @@ const accountNameByCode = computed(() => {
 function accountNameFor(code: string): string | null {
   return accountNameByCode.value.get(code) ?? null;
 }
-
-// Single-selection detail expansion. Clicking a row swaps the
-// selection (or collapses if it's already the selected row).
-// Cleared on book switch via the closeForm watcher; entries deleted
-// between fetches simply drop out of filteredEntries, so a stale id
-// here just renders no detail row.
-const expandedEntryId = ref<string | null>(null);
 
 function toggleExpanded(entryId: string): void {
   // While the row is in edit mode for itself, ignore clicks on the

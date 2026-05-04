@@ -147,7 +147,7 @@ type Shortcut = "thisMonth" | "lastMonth" | "lastQuarter" | "lastYear";
 type SelectedShortcut = Shortcut | "";
 
 const selectedShortcut = computed<SelectedShortcut>(() => {
-  const value = period.value;
+  const { value } = period;
   const now = new Date();
   if (value === localMonthString(now)) return "thisMonth";
   if (value === previousMonthString(now)) return "lastMonth";
