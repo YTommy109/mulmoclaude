@@ -84,6 +84,22 @@ export type NotificationAction =
     }
   | { type: typeof NOTIFICATION_ACTION_TYPES.none };
 
+/** Optional i18n contract for notifications whose title/body the
+ *  client should localize. The server publishes vue-i18n keys + the
+ *  variable substitutions; clients resolve via `t(key, params)`.
+ *  `title` / `body` stay set to the rendered English so logs and
+ *  non-i18n consumers (e.g. macOS Reminder push, bridge messages)
+ *  still get a readable string.
+ *
+ *  Used by the plugin META diagnostics (#1125) to keep all 8 locales
+ *  in lockstep without the server having to know which locale each
+ *  client is on. Other notification kinds may opt in later. */
+export interface NotificationI18n {
+  titleKey: string;
+  bodyKey?: string;
+  bodyParams?: Readonly<Record<string, string | number | readonly string[]>>;
+}
+
 export interface NotificationPayload {
   id: string;
   kind: NotificationKind;
@@ -95,4 +111,5 @@ export interface NotificationPayload {
   priority: NotificationPriority;
   sessionId?: string;
   transportId?: string;
+  i18n?: NotificationI18n;
 }

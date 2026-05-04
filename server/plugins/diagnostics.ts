@@ -18,6 +18,7 @@
 // offending plugin.
 
 import type { HostPluginCollision, IntraPluginCollision } from "../../src/plugins/metas.js";
+import type { NotificationI18n } from "../../src/types/notification.js";
 import { TOOL_NAMES_HOST_COLLISIONS, TOOL_NAMES_INTRA_COLLISIONS } from "../../src/config/toolNames.js";
 import { API_ROUTES_HOST_COLLISIONS, API_ROUTES_INTRA_COLLISIONS } from "../../src/config/apiRoutes.js";
 import { PUBSUB_CHANNELS_HOST_COLLISIONS, PUBSUB_CHANNELS_INTRA_COLLISIONS } from "../../src/config/pubsubChannels.js";
@@ -30,7 +31,9 @@ import { NOTIFICATION_ACTION_TYPES, NOTIFICATION_PRIORITIES } from "../../src/ty
 export interface PluginMetaDiagnostic {
   /** Internal id, used for deduplication and toast keys. */
   id: string;
-  /** One-line human-readable warning. */
+  /** Pre-rendered English message. Kept for log lines and any
+   *  consumer that doesn't have vue-i18n; UI surfaces use `i18n`
+   *  below to localize per active locale. */
   message: string;
   /** Type of issue — useful when the UI wants to group / icon them. */
   kind: "host-plugin" | "intra-plugin";
@@ -44,7 +47,15 @@ export interface PluginMetaDiagnostic {
    *  was dropped); length 2 for intra-plugin (first-registered,
    *  second-registered). */
   plugins: readonly string[];
+  /** vue-i18n keys + params so the bell / toast can localize the
+   *  title and body in any of the 8 supported locales without the
+   *  server having to know which locale the user is on. */
+  i18n: NotificationI18n;
 }
+
+const PLUGIN_DIAGNOSTICS_TITLE_KEY = "pluginDiagnostics.title";
+const PLUGIN_DIAGNOSTICS_HOST_BODY_KEY = "pluginDiagnostics.hostBody";
+const PLUGIN_DIAGNOSTICS_INTRA_BODY_KEY = "pluginDiagnostics.intraBody";
 
 function describeHostCollision(collision: HostPluginCollision): PluginMetaDiagnostic {
   const plugin = collision.plugin || "<unknown plugin>";
@@ -55,6 +66,11 @@ function describeHostCollision(collision: HostPluginCollision): PluginMetaDiagno
     scope: collision.label,
     key: collision.key,
     plugins: [plugin],
+    i18n: {
+      titleKey: PLUGIN_DIAGNOSTICS_TITLE_KEY,
+      bodyKey: PLUGIN_DIAGNOSTICS_HOST_BODY_KEY,
+      bodyParams: { plugin, label: collision.label, key: collision.key },
+    },
   };
 }
 
@@ -72,6 +88,11 @@ function describeIntraCollision(collision: IntraPluginCollision): PluginMetaDiag
     scope: collision.dimension,
     key: collision.key,
     plugins: [first, second],
+    i18n: {
+      titleKey: PLUGIN_DIAGNOSTICS_TITLE_KEY,
+      bodyKey: PLUGIN_DIAGNOSTICS_INTRA_BODY_KEY,
+      bodyParams: { first, second, dimension: collision.dimension, key: collision.key },
+    },
   };
 }
 
@@ -121,10 +142,15 @@ export function announcePluginMetaDiagnostics(): readonly PluginMetaDiagnostic[]
       // (Codex review iter-4 #1125).
       id: diag.id,
       kind: "system",
+      // English `title` / `body` are kept as fallbacks for the log
+      // line, the macOS Reminder push, and the bridge message; the
+      // UI prefers `i18n` below (8 locales in lockstep, Codex iter-8
+      // #1125).
       title: "Plugin configuration issue",
       body: diag.message,
       action: { type: NOTIFICATION_ACTION_TYPES.none },
       priority: NOTIFICATION_PRIORITIES.high,
+      i18n: diag.i18n,
     });
   }
   return diagnostics;

@@ -16,19 +16,41 @@ import { onMounted } from "vue";
 import { apiGet } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
 import { useNotifications } from "./useNotifications";
-import { NOTIFICATION_ACTION_TYPES, NOTIFICATION_KINDS, NOTIFICATION_PRIORITIES, type NotificationPayload } from "../types/notification";
+import { NOTIFICATION_ACTION_TYPES, NOTIFICATION_KINDS, NOTIFICATION_PRIORITIES, type NotificationI18n, type NotificationPayload } from "../types/notification";
 import { isRecord } from "../utils/types";
 
 interface DiagnosticDto {
   id: string;
+  /** Pre-rendered English message — keeps logs and any non-i18n
+   *  consumer readable. The bell / toast use `i18n` below. */
   message: string;
   // kind / scope / key / plugins are useful for richer UI later but
-  // the bell only needs `id` + `message`. We forward them verbatim
-  // to keep the door open for a future "diagnostics view".
+  // the bell only needs `id` + `message` + `i18n`. We forward them
+  // verbatim to keep the door open for a future "diagnostics view".
   kind: "host-plugin" | "intra-plugin";
   scope: string;
   key: string;
   plugins: readonly string[];
+  /** vue-i18n keys + params; matches `PluginMetaDiagnostic.i18n` on
+   *  the server. Required since #1125-iter-8 — every diagnostic now
+   *  ships with localizable text. */
+  i18n: NotificationI18n;
+}
+
+function isI18nParamValue(value: unknown): value is string | number | readonly string[] {
+  if (typeof value === "string" || typeof value === "number") return true;
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+
+function isNotificationI18n(value: unknown): value is NotificationI18n {
+  if (!isRecord(value)) return false;
+  if (typeof value.titleKey !== "string") return false;
+  if (value.bodyKey !== undefined && typeof value.bodyKey !== "string") return false;
+  if (value.bodyParams !== undefined) {
+    if (!isRecord(value.bodyParams)) return false;
+    if (!Object.values(value.bodyParams).every(isI18nParamValue)) return false;
+  }
+  return true;
 }
 
 function isDiagnosticDto(value: unknown): value is DiagnosticDto {
@@ -39,6 +61,7 @@ function isDiagnosticDto(value: unknown): value is DiagnosticDto {
   if (typeof value.scope !== "string") return false;
   if (typeof value.key !== "string") return false;
   if (!Array.isArray(value.plugins) || !value.plugins.every((entry) => typeof entry === "string")) return false;
+  if (!isNotificationI18n(value.i18n)) return false;
   return true;
 }
 
@@ -46,11 +69,13 @@ function toNotificationPayload(diag: DiagnosticDto): NotificationPayload {
   return {
     id: diag.id,
     kind: NOTIFICATION_KINDS.system,
+    // English fallback — `i18n` below is what the bell / toast read.
     title: "Plugin configuration issue",
     body: diag.message,
     action: { type: NOTIFICATION_ACTION_TYPES.none },
     firedAt: new Date().toISOString(),
     priority: NOTIFICATION_PRIORITIES.high,
+    i18n: diag.i18n,
   };
 }
 

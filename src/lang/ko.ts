@@ -71,6 +71,13 @@ const koMessages = {
     noNotifications: "알림이 없습니다",
     dismiss: "닫기",
   },
+  pluginDiagnostics: {
+    title: "플러그인 구성 문제",
+    hostBody:
+      '플러그인 "{plugin}"이(가) {label} 키 "{key}"을(를) 등록하려고 했으나 호스트에서 예약된 키이므로 거부되었습니다. 플러그인의 항목이 삭제되었습니다.',
+    intraBody:
+      '플러그인 "{first}"과(와) "{second}"이(가) 동일한 {dimension} "{key}"을(를) 등록합니다. "{first}"이(가) 먼저 등록했으므로 "{second}"의 등록은 무시됩니다.',
+  },
   sidebarHeader: {
     home: "최신 채팅으로 이동",
     toolCallHistory: "도구 호출 기록",

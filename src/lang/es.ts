@@ -69,6 +69,12 @@ const esMessages = {
     noNotifications: "No hay notificaciones",
     dismiss: "Descartar",
   },
+  pluginDiagnostics: {
+    title: "Problema de configuración del plugin",
+    hostBody: 'El plugin "{plugin}" intentó registrar la clave {label} "{key}", pero está reservada por el host. La entrada del plugin se ha descartado.',
+    intraBody:
+      'Los plugins "{first}" y "{second}" registran ambos el {dimension} "{key}". "{first}" lo reclamó primero, por lo que el registro de "{second}" se ignora.',
+  },
   sidebarHeader: {
     home: "Ir al chat más reciente",
     toolCallHistory: "Historial de llamadas a herramientas",

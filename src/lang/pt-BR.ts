@@ -64,6 +64,12 @@ const ptBRMessages = {
     noNotifications: "Nenhuma notificação",
     dismiss: "Dispensar",
   },
+  pluginDiagnostics: {
+    title: "Problema de configuração do plugin",
+    hostBody: 'O plugin "{plugin}" tentou registrar a chave {label} "{key}", mas ela está reservada para o host. A entrada do plugin foi descartada.',
+    intraBody:
+      'Os plugins "{first}" e "{second}" registram o mesmo {dimension} "{key}". "{first}" o reivindicou primeiro, portanto o registro de "{second}" é ignorado.',
+  },
   sidebarHeader: {
     home: "Ir para o chat mais recente",
     toolCallHistory: "Histórico de chamadas de ferramentas",
