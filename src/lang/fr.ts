@@ -694,6 +694,7 @@ const frMessages = {
     },
     accounts: {
       listEmpty: "Aucun compte dans cette catégorie pour l'instant.",
+      openLedgerAria: "Ouvrir le grand livre de {code} {name}",
       manageButton: "Gérer les comptes",
       modalTitle: "Gérer les comptes",
       addAccount: "Ajouter un compte",

@@ -701,6 +701,7 @@ const deMessages = {
     },
     accounts: {
       listEmpty: "In dieser Kategorie sind noch keine Konten vorhanden.",
+      openLedgerAria: "Hauptbuch für {code} {name} öffnen",
       manageButton: "Konten verwalten",
       modalTitle: "Konten verwalten",
       addAccount: "Konto hinzufügen",

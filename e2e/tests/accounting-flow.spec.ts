@@ -185,6 +185,44 @@ test.describe("accounting plugin — flow", () => {
     await expect(newEntryButton).toBeVisible();
   });
 
+  test("Accounts tab rows are keyboard-accessible (Enter / Space activate)", async ({ page }) => {
+    // a11y regression guard for #1140 review: rows in the new
+    // Accounts tab must be operable without a mouse so the
+    // Accounts → Ledger handoff is keyboard-reachable.
+    const SEED_BOOK_ID = "book-a11y-accounts";
+    await setupSession(page, {
+      books: [{ id: SEED_BOOK_ID, name: "A11y Book", withEmptyOpening: true }],
+      envelope: { bookId: SEED_BOOK_ID, initialTab: "accounts" },
+    });
+
+    await page.goto(`/chat/${SESSION_ID}`);
+    await expect(page.getByTestId("accounting-app")).toBeVisible();
+    await expect(page.getByTestId("accounting-accounts-list")).toBeVisible();
+
+    // Pick a row from the seeded chart and verify it carries the
+    // accessibility primitives mouse-only rows would lack.
+    const cashRow = page.getByTestId("accounting-account-row-1000");
+    await expect(cashRow).toBeVisible();
+    await expect(cashRow).toHaveAttribute("tabindex", "0");
+    await expect(cashRow).toHaveAttribute("role", "button");
+
+    // Enter on the focused row routes to the Ledger tab with the
+    // selected account preselected — same effect as a mouse click.
+    await cashRow.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("accounting-ledger")).toBeVisible();
+    await expect(page.getByTestId("accounting-ledger-account")).toHaveValue("1000");
+
+    // Space on a different row works the same way (verifying both
+    // activation keys, not just one).
+    await page.getByTestId("accounting-tab-accounts").click();
+    const apRow = page.getByTestId("accounting-account-row-2000");
+    await apRow.focus();
+    await page.keyboard.press("Space");
+    await expect(page.getByTestId("accounting-ledger")).toBeVisible();
+    await expect(page.getByTestId("accounting-ledger-account")).toHaveValue("2000");
+  });
+
   test("deleting a book with siblings shows the deleted-notice panel; tabs are disabled until the user picks another book", async ({ page }) => {
     // Issue #1126 (1): after deleting one of multiple books, the
     // canvas must NOT silently snap to books[0]. Instead it shows a

@@ -684,6 +684,7 @@ const zhMessages = {
     },
     accounts: {
       listEmpty: "此分类下暂无科目。",
+      openLedgerAria: "打开 {code} {name} 的明细账",
       manageButton: "管理科目",
       modalTitle: "管理科目",
       addAccount: "添加科目",

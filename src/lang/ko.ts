@@ -689,6 +689,7 @@ const koMessages = {
     },
     accounts: {
       listEmpty: "이 카테고리에는 아직 계정이 없습니다.",
+      openLedgerAria: "{code} {name} 원장 열기",
       manageButton: "계정 관리",
       modalTitle: "계정 관리",
       addAccount: "계정 추가",

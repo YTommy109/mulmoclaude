@@ -445,6 +445,15 @@ watch(
   { immediate: true },
 );
 
+// Drop any leftover Accounts → Ledger preselection when the active
+// book changes. Without this, picking account "1000" in book A's
+// Accounts tab and then switching to book B would carry the hint
+// across, so book B's Ledger would auto-select "1000" (which may
+// be an unrelated account in B's chart, or absent entirely).
+watch(activeBookId, () => {
+  ledgerPreselectAccountCode.value = undefined;
+});
+
 // Stash a target bookId that we want to land on but haven't been
 // able to apply yet (book not in `books` at the moment the
 // tool-result fired). Cleared as soon as the books list catches up.

@@ -692,6 +692,7 @@ const ptBRMessages = {
     },
     accounts: {
       listEmpty: "Ainda não há contas nesta categoria.",
+      openLedgerAria: "Abrir razão de {code} {name}",
       manageButton: "Gerenciar contas",
       modalTitle: "Gerenciar contas",
       addAccount: "Adicionar conta",

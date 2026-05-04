@@ -23,9 +23,14 @@
         <li
           v-for="account in group.accounts"
           :key="account.code"
-          class="flex items-center gap-3 px-2 py-1.5 border-b border-gray-100 hover:bg-blue-50 cursor-pointer text-gray-800"
+          tabindex="0"
+          role="button"
+          :aria-label="t('pluginAccounting.accounts.openLedgerAria', { code: account.code, name: account.name })"
+          class="flex items-center gap-3 px-2 py-1.5 border-b border-gray-100 hover:bg-blue-50 cursor-pointer text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded"
           :data-testid="`accounting-account-row-${account.code}`"
           @click="onSelect(account)"
+          @keydown.enter.prevent.self="onKeyActivate($event, account)"
+          @keydown.space.prevent.self="onKeyActivate($event, account)"
         >
           <span class="font-mono text-xs w-16 shrink-0">{{ account.code }}</span>
           <span class="text-sm flex-1 min-w-0 truncate">{{ account.name }}</span>
@@ -74,6 +79,16 @@ const groups = computed<AccountGroup[]>(() =>
 );
 
 function onSelect(account: Account): void {
+  emit("selectAccount", account.code);
+}
+
+// Keyboard activation: Enter / Space on a focused row. The
+// `.prevent.self` modifiers in the template stop the default scroll
+// (Space) and ensure we don't fire when the event bubbles up from
+// a focused descendant (currently none, but defensive for future
+// row content).
+function onKeyActivate(event: KeyboardEvent, account: Account): void {
+  if (event.repeat) return;
   emit("selectAccount", account.code);
 }
 

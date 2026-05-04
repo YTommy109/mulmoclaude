@@ -699,6 +699,7 @@ const esMessages = {
     },
     accounts: {
       listEmpty: "No hay cuentas en esta categoría.",
+      openLedgerAria: "Abrir mayor de {code} {name}",
       manageButton: "Gestionar cuentas",
       modalTitle: "Gestionar cuentas",
       addAccount: "Añadir cuenta",

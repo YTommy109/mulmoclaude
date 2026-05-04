@@ -689,6 +689,7 @@ const enMessages = {
     profitLoss: { fromLabel: "From", toLabel: "To", income: "Income", expense: "Expense", netIncome: "Net income:" },
     accounts: {
       listEmpty: "No accounts in this category yet.",
+      openLedgerAria: "Open ledger for {code} {name}",
       manageButton: "Manage accounts",
       modalTitle: "Manage accounts",
       addAccount: "Add account",

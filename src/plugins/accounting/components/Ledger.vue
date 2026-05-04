@@ -170,12 +170,17 @@ async function refresh(): Promise<void> {
   }
 }
 
-// Reset to current-year window whenever the active book or its
-// fiscal-year end changes. Keeps a custom range from leaking across
-// books and follows a settings-driven shift in fiscalYearEnd.
+// Reset to current-year window AND drop the selected account
+// whenever the active book or its fiscal-year end changes. Without
+// the accountCode reset, switching from book A (cash=1000) to book
+// B (which may not even define 1000) fires a getLedger for a
+// missing code and surfaces an avoidable 404. The range reset
+// follows the same logic — a custom window from book A is
+// meaningless against book B's entries.
 watch(
   () => [props.bookId, resolvedFiscalYearEnd.value],
   () => {
+    accountCode.value = "";
     range.value = currentFiscalYearRange(resolvedFiscalYearEnd.value);
   },
 );
@@ -184,10 +189,15 @@ watch(
 // watcher fires on both initial mount (with `immediate`) and on
 // every prop change so re-clicking the same account from the
 // Accounts tab while already on the Ledger still routes through.
+// Resets the range to the current fiscal year on each preselect so
+// a stale custom window the user left behind on the Ledger doesn't
+// hide the entries the Accounts tab handed off.
 watch(
   () => props.preselectAccountCode,
   (next) => {
-    if (next && next !== accountCode.value) accountCode.value = next;
+    if (!next) return;
+    accountCode.value = next;
+    range.value = currentFiscalYearRange(resolvedFiscalYearEnd.value);
   },
   { immediate: true },
 );
