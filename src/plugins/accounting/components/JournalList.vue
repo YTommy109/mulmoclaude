@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col gap-3">
+  <div class="flex flex-col h-full gap-3">
     <!-- Top-row toolbar slot. Renders the embedded entry form
          in "+ New entry" mode here; Edit-mode for a row's existing
          entry is rendered IN-PLACE inside that row's expanded
@@ -40,143 +40,178 @@
         <span class="material-icons text-base align-middle">refresh</span>
       </button>
     </div>
-    <p v-if="loading" class="text-xs text-gray-400">{{ t("pluginAccounting.common.loading") }}</p>
-    <p v-else-if="error" class="text-xs text-red-500">{{ t("pluginAccounting.common.error", { error }) }}</p>
-    <p v-else-if="filteredEntries.length === 0" class="text-xs text-gray-400">{{ t("pluginAccounting.common.empty") }}</p>
-    <table v-else class="w-full text-sm" data-testid="accounting-journal-table">
-      <thead>
-        <tr class="text-xs text-gray-500 border-b border-gray-200">
-          <th class="text-left py-1 px-2">{{ t("pluginAccounting.journalList.columns.date") }}</th>
-          <th class="text-left py-1 px-2">{{ t("pluginAccounting.journalList.columns.kind") }}</th>
-          <th class="text-left py-1 px-2">{{ t("pluginAccounting.journalList.columns.memo") }}</th>
-          <th class="text-left py-1 px-2">{{ t("pluginAccounting.journalList.columns.lines") }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <template v-for="entry in filteredEntries" :key="entry.id">
-          <tr
-            :class="[
-              voidedEntryIds.has(entry.id) ? 'text-gray-400 line-through' : '',
-              'border-b border-gray-100 align-top cursor-pointer hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400',
-            ]"
-            :data-testid="voidedEntryIds.has(entry.id) ? `accounting-journal-row-voided-${entry.id}` : `accounting-journal-row-${entry.id}`"
-            tabindex="0"
-            role="button"
-            :aria-expanded="expandedEntryId === entry.id"
-            @click="toggleExpanded(entry.id)"
-            @keydown.enter.prevent.self="onKeyToggle($event, entry.id)"
-            @keydown.space.prevent.self="onKeyToggle($event, entry.id)"
-          >
-            <td class="py-1 px-2 whitespace-nowrap">{{ entry.date }}</td>
-            <td class="py-1 px-2 text-xs">{{ kindLabel(entry.kind) }}</td>
-            <td class="py-1 px-2">
-              <span v-if="entry.memo">{{ entry.memo }}</span>
-            </td>
-            <td class="py-1 px-2">
-              <div v-for="(line, idx) in entry.lines" :key="idx" class="text-xs flex gap-2 items-baseline">
-                <span class="font-mono text-[10px] text-gray-400">{{ line.accountCode }}</span>
-                <span v-if="accountNameFor(line.accountCode)">{{ accountNameFor(line.accountCode) }}</span>
-                <span v-if="line.debit">{{ formatDebit(line.debit) }}</span>
-                <span v-if="line.credit">{{ formatCredit(line.credit) }}</span>
-              </div>
-            </td>
+    <!-- Scrollable list area: only the entries list scrolls below
+         this point. The new-entry slot + filter bar above stay
+         pinned by virtue of NOT being inside this scroll container,
+         and the column-header row stays visible via `position:
+         sticky` on its <th>s. `min-h-0` is required for the flex-1
+         child to actually shrink below its content height in a
+         flex-col parent. -->
+    <div class="flex-1 min-h-0 overflow-auto">
+      <p v-if="loading" class="text-xs text-gray-400">{{ t("pluginAccounting.common.loading") }}</p>
+      <p v-else-if="error" class="text-xs text-red-500">{{ t("pluginAccounting.common.error", { error }) }}</p>
+      <p v-else-if="filteredEntries.length === 0" class="text-xs text-gray-400">{{ t("pluginAccounting.common.empty") }}</p>
+      <table v-else class="w-full text-sm" data-testid="accounting-journal-table">
+        <thead>
+          <tr class="text-xs text-gray-500 border-b border-gray-200">
+            <!-- Per-<th> sticky (rather than `<thead class="sticky">`)
+                 for compatibility — `position: sticky` on the
+                 table-header-group display is brittle in some
+                 browsers, but on `<th>` it's universally supported.
+                 `bg-white` is required so the scrolled rows beneath
+                 don't bleed through. -->
+            <th class="sticky top-0 bg-white text-left py-1 px-2">{{ t("pluginAccounting.journalList.columns.date") }}</th>
+            <th class="sticky top-0 bg-white text-left py-1 px-2">{{ t("pluginAccounting.journalList.columns.kind") }}</th>
+            <th class="sticky top-0 bg-white text-left py-1 px-2">{{ t("pluginAccounting.journalList.columns.memo") }}</th>
+            <th class="sticky top-0 bg-white text-left py-1 px-2">{{ t("pluginAccounting.journalList.columns.lines") }}</th>
           </tr>
-          <tr v-if="expandedEntryId === entry.id" class="bg-gray-50" :data-testid="`accounting-journal-detail-${entry.id}`">
-            <td :colspan="4" class="px-6 py-2">
-              <!-- Edit-in-place: the JournalEntryForm replaces the
+        </thead>
+        <tbody>
+          <template v-for="entry in filteredEntries" :key="entry.id">
+            <tr
+              :class="[
+                voidedEntryIds.has(entry.id) ? 'text-gray-400 line-through' : '',
+                'border-b border-gray-100 align-top cursor-pointer hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400',
+              ]"
+              :data-testid="voidedEntryIds.has(entry.id) ? `accounting-journal-row-voided-${entry.id}` : `accounting-journal-row-${entry.id}`"
+              tabindex="0"
+              role="button"
+              :aria-expanded="expandedEntryId === entry.id"
+              @click="toggleExpanded(entry.id)"
+              @keydown.enter.prevent.self="onKeyToggle($event, entry.id)"
+              @keydown.space.prevent.self="onKeyToggle($event, entry.id)"
+            >
+              <td class="py-1 px-2 whitespace-nowrap">{{ entry.date }}</td>
+              <td class="py-1 px-2 text-xs">{{ kindLabel(entry.kind) }}</td>
+              <td class="py-1 px-2">
+                <span v-if="entry.memo">{{ entry.memo }}</span>
+              </td>
+              <td class="py-1 px-2">
+                <div v-for="(line, idx) in entry.lines" :key="idx" class="text-xs flex gap-2 items-baseline">
+                  <span class="font-mono text-[10px] text-gray-400">{{ line.accountCode }}</span>
+                  <span v-if="accountNameFor(line.accountCode)">{{ accountNameFor(line.accountCode) }}</span>
+                  <span v-if="line.debit">{{ formatDebit(line.debit) }}</span>
+                  <span v-if="line.credit">{{ formatCredit(line.credit) }}</span>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="expandedEntryId === entry.id" class="bg-gray-50" :data-testid="`accounting-journal-detail-${entry.id}`">
+              <td :colspan="4" class="px-6 py-2">
+                <!-- Edit-in-place: the JournalEntryForm replaces the
                    read-only detail content for this row when the
                    user clicks Edit. Submit / cancel collapses back
                    (submit also voids the original, so we clear the
                    selection); top-bar "+ New entry" stays a separate
                    path that opens the same form above the table. -->
-              <div v-if="entryBeingEdited?.id === entry.id" :data-testid="`accounting-journal-detail-edit-${entry.id}`">
-                <JournalEntryForm
-                  :book-id="bookId"
-                  :accounts="accounts"
-                  :currency="currency"
-                  :country="country"
-                  :entry-to-edit="entryBeingEdited"
-                  @submitted="onFormSubmitted"
-                  @cancel="onFormCancel"
-                />
-              </div>
-              <template v-else>
-                <!-- Detail header: Edit / Void on the left (when the
+                <div v-if="entryBeingEdited?.id === entry.id" :data-testid="`accounting-journal-detail-edit-${entry.id}`">
+                  <JournalEntryForm
+                    :book-id="bookId"
+                    :accounts="accounts"
+                    :currency="currency"
+                    :country="country"
+                    :entry-to-edit="entryBeingEdited"
+                    @submitted="onFormSubmitted"
+                    @cancel="onFormCancel"
+                  />
+                </div>
+                <template v-else>
+                  <!-- Detail header: Edit / Void on the left (when the
                      entry kind allows them), Close on the right. -->
-                <div class="flex items-center justify-between mb-2">
-                  <div class="flex items-center gap-3">
-                    <template v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)">
-                      <button class="text-xs text-blue-600 hover:underline" :data-testid="`accounting-edit-${entry.id}`" @click="onEditEntry(entry)">
+                  <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-3">
+                      <template v-if="entry.kind === 'normal' && !voidedEntryIds.has(entry.id)">
+                        <button class="text-xs text-blue-600 hover:underline" :data-testid="`accounting-edit-${entry.id}`" @click="onEditEntry(entry)">
+                          {{ t("pluginAccounting.journalList.edit") }}
+                        </button>
+                        <button class="text-xs text-red-500 hover:underline" :data-testid="`accounting-void-${entry.id}`" @click="onVoid(entry)">
+                          {{ t("pluginAccounting.journalList.void") }}
+                        </button>
+                      </template>
+                      <button
+                        v-else-if="entry.kind === 'opening' && !voidedEntryIds.has(entry.id)"
+                        class="text-xs text-blue-600 hover:underline"
+                        :data-testid="`accounting-edit-opening-${entry.id}`"
+                        @click="emit('editOpening')"
+                      >
                         {{ t("pluginAccounting.journalList.edit") }}
                       </button>
-                      <button class="text-xs text-red-500 hover:underline" :data-testid="`accounting-void-${entry.id}`" @click="onVoid(entry)">
-                        {{ t("pluginAccounting.journalList.void") }}
-                      </button>
-                    </template>
+                    </div>
                     <button
-                      v-else-if="entry.kind === 'opening' && !voidedEntryIds.has(entry.id)"
-                      class="text-xs text-blue-600 hover:underline"
-                      :data-testid="`accounting-edit-opening-${entry.id}`"
-                      @click="emit('editOpening')"
+                      type="button"
+                      class="h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100"
+                      :data-testid="`accounting-journal-detail-close-${entry.id}`"
+                      :aria-label="t('pluginAccounting.common.cancel')"
+                      @click="expandedEntryId = null"
                     >
-                      {{ t("pluginAccounting.journalList.edit") }}
+                      <span class="material-icons text-base">close</span>
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    class="h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100"
-                    :data-testid="`accounting-journal-detail-close-${entry.id}`"
-                    :aria-label="t('pluginAccounting.common.cancel')"
-                    @click="expandedEntryId = null"
-                  >
-                    <span class="material-icons text-base">close</span>
-                  </button>
-                </div>
-                <table class="w-full text-xs">
-                  <thead>
-                    <tr class="text-gray-500 border-b border-gray-200">
-                      <th class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.accountLabel") }}</th>
-                      <th class="text-right py-1 px-2">{{ t("pluginAccounting.entryForm.debitLabel") }}</th>
-                      <th class="text-right py-1 px-2">{{ t("pluginAccounting.entryForm.creditLabel") }}</th>
-                      <th class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.memoLabel") }}</th>
-                      <th v-if="entryHasTaxIds(entry)" class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.taxRegistrationIdLabel") }}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(line, idx) in entry.lines" :key="idx" class="border-b border-gray-100 text-gray-700">
-                      <td class="py-1 px-2">
-                        <span class="font-mono text-[10px] text-gray-400 mr-2">{{ line.accountCode }}</span>
-                        <span v-if="accountNameFor(line.accountCode)">{{ accountNameFor(line.accountCode) }}</span>
-                      </td>
-                      <td class="py-1 px-2 text-right font-mono">
-                        <template v-if="line.debit">{{ formatAmount(line.debit, currency) }}</template>
-                      </td>
-                      <td class="py-1 px-2 text-right font-mono">
-                        <template v-if="line.credit">{{ formatAmount(line.credit, currency) }}</template>
-                      </td>
-                      <td class="py-1 px-2">
-                        <template v-if="line.memo">{{ line.memo }}</template>
-                      </td>
-                      <td v-if="entryHasTaxIds(entry)" class="py-1 px-2 font-mono text-[10px]">
-                        <template v-if="line.taxRegistrationId">{{ line.taxRegistrationId }}</template>
-                      </td>
-                    </tr>
-                  </tbody>
-                  <tfoot>
-                    <tr class="font-semibold border-t border-gray-300 text-gray-700">
-                      <td class="py-1 px-2 text-gray-500">{{ t("pluginAccounting.balanceSheet.total") }}</td>
-                      <td class="py-1 px-2 text-right font-mono">{{ formatAmount(entryDebitTotal(entry), currency) }}</td>
-                      <td class="py-1 px-2 text-right font-mono">{{ formatAmount(entryCreditTotal(entry), currency) }}</td>
-                      <td :colspan="entryHasTaxIds(entry) ? 2 : 1"></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </template>
-            </td>
-          </tr>
-        </template>
-      </tbody>
-    </table>
+                  <!-- Entry-level metadata. The row above the panel
+                     shows these too, but with the new sticky-thead
+                     scroll behaviour the source row can scroll out
+                     of view while the panel remains pinned. Repeating
+                     date and (if present) memo here keeps the panel
+                     self-describing. Memo is only rendered when set
+                     so the line stays compact for terse entries. -->
+                  <div class="text-xs mb-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                    <div class="text-gray-700">
+                      <span class="font-mono">{{ entry.date }}</span>
+                      <span v-if="entry.memo">{{ memoSuffix(entry.memo) }}</span>
+                    </div>
+                    <!-- Posting timestamp (entry.createdAt). Distinct
+                       from entry.date — backdated entries diverge,
+                       and the void-replace edit flow stamps a fresh
+                       createdAt on the replacement. ml-auto keeps it
+                       flush right on wide rows; flex-wrap drops it
+                       to a new line when space is tight. -->
+                    <div class="text-gray-400 ml-auto font-mono">{{ formatCreatedAt(entry.createdAt) }}</div>
+                  </div>
+                  <table class="w-full text-xs">
+                    <thead>
+                      <tr class="text-gray-500 border-b border-gray-200">
+                        <th class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.accountLabel") }}</th>
+                        <th class="text-right py-1 px-2">{{ t("pluginAccounting.entryForm.debitLabel") }}</th>
+                        <th class="text-right py-1 px-2">{{ t("pluginAccounting.entryForm.creditLabel") }}</th>
+                        <th class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.memoLabel") }}</th>
+                        <th v-if="entryHasTaxIds(entry)" class="text-left py-1 px-2">{{ t("pluginAccounting.entryForm.taxRegistrationIdLabel") }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(line, idx) in entry.lines" :key="idx" class="border-b border-gray-100 text-gray-700">
+                        <td class="py-1 px-2">
+                          <span class="font-mono text-[10px] text-gray-400 mr-2">{{ line.accountCode }}</span>
+                          <span v-if="accountNameFor(line.accountCode)">{{ accountNameFor(line.accountCode) }}</span>
+                        </td>
+                        <td class="py-1 px-2 text-right font-mono">
+                          <template v-if="line.debit">{{ formatAmount(line.debit, currency) }}</template>
+                        </td>
+                        <td class="py-1 px-2 text-right font-mono">
+                          <template v-if="line.credit">{{ formatAmount(line.credit, currency) }}</template>
+                        </td>
+                        <td class="py-1 px-2">
+                          <template v-if="line.memo">{{ line.memo }}</template>
+                        </td>
+                        <td v-if="entryHasTaxIds(entry)" class="py-1 px-2 font-mono text-[10px]">
+                          <template v-if="line.taxRegistrationId">{{ line.taxRegistrationId }}</template>
+                        </td>
+                      </tr>
+                    </tbody>
+                    <tfoot>
+                      <tr class="font-semibold border-t border-gray-300 text-gray-700">
+                        <td class="py-1 px-2 text-gray-500">{{ t("pluginAccounting.balanceSheet.total") }}</td>
+                        <td class="py-1 px-2 text-right font-mono">{{ formatAmount(entryDebitTotal(entry), currency) }}</td>
+                        <td class="py-1 px-2 text-right font-mono">{{ formatAmount(entryCreditTotal(entry), currency) }}</td>
+                        <td :colspan="entryHasTaxIds(entry) ? 2 : 1"></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </template>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
@@ -304,6 +339,25 @@ function formatAccountLabel(account: Account): string {
   // human-meaningful word; the code goes in trailing parens.
   // Same convention used by JournalEntryForm and Ledger pickers.
   return `${account.name} (${account.code})`;
+}
+// Memo suffix for the metadata line: turns `"rent payment"` into
+// `": rent payment"`. The leading ": " is built here so the template
+// stays free of raw-text literals (vue-i18n/no-raw-text flags string
+// literals — even in mustache expressions).
+function memoSuffix(memo: string): string {
+  return `: ${memo}`;
+}
+
+// `entry.createdAt` is server-stamped ISO 8601. We render local
+// date+time (no seconds, no timezone) in YYYY-MM-DD HH:MM form to
+// match `entry.date`'s style and keep the line compact. Parens are
+// baked in here so the template doesn't carry raw text (the
+// vue-i18n/no-raw-text rule flags literal strings in mustache).
+function formatCreatedAt(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return `(${iso})`;
+  const pad = (num: number): string => String(num).padStart(2, "0");
+  return `(${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())})`;
 }
 const accountNameByCode = computed(() => {
   const map = new Map<string, string>();
