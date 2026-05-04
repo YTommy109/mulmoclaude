@@ -98,3 +98,60 @@ export function localizedCountryName(code: string, locale: string): string {
 export function isSupportedCountryCode(value: unknown): value is SupportedCountryCode {
   return typeof value === "string" && (SUPPORTED_COUNTRY_CODES as readonly string[]).includes(value);
 }
+
+/** Country-gated UI features. Each key is a feature name; the value
+ *  is the set of country codes for which the feature is enabled.
+ *  Components ask `countryHasFeature("...", country)` instead of
+ *  hard-coding country lists at the call site.
+ *
+ *  Add a new country-specific feature by adding a new key here and
+ *  reading it via `countryHasFeature`. An unknown / undefined
+ *  country never has any feature — components fall back to neutral
+ *  default UI rather than guessing.
+ *
+ *  Mirrors the "Country-aware tax behaviour" prose in the
+ *  Accounting role prompt (`src/config/roles.ts`). The two MUST
+ *  stay in sync — drift means the LLM and the form give the user
+ *  contradictory advice. The prompt is the source of truth for
+ *  agent behaviour; this table is structured-data sibling for the
+ *  form. */
+export const COUNTRY_FEATURES = {
+  /** Show an amber "missing tax ID" warning + helper text on a
+   *  postable 14xx / 24xx line whose taxRegistrationId is blank.
+   *  Limited to jurisdictions where the role prompt explicitly
+   *  requires the counterparty registration number (JP T-number,
+   *  EU VAT ID, GB VAT, GSTIN, ABN, NZ GST, CA BN). The "other
+   *  countries" bucket and US (no federal sales-tax registration)
+   *  intentionally stay quiet. */
+  warnMissingTaxRegistrationId: new Set<SupportedCountryCode>([
+    "JP",
+    "GB",
+    "DE",
+    "FR",
+    "IT",
+    "ES",
+    "NL",
+    "BE",
+    "AT",
+    "IE",
+    "PT",
+    "FI",
+    "SE",
+    "DK",
+    "PL",
+    "IN",
+    "AU",
+    "NZ",
+    "CA",
+  ]),
+} as const;
+
+export type CountryFeature = keyof typeof COUNTRY_FEATURES;
+
+/** Resolve a country-gated feature flag. Returns `false` when the
+ *  country is undefined / unsupported — components default to the
+ *  neutral path (no warning, no extra UI) rather than guessing. */
+export function countryHasFeature(feature: CountryFeature, country: SupportedCountryCode | undefined): boolean {
+  if (!country) return false;
+  return COUNTRY_FEATURES[feature].has(country);
+}

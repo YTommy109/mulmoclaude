@@ -622,6 +622,7 @@ const esMessages = {
       creditLabel: "Haber",
       taxRegistrationIdLabel: "ID fiscal",
       taxRegistrationIdPlaceholder: "NIF / VAT ID / RFC…",
+      taxRegistrationIdMissingWarning: "Obligatorio",
       addLine: "Añadir línea",
       removeLine: "Quitar",
       submit: "Asentar",

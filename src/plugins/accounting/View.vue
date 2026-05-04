@@ -64,7 +64,6 @@
             :accounts="accounts"
             :currency="activeCurrency"
             :version="bookVersion"
-            @changed="bumpLocalVersion"
             @edit-opening="currentTab = 'opening'"
             @edit-entry="onEditEntry"
           />
@@ -73,9 +72,9 @@
             :book-id="activeBookId"
             :accounts="accounts"
             :currency="activeCurrency"
+            :country="activeCountry"
             :entry-to-edit="entryBeingEdited"
             @submitted="onEntrySubmitted"
-            @accounts-changed="bumpLocalVersion"
             @cancel-edit="onCancelEdit"
           />
           <OpeningBalancesForm
@@ -85,7 +84,6 @@
             :currency="activeCurrency"
             :version="bookVersion"
             @submitted="onEntrySubmitted"
-            @accounts-changed="bumpLocalVersion"
           />
           <Ledger v-else-if="currentTab === 'ledger'" :book-id="activeBookId" :accounts="accounts" :currency="activeCurrency" :version="bookVersion" />
           <BalanceSheet v-else-if="currentTab === 'balanceSheet'" :book-id="activeBookId" :currency="activeCurrency" :version="bookVersion" />
@@ -180,11 +178,6 @@ const firstRunHandled = ref(false);
 // book" CTA when the real problem is a transport / server failure
 // fetching the list.
 const bookLoadError = ref<string | null>(null);
-// Local version bump that combines the pub/sub bump and explicit
-// child-driven refetches (e.g. after a void / submit). Used as the
-// `version` prop for sub-components so they `watch` and refetch
-// uniformly.
-const localVersion = ref(0);
 // Tracks whether the active book has an opening entry on file.
 // `null` = unknown / loading; the gate only activates on an
 // explicit `false` so we don't disable tabs during the cold load
@@ -205,19 +198,13 @@ const activeBookName = computed(() => activeBook.value?.name ?? "");
 const activeCurrency = computed(() => activeBook.value?.currency ?? "USD");
 const activeCountry = computed(() => activeBook.value?.country);
 
-const { version: pubsubVersion } = useAccountingChannel(activeBookId);
+// Single sync signal: every mutating service function publishes on
+// the accounting book channel after its write, so the sender's own
+// SSE round-trip drives the table/report refetch. No parallel
+// localVersion bump — it only ever fired the same watchers a second
+// time in the same tick.
+const { version: bookVersion } = useAccountingChannel(activeBookId);
 useAccountingBooksChannel(() => void refetchBooks());
-
-// `bookVersion` already aggregates `pubsubVersion` so any pub/sub
-// event reactively re-fires every child component's `watch` on
-// the version prop. A separate `watch(pubsubVersion, …)` that
-// bumps `localVersion` would refire every dependant a second time
-// in the same tick — pure busywork.
-const bookVersion = computed(() => pubsubVersion.value + localVersion.value);
-
-function bumpLocalVersion(): void {
-  localVersion.value += 1;
-}
 
 function pickInitialBookId(): string | null {
   // Priority: explicit `initialPayload.bookId` (carried in the
@@ -398,12 +385,11 @@ function onEntrySubmitted(): void {
   // clear it here so the next visit to "New entry" starts from a
   // blank draft instead of re-prefilling the just-replaced entry.
   entryBeingEdited.value = null;
-  bumpLocalVersion();
   // After posting an opening or a normal entry, switch to the
   // journal so the user immediately sees what they booked. The
-  // bumpLocalVersion above triggers the bookVersion watcher which
-  // refetches hasOpening, so the gate auto-lifts shortly after the
-  // tab switch — no manual unlock needed here.
+  // server-side publishBookChange triggers the bookVersion watcher
+  // over SSE, which refetches hasOpening, so the gate auto-lifts
+  // shortly after the tab switch — no manual unlock needed here.
   if (currentTab.value === "newEntry" || currentTab.value === "opening") {
     currentTab.value = "journal";
   }
