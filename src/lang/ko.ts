@@ -78,6 +78,13 @@ const koMessages = {
     intraBody:
       '플러그인 "{first}"과(와) "{second}"이(가) 동일한 {dimension} "{key}"을(를) 등록합니다. "{first}"이(가) 먼저 등록했으므로 "{second}"의 등록은 무시됩니다.',
   },
+  pluginErrorBoundary: {
+    title: "플러그인 {pkg}이(가) 충돌했습니다",
+    subtitle: "플러그인 렌더링에 실패했습니다. 오류가 콘솔에 기록되었습니다.",
+    showDetails: "세부 정보 표시",
+    hideDetails: "세부 정보 숨기기",
+    retry: "다시 시도",
+  },
   sidebarHeader: {
     home: "최신 채팅으로 이동",
     toolCallHistory: "도구 호출 기록",

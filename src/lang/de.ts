@@ -71,6 +71,13 @@ const deMessages = {
     intraBody:
       "Die Plugins „{first}“ und „{second}“ registrieren beide {dimension} „{key}“. „{first}“ hat ihn zuerst beansprucht, daher wird die Registrierung von „{second}“ ignoriert.",
   },
+  pluginErrorBoundary: {
+    title: "Plugin {pkg} ist abgestürzt",
+    subtitle: "Das Plugin konnte nicht gerendert werden. Der Fehler wurde in der Konsole protokolliert.",
+    showDetails: "Details anzeigen",
+    hideDetails: "Details ausblenden",
+    retry: "Erneut versuchen",
+  },
   sidebarHeader: {
     home: "Zum neuesten Chat",
     toolCallHistory: "Tool-Aufrufverlauf",
