@@ -144,7 +144,7 @@
        nesting <form>s is invalid HTML that breaks Enter-key submit
        routing in some browsers. Vue 3 multi-root templates let us
        keep the markup flat with no wrapper div. -->
-  <AccountsModal v-if="showAccountsModal" :book-id="bookId" :accounts="accounts" @close="showAccountsModal = false" @changed="emit('accountsChanged')" />
+  <AccountsModal v-if="showAccountsModal" :book-id="bookId" :accounts="accounts" @close="showAccountsModal = false" />
 </template>
 
 <script setup lang="ts">
@@ -160,7 +160,7 @@ import AccountsModal from "./AccountsModal.vue";
 const { t } = useI18n();
 
 const props = defineProps<{ bookId: string; accounts: Account[]; currency: string; country?: SupportedCountryCode; entryToEdit?: JournalEntry | null }>();
-const emit = defineEmits<{ submitted: []; accountsChanged: []; cancelEdit: [] }>();
+const emit = defineEmits<{ submitted: []; cancelEdit: [] }>();
 
 const showAccountsModal = ref(false);
 
