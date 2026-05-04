@@ -38,14 +38,8 @@ export function installTestHostContext(overrides: Partial<HostContext> = {}): vo
     image: API_ROUTES.image,
     canvas: API_ROUTES.canvas,
     presentForm: API_ROUTES.presentForm,
-    presentDocument: {
-      presentDocument: API_ROUTES.plugins.presentDocument,
-      updateMarkdown: API_ROUTES.plugins.updateMarkdown,
-    },
-    presentSpreadsheet: {
-      presentSpreadsheet: API_ROUTES.plugins.presentSpreadsheet,
-      updateSpreadsheet: API_ROUTES.plugins.updateSpreadsheet,
-    },
+    presentDocument: API_ROUTES.presentDocument,
+    presentSpreadsheet: API_ROUTES.presentSpreadsheet,
     files: API_ROUTES.files,
     imageStore: { update: API_ROUTES.image.update },
     mcpTools: { list: API_ROUTES.mcpTools.list },

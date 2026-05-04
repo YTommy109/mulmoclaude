@@ -78,7 +78,7 @@ interface PresentDocumentError {
 }
 
 router.post(
-  API_ROUTES.plugins.presentDocument,
+  API_ROUTES.presentDocument.presentDocument,
   async (req: Request<object, unknown, PresentDocumentBody>, res: Response<PresentDocumentSuccess | PresentDocumentError>) => {
     const { title, markdown, filenamePrefix } = req.body;
     log.info("plugins", "presentDocument: start", {
@@ -122,7 +122,7 @@ interface UpdateMarkdownError {
 }
 
 router.put(
-  API_ROUTES.plugins.updateMarkdown,
+  API_ROUTES.presentDocument.updateMarkdown,
   async (req: Request<object, unknown, UpdateMarkdownBody>, res: Response<UpdateMarkdownResponse | UpdateMarkdownError>) => {
     const { relativePath, markdown } = req.body;
     log.info("plugins", "updateMarkdown: start", {
@@ -162,7 +162,7 @@ router.put(
 
 // presentSpreadsheet — validate, then save sheets to disk
 router.post(
-  API_ROUTES.plugins.presentSpreadsheet,
+  API_ROUTES.presentSpreadsheet.presentSpreadsheet,
   wrapPluginExecute<SpreadsheetArgs, unknown>(async (req) => {
     const result = await executeSpreadsheet(req.body);
     if (!Array.isArray(result.data.sheets)) {
@@ -190,7 +190,7 @@ interface UpdateSpreadsheetError {
 }
 
 router.put(
-  API_ROUTES.plugins.updateSpreadsheet,
+  API_ROUTES.presentSpreadsheet.updateSpreadsheet,
   async (req: Request<object, unknown, UpdateSpreadsheetBody>, res: Response<UpdateSpreadsheetResponse | UpdateSpreadsheetError>) => {
     const { relativePath, sheets } = req.body;
     log.info("plugins", "updateSpreadsheet: start", {

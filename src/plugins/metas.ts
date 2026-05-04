@@ -22,9 +22,11 @@ import { META as canvasMeta } from "./canvas/meta";
 import { META as chartMeta } from "./chart/meta";
 import { META as manageSkillsMeta } from "./manageSkills/meta";
 import { META as manageSourceMeta } from "./manageSource/meta";
+import { META as markdownMeta } from "./markdown/meta";
 import { META as presentFormMeta } from "./presentForm/meta";
 import { META as presentHtmlMeta } from "./presentHtml/meta";
 import { META as presentMulmoScriptMeta } from "./presentMulmoScript/meta";
+import { META as spreadsheetMeta } from "./spreadsheet/meta";
 import { META as todoMeta } from "./todo/meta";
 
 // `satisfies` (not `:`) so the literal types of every plugin's
@@ -36,9 +38,11 @@ export const BUILT_IN_PLUGIN_METAS = [
   chartMeta,
   manageSkillsMeta,
   manageSourceMeta,
+  markdownMeta,
   presentFormMeta,
   presentHtmlMeta,
   presentMulmoScriptMeta,
+  spreadsheetMeta,
   todoMeta,
 ] as const satisfies readonly PluginMeta[];
 

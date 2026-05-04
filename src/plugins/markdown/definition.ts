@@ -1,12 +1,8 @@
 import type { ToolDefinition } from "gui-chat-protocol";
+import { META } from "./meta";
 
-export const TOOL_NAME = "presentDocument";
-
-export interface DocumentEndpoints {
-  [key: string]: string;
-  presentDocument: string;
-  updateMarkdown: string;
-}
+export const TOOL_NAME = META.toolName;
+export type DocumentEndpoints = typeof META.apiRoutes;
 
 export interface MarkdownToolData {
   markdown: string;

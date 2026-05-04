@@ -45,8 +45,8 @@ const HOST_TOOL_NAMES = {
 
   // Presentational plugins
   // presentMulmoScript migrated — see `src/plugins/presentMulmoScript/meta.ts`.
-  presentDocument: "presentDocument",
-  presentSpreadsheet: "presentSpreadsheet",
+  // presentDocument migrated — see `src/plugins/markdown/meta.ts`.
+  // presentSpreadsheet migrated — see `src/plugins/spreadsheet/meta.ts`.
   // presentHtml migrated — see `src/plugins/presentHtml/meta.ts`.
   // presentChart migrated to META — see `src/plugins/chart/meta.ts`.
   // presentForm migrated — see `src/plugins/presentForm/meta.ts`.

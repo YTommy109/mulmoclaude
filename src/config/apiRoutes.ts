@@ -158,14 +158,12 @@ const HOST_API_ROUTES = {
   // Plugin-owned endpoints that don't follow a single naming pattern.
   // Names match the plugin tool name or the short verb the plugin uses.
   plugins: {
-    presentDocument: "/api/present-document",
-    // Body carries the workspace-relative path so the route doesn't
-    // have to reconstruct one from a basename — required after #764
-    // sharded artifact storage by YYYY/MM. Same shape as
-    // image.update.
-    updateMarkdown: "/api/markdowns/update",
-    presentSpreadsheet: "/api/present-spreadsheet",
-    updateSpreadsheet: "/api/spreadsheets/update",
+    // `presentDocument` / `updateMarkdown` migrated to META — see
+    // `src/plugins/markdown/meta.ts`. Auto-merged via
+    // `apiRoutesKey: "presentDocument"`.
+    // `presentSpreadsheet` / `updateSpreadsheet` migrated to META —
+    // see `src/plugins/spreadsheet/meta.ts`. Auto-merged via
+    // `apiRoutesKey: "presentSpreadsheet"`.
     mindmap: "/api/mindmap",
     quiz: "/api/quiz",
     // `form` and `canvas` migrated to META — exposed at top-level

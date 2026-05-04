@@ -61,16 +61,10 @@ const pluginEndpointRegistry: EndpointRegistry = {
   // sourced from a single, plugin-owned definition.
   canvas: API_ROUTES.canvas,
   presentForm: API_ROUTES.presentForm,
-  // markdown / spreadsheet still under shared `plugins.*` namespace —
-  // promoted to flat scopes here pending their own META migration.
-  presentDocument: {
-    presentDocument: API_ROUTES.plugins.presentDocument,
-    updateMarkdown: API_ROUTES.plugins.updateMarkdown,
-  },
-  presentSpreadsheet: {
-    presentSpreadsheet: API_ROUTES.plugins.presentSpreadsheet,
-    updateSpreadsheet: API_ROUTES.plugins.updateSpreadsheet,
-  },
+  // markdown / spreadsheet migrated to META — auto-merged at top
+  // level via `apiRoutesKey`.
+  presentDocument: API_ROUTES.presentDocument,
+  presentSpreadsheet: API_ROUTES.presentSpreadsheet,
   // Cross-cutting host-shared services that plugins reach for
   // (read workspace files, look up MCP tools, save canvas image
   // back to disk). Exposed as their own scopes so plugins don't
