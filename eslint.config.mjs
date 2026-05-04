@@ -423,19 +423,27 @@ export default [
       "no-restricted-imports": [
         "error",
         {
+          // Patterns are picomatch globs evaluated against the
+          // import specifier as written. `**/config/**` catches
+          // `../config/foo`, `../../config/foo`, `../../../config/sub/bar`
+          // — depth-agnostic so a plugin file at any nesting level
+          // can't bypass the rule with extra `../` segments (Codex
+          // iter-1 #1144). The leading `**` covers every relative
+          // depth; the trailing `**` covers nested subpaths under
+          // each guarded host directory.
           patterns: [
             {
-              group: ["**/src/config/*", "../config/*", "../../config/*", "../../../config/*"],
+              group: ["**/config/**"],
               message:
                 "Plugin code must not import from `src/config/*`. Use `pluginEndpoints(scope)`, `pluginBuiltinRoleIds()`, or `pluginPageRoute(name)` from `../api` instead — the host wires those at boot via `installHostContext`.",
             },
             {
-              group: ["**/src/tools/*", "../../tools/*", "../../../tools/*"],
+              group: ["**/tools/**"],
               message: "Plugin code must not import value bindings from the host tool registry (`src/tools/*`). Type imports are allowed (`PluginRegistration`, `ToolPlugin`).",
               allowTypeImports: true,
             },
             {
-              group: ["**/server/*", "../../../server/*", "../../../../server/*"],
+              group: ["**/server/**"],
               message: "Plugin code must not import server-side modules. Plugin executors run client-side; server-side helpers cross the protocol boundary.",
               allowTypeImports: true,
             },
