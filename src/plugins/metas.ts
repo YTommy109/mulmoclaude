@@ -184,6 +184,14 @@ export interface HostAggregateOptions<V> {
   /** Dimension label tagged onto every emitted
    *  `IntraPluginCollision`. */
   readonly dimension: IntraPluginCollision["dimension"];
+  /** Extra reserved keys to drop on collision, ON TOP OF
+   *  `Object.keys(hostRecord)`. Used when a sibling map shares a
+   *  namespace with this aggregate — e.g. `WORKSPACE_DIRS` reserves
+   *  `WORKSPACE_FILES` keys so a plugin can't smuggle in
+   *  `workspaceDirs: { memory: ... }` and silently disagree with
+   *  `WORKSPACE_FILES.memory` (CR review #1125). The reserved keys
+   *  are NOT added to `merged` — only used for collision filtering. */
+  readonly additionalReservedKeys?: ReadonlySet<string>;
 }
 
 export interface HostAggregate<V> {
@@ -203,7 +211,11 @@ export interface HostAggregate<V> {
  *  caller still owns the literal-preserving type cast on `merged`. */
 export function defineHostAggregate<V>(metas: readonly PluginMeta[], opts: HostAggregateOptions<V>): HostAggregate<V> {
   const { aggregate, owner, collisions } = buildPluginAggregate(metas, opts.extract, opts.dimension);
-  const { cleaned, dropped } = filterPluginKeys(opts.label, new Set(Object.keys(opts.hostRecord)), aggregate, owner);
+  const reserved = new Set<string>(Object.keys(opts.hostRecord));
+  if (opts.additionalReservedKeys) {
+    for (const key of opts.additionalReservedKeys) reserved.add(key);
+  }
+  const { cleaned, dropped } = filterPluginKeys(opts.label, reserved, aggregate, owner);
   return {
     merged: { ...opts.hostRecord, ...cleaned },
     hostCollisions: dropped,

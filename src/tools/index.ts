@@ -17,7 +17,24 @@ import type { PluginEntry } from "./types";
 import { getRuntimePluginEntry, getRuntimeToolNames } from "./runtimeLoader";
 import { BUILT_IN_PLUGINS } from "../plugins";
 
-const plugins: Record<string, PluginEntry> = Object.fromEntries(BUILT_IN_PLUGINS.map((registration) => [registration.toolName, registration.entry]));
+// Build the lookup with explicit duplicate detection. `BUILT_IN_PLUGINS`
+// is the union of generated registrations (one per built-in META) and
+// `EXTERNAL_PLUGIN_REGISTRATIONS` (still-unmigrated plugins). The
+// META aggregator already screens its half for collisions, but a
+// duplicate `toolName` between an external registration and a META
+// would slip past `Object.fromEntries` silently with last-writer-wins.
+// Throwing at boot is the right move — silent dispatch hijack is
+// strictly worse than a hard error during start-up (CR review #1125).
+const plugins: Record<string, PluginEntry> = (() => {
+  const out: Record<string, PluginEntry> = {};
+  for (const registration of BUILT_IN_PLUGINS) {
+    if (registration.toolName in out) {
+      throw new Error(`Duplicate built-in plugin registration for "${registration.toolName}"`);
+    }
+    out[registration.toolName] = registration.entry;
+  }
+  return out;
+})();
 
 export function getPlugin(name: string): PluginEntry | null {
   // Static (build-time) plugins win on collision — runtime plugins
