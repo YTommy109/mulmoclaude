@@ -802,6 +802,7 @@ const esMessages = {
     noMatchingFilter: "Ningún elemento coincide con el filtro actual",
     sortColumnAria: "Ordenar por {column}",
     expandRowAria: "Expandir tarea: {task}",
+    deleteItem: "Eliminar elemento",
   },
   pluginWiki: {
     backToIndex: "Volver al índice",

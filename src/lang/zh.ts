@@ -785,6 +785,7 @@ const zhMessages = {
     noMatchingFilter: "没有项目匹配当前筛选",
     sortColumnAria: "按 {column} 排序",
     expandRowAria: "展开任务: {task}",
+    deleteItem: "删除项目",
   },
   pluginWiki: {
     backToIndex: "返回目录",

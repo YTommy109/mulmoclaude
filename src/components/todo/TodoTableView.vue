@@ -78,7 +78,7 @@
               {{ formatShortDate(item.createdAt) }}
             </td>
             <td class="px-3 py-2 text-right">
-              <button class="text-gray-300 hover:text-red-500 text-xs" :title="t('pluginTodo.deleteItem')" @click="emit('delete', item.id)">✕</button>
+              <button class="text-gray-300 hover:text-red-500 text-xs" :title="t('todoTableList.deleteItem')" @click="emit('delete', item.id)">✕</button>
             </td>
           </tr>
           <tr v-if="expandedId === item.id">

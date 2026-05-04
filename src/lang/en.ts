@@ -790,6 +790,7 @@ const enMessages = {
     noMatchingFilter: "No items match the current filter",
     sortColumnAria: "Sort by {column}",
     expandRowAria: "Expand task: {task}",
+    deleteItem: "Delete item",
   },
   pluginWiki: {
     backToIndex: "Back to index",

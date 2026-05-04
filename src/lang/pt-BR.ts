@@ -793,6 +793,7 @@ const ptBRMessages = {
     noMatchingFilter: "Nenhum item corresponde ao filtro atual",
     sortColumnAria: "Ordenar por {column}",
     expandRowAria: "Expandir tarefa: {task}",
+    deleteItem: "Excluir item",
   },
   pluginWiki: {
     backToIndex: "Voltar ao índice",

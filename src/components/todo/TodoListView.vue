@@ -33,7 +33,7 @@
           </div>
           <button
             class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 text-xs px-1 shrink-0"
-            :title="t('pluginTodo.deleteItem')"
+            :title="t('todoTableList.deleteItem')"
             @click.stop="emit('delete', item.id)"
           >
             ✕

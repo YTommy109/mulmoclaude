@@ -791,6 +791,7 @@ const jaMessages = {
     noMatchingFilter: "現在のフィルタに一致する項目はありません",
     sortColumnAria: "{column} で並べ替え",
     expandRowAria: "タスクを展開: {task}",
+    deleteItem: "項目を削除",
   },
   pluginWiki: {
     backToIndex: "インデックスに戻る",

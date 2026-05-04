@@ -803,6 +803,7 @@ const deMessages = {
     noMatchingFilter: "Keine Einträge passen zum aktuellen Filter",
     sortColumnAria: "Nach {column} sortieren",
     expandRowAria: "Aufgabe ausklappen: {task}",
+    deleteItem: "Eintrag löschen",
   },
   pluginWiki: {
     backToIndex: "Zurück zum Index",

@@ -66,6 +66,11 @@ async function refresh(): Promise<void> {
 
 let unsub: (() => void) | undefined;
 onMounted(() => {
+  // Initial fetch — `props.result.data.items` is the snapshot the LLM
+  // saw at tool-call time, which can already be stale by the time the
+  // user opens the preview. Refresh once to match the canonical view,
+  // then subscribe for live updates.
+  void refresh();
   unsub = pubsub.subscribe("changed", () => {
     void refresh();
   });

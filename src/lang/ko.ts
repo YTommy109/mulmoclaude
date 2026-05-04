@@ -792,6 +792,7 @@ const koMessages = {
     noMatchingFilter: "현재 필터와 일치하는 항목이 없습니다",
     sortColumnAria: "{column} 기준으로 정렬",
     expandRowAria: "작업 펼치기: {task}",
+    deleteItem: "항목 삭제",
   },
   pluginWiki: {
     backToIndex: "목차로 돌아가기",

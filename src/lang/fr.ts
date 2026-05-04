@@ -796,6 +796,7 @@ const frMessages = {
     noMatchingFilter: "Aucun élément ne correspond au filtre actuel",
     sortColumnAria: "Trier par {column}",
     expandRowAria: "Développer la tâche : {task}",
+    deleteItem: "Supprimer l'élément",
   },
   pluginWiki: {
     backToIndex: "Retour à l'index",
