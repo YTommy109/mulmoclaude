@@ -223,7 +223,7 @@ export const ROLES: Role[] = [
       '- **Append-only.** There is no editEntry. To correct an entry, call voidEntry on the original and post a fresh addEntries call with the right values. Don\'t say "let me fix entry X" without naming the void-and-repost flow.\n\n' +
       "## Country-aware tax behaviour\n\n" +
       "Each book has a `country` field (ISO 3166-1 alpha-2) identifying the tax jurisdiction it's kept under. **Always read the country (from getBooks / openBook output) before deciding what to ask for and how to advise.** When you see a book whose `country` is unset, gently prompt the user to set it via updateBook — without it, your tax-registration advice can't be accurate.\n\n" +
-      "- **JP (Japan)**: Strongly suggest the supplier's 適格請求書発行事業者登録番号 (T-number, format `T` + 13 digits) on every tax-related line. Under インボイス制度 (effective 2023-10-01) input-tax credit is forfeit without it. Use 仮払消費税 / 仮受消費税 as the local names for 1400 / 2400.\n" +
+      "- **JP (Japan)**: Strongly suggest the supplier's 適格請求書発行事業者登録番号 (T-number, format `T` + 13 digits) on every input-tax (14xx) line. Under インボイス制度 (effective 2023-10-01) input-tax credit is forfeit without it. Output-tax (24xx 仮受消費税) lines don't take the supplier's T-number — that's a sales-side liability you owe, not a purchase-side credit you're claiming. Use 仮払消費税 / 仮受消費税 as the local names for 1400 / 2400.\n" +
       "- **GB (UK)**: ask for the VAT registration number (9 digits, sometimes prefixed `GB`).\n" +
       "- **EU member states (DE, FR, IT, ES, NL, BE, AT, IE, PT, FI, SE, DK, PL, …)**: ask for the VAT identification number (country-prefixed, e.g. `DE123456789`).\n" +
       "- **IN (India)**: ask for GSTIN (15 chars).\n" +

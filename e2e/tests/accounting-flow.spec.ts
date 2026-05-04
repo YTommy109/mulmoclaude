@@ -107,6 +107,16 @@ test.describe("accounting plugin — flow", () => {
     // scope for this UI smoke test.)
     await page.getByTestId("accounting-entry-line-account-0").selectOption("1000");
     await expect(taxIdInput).toHaveCount(0);
+
+    // Pin the negative-side rule introduced in PR #1137: 24xx
+    // output-tax accounts (e.g. 2400 Sales Tax Payable) must NOT
+    // surface the T-number column. Without this assertion a
+    // regression that re-broadened `isTaxAccountCode` back to
+    // `["14", "24"]` would slip through e2e — the existing 1000
+    // check above only proves a non-tax account hides the input,
+    // not that 24xx specifically does.
+    await page.getByTestId("accounting-entry-line-account-0").selectOption("2400");
+    await expect(taxIdInput).toHaveCount(0);
   });
 
   test("deleting a book with siblings shows the deleted-notice panel; tabs are disabled until the user picks another book", async ({ page }) => {
