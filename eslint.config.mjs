@@ -388,5 +388,69 @@ export default [
       "vue/no-empty-component-block": "error",
     },
   },
+  // Plugin import restrictions — codify the loose-coupling pattern
+  // the recent #1141 / #1143 work established. Plugin code under
+  // `src/plugins/<name>/` must reach the host only through the
+  // documented DI surface (`../api`, META types, scope wrapper); it
+  // must NEVER import host-internal config, tool registry, or
+  // server modules directly.
+  //
+  // Scope: plugin directories only. Top-level infra under
+  // `src/plugins/{api,scope,metas,index,server,_extras,
+  // server-bindings-types,meta-types}.ts` and the codegen output
+  // (`_generated/`) are deliberately excluded — they ARE the host's
+  // plugin infrastructure and need to import host config.
+  //
+  // Phase 1 (this rule): block what's already clean inside plugin
+  // directories — `src/config/*`, `src/tools/*` (value imports),
+  // `server/*`. These three were violation-free as of #1143.
+  //
+  // Phase 2 (deferred — separate cleanup PR): tighten by also
+  // blocking `src/components/*` once the 4 cross-plugin component
+  // imports today (textResponse → SentAttachmentChip, manageSource
+  // → SourcesManager, wiki → PageChatComposer / FilterChip) have
+  // been hoisted into a shared package or moved into the consuming
+  // plugin's directory. Locking the door before the cleanup would
+  // force the rule's violations into a single PR.
+  {
+    files: ["src/plugins/*/**/*.ts", "src/plugins/*/**/*.vue"],
+    ignores: [
+      // The codegen output ships with the bundle but isn't really
+      // plugin code — it composes host registries. Excluded.
+      "src/plugins/_generated/**",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          // Patterns are picomatch globs evaluated against the
+          // import specifier as written. `**/config/**` catches
+          // `../config/foo`, `../../config/foo`, `../../../config/sub/bar`
+          // — depth-agnostic so a plugin file at any nesting level
+          // can't bypass the rule with extra `../` segments (Codex
+          // iter-1 #1144). The leading `**` covers every relative
+          // depth; the trailing `**` covers nested subpaths under
+          // each guarded host directory.
+          patterns: [
+            {
+              group: ["**/config/**"],
+              message:
+                "Plugin code must not import from `src/config/*`. Use `pluginEndpoints(scope)`, `pluginBuiltinRoleIds()`, or `pluginPageRoute(name)` from `../api` instead — the host wires those at boot via `installHostContext`.",
+            },
+            {
+              group: ["**/tools/**"],
+              message: "Plugin code must not import value bindings from the host tool registry (`src/tools/*`). Type imports are allowed (`PluginRegistration`, `ToolPlugin`).",
+              allowTypeImports: true,
+            },
+            {
+              group: ["**/server/**"],
+              message: "Plugin code must not import server-side modules. Plugin executors run client-side; server-side helpers cross the protocol boundary.",
+              allowTypeImports: true,
+            },
+          ],
+        },
+      ],
+    },
+  },
   eslintConfigPrettier,
 ];
