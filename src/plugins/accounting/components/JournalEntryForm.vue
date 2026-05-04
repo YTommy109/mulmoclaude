@@ -166,7 +166,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { addEntry, voidEntry, type Account, type JournalEntry, type JournalLine } from "../api";
+import { addEntries, voidEntry, type Account, type JournalEntry, type JournalLine } from "../api";
 import { formatAmount, inputStepFor } from "../currencies";
 import { localDateString } from "../dates";
 import { countryHasFeature, type SupportedCountryCode } from "../countries";
@@ -253,7 +253,7 @@ const submitButtonLabel = computed<string>(() => {
 
 // One-shot lock: once the user has clicked Update on an edit, the
 // submit button is dead until they Cancel (or land on a different
-// entry). Edit = void + addEntry as two sequential calls; if the
+// entry). Edit = void + addEntries as two sequential calls; if the
 // void succeeds and the add fails, a second Submit would try to
 // void an already-voided original. We don't add retry plumbing
 // for that — policy is "report the error, do not retry". The user
@@ -378,12 +378,16 @@ async function onSubmit(): Promise<void> {
         return;
       }
     }
-    const result = await addEntry({
+    const result = await addEntries({
       bookId: props.bookId,
-      date: date.value,
-      memo: memo.value.trim() || undefined,
-      lines: toApiLines(),
-      ...(editingId ? { replacesEntryId: editingId } : {}),
+      entries: [
+        {
+          date: date.value,
+          memo: memo.value.trim() || undefined,
+          lines: toApiLines(),
+          ...(editingId ? { replacesEntryId: editingId } : {}),
+        },
+      ],
     });
     if (!result.ok) {
       error.value = result.error;

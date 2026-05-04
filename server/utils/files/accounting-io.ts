@@ -154,6 +154,38 @@ export async function appendJournal(bookId: string, entry: JournalEntry, workspa
   await fsPromises.appendFile(file, `${JSON.stringify(entry)}\n`, { encoding: "utf-8" });
 }
 
+function groupEntriesByPeriod(entries: readonly JournalEntry[]): Map<string, JournalEntry[]> {
+  const byPeriod = new Map<string, JournalEntry[]>();
+  for (const entry of entries) {
+    const period = periodFromDate(entry.date);
+    const list = byPeriod.get(period) ?? [];
+    list.push(entry);
+    byPeriod.set(period, list);
+  }
+  return byPeriod;
+}
+
+/** Append a batch of entries: same-period entries are concatenated
+ *  into one `appendFile` call so the whole same-period chunk hits
+ *  the kernel as a single `O_APPEND` write — small chunks (under
+ *  `PIPE_BUF`, ≥ 512 bytes on every supported platform) are
+ *  guaranteed atomic by POSIX, and `O_APPEND` serialises with any
+ *  concurrent appender (a parallel `appendJournal` / `addEntries`
+ *  call can never overwrite our write or vice versa). Cross-period
+ *  batches loop one append per period; each is independently
+ *  concurrency-safe but their union is not transactional across
+ *  files (out of scope for the append-only JSONL design). */
+export async function appendJournalBatch(bookId: string, entries: readonly JournalEntry[], workspaceRoot?: string): Promise<void> {
+  if (entries.length === 0) return;
+  const byPeriod = groupEntriesByPeriod(entries);
+  for (const [period, items] of byPeriod) {
+    const file = journalFileFor(bookId, period, workspaceRoot);
+    await fsPromises.mkdir(path.dirname(file), { recursive: true });
+    const chunk = items.map((entry) => `${JSON.stringify(entry)}\n`).join("");
+    await fsPromises.appendFile(file, chunk, { encoding: "utf-8" });
+  }
+}
+
 /** Read a single month's JSONL. Malformed lines are skipped (logged
  *  by the caller; this layer just returns the parseable subset) so
  *  one bad line doesn't lock the user out of their book. */

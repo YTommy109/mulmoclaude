@@ -1,7 +1,7 @@
 // Subscribe to per-book accounting events.
 //
 // Returns a `version` ref that bumps every time the server publishes a
-// change for the given bookId — addEntry, voidEntry,
+// change for the given bookId — addEntries, voidEntry,
 // setOpeningBalances, upsertAccount, snapshot rebuild completion. View
 // components watch `version` to drive `refetch` calls.
 //

@@ -2,7 +2,7 @@
 //
 // `mockAccountingApi` registers a `/api/accounting` route handler that
 // keeps a small in-memory state across action dispatches so the View
-// can drive a realistic create-book / set-opening / add-entry flow
+// can drive a realistic create-book / set-opening / add-entries flow
 // without standing up the real server. The state lives inside the
 // closure — call `mockAccountingApi(page)` once per test.
 
@@ -187,24 +187,36 @@ function handleGetJournalEntries(state: AccountingState, body: DispatchBody): Mo
   return ok({ bookId: resolved, entries, voidedEntryIds: voidedIdsFrom(entries) });
 }
 
-function handleAddEntry(state: AccountingState, body: DispatchBody): MockResponse {
+interface BatchEntryInput {
+  date?: unknown;
+  lines?: unknown;
+  memo?: unknown;
+  replacesEntryId?: unknown;
+}
+
+function handleAddEntries(state: AccountingState, body: DispatchBody): MockResponse {
   const resolved = resolveBookId(state, body);
   if (typeof resolved !== "string") return resolved;
-  const entry: FakeEntry = {
-    id: uniqueId("entry"),
-    date: typeof body.date === "string" ? body.date : "2026-04-01",
-    kind: "normal",
-    lines: (body.lines as FakeLine[]) ?? [],
-    memo: typeof body.memo === "string" ? body.memo : undefined,
-    createdAt: new Date().toISOString(),
-  };
-  if (typeof body.replacesEntryId === "string" && body.replacesEntryId !== "") {
-    entry.replacesEntryId = body.replacesEntryId;
-  }
+  const inputs = Array.isArray(body.entries) ? (body.entries as BatchEntryInput[]) : [];
+  if (inputs.length === 0) return err(400, "addEntries: entries must be a non-empty array");
+  const built: FakeEntry[] = inputs.map((item) => {
+    const entry: FakeEntry = {
+      id: uniqueId("entry"),
+      date: typeof item.date === "string" ? item.date : "2026-04-01",
+      kind: "normal",
+      lines: Array.isArray(item.lines) ? (item.lines as FakeLine[]) : [],
+      memo: typeof item.memo === "string" ? item.memo : undefined,
+      createdAt: new Date().toISOString(),
+    };
+    if (typeof item.replacesEntryId === "string" && item.replacesEntryId !== "") {
+      entry.replacesEntryId = item.replacesEntryId;
+    }
+    return entry;
+  });
   const list = state.entriesByBook.get(resolved) ?? [];
-  list.push(entry);
+  list.push(...built);
   state.entriesByBook.set(resolved, list);
-  return ok({ bookId: resolved, entry });
+  return ok({ bookId: resolved, entries: built });
 }
 
 function buildVoidMemo(target: FakeEntry, reason: string | undefined): string {
@@ -307,7 +319,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
   [ACCOUNTING_ACTIONS.deleteBook]: handleDeleteBook,
   [ACCOUNTING_ACTIONS.getAccounts]: handleGetAccounts,
   [ACCOUNTING_ACTIONS.getJournalEntries]: handleGetJournalEntries,
-  [ACCOUNTING_ACTIONS.addEntry]: handleAddEntry,
+  [ACCOUNTING_ACTIONS.addEntries]: handleAddEntries,
   [ACCOUNTING_ACTIONS.voidEntry]: handleVoidEntry,
   [ACCOUNTING_ACTIONS.getOpeningBalances]: handleGetOpening,
   [ACCOUNTING_ACTIONS.setOpeningBalances]: handleSetOpening,
@@ -339,7 +351,7 @@ export interface AccountingSeedBook {
 }
 
 /** Register a mock /api/accounting route on `page`. The mock keeps
- *  in-memory state so multi-step flows (createBook → addEntry →
+ *  in-memory state so multi-step flows (createBook → addEntries →
  *  voidEntry) work end-to-end. Returns the state so tests can
  *  pre-seed before navigation. Pass `opts.books` to seed the state
  *  with pre-existing books — useful for tests that need to drive

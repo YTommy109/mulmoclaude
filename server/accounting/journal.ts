@@ -8,7 +8,7 @@
 //
 // Append-only: there is no `editEntry`. Corrections are made by
 // `voidEntry` (creates a reversing pair) followed by a fresh
-// `addEntry` for the corrected booking.
+// `addEntries` call for the corrected booking.
 
 import { randomUUID } from "node:crypto";
 

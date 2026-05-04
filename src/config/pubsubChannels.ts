@@ -91,7 +91,7 @@ export function accountingBookChannel(bookId: string): string {
  *  subscribers (the View) — anyone branching on event kind imports
  *  from here and the type system catches drift on either side.
  *
- *  - `journal`            — addEntry / voidEntry hit the books at `period`.
+ *  - `journal`            — addEntries / voidEntry hit the books at `period`.
  *                           Refetch the journal list and (if the View is
  *                           showing balances at or after `period`) the
  *                           relevant report.
