@@ -19,7 +19,7 @@ logic with whatever your plugin actually does, ship.
 
 ## Output
 
-```
+```text
 my-plugin/
   package.json           name set to your argument; peer-deps and scripts ready
   tsconfig.json

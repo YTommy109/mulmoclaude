@@ -328,8 +328,12 @@ const counter = ref<Counter>(props.selectedResult.counter ?? { value: 0 });
 const busy = ref(false);
 
 async function refetch(): Promise<void> {
-  const result = await dispatch<DispatchResult>({ kind: "get" });
-  if (result?.ok && result.counter) counter.value = result.counter;
+  try {
+    const result = await dispatch<DispatchResult>({ kind: "get" });
+    if (result?.ok && result.counter) counter.value = result.counter;
+  } catch (err) {
+    log.warn("refetch failed", { error: String(err) });
+  }
 }
 
 async function increment(): Promise<void> {
@@ -351,6 +355,8 @@ async function reset(): Promise<void> {
   try {
     const result = await dispatch<DispatchResult>({ kind: "reset" });
     if (result?.ok && result.counter) counter.value = result.counter;
+  } catch (err) {
+    log.warn("reset failed", { error: String(err) });
   } finally {
     busy.value = false;
   }

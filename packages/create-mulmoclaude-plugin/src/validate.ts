@@ -41,7 +41,7 @@ function reject(reason: string): ValidationResult {
 export function validatePluginName(raw: string): ValidationResult {
   if (typeof raw !== "string") return reject("name must be a string");
   if (raw.length === 0) return reject("name is required");
-  if (raw.length > MAX_LENGTH) return reject(`name too long (max ${MAX_LENGTH} charars)`);
+  if (raw.length > MAX_LENGTH) return reject(`name too long (max ${MAX_LENGTH} chars)`);
   if (raw !== raw.toLowerCase()) return reject("name must be lowercase");
   if (/\s/.test(raw)) return reject("name must not contain whitespace");
 

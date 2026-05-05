@@ -5,9 +5,11 @@
 // a self-contained plugin directory in cwd and prints next-step
 // instructions. No interactive prompts (Phase 1).
 
+import { realpathSync } from "node:fs";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 import { directoryNameFor, validatePluginName } from "./validate.js";
 import { applyPlaceholders, TEMPLATE_FILES } from "./template.js";
@@ -29,6 +31,11 @@ interface CliResult {
 export async function runCli(argv: readonly string[], cwd: string, write: (output: string) => void): Promise<CliResult> {
   const positional = argv.filter((arg) => !arg.startsWith("-"));
   if (positional.length === 0) {
+    write(`${USAGE}\n`);
+    return { exitCode: 1 };
+  }
+  if (positional.length > 1) {
+    write(`Expected exactly one package name, got ${positional.length}: ${positional.join(", ")}\n`);
     write(`${USAGE}\n`);
     return { exitCode: 1 };
   }
@@ -92,10 +99,26 @@ function formatSuccessMessage(dirName: string, packageName: string): string {
 }
 
 // Only run the CLI when invoked directly. Importing `index.ts` from
-// tests should not exit the process.
-const invokedDirectly = process.argv[1] && (process.argv[1].endsWith("/dist/index.js") || process.argv[1].endsWith("/src/index.ts"));
-if (invokedDirectly) {
-  runCli(process.argv.slice(2), process.cwd(), (text) => process.stdout.write(text)).then((result) => {
-    process.exit(result.exitCode);
-  });
+// tests should not exit the process. Compare resolved paths (handles
+// Windows separators, symlinks via npm bin shims, and any future
+// `dist/index.mjs` build target).
+function isInvokedDirectly(): boolean {
+  const [, entry] = process.argv;
+  if (!entry) return false;
+  try {
+    return realpathSync(entry) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
+}
+
+if (isInvokedDirectly()) {
+  runCli(process.argv.slice(2), process.cwd(), (text) => process.stdout.write(text))
+    .then((result) => {
+      process.exit(result.exitCode);
+    })
+    .catch((error) => {
+      process.stderr.write(`Unexpected error: ${String(error)}\n`);
+      process.exit(1);
+    });
 }

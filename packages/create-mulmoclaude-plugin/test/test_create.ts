@@ -86,6 +86,13 @@ describe("runCli — error paths", () => {
     assert.match(outputs.join(""), /Usage:/);
   });
 
+  it("rejects multiple positional arguments", async () => {
+    outputs = [];
+    const result = await runCli(["foo", "bar"], workdir, captureOutput);
+    assert.equal(result.exitCode, 1);
+    assert.match(outputs.join(""), /Expected exactly one package name/);
+  });
+
   it("rejects an invalid name", async () => {
     outputs = [];
     const result = await runCli(["My Bad Name"], workdir, captureOutput);

@@ -55,7 +55,7 @@ argument verbatim; everything else stays as the counter sample.
 
 No interactive prompts (Phase 1). The CLI prints next steps:
 
-```
+```text
 ✓ Created notes-plugin/
 
 Next:
@@ -75,7 +75,7 @@ Next:
 
 ## Implementation
 
-```
+```text
 packages/create-mulmoclaude-plugin/
   package.json                 — declares `bin: { "create-mulmoclaude-plugin": "./dist/index.js" }`
   tsconfig.json
