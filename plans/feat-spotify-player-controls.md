@@ -62,7 +62,7 @@ const SPOTIFY_SCOPES = [
 |---|---|---|
 | Liked add/remove | `PUT/DELETE /v1/me/tracks?ids=` | PR 4 (`user-library-modify` scope 追加) |
 | Playlist 作成/編集 | `POST /v1/users/{id}/playlists` 等 | PR 5 |
-| Search | `GET /v1/search` | PR 6 (LLM が "Bach の曲かけて" を解釈する用) |
+| ~~Search~~ | ~~`GET /v1/search`~~ | ✓ 完了 (PR #1168) |
 | Audio analysis | `GET /v1/audio-features/{id}` | PR 7+ (推薦 / クラスタリング用) |
 
 ## 実装順 (1 PR 内)

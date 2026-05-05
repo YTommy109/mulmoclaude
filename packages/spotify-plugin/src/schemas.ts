@@ -35,6 +35,12 @@ export const SPOTIFY_KINDS = {
   getDevices: "getDevices",
 } as const;
 
+/** Categories the `search` kind may include. Spotify's `/v1/search`
+ *  accepts these four; centralising the list lets `definition.ts`
+ *  reuse the same source for the JSON-schema enum (no drift between
+ *  Zod and the LLM-facing schema). */
+export const SEARCH_TYPES = ["track", "artist", "album", "playlist"] as const;
+
 /** Kinds the LLM is allowed to invoke directly (= advertised in
  *  `TOOL_DEFINITION.parameters.kind.enum`). `configure` is omitted
  *  intentionally — it's a View-only action that writes the user's
@@ -155,11 +161,7 @@ export const DispatchArgsSchema = z.discriminatedUnion("kind", [
      *  `track`, `artist`, `album`, `playlist`. Default is all four
      *  so a casual `manageSpotify({ kind: "search", query })` from
      *  the LLM gets a useful spread without needing to specify. */
-    types: z
-      .array(z.enum(["track", "artist", "album", "playlist"]))
-      .min(1)
-      .max(4)
-      .optional(),
+    types: z.array(z.enum(SEARCH_TYPES)).min(1).max(SEARCH_TYPES.length).optional(),
     /** 1-50, default 10 (per category). Lower than the listening
      *  kinds because search results are more diverse + the LLM
      *  context window holds N results × M categories. */

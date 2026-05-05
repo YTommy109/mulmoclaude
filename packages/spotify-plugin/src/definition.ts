@@ -7,7 +7,7 @@
 // would invite the model to mutate user secrets). The plugin's Zod
 // `DispatchArgsSchema` still accepts it.
 
-import { LLM_CALLABLE_KINDS } from "./schemas";
+import { LLM_CALLABLE_KINDS, SEARCH_TYPES } from "./schemas";
 
 export const TOOL_DEFINITION = {
   type: "function" as const,
@@ -45,11 +45,11 @@ export const TOOL_DEFINITION = {
       // `search`
       query: {
         type: "string",
-        description: "Search query. Spotify supports field filters (`artist:Bach`, `year:2020`, `genre:jazz`) and quoted phrases.",
+        description: "Search query — REQUIRED when kind=search. Spotify supports field filters (`artist:Bach`, `year:2020`, `genre:jazz`) and quoted phrases.",
       },
       types: {
         type: "array",
-        items: { type: "string", enum: ["track", "artist", "album", "playlist"] },
+        items: { type: "string", enum: [...SEARCH_TYPES] },
         description: "Categories to search. Default = all four.",
       },
       // Player Controls (PR 3) — Spotify Premium required at runtime

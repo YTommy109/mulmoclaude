@@ -205,13 +205,18 @@ function tabIsCached(tab: Tab): boolean {
 
 async function loadActiveTab(force = false): Promise<void> {
   if (!status.value?.connected) return;
+  // Always clear an inherited error from a previous tab BEFORE the
+  // cache-hit early-return — otherwise switching from a tab whose
+  // last load failed onto a cached/never-loads tab (notably Search,
+  // whose tabIsCached is always true) leaves the prior error message
+  // floating over unrelated content (Codex review on PR #1168).
+  tabError.value = null;
   // Cache hit on tab switch — header comment promises lazy loading,
   // so a click on a tab whose data is already loaded must NOT
   // re-dispatch (CodeRabbit + Sourcery review on PR #1166).
   // Refresh button passes force=true to bypass.
   if (!force && tabIsCached(activeTab.value)) return;
   isLoadingTab.value = true;
-  tabError.value = null;
   try {
     await TAB_LOADERS[activeTab.value]();
   } catch (err) {
@@ -576,7 +581,9 @@ onUnmounted(() => {
                     <img v-if="album.imageUrl" :src="album.imageUrl" alt="" class="spotify-cover" />
                     <span class="spotify-track-meta">
                       <span class="spotify-track-name">{{ album.name }}</span>
-                      <span class="spotify-track-artists">{{ album.artists.join(", ") }} · {{ album.releaseDate.slice(0, 4) }}</span>
+                      <span class="spotify-track-artists">
+                        {{ album.artists.join(", ") }}<template v-if="album.releaseDate"> · {{ album.releaseDate.slice(0, 4) }}</template>
+                      </span>
                     </span>
                   </button>
                 </li>
