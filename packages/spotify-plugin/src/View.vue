@@ -107,7 +107,14 @@ async function startConnect(): Promise<void> {
       redirectUri: SPOTIFY_REDIRECT_URI,
     });
     if (response.ok && response.data?.authorizeUrl) {
-      window.location.href = response.data.authorizeUrl;
+      // Open the consent screen in a new tab. The original tab
+      // keeps the View; the server's `connected` pubsub event
+      // (fired after the OAuth callback) refreshes status here so
+      // the user sees Premium controls populate without manually
+      // reloading. `noopener,noreferrer` for the standard
+      // tab-isolation hygiene; the new tab navigates within
+      // accounts.spotify.com → 127.0.0.1:3001 which is fine.
+      window.open(response.data.authorizeUrl, "_blank", "noopener,noreferrer");
     } else {
       log.warn("connect failed", { response });
     }
