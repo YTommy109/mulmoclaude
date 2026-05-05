@@ -19,14 +19,16 @@
 // `node:fs` / `node:path` / direct `fetch` so platform bypasses
 // surface at lint time.
 
-import { definePlugin } from "gui-chat-protocol";
+import { definePlugin, type PluginRuntime } from "gui-chat-protocol";
 
 import { TOOL_DEFINITION } from "./definition";
 import { DispatchArgsSchema, type DispatchArgs } from "./schemas";
 import { buildAuthorizeUrl, consumePendingAuthorization, deriveCodeChallenge, generateRandomToken, registerPendingAuthorization } from "./oauth";
-import { readClientConfig, readTokens, writeTokens } from "./tokens";
+import { readClientConfig, readTokens, writeClientConfig, writeTokens } from "./tokens";
 import { ONE_SECOND_MS } from "./time";
-import type { SpotifyTokens } from "./types";
+import type { SpotifyClientConfig, SpotifyTokens } from "./types";
+import { fetchLiked, fetchNowPlaying, fetchPlaylistTracks, fetchPlaylists, fetchRecent } from "./listening";
+import type { SpotifyClientError } from "./client";
 
 export { TOOL_DEFINITION };
 
@@ -67,7 +69,8 @@ interface RawTokenResponse {
   scope?: unknown;
 }
 
-export default definePlugin(({ files, log, fetch: runtimeFetch, pubsub }) => {
+export default definePlugin((pluginRuntime) => {
+  const { files, log, fetch: runtimeFetch, pubsub } = pluginRuntime;
   return {
     TOOL_DEFINITION,
 
@@ -90,6 +93,18 @@ export default definePlugin(({ files, log, fetch: runtimeFetch, pubsub }) => {
           return handleStatus();
         case "diagnose":
           return handleDiagnose();
+        case "configure":
+          return handleConfigure({ clientId: args.clientId });
+        case "liked":
+          return handleListening("liked", args);
+        case "playlists":
+          return handleListening("playlists", args);
+        case "playlistTracks":
+          return handleListening("playlistTracks", args);
+        case "recent":
+          return handleListening("recent", args);
+        case "nowPlaying":
+          return handleListening("nowPlaying", args);
         default: {
           const exhaustive: never = args;
           throw new Error(`Unhandled kind: ${JSON.stringify(exhaustive)}`);
@@ -266,7 +281,152 @@ export default definePlugin(({ files, log, fetch: runtimeFetch, pubsub }) => {
       scopes: typeof raw.scope === "string" ? raw.scope.split(" ").filter(Boolean) : [...SPOTIFY_SCOPES],
     };
   }
+
+  async function handleConfigure(args: { clientId: string }) {
+    const trimmed = args.clientId.trim();
+    // Schema guarantees `min(1)` on the input, but trimming can
+    // collapse whitespace-only strings to length 0 (CodeRabbit
+    // review on PR #1166). Reject so we never persist a useless
+    // Client ID that would silently break OAuth on the next
+    // `connect` attempt.
+    if (trimmed.length === 0) {
+      return {
+        ok: false,
+        error: "invalid_client_id",
+        message: "Client ID が空です。Spotify Developer Dashboard からコピーした文字列を貼り付けてください。",
+      };
+    }
+    const config: SpotifyClientConfig = { clientId: trimmed };
+    await writeClientConfig(files.config, config);
+    log.info("client id configured");
+    return { ok: true, message: "Spotify Client ID を保存しました。" };
+  }
+
+  async function handleListening(
+    kind: "liked" | "playlists" | "playlistTracks" | "recent" | "nowPlaying",
+    args: Extract<DispatchArgs, { kind: "liked" | "playlists" | "playlistTracks" | "recent" | "nowPlaying" }>,
+  ) {
+    const ready = await loadCredentials();
+    if (!ready.ok) return ready.errorResponse;
+    const deps = { runtime: pluginRuntime, clientId: ready.clientConfig.clientId, tokens: ready.tokens };
+    const result = await invokeListening(kind, args, deps);
+    if (!result.ok) return mapClientError(result.error);
+    // The host MCP bridge passes ONLY `message` + `instructions` back
+    // to the LLM (`data` is rendered in the View). For read kinds the
+    // LLM needs the actual list of tracks / playlists to reason
+    // about, so we mirror the listing into `message` as a compact
+    // text format. Format mirrors what a human would write on a chat
+    // thread; not designed for machine round-tripping (the View has
+    // the structured `data`).
+    return { ok: true, message: summariseListening(kind, result.data), data: result.data };
+  }
+
+  async function loadCredentials(): Promise<
+    | { ok: true; clientConfig: SpotifyClientConfig; tokens: SpotifyTokens }
+    | { ok: false; errorResponse: { ok: false; error: string; message: string; instructions?: string } }
+  > {
+    const clientConfig = await readClientConfig(files.config);
+    if (!clientConfig) {
+      return {
+        ok: false,
+        errorResponse: {
+          ok: false,
+          error: "client_id_missing",
+          message: "Spotify Client ID が未設定です。",
+          instructions: CLIENT_ID_MISSING_INSTRUCTIONS,
+        },
+      };
+    }
+    const tokens = await readTokens(files.config);
+    if (!tokens) {
+      return {
+        ok: false,
+        errorResponse: {
+          ok: false,
+          error: "not_connected",
+          message: "Spotify に未接続です。「Connect」を実行してください。",
+        },
+      };
+    }
+    return { ok: true, clientConfig, tokens };
+  }
 });
+
+async function invokeListening(
+  kind: "liked" | "playlists" | "playlistTracks" | "recent" | "nowPlaying",
+  args: Extract<DispatchArgs, { kind: "liked" | "playlists" | "playlistTracks" | "recent" | "nowPlaying" }>,
+  deps: { runtime: PluginRuntime; clientId: string; tokens: SpotifyTokens },
+) {
+  switch (kind) {
+    case "liked":
+      return fetchLiked(deps, args.kind === "liked" ? (args.limit ?? 50) : 50);
+    case "playlists":
+      return fetchPlaylists(deps);
+    case "playlistTracks":
+      if (args.kind !== "playlistTracks") throw new Error("kind/args mismatch");
+      return fetchPlaylistTracks(deps, args.playlistId, args.limit ?? 100);
+    case "recent":
+      return fetchRecent(deps, args.kind === "recent" ? (args.limit ?? 50) : 50);
+    case "nowPlaying":
+      return fetchNowPlaying(deps);
+  }
+}
+
+/** Build the LLM-facing message string for a listening result.
+ *  The plain text mirrors the View's grid: title + artists, one per
+ *  line. Length-capped per kind so the LLM context window doesn't
+ *  blow up on a 50-track Liked Songs response. */
+function summariseListening(kind: "liked" | "playlists" | "playlistTracks" | "recent" | "nowPlaying", data: unknown): string {
+  if (kind === "nowPlaying") {
+    if (!data || typeof data !== "object" || !("name" in data)) return "Nothing is currently playing.";
+    const track = data as { name: string; artists: string[]; album: string };
+    return `Now playing: ${track.name} — ${track.artists.join(", ")} (${track.album})`;
+  }
+  if (!Array.isArray(data) || data.length === 0) return `No ${kind} items.`;
+  if (kind === "playlists") {
+    const lines = (data as { name: string; trackCount: number }[]).map((p, i) => `${i + 1}. ${p.name} (${p.trackCount} tracks)`);
+    return `Playlists (${data.length}):\n${lines.join("\n")}`;
+  }
+  if (kind === "recent") {
+    const lines = (data as { track: { name: string; artists: string[] }; playedAt: string }[]).map((item, i) => {
+      const when = item.playedAt ? new Date(item.playedAt).toISOString().slice(0, 16).replace("T", " ") : "?";
+      return `${i + 1}. [${when}] ${item.track.name} — ${item.track.artists.join(", ")}`;
+    });
+    return `Recently played (${data.length}):\n${lines.join("\n")}`;
+  }
+  // liked / playlistTracks share the NormalisedTrack[] shape.
+  const lines = (data as { name: string; artists: string[] }[]).map((t, i) => `${i + 1}. ${t.name} — ${t.artists.join(", ")}`);
+  const title = kind === "liked" ? "Liked Songs" : "Playlist tracks";
+  return `${title} (${data.length}):\n${lines.join("\n")}`;
+}
+
+function mapClientError(error: SpotifyClientError) {
+  switch (error.kind) {
+    case "auth_expired":
+      return {
+        ok: false,
+        error: "auth_expired",
+        message: "認可が無効化されました。「Connect」をやり直してください。",
+        detail: error.detail,
+      };
+    case "rate_limited":
+      return {
+        ok: false,
+        error: "rate_limited",
+        message: `Spotify から rate limit を返されました。${error.retryAfterSec} 秒後に再試行してください。`,
+        retryAfterSec: error.retryAfterSec,
+      };
+    case "spotify_api_error":
+      return {
+        ok: false,
+        error: "spotify_api_error",
+        message: `Spotify API がエラーを返しました (${error.status})`,
+        detail: error.body,
+      };
+    case "not_connected":
+      return { ok: false, error: "not_connected", message: "Spotify に未接続です。" };
+  }
+}
 
 function renderCallbackHtml(params: { title: string; body: string }): string {
   return `<!doctype html><html lang="en"><meta charset="utf-8"><title>${escapeHtml(params.title)}</title>

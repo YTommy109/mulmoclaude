@@ -43,3 +43,45 @@ export type SpotifyError =
   | { kind: "redirect_uri_mismatch"; instructions: string }
   | { kind: "rate_limited"; retryAfterSec: number; instructions: string }
   | { kind: "spotify_api_error"; status: number; body: string; instructions: string };
+
+/** A track in a normalised, View-friendly shape. The full Spotify
+ *  response carries dozens of fields the View doesn't render; we
+ *  reduce it at the plugin boundary to (1) cap response size for
+ *  the LLM context window, (2) decouple the View from Spotify's
+ *  API drift. */
+export interface NormalisedTrack {
+  id: string;
+  name: string;
+  artists: string[];
+  album: string;
+  durationMs: number;
+  /** Spotify Web URL — the View uses `runtime.openUrl(track.url)`
+   *  to open the track in the user's Spotify client. Optional
+   *  because locally-uploaded tracks and podcast episodes carry no
+   *  `external_urls.spotify`; the View must guard the click handler
+   *  against an undefined value. */
+  url?: string;
+  /** Cover-art URL (smallest available). Optional: tracks under
+   *  podcasts / locally-uploaded files don't carry album art. */
+  imageUrl?: string;
+}
+
+export interface NormalisedPlaylist {
+  id: string;
+  name: string;
+  /** Author-provided description; empty string when absent. */
+  description: string;
+  trackCount: number;
+  /** Optional for the same reason as NormalisedTrack.url. */
+  url?: string;
+  imageUrl?: string;
+}
+
+/** A `recently-played` item carries a `playedAt` timestamp the
+ *  Liked / Playlists endpoints don't. Composed of `NormalisedTrack`
+ *  + the play timestamp. */
+export interface RecentlyPlayedItem {
+  track: NormalisedTrack;
+  /** ISO-8601 timestamp from Spotify's `played_at`. */
+  playedAt: string;
+}
