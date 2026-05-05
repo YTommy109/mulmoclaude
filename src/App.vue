@@ -125,7 +125,7 @@
           v-model="userInput"
           v-model:pasted-file="pastedFile"
           :is-running="activeSessionRunning"
-          :queries="sessionRole.queries ?? []"
+          :queries="sessionRoleQueries"
           @send="sendMessage()"
           @suggestion-send="(q) => sendMessage(q)"
         />
@@ -209,7 +209,7 @@
             v-model="userInput"
             v-model:pasted-file="pastedFile"
             :is-running="activeSessionRunning"
-            :queries="sessionRole.queries ?? []"
+            :queries="sessionRoleQueries"
             @send="sendMessage()"
             @suggestion-send="(q) => sendMessage(q)"
           />
@@ -303,6 +303,7 @@ import { useSelectedResult } from "./composables/useSelectedResult";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
 import { useCurrentRole } from "./composables/useCurrentRole";
+import { useTranslatedQueries } from "./composables/useTranslatedQueries";
 import { BUILTIN_ROLE_IDS, type Role } from "./config/roles";
 import { usePubSub } from "./composables/usePubSub";
 import { sessionChannel } from "./config/pubsubChannels";
@@ -318,7 +319,7 @@ import { apiGet } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 // --- Per-session state ---
 // Declared early so that pub/sub callbacks and function declarations
@@ -457,6 +458,12 @@ const sessionRole = computed<Role>(() => {
   }
   return roles.value[0];
 });
+
+// Translated suggested-query strings for the active session's role.
+// Falls back to the role's English source until /api/translation
+// returns; subsequent role swaps hit the in-memory cache.
+const currentLocale = computed(() => String(locale.value));
+const { queries: sessionRoleQueries } = useTranslatedQueries(sessionRole, currentLocale);
 
 const { mergedSessions, tabSessions } = useMergedSessions({
   sessionMap,
