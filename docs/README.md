@@ -27,6 +27,8 @@ Guides for using MulmoClaude. No programming knowledge required.
 | [Claude Code × Ollama Setup Notes](tips/claude-code-ollama.en.md)   | English  | Running Claude Code against a local Ollama backend — context-window, model picks             |
 | [Bedrock Deployment](bedrock-deployment.en.md)                      | English  | Run MulmoClaude against Anthropic Claude on AWS Bedrock                                      |
 | [Bedrock デプロイ](bedrock-deployment.md)                           | 日本語   | AWS Bedrock 経由の Anthropic Claude で動かす手順                                             |
+| [Spotify セットアップ手順](tips/spotify-setup.md)                   | 日本語   | Spotify Developer Dashboard で個人アプリを登録し Client ID を `.env` に設定する手順 (#1162)  |
+| [Spotify Setup](tips/spotify-setup.en.md)                           | English  | Register a personal Spotify Developer Dashboard app and wire the Client ID into `.env` (#1162) |
 
 ## Architecture & Design
 
