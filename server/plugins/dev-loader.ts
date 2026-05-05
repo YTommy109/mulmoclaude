@@ -132,15 +132,17 @@ export type DevPluginGate = { ok: true; plugins: readonly RuntimePlugin[] } | { 
  *  fatalMessage and `process.exit(1)`s; tests assert on the verdict
  *  shape directly. */
 export function evaluateDevPluginGate(devLoad: LoadDevPluginsResult, otherPlugins: readonly RuntimePlugin[]): DevPluginGate {
+  // The caller logs each message under the `plugins/dev` category, so
+  // the structured logger already prepends `[plugins/dev]`. Don't bake
+  // the prefix into the message strings — that would print it twice.
   if (devLoad.errors.length > 0) {
-    const messages = devLoad.errors.map((entry) => `[plugins/dev] ${entry}`);
-    messages.push(`[plugins/dev] ${devLoad.errors.length} dev plugin(s) failed to load — refusing to start.`);
+    const messages = [...devLoad.errors, `${devLoad.errors.length} dev plugin(s) failed to load — refusing to start.`];
     return { ok: false, fatalMessages: messages };
   }
   const collisions = detectDevCollisions(devLoad.plugins, otherPlugins);
   if (collisions.length > 0) {
-    const messages = collisions.map((collision) => `[plugins/dev] name collision: ${collision.name} sources=${JSON.stringify(collision.sources)}`);
-    messages.push("[plugins/dev] dev plugin name collides with installed plugin or another dev plugin — refusing to start.");
+    const messages = collisions.map((collision) => `name collision: ${collision.name} sources=${JSON.stringify(collision.sources)}`);
+    messages.push("dev plugin name collides with installed plugin or another dev plugin — refusing to start.");
     return { ok: false, fatalMessages: messages };
   }
   return { ok: true, plugins: devLoad.plugins };
