@@ -309,6 +309,11 @@ interface Counter {
   value: number;
 }
 
+interface DispatchResult {
+  ok?: boolean;
+  counter?: Counter;
+}
+
 export interface Props {
   selectedResult: { counter?: Counter };
 }
@@ -323,7 +328,7 @@ const counter = ref<Counter>(props.selectedResult.counter ?? { value: 0 });
 const busy = ref(false);
 
 async function refetch(): Promise<void> {
-  const result = await dispatch({ kind: "get" });
+  const result = await dispatch<DispatchResult>({ kind: "get" });
   if (result?.ok && result.counter) counter.value = result.counter;
 }
 
@@ -331,7 +336,7 @@ async function increment(): Promise<void> {
   if (busy.value) return;
   busy.value = true;
   try {
-    const result = await dispatch({ kind: "increment", by: 1 });
+    const result = await dispatch<DispatchResult>({ kind: "increment", by: 1 });
     if (result?.ok && result.counter) counter.value = result.counter;
   } catch (err) {
     log.warn("increment failed", { error: String(err) });
@@ -344,7 +349,7 @@ async function reset(): Promise<void> {
   if (busy.value) return;
   busy.value = true;
   try {
-    const result = await dispatch({ kind: "reset" });
+    const result = await dispatch<DispatchResult>({ kind: "reset" });
     if (result?.ok && result.counter) counter.value = result.counter;
   } finally {
     busy.value = false;
@@ -354,10 +359,8 @@ async function reset(): Promise<void> {
 let unsubscribe: (() => void) | null = null;
 
 onMounted(() => {
-  refetch();
-  unsubscribe = pubsub.subscribe("changed", (next: Counter) => {
-    counter.value = next;
-  });
+  void refetch();
+  unsubscribe = pubsub.subscribe("changed", () => void refetch());
 });
 
 onUnmounted(() => {
