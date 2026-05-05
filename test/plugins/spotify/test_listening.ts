@@ -104,22 +104,49 @@ describe("fetchLiked", () => {
 });
 
 describe("fetchPlaylists", () => {
-  it("calls /v1/me/playlists and normalises the response", async () => {
+  it("calls /v1/me/playlists and normalises the response (single page, no `next`)", async () => {
     const handle = makeFakeRuntime([
       jsonResponse({
         items: [
           { id: "p1", name: "Mix 1", tracks: { total: 10 } },
           { id: "p2", name: "Mix 2", tracks: { total: 5 } },
         ],
+        next: null,
       }),
     ]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await fetchPlaylists({ runtime: handle.runtime as any, clientId: "cid", tokens: validTokens, now: NOW });
     assert.equal(result.ok, true);
     if (!result.ok) throw new Error("unreachable");
-    assert.equal(handle.calls[0].url, "https://api.spotify.com/v1/me/playlists?limit=50");
+    assert.equal(handle.calls.length, 1);
+    assert.equal(handle.calls[0].url, "https://api.spotify.com/v1/me/playlists?limit=50&offset=0");
     assert.equal(result.data.length, 2);
     assert.equal(result.data[0].trackCount, 10);
+  });
+
+  it("walks pages while Spotify returns a `next` URL", async () => {
+    const handle = makeFakeRuntime([
+      jsonResponse({
+        items: [{ id: "p1", name: "Page 1 #1", tracks: { total: 1 } }],
+        next: "https://api.spotify.com/v1/me/playlists?limit=50&offset=50",
+      }),
+      jsonResponse({
+        items: [{ id: "p2", name: "Page 2 #1", tracks: { total: 2 } }],
+        next: null,
+      }),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await fetchPlaylists({ runtime: handle.runtime as any, clientId: "cid", tokens: validTokens, now: NOW });
+    assert.equal(result.ok, true);
+    if (!result.ok) throw new Error("unreachable");
+    assert.equal(handle.calls.length, 2);
+    assert.equal(handle.calls[0].url, "https://api.spotify.com/v1/me/playlists?limit=50&offset=0");
+    assert.equal(handle.calls[1].url, "https://api.spotify.com/v1/me/playlists?limit=50&offset=50");
+    assert.equal(result.data.length, 2);
+    assert.deepEqual(
+      result.data.map((entry) => entry.id),
+      ["p1", "p2"],
+    );
   });
 });
 
@@ -166,6 +193,15 @@ describe("fetchNowPlaying", () => {
     assert.equal(result.ok, true);
     if (!result.ok) throw new Error("unreachable");
     assert.equal(result.data, null);
+  });
+
+  it("forwards SpotifyClientError unchanged (mirrors fetchLiked's negative case)", async () => {
+    const handle = makeFakeRuntime([new Response("server err", { status: 500 })]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await fetchNowPlaying({ runtime: handle.runtime as any, clientId: "cid", tokens: validTokens, now: NOW });
+    assert.equal(result.ok, false);
+    if (result.ok) throw new Error("unreachable");
+    assert.equal(result.error.kind, "spotify_api_error");
   });
 
   it("returns null when the 200 response has no `item` field (podcast / show context)", async () => {

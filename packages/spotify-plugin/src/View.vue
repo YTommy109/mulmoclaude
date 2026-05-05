@@ -90,28 +90,55 @@ async function startConnect(): Promise<void> {
   }
 }
 
-async function loadActiveTab(): Promise<void> {
+async function loadLiked(): Promise<void> {
+  const response = await dispatch<{ ok: boolean; data?: NormalisedTrack[]; message?: string }>({ kind: "liked" });
+  if (response.ok && response.data) liked.value = response.data;
+  else tabError.value = response.message ?? t.value.loadFailed;
+}
+
+async function loadPlaylists(): Promise<void> {
+  const response = await dispatch<{ ok: boolean; data?: NormalisedPlaylist[]; message?: string }>({ kind: "playlists" });
+  if (response.ok && response.data) playlists.value = response.data;
+  else tabError.value = response.message ?? t.value.loadFailed;
+}
+
+async function loadRecent(): Promise<void> {
+  const response = await dispatch<{ ok: boolean; data?: RecentlyPlayedItem[]; message?: string }>({ kind: "recent" });
+  if (response.ok && response.data) recent.value = response.data;
+  else tabError.value = response.message ?? t.value.loadFailed;
+}
+
+async function loadNowPlaying(): Promise<void> {
+  const response = await dispatch<{ ok: boolean; data?: NormalisedTrack | null; message?: string }>({ kind: "nowPlaying" });
+  if (response.ok) nowPlaying.value = response.data ?? null;
+  else tabError.value = response.message ?? t.value.loadFailed;
+}
+
+const TAB_LOADERS: Record<Tab, () => Promise<void>> = {
+  liked: loadLiked,
+  playlists: loadPlaylists,
+  recent: loadRecent,
+  nowPlaying: loadNowPlaying,
+};
+
+function tabIsCached(tab: Tab): boolean {
+  if (tab === "liked") return liked.value !== null;
+  if (tab === "playlists") return playlists.value !== null;
+  if (tab === "recent") return recent.value !== null;
+  return nowPlaying.value !== undefined;
+}
+
+async function loadActiveTab(force = false): Promise<void> {
   if (!status.value?.connected) return;
+  // Cache hit on tab switch — header comment promises lazy loading,
+  // so a click on a tab whose data is already loaded must NOT
+  // re-dispatch (CodeRabbit + Sourcery review on PR #1166).
+  // Refresh button passes force=true to bypass.
+  if (!force && tabIsCached(activeTab.value)) return;
   isLoadingTab.value = true;
   tabError.value = null;
   try {
-    if (activeTab.value === "liked") {
-      const response = await dispatch<{ ok: boolean; data?: NormalisedTrack[]; message?: string }>({ kind: "liked" });
-      if (response.ok && response.data) liked.value = response.data;
-      else tabError.value = response.message ?? t.value.loadFailed;
-    } else if (activeTab.value === "playlists") {
-      const response = await dispatch<{ ok: boolean; data?: NormalisedPlaylist[]; message?: string }>({ kind: "playlists" });
-      if (response.ok && response.data) playlists.value = response.data;
-      else tabError.value = response.message ?? t.value.loadFailed;
-    } else if (activeTab.value === "recent") {
-      const response = await dispatch<{ ok: boolean; data?: RecentlyPlayedItem[]; message?: string }>({ kind: "recent" });
-      if (response.ok && response.data) recent.value = response.data;
-      else tabError.value = response.message ?? t.value.loadFailed;
-    } else if (activeTab.value === "nowPlaying") {
-      const response = await dispatch<{ ok: boolean; data?: NormalisedTrack | null; message?: string }>({ kind: "nowPlaying" });
-      if (response.ok) nowPlaying.value = response.data ?? null;
-      else tabError.value = response.message ?? t.value.loadFailed;
-    }
+    await TAB_LOADERS[activeTab.value]();
   } catch (err) {
     tabError.value = err instanceof Error ? err.message : String(err);
   } finally {
@@ -122,6 +149,18 @@ async function loadActiveTab(): Promise<void> {
 function selectTab(next: Tab): void {
   activeTab.value = next;
   void loadActiveTab();
+}
+
+function refreshActiveTab(): void {
+  void loadActiveTab(true);
+}
+
+// `NormalisedTrack.url` is optional (locally-uploaded tracks and
+// podcast episodes carry no `external_urls.spotify`). Guard the
+// click so we don't `openUrl(undefined)` and end up navigating to
+// "undefined" or to a sentinel empty string.
+function safeOpenUrl(url: string | undefined): void {
+  if (typeof url === "string" && url.length > 0) openUrl(url);
 }
 
 function formatDuration(ms: number): string {
@@ -144,7 +183,10 @@ const unsubs: Array<() => void> = [];
 onMounted(() => {
   unsubs.push(
     pubsub.subscribe("connected", () => {
-      void refreshStatus().then(() => loadActiveTab());
+      // OAuth completion → refresh status, then refetch the active
+      // tab (force=true bypasses the cache so we don't show stale
+      // data after a reconnect with new scopes).
+      void refreshStatus().then(() => loadActiveTab(true));
     }),
   );
   void refreshStatus().then(() => loadActiveTab());
@@ -190,30 +232,35 @@ onUnmounted(() => {
 
     <!-- Connected: tabs + content -->
     <div v-else-if="status?.connected" class="spotify-connected">
-      <nav class="spotify-tabs" role="tablist">
-        <button
-          v-for="tab in ['liked', 'playlists', 'recent', 'nowPlaying'] as const"
-          :key="tab"
-          type="button"
-          role="tab"
-          :aria-selected="activeTab === tab"
-          :class="['spotify-tab', { 'spotify-tab-active': activeTab === tab }]"
-          @click="selectTab(tab)"
-        >
-          {{ tab === "liked" ? t.tabLiked : tab === "playlists" ? t.tabPlaylists : tab === "recent" ? t.tabRecent : t.tabNowPlaying }}
-        </button>
-        <button type="button" class="spotify-refresh" @click="loadActiveTab">{{ t.refresh }}</button>
-      </nav>
+      <!-- ARIA: `role="tablist"` may only contain `role="tab"` elements,
+           so the Refresh control sits outside the nav (CodeRabbit
+           review on PR #1166). -->
+      <div class="spotify-tab-row">
+        <nav class="spotify-tabs" role="tablist">
+          <button
+            v-for="tab in ['liked', 'playlists', 'recent', 'nowPlaying'] as const"
+            :key="tab"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === tab"
+            :class="['spotify-tab', { 'spotify-tab-active': activeTab === tab }]"
+            @click="selectTab(tab)"
+          >
+            {{ tab === "liked" ? t.tabLiked : tab === "playlists" ? t.tabPlaylists : tab === "recent" ? t.tabRecent : t.tabNowPlaying }}
+          </button>
+        </nav>
+        <button type="button" class="spotify-refresh" @click="refreshActiveTab">{{ t.refresh }}</button>
+      </div>
 
       <div class="spotify-content">
         <p v-if="isLoadingTab" class="spotify-loading">{{ t.loading }}</p>
         <p v-else-if="tabError" class="spotify-error">
-          {{ tabError }} <button class="spotify-retry" @click="loadActiveTab">{{ t.retry }}</button>
+          {{ tabError }} <button class="spotify-retry" @click="refreshActiveTab">{{ t.retry }}</button>
         </p>
 
         <ul v-else-if="activeTab === 'liked' && liked && liked.length > 0" class="spotify-list">
           <li v-for="track in liked" :key="track.id" class="spotify-track-row">
-            <button type="button" class="spotify-track-link" @click="openUrl(track.url)">
+            <button type="button" class="spotify-track-link" @click="safeOpenUrl(track.url)">
               <img v-if="track.imageUrl" :src="track.imageUrl" alt="" class="spotify-cover" />
               <span class="spotify-track-meta">
                 <span class="spotify-track-name">{{ track.name }}</span>
@@ -227,7 +274,7 @@ onUnmounted(() => {
 
         <ul v-else-if="activeTab === 'playlists' && playlists && playlists.length > 0" class="spotify-list">
           <li v-for="playlist in playlists" :key="playlist.id" class="spotify-playlist-row">
-            <button type="button" class="spotify-track-link" @click="openUrl(playlist.url)">
+            <button type="button" class="spotify-track-link" @click="safeOpenUrl(playlist.url)">
               <img v-if="playlist.imageUrl" :src="playlist.imageUrl" alt="" class="spotify-cover" />
               <span class="spotify-track-meta">
                 <span class="spotify-track-name">{{ playlist.name }}</span>
@@ -240,7 +287,7 @@ onUnmounted(() => {
 
         <ul v-else-if="activeTab === 'recent' && recent && recent.length > 0" class="spotify-list">
           <li v-for="item in recent" :key="`${item.track.id}-${item.playedAt}`" class="spotify-track-row">
-            <button type="button" class="spotify-track-link" @click="openUrl(item.track.url)">
+            <button type="button" class="spotify-track-link" @click="safeOpenUrl(item.track.url)">
               <img v-if="item.track.imageUrl" :src="item.track.imageUrl" alt="" class="spotify-cover" />
               <span class="spotify-track-meta">
                 <span class="spotify-track-name">{{ item.track.name }}</span>
@@ -252,7 +299,7 @@ onUnmounted(() => {
         <p v-else-if="activeTab === 'recent'" class="spotify-empty">{{ t.emptyRecent }}</p>
 
         <div v-else-if="activeTab === 'nowPlaying' && nowPlaying" class="spotify-now-playing">
-          <button type="button" class="spotify-track-link" @click="openUrl(nowPlaying.url)">
+          <button type="button" class="spotify-track-link" @click="safeOpenUrl(nowPlaying.url)">
             <img v-if="nowPlaying.imageUrl" :src="nowPlaying.imageUrl" alt="" class="spotify-now-cover" />
             <span class="spotify-track-meta">
               <span class="spotify-track-name">{{ nowPlaying.name }}</span>
@@ -363,11 +410,16 @@ onUnmounted(() => {
   justify-content: center;
   padding: 2rem;
 }
+.spotify-tab-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 1rem;
+}
 .spotify-tabs {
   display: flex;
   gap: 0.25rem;
-  border-bottom: 1px solid #e5e7eb;
-  margin-bottom: 1rem;
+  flex: 1;
 }
 .spotify-tab {
   background: none;
@@ -385,12 +437,12 @@ onUnmounted(() => {
   font-weight: 500;
 }
 .spotify-refresh {
-  margin-left: auto;
   background: none;
   border: none;
   color: #6b7280;
   cursor: pointer;
   font-size: 0.75rem;
+  padding: 0 0.5rem;
 }
 .spotify-list {
   list-style: none;

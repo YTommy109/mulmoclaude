@@ -283,7 +283,20 @@ export default definePlugin((pluginRuntime) => {
   }
 
   async function handleConfigure(args: { clientId: string }) {
-    const config: SpotifyClientConfig = { clientId: args.clientId.trim() };
+    const trimmed = args.clientId.trim();
+    // Schema guarantees `min(1)` on the input, but trimming can
+    // collapse whitespace-only strings to length 0 (CodeRabbit
+    // review on PR #1166). Reject so we never persist a useless
+    // Client ID that would silently break OAuth on the next
+    // `connect` attempt.
+    if (trimmed.length === 0) {
+      return {
+        ok: false,
+        error: "invalid_client_id",
+        message: "Client ID が空です。Spotify Developer Dashboard からコピーした文字列を貼り付けてください。",
+      };
+    }
+    const config: SpotifyClientConfig = { clientId: trimmed };
     await writeClientConfig(files.config, config);
     log.info("client id configured");
     return { ok: true, message: "Spotify Client ID を保存しました。" };
@@ -298,7 +311,14 @@ export default definePlugin((pluginRuntime) => {
     const deps = { runtime: pluginRuntime, clientId: ready.clientConfig.clientId, tokens: ready.tokens };
     const result = await invokeListening(kind, args, deps);
     if (!result.ok) return mapClientError(result.error);
-    return { ok: true, data: result.data };
+    // The host MCP bridge passes ONLY `message` + `instructions` back
+    // to the LLM (`data` is rendered in the View). For read kinds the
+    // LLM needs the actual list of tracks / playlists to reason
+    // about, so we mirror the listing into `message` as a compact
+    // text format. Format mirrors what a human would write on a chat
+    // thread; not designed for machine round-tripping (the View has
+    // the structured `data`).
+    return { ok: true, message: summariseListening(kind, result.data), data: result.data };
   }
 
   async function loadCredentials(): Promise<
@@ -350,6 +370,34 @@ async function invokeListening(
     case "nowPlaying":
       return fetchNowPlaying(deps);
   }
+}
+
+/** Build the LLM-facing message string for a listening result.
+ *  The plain text mirrors the View's grid: title + artists, one per
+ *  line. Length-capped per kind so the LLM context window doesn't
+ *  blow up on a 50-track Liked Songs response. */
+function summariseListening(kind: "liked" | "playlists" | "playlistTracks" | "recent" | "nowPlaying", data: unknown): string {
+  if (kind === "nowPlaying") {
+    if (!data || typeof data !== "object" || !("name" in data)) return "Nothing is currently playing.";
+    const track = data as { name: string; artists: string[]; album: string };
+    return `Now playing: ${track.name} — ${track.artists.join(", ")} (${track.album})`;
+  }
+  if (!Array.isArray(data) || data.length === 0) return `No ${kind} items.`;
+  if (kind === "playlists") {
+    const lines = (data as { name: string; trackCount: number }[]).map((p, i) => `${i + 1}. ${p.name} (${p.trackCount} tracks)`);
+    return `Playlists (${data.length}):\n${lines.join("\n")}`;
+  }
+  if (kind === "recent") {
+    const lines = (data as { track: { name: string; artists: string[] }; playedAt: string }[]).map((item, i) => {
+      const when = item.playedAt ? new Date(item.playedAt).toISOString().slice(0, 16).replace("T", " ") : "?";
+      return `${i + 1}. [${when}] ${item.track.name} — ${item.track.artists.join(", ")}`;
+    });
+    return `Recently played (${data.length}):\n${lines.join("\n")}`;
+  }
+  // liked / playlistTracks share the NormalisedTrack[] shape.
+  const lines = (data as { name: string; artists: string[] }[]).map((t, i) => `${i + 1}. ${t.name} — ${t.artists.join(", ")}`);
+  const title = kind === "liked" ? "Liked Songs" : "Playlist tracks";
+  return `${title} (${data.length}):\n${lines.join("\n")}`;
 }
 
 function mapClientError(error: SpotifyClientError) {

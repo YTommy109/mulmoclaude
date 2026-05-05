@@ -53,10 +53,10 @@ function smallestImageUrl(images: unknown): string | undefined {
   return undefined;
 }
 
-function spotifyUrl(externalUrls: unknown): string {
-  if (!isRecord(externalUrls)) return "";
+function spotifyUrl(externalUrls: unknown): string | undefined {
+  if (!isRecord(externalUrls)) return undefined;
   const candidate = (externalUrls as SpotifyExternalUrls).spotify;
-  return typeof candidate === "string" ? candidate : "";
+  return typeof candidate === "string" && candidate.length > 0 ? candidate : undefined;
 }
 
 function artistNames(artists: unknown): string[] {
@@ -75,14 +75,16 @@ export function normaliseTrack(raw: unknown): NormalisedTrack | null {
   if (typeof track.id !== "string" || track.id.length === 0) return null;
   if (typeof track.name !== "string") return null;
   const album = isRecord(track.album) ? (track.album as SpotifyAlbum) : null;
+  const url = spotifyUrl(track.external_urls);
+  const imageUrl = smallestImageUrl(album?.images);
   return {
     id: track.id,
     name: track.name,
     artists: artistNames(track.artists),
     album: typeof album?.name === "string" ? album.name : "",
     durationMs: typeof track.duration_ms === "number" && Number.isFinite(track.duration_ms) ? track.duration_ms : 0,
-    url: spotifyUrl(track.external_urls),
-    imageUrl: smallestImageUrl(album?.images),
+    ...(url !== undefined ? { url } : {}),
+    ...(imageUrl !== undefined ? { imageUrl } : {}),
   };
 }
 
@@ -126,13 +128,15 @@ export function normalisePlaylist(raw: unknown): NormalisedPlaylist | null {
   if (typeof playlist.id !== "string" || playlist.id.length === 0) return null;
   if (typeof playlist.name !== "string") return null;
   const tracks = isRecord(playlist.tracks) ? (playlist.tracks as { total?: unknown }) : null;
+  const url = spotifyUrl(playlist.external_urls);
+  const imageUrl = smallestImageUrl(playlist.images);
   return {
     id: playlist.id,
     name: playlist.name,
     description: typeof playlist.description === "string" ? playlist.description : "",
     trackCount: typeof tracks?.total === "number" && Number.isFinite(tracks.total) ? tracks.total : 0,
-    url: spotifyUrl(playlist.external_urls),
-    imageUrl: smallestImageUrl(playlist.images),
+    ...(url !== undefined ? { url } : {}),
+    ...(imageUrl !== undefined ? { imageUrl } : {}),
   };
 }
 

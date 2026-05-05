@@ -9,7 +9,10 @@ const MESSAGES = { en, ja } as const;
 type LocaleKey = keyof typeof MESSAGES;
 
 function isSupportedLocale(value: string): value is LocaleKey {
-  return value in MESSAGES;
+  // `in` walks the prototype chain so `"toString" in MESSAGES`
+  // would return true. Use the own-property check to avoid
+  // accidentally accepting inherited `Object.prototype` keys.
+  return Object.prototype.hasOwnProperty.call(MESSAGES, value);
 }
 
 export function useT() {

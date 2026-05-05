@@ -50,15 +50,27 @@ describe("normaliseTrack", () => {
 
   it("survives missing optional fields with sensible defaults", () => {
     const result = normaliseTrack({ id: "x", name: "Y" });
+    // `url` and `imageUrl` are omitted (not undefined-stamped) when
+    // the corresponding Spotify fields are absent, so View click
+    // handlers can guard with `v-if="track.url"` instead of having
+    // to test for the empty-string sentinel.
     assert.deepEqual(result, {
       id: "x",
       name: "Y",
       artists: [],
       album: "",
       durationMs: 0,
-      url: "",
-      imageUrl: undefined,
     });
+  });
+
+  it("omits `url` when external_urls.spotify is missing (rather than empty-string sentinel)", () => {
+    const result = normaliseTrack({ id: "x", name: "Y" });
+    assert.equal("url" in (result as object), false);
+  });
+
+  it("omits `url` when external_urls.spotify is the empty string", () => {
+    const result = normaliseTrack({ id: "x", name: "Y", external_urls: { spotify: "" } });
+    assert.equal("url" in (result as object), false);
   });
 
   it("drops anonymous artists (missing name)", () => {

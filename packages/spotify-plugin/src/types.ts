@@ -56,8 +56,11 @@ export interface NormalisedTrack {
   album: string;
   durationMs: number;
   /** Spotify Web URL — the View uses `runtime.openUrl(track.url)`
-   *  to open the track in the user's Spotify client. */
-  url: string;
+   *  to open the track in the user's Spotify client. Optional
+   *  because locally-uploaded tracks and podcast episodes carry no
+   *  `external_urls.spotify`; the View must guard the click handler
+   *  against an undefined value. */
+  url?: string;
   /** Cover-art URL (smallest available). Optional: tracks under
    *  podcasts / locally-uploaded files don't carry album art. */
   imageUrl?: string;
@@ -69,7 +72,8 @@ export interface NormalisedPlaylist {
   /** Author-provided description; empty string when absent. */
   description: string;
   trackCount: number;
-  url: string;
+  /** Optional for the same reason as NormalisedTrack.url. */
+  url?: string;
   imageUrl?: string;
 }
 

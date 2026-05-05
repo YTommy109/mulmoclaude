@@ -23,9 +23,15 @@ const t = useT();
 
 const summary = computed<string>(() => {
   const result = props.selectedResult;
-  if (!result.ok) return result.message ?? t.value.notConnected;
+  // `ok` is optional on the props (selectedResult is whatever the
+  // last tool call returned) — only treat an explicit `false` as
+  // failure. An undefined `ok` typically means "no call yet" or
+  // "non-listening kind whose response we don't recognise"; fall
+  // through to the generic summary instead of misrendering as an
+  // error (Sourcery review on PR #1166).
+  if (result.ok === false) return result.message ?? t.value.notConnected;
   const data = result.data;
-  if (Array.isArray(data)) return `${data.length} ${t.value.tracksCount}`;
+  if (Array.isArray(data)) return summariseArray(data);
   if (data === null) return t.value.emptyNowPlaying;
   if (data && typeof data === "object" && "connected" in data) {
     return data.connected ? t.value.connected : data.clientIdConfigured ? t.value.notConnected : t.value.notConfigured;
@@ -35,6 +41,17 @@ const summary = computed<string>(() => {
   }
   return t.value.previewSummary;
 });
+
+// Different listening kinds carry different element shapes; pick the
+// label that matches the array's element type so a 5-playlist result
+// doesn't read as "5 tracks" (CodeRabbit review on PR #1166).
+function summariseArray(data: NormalisedTrack[] | NormalisedPlaylist[] | RecentlyPlayedItem[]): string {
+  if (data.length === 0) return t.value.empty;
+  const head = data[0];
+  if ("trackCount" in head) return `${data.length} ${t.value.tabPlaylists}`;
+  if ("playedAt" in head) return `${data.length} ${t.value.tabRecent}`;
+  return `${data.length} ${t.value.tracksCount}`;
+}
 </script>
 
 <template>
