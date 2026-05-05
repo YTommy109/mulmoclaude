@@ -6,7 +6,16 @@
 // The validator is exported so tests can pin every accept/reject
 // case.
 
+import { builtinModules } from "node:module";
+
 const MAX_LENGTH = 214; // npm spec — total length including scope
+
+// Names npm itself rejects on publish — guarding here so the user
+// doesn't get a clean scaffold and then hit a publish failure later.
+// Sources: validate-npm-package-name's blacklist + builtinModules.
+// Scoped names are exempt (npm allows `@scope/http`); we only check
+// the unscoped path.
+const RESERVED_NAMES = new Set<string>(["node_modules", "favicon.ico", ...builtinModules]);
 
 function isSegmentChar(char: string): boolean {
   return (char >= "a" && char <= "z") || (char >= "0" && char <= "9") || char === "." || char === "_" || char === "-";
@@ -64,12 +73,13 @@ function validateScoped(raw: string): ValidationResult {
 function validateUnscoped(raw: string): ValidationResult {
   if (raw.startsWith(".") || raw.startsWith("_")) return reject("name must not start with `.` or `_`");
   if (!isValidSegment(raw)) return reject(`invalid name: ${raw}`);
+  if (RESERVED_NAMES.has(raw)) return reject(`name is reserved (npm/Node built-in): ${raw}`);
   return OK_RESULT;
 }
 
 // Extract the directory name from a package name. For unscoped names
 // this is the name itself; for scoped names we use the local part so
-// `npx create-mulmoclaude-plugin @example/foo` lands in `foo/`, whichar
+// `npx create-mulmoclaude-plugin @example/foo` lands in `foo/`, which
 // is what `npm init` and friends do too.
 export function directoryNameFor(packageName: string): string {
   if (packageName.startsWith("@")) {

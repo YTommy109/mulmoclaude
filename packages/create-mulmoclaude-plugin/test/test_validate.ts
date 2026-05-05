@@ -58,6 +58,24 @@ describe("validatePluginName — rejects malformed inputs", () => {
     assert.equal(validatePluginName("foo$bar").ok, false);
     assert.equal(validatePluginName("with/slash").ok, false);
   });
+
+  it("rejects npm-reserved names that would fail at publish time", () => {
+    assert.equal(validatePluginName("node_modules").ok, false);
+    assert.equal(validatePluginName("favicon.ico").ok, false);
+  });
+
+  it("rejects Node built-in module names", () => {
+    // builtinModules tracks per-Node-version; pick a few known stable ones
+    assert.equal(validatePluginName("http").ok, false);
+    assert.equal(validatePluginName("fs").ok, false);
+    assert.equal(validatePluginName("crypto").ok, false);
+    assert.equal(validatePluginName("path").ok, false);
+  });
+
+  it("still accepts the same names when scoped (npm permits @scope/http)", () => {
+    assert.equal(validatePluginName("@example/http").ok, true);
+    assert.equal(validatePluginName("@example/node_modules").ok, true);
+  });
 });
 
 describe("directoryNameFor", () => {
