@@ -363,7 +363,20 @@ onUnmounted(() => {
              user's submit. -->
         <template v-else-if="activeTab === 'search'">
           <form class="spotify-search-form" @submit.prevent="runSearch">
-            <input v-model="searchQuery" :placeholder="t.searchPlaceholder" class="spotify-input" type="search" autocomplete="off" :disabled="isSearching" />
+            <!-- A placeholder is not an accessible name (it disappears on
+                 input). Pair the input with an explicit aria-label so
+                 screen readers always announce the control regardless
+                 of whether the user has typed anything yet (Codex
+                 review on PR #1168). -->
+            <input
+              v-model="searchQuery"
+              :placeholder="t.searchPlaceholder"
+              :aria-label="t.searchPlaceholder"
+              class="spotify-input"
+              type="search"
+              autocomplete="off"
+              :disabled="isSearching"
+            />
             <button type="submit" class="spotify-btn-primary" :disabled="isSearching || searchQuery.trim().length === 0">
               {{ isSearching ? t.loading : t.searchSubmit }}
             </button>
