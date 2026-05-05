@@ -20,6 +20,7 @@ const LOG_PREFIX = "plugins/registry";
 
 let registry: RuntimePlugin[] = [];
 let toolNameIndex = new Map<string, RuntimePlugin>();
+let oauthAliasIndex = new Map<string, RuntimePlugin>();
 
 export interface RegisterResult {
   /** Plugins that landed in the registry. */
@@ -27,6 +28,11 @@ export interface RegisterResult {
   /** Plugins skipped because their tool name collides with a static
    *  built-in or an earlier-loaded runtime plugin. */
   collisions: { plugin: RuntimePlugin; reason: "static" | "runtime"; existingTool: string }[];
+  /** OAuth callback aliases dropped because two plugins claim the
+   *  same one. The first-registered plugin keeps the alias; later
+   *  collisions are logged and skipped (the plugin itself still
+   *  loads — only its OAuth route is unavailable). */
+  oauthAliasCollisions: { plugin: RuntimePlugin; alias: string; existingPlugin: string }[];
 }
 
 /** Replace the registry with the given runtime plugins, applying the
@@ -37,7 +43,9 @@ export interface RegisterResult {
 export function registerRuntimePlugins(staticToolNames: ReadonlySet<string>, plugins: readonly RuntimePlugin[]): RegisterResult {
   const registered: RuntimePlugin[] = [];
   const collisions: RegisterResult["collisions"] = [];
+  const oauthAliasCollisions: RegisterResult["oauthAliasCollisions"] = [];
   const seen = new Map<string, RuntimePlugin>();
+  const oauthAliases = new Map<string, RuntimePlugin>();
   for (const plugin of plugins) {
     const toolName = plugin.definition.name;
     if (staticToolNames.has(toolName)) {
@@ -60,10 +68,24 @@ export function registerRuntimePlugins(staticToolNames: ReadonlySet<string>, plu
     }
     seen.set(toolName, plugin);
     registered.push(plugin);
+    if (plugin.oauthCallbackAlias !== null) {
+      const existingAliasOwner = oauthAliases.get(plugin.oauthCallbackAlias);
+      if (existingAliasOwner) {
+        oauthAliasCollisions.push({ plugin, alias: plugin.oauthCallbackAlias, existingPlugin: existingAliasOwner.name });
+        log.warn(LOG_PREFIX, "skipping OAuth callback alias — already claimed by another runtime plugin", {
+          plugin: plugin.name,
+          alias: plugin.oauthCallbackAlias,
+          existingPlugin: existingAliasOwner.name,
+        });
+        continue;
+      }
+      oauthAliases.set(plugin.oauthCallbackAlias, plugin);
+    }
   }
   registry = registered;
   toolNameIndex = seen;
-  return { registered, collisions };
+  oauthAliasIndex = oauthAliases;
+  return { registered, collisions, oauthAliasCollisions };
 }
 
 export function getRuntimePlugins(): readonly RuntimePlugin[] {
@@ -74,6 +96,10 @@ export function getRuntimePluginByToolName(toolName: string): RuntimePlugin | nu
   return toolNameIndex.get(toolName) ?? null;
 }
 
+export function getRuntimePluginByOauthAlias(alias: string): RuntimePlugin | null {
+  return oauthAliasIndex.get(alias) ?? null;
+}
+
 export function getRuntimeToolDefinitions(): readonly ToolDefinition[] {
   return registry.map((entry) => entry.definition);
 }
@@ -82,4 +108,5 @@ export function getRuntimeToolDefinitions(): readonly ToolDefinition[] {
 export function _resetRuntimeRegistryForTest(): void {
   registry = [];
   toolNameIndex = new Map();
+  oauthAliasIndex = new Map();
 }
