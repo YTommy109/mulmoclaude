@@ -10,7 +10,12 @@ import { computed } from "vue";
 import { useT } from "./lang";
 import type { NormalisedPlaylist, NormalisedTrack, RecentlyPlayedItem } from "./types";
 
-interface Props {
+// Exported because `vite-plugin-dts` rolls Preview into
+// `dist/vue.d.ts` via the `plugin = { previewComponent: Preview }`
+// re-export in `vue.ts`. Without `export`, the inferred component
+// type names this interface as a type the public surface can't see
+// → TS4023 (same fix bookmarks-plugin's View.vue carries).
+export interface Props {
   selectedResult: {
     ok?: boolean;
     data?: NormalisedTrack[] | NormalisedPlaylist[] | RecentlyPlayedItem[] | NormalisedTrack | null | { connected?: boolean; clientIdConfigured?: boolean };
