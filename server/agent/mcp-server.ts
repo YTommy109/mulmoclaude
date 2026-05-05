@@ -416,12 +416,23 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   const res = await postJson(tool.endpoint, args, { timeoutMs: PLUGIN_BRIDGE_TIMEOUT_MS });
   const result = await res.json();
 
-  // Push visual ToolResult to the frontend via the session
-  await postJson(API_ROUTES.agent.internal.toolResult, {
-    toolName: name,
-    uuid: makeUuid(),
-    ...result,
-  });
+  // Push visual ToolResult to the frontend via the session — but only
+  // when the handler set `data` (the GUI's preview-eligibility signal,
+  // see `src/utils/tools/sidebarVisible.ts`). Narrate-only actions
+  // (e.g. accounting `getReport`, `getBooks`) deliberately omit `data`
+  // and behave like a plain MCP tool call: the LLM gets `message` /
+  // `instructions` via the return value below, and nothing lands in
+  // the session's `toolResults` or its on-disk JSONL log. Skipping the
+  // POST keeps the session log clean and avoids the prior bug where a
+  // hidden tool_result during a run could trap canvas selection on a
+  // stale prior-turn card.
+  if (result && typeof result === "object" && (result as { data?: unknown }).data !== undefined) {
+    await postJson(API_ROUTES.agent.internal.toolResult, {
+      toolName: name,
+      uuid: makeUuid(),
+      ...result,
+    });
+  }
 
   const parts = [result.message, result.instructions].filter(Boolean);
   return parts.length > 0 ? parts.join("\n") : "Done";
