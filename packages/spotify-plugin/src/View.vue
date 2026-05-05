@@ -199,6 +199,15 @@ function formatDuration(ms: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+// Spotify can return all four categories as empty arrays for a query
+// that has no hits in any of them. Without an explicit empty-state
+// the View renders a blank box (Codex review on PR #1168).
+const searchResultIsEmpty = computed(() => {
+  const result = searchResult.value;
+  if (!result) return false;
+  return !(result.tracks?.length || result.artists?.length || result.albums?.length || result.playlists?.length);
+});
+
 const expiryDisplay = computed(() => {
   if (!status.value?.expiresAt) return "";
   try {
@@ -360,9 +369,10 @@ onUnmounted(() => {
             </button>
           </form>
 
-          <div v-if="searchResult" class="spotify-search-results">
+          <div v-if="searchResult && searchResultIsEmpty" class="spotify-empty">{{ t.searchEmpty }}</div>
+          <div v-else-if="searchResult" class="spotify-search-results">
             <section v-if="searchResult.tracks && searchResult.tracks.length > 0" class="spotify-search-section">
-              <h3>{{ t.tabLiked }}</h3>
+              <h3>{{ t.searchTracks }}</h3>
               <ul class="spotify-list">
                 <li v-for="track in searchResult.tracks" :key="`t-${track.id}`" class="spotify-track-row">
                   <button type="button" class="spotify-track-link" @click="safeOpenUrl(track.url)">
@@ -407,7 +417,7 @@ onUnmounted(() => {
             </section>
 
             <section v-if="searchResult.playlists && searchResult.playlists.length > 0" class="spotify-search-section">
-              <h3>{{ t.tabPlaylists }}</h3>
+              <h3>{{ t.searchPlaylists }}</h3>
               <ul class="spotify-list">
                 <li v-for="playlist in searchResult.playlists" :key="`p-${playlist.id}`" class="spotify-playlist-row">
                   <button type="button" class="spotify-track-link" @click="safeOpenUrl(playlist.url)">

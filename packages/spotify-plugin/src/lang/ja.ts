@@ -29,8 +29,11 @@ export default {
   searchPlaceholder: "曲・アーティスト・アルバム・プレイリストを検索",
   searchSubmit: "検索",
   searchHint: "クエリを入力して検索を押してください。",
+  searchEmpty: "ヒットなし。",
+  searchTracks: "曲",
   searchArtists: "アーティスト",
   searchAlbums: "アルバム",
+  searchPlaylists: "プレイリスト",
 
   empty: "表示する項目がありません。",
   emptyLiked: "Liked Songs がありません。",

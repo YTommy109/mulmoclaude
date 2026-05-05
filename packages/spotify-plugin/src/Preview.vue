@@ -66,11 +66,11 @@ function isSearchResult(value: object): value is SearchResult {
 
 function summariseSearchResult(result: SearchResult): string {
   const parts: string[] = [];
-  if (result.tracks?.length) parts.push(`${result.tracks.length} ${t.value.tracksCount}`);
+  if (result.tracks?.length) parts.push(`${result.tracks.length} ${t.value.searchTracks}`);
   if (result.artists?.length) parts.push(`${result.artists.length} ${t.value.searchArtists}`);
   if (result.albums?.length) parts.push(`${result.albums.length} ${t.value.searchAlbums}`);
-  if (result.playlists?.length) parts.push(`${result.playlists.length} ${t.value.tabPlaylists}`);
-  return parts.length > 0 ? parts.join(" · ") : t.value.empty;
+  if (result.playlists?.length) parts.push(`${result.playlists.length} ${t.value.searchPlaylists}`);
+  return parts.length > 0 ? parts.join(" · ") : t.value.searchEmpty;
 }
 
 // Different listening kinds carry different element shapes; pick the
