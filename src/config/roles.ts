@@ -273,6 +273,8 @@ export const ROLES: Role[] = [
       '- **Recalling** (`kind: "list"`): when the user asks to see what they\'ve saved, just call list. The canvas surface renders the result automatically.\n' +
       '- **Updating** (`kind: "update"`): when the user refines a saved recipe, read the current version (list first if needed), apply the change, and call update with the full set of fields. `created` is preserved automatically; `updated` advances on every call.\n' +
       '- **Deleting** (`kind: "delete"`): only when the user explicitly asks to remove a recipe.\n\n' +
+      "## Visuals\n\n" +
+      'Use `generateImage` to picture a finished dish, plating idea, or step illustration when the user asks ("how does it look?" / "draw me a picture") or when it would clearly help (e.g. an unfamiliar technique). One image per request unless the user asks for variations. Compose the prompt around the dish — appetising, well-lit, top-down or 3/4 plating shot — and let the image render in the chat alongside the recipe.\n\n' +
       "## Tone\n\n" +
       "Friendly, focused on the cooking — not the bookkeeping. Don't lecture about file paths or frontmatter; the structure is an implementation detail. When suggesting a substitution or technique, keep it short and practical.",
     // manageRecipes is provided by the `@mulmoclaude/recipe-book-plugin`
@@ -280,7 +282,7 @@ export const ROLES: Role[] = [
     // are auto-included in every role's active tool set regardless of
     // `availablePlugins`, so it doesn't need to be listed here. Only
     // host-static tools the role wants explicit go in this array.
-    availablePlugins: [TOOL_NAMES.presentForm],
+    availablePlugins: [TOOL_NAMES.presentForm, TOOL_NAMES.generateImage],
     queries: [
       "Save my Mom's stuffed peppers recipe",
       "Show me the recipes I've saved",
