@@ -31,10 +31,11 @@ export const TOOL_DEFINITION = {
       code: { type: "string" },
       state: { type: "string" },
       error: { type: "string" },
-      // `liked` / `recent` / `playlistTracks`
+      // `liked` / `recent` / `playlistTracks` / `search`
       limit: {
         type: "number",
-        description: "Maximum items to return. Liked / recent: 1-50 (default 50). PlaylistTracks: 1-100 (default 100).",
+        description:
+          "Maximum items to return. Liked / recent / search: 1-50 (default 50 for liked/recent, 10 per category for search). PlaylistTracks: 1-100 (default 100).",
       },
       // `playlistTracks`
       playlistId: {

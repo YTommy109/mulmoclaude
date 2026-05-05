@@ -118,9 +118,15 @@ async function loadNowPlaying(): Promise<void> {
 }
 
 async function loadSearch(): Promise<void> {
-  // Search is the only "tab" without an auto-fetch on activation —
-  // an empty query has nothing to search for. The tab simply renders
-  // whatever the user last submitted.
+  // Search has no auto-fetch on tab activation — there's nothing
+  // to search for until the user types a query. But when this is
+  // reached via `refreshActiveTab()` (Refresh / Retry buttons), we
+  // DO want to re-run the last query if there was one. Otherwise
+  // a transient API error on the previous search is unrecoverable
+  // (Codex review on PR #1168).
+  if (searchQuery.value.trim().length > 0) {
+    await runSearch();
+  }
 }
 
 async function runSearch(): Promise<void> {
