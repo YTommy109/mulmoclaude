@@ -8,7 +8,7 @@
 
 import { computed } from "vue";
 import { useT } from "./lang";
-import type { NormalisedPlaylist, NormalisedTrack, RecentlyPlayedItem } from "./types";
+import type { NormalisedPlaylist, NormalisedTrack, RecentlyPlayedItem, SearchResult } from "./types";
 
 // Exported because `vite-plugin-dts` rolls Preview into
 // `dist/vue.d.ts` via the `plugin = { previewComponent: Preview }`
@@ -18,7 +18,14 @@ import type { NormalisedPlaylist, NormalisedTrack, RecentlyPlayedItem } from "./
 export interface Props {
   selectedResult: {
     ok?: boolean;
-    data?: NormalisedTrack[] | NormalisedPlaylist[] | RecentlyPlayedItem[] | NormalisedTrack | null | { connected?: boolean; clientIdConfigured?: boolean };
+    data?:
+      | NormalisedTrack[]
+      | NormalisedPlaylist[]
+      | RecentlyPlayedItem[]
+      | NormalisedTrack
+      | SearchResult
+      | null
+      | { connected?: boolean; clientIdConfigured?: boolean };
     error?: string;
     message?: string;
   };
@@ -41,11 +48,30 @@ const summary = computed<string>(() => {
   if (data && typeof data === "object" && "connected" in data) {
     return data.connected ? t.value.connected : data.clientIdConfigured ? t.value.notConnected : t.value.notConfigured;
   }
+  // SearchResult is a per-category grouped object — no `name`, no
+  // `connected`. Tally the totals so the chip reads e.g.
+  // "5 tracks · 2 artists".
+  if (data && typeof data === "object" && isSearchResult(data)) {
+    return summariseSearchResult(data);
+  }
   if (data && typeof data === "object" && "name" in data) {
     return (data as NormalisedTrack).name;
   }
   return t.value.previewSummary;
 });
+
+function isSearchResult(value: object): value is SearchResult {
+  return "tracks" in value || "artists" in value || "albums" in value || "playlists" in value;
+}
+
+function summariseSearchResult(result: SearchResult): string {
+  const parts: string[] = [];
+  if (result.tracks?.length) parts.push(`${result.tracks.length} ${t.value.searchTracks}`);
+  if (result.artists?.length) parts.push(`${result.artists.length} ${t.value.searchArtists}`);
+  if (result.albums?.length) parts.push(`${result.albums.length} ${t.value.searchAlbums}`);
+  if (result.playlists?.length) parts.push(`${result.playlists.length} ${t.value.searchPlaylists}`);
+  return parts.length > 0 ? parts.join(" · ") : t.value.searchEmpty;
+}
 
 // Different listening kinds carry different element shapes; pick the
 // label that matches the array's element type so a 5-playlist result

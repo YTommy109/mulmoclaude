@@ -26,8 +26,10 @@ import { DispatchArgsSchema, type DispatchArgs } from "./schemas";
 import { buildAuthorizeUrl, consumePendingAuthorization, deriveCodeChallenge, generateRandomToken, registerPendingAuthorization } from "./oauth";
 import { readClientConfig, readTokens, writeClientConfig, writeTokens } from "./tokens";
 import { ONE_SECOND_MS } from "./time";
-import type { NormalisedDevice, SpotifyClientConfig, SpotifyTokens } from "./types";
+import type { NormalisedDevice, NormalisedPlaylist, NormalisedTrack, SpotifyClientConfig, SpotifyTokens } from "./types";
 import { fetchLiked, fetchNowPlaying, fetchPlaylistTracks, fetchPlaylists, fetchRecent } from "./listening";
+import { searchSpotify } from "./search";
+import { summariseSearch } from "./searchSummary";
 import { clearProfileCache, getProfile, isPremium } from "./profile";
 import { playerGetDevices, playerNext, playerPause, playerPlay, playerPrevious, playerSeek, playerSetVolume, playerTransfer } from "./playback";
 import type { SpotifyClientError } from "./client";
@@ -118,6 +120,8 @@ export default definePlugin((pluginRuntime) => {
           return handleListening("recent", args);
         case "nowPlaying":
           return handleListening("nowPlaying", args);
+        case "search":
+          return handleSearch(args);
         case "play":
         case "pause":
         case "next":
@@ -363,6 +367,15 @@ export default definePlugin((pluginRuntime) => {
     // thread; not designed for machine round-tripping (the View has
     // the structured `data`).
     return { ok: true, message: summariseListening(kind, result.data), data: result.data };
+  }
+
+  async function handleSearch(args: Extract<DispatchArgs, { kind: "search" }>) {
+    const ready = await loadCredentials();
+    if (!ready.ok) return ready.errorResponse;
+    const deps = { runtime: pluginRuntime, clientId: ready.clientConfig.clientId, tokens: ready.tokens };
+    const result = await searchSpotify(deps, args.query, args.types, args.limit);
+    if (!result.ok) return mapClientError(result.error);
+    return { ok: true, message: summariseSearch(args.query, result.data), data: result.data };
   }
 
   async function handlePlayer(args: Extract<DispatchArgs, { kind: PlayerKind }>) {

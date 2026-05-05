@@ -20,6 +20,7 @@ export const SPOTIFY_KINDS = {
   playlistTracks: "playlistTracks",
   recent: "recent",
   nowPlaying: "nowPlaying",
+  search: "search",
   // Player Controls (PR 3). All except `getDevices` require the
   // user to have Spotify Premium — the plugin gates them at the
   // dispatch boundary by reading `/v1/me/{product}` and refusing
@@ -33,6 +34,12 @@ export const SPOTIFY_KINDS = {
   transferPlayback: "transferPlayback",
   getDevices: "getDevices",
 } as const;
+
+/** Categories the `search` kind may include. Spotify's `/v1/search`
+ *  accepts these four; centralising the list lets `definition.ts`
+ *  reuse the same source for the JSON-schema enum (no drift between
+ *  Zod and the LLM-facing schema). */
+export const SEARCH_TYPES = ["track", "artist", "album", "playlist"] as const;
 
 /** Kinds the LLM is allowed to invoke directly (= advertised in
  *  `TOOL_DEFINITION.parameters.kind.enum`). `configure` is omitted
@@ -49,6 +56,7 @@ export const LLM_CALLABLE_KINDS = [
   SPOTIFY_KINDS.playlistTracks,
   SPOTIFY_KINDS.recent,
   SPOTIFY_KINDS.nowPlaying,
+  SPOTIFY_KINDS.search,
   SPOTIFY_KINDS.play,
   SPOTIFY_KINDS.pause,
   SPOTIFY_KINDS.next,
@@ -140,6 +148,25 @@ export const DispatchArgsSchema = z.discriminatedUnion("kind", [
     limit: z.number().int().min(1).max(50).optional(),
   }),
   z.object({ kind: z.literal(SPOTIFY_KINDS.nowPlaying) }),
+  z.object({
+    kind: z.literal(SPOTIFY_KINDS.search),
+    /** Free-form query — Spotify supports field filters
+     *  (`artist:Bach`, `year:2020`) and quoted phrases. `.trim()`
+     *  before `min(1)` so a whitespace-only query (like `"   "`)
+     *  fails validation here instead of slipping through to
+     *  Spotify and coming back as a 4xx (Codex review on
+     *  PR #1168). */
+    query: z.string().trim().min(1).max(200),
+    /** Categories to include. Spotify's `/v1/search` accepts
+     *  `track`, `artist`, `album`, `playlist`. Default is all four
+     *  so a casual `manageSpotify({ kind: "search", query })` from
+     *  the LLM gets a useful spread without needing to specify. */
+    types: z.array(z.enum(SEARCH_TYPES)).min(1).max(SEARCH_TYPES.length).optional(),
+    /** 1-50, default 10 (per category). Lower than the listening
+     *  kinds because search results are more diverse + the LLM
+     *  context window holds N results × M categories. */
+    limit: z.number().int().min(1).max(50).optional(),
+  }),
   z.object({
     kind: z.literal(SPOTIFY_KINDS.play),
     /** Optional: target a specific device. Defaults to the user's

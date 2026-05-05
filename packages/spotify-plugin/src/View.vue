@@ -15,7 +15,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRuntime } from "gui-chat-protocol/vue";
 import { useT } from "./lang";
-import type { NormalisedDevice, NormalisedPlaylist, NormalisedTrack, RecentlyPlayedItem } from "./types";
+import type { NormalisedDevice, NormalisedPlaylist, NormalisedTrack, RecentlyPlayedItem, SearchResult } from "./types";
 
 interface StatusData {
   clientIdConfigured: boolean;
@@ -31,7 +31,7 @@ interface StatusResponse {
   data: StatusData;
 }
 
-type Tab = "liked" | "playlists" | "recent" | "nowPlaying";
+type Tab = "liked" | "playlists" | "recent" | "nowPlaying" | "search";
 
 const { dispatch, openUrl, pubsub, log } = useRuntime();
 const t = useT();
@@ -42,6 +42,9 @@ const liked = ref<NormalisedTrack[] | null>(null);
 const playlists = ref<NormalisedPlaylist[] | null>(null);
 const recent = ref<RecentlyPlayedItem[] | null>(null);
 const nowPlaying = ref<NormalisedTrack | null | undefined>(undefined);
+const searchQuery = ref("");
+const searchResult = ref<SearchResult | null>(null);
+const isSearching = ref(false);
 const tabError = ref<string | null>(null);
 const isLoadingTab = ref(false);
 
@@ -154,29 +157,66 @@ async function loadNowPlaying(): Promise<void> {
   void loadDevices();
 }
 
+async function loadSearch(): Promise<void> {
+  // Search has no auto-fetch on tab activation — there's nothing
+  // to search for until the user types a query. But when this is
+  // reached via `refreshActiveTab()` (Refresh / Retry buttons), we
+  // DO want to re-run the last query if there was one. Otherwise
+  // a transient API error on the previous search is unrecoverable
+  // (Codex review on PR #1168).
+  if (searchQuery.value.trim().length > 0) {
+    await runSearch();
+  }
+}
+
+async function runSearch(): Promise<void> {
+  const query = searchQuery.value.trim();
+  if (query.length === 0) return;
+  isSearching.value = true;
+  tabError.value = null;
+  try {
+    const response = await dispatch<{ ok: boolean; data?: SearchResult; message?: string }>({ kind: "search", query });
+    if (response.ok && response.data) searchResult.value = response.data;
+    else tabError.value = response.message ?? t.value.loadFailed;
+  } catch (err) {
+    tabError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    isSearching.value = false;
+  }
+}
+
 const TAB_LOADERS: Record<Tab, () => Promise<void>> = {
   liked: loadLiked,
   playlists: loadPlaylists,
   recent: loadRecent,
   nowPlaying: loadNowPlaying,
+  search: loadSearch,
 };
 
 function tabIsCached(tab: Tab): boolean {
   if (tab === "liked") return liked.value !== null;
   if (tab === "playlists") return playlists.value !== null;
   if (tab === "recent") return recent.value !== null;
-  return nowPlaying.value !== undefined;
+  if (tab === "nowPlaying") return nowPlaying.value !== undefined;
+  // Search tab is always "cached" — its content is driven by the
+  // input box, not by tab activation.
+  return true;
 }
 
 async function loadActiveTab(force = false): Promise<void> {
   if (!status.value?.connected) return;
+  // Always clear an inherited error from a previous tab BEFORE the
+  // cache-hit early-return — otherwise switching from a tab whose
+  // last load failed onto a cached/never-loads tab (notably Search,
+  // whose tabIsCached is always true) leaves the prior error message
+  // floating over unrelated content (Codex review on PR #1168).
+  tabError.value = null;
   // Cache hit on tab switch — header comment promises lazy loading,
   // so a click on a tab whose data is already loaded must NOT
   // re-dispatch (CodeRabbit + Sourcery review on PR #1166).
   // Refresh button passes force=true to bypass.
   if (!force && tabIsCached(activeTab.value)) return;
   isLoadingTab.value = true;
-  tabError.value = null;
   try {
     await TAB_LOADERS[activeTab.value]();
   } catch (err) {
@@ -259,6 +299,15 @@ function formatDuration(ms: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+// Spotify can return all four categories as empty arrays for a query
+// that has no hits in any of them. Without an explicit empty-state
+// the View renders a blank box (Codex review on PR #1168).
+const searchResultIsEmpty = computed(() => {
+  const result = searchResult.value;
+  if (!result) return false;
+  return !(result.tracks?.length || result.artists?.length || result.albums?.length || result.playlists?.length);
+});
+
 const expiryDisplay = computed(() => {
   if (!status.value?.expiresAt) return "";
   try {
@@ -335,7 +384,7 @@ onUnmounted(() => {
       <div class="spotify-tab-row">
         <nav class="spotify-tabs" role="tablist">
           <button
-            v-for="tab in ['liked', 'playlists', 'recent', 'nowPlaying'] as const"
+            v-for="tab in ['liked', 'playlists', 'recent', 'nowPlaying', 'search'] as const"
             :key="tab"
             type="button"
             role="tab"
@@ -343,10 +392,20 @@ onUnmounted(() => {
             :class="['spotify-tab', { 'spotify-tab-active': activeTab === tab }]"
             @click="selectTab(tab)"
           >
-            {{ tab === "liked" ? t.tabLiked : tab === "playlists" ? t.tabPlaylists : tab === "recent" ? t.tabRecent : t.tabNowPlaying }}
+            {{
+              tab === "liked"
+                ? t.tabLiked
+                : tab === "playlists"
+                  ? t.tabPlaylists
+                  : tab === "recent"
+                    ? t.tabRecent
+                    : tab === "nowPlaying"
+                      ? t.tabNowPlaying
+                      : t.tabSearch
+            }}
           </button>
         </nav>
-        <button type="button" class="spotify-refresh" @click="refreshActiveTab">{{ t.refresh }}</button>
+        <button v-if="activeTab !== 'search'" type="button" class="spotify-refresh" @click="refreshActiveTab">{{ t.refresh }}</button>
       </div>
 
       <div class="spotify-content">
@@ -456,6 +515,97 @@ onUnmounted(() => {
               </li>
             </ul>
           </section>
+        </template>
+
+        <!-- Search panel: input + grouped results. Unlike the other
+             tabs, no auto-fetch on tab activation — driven by the
+             user's submit. -->
+        <template v-else-if="activeTab === 'search'">
+          <form class="spotify-search-form" @submit.prevent="runSearch">
+            <!-- A placeholder is not an accessible name (it disappears on
+                 input). Pair the input with an explicit aria-label so
+                 screen readers always announce the control regardless
+                 of whether the user has typed anything yet (Codex
+                 review on PR #1168). -->
+            <input
+              v-model="searchQuery"
+              :placeholder="t.searchPlaceholder"
+              :aria-label="t.searchPlaceholder"
+              class="spotify-input"
+              type="search"
+              autocomplete="off"
+              :disabled="isSearching"
+            />
+            <button type="submit" class="spotify-btn-primary" :disabled="isSearching || searchQuery.trim().length === 0">
+              {{ isSearching ? t.loading : t.searchSubmit }}
+            </button>
+          </form>
+
+          <div v-if="searchResult && searchResultIsEmpty" class="spotify-empty">{{ t.searchEmpty }}</div>
+          <div v-else-if="searchResult" class="spotify-search-results">
+            <section v-if="searchResult.tracks && searchResult.tracks.length > 0" class="spotify-search-section">
+              <h3>{{ t.searchTracks }}</h3>
+              <ul class="spotify-list">
+                <li v-for="track in searchResult.tracks" :key="`t-${track.id}`" class="spotify-track-row">
+                  <button type="button" class="spotify-track-link" @click="safeOpenUrl(track.url)">
+                    <img v-if="track.imageUrl" :src="track.imageUrl" alt="" class="spotify-cover" />
+                    <span class="spotify-track-meta">
+                      <span class="spotify-track-name">{{ track.name }}</span>
+                      <span class="spotify-track-artists">{{ t.trackBy }} {{ track.artists.join(", ") }}</span>
+                    </span>
+                  </button>
+                </li>
+              </ul>
+            </section>
+
+            <section v-if="searchResult.artists && searchResult.artists.length > 0" class="spotify-search-section">
+              <h3>{{ t.searchArtists }}</h3>
+              <ul class="spotify-list">
+                <li v-for="artist in searchResult.artists" :key="`a-${artist.id}`" class="spotify-track-row">
+                  <button type="button" class="spotify-track-link" @click="safeOpenUrl(artist.url)">
+                    <img v-if="artist.imageUrl" :src="artist.imageUrl" alt="" class="spotify-cover" />
+                    <span class="spotify-track-meta">
+                      <span class="spotify-track-name">{{ artist.name }}</span>
+                      <span v-if="artist.genres.length > 0" class="spotify-track-artists">{{ artist.genres.slice(0, 3).join(", ") }}</span>
+                    </span>
+                  </button>
+                </li>
+              </ul>
+            </section>
+
+            <section v-if="searchResult.albums && searchResult.albums.length > 0" class="spotify-search-section">
+              <h3>{{ t.searchAlbums }}</h3>
+              <ul class="spotify-list">
+                <li v-for="album in searchResult.albums" :key="`al-${album.id}`" class="spotify-track-row">
+                  <button type="button" class="spotify-track-link" @click="safeOpenUrl(album.url)">
+                    <img v-if="album.imageUrl" :src="album.imageUrl" alt="" class="spotify-cover" />
+                    <span class="spotify-track-meta">
+                      <span class="spotify-track-name">{{ album.name }}</span>
+                      <span class="spotify-track-artists">
+                        {{ album.artists.join(", ") }}<template v-if="album.releaseDate"> · {{ album.releaseDate.slice(0, 4) }}</template>
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              </ul>
+            </section>
+
+            <section v-if="searchResult.playlists && searchResult.playlists.length > 0" class="spotify-search-section">
+              <h3>{{ t.searchPlaylists }}</h3>
+              <ul class="spotify-list">
+                <li v-for="playlist in searchResult.playlists" :key="`p-${playlist.id}`" class="spotify-playlist-row">
+                  <button type="button" class="spotify-track-link" @click="safeOpenUrl(playlist.url)">
+                    <img v-if="playlist.imageUrl" :src="playlist.imageUrl" alt="" class="spotify-cover" />
+                    <span class="spotify-track-meta">
+                      <span class="spotify-track-name">{{ playlist.name }}</span>
+                      <span class="spotify-track-artists">{{ playlist.trackCount }} {{ t.tracksCount }}</span>
+                    </span>
+                  </button>
+                </li>
+              </ul>
+            </section>
+          </div>
+          <p v-else class="spotify-empty">{{ t.searchHint }}</p>
         </template>
       </div>
     </div>
@@ -678,6 +828,25 @@ onUnmounted(() => {
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
   padding: 1rem;
+}
+.spotify-search-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.spotify-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.spotify-search-section h3 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #6b7280;
+  margin: 0 0 0.25rem;
+  padding: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 .spotify-player,
 .spotify-player-locked,
