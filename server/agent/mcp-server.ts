@@ -63,6 +63,22 @@ interface ToolDef {
   endpoint?: string;
 }
 
+// Shape returned by a plugin endpoint dispatch. Only `data` /
+// `message` / `instructions` are read by the bridge; other fields
+// (title, jsonData, action, etc.) flow through to the frontend
+// untouched. `toolName` / `uuid` are listed so the post-spread
+// override in `handleToolCall` is type-checked rather than relying
+// on object-shape coincidence — the bridge always re-asserts them
+// from its own state.
+interface PluginResultEnvelope {
+  data?: unknown;
+  message?: unknown;
+  instructions?: unknown;
+  toolName?: unknown;
+  uuid?: unknown;
+  [key: string]: unknown;
+}
+
 // Combine `description` (one-liner) and `prompt` (detailed usage
 // instructions) into the MCP tool description so Claude CLI sees
 // both. The MCP protocol only has `description` — there's no
@@ -414,7 +430,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   // for the slowest realistic completion — see PLUGIN_BRIDGE_TIMEOUT_MS
   // and the timeout-policy comment on `postJson`.
   const res = await postJson(tool.endpoint, args, { timeoutMs: PLUGIN_BRIDGE_TIMEOUT_MS });
-  const result = await res.json();
+  const result = ((await res.json()) ?? {}) as PluginResultEnvelope;
 
   // Push visual ToolResult to the frontend via the session — but only
   // when the handler set `data` (the GUI's preview-eligibility signal,
@@ -426,11 +442,15 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   // POST keeps the session log clean and avoids the prior bug where a
   // hidden tool_result during a run could trap canvas selection on a
   // stale prior-turn card.
-  if (result && typeof result === "object" && (result as { data?: unknown }).data !== undefined) {
+  if (result.data !== undefined) {
+    // Spread `result` first so the bridge's own `toolName` and `uuid`
+    // are authoritative — a plugin handler that (intentionally or
+    // accidentally) returned those keys can't impersonate a different
+    // tool or collide on uuid.
     await postJson(API_ROUTES.agent.internal.toolResult, {
+      ...result,
       toolName: name,
       uuid: makeUuid(),
-      ...result,
     });
   }
 
