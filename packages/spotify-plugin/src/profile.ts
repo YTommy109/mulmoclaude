@@ -27,6 +27,7 @@ const PROFILE_TTL_MS = 24 * 60 * 60 * ONE_SECOND_MS;
 const PREMIUM_PRODUCT = "premium";
 
 interface RawProfile {
+  id?: unknown;
   product?: unknown;
   display_name?: unknown;
 }
@@ -46,6 +47,11 @@ export async function readProfile(files: FileOps): Promise<SpotifyProfile | null
     if (typeof parsed.product !== "string") return null;
     if (typeof parsed.fetchedAtMs !== "number" || !Number.isFinite(parsed.fetchedAtMs)) return null;
     return {
+      // userId may be missing from caches written before the
+      // account-scoping fix landed; treat as empty so a
+      // reconnect-then-replay doesn't trip the equality check
+      // until the next /v1/me round-trip refreshes it.
+      userId: typeof parsed.userId === "string" ? parsed.userId : "",
       product: parsed.product,
       displayName: typeof parsed.displayName === "string" ? parsed.displayName : "",
       fetchedAtMs: parsed.fetchedAtMs,
@@ -65,7 +71,14 @@ function isCacheFresh(profile: SpotifyProfile, now: Date): boolean {
 
 /** Get the cached profile if fresh; otherwise fetch + persist a
  *  new snapshot. On API failure with a stale cache we keep the
- *  stale value (better than locking the user out). */
+ *  stale value (better than locking the user out — a network blip
+ *  shouldn't break playback).
+ *
+ *  Account scoping: cache is invalidated by `clearProfileCache`
+ *  whenever new tokens are written (i.e. after `oauthCallback`),
+ *  so reconnecting with a different Spotify account starts with a
+ *  fresh fetch and never serves the previous account's `product`
+ *  (Codex review on PR #1171). */
 export async function getProfile(deps: ProfileDeps): Promise<{ ok: true; profile: SpotifyProfile } | { ok: false; error: SpotifyClientError }> {
   const now = deps.now ?? (() => new Date());
   const cached = await readProfile(deps.runtime.files.config);
@@ -86,10 +99,11 @@ async function fetchProfile(deps: ProfileDeps): Promise<{ ok: true; profile: Spo
   const result = await spotifyApi<RawProfile>(deps.runtime, deps.clientId, deps.tokens, "GET", "/v1/me", {}, deps.now);
   if (!result.ok) return result;
   const raw = result.data;
+  const userId = typeof raw.id === "string" ? raw.id : "";
   const product = typeof raw.product === "string" ? raw.product : "free";
   const displayName = typeof raw.display_name === "string" ? raw.display_name : "";
   const now = deps.now ?? (() => new Date());
-  return { ok: true, profile: { product, displayName, fetchedAtMs: now().getTime() } };
+  return { ok: true, profile: { userId, product, displayName, fetchedAtMs: now().getTime() } };
 }
 
 export function isPremium(profile: SpotifyProfile): boolean {

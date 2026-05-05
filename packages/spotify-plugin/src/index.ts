@@ -28,7 +28,7 @@ import { readClientConfig, readTokens, writeClientConfig, writeTokens } from "./
 import { ONE_SECOND_MS } from "./time";
 import type { NormalisedDevice, SpotifyClientConfig, SpotifyTokens } from "./types";
 import { fetchLiked, fetchNowPlaying, fetchPlaylistTracks, fetchPlaylists, fetchRecent } from "./listening";
-import { getProfile, isPremium } from "./profile";
+import { clearProfileCache, getProfile, isPremium } from "./profile";
 import { playerGetDevices, playerNext, playerPause, playerPlay, playerPrevious, playerSeek, playerSetVolume, playerTransfer } from "./playback";
 import type { SpotifyClientError } from "./client";
 
@@ -215,6 +215,12 @@ export default definePlugin((pluginRuntime) => {
         redirectUri: pending.redirectUri,
       });
       await writeTokens(files.config, tokens);
+      // Invalidate the profile cache: a fresh Connect may be a
+      // different Spotify account, so the previous user's `product`
+      // must not leak through the 24h TTL (Codex review on PR
+      // #1171). The next `getProfile` call will fetch the new
+      // user's snapshot.
+      await clearProfileCache(files.config);
       pubsub.publish("connected", { scopes: tokens.scopes });
       log.info("tokens written", { scopes: tokens.scopes });
       return {
@@ -360,6 +366,17 @@ export default definePlugin((pluginRuntime) => {
   }
 
   async function handlePlayer(args: Extract<DispatchArgs, { kind: PlayerKind }>) {
+    // Spotify's `/v1/me/player/play` 400s if a body carries both
+    // `context_uri` and `uris[]`. Catching this here (since we
+    // can't .refine() inside a discriminatedUnion arm) gives a
+    // clean error instead of a confusing 4xx from Spotify.
+    if (args.kind === "play" && args.contextUri && args.trackUris) {
+      return {
+        ok: false,
+        error: "invalid_args",
+        message: "play: `contextUri` と `trackUris` は同時に指定できません。どちらか一方を選んでください。",
+      };
+    }
     const ready = await loadCredentials();
     if (!ready.ok) return ready.errorResponse;
     const deps = { runtime: pluginRuntime, clientId: ready.clientConfig.clientId, tokens: ready.tokens };

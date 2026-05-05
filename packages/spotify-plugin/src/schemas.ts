@@ -146,12 +146,15 @@ export const DispatchArgsSchema = z.discriminatedUnion("kind", [
      *  active device. */
     deviceId: z.string().min(1).max(128).optional(),
     /** Optional: a Spotify URI for an album / playlist / artist
-     *  context to play (e.g. `spotify:playlist:abc123`). */
+     *  context to play (e.g. `spotify:playlist:abc123`). Mutually
+     *  exclusive with `trackUris` — the dispatcher in `index.ts`
+     *  rejects when both are set, because Zod's
+     *  `discriminatedUnion` doesn't accept refined arms (refining
+     *  this arm would corrupt the kind discriminator). */
     contextUri: z.string().min(1).max(256).optional(),
     /** Optional: explicit list of track URIs to queue
      *  (`spotify:track:abc123`). Mutually exclusive with
-     *  `contextUri` per Spotify's API rules — Spotify rejects a
-     *  body containing both. */
+     *  `contextUri` (see comment above). */
     trackUris: z.array(z.string().min(1).max(256)).min(1).max(100).optional(),
   }),
   z.object({

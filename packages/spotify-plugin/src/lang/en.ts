@@ -47,4 +47,8 @@ export default {
   devices: "Devices",
   deviceActive: "active",
   transferToDevice: "Transfer here",
+  btnPrevious: "Previous track",
+  btnPause: "Pause",
+  btnPlay: "Play",
+  btnNext: "Next track",
 } as const;

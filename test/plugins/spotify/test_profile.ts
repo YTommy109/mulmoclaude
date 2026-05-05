@@ -164,9 +164,9 @@ describe("getProfile — corrupted cache", () => {
 
 describe("isPremium discriminator", () => {
   it("returns true only for product === 'premium'", () => {
-    assert.equal(isPremium({ product: "premium", displayName: "", fetchedAtMs: 0 }), true);
-    assert.equal(isPremium({ product: "free", displayName: "", fetchedAtMs: 0 }), false);
-    assert.equal(isPremium({ product: "open", displayName: "", fetchedAtMs: 0 }), false);
-    assert.equal(isPremium({ product: "PREMIUM", displayName: "", fetchedAtMs: 0 }), false); // case-sensitive
+    assert.equal(isPremium({ userId: "u", product: "premium", displayName: "", fetchedAtMs: 0 }), true);
+    assert.equal(isPremium({ userId: "u", product: "free", displayName: "", fetchedAtMs: 0 }), false);
+    assert.equal(isPremium({ userId: "u", product: "open", displayName: "", fetchedAtMs: 0 }), false);
+    assert.equal(isPremium({ userId: "u", product: "PREMIUM", displayName: "", fetchedAtMs: 0 }), false); // case-sensitive
   });
 });

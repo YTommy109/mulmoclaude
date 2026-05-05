@@ -48,4 +48,8 @@ export default {
   devices: "デバイス",
   deviceActive: "アクティブ",
   transferToDevice: "ここに移す",
+  btnPrevious: "前の曲",
+  btnPause: "一時停止",
+  btnPlay: "再生",
+  btnNext: "次の曲",
 } as const;

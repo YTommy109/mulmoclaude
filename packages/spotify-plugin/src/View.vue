@@ -383,10 +383,10 @@ onUnmounted(() => {
           <section v-else-if="status?.isPremium === true" class="spotify-player">
             <h3>{{ t.playerControls }}</h3>
             <div class="spotify-player-buttons">
-              <button type="button" class="spotify-player-btn" :disabled="isPlayerBusy" @click="playerPrevious">⏮</button>
-              <button type="button" class="spotify-player-btn" :disabled="isPlayerBusy" @click="playerPause">⏸</button>
-              <button type="button" class="spotify-player-btn" :disabled="isPlayerBusy" @click="playerPlay">▶</button>
-              <button type="button" class="spotify-player-btn" :disabled="isPlayerBusy" @click="playerNext">⏭</button>
+              <button type="button" class="spotify-player-btn" :aria-label="t.btnPrevious" :disabled="isPlayerBusy" @click="playerPrevious">⏮</button>
+              <button type="button" class="spotify-player-btn" :aria-label="t.btnPause" :disabled="isPlayerBusy" @click="playerPause">⏸</button>
+              <button type="button" class="spotify-player-btn" :aria-label="t.btnPlay" :disabled="isPlayerBusy" @click="playerPlay">▶</button>
+              <button type="button" class="spotify-player-btn" :aria-label="t.btnNext" :disabled="isPlayerBusy" @click="playerNext">⏭</button>
             </div>
             <div class="spotify-player-volume">
               <label for="spotify-volume">{{ t.volume }}: {{ volumeInput }}</label>

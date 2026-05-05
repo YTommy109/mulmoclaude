@@ -105,6 +105,12 @@ export interface NormalisedDevice {
  *  upgrading from Free → Premium sees controls within ~24h
  *  without manually reconnecting. */
 export interface SpotifyProfile {
+  /** Spotify user ID (`/v1/me`'s `id` field). Bound to the cache
+   *  so reconnecting with a different Spotify account doesn't
+   *  serve the previous account's `product` for the rest of the
+   *  TTL — Codex review on PR #1171. Empty string for cache
+   *  records persisted before the account-scoping fix landed. */
+  userId: string;
   /** "premium" / "free" / "open" (open is a legacy free-tier
    *  marker Spotify still emits for some accounts). */
   product: string;
