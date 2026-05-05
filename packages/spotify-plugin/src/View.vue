@@ -189,7 +189,7 @@ onUnmounted(() => {
     </section>
 
     <!-- Connected: tabs + content -->
-    <template v-else-if="status?.connected">
+    <div v-else-if="status?.connected" class="spotify-connected">
       <nav class="spotify-tabs" role="tablist">
         <button
           v-for="tab in ['liked', 'playlists', 'recent', 'nowPlaying'] as const"
@@ -205,73 +205,98 @@ onUnmounted(() => {
         <button type="button" class="spotify-refresh" @click="loadActiveTab">{{ t.refresh }}</button>
       </nav>
 
-      <p v-if="isLoadingTab" class="spotify-loading">{{ t.loading }}</p>
-      <p v-else-if="tabError" class="spotify-error">
-        {{ tabError }} <button class="spotify-retry" @click="loadActiveTab">{{ t.retry }}</button>
-      </p>
+      <div class="spotify-content">
+        <p v-if="isLoadingTab" class="spotify-loading">{{ t.loading }}</p>
+        <p v-else-if="tabError" class="spotify-error">
+          {{ tabError }} <button class="spotify-retry" @click="loadActiveTab">{{ t.retry }}</button>
+        </p>
 
-      <ul v-else-if="activeTab === 'liked' && liked && liked.length > 0" class="spotify-list">
-        <li v-for="track in liked" :key="track.id" class="spotify-track-row">
-          <button type="button" class="spotify-track-link" @click="openUrl(track.url)">
-            <img v-if="track.imageUrl" :src="track.imageUrl" alt="" class="spotify-cover" />
+        <ul v-else-if="activeTab === 'liked' && liked && liked.length > 0" class="spotify-list">
+          <li v-for="track in liked" :key="track.id" class="spotify-track-row">
+            <button type="button" class="spotify-track-link" @click="openUrl(track.url)">
+              <img v-if="track.imageUrl" :src="track.imageUrl" alt="" class="spotify-cover" />
+              <span class="spotify-track-meta">
+                <span class="spotify-track-name">{{ track.name }}</span>
+                <span class="spotify-track-artists">{{ t.trackBy }} {{ track.artists.join(", ") }}</span>
+              </span>
+              <span class="spotify-track-duration">{{ formatDuration(track.durationMs) }}</span>
+            </button>
+          </li>
+        </ul>
+        <p v-else-if="activeTab === 'liked'" class="spotify-empty">{{ t.emptyLiked }}</p>
+
+        <ul v-else-if="activeTab === 'playlists' && playlists && playlists.length > 0" class="spotify-list">
+          <li v-for="playlist in playlists" :key="playlist.id" class="spotify-playlist-row">
+            <button type="button" class="spotify-track-link" @click="openUrl(playlist.url)">
+              <img v-if="playlist.imageUrl" :src="playlist.imageUrl" alt="" class="spotify-cover" />
+              <span class="spotify-track-meta">
+                <span class="spotify-track-name">{{ playlist.name }}</span>
+                <span class="spotify-track-artists">{{ playlist.trackCount }} {{ t.tracksCount }}</span>
+              </span>
+            </button>
+          </li>
+        </ul>
+        <p v-else-if="activeTab === 'playlists'" class="spotify-empty">{{ t.emptyPlaylists }}</p>
+
+        <ul v-else-if="activeTab === 'recent' && recent && recent.length > 0" class="spotify-list">
+          <li v-for="item in recent" :key="`${item.track.id}-${item.playedAt}`" class="spotify-track-row">
+            <button type="button" class="spotify-track-link" @click="openUrl(item.track.url)">
+              <img v-if="item.track.imageUrl" :src="item.track.imageUrl" alt="" class="spotify-cover" />
+              <span class="spotify-track-meta">
+                <span class="spotify-track-name">{{ item.track.name }}</span>
+                <span class="spotify-track-artists">{{ t.trackBy }} {{ item.track.artists.join(", ") }}</span>
+              </span>
+            </button>
+          </li>
+        </ul>
+        <p v-else-if="activeTab === 'recent'" class="spotify-empty">{{ t.emptyRecent }}</p>
+
+        <div v-else-if="activeTab === 'nowPlaying' && nowPlaying" class="spotify-now-playing">
+          <button type="button" class="spotify-track-link" @click="openUrl(nowPlaying.url)">
+            <img v-if="nowPlaying.imageUrl" :src="nowPlaying.imageUrl" alt="" class="spotify-now-cover" />
             <span class="spotify-track-meta">
-              <span class="spotify-track-name">{{ track.name }}</span>
-              <span class="spotify-track-artists">{{ t.trackBy }} {{ track.artists.join(", ") }}</span>
-            </span>
-            <span class="spotify-track-duration">{{ formatDuration(track.durationMs) }}</span>
-          </button>
-        </li>
-      </ul>
-      <p v-else-if="activeTab === 'liked'" class="spotify-empty">{{ t.emptyLiked }}</p>
-
-      <ul v-else-if="activeTab === 'playlists' && playlists && playlists.length > 0" class="spotify-list">
-        <li v-for="playlist in playlists" :key="playlist.id" class="spotify-playlist-row">
-          <button type="button" class="spotify-track-link" @click="openUrl(playlist.url)">
-            <img v-if="playlist.imageUrl" :src="playlist.imageUrl" alt="" class="spotify-cover" />
-            <span class="spotify-track-meta">
-              <span class="spotify-track-name">{{ playlist.name }}</span>
-              <span class="spotify-track-artists">{{ playlist.trackCount }} {{ t.tracksCount }}</span>
+              <span class="spotify-track-name">{{ nowPlaying.name }}</span>
+              <span class="spotify-track-artists">{{ t.trackBy }} {{ nowPlaying.artists.join(", ") }}</span>
+              <span class="spotify-track-album">{{ nowPlaying.album }}</span>
             </span>
           </button>
-        </li>
-      </ul>
-      <p v-else-if="activeTab === 'playlists'" class="spotify-empty">{{ t.emptyPlaylists }}</p>
-
-      <ul v-else-if="activeTab === 'recent' && recent && recent.length > 0" class="spotify-list">
-        <li v-for="item in recent" :key="`${item.track.id}-${item.playedAt}`" class="spotify-track-row">
-          <button type="button" class="spotify-track-link" @click="openUrl(item.track.url)">
-            <img v-if="item.track.imageUrl" :src="item.track.imageUrl" alt="" class="spotify-cover" />
-            <span class="spotify-track-meta">
-              <span class="spotify-track-name">{{ item.track.name }}</span>
-              <span class="spotify-track-artists">{{ t.trackBy }} {{ item.track.artists.join(", ") }}</span>
-            </span>
-          </button>
-        </li>
-      </ul>
-      <p v-else-if="activeTab === 'recent'" class="spotify-empty">{{ t.emptyRecent }}</p>
-
-      <div v-else-if="activeTab === 'nowPlaying' && nowPlaying" class="spotify-now-playing">
-        <button type="button" class="spotify-track-link" @click="openUrl(nowPlaying.url)">
-          <img v-if="nowPlaying.imageUrl" :src="nowPlaying.imageUrl" alt="" class="spotify-now-cover" />
-          <span class="spotify-track-meta">
-            <span class="spotify-track-name">{{ nowPlaying.name }}</span>
-            <span class="spotify-track-artists">{{ t.trackBy }} {{ nowPlaying.artists.join(", ") }}</span>
-            <span class="spotify-track-album">{{ nowPlaying.album }}</span>
-          </span>
-        </button>
+        </div>
+        <p v-else-if="activeTab === 'nowPlaying'" class="spotify-empty">{{ t.emptyNowPlaying }}</p>
       </div>
-      <p v-else-if="activeTab === 'nowPlaying'" class="spotify-empty">{{ t.emptyNowPlaying }}</p>
-    </template>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .spotify-view {
+  /* `h-full + flex column` so the content area can take the
+   * remaining vertical space and scroll, instead of overflowing
+   * into the host's chrome below. Same shape as todo-plugin's
+   * View. */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   padding: 1rem;
   font-family:
     system-ui,
     -apple-system,
     sans-serif;
+  /* Critical: a flex child whose intrinsic content is taller than
+   * its allotted space won't shrink unless `min-height: 0`. Without
+   * this the scrollable content area's `overflow: auto` is ignored
+   * and the parent grows past the canvas. */
+  min-height: 0;
+}
+.spotify-connected {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.spotify-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 .spotify-header h2 {
   font-size: 1.25rem;
