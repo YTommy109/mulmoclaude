@@ -64,6 +64,22 @@ This matches the plugin-vs-host boundary in `CLAUDE.md`: host owns generic infra
 
 The current model is sufficient for "your scheduled task just finished" but cannot carry the weight of "you usually need 3 weeks to gather tax documents."
 
+### Three notification types — three lifecycle shapes
+
+Plugins fire notifications that fall into one of three shapes. The Notifier carries `kind` on every payload so the panel UI and the lifecycle close-event branch correctly.
+
+```ts
+type NotifierKind = "fyi" | "read" | "action";
+```
+
+| Kind | Example | Has body content? | Closes when… |
+|---|---|---|---|
+| `fyi` | "Backup completed" | No | User acknowledges (button or bulk-checkbox in panel) |
+| `read` | "Daily news digest is ready" | Yes — content lives at a deep-link target | User clicks the row → navigated to target → close fires automatically |
+| `action` | "Pay H2 property tax" | Yes — plugin-owned page with custom UX | Plugin calls `notifier.clear(id)` when the underlying state change happens |
+
+Key implication for `action`: the close call belongs in the **plugin's domain logic, not the panel click handler**. If the user submits the journal entry via chat without ever opening the bell, the reminder must still clear. The deep-link click is just convenience routing; it does not by itself satisfy the notification.
+
 ### Target shape — `Notifier`
 
 A generic engine in `server/notifier/` that any plugin can consume.
@@ -71,37 +87,67 @@ A generic engine in `server/notifier/` that any plugin can consume.
 #### Core API (server-side, called by plugins)
 
 ```ts
-// Schedule a reminder identified by a plugin-owned ID.
-// Re-calling with the same id replaces the existing schedule
+// Schedule a notification identified by a plugin-owned ID.
+// Re-calling with the same id replaces the existing entry
 // (idempotent — plugins can re-derive on every state change).
 notifier.schedule({
   id: "encore:taxes:2026:lead-6w",
   pluginPkg: "encore",
+  kind: "fyi" | "read" | "action",
   severity: "info" | "nudge" | "urgent",
   firesAt: ISO8601,
   payload: { titleKey, bodyKey, action },
-  // Re-surface policy: if user has not acted by `firesAt + N`,
-  // bump severity and fire again. `null` disables re-surface.
+  // Re-surface policy: if not acted by `firesAt + N`,
+  // bump severity and fire again. `null` disables.
+  // Only meaningful for `read` and `action`; `fyi` ignores.
   resurface: { afterMs, escalateTo: "nudge" } | null,
   // Snooze-condition handle: when the plugin emits a signal
-  // matching this key, the reminder un-snoozes (replace = false)
-  // or fires immediately (replace = true).
+  // matching this key, the reminder un-snoozes.
   snoozeUntilSignal: string | null,
 });
 
-notifier.cancel(id);
+// Two distinct verbs — the audit trail captures the difference:
+notifier.clear(id);     // "the user did the thing" → records `acted`, drops from pending
+notifier.cancel(id);    // "this reminder became irrelevant" → records `cancelled`, no action implied
+
 notifier.snooze(id, { untilTime } | { untilSignal });
-notifier.signal(key);   // plugin-emitted signal — un-snoozes / fires reminders waiting on `key`
+notifier.signal(key);   // plugin-emitted; un-snoozes / fires reminders waiting on `key`
 ```
 
-#### Acknowledgment state machine
+`clear` vs `cancel` is semantically meaningful for the audit trail and for any future "completion-rate" telemetry. UX-wise both reduce the badge count.
+
+#### Lifecycle / state machine
 
 ```
-pending → delivered → seen → { acted | snoozed | dismissed }
-                          ↘ (timeout) → resurface (with severity bump)
+                ┌→ acted   ──→ closed   (notifier.clear OR navigate-and-close for `read`)
+pending → delivered → seen ─→ snoozed ─→ (re-evaluates at untilTime / untilSignal)
+                ↓             ↘ dismissed → closed  (only for `fyi` via acknowledge)
+                └→ resurface (delivered without acted, after re-surface delay)
 ```
 
-`seen` (notification rendered to the user) and `acted` (user clicked through, or plugin reported task progress) are distinct. Re-surface fires off `delivered` without `acted`, not off `seen` without `acted` — otherwise an open bell panel would suppress every escalation.
+- `seen` is "rendered to the user" (panel opened, or toast shown). Re-surface fires off `delivered` without `acted`, **not** off `seen` without `acted` — otherwise an open bell panel would suppress every escalation.
+- For `fyi`: acknowledge transitions directly to `closed` without going through `acted` (no domain action exists to be acted on; acknowledge IS the close).
+- For `read`: navigation triggers `clear` automatically — the panel emits the close on the same tick it routes the user.
+- For `action`: only the plugin can transition to `acted` / `closed`. The panel cannot.
+
+#### Pending count + bell badge semantics
+
+The toolbar bell shows the count of notifications in `delivered` or `seen` state, **excluding** `snoozed`, `cancelled`, and `closed`. This is meaningfully different from today's "unread" count — the badge reflects *outstanding obligations*, not "rows you haven't clicked."
+
+- **Color encodes worst-severity in the queue.** Gray for `info`-only, amber if any `nudge`, red if any `urgent`. One glance answers "is anything on fire?" without opening the panel.
+- **Cap visual at `99+`.** Above 99 the actual number stops mattering — it's a backlog problem, not a counting problem.
+- **Snoozed items don't count.** They were explicitly deferred. They re-enter the count when their snooze expires or their signal fires.
+- **Aggregate, not per-plugin.** One badge on one bell. Per-plugin badges splinter the chrome without saving the user a click.
+
+#### Panel UX per kind
+
+The bell panel stays the surface for all three kinds. Each row's affordance differs by `kind`:
+
+- **`fyi`** — leading checkbox + "Acknowledge selected" button at the panel footer. Click anywhere on the row toggles the checkbox; explicit close-button on the row also acknowledges that single item. Bulk acknowledge is the headline ergonomic — for catch-up sessions where 12 "build finished" rows pile up.
+- **`read`** — row is a hyperlink. Click → close panel → route to `payload.action.target` → close transition fires. Same as today's `NotificationAction.navigate`, just with the auto-close hooked up.
+- **`action`** — row is also a hyperlink and routes to a plugin-owned page; *but* the close is driven by the plugin (`notifier.clear(id)`), not by the click. The deep-link target carries `notificationId` so the plugin page can highlight the relevant item and know which ID to clear when the user completes the action. If the user navigates away without acting, the notification stays pending and re-surfaces on schedule.
+
+`NotificationBell.vue` and `NotificationToast.vue` gain `kind`-aware rendering. New testids: `[notification-row-fyi]`, `[notification-row-read]`, `[notification-row-action]`, `[notification-acknowledge-bulk]`.
 
 #### Severity → channel mapping
 
@@ -117,18 +163,18 @@ Mapping lives in `~/mulmoclaude/config/notifier.json`. Plugins may *request* a c
 
 #### Persistence
 
-Schedules persist to `~/mulmoclaude/data/notifier/scheduled.jsonl` so a restart does not drop pending reminders. State machine transitions append to `~/mulmoclaude/data/notifier/state.jsonl`. Both go through `writeFileAtomic`.
+Schedules persist to `~/mulmoclaude/data/notifier/scheduled.jsonl` so a restart does not drop pending entries. State-machine transitions append to `~/mulmoclaude/data/notifier/state.jsonl` (audit log). Both go through `writeFileAtomic`.
 
 #### Pub-sub events
 
-Two new channels in `src/config/pubsubChannels.ts`:
+New channels in `src/config/pubsubChannels.ts`:
 
-- `notifier:fired` — a scheduled notification just fired. Plugins can subscribe to update progress UI.
-- `notifier:acted` — user clicked through or dismissed. Plugins can use this to mark "done for this instance."
+- `notifier:fired` — a scheduled notification just fired. Subscribers update progress UI.
+- `notifier:closed` — closed via any path (`acted` / `acknowledged` / `dismissed` / `cancelled`); payload includes which path. Plugins use this to mark "done for this instance" or update item status.
 
 #### Notification center
 
-The bell panel becomes a thin client over the new state — same UI, but each row exposes its full lifecycle (snooze button, "remind me again in 1h" picker, link to the originating instance). Existing `NotificationBell.vue` and `NotificationToast.vue` need lifecycle awareness; no testid changes.
+The bell panel becomes a thin client over the new state — same surface, but each row renders per its `kind` (above) and exposes its full lifecycle (snooze button, "remind me again in 1h" picker, link to the originating item). `NotificationBell.vue` and `NotificationToast.vue` need lifecycle + kind awareness; the existing `[notification-badge]` testid stays.
 
 ### What stays
 
@@ -177,8 +223,8 @@ Standard built-in plugin layout under `src/plugins/encore/` — `definition.ts` 
     notes.md                   ← free-form user annotation (Claude reads for context)
     <YYYY>/                    ← one folder per instance
       instance.md              ← status, milestones, resolution
+      items.md                 ← optional: parallel/sequential sub-items (see below)
       attachments/             ← scans, PDFs, screenshots
-      recipients.md            ← (xmas-cards) the list itself
       diff-from-last.md        ← Claude-generated on instance creation
 ```
 
@@ -232,6 +278,82 @@ Why per-file over a single `obligations.json`:
 - Grep-friendly, git-diff-friendly.
 - Carry-forward is "read last year's folder, draft this year's" — a perfect Claude task.
 
+### Multi-item instances
+
+A single instance often involves *multiple sub-items* in two distinct shapes:
+
+- **Fan-out / independent** — Christmas cards to 50 recipients. Each is its own thing; some can be done while others remain. The instance is "done" when (most/all) items are done.
+- **Sequential / pipelined** — a property-tax bill flows through `received → paid → confirmed`. Each item walks the same small pipeline; the *next undone step* is what the user (and the reminder) cares about.
+
+Both are supported by one lightweight construct: an `items` array, where each item has an optional `steps` array. No items, items-without-steps, items-with-steps — pick the shape that fits.
+
+```ts
+type Item = {
+  id: string;          // stable, plugin-owned
+  label: string;       // user-facing
+  status: "pending" | "in-progress" | "done" | "skipped";
+  note?: string;       // free-form
+  steps?: Step[];      // optional sub-pipeline
+};
+
+type Step = {
+  name: string;
+  done: boolean;
+  at?: string;         // ISO date when marked done
+};
+```
+
+For long lists (Christmas-card recipients, large invoice batches) items live in a separate `items.md` to keep `instance.md` readable. For 1–10 items they can sit in the instance frontmatter directly. Either layout is read by the same parser.
+
+#### Example — fan-out: `data/encore/xmas-cards/2026/items.md`
+
+```markdown
+---
+items:
+  - { id: tanaka,  label: "Tanaka family",  status: done,    at: 2026-12-05 }
+  - { id: watson,  label: "Watson family",  status: skipped, note: "moved, no forwarding address" }
+  - { id: lee,     label: "Lee family",     status: pending, note: "new neighbours — get address" }
+  - { id: kimura,  label: "Kimura family",  status: pending }
+---
+```
+
+#### Example — sequential: `data/encore/property-tax/2026/items.md`
+
+```markdown
+---
+items:
+  - id: prop-tax-h1
+    label: "First-half property tax"
+    status: done
+    steps:
+      - { name: received,  done: true, at: 2026-04-10 }
+      - { name: paid,      done: true, at: 2026-04-15 }
+      - { name: confirmed, done: true, at: 2026-04-20 }
+  - id: prop-tax-h2
+    label: "Second-half property tax"
+    status: in-progress
+    steps:
+      - { name: received,  done: true,  at: 2026-10-08 }
+      - { name: paid,      done: false }
+      - { name: confirmed, done: false }
+---
+```
+
+The two existing `instance.md` fields play together cleanly:
+
+- `progress` = milestones for the instance *as a whole* ("draft list," "order cards"). Optional.
+- `items` = the parallel/sequential entities the instance acts on. Optional.
+
+A trivially simple instance (annual physical: just a date and some notes) uses neither. Christmas cards uses both. Property tax uses only `items`.
+
+#### Reminder implications
+
+Item-level granularity makes reminders sharper without complicating the Notifier core:
+
+- **Fan-out**: aggregate signal — "5 of 25 recipients still pending, 7 days to anchor." Encore composes the reminder body; Notifier just delivers it.
+- **Sequential**: per-item reminder targeting the *next undone step* — "property-tax H2 received but not paid; due in 3 days." Each item with a stuck step is its own re-surfacing reminder.
+- Progress-aware suppression extends naturally: percentage-done across items, or "no item has advanced in N days."
+
 ### `manageEncore` actions
 
 Single tool with action dispatch (matches `manageAccounting` / `manageAutomations` / `manageSkills`):
@@ -243,9 +365,12 @@ manageEncore({ action: "listObligations" })
 manageEncore({ action: "openInstance", slug, year })           // creates <slug>/<year>/, copies forward
 manageEncore({ action: "updateInstance", slug, year, patch })  // status, progress, notes
 manageEncore({ action: "closeInstance", slug, year, status: "done" | "skipped" })
-manageEncore({ action: "listUpcoming", withinDays })           // queue across all obligations
+manageEncore({ action: "addItem", slug, year, item })          // append to items[]
+manageEncore({ action: "updateItem", slug, year, itemId, patch })  // status, note, step done/at
+manageEncore({ action: "removeItem", slug, year, itemId })
+manageEncore({ action: "listUpcoming", withinDays })           // queue across all obligations + per-item pending counts
 manageEncore({ action: "diffFromLast", slug, year })           // Claude reads N-1 vs N, summarizes deltas
-manageEncore({ action: "snoozeReminder", slug, year, until })  // proxies to notifier.snooze
+manageEncore({ action: "snoozeReminder", slug, year, itemId?, until })  // proxies to notifier.snooze; itemId scopes to a single item
 ```
 
 `openInstance` is the carry-forward seam: copies last year's `instance.md`, `recipients.md`, etc. into the new year's folder *and* asks Claude to write `diff-from-last.md` highlighting "what to review." This is the magnetic feature.
@@ -284,37 +409,88 @@ The standalone route follows the existing pattern: route registered in `src/rout
 
 ## Phasing
 
-Three PRs, each independently shippable.
+**Order of operations**: Dev-mode scaffolding ships first (PR 1), so the Notifier engine (PR 2) can ship with a real test plugin behind a Debug role rather than an HTTP-only harness or a test plugin that pollutes production roles. Encore (PRs 3 + 4) follows once the engine is proven.
 
-### PR 1 — Notifier upgrade (host)
+### PR 1 — Dev mode + Debug role (host only, no Notifier, no Encore)
 
-Land the engine without any new consumer. Migrate existing call sites to the wrapper (`publishNotification` becomes a thin alias). Persistence, re-surface, ack state, snooze-until-time, severity-based channel routing. No snooze-until-signal yet (no consumer needs it).
+A general-purpose dev-only role gate that any future test plugin can sit behind. Encore needs it; the Notifier test plugin in PR 2 is the first consumer; later infrastructure work (mock LLM provider, fake source fetcher, etc.) can reuse it.
 
-Risk: regression in current notification UX. Test plan: every existing `publishNotification` caller smoke-tested via `/api/notifications/test`, plus E2E coverage of the bell.
+**`DEV_MODE` env flag**:
 
-### PR 2 — Encore plugin (read-only / no reminders)
+- New `.env` entry `DEV_MODE=1` (defaults `0`). Off in production.
+- Server-side: `server/system/env.ts` adds `devMode: asFlag(process.env.DEV_MODE)`.
+- Client-side: mirrored as `VITE_DEV_MODE` so test-plugin module imports tree-shake out of production bundles.
 
-Plugin scaffold: `meta.ts`, `definition.ts`, `index.ts`, `View.vue`, `Preview.vue`. Server: `server/encore/` with file IO + `manageEncore` actions for CRUD, `openInstance`, `diffFromLast`. Standalone `/encore` route. **No notifier integration yet** — proves the data model works in isolation.
+**Debug role**:
 
-### PR 3 — Encore × Notifier integration
+- New entry in `src/config/roles.ts` (id `debug`, name `Debug`, icon `code`). Same prompt and same `availablePlugins` as `general`, plus any test-plugin tool names.
+- `RoleSelector.vue` filters the dropdown — Debug only renders when devMode is true. A new `useSystemConfig()` composable fetches a new lightweight `/api/system/config` endpoint (returning `{ devMode }`) once on boot.
 
-Add reminder scheduling on every state change. Add snooze-until-signal to the Notifier. Wire signal emission from `updateInstance` (`"w2-received"`, `"cards-ordered"`, etc.). Progress-aware suppression. The "magnetic feature" demo: open an instance, see last year's data pre-populated, see the next-action reminder already scheduled.
+**Test-plugin convention**:
+
+- Live under `src/plugins/_<name>/` — underscore prefix mirrors the existing `_extras.ts` / `_generated/` "non-user-facing" marker.
+- Tool names also underscore-prefixed: `_notifierTest`, `_<other>` later.
+- Registration in `src/plugins/metas.ts` wrapped in a `VITE_DEV_MODE`-guarded conditional so production builds don't ship them.
+
+**Test coverage**:
+
+- Unit: `useSystemConfig` returns `{ devMode: false }` when the endpoint reports false; role-list filter excludes Debug accordingly.
+- E2E: with `DEV_MODE=0`, Debug role absent from dropdown; with `DEV_MODE=1`, Debug appears with the General plugin set.
+
+**Acceptance bar**: Debug role appears (when enabled) with the same plugin set as General, no test plugins yet — those land in PR 2 against this scaffold.
+
+### PR 2 — Notifier engine + `_notifierTest` plugin (host only, no Encore)
+
+The engine in `server/notifier/`:
+
+- Three notification kinds (`fyi` / `read` / `action`) with kind-aware lifecycle.
+- `schedule` / `clear` / `cancel` / `snooze` / `signal` API.
+- State machine + persistence (`scheduled.jsonl` + `state.jsonl`).
+- Severity-based channel routing.
+- Snooze-until-time **and** snooze-until-signal (both — needed for the action-kind end-to-end test).
+- Bell badge with pending-count semantics, color-encoded severity, `99+` cap.
+- Panel UX per kind: bulk-acknowledge for `fyi`, click-to-clear for `read`, plugin-owned pages with `notificationId` deep-link param for `action`.
+- Migration: existing `publishNotification()` becomes a thin wrapper over `notifier.schedule({ kind: "fyi", firesAt: now })`. All current callers keep working unchanged.
+
+The exercise harness is `_notifierTest` — a dev-only plugin under `src/plugins/_notifierTest/`, surfaced via the Debug role from PR 1. It's the realistic integration bed: a View with buttons to fire each kind at chosen severity, advance through the lifecycle (mark seen, `clear`, `snooze`, emit `signal`), and inspect persisted state. Because it's a real plugin going through the real registration and dispatch paths, it exercises everything Encore will hit in PR 4.
+
+Test coverage:
+
+- **Unit**: state machine transitions, persistence round-trip, severity → channel mapping, snooze re-evaluation, re-surface timing.
+- **Integration / E2E (Playwright)**: with `DEV_MODE=1`, switch to Debug role, drive each lifecycle from `_notifierTest`'s View and assert against the bell badge + panel. Verify badge count + color updates per kind, panel rendering per kind (`[notification-row-fyi]` checkbox bulk-acknowledge, `[notification-row-read]` click-and-close, `[notification-row-action]` deep-link with notificationId param), restart-survives-pending verified by killing and restarting the dev server mid-test.
+
+Acceptance bar: every state transition reachable from `_notifierTest`, no Encore code in the diff.
+
+Risk: regression in current notification UX. Mitigated by the migration path keeping `publishNotification()` semantics identical.
+
+### PR 3 — Encore plugin (CRUD only, no reminders)
+
+Plugin scaffold: `meta.ts`, `definition.ts`, `index.ts`, `View.vue`, `Preview.vue`. Server: `server/encore/` with file IO + `manageEncore` actions for obligation CRUD, `openInstance`, `addItem` / `updateItem` / `removeItem`, `diffFromLast`. Standalone `/encore` route. **No notifier integration yet** — proves the data model (including multi-item instances) works in isolation.
+
+### PR 4 — Encore × Notifier integration
+
+Encore translates obligation + item state into `notifier.schedule()` calls. All three kinds get exercised: `fyi` for "instance opened" confirmations, `read` for "diff-from-last is ready," `action` for "pay H2 property tax." Wire `notifier.clear()` on `closeInstance` / `updateItem(status: done)`. Wire `notifier.signal()` for domain conditions (`"encore:taxes:w2-received"`). Progress-aware suppression based on item-completion percentage. The "magnetic feature" demo: open an instance, see last year's data pre-populated, see the next-action reminder already scheduled.
 
 ---
 
 ## Open questions
 
-To resolve before PR 1:
+To resolve before PR 1 (Dev mode):
 
-1. **Declarative vs imperative scheduling.** Plan above is *imperative* — plugin computes each fire time and re-registers. A declarative spec ("every Sunday until acked, escalate after 2 weeks") is more powerful but a bigger surface. Imperative matches how `task-scheduler` already works; declarative may be worth it once we see 3+ plugins repeating the same pattern. **Default: imperative for v1.**
-2. **Severity → channel mapping config UI.** Hidden file (`config/notifier.json`) for v1, settings page later? Or settings page from day one? **Default: hidden file for v1, settings UI in a follow-up.**
-3. **Re-surface cap.** A reminder ignored for a week should not fire 50 times. Cap at `escalateAt.length` re-surfaces? Hard ceiling of N per 24h? **Default: re-surface only at the explicit `escalateAt` points; no auto-multiplication.**
-4. **Conflict with `task-scheduler`.** The existing scheduler also fires things on a schedule. Notifier is *user-facing reminders*; scheduler is *task execution*. They may share scheduling primitives internally; they should not share API surfaces. **Default: keep them separate; revisit if duplication becomes painful.**
-5. **i18n surface for Encore.** All 8 locales need the obligation-type vocabulary ("taxes", "registration", "annual physical"). Are these built-in templates the user picks from, or free-form titles the user types? **Default: free-form for v1, suggested templates as a chat-side affordance.**
+1. **`VITE_DEV_MODE` synchronization with `DEV_MODE`.** Single source of truth in `.env` is preferable. Vite reads `.env` natively but only exposes `VITE_`-prefixed vars to the client. Either (a) require both `DEV_MODE=1` and `VITE_DEV_MODE=1`, (b) re-export at vite-config time, or (c) read server-side and surface only via `/api/system/config`. **Default: (b) — vite-config mirrors `DEV_MODE` to `VITE_DEV_MODE` so a single `.env` line drives both.**
 
-To resolve before PR 3:
+To resolve before PR 2 (Notifier):
 
-6. **Signal namespace.** `"encore:taxes:w2-received"` is the obvious shape, but signals are global. Risk of name collision across plugins. **Likely: enforce `<pkg>:` prefix at the Notifier API boundary.**
+2. **Declarative vs imperative scheduling.** Plan above is *imperative* — plugin computes each fire time and re-registers. A declarative spec ("every Sunday until acked, escalate after 2 weeks") is more powerful but a bigger surface. Imperative matches how `task-scheduler` already works; declarative may be worth it once we see 3+ plugins repeating the same pattern. **Default: imperative for v1.**
+3. **Type-1 panel affordance: button or checkbox?** Per-row close-button is simplest; leading checkbox + bulk "Acknowledge selected" wins for catch-up sessions where many `fyi` rows pile up. **Default: leading checkbox (covers both — single-row click still works via the row's own close-`×`).**
+4. **Severity → channel mapping config UI.** Hidden file (`config/notifier.json`) for v1, settings page later? Or settings page from day one? **Default: hidden file for v1, settings UI in a follow-up.**
+5. **Re-surface cap.** A reminder ignored for a week should not fire 50 times. Cap at `escalateAt.length` re-surfaces? Hard ceiling of N per 24h? **Default: re-surface only at the explicit `escalateAt` points; no auto-multiplication.**
+6. **Signal namespace.** `"encore:taxes:w2-received"` is the obvious shape, but signals are global. Risk of name collision across plugins. **Default: enforce `<pluginPkg>:` prefix at the Notifier API boundary.**
+7. **Conflict with `task-scheduler`.** The existing scheduler also fires things on a schedule. Notifier is *user-facing reminders*; scheduler is *task execution*. They may share scheduling primitives internally; they should not share API surfaces. **Default: keep them separate; revisit if duplication becomes painful.**
+
+To resolve before PR 3 (Encore CRUD):
+
+8. **i18n surface for Encore.** All 8 locales need the obligation-type vocabulary ("taxes", "registration", "annual physical"). Are these built-in templates the user picks from, or free-form titles the user types? **Default: free-form for v1, suggested templates as a chat-side affordance.**
 
 ---
 
