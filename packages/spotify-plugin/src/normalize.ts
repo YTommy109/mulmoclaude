@@ -34,7 +34,16 @@ interface SpotifyPlaylist {
   id?: unknown;
   name?: unknown;
   description?: unknown;
+  /** Legacy field — Spotify's older `SimplifiedPlaylistObject`
+   *  carried `tracks: { href, total }` here. Still present on
+   *  individual-playlist endpoints. */
   tracks?: unknown;
+  /** Newer field — `/v1/me/playlists` now returns
+   *  `items: { href, total }` on each playlist (Spotify renamed
+   *  the field 2024-2025 to align with the new
+   *  `/v1/playlists/{id}/items` endpoint that handles tracks
+   *  AND episodes). Read both for forward-compat (#1162 PR 2). */
+  items?: unknown;
   external_urls?: unknown;
   images?: unknown;
 }
@@ -122,19 +131,30 @@ export function normaliseRecentlyPlayed(raw: unknown): RecentlyPlayedItem[] {
   return out;
 }
 
+function readPlaylistTotal(playlist: SpotifyPlaylist): number {
+  // Read the new `items.total` first (current Spotify response
+  // shape), fall back to `tracks.total` for the legacy shape.
+  const candidates = [playlist.items, playlist.tracks];
+  for (const candidate of candidates) {
+    if (!isRecord(candidate)) continue;
+    const total = (candidate as { total?: unknown }).total;
+    if (typeof total === "number" && Number.isFinite(total)) return total;
+  }
+  return 0;
+}
+
 export function normalisePlaylist(raw: unknown): NormalisedPlaylist | null {
   if (!isRecord(raw)) return null;
   const playlist = raw as SpotifyPlaylist;
   if (typeof playlist.id !== "string" || playlist.id.length === 0) return null;
   if (typeof playlist.name !== "string") return null;
-  const tracks = isRecord(playlist.tracks) ? (playlist.tracks as { total?: unknown }) : null;
   const url = spotifyUrl(playlist.external_urls);
   const imageUrl = smallestImageUrl(playlist.images);
   return {
     id: playlist.id,
     name: playlist.name,
     description: typeof playlist.description === "string" ? playlist.description : "",
-    trackCount: typeof tracks?.total === "number" && Number.isFinite(tracks.total) ? tracks.total : 0,
+    trackCount: readPlaylistTotal(playlist),
     ...(url !== undefined ? { url } : {}),
     ...(imageUrl !== undefined ? { imageUrl } : {}),
   };

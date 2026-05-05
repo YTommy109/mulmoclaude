@@ -171,6 +171,34 @@ describe("normalisePlaylist", () => {
     assert.equal(result?.trackCount, 0);
   });
 
+  it("reads `items.total` (current /v1/me/playlists shape) when present", () => {
+    // Spotify renamed `tracks` → `items` on `/v1/me/playlists` in
+    // late 2024 / early 2025 — same `{href, total}` shape, new key.
+    const result = normalisePlaylist({
+      id: "p1",
+      name: "Modern shape",
+      items: { href: "https://api.spotify.com/v1/playlists/p1/items", total: 17 },
+    });
+    assert.equal(result?.trackCount, 17);
+  });
+
+  it("falls back to `tracks.total` when `items` is missing (legacy / individual-playlist endpoints)", () => {
+    const result = normalisePlaylist({ id: "p1", name: "Legacy shape", tracks: { total: 33 } });
+    assert.equal(result?.trackCount, 33);
+  });
+
+  it("prefers `items.total` over `tracks.total` when both are present", () => {
+    // Belt-and-braces: if Spotify ever returns both during a transition
+    // period, the new shape wins — that's what users see in the UI.
+    const result = normalisePlaylist({
+      id: "p1",
+      name: "Both shapes",
+      items: { total: 99 },
+      tracks: { total: 1 },
+    });
+    assert.equal(result?.trackCount, 99);
+  });
+
   it("returns null on missing id / name", () => {
     assert.equal(normalisePlaylist({ name: "no-id" }), null);
     assert.equal(normalisePlaylist({ id: "x" }), null);
