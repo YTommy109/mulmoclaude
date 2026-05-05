@@ -149,7 +149,7 @@ test.describe("media (real LLM)", () => {
     await placeFixtureInWorkspace("mulmo/l04-animation.json", workspaceScriptRel);
     try {
       await startNewSession(page);
-      await sendL03FilePathPrompt(page, wireFilePath);
+      await sendMulmoFilePathPrompt(page, wireFilePath);
       await waitForMulmoScriptViewReady(page);
       await waitForAssistantResponseComplete(page);
       await generateAndDownloadMovieWithTimeout(page, L04_GENERATION_TIMEOUT_MS);
@@ -196,7 +196,7 @@ test.describe("media (real LLM)", () => {
     await placeFixtureInWorkspace("mulmo/l03-two-beat.json", workspaceScriptRel);
     try {
       await startNewSession(page);
-      await sendL03FilePathPrompt(page, wireFilePath);
+      await sendMulmoFilePathPrompt(page, wireFilePath);
       await waitForMulmoScriptViewReady(page);
       await waitForAssistantResponseComplete(page);
       await generateAndDownloadMovieWithTimeout(page, L03_GENERATION_TIMEOUT_MS);
@@ -302,7 +302,7 @@ async function downloadAndAssertPdf(page: Page): Promise<void> {
  * and passed one argument" — both of which are reliable. The
  * fixture itself controls beats / TTS / image type.
  */
-async function sendL03FilePathPrompt(page: Page, workspaceScriptRel: string): Promise<void> {
+async function sendMulmoFilePathPrompt(page: Page, workspaceScriptRel: string): Promise<void> {
   const message = [
     `\`${PRESENT_MULMO_SCRIPT_TOOL}\` ツールに \`filePath: "${workspaceScriptRel}"\` を渡して、 既存スクリプトをそのまま表示してください。`,
     "",

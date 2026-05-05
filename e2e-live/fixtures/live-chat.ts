@@ -213,18 +213,40 @@ function shouldKeepSessions(): boolean {
  */
 const SESSION_IDLE_TIMEOUT_MS = 30_000;
 
+// Probe shape returned by the in-page evaluate. We carry both the
+// HTTP outcome and the session-running flag so the polling site can
+// distinguish "API healthy + session still busy" (retry quietly)
+// from "API failed" (surface as a real assertion failure inside
+// `toPass`, with the offending status / error message in the
+// log). Without this split, a 401/5xx or a network blip silently
+// looks like "session is still running" and the poller waits the
+// full timeout before falling through to the swallowed UI cleanup
+// — exactly the silent failure the original wait was added to fix.
+type SessionIdleProbe = { ok: true; stillRunning: boolean } | { ok: false; reason: string };
+
 async function waitForSessionIdle(page: Page, sessionId: string, timeoutMs: number = SESSION_IDLE_TIMEOUT_MS): Promise<void> {
   await expect(async () => {
-    const stillRunning = await page.evaluate(async (sid) => {
+    const probe: SessionIdleProbe = await page.evaluate(async (sid) => {
       const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
       const token = meta?.getAttribute("content") ?? "";
-      const res = await fetch("/api/sessions", { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) return true;
-      const data = (await res.json()) as { sessions?: { id: string; isRunning?: boolean }[] };
-      const session = data.sessions?.find((row) => row.id === sid);
-      return session?.isRunning === true;
+      try {
+        const res = await fetch("/api/sessions", { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return { ok: false as const, reason: `GET /api/sessions returned HTTP ${res.status} ${res.statusText}` };
+        const data = (await res.json()) as { sessions?: { id: string; isRunning?: boolean }[] };
+        const session = data.sessions?.find((row) => row.id === sid);
+        return { ok: true as const, stillRunning: session?.isRunning === true };
+      } catch (err) {
+        // Network drop / abort / JSON parse throw — anything that
+        // would otherwise surface as an opaque page.evaluate failure
+        // outside `toPass`'s retry semantics. Funnel it back as a
+        // structured failure so the assertion message names the cause.
+        return { ok: false as const, reason: `GET /api/sessions threw: ${err instanceof Error ? err.message : String(err)}` };
+      }
     }, sessionId);
-    expect(stillRunning, `session ${sessionId} should report isRunning=false before delete`).toBe(false);
+    expect(probe.ok, probe.ok ? "session probe ok" : `session probe failed for ${sessionId}: ${probe.reason}`).toBe(true);
+    if (probe.ok) {
+      expect(probe.stillRunning, `session ${sessionId} should report isRunning=false before delete`).toBe(false);
+    }
   }).toPass({ timeout: timeoutMs, intervals: [200, 500, 1000] });
 }
 
