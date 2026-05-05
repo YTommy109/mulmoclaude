@@ -92,36 +92,41 @@ test.describe("session (real LLM)", () => {
       // would point at the wrong root cause.
       expect(getCurrentSessionId(page), "session id must survive a reload before we can probe context").toBe(sessionIdBeforeReload);
 
+      // Scope BOTH the hydration witness and the count probe to
+      // the per-session results list (`tool-results-scroll` —
+      // SessionSidebar.vue:26). Without this scope `getByText`
+      // also matches `session-item-<id>` rows in the global
+      // sidebar history, which hydrate independently of (and
+      // typically faster than) the transcript itself. That class
+      // of race — sidebar present, transcript still in flight —
+      // is exactly what codex iter-3 flagged: baseline sampled
+      // pre-transcript, transcript bubble for turn-1 lands AFTER
+      // the baseline, count goes up by 1 even if the agent never
+      // recalls. Anchoring to a scope that ONLY contains the
+      // active session's transcript closes that path.
+      const transcript = page.locator('[data-testid="tool-results-scroll"]');
       // Pin the baseline AFTER the turn-1 transcript has fully
-      // hydrated. Without this wait `preRecallCodeCount` can land
-      // on 0 (hydration in flight), and any late-arriving turn-1
-      // user-prompt bubble would later push the count up even if
-      // the agent's turn-2 reply contained nothing — which is
-      // exactly the false-positive shape codex iter-2 flagged.
-      // Waiting on the user prompt itself is locale-agnostic
-      // (the app never localises user input) and proves the
-      // transcript carries the code from turn-1 before we measure.
-      await expect(page.getByText(rememberPrompt).first(), "turn-1 transcript must rehydrate before sampling the magic-code baseline").toBeVisible();
-      // Count how many times the magic code appears BEFORE turn 2.
-      // After hydration there is already at least one occurrence
-      // (the user's own turn-1 prompt; the sidebar history preview
-      // typically shows it too). Anchoring the post-recall
-      // assertion to "the count went up" is what makes this an
-      // actual B-16 canary: if the agent fails to recall, its
-      // turn-2 reply won't contain the code and the count stays
-      // flat, even though the page still has the code from turn 1.
-      const preRecallCodeCount = await page.getByText(L12_MAGIC_CODE).count();
+      // hydrated. Waiting on the user prompt is locale-agnostic
+      // (the app never localises user input — same justification
+      // L-11 uses) and proves the in-scope transcript carries
+      // the code from turn-1 before we measure.
+      await expect(
+        transcript.getByText(rememberPrompt).first(),
+        "turn-1 transcript must rehydrate inside [tool-results-scroll] before sampling the magic-code baseline",
+      ).toBeVisible();
+      const preRecallCodeCount = await transcript.getByText(L12_MAGIC_CODE).count();
 
       await sendChatMessage(page, recallPrompt);
       await waitForAssistantResponseComplete(page);
 
       // The recall prompt itself doesn't contain the code, so the
-      // only way for the count to increase is for the assistant to
-      // have echoed it back from turn-1 context. `expect.toPass`
-      // gives the transcript a moment to flush the streamed reply
-      // into the DOM after `thinking-indicator` goes hidden.
+      // only way for the in-transcript count to increase is for
+      // the assistant to have echoed it back from turn-1 context.
+      // `expect.toPass` gives the transcript a moment to flush
+      // the streamed reply into the DOM after `thinking-indicator`
+      // goes hidden.
       await expect(async () => {
-        const postRecallCodeCount = await page.getByText(L12_MAGIC_CODE).count();
+        const postRecallCodeCount = await transcript.getByText(L12_MAGIC_CODE).count();
         expect(postRecallCodeCount, "the agent must echo the magic code from turn-1 — B-16 canary").toBeGreaterThan(preRecallCodeCount);
       }).toPass({ timeout: ONE_MINUTE_MS });
     } finally {
