@@ -1,13 +1,11 @@
-// Tool schema for the Spotify plugin (issue #1162). Lives in its
-// own module so both the server entry (`index.ts`) and the browser
-// entry (`vue.ts`) can import it without dragging in handler code.
+// Tool schema for the Spotify plugin (issue #1162).
 //
-// `name: "manageSpotify" as const` narrows the literal so
-// `definePlugin`'s strict-handler check requires a matching named
-// export. PR 1 ships only the OAuth-flavored kinds (`connect`,
-// `oauthCallback`, `status`, `diagnose`); the listening-data kinds
-// (`liked` / `playlists` / `playlistTracks` / `recent` /
-// `nowPlaying`) land in PR 2.
+// The kinds advertised here are the ones the LLM is expected to
+// invoke. `configure` is intentionally absent from the enum because
+// it's a View-only action (the Configure form posts a plain Client
+// ID through the same dispatch surface, but exposing it to the LLM
+// would invite the model to mutate user secrets). The plugin's Zod
+// `DispatchArgsSchema` still accepts it.
 
 export const TOOL_DEFINITION = {
   type: "function" as const,
@@ -18,15 +16,7 @@ export const TOOL_DEFINITION = {
     properties: {
       kind: {
         type: "string",
-        enum: [
-          "connect",
-          "oauthCallback",
-          "status",
-          "diagnose",
-          // PR 2:
-          // "liked", "playlists", "playlistTracks", "recent",
-          // "nowPlaying",
-        ],
+        enum: ["connect", "oauthCallback", "status", "diagnose", "liked", "playlists", "playlistTracks", "recent", "nowPlaying"],
         description: "Action to perform.",
       },
       // `connect` args
@@ -39,6 +29,16 @@ export const TOOL_DEFINITION = {
       code: { type: "string" },
       state: { type: "string" },
       error: { type: "string" },
+      // `liked` / `recent` / `playlistTracks`
+      limit: {
+        type: "number",
+        description: "Maximum items to return. Liked / recent: 1-50 (default 50). PlaylistTracks: 1-100 (default 100).",
+      },
+      // `playlistTracks`
+      playlistId: {
+        type: "string",
+        description: "Spotify playlist ID (bare ID, not a URI). Obtained from a prior `playlists` response.",
+      },
     },
     required: ["kind"],
   },

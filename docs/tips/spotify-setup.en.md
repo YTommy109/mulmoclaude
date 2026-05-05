@@ -29,11 +29,16 @@ Click **Settings** on your app's page and copy the **Client ID** (you can ignore
 
 ### 3. Hand the Client ID to mulmoclaude
 
-PR 2 will let you paste the Client ID into a "Configure" form in the plugin View. For PR 1 you write the config file directly:
+The simplest path is to paste the Client ID into the "Configure" form in the plugin View — the View writes it to ~/mulmoclaude/config/plugins/%40mulmoclaude%2Fspotify-plugin/client.json for you. If you'd rather write the file directly:
 
 ```bash
-mkdir -p ~/mulmoclaude/config/plugins/@mulmoclaude/spotify-plugin
-cat > ~/mulmoclaude/config/plugins/@mulmoclaude/spotify-plugin/client.json <<'EOF'
+# %40 = '@', %2F = '/' (URL-encoded). `runtime.files.config` runs the
+# package name through `encodeURIComponent` and uses the result as a
+# single directory segment, so the on-disk layout is one level deep
+# under the encoded name — NOT the literal `@scope/name` two-level
+# tree you'd expect from the npm name.
+mkdir -p ~/mulmoclaude/config/plugins/%40mulmoclaude%2Fspotify-plugin
+cat > ~/mulmoclaude/config/plugins/%40mulmoclaude%2Fspotify-plugin/client.json <<'EOF'
 {
   "clientId": "paste-here"
 }
@@ -46,7 +51,7 @@ Restart the server so the plugin picks up `client.json`.
 
 ### 5. Connect
 
-Ask mulmoclaude in chat to "connect Spotify". The LLM calls `manageSpotify({ kind: "connect", redirectUri: "..." })` and gives you the consent URL. Approve, and the authorization persists to `~/mulmoclaude/config/plugins/@mulmoclaude/spotify-plugin/tokens.json` for subsequent API calls.
+Ask mulmoclaude in chat to "connect Spotify". The LLM calls `manageSpotify({ kind: "connect", redirectUri: "..." })` and gives you the consent URL. Approve, and the authorization persists to `~/mulmoclaude/config/plugins/%40mulmoclaude%2Fspotify-plugin/tokens.json` for subsequent API calls.
 
 ## Troubleshooting
 
@@ -66,7 +71,7 @@ If you switch `--port` regularly, register the common ports (3001 / 3099 / etc.)
 
 ### Token expired / connection broken
 
-Delete `~/mulmoclaude/config/plugins/@mulmoclaude/spotify-plugin/tokens.json` and click **Connect Spotify** again. Same recovery for refresh-token rotation, scope changes, or switching Spotify accounts.
+Delete `~/mulmoclaude/config/plugins/%40mulmoclaude%2Fspotify-plugin/tokens.json` and click **Connect Spotify** again. Same recovery for refresh-token rotation, scope changes, or switching Spotify accounts.
 
 ### Is the Client ID safe to expose?
 

@@ -1,0 +1,176 @@
+// Unit tests for the Spotify response normalisers. Pure functions —
+// no runtime / fetch / I/O — so the tests stay focused on the
+// shape-shrinking logic.
+
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  normalisePlaylist,
+  normalisePlaylistList,
+  normaliseRecentlyPlayed,
+  normaliseTrack,
+  normaliseTrackList,
+} from "../../../packages/spotify-plugin/src/normalize.js";
+
+describe("normaliseTrack", () => {
+  it("collapses a full Spotify track to the View-friendly shape", () => {
+    const result = normaliseTrack({
+      id: "abc123",
+      name: "Song",
+      artists: [{ name: "Artist A" }, { name: "Artist B" }],
+      album: { name: "Album X", images: [{ url: "https://i.large.png" }, { url: "https://i.medium.png" }, { url: "https://i.small.png" }] },
+      duration_ms: 234567,
+      external_urls: { spotify: "https://open.spotify.com/track/abc123" },
+    });
+    assert.deepEqual(result, {
+      id: "abc123",
+      name: "Song",
+      artists: ["Artist A", "Artist B"],
+      album: "Album X",
+      durationMs: 234567,
+      url: "https://open.spotify.com/track/abc123",
+      imageUrl: "https://i.small.png", // smallest (last) image wins
+    });
+  });
+
+  it("returns null when id is missing", () => {
+    assert.equal(normaliseTrack({ name: "no id" }), null);
+  });
+
+  it("returns null when name is missing", () => {
+    assert.equal(normaliseTrack({ id: "x" }), null);
+  });
+
+  it("treats non-record input as null", () => {
+    assert.equal(normaliseTrack("not an object"), null);
+    assert.equal(normaliseTrack(null), null);
+    assert.equal(normaliseTrack(undefined), null);
+  });
+
+  it("survives missing optional fields with sensible defaults", () => {
+    const result = normaliseTrack({ id: "x", name: "Y" });
+    assert.deepEqual(result, {
+      id: "x",
+      name: "Y",
+      artists: [],
+      album: "",
+      durationMs: 0,
+      url: "",
+      imageUrl: undefined,
+    });
+  });
+
+  it("drops anonymous artists (missing name)", () => {
+    const result = normaliseTrack({ id: "x", name: "Y", artists: [{ name: "Real" }, {}, { name: "Other" }, { name: 123 }] });
+    assert.deepEqual(result?.artists, ["Real", "Other"]);
+  });
+});
+
+describe("normaliseTrackList", () => {
+  it("walks a paginated `items[]` response and unwraps the `track` field", () => {
+    const result = normaliseTrackList(
+      {
+        items: [{ track: { id: "a", name: "Liked A" } }, { track: { id: "b", name: "Liked B" } }],
+      },
+      "track",
+    );
+    assert.equal(result.length, 2);
+    assert.equal(result[0].id, "a");
+    assert.equal(result[1].name, "Liked B");
+  });
+
+  it("walks `items[]` without a wrapper when trackPath is `self`", () => {
+    const result = normaliseTrackList({ items: [{ id: "p", name: "Direct" }] }, "self");
+    assert.equal(result.length, 1);
+    assert.equal(result[0].id, "p");
+  });
+
+  it("drops items that fail validation rather than crashing the list", () => {
+    const result = normaliseTrackList(
+      {
+        items: [{ track: { id: "ok", name: "Good" } }, { track: { name: "no-id" } }, { track: { id: "no-name" } }],
+      },
+      "track",
+    );
+    assert.equal(result.length, 1);
+    assert.equal(result[0].name, "Good");
+  });
+
+  it("returns [] for non-record inputs", () => {
+    assert.deepEqual(normaliseTrackList(null, "track"), []);
+    assert.deepEqual(normaliseTrackList({}, "track"), []);
+    assert.deepEqual(normaliseTrackList({ items: "not-array" }, "track"), []);
+  });
+});
+
+describe("normaliseRecentlyPlayed", () => {
+  it("preserves the `played_at` timestamp on each entry", () => {
+    const result = normaliseRecentlyPlayed({
+      items: [
+        { track: { id: "a", name: "T1" }, played_at: "2026-05-05T10:00:00.000Z" },
+        { track: { id: "b", name: "T2" }, played_at: "2026-05-05T09:00:00.000Z" },
+      ],
+    });
+    assert.equal(result.length, 2);
+    assert.equal(result[0].playedAt, "2026-05-05T10:00:00.000Z");
+    assert.equal(result[1].track.name, "T2");
+  });
+
+  it("drops entries whose track fails validation", () => {
+    const result = normaliseRecentlyPlayed({
+      items: [
+        { track: { id: "a", name: "OK" }, played_at: "now" },
+        { track: { id: "x" }, played_at: "now" }, // missing name
+      ],
+    });
+    assert.equal(result.length, 1);
+    assert.equal(result[0].track.id, "a");
+  });
+
+  it("uses empty string when played_at is missing", () => {
+    const result = normaliseRecentlyPlayed({ items: [{ track: { id: "a", name: "T" } }] });
+    assert.equal(result[0].playedAt, "");
+  });
+});
+
+describe("normalisePlaylist", () => {
+  it("collapses a full playlist to the View-friendly shape", () => {
+    const result = normalisePlaylist({
+      id: "p1",
+      name: "My Mix",
+      description: "Best mix",
+      tracks: { total: 42 },
+      external_urls: { spotify: "https://open.spotify.com/playlist/p1" },
+      images: [{ url: "https://i.large.png" }, { url: "https://i.small.png" }],
+    });
+    assert.deepEqual(result, {
+      id: "p1",
+      name: "My Mix",
+      description: "Best mix",
+      trackCount: 42,
+      url: "https://open.spotify.com/playlist/p1",
+      imageUrl: "https://i.small.png",
+    });
+  });
+
+  it("treats a missing `tracks.total` as 0 rather than NaN", () => {
+    const result = normalisePlaylist({ id: "p", name: "Empty" });
+    assert.equal(result?.trackCount, 0);
+  });
+
+  it("returns null on missing id / name", () => {
+    assert.equal(normalisePlaylist({ name: "no-id" }), null);
+    assert.equal(normalisePlaylist({ id: "x" }), null);
+  });
+});
+
+describe("normalisePlaylistList", () => {
+  it("filters out entries that fail validation", () => {
+    const result = normalisePlaylistList({
+      items: [{ id: "ok", name: "Real" }, { id: "no-name" }, null],
+    });
+    assert.equal(result.length, 1);
+    assert.equal(result[0].id, "ok");
+  });
+});
