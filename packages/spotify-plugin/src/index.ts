@@ -26,8 +26,10 @@ import { DispatchArgsSchema, type DispatchArgs } from "./schemas";
 import { buildAuthorizeUrl, consumePendingAuthorization, deriveCodeChallenge, generateRandomToken, registerPendingAuthorization } from "./oauth";
 import { readClientConfig, readTokens, writeClientConfig, writeTokens } from "./tokens";
 import { ONE_SECOND_MS } from "./time";
-import type { SpotifyClientConfig, SpotifyTokens } from "./types";
+import type { NormalisedDevice, SpotifyClientConfig, SpotifyTokens } from "./types";
 import { fetchLiked, fetchNowPlaying, fetchPlaylistTracks, fetchPlaylists, fetchRecent } from "./listening";
+import { clearProfileCache, getProfile, isPremium } from "./profile";
+import { playerGetDevices, playerNext, playerPause, playerPlay, playerPrevious, playerSeek, playerSetVolume, playerTransfer } from "./playback";
 import type { SpotifyClientError } from "./client";
 
 export { TOOL_DEFINITION };
@@ -41,9 +43,20 @@ export { TOOL_DEFINITION };
 // startup diagnostics.
 export const OAUTH_CALLBACK_ALIAS = "spotify";
 
-/** Read-only scope set for v1. Sorted so the authorize URL is
- *  stable across boots. */
-const SPOTIFY_SCOPES: readonly string[] = ["playlist-read-private", "user-library-read", "user-read-currently-playing", "user-read-recently-played"] as const;
+/** Scope set requested at OAuth time. Two extra scopes were added
+ *  in PR 3 for Player Controls: `user-read-playback-state` (read
+ *  active device + playback state) and `user-modify-playback-state`
+ *  (play/pause/next/seek/volume/transfer). Existing users from
+ *  PR 1/2 will hit `403 Insufficient client scope` on the new
+ *  player kinds and need to reconnect. */
+const SPOTIFY_SCOPES: readonly string[] = [
+  "playlist-read-private",
+  "user-library-read",
+  "user-modify-playback-state",
+  "user-read-currently-playing",
+  "user-read-playback-state",
+  "user-read-recently-played",
+] as const;
 
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 const SPOTIFY_TOKEN_HOST = "accounts.spotify.com";
@@ -105,6 +118,15 @@ export default definePlugin((pluginRuntime) => {
           return handleListening("recent", args);
         case "nowPlaying":
           return handleListening("nowPlaying", args);
+        case "play":
+        case "pause":
+        case "next":
+        case "previous":
+        case "seek":
+        case "setVolume":
+        case "transferPlayback":
+        case "getDevices":
+          return handlePlayer(args);
         default: {
           const exhaustive: never = args;
           throw new Error(`Unhandled kind: ${JSON.stringify(exhaustive)}`);
@@ -193,6 +215,12 @@ export default definePlugin((pluginRuntime) => {
         redirectUri: pending.redirectUri,
       });
       await writeTokens(files.config, tokens);
+      // Invalidate the profile cache: a fresh Connect may be a
+      // different Spotify account, so the previous user's `product`
+      // must not leak through the 24h TTL (Codex review on PR
+      // #1171). The next `getProfile` call will fetch the new
+      // user's snapshot.
+      await clearProfileCache(files.config);
       pubsub.publish("connected", { scopes: tokens.scopes });
       log.info("tokens written", { scopes: tokens.scopes });
       return {
@@ -217,6 +245,18 @@ export default definePlugin((pluginRuntime) => {
   async function handleStatus() {
     const clientConfig = await readClientConfig(files.config);
     const tokens = await readTokens(files.config);
+    let premium: boolean | null = null;
+    let displayName = "";
+    // Only call /v1/me when we have tokens — otherwise there's
+    // nothing to authenticate with. Cache hit is the common case
+    // (24h TTL) so most `status` calls don't go to Spotify.
+    if (tokens && clientConfig) {
+      const profileResult = await getProfile({ runtime: pluginRuntime, clientId: clientConfig.clientId, tokens });
+      if (profileResult.ok) {
+        premium = isPremium(profileResult.profile);
+        displayName = profileResult.profile.displayName;
+      }
+    }
     return {
       ok: true,
       message: tokens ? "Connected." : clientConfig ? "Client ID is configured but you haven't connected yet." : "Client ID is not configured.",
@@ -225,6 +265,10 @@ export default definePlugin((pluginRuntime) => {
         connected: tokens !== null,
         expiresAt: tokens?.expiresAt ?? null,
         scopes: tokens?.scopes ?? [],
+        // PR 3 — null when we couldn't determine (no tokens, or
+        // /v1/me failed). View renders the player gate accordingly.
+        isPremium: premium,
+        displayName,
       },
     };
   }
@@ -321,6 +365,34 @@ export default definePlugin((pluginRuntime) => {
     return { ok: true, message: summariseListening(kind, result.data), data: result.data };
   }
 
+  async function handlePlayer(args: Extract<DispatchArgs, { kind: PlayerKind }>) {
+    // Spotify's `/v1/me/player/play` 400s if a body carries both
+    // `context_uri` and `uris[]`. Catching this here (since we
+    // can't .refine() inside a discriminatedUnion arm) gives a
+    // clean error instead of a confusing 4xx from Spotify.
+    if (args.kind === "play" && args.contextUri && args.trackUris) {
+      return {
+        ok: false,
+        error: "invalid_args",
+        message: "play: `contextUri` と `trackUris` は同時に指定できません。どちらか一方を選んでください。",
+      };
+    }
+    const ready = await loadCredentials();
+    if (!ready.ok) return ready.errorResponse;
+    const deps = { runtime: pluginRuntime, clientId: ready.clientConfig.clientId, tokens: ready.tokens };
+    // `getDevices` is read-only and works for Free accounts (the View
+    // uses it to populate a dropdown even before upgrade). All other
+    // player kinds require Premium; gate them up front so we don't
+    // burn a wasted Spotify API call for a 403 we can predict.
+    if (args.kind !== "getDevices") {
+      const gate = await premiumGate(deps);
+      if (gate) return gate;
+    }
+    const result = await invokePlayer(args, deps);
+    if (!result.ok) return mapPlayerError(result.error, args.kind);
+    return summarisePlayerResult(args.kind, result.data);
+  }
+
   async function loadCredentials(): Promise<
     | { ok: true; clientConfig: SpotifyClientConfig; tokens: SpotifyTokens }
     | { ok: false; errorResponse: { ok: false; error: string; message: string; instructions?: string } }
@@ -351,6 +423,29 @@ export default definePlugin((pluginRuntime) => {
     return { ok: true, clientConfig, tokens };
   }
 });
+
+type PlayerKind = "play" | "pause" | "next" | "previous" | "seek" | "setVolume" | "transferPlayback" | "getDevices";
+
+async function invokePlayer(args: Extract<DispatchArgs, { kind: PlayerKind }>, deps: { runtime: PluginRuntime; clientId: string; tokens: SpotifyTokens }) {
+  switch (args.kind) {
+    case "play":
+      return playerPlay(deps, { deviceId: args.deviceId, contextUri: args.contextUri, trackUris: args.trackUris });
+    case "pause":
+      return playerPause(deps, args.deviceId);
+    case "next":
+      return playerNext(deps, args.deviceId);
+    case "previous":
+      return playerPrevious(deps, args.deviceId);
+    case "seek":
+      return playerSeek(deps, args.positionMs, args.deviceId);
+    case "setVolume":
+      return playerSetVolume(deps, args.volumePercent, args.deviceId);
+    case "transferPlayback":
+      return playerTransfer(deps, args.deviceId, args.play);
+    case "getDevices":
+      return playerGetDevices(deps);
+  }
+}
 
 async function invokeListening(
   kind: "liked" | "playlists" | "playlistTracks" | "recent" | "nowPlaying",
@@ -400,31 +495,97 @@ function summariseListening(kind: "liked" | "playlists" | "playlistTracks" | "re
   return `${title} (${data.length}):\n${lines.join("\n")}`;
 }
 
+async function premiumGate(deps: {
+  runtime: PluginRuntime;
+  clientId: string;
+  tokens: SpotifyTokens;
+}): Promise<{ ok: false; error: string; message: string; instructions?: string } | null> {
+  const profileResult = await getProfile(deps);
+  if (!profileResult.ok) return mapClientError(profileResult.error);
+  if (isPremium(profileResult.profile)) return null;
+  return {
+    ok: false,
+    error: "premium_required",
+    message: "Spotify Premium が必要な操作です。Free アカウントでは再生制御は使えません。",
+    instructions: "Spotify Premium にアップグレードしてください。再生制御以外 (Liked / Playlists / Recent / Search) は Free でも引き続き利用できます。",
+  };
+}
+
+function summarisePlayerResult(kind: PlayerKind, data: NormalisedDevice[] | null) {
+  if (kind === "getDevices") {
+    const devices = (data ?? []) as NormalisedDevice[];
+    if (devices.length === 0) {
+      return {
+        ok: true,
+        message: "アクティブな Spotify デバイスがありません。Spotify アプリを起動してから再度お試しください。",
+        data: devices,
+      };
+    }
+    const lines = devices.map((d, i) => `${i + 1}. ${d.name} (${d.type})${d.isActive ? " — active" : ""}`);
+    return { ok: true, message: `Devices (${devices.length}):\n${lines.join("\n")}`, data: devices };
+  }
+  return { ok: true, message: PLAYER_SUCCESS_MESSAGES[kind] };
+}
+
+const PLAYER_SUCCESS_MESSAGES: Record<Exclude<PlayerKind, "getDevices">, string> = {
+  play: "再生を開始しました。",
+  pause: "再生を一時停止しました。",
+  next: "次の曲に進みました。",
+  previous: "前の曲に戻りました。",
+  seek: "位置をシークしました。",
+  setVolume: "音量を変更しました。",
+  transferPlayback: "再生をデバイスに移しました。",
+};
+
+function mapPlayerError(error: SpotifyClientError, kind: PlayerKind) {
+  // Spotify returns 404 for "no active device" on most player
+  // endpoints. Surface a user-friendly hint that points at the
+  // device dropdown instead of the generic API-error message.
+  if (error.kind === "spotify_api_error" && error.status === 404 && kind !== "getDevices") {
+    return {
+      ok: false,
+      error: "no_active_device",
+      message: "アクティブな Spotify デバイスがありません。Spotify アプリ (デスクトップ / モバイル / Web) を起動してから再度お試しください。",
+      instructions: "View の Player タブから対象デバイスを選んで「Transfer」を押すか、Spotify アプリ側で何か再生してから再試行してください。",
+    };
+  }
+  if (error.kind === "spotify_api_error" && error.status === 403 && error.body.includes("scope")) {
+    return {
+      ok: false,
+      error: "scope_missing",
+      message: "新しい権限の追加が必要です。Spotify View ヘッダの「Reconnect」ボタンを押して再認可してください。",
+      instructions:
+        "PR 3 で追加された Player 制御は新しい OAuth scope を要求します。View 右上の「Reconnect」ボタンで Spotify の同意画面を開き直すと scope が更新されます。",
+    };
+  }
+  return mapClientError(error);
+}
+
 function mapClientError(error: SpotifyClientError) {
   switch (error.kind) {
     case "auth_expired":
       return {
-        ok: false,
+        ok: false as const,
         error: "auth_expired",
         message: "認可が無効化されました。「Connect」をやり直してください。",
         detail: error.detail,
       };
     case "rate_limited":
       return {
-        ok: false,
+        ok: false as const,
         error: "rate_limited",
         message: `Spotify から rate limit を返されました。${error.retryAfterSec} 秒後に再試行してください。`,
         retryAfterSec: error.retryAfterSec,
       };
     case "spotify_api_error":
       return {
-        ok: false,
+        ok: false as const,
         error: "spotify_api_error",
         message: `Spotify API がエラーを返しました (${error.status})`,
         detail: error.body,
       };
     case "not_connected":
-      return { ok: false, error: "not_connected", message: "Spotify に未接続です。" };
+      return { ok: false as const, error: "not_connected", message: "Spotify に未接続です。" };
   }
 }
 

@@ -79,14 +79,23 @@ The PKCE flow doesn't use a Client Secret in the first place. The Client ID by i
 
 ## What you can read
 
-Read-only v1 surfaces:
+| Feature | Free / Open | Premium |
+|---|---|---|
+| Liked Songs | ✓ | ✓ |
+| Playlist list / tracks within a playlist | ✓ | ✓ |
+| Recently played (last 50, Spotify API ceiling) | ✓ | ✓ |
+| Currently playing (display only) | ✓ | ✓ |
+| Search (track / artist / album / playlist) | ✓ | ✓ |
+| Device list (`getDevices`) | ✓ | ✓ |
+| **Playback control (play / pause / next / prev / seek / volume / transferPlayback)** | ✗ | ✓ |
 
-- Liked Songs
-- Playlist list / tracks within a playlist
-- Recently played (last 50, Spotify API ceiling)
-- Currently playing
+Playback controls require **Spotify Premium** (Spotify Web API restriction). For Free / Open accounts the Player Controls panel is hidden, and LLM-issued `play` etc. return a `premium_required` error.
 
-Playback control (play / pause / skip) and write actions (add to liked / create playlist) land in a follow-up PR.
+Write actions for the user's library (add to liked / create playlist / playlist edits) land in a follow-up PR.
+
+## Reconnecting after PR 3 (existing users)
+
+PR 3 added two OAuth scopes (`user-read-playback-state`, `user-modify-playback-state`). Users who connected during PR 1 / PR 2 will see `403 Insufficient client scope` on player calls — click Reconnect in the View (or delete `tokens.json` and Connect again) to re-authorise with the new scopes.
 
 ## Related docs
 
