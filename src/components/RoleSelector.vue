@@ -13,7 +13,7 @@
     </button>
     <div v-if="open" ref="dropdown" class="absolute left-0 right-0 top-full z-50 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
       <button
-        v-for="role in roles"
+        v-for="role in visibleRoles"
         :key="role.id"
         :data-testid="`role-option-${role.id}`"
         class="w-full flex items-center gap-1.5 px-3 py-1 text-sm text-gray-900 hover:bg-gray-50 text-left"
@@ -48,6 +48,16 @@ const button = ref<HTMLButtonElement | null>(null);
 const dropdown = ref<HTMLDivElement | null>(null);
 
 const currentRoleName = computed(() => roleName(props.roles, props.currentRoleId));
+
+// Hide `isDebugRole` entries from the dropdown unless dev mode is
+// on. Set `VITE_DEV_MODE=1` in `.env` to surface them. Existing
+// chat sessions tied to a debug role still render normally elsewhere
+// — this filter only gates the entry point for new sessions.
+const visibleRoles = computed(() => {
+  const devMode = import.meta.env.VITE_DEV_MODE === "1";
+  if (devMode) return props.roles;
+  return props.roles.filter((role) => !role.isDebugRole);
+});
 
 function selectRole(roleId: string): void {
   emit("update:currentRoleId", roleId);
