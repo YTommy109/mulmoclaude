@@ -18,11 +18,21 @@ Your browser opens to `http://localhost:3001`. That's it.
 ## Options
 
 ```
-npx mulmoclaude              # Default (port 3001, opens browser)
-npx mulmoclaude --port 8080  # Custom port
-npx mulmoclaude --no-open    # Don't open browser
-npx mulmoclaude --version    # Show version
+npx mulmoclaude                              # Default (port 3001, opens browser)
+npx mulmoclaude --port 8080                  # Custom port
+npx mulmoclaude --no-open                    # Don't open browser
+npx mulmoclaude --dev-plugin ./my-plugin     # Load a plugin from a local
+                                             # project dir (repeatable;
+                                             # path can be relative or absolute)
+npx mulmoclaude --version                    # Show version
 ```
+
+`--dev-plugin <path>` is the plugin author's dev loop. Pair with
+`yarn dev` (vite watch) in the plugin directory: edits → vite
+rebuilds `dist/` → reload the browser to pick up the new bundle.
+The plugin's `package.json` name + `dist/index.js` must already be
+in place; the launcher refuses to start on missing files or on a
+name collision with an already-installed plugin.
 
 ## How it works
 

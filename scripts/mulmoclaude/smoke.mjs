@@ -119,7 +119,11 @@ export async function main({ skipTarball = false } = {}) {
   // hasn't produced a launchable dist yet, or for debugging the
   // deps/drift stages in isolation.
   const effectiveSkip = skipTarball || process.env.MULMOCLAUDE_SMOKE_SKIP_TARBALL === "1";
-  const result = await runSmoke({ skipTarball: effectiveSkip });
+  // The default smoke run boots the launcher with `--dev-plugin <fixture>`
+  // so CI catches regressions in the PR2 dev-plugin pipeline (CLI flag →
+  // env var → server loader → registry → API list). The fixture is a
+  // ~5-line stub so the added boot cost is negligible.
+  const result = await runSmoke({ skipTarball: effectiveSkip, tarballOptions: { devPlugin: true } });
   console.log("[mulmoclaude:smoke] stages:");
   for (const stage of result.stages) console.log(`  ${formatStageLine(stage)}`);
 
