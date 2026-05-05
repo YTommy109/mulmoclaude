@@ -91,24 +91,17 @@ export function updateResult(session: ActiveSession, updatedResult: ToolResultCo
 }
 
 /** Handle an incoming tool_result event: upsert into the session's
- *  result list. Selects the result only on insert AND only if
- *  `shouldSelect(result)` is truthy — auto-selecting a sidebar-hidden
- *  result leaves no card highlighted while the canvas follows an
- *  invisible selection. In-place updates preserve the user's current
- *  selection. The default `shouldSelect` always returns true (matches
- *  pre-filter behaviour for callers / tests that don't supply one);
- *  the live frontend wires in `isSidebarVisible` from
- *  `sidebarVisibleApp` via `eventDispatch.ts`. */
-export function applyToolResultToSession(
-  session: ActiveSession,
-  result: ToolResultComplete,
-  shouldSelect: (result: ToolResultComplete) => boolean = () => true,
-): void {
+ *  result list. Selects the result on insert; in-place updates
+ *  preserve the user's current selection. The MCP bridge skips the
+ *  toolResult POST for narrate-only actions (handlers that omit
+ *  `data`), so every result that reaches this function is intended
+ *  to surface a card. */
+export function applyToolResultToSession(session: ActiveSession, result: ToolResultComplete): void {
   const idx = session.toolResults.findIndex((existing) => existing.uuid === result.uuid);
   if (idx >= 0) {
     session.toolResults[idx] = result;
   } else {
     pushResult(session, result);
-    if (shouldSelect(result)) session.selectedResultUuid = result.uuid;
+    session.selectedResultUuid = result.uuid;
   }
 }
