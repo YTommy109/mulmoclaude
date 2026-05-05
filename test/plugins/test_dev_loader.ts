@@ -172,6 +172,7 @@ describe("detectDevCollisions", () => {
       cachePath,
       definition: { type: "function", name: `tool_${name}`, description: "", parameters: { type: "object", properties: {}, required: [] } },
       execute: async () => ({}),
+      oauthCallbackAlias: null,
     };
   }
 
