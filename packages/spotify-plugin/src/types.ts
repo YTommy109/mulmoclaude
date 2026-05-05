@@ -88,9 +88,16 @@ export interface RecentlyPlayedItem {
 
 /** Spotify Connect device (a place where the user can play music —
  *  desktop app, phone, web player, smart speaker). The View shows
- *  a dropdown so the user can pick a target device. */
+ *  a dropdown so the user can pick a target device.
+ *
+ *  `id` may be null when Spotify returns a restricted device — for
+ *  some account states / DRM restrictions, Spotify lists a device
+ *  but withholds its ID, leaving it informational but un-targetable.
+ *  Dropping these would underreport the user's setup; the View
+ *  surfaces them but disables the Transfer button (Codex review on
+ *  PR #1171). */
 export interface NormalisedDevice {
-  id: string;
+  id: string | null;
   name: string;
   /** "Computer" / "Smartphone" / "Speaker" — Spotify's `type`. */
   type: string;

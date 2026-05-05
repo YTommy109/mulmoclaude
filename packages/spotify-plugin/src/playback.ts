@@ -131,11 +131,17 @@ function normaliseDevices(raw: unknown): NormalisedDevice[] {
 function normaliseDevice(raw: unknown): NormalisedDevice | null {
   if (typeof raw !== "object" || raw === null) return null;
   const device = raw as RawDevice;
-  if (typeof device.id !== "string" || device.id.length === 0) return null;
+  // Spotify can return restricted devices with a `name` + `type`
+  // but no `id` (DRM / account-state quirks). Preserve them — the
+  // View renders them with the Transfer button disabled — so the
+  // user isn't left wondering "why isn't my speaker listed?"
+  // (Codex review on PR #1171). `name` is still required: an
+  // anonymous nameless device is not useful to surface.
   if (typeof device.name !== "string") return null;
+  const id = typeof device.id === "string" && device.id.length > 0 ? device.id : null;
   const volumePercent = typeof device.volume_percent === "number" && Number.isFinite(device.volume_percent) ? device.volume_percent : undefined;
   return {
-    id: device.id,
+    id,
     name: device.name,
     type: typeof device.type === "string" ? device.type : "",
     isActive: device.is_active === true,

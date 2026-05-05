@@ -434,7 +434,12 @@ onUnmounted(() => {
           <section v-if="devices.length > 0" class="spotify-devices">
             <h3>{{ t.devices }}</h3>
             <ul class="spotify-list">
-              <li v-for="device in devices" :key="device.id" class="spotify-device-row">
+              <!-- Some Spotify devices ship with `id: null` (restricted
+                   for DRM / account-state reasons). They're displayed
+                   informationally but the Transfer button is disabled —
+                   `playerTransfer` requires a usable ID. Fallback key
+                   is `name` so Vue's :key stays unique-ish. -->
+              <li v-for="(device, idx) in devices" :key="device.id ?? `name:${device.name}:${idx}`" class="spotify-device-row">
                 <span class="spotify-device-name">{{ device.name }}</span>
                 <span class="spotify-device-type">{{ device.type }}</span>
                 <span v-if="device.isActive" class="spotify-device-active">{{ t.deviceActive }}</span>
@@ -442,8 +447,9 @@ onUnmounted(() => {
                   v-else-if="status?.isPremium === true"
                   type="button"
                   class="spotify-device-transfer"
-                  :disabled="isPlayerBusy"
-                  @click="playerTransfer(device.id)"
+                  :disabled="isPlayerBusy || device.id === null"
+                  :aria-disabled="device.id === null"
+                  @click="device.id !== null && playerTransfer(device.id)"
                 >
                   {{ t.transferToDevice }}
                 </button>

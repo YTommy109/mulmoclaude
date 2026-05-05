@@ -195,6 +195,40 @@ describe("playerGetDevices — normalisation", () => {
     assert.deepEqual(result.data[1], { id: "d2", name: "MacBook", type: "Computer", isActive: false });
   });
 
+  it("preserves restricted devices that have a null/missing `id` (Codex review on PR #1171)", async () => {
+    const handle = makeFakeRuntime([
+      new Response(
+        JSON.stringify({
+          devices: [
+            { id: null, name: "Restricted Speaker", type: "Speaker", is_active: false },
+            { name: "AnonymousId", type: "Computer", is_active: false }, // missing id field
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await playerGetDevices({ runtime: handle.runtime as any, clientId: "cid", tokens: validTokens, now: NOW });
+    if (!result.ok) throw new Error("unreachable");
+    assert.equal(result.data.length, 2);
+    assert.equal(result.data[0].id, null);
+    assert.equal(result.data[0].name, "Restricted Speaker");
+    assert.equal(result.data[1].id, null);
+  });
+
+  it("still drops devices with no `name` (a nameless device is not useful to surface)", async () => {
+    const handle = makeFakeRuntime([
+      new Response(JSON.stringify({ devices: [{ id: "d1", type: "Speaker", is_active: false }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await playerGetDevices({ runtime: handle.runtime as any, clientId: "cid", tokens: validTokens, now: NOW });
+    if (!result.ok) throw new Error("unreachable");
+    assert.deepEqual(result.data, []);
+  });
+
   it("returns [] when Spotify returns no devices field", async () => {
     const handle = makeFakeRuntime([new Response(JSON.stringify({}), { status: 200, headers: { "content-type": "application/json" } })]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
