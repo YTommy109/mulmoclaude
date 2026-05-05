@@ -71,7 +71,18 @@
         </button>
       </div>
     </section>
-    <section class="border border-red-300 rounded p-3 flex flex-col gap-2">
+    <div v-if="!showAdvanced">
+      <button
+        type="button"
+        class="h-8 px-2.5 flex items-center gap-1 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
+        data-testid="accounting-settings-advanced"
+        @click="showAdvanced = true"
+      >
+        <span class="material-icons text-base">expand_more</span>
+        <span>{{ t("pluginAccounting.settings.advanced") }}</span>
+      </button>
+    </div>
+    <section v-if="showAdvanced" class="border border-red-300 rounded p-3 flex flex-col gap-2">
       <h4 class="text-sm font-semibold text-red-700">{{ t("pluginAccounting.settings.deleteBook") }}</h4>
       <p class="text-xs text-gray-500">{{ t("pluginAccounting.settings.deleteBookExplain") }}</p>
       <p v-if="deleteError" class="text-xs text-red-500" data-testid="accounting-settings-delete-error">{{ deleteError }}</p>
@@ -120,6 +131,7 @@ const confirmName = ref("");
 const updating = ref(false);
 const updateOk = ref<string | null>(null);
 const updateError = ref<string | null>(null);
+const showAdvanced = ref(false);
 const selectedName = ref<string>(props.bookName);
 const selectedCountry = ref<string>(props.country ?? "");
 // Resolved at the boundary so the dropdown always shows a concrete
@@ -242,6 +254,7 @@ watch(
     selectedName.value = props.bookName;
     selectedCountry.value = props.country ?? "";
     selectedFiscalYearEnd.value = props.fiscalYearEnd ?? DEFAULT_FISCAL_YEAR_END;
+    showAdvanced.value = false;
   },
 );
 

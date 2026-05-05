@@ -759,6 +759,7 @@ const koMessages = {
       rebuild: "스냅샷 재구축",
       rebuildExplain: "모든 월별 스냅샷 캐시를 지우고 분개장에서 재계산합니다. 분개 파일을 직접 편집한 뒤 복구할 때 유용합니다.",
       rebuildOk: "{count}개 기간을 재구축했습니다.",
+      advanced: "고급…",
       deleteBook: "장부 삭제",
       deleteBookExplain: "이 장부의 디렉터리를 영구히 삭제합니다. 되돌릴 수 없습니다.",
       deleteBookConfirm: '확인을 위해 "{bookName}"을 입력하세요:',

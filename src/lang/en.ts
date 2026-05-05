@@ -757,6 +757,7 @@ const enMessages = {
       rebuild: "Rebuild snapshots",
       rebuildExplain: "Drops every cached monthly snapshot and recomputes them from the journal. Safe to run; useful after editing journal files by hand.",
       rebuildOk: "Rebuilt {count} period(s).",
+      advanced: "Advanced…",
       deleteBook: "Delete book",
       deleteBookExplain: "Permanently deletes this book's directory. Cannot be undone.",
       deleteBookConfirm: 'Type "{bookName}" to confirm:',

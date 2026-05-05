@@ -257,6 +257,10 @@ test.describe("accounting plugin — flow", () => {
     await expect(page.getByTestId("accounting-app")).toBeVisible();
     await expect(page.getByTestId("accounting-settings")).toBeVisible();
 
+    // Reveal the Delete book section — it sits behind an "Advanced…"
+    // disclosure so the destructive control isn't a single click away.
+    await page.getByTestId("accounting-settings-advanced").click();
+
     // Type the doomed book's name into the confirm field, then delete.
     await page.getByTestId("accounting-settings-delete-confirm").fill("Doomed");
     await page.getByTestId("accounting-settings-delete").click();

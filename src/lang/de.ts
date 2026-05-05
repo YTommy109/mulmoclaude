@@ -772,6 +772,7 @@ const deMessages = {
       rebuild: "Snapshots neu aufbauen",
       rebuildExplain: "Verwirft alle Monats-Snapshots und berechnet sie aus dem Journal neu. Nützlich nach manueller Bearbeitung.",
       rebuildOk: "{count} Periode(n) neu aufgebaut.",
+      advanced: "Erweitert…",
       deleteBook: "Buch löschen",
       deleteBookExplain: "Löscht das Buch-Verzeichnis dauerhaft. Nicht rückgängig zu machen.",
       deleteBookConfirm: 'Tippen Sie "{bookName}" zur Bestätigung:',
