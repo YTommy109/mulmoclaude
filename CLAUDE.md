@@ -145,9 +145,11 @@ artifacts/       ← charts/, documents/, html/, images/, spreadsheets/
 
 ## Plugin Development
 
-Full reference: [`docs/developer.md`](docs/developer.md#plugin-development)
+Full reference: [`docs/developer.md`](docs/developer.md#plugin-development) (built-in) / [`docs/plugin-runtime.md`](docs/plugin-runtime.md) (runtime / npm-package plugins)
 
-**Plugin owns its identity.** Each built-in plugin declares its `toolName`, `apiRoutes`, `workspaceDirs`, and `staticChannels` in its own `src/plugins/<name>/meta.ts`. Host aggregators (`API_ROUTES`, `TOOL_NAMES`, `WORKSPACE_DIRS`, `PUBSUB_CHANNELS`) auto-merge those contributions via `defineHostAggregate` — host code holds zero plugin-specific literals.
+**Plugin-vs-host boundary (always apply).** Per-feature integrations (Spotify / GitHub / Apple Music / weather / bookmarks / …) live in `packages/<name>-plugin/` as **runtime plugins**. Host code (`server/`, `src/plugins/`, `src/config/`) only gets **generic infrastructure that benefits multiple plugins** — never provider-specific code. Examples of generic host infra: the `/api/plugins/runtime/:pkg/dispatch` route, the asset-mount route, the `/api/plugins/runtime/:pkg/oauth/callback` route (#1162). A new "Spotify route" or "GitHub route" in `server/api/routes/` is a smell — re-think whether the work belongs in the plugin package and whether the host's infra needs a generic extension instead.
+
+**Plugin owns its identity** (built-in path). Each built-in plugin declares its `toolName`, `apiRoutes`, `workspaceDirs`, and `staticChannels` in its own `src/plugins/<name>/meta.ts`. Host aggregators (`API_ROUTES`, `TOOL_NAMES`, `WORKSPACE_DIRS`, `PUBSUB_CHANNELS`) auto-merge those contributions via `defineHostAggregate` — host code holds zero plugin-specific literals.
 
 Adding a built-in plugin touches **6 plugin-local files** and **3 host barrels**:
 

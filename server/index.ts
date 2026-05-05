@@ -167,12 +167,22 @@ app.use(requireSameOrigin);
 // the asset route handler.
 // The CSRF origin check + loopback-only binding still apply.
 const RUNTIME_PLUGIN_ASSET_PATH_RE = /^\/plugins\/runtime\/[^/]+\/[^/]+\//;
+// Generic OAuth callback receiver for runtime plugins (#1162). Same
+// browser-redirect-can't-carry-Authorization-header reason as the
+// asset path above. Trust model: registry-membership (the host's
+// route handler 404s an unknown :alias) plus the plugin's single-use
+// `state` for CSRF.
+const RUNTIME_PLUGIN_OAUTH_CALLBACK_RE = /^\/plugins\/runtime\/oauth-callback\/[^/]+$/;
 app.use("/api", (req, res, next) => {
   if (req.path.startsWith("/files/")) {
     next();
     return;
   }
   if (req.method === "GET" && RUNTIME_PLUGIN_ASSET_PATH_RE.test(req.path)) {
+    next();
+    return;
+  }
+  if (req.method === "GET" && RUNTIME_PLUGIN_OAUTH_CALLBACK_RE.test(req.path)) {
     next();
     return;
   }
@@ -775,6 +785,7 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
         dev: devLoad.plugins.length,
         registered: result.registered.length,
         collisions: result.collisions.length,
+        oauthAliasCollisions: result.oauthAliasCollisions.length,
       });
     } catch (err) {
       log.error("plugins/runtime", "registry init failed; runtime plugins disabled this session", { error: String(err) });

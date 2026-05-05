@@ -23,6 +23,7 @@ const fakePlugin = (pkg: string, version: string, toolName: string): RuntimePlug
   cachePath: `/tmp/cache/${pkg}/${version}`,
   definition: fakeDef(toolName),
   execute: null,
+  oauthCallbackAlias: null,
 });
 
 describe("runtime-registry", () => {

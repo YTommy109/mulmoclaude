@@ -31,6 +31,7 @@ const fakeRuntimePlugin = (pkg: string, toolName: string, prompt?: string): Runt
   cachePath: `/tmp/cache/${pkg}/1.0.0`,
   definition: fakeDef(toolName, `runtime tool ${toolName}`, prompt),
   execute: () => null,
+  oauthCallbackAlias: null,
 });
 
 const fakeRole = (availablePlugins: string[]): Role =>
