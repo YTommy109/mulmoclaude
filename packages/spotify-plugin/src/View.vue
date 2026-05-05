@@ -268,6 +268,14 @@ onUnmounted(() => {
         <template v-else>
           <span class="spotify-connected-pill">{{ t.connected }}</span>
           <span class="spotify-expiry">{{ t.expiresAt }}: {{ expiryDisplay }}</span>
+          <!-- PR 3 added two OAuth scopes; existing PR 1/2 connections
+               work for read-only kinds but Player Controls hit
+               `403 Insufficient client scope` until reconnect. The
+               Reconnect button is always available so the user can
+               re-authorise without manually deleting tokens.json. -->
+          <button type="button" class="spotify-reconnect" :disabled="isConnecting" @click="startConnect">
+            {{ isConnecting ? t.connecting : t.reconnect }}
+          </button>
         </template>
       </div>
     </header>
@@ -471,6 +479,23 @@ onUnmounted(() => {
   border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 500;
+}
+.spotify-reconnect {
+  margin-left: auto;
+  background: none;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: #374151;
+}
+.spotify-reconnect:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+.spotify-reconnect:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .spotify-expiry {
   font-size: 0.75rem;

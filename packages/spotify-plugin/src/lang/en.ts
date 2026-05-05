@@ -14,6 +14,7 @@ export default {
   connect: "Connect Spotify",
   connecting: "Opening Spotify consent…",
   connected: "Connected.",
+  reconnect: "Reconnect",
   disconnect: "Disconnect",
   refresh: "Refresh",
   setupGuideLink: "How do I get a Client ID?",

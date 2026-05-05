@@ -15,6 +15,7 @@ export default {
   connect: "Spotify に接続",
   connecting: "Spotify の同意画面を開きます…",
   connected: "接続済み",
+  reconnect: "再接続",
   disconnect: "切断",
   refresh: "更新",
   setupGuideLink: "Client ID の取得方法",
