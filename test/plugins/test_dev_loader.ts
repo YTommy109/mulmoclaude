@@ -63,22 +63,28 @@ describe("parseDevPluginsEnv", () => {
   });
 
   it("splits on the platform path delimiter", () => {
-    const cwd = "/tmp/cwd";
-    const value = ["/abs/a", "/abs/b"].join(path.delimiter);
+    // Use a cwd as the anchor so the test stays cross-platform —
+    // `path.resolve` normalises drive letters on Windows. Hardcoded
+    // POSIX-style abs paths fail there because `path.resolve("D:/cwd",
+    // "/abs/a")` returns `"D:\abs\a"`.
+    const cwd = path.resolve("/tmp/cwd");
+    const inputA = path.resolve(cwd, "abs", "a");
+    const inputB = path.resolve(cwd, "abs", "b");
+    const value = [inputA, inputB].join(path.delimiter);
     const result = parseDevPluginsEnv(value, cwd);
     assert.equal(result.length, 2);
-    assert.equal(result[0].rawInput, "/abs/a");
-    assert.equal(result[0].absPath, "/abs/a");
-    assert.equal(result[1].rawInput, "/abs/b");
-    assert.equal(result[1].absPath, "/abs/b");
+    assert.equal(result[0].rawInput, inputA);
+    assert.equal(result[0].absPath, inputA);
+    assert.equal(result[1].rawInput, inputB);
+    assert.equal(result[1].absPath, inputB);
   });
 
   it("resolves relative paths against the supplied cwd", () => {
-    const cwd = "/tmp/cwd";
+    const cwd = path.resolve("/tmp/cwd");
     const result = parseDevPluginsEnv("./local", cwd);
     assert.equal(result.length, 1);
     assert.equal(result[0].rawInput, "./local");
-    assert.equal(result[0].absPath, path.join(cwd, "local"));
+    assert.equal(result[0].absPath, path.resolve(cwd, "local"));
   });
 
   it("ignores empty segments (consecutive delimiters)", () => {
