@@ -41,6 +41,16 @@ export const TOOL_DEFINITION = {
         type: "string",
         description: "Spotify playlist ID (bare ID, not a URI). Obtained from a prior `playlists` response.",
       },
+      // `search`
+      query: {
+        type: "string",
+        description: "Search query. Spotify supports field filters (`artist:Bach`, `year:2020`, `genre:jazz`) and quoted phrases.",
+      },
+      types: {
+        type: "array",
+        items: { type: "string", enum: ["track", "artist", "album", "playlist"] },
+        description: "Categories to search. Default = all four.",
+      },
     },
     required: ["kind"],
   },

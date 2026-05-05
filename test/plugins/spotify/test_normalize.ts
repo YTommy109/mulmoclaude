@@ -6,6 +6,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  normaliseAlbum,
+  normaliseArtist,
   normalisePlaylist,
   normalisePlaylistList,
   normaliseRecentlyPlayed,
@@ -202,6 +204,75 @@ describe("normalisePlaylist", () => {
   it("returns null on missing id / name", () => {
     assert.equal(normalisePlaylist({ name: "no-id" }), null);
     assert.equal(normalisePlaylist({ id: "x" }), null);
+  });
+});
+
+describe("normaliseArtist", () => {
+  it("collapses a full artist response", () => {
+    const result = normaliseArtist({
+      id: "abc",
+      name: "Daft Punk",
+      genres: ["french house", "electronic", "disco"],
+      popularity: 88,
+      external_urls: { spotify: "https://open.spotify.com/artist/abc" },
+      images: [{ url: "https://i.large.png" }, { url: "https://i.small.png" }],
+    });
+    assert.deepEqual(result, {
+      id: "abc",
+      name: "Daft Punk",
+      genres: ["french house", "electronic", "disco"],
+      popularity: 88,
+      url: "https://open.spotify.com/artist/abc",
+      imageUrl: "https://i.small.png",
+    });
+  });
+
+  it("returns null when id or name is missing", () => {
+    assert.equal(normaliseArtist({ name: "no id" }), null);
+    assert.equal(normaliseArtist({ id: "x" }), null);
+  });
+
+  it("treats non-string genres as empty", () => {
+    const result = normaliseArtist({ id: "x", name: "y", genres: ["pop", 123, null, "rock"] });
+    assert.deepEqual(result?.genres, ["pop", "rock"]);
+  });
+
+  it("omits popularity when missing", () => {
+    const result = normaliseArtist({ id: "x", name: "y" });
+    assert.equal("popularity" in (result as object), false);
+  });
+});
+
+describe("normaliseAlbum", () => {
+  it("collapses a full album response", () => {
+    const result = normaliseAlbum({
+      id: "abc",
+      name: "Discovery",
+      artists: [{ name: "Daft Punk" }],
+      release_date: "2001-03-12",
+      total_tracks: 14,
+      external_urls: { spotify: "https://open.spotify.com/album/abc" },
+      images: [{ url: "https://i.large.png" }, { url: "https://i.small.png" }],
+    });
+    assert.deepEqual(result, {
+      id: "abc",
+      name: "Discovery",
+      artists: ["Daft Punk"],
+      releaseDate: "2001-03-12",
+      totalTracks: 14,
+      url: "https://open.spotify.com/album/abc",
+      imageUrl: "https://i.small.png",
+    });
+  });
+
+  it("returns null on missing id or name", () => {
+    assert.equal(normaliseAlbum({ name: "no id" }), null);
+    assert.equal(normaliseAlbum({ id: "x" }), null);
+  });
+
+  it("treats missing total_tracks as 0", () => {
+    const result = normaliseAlbum({ id: "x", name: "y" });
+    assert.equal(result?.totalTracks, 0);
   });
 });
 

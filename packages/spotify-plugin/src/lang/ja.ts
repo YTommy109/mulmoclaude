@@ -25,6 +25,12 @@ export default {
   tabPlaylists: "Playlists",
   tabRecent: "Recent",
   tabNowPlaying: "Now playing",
+  tabSearch: "検索",
+  searchPlaceholder: "曲・アーティスト・アルバム・プレイリストを検索",
+  searchSubmit: "検索",
+  searchHint: "クエリを入力して検索を押してください。",
+  searchArtists: "アーティスト",
+  searchAlbums: "アルバム",
 
   empty: "表示する項目がありません。",
   emptyLiked: "Liked Songs がありません。",

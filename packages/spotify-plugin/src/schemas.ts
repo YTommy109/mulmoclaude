@@ -20,6 +20,7 @@ export const SPOTIFY_KINDS = {
   playlistTracks: "playlistTracks",
   recent: "recent",
   nowPlaying: "nowPlaying",
+  search: "search",
 } as const;
 
 /** Kinds the LLM is allowed to invoke directly (= advertised in
@@ -37,6 +38,7 @@ export const LLM_CALLABLE_KINDS = [
   SPOTIFY_KINDS.playlistTracks,
   SPOTIFY_KINDS.recent,
   SPOTIFY_KINDS.nowPlaying,
+  SPOTIFY_KINDS.search,
 ] as const;
 
 /** Persisted at `runtime.files.config/tokens.json`. Per-machine
@@ -120,6 +122,25 @@ export const DispatchArgsSchema = z.discriminatedUnion("kind", [
     limit: z.number().int().min(1).max(50).optional(),
   }),
   z.object({ kind: z.literal(SPOTIFY_KINDS.nowPlaying) }),
+  z.object({
+    kind: z.literal(SPOTIFY_KINDS.search),
+    /** Free-form query — Spotify supports field filters
+     *  (`artist:Bach`, `year:2020`) and quoted phrases. */
+    query: z.string().min(1).max(200),
+    /** Categories to include. Spotify's `/v1/search` accepts
+     *  `track`, `artist`, `album`, `playlist`. Default is all four
+     *  so a casual `manageSpotify({ kind: "search", query })` from
+     *  the LLM gets a useful spread without needing to specify. */
+    types: z
+      .array(z.enum(["track", "artist", "album", "playlist"]))
+      .min(1)
+      .max(4)
+      .optional(),
+    /** 1-50, default 10 (per category). Lower than the listening
+     *  kinds because search results are more diverse + the LLM
+     *  context window holds N results × M categories. */
+    limit: z.number().int().min(1).max(50).optional(),
+  }),
 ]);
 
 export type DispatchArgs = z.infer<typeof DispatchArgsSchema>;

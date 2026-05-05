@@ -26,8 +26,9 @@ import { DispatchArgsSchema, type DispatchArgs } from "./schemas";
 import { buildAuthorizeUrl, consumePendingAuthorization, deriveCodeChallenge, generateRandomToken, registerPendingAuthorization } from "./oauth";
 import { readClientConfig, readTokens, writeClientConfig, writeTokens } from "./tokens";
 import { ONE_SECOND_MS } from "./time";
-import type { SpotifyClientConfig, SpotifyTokens } from "./types";
+import type { NormalisedAlbum, NormalisedArtist, NormalisedPlaylist, NormalisedTrack, SearchResult, SpotifyClientConfig, SpotifyTokens } from "./types";
 import { fetchLiked, fetchNowPlaying, fetchPlaylistTracks, fetchPlaylists, fetchRecent } from "./listening";
+import { searchSpotify } from "./search";
 import type { SpotifyClientError } from "./client";
 
 export { TOOL_DEFINITION };
@@ -105,6 +106,8 @@ export default definePlugin((pluginRuntime) => {
           return handleListening("recent", args);
         case "nowPlaying":
           return handleListening("nowPlaying", args);
+        case "search":
+          return handleSearch(args);
         default: {
           const exhaustive: never = args;
           throw new Error(`Unhandled kind: ${JSON.stringify(exhaustive)}`);
@@ -321,6 +324,15 @@ export default definePlugin((pluginRuntime) => {
     return { ok: true, message: summariseListening(kind, result.data), data: result.data };
   }
 
+  async function handleSearch(args: Extract<DispatchArgs, { kind: "search" }>) {
+    const ready = await loadCredentials();
+    if (!ready.ok) return ready.errorResponse;
+    const deps = { runtime: pluginRuntime, clientId: ready.clientConfig.clientId, tokens: ready.tokens };
+    const result = await searchSpotify(deps, args.query, args.types, args.limit);
+    if (!result.ok) return mapClientError(result.error);
+    return { ok: true, message: summariseSearch(args.query, result.data), data: result.data };
+  }
+
   async function loadCredentials(): Promise<
     | { ok: true; clientConfig: SpotifyClientConfig; tokens: SpotifyTokens }
     | { ok: false; errorResponse: { ok: false; error: string; message: string; instructions?: string } }
@@ -398,6 +410,38 @@ function summariseListening(kind: "liked" | "playlists" | "playlistTracks" | "re
   const lines = (data as { name: string; artists: string[] }[]).map((t, i) => `${i + 1}. ${t.name} — ${t.artists.join(", ")}`);
   const title = kind === "liked" ? "Liked Songs" : "Playlist tracks";
   return `${title} (${data.length}):\n${lines.join("\n")}`;
+}
+
+function summariseSearch(query: string, result: SearchResult): string {
+  const sections: string[] = [];
+  if (result.tracks?.length) sections.push(formatSearchSection("Tracks", result.tracks, formatTrackLine));
+  if (result.artists?.length) sections.push(formatSearchSection("Artists", result.artists, formatArtistLine));
+  if (result.albums?.length) sections.push(formatSearchSection("Albums", result.albums, formatAlbumLine));
+  if (result.playlists?.length) sections.push(formatSearchSection("Playlists", result.playlists, formatPlaylistLine));
+  if (sections.length === 0) return `Search "${query}": no results.`;
+  return `Search "${query}":\n${sections.join("\n\n")}`;
+}
+
+function formatSearchSection<T>(label: string, items: T[], formatter: (item: T, idx: number) => string): string {
+  return `${label} (${items.length}):\n${items.map(formatter).join("\n")}`;
+}
+
+function formatTrackLine(track: NormalisedTrack, idx: number): string {
+  return `${idx + 1}. ${track.name} — ${track.artists.join(", ")}`;
+}
+
+function formatArtistLine(artist: NormalisedArtist, idx: number): string {
+  const genres = artist.genres.length > 0 ? ` [${artist.genres.slice(0, 3).join(", ")}]` : "";
+  return `${idx + 1}. ${artist.name}${genres}`;
+}
+
+function formatAlbumLine(album: NormalisedAlbum, idx: number): string {
+  const year = album.releaseDate ? album.releaseDate.slice(0, 4) : "?";
+  return `${idx + 1}. ${album.name} — ${album.artists.join(", ")} (${year})`;
+}
+
+function formatPlaylistLine(playlist: NormalisedPlaylist, idx: number): string {
+  return `${idx + 1}. ${playlist.name} (${playlist.trackCount} tracks)`;
 }
 
 function mapClientError(error: SpotifyClientError) {

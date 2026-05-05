@@ -24,6 +24,12 @@ export default {
   tabPlaylists: "Playlists",
   tabRecent: "Recent",
   tabNowPlaying: "Now playing",
+  tabSearch: "Search",
+  searchPlaceholder: "Search tracks, artists, albums, playlists",
+  searchSubmit: "Search",
+  searchHint: "Type a query and press Search.",
+  searchArtists: "Artists",
+  searchAlbums: "Albums",
 
   empty: "Nothing to show.",
   emptyLiked: "You haven't liked any songs yet.",
