@@ -8,6 +8,15 @@ export function emptyDictionary(): DictionaryFile {
   return { sentences: {} };
 }
 
+// `obj[userKey] = value` with `userKey === "__proto__"` triggers the
+// inherited setter on Object.prototype and mutates the prototype
+// chain instead of creating an own property — losing the entry and
+// polluting `obj`'s shape. `Object.defineProperty` bypasses the
+// setter and always creates a normal own data property.
+function safeAssign<V>(target: Record<string, V>, key: string, value: V): void {
+  Object.defineProperty(target, key, { value, enumerable: true, writable: true, configurable: true });
+}
+
 export function lookupCached(dict: DictionaryFile, sentence: string, lang: string): string | undefined {
   return dict.sentences[sentence]?.[lang];
 }
@@ -34,9 +43,20 @@ export function splitHitMiss(dict: DictionaryFile, sentences: readonly string[],
 }
 
 export function mergeTranslations(dict: DictionaryFile, lang: string, fresh: ReadonlyMap<string, string>): DictionaryFile {
-  const next: Record<string, Record<string, string>> = { ...dict.sentences };
+  const next: Record<string, Record<string, string>> = {};
+  for (const [source, langs] of Object.entries(dict.sentences)) {
+    safeAssign(next, source, { ...langs });
+  }
   for (const [source, translated] of fresh) {
-    next[source] = { ...next[source], [lang]: translated };
+    // `next[source]` would return `Object.prototype` when source is
+    // `"__proto__"`; `Object.hasOwn` keeps us in own-property territory.
+    const existing = Object.hasOwn(next, source) ? next[source] : {};
+    // `lang` is regex-validated upstream (`^[a-z]{2}(?:-[A-Z]{2})?$`)
+    // so it cannot be `__proto__` / `constructor` / `prototype`; the
+    // outer assignment by user-supplied `source` is the only unsafe
+    // site and uses safeAssign.
+    existing[lang] = translated;
+    safeAssign(next, source, existing);
   }
   return { sentences: next };
 }
