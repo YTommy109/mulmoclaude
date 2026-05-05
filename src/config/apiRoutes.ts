@@ -140,6 +140,10 @@ const HOST_API_ROUTES = {
     markdown: "/api/pdf/markdown",
   },
 
+  translation: {
+    translate: "/api/translation",
+  },
+
   // Plugin-owned endpoints that don't follow a single naming pattern.
   // Names match the plugin tool name or the short verb the plugin uses.
   plugins: {
