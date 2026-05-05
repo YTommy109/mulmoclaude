@@ -277,14 +277,18 @@ export default definePlugin(({ pubsub, files, log }) => {
           return withWriteLock(async () => {
             const existing = await readRecipe(args.slug);
             if (!existing) return { ok: false, error: "not_found", slug: args.slug };
+            // Optional metadata (tags / servings / prep / cook) preserves
+            // the on-disk value when the caller omits the key — otherwise
+            // a body-only update like "bump the lime" would silently wipe
+            // the prep / cook times the user had set earlier.
             const now = new Date().toISOString();
             const recipe: Recipe = {
               slug: args.slug,
               title: args.title.trim(),
               tags: args.tags ?? existing.tags,
-              servings: args.servings ?? null,
-              prepTime: args.prepTime ?? null,
-              cookTime: args.cookTime ?? null,
+              servings: args.servings ?? existing.servings,
+              prepTime: args.prepTime ?? existing.prepTime,
+              cookTime: args.cookTime ?? existing.cookTime,
               created: existing.created || now,
               updated: now,
               body: args.body,

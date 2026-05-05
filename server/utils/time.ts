@@ -24,6 +24,11 @@ export const TIME_UNIT_MS: Record<string, number> = {
 /** Quick subprocess probe (docker ps, libreoffice --version, etc.) */
 export const SUBPROCESS_PROBE_TIMEOUT_MS = 5 * ONE_SECOND_MS;
 
+/** Debounce window for dev-plugin `dist/` watcher (#1159 PR3). Vite
+ *  writes 4-5 files within ~100ms on a single rebuild; 300ms collapses
+ *  the burst into one publish. */
+export const DEV_PLUGIN_WATCH_DEBOUNCE_MS = 300;
+
 /** Heavy subprocess work (libreoffice conversion, etc.) */
 export const SUBPROCESS_WORK_TIMEOUT_MS = ONE_MINUTE_MS;
 

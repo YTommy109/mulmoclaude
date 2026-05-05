@@ -31,41 +31,28 @@ export function parseSessionEntries(entries: readonly SessionEntry[]): ToolResul
 // Pick the `selectedResultUuid` the session should restore to.
 // Rules:
 //   1. If the URL carries `?result=<uuid>` AND that uuid actually
-//      exists in the loaded list, honour it verbatim. This lets
-//      bookmarks restore the exact result the user was viewing —
-//      we honour even sidebar-hidden uuids here because the URL is
-//      an explicit user choice (a fresh "auto-pick" should never
-//      land on a hidden result, but a deliberate bookmark can).
-//   2. Otherwise fall back to the heuristic over visible-only
-//      results: the most recent non-text tool result (images, wiki
-//      pages, etc. carry more visual information than bare text).
-//   3. If there are no non-text visible results, use the last
-//      visible result of any kind.
+//      exists in the loaded list, honour it verbatim — bookmarks
+//      restore the exact result the user was viewing.
+//   2. Otherwise pick the most recent non-text tool result —
+//      images, wiki pages, etc. carry more visual information
+//      than a bare text response.
+//   3. If every result is `text-response`, fall back to the last
+//      one.
 //   4. If the list is empty, return null.
 //
-// `isVisible` is injected (rather than imported here) so this
-// module stays Vue-free for `node:test` consumers; the live App
-// passes `isSidebarVisible` from `sidebarVisibleApp`. The default
-// `() => true` matches pre-filter behaviour for tests that don't
-// supply one.
-export function resolveSelectedUuid(
-  toolResults: readonly ToolResultComplete[],
-  urlResult: string | null,
-  isVisible: (result: ToolResultComplete) => boolean = () => true,
-): string | null {
+export function resolveSelectedUuid(toolResults: readonly ToolResultComplete[], urlResult: string | null): string | null {
   if (urlResult && toolResults.some((result) => result.uuid === urlResult)) {
     return urlResult;
   }
-  const visible = toolResults.filter(isVisible);
-  if (visible.length === 0) return null;
+  if (toolResults.length === 0) return null;
   // Iterate backwards for the "last non-text" lookup so callers
   // don't pay for an intermediate reverse copy.
-  for (let i = visible.length - 1; i >= 0; i--) {
-    if (visible[i].toolName !== "text-response") {
-      return visible[i].uuid;
+  for (let i = toolResults.length - 1; i >= 0; i--) {
+    if (toolResults[i].toolName !== "text-response") {
+      return toolResults[i].uuid;
     }
   }
-  return visible[visible.length - 1].uuid;
+  return toolResults[toolResults.length - 1].uuid;
 }
 
 // Decide the `startedAt` / `updatedAt` to seed the in-memory
@@ -108,16 +95,12 @@ export function buildLoadedSession(opts: {
   urlResult: string | null;
   serverSummary: SessionSummary | undefined;
   nowIso: string;
-  /** Visibility predicate for the auto-select heuristic — defaults
-   *  to `() => true` so this module stays Vue-free for tests; the
-   *  App wires `isSidebarVisible` from `sidebarVisibleApp`. */
-  isVisible?: (result: ToolResultComplete) => boolean;
 }): ActiveSession {
-  const { id, entries, defaultRoleId, urlResult, serverSummary, nowIso, isVisible } = opts;
+  const { id, entries, defaultRoleId, urlResult, serverSummary, nowIso } = opts;
   const meta = entries.find((entry) => entry.type === EVENT_TYPES.sessionMeta);
   const roleId = meta?.roleId ?? defaultRoleId;
   const toolResults = parseSessionEntries(entries);
-  const selectedResultUuid = resolveSelectedUuid(toolResults, urlResult, isVisible);
+  const selectedResultUuid = resolveSelectedUuid(toolResults, urlResult);
   const { startedAt, updatedAt } = resolveSessionTimestamps(serverSummary, nowIso);
   const resultTimestamps = interpolateTimestamps(toolResults, startedAt, updatedAt);
 

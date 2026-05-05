@@ -2,7 +2,7 @@
 // `Normalised{Track,Playlist}` shapes the View renders. Pure —
 // no runtime / fetch / I/O — so unit tests run without mocks.
 
-import type { NormalisedPlaylist, NormalisedTrack, RecentlyPlayedItem } from "./types";
+import type { NormalisedAlbum, NormalisedArtist, NormalisedPlaylist, NormalisedTrack, RecentlyPlayedItem } from "./types";
 
 interface SpotifyArtist {
   name?: unknown;
@@ -167,6 +167,85 @@ export function normalisePlaylistList(raw: unknown): NormalisedPlaylist[] {
   const out: NormalisedPlaylist[] = [];
   for (const item of items) {
     const normalised = normalisePlaylist(item);
+    if (normalised) out.push(normalised);
+  }
+  return out;
+}
+
+interface SpotifyArtistFull {
+  id?: unknown;
+  name?: unknown;
+  genres?: unknown;
+  popularity?: unknown;
+  external_urls?: unknown;
+  images?: unknown;
+}
+
+export function normaliseArtist(raw: unknown): NormalisedArtist | null {
+  if (!isRecord(raw)) return null;
+  const artist = raw as SpotifyArtistFull;
+  if (typeof artist.id !== "string" || artist.id.length === 0) return null;
+  if (typeof artist.name !== "string") return null;
+  const url = spotifyUrl(artist.external_urls);
+  const imageUrl = smallestImageUrl(artist.images);
+  const popularity = typeof artist.popularity === "number" && Number.isFinite(artist.popularity) ? artist.popularity : undefined;
+  return {
+    id: artist.id,
+    name: artist.name,
+    genres: Array.isArray(artist.genres) ? artist.genres.filter((g): g is string => typeof g === "string") : [],
+    ...(popularity !== undefined ? { popularity } : {}),
+    ...(url !== undefined ? { url } : {}),
+    ...(imageUrl !== undefined ? { imageUrl } : {}),
+  };
+}
+
+export function normaliseArtistList(raw: unknown): NormalisedArtist[] {
+  if (!isRecord(raw)) return [];
+  const items = (raw as { items?: unknown }).items;
+  if (!Array.isArray(items)) return [];
+  const out: NormalisedArtist[] = [];
+  for (const item of items) {
+    const normalised = normaliseArtist(item);
+    if (normalised) out.push(normalised);
+  }
+  return out;
+}
+
+interface SpotifyAlbumFull {
+  id?: unknown;
+  name?: unknown;
+  artists?: unknown;
+  release_date?: unknown;
+  total_tracks?: unknown;
+  external_urls?: unknown;
+  images?: unknown;
+}
+
+export function normaliseAlbum(raw: unknown): NormalisedAlbum | null {
+  if (!isRecord(raw)) return null;
+  const album = raw as SpotifyAlbumFull;
+  if (typeof album.id !== "string" || album.id.length === 0) return null;
+  if (typeof album.name !== "string") return null;
+  const url = spotifyUrl(album.external_urls);
+  const imageUrl = smallestImageUrl(album.images);
+  return {
+    id: album.id,
+    name: album.name,
+    artists: artistNames(album.artists),
+    releaseDate: typeof album.release_date === "string" ? album.release_date : "",
+    totalTracks: typeof album.total_tracks === "number" && Number.isFinite(album.total_tracks) ? album.total_tracks : 0,
+    ...(url !== undefined ? { url } : {}),
+    ...(imageUrl !== undefined ? { imageUrl } : {}),
+  };
+}
+
+export function normaliseAlbumList(raw: unknown): NormalisedAlbum[] {
+  if (!isRecord(raw)) return [];
+  const items = (raw as { items?: unknown }).items;
+  if (!Array.isArray(items)) return [];
+  const out: NormalisedAlbum[] = [];
+  for (const item of items) {
+    const normalised = normaliseAlbum(item);
     if (normalised) out.push(normalised);
   }
   return out;

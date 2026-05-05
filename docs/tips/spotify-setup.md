@@ -78,14 +78,23 @@ PKCE フローを使っているので Client Secret はそもそも持ちませ
 
 ## 何が取れる?
 
-read-only v1 では以下が取れます:
+| 機能 | Free / Open | Premium |
+|---|---|---|
+| お気に入り (Liked Songs) | ✓ | ✓ |
+| Playlists 一覧 / 各 playlist のトラック | ✓ | ✓ |
+| 最近聞いた曲 (直近 50 曲、Spotify API の上限) | ✓ | ✓ |
+| 今再生中の曲 (表示のみ) | ✓ | ✓ |
+| Search (track / artist / album / playlist) | ✓ | ✓ |
+| デバイス一覧 (`getDevices`) | ✓ | ✓ |
+| **再生制御 (play / pause / next / prev / seek / volume / transferPlayback)** | ✗ | ✓ |
 
-- お気に入り(Liked Songs)
-- Playlists 一覧 / 各 playlist のトラック
-- 最近聞いた曲(直近 50 曲、Spotify API の上限)
-- 今再生中の曲
+再生制御は **Spotify Premium が必須**です(Spotify Web API 側の制限)。Free / Open アカウントの場合、View 上では Player Controls は隠され、LLM 経由で `play` 等を呼んでも `premium_required` エラーが返ります。
 
-Playback 制御(再生 / 一時停止 / スキップ)や書き込み(Liked に追加 / playlist 作成)は別 PR で対応予定です。
+Liked への追加・削除、playlist 作成、編集は別 PR で対応予定です。
+
+## 既存接続の再認可 (PR 3 以降)
+
+PR 3 で OAuth scope を 2 個追加 (`user-read-playback-state`, `user-modify-playback-state`) しました。PR 1 / 2 のみで接続済みのユーザは再生制御を呼ぶと `403 Insufficient client scope` が返るので、View の「Reconnect」(または `tokens.json` 削除 → 再 Connect) で再認可してください。
 
 ## 関連ドキュメント
 

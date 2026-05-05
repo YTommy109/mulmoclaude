@@ -7,7 +7,7 @@
 // would invite the model to mutate user secrets). The plugin's Zod
 // `DispatchArgsSchema` still accepts it.
 
-import { LLM_CALLABLE_KINDS } from "./schemas";
+import { LLM_CALLABLE_KINDS, SEARCH_TYPES } from "./schemas";
 
 export const TOOL_DEFINITION = {
   type: "function" as const,
@@ -31,15 +31,54 @@ export const TOOL_DEFINITION = {
       code: { type: "string" },
       state: { type: "string" },
       error: { type: "string" },
-      // `liked` / `recent` / `playlistTracks`
+      // `liked` / `recent` / `playlistTracks` / `search`
       limit: {
         type: "number",
-        description: "Maximum items to return. Liked / recent: 1-50 (default 50). PlaylistTracks: 1-100 (default 100).",
+        description:
+          "Maximum items to return. Liked / recent / search: 1-50 (default 50 for liked/recent, 10 per category for search). PlaylistTracks: 1-100 (default 100).",
       },
       // `playlistTracks`
       playlistId: {
         type: "string",
         description: "Spotify playlist ID (bare ID, not a URI). Obtained from a prior `playlists` response.",
+      },
+      // `search`
+      query: {
+        type: "string",
+        description: "Search query — REQUIRED when kind=search. Spotify supports field filters (`artist:Bach`, `year:2020`, `genre:jazz`) and quoted phrases.",
+      },
+      types: {
+        type: "array",
+        items: { type: "string", enum: [...SEARCH_TYPES] },
+        description: "Categories to search. Default = all four.",
+      },
+      // Player Controls (PR 3) — Spotify Premium required at runtime
+      // for play / pause / next / previous / seek / setVolume /
+      // transferPlayback. `getDevices` works for Free accounts too.
+      deviceId: {
+        type: "string",
+        description: "Spotify Connect device ID. Obtained from `getDevices`. Optional for play/pause/etc; defaults to the active device.",
+      },
+      contextUri: {
+        type: "string",
+        description: "Spotify URI for an album / playlist / artist context to play (e.g. `spotify:playlist:abc123`). Mutually exclusive with `trackUris`.",
+      },
+      trackUris: {
+        type: "array",
+        items: { type: "string" },
+        description: "Explicit list of track URIs to play (`spotify:track:abc123`). Mutually exclusive with `contextUri`.",
+      },
+      positionMs: {
+        type: "number",
+        description: "Seek position in milliseconds (`seek` only).",
+      },
+      volumePercent: {
+        type: "number",
+        description: "Volume 0-100 inclusive (`setVolume` only).",
+      },
+      play: {
+        type: "boolean",
+        description: "When transferring playback, whether to start playing on the new device. Default false.",
       },
     },
     required: ["kind"],

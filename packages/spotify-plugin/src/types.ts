@@ -85,3 +85,80 @@ export interface RecentlyPlayedItem {
   /** ISO-8601 timestamp from Spotify's `played_at`. */
   playedAt: string;
 }
+
+/** Search results return mixed entity types; Spotify groups them
+ *  by category (`tracks.items[]`, `artists.items[]`, etc.). The
+ *  plugin normalises each category separately. */
+export interface NormalisedArtist {
+  id: string;
+  name: string;
+  /** Spotify's `genres` field — usually empty for niche artists. */
+  genres: string[];
+  /** 0-100. Optional because some search results don't carry it. */
+  popularity?: number;
+  url?: string;
+  imageUrl?: string;
+}
+
+export interface NormalisedAlbum {
+  id: string;
+  name: string;
+  artists: string[];
+  /** ISO date or year-only string Spotify returns ("2024" /
+   *  "2024-05-15"). Stored verbatim — the View formats. */
+  releaseDate: string;
+  totalTracks: number;
+  url?: string;
+  imageUrl?: string;
+}
+
+/** Aggregate result from the `search` kind. Categories are present
+ *  iff the caller asked for them; absent categories are simply
+ *  omitted from the object. */
+export interface SearchResult {
+  tracks?: NormalisedTrack[];
+  artists?: NormalisedArtist[];
+  albums?: NormalisedAlbum[];
+  playlists?: NormalisedPlaylist[];
+}
+
+/** Spotify Connect device (a place where the user can play music —
+ *  desktop app, phone, web player, smart speaker). The View shows
+ *  a dropdown so the user can pick a target device.
+ *
+ *  `id` may be null when Spotify returns a restricted device — for
+ *  some account states / DRM restrictions, Spotify lists a device
+ *  but withholds its ID, leaving it informational but un-targetable.
+ *  Dropping these would underreport the user's setup; the View
+ *  surfaces them but disables the Transfer button (Codex review on
+ *  PR #1171). */
+export interface NormalisedDevice {
+  id: string | null;
+  name: string;
+  /** "Computer" / "Smartphone" / "Speaker" — Spotify's `type`. */
+  type: string;
+  isActive: boolean;
+  /** 0-100, present when the device exposes volume control. */
+  volumePercent?: number;
+}
+
+/** Persisted at `runtime.files.config/profile.json`. Caches
+ *  `/v1/me`'s `product` field so we don't re-call Spotify on every
+ *  `play` dispatch. TTL keeps the cache fresh enough that a user
+ *  upgrading from Free → Premium sees controls within ~24h
+ *  without manually reconnecting. */
+export interface SpotifyProfile {
+  /** Spotify user ID (`/v1/me`'s `id` field). Bound to the cache
+   *  so reconnecting with a different Spotify account doesn't
+   *  serve the previous account's `product` for the rest of the
+   *  TTL — Codex review on PR #1171. Empty string for cache
+   *  records persisted before the account-scoping fix landed. */
+  userId: string;
+  /** "premium" / "free" / "open" (open is a legacy free-tier
+   *  marker Spotify still emits for some accounts). */
+  product: string;
+  /** Free-form display name from `/v1/me`; surfaced in `diagnose`. */
+  displayName: string;
+  /** Epoch ms when this snapshot was fetched. */
+  fetchedAtMs: number;
+}

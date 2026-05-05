@@ -28,6 +28,7 @@ export const RoleSchema = z.object({
   prompt: z.string(),
   availablePlugins: availablePluginsSchema,
   queries: z.array(z.string()).optional(),
+  isDebugRole: z.boolean().optional(),
 });
 
 export type Role = z.infer<typeof RoleSchema>;
@@ -290,6 +291,44 @@ export const ROLES: Role[] = [
       "Update my pad thai — bump the lime to 2 tablespoons next time",
     ],
   },
+  {
+    id: "debug",
+    name: "Debug",
+    icon: "star",
+    prompt:
+      "You are a helpful assistant with access to the user's workspace. Help with tasks, answer questions, and use available tools when appropriate.\n\n" +
+      "## Asking the user to choose\n\n" +
+      "When the user must pick from a small set of options, toggle features, or answer yes/no, call presentForm with the appropriate fields (radio for one-of, checkbox for many-of, text/textarea for free-form). Group related questions into one form. Prefer this strongly over phrasing the choice in plain prose — the form gives the user clickable controls and sends the answers back as a markdown bullet list.\n\n" +
+      "Mark every field the user must answer as `required: true`. The form blocks submission until required fields are filled, which prevents the LLM from receiving partial responses.\n\n" +
+      "## Wiki\n\n" +
+      "A personal knowledge wiki lives at `data/wiki/` in the workspace.\n\n" +
+      "- **Ingest**: fetch or read the source, save raw to `data/wiki/sources/<slug>.md`, create/update pages in `data/wiki/pages/`, update `data/wiki/index.md`, append to `data/wiki/log.md`. Wiki page Writes/Edits render inline in the chat automatically — no extra display call needed.\n" +
+      "- **Browse / lint**: direct the user to the `/wiki` UI — catalog at `/wiki`, a specific page at `/wiki/pages/<slug>`, activity log at `/wiki/log`, or the Lint button on `/wiki` for a health check.\n\n" +
+      "Page format: YAML frontmatter (title, created, updated, tags) + markdown body + `[[wiki links]]` for cross-references. Slugs are lowercase hyphen-separated. Always keep `data/wiki/index.md` current and append to `data/wiki/log.md` after any change. The page-list section of `index.md` is a flat, recency-ordered log: prepend new pages at the top, and when a page is updated (content, description, tags, or rename) move its entry to the top — don't group by category. The Tags section (if present) still needs its per-tag page lists updated on add / rename / delete, but the tag order itself is not reordered by recency. Read `config/helps/wiki.md` for full details.",
+    availablePlugins: [
+      TOOL_NAMES.manageCalendar,
+      TOOL_NAMES.presentDocument,
+      TOOL_NAMES.presentForm,
+      TOOL_NAMES.presentMulmoScript,
+      TOOL_NAMES.generateImage,
+      TOOL_NAMES.presentHtml,
+      TOOL_NAMES.readXPost,
+      TOOL_NAMES.searchX,
+      TOOL_NAMES.notify,
+    ],
+    queries: [
+      "Tell me about this app, MulmoClaude.",
+      "What is the wiki in this app and how do I use it?",
+      "Tell me about the sandbox feature of this app.",
+      "What is the role of the Gemini API key in this app?",
+      "How do I use the Telegram bridge to talk to MulmoClaude from my phone?",
+      "Show my wiki index",
+      "Lint my wiki",
+      "Show my todo list",
+      "Show me my calendar",
+    ],
+    isDebugRole: true,
+  },
 ];
 
 export const BUILTIN_ROLES = ROLES;
@@ -312,6 +351,7 @@ export const BUILTIN_ROLE_IDS = {
   settings: "settings",
   accounting: "accounting",
   cookingCoach: "cookingCoach",
+  debug: "debug",
 } as const;
 
 export type BuiltInRoleId = (typeof BUILTIN_ROLE_IDS)[keyof typeof BUILTIN_ROLE_IDS];

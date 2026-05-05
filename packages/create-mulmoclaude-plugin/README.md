@@ -62,17 +62,21 @@ mulmoclaude --dev-plugin ./my-plugin --dev-plugin ../other-plugin
 
 The plugin appears in the runtime registry under its `package.json`
 name with version `dev` and is served straight from your `dist/`. Edit
-source → vite rebuilds → reload mulmoclaude in the browser to pick
-up the new bundle.
+source → vite rebuilds → **the browser auto-reloads** to pick up the
+new bundle.
 
 Hard-fails fast on:
 - Missing `dist/index.js` (run `yarn build` or `yarn dev` first).
 - Name collision between the dev plugin and an installed (published)
   one — both abs paths are logged so you can see what conflicted.
 
-Auto-reload (chokidar push) is tracked at
-[receptron/mulmoclaude#1159](https://github.com/receptron/mulmoclaude/issues/1159)
-PR3.
+Server-side caveat: when you change `src/index.ts` (the `definePlugin`
+factory), vite rebuilds `dist/index.js` and the browser reloads, but
+Node's ESM cache holds the old server-side module. The mulmoclaude log
+prints `dist/index.js changed — restart mulmoclaude to pick up
+server-side changes` so you know to Ctrl+C and restart the launcher.
+Pure browser-side edits (`View.vue`, CSS, lang/) hot-load without a
+restart.
 
 ## Why a sample, not an empty plugin
 
