@@ -16,7 +16,6 @@ import { META as presentHtmlMeta } from "../presentHtml/meta";
 import { META as presentMulmoScriptMeta } from "../presentMulmoScript/meta";
 import { META as schedulerAutomationsMeta } from "../scheduler/automationsMeta";
 import { META as schedulerCalendarMeta } from "../scheduler/calendarMeta";
-import { META as spotifyMeta } from "../spotify/meta";
 import { META as spreadsheetMeta } from "../spreadsheet/meta";
 import { META as wikiMeta } from "../wiki/meta";
 
@@ -36,7 +35,6 @@ export const GENERATED_PLUGIN_METAS = [
   presentMulmoScriptMeta,
   schedulerAutomationsMeta,
   schedulerCalendarMeta,
-  spotifyMeta,
   spreadsheetMeta,
   wikiMeta,
 ] as const satisfies readonly PluginMeta[];

@@ -251,6 +251,44 @@ The package's `dist/index.js` is what the server dynamic-imports for `TOOL_DEFIN
 
 [`packages/bookmarks-plugin/`](../packages/bookmarks-plugin/) is a small (~70-line server / ~50-line View) reference plugin built on the factory shape. It exercises every API surface — pubsub publish + subscribe, `files.data` for the bookmarks JSON, `files.config` for sort prefs, locale-aware view text, Zod-discriminated args with exhaustive switch. Read this before writing your first plugin.
 
+### OAuth-using plugins (`@mulmoclaude/spotify-plugin` pattern, #1162)
+
+A plugin that integrates with an OAuth provider (Spotify / GitHub / Apple Music / …) needs ONE host-side hook the dispatch surface alone can't provide: a stable HTTP path the provider's redirect URL can hit. The host exposes a generic endpoint:
+
+```
+GET /api/plugins/runtime/:pkg/oauth/callback?code=…&state=…&error=…
+```
+
+Bearer-auth-EXEMPT (the browser comes back from the provider with no `Authorization` header). The host routes by `:pkg`, looks up the plugin in the runtime registry, and forwards the query params to the plugin as a dispatch call:
+
+```ts
+plugin.execute({}, { kind: "oauthCallback", code, state, error });
+```
+
+The plugin handles state validation, code-for-token exchange, and persistence. Host code stays generic — no provider-specific logic.
+
+#### Plugin-side recipe
+
+1. **`connect` kind**: View calls `runtime.dispatch({ kind: "connect", redirectUri })` where the View computes
+   ```ts
+   const redirectUri = `${window.location.origin}/api/plugins/runtime/${encodeURIComponent("@you/your-plugin")}/oauth/callback`;
+   ```
+   Plugin generates PKCE `code_verifier` + a single-use `state`, stores them in-memory keyed by `state`, returns `{ data: { authorizeUrl } }`. View opens the URL.
+
+2. **`oauthCallback` kind**: invoked automatically by the host's generic endpoint. Plugin validates `state` (CSRF defence), exchanges `code + code_verifier` at the provider's token endpoint (using `runtime.fetch` with an `allowedHosts: [<provider-token-host>]` allowlist), persists tokens via `runtime.files.config`, and returns `{ html?: string; message?: string }`. The host renders `html` to the browser; if absent, it falls back to a minimal "OAuth complete" / "OAuth failed" page.
+
+3. **Token refresh**: plugin's API client wraps `runtime.fetch` with a proactive-refresh-near-expiry + 401 → refresh → retry-once loop. A second 401 after refresh surfaces as `auth_expired` so the user reconnects rather than churning the token endpoint.
+
+4. **Provider-specific Client ID**: store via `runtime.files.config` (e.g. `client.json`). The View has a "Configure" form that posts to a `kind: "configure"` dispatch action. PKCE means no Client Secret — that's a Spotify-specific simplification but applies to most modern OAuth providers.
+
+#### What ends up in host code
+
+For Spotify, the answer is: **one route entry** on the runtime-plugin router (the generic OAuth callback above). No provider-specific config. Adding GitHub / Apple Music / … reuses the same endpoint by registering a different `:pkg`.
+
+#### Reference
+
+[`packages/spotify-plugin/`](../packages/spotify-plugin/) is the reference implementation. PR 1 ships the OAuth surface only (`connect` / `oauthCallback` / `status` / `diagnose`); PR 2 adds the listening-data kinds + the View. Plan: [`plans/feat-spotify-plugin.md`](../plans/feat-spotify-plugin.md), tracking issue: #1162.
+
 ## API reference (factory shape)
 
 ```ts

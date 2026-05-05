@@ -42,7 +42,6 @@ describe("WORKSPACE_DIRS expected keys", () => {
     "scheduler",
     "searches",
     "sources",
-    "spotifyConfig",
     "spreadsheets",
     "stories",
     "summaries",

@@ -63,7 +63,6 @@ import { createTaskManager } from "./events/task-manager/index.js";
 import type { ITaskManager } from "./events/task-manager/index.js";
 import { initScheduler, type SystemTaskDef } from "./events/scheduler-adapter.js";
 import schedulerTasksRoutes from "./api/routes/schedulerTasks.js";
-import spotifyRouter from "./api/routes/spotify.js";
 import { loadSchedulerOverrides, UTC_HH_MM_RE } from "./utils/files/scheduler-overrides-io.js";
 import type { IPubSub } from "./events/pub-sub/index.js";
 import { connectRelay } from "./events/relay-client.js";
@@ -167,6 +166,12 @@ app.use(requireSameOrigin);
 // the asset route handler.
 // The CSRF origin check + loopback-only binding still apply.
 const RUNTIME_PLUGIN_ASSET_PATH_RE = /^\/plugins\/runtime\/[^/]+\/[^/]+\//;
+// Generic OAuth callback receiver for runtime plugins (#1162). Same
+// browser-redirect-can't-carry-Authorization-header reason as the
+// asset path above. Trust model: registry-membership (the host's
+// route handler 404s an unknown :pkg) plus the plugin's single-use
+// `state` for CSRF.
+const RUNTIME_PLUGIN_OAUTH_CALLBACK_RE = /^\/plugins\/runtime\/[^/]+\/oauth\/callback$/;
 app.use("/api", (req, res, next) => {
   if (req.path.startsWith("/files/")) {
     next();
@@ -176,13 +181,7 @@ app.use("/api", (req, res, next) => {
     next();
     return;
   }
-  // /api/spotify/callback (#1162) is hit by the user's browser after
-  // accounts.spotify.com redirects them back. The browser cannot
-  // attach an Authorization header to that redirect, so the route
-  // is bearer-auth-exempt. CSRF / replay protection comes from the
-  // single-use `state` registered in `oauth.ts` on the connect side
-  // — an unknown state returns 400 from the handler.
-  if (req.method === "GET" && req.path === "/spotify/callback") {
+  if (req.method === "GET" && RUNTIME_PLUGIN_OAUTH_CALLBACK_RE.test(req.path)) {
     next();
     return;
   }
@@ -543,7 +542,6 @@ app.use(createNotificationsRouter(notificationDeps));
 app.use(createJournalRouter());
 app.use(mcpToolsRouter);
 app.use(schedulerTasksRoutes);
-app.use(spotifyRouter);
 
 if (env.isProduction) {
   // `{ index: false }` so express.static doesn't intercept `GET /`

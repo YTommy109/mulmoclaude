@@ -162,3 +162,129 @@ describe("POST /api/plugins/runtime/:pkg/dispatch — call signature", () => {
     }
   });
 });
+
+// Generic OAuth callback endpoint (#1162). Hosts the redirect URI
+// registered with any OAuth provider; routes by `:pkg` to the
+// matching runtime plugin's `kind: "oauthCallback"` dispatch. Same
+// trust model as the asset path: registry-membership decides whether
+// the URL resolves at all.
+describe("GET /api/plugins/runtime/:pkg/oauth/callback", () => {
+  it("forwards code/state/error to the registered plugin and renders the plugin's HTML", async () => {
+    const calls: { args: unknown }[] = [];
+    const oauthPlugin: RuntimePlugin = {
+      name: "@fixture/oauth-plugin",
+      version: "1.0.0",
+      cachePath: fixtureDir,
+      definition: {
+        type: "function",
+        name: "tool_oauth",
+        description: "fixture",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+      execute: async (_context: unknown, args: unknown) => {
+        calls.push({ args });
+        return { ok: true, message: "Connected.", html: "<h1>Connected!</h1>" };
+      },
+    };
+    registerRuntimePlugins(new Set(), [oauthPlugin]);
+
+    const app = express();
+    app.disable("x-powered-by");
+    app.use(runtimePluginRouter);
+    const server = app.listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      const url = `http://127.0.0.1:${port}/api/plugins/runtime/${encodeURIComponent("@fixture/oauth-plugin")}/oauth/callback?code=auth-code-123&state=state-xyz`;
+      const res = await fetch(url);
+      assert.equal(res.status, 200);
+      assert.match(res.headers.get("content-type") ?? "", /text\/html/);
+      assert.match(await res.text(), /Connected!/);
+      assert.equal(calls.length, 1);
+      assert.deepEqual(calls[0].args, {
+        kind: "oauthCallback",
+        code: "auth-code-123",
+        state: "state-xyz",
+        error: undefined,
+      });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("returns 404 when the pkg is not in the runtime registry (other plugins can't impersonate)", async () => {
+    registerRuntimePlugins(new Set(), [
+      {
+        name: "@fixture/registered",
+        version: "1.0.0",
+        cachePath: fixtureDir,
+        definition: { type: "function", name: "tool", description: "x", parameters: { type: "object", properties: {}, required: [] } },
+        execute: async () => ({ ok: true }),
+      },
+    ]);
+    const app = express();
+    app.disable("x-powered-by");
+    app.use(runtimePluginRouter);
+    const server = app.listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      const res = await fetch(`http://127.0.0.1:${port}/api/plugins/runtime/${encodeURIComponent("@fixture/never-registered")}/oauth/callback?code=x&state=y`);
+      assert.equal(res.status, 404);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("forwards `error` query (user-denied path) without crashing", async () => {
+    const calls: { args: unknown }[] = [];
+    registerRuntimePlugins(new Set(), [
+      {
+        name: "@fixture/oauth-plugin",
+        version: "1.0.0",
+        cachePath: fixtureDir,
+        definition: { type: "function", name: "tool", description: "x", parameters: { type: "object", properties: {}, required: [] } },
+        execute: async (_context: unknown, args: unknown) => {
+          calls.push({ args });
+          return { ok: false, message: "User denied." };
+        },
+      },
+    ]);
+    const app = express();
+    app.disable("x-powered-by");
+    app.use(runtimePluginRouter);
+    const server = app.listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      const res = await fetch(`http://127.0.0.1:${port}/api/plugins/runtime/${encodeURIComponent("@fixture/oauth-plugin")}/oauth/callback?error=access_denied`);
+      assert.equal(res.status, 400);
+      assert.deepEqual(calls[0].args, { kind: "oauthCallback", code: undefined, state: undefined, error: "access_denied" });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("falls back to a default HTML page when the plugin returns no `html` field", async () => {
+    registerRuntimePlugins(new Set(), [
+      {
+        name: "@fixture/no-html",
+        version: "1.0.0",
+        cachePath: fixtureDir,
+        definition: { type: "function", name: "tool", description: "x", parameters: { type: "object", properties: {}, required: [] } },
+        execute: async () => ({ ok: true, message: "Connected without custom HTML." }),
+      },
+    ]);
+    const app = express();
+    app.disable("x-powered-by");
+    app.use(runtimePluginRouter);
+    const server = app.listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      const res = await fetch(`http://127.0.0.1:${port}/api/plugins/runtime/${encodeURIComponent("@fixture/no-html")}/oauth/callback?code=c&state=s`);
+      assert.equal(res.status, 200);
+      const body = await res.text();
+      assert.match(body, /OAuth complete/);
+      assert.match(body, /Connected without custom HTML\./);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+});
