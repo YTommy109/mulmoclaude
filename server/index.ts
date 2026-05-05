@@ -33,6 +33,7 @@ import { makePluginRuntime } from "./plugins/runtime.js";
 import { MCP_PLUGIN_NAMES } from "./agent/plugin-names.js";
 import { createNotificationsRouter } from "./api/routes/notifications.js";
 import { createJournalRouter } from "./api/routes/journal.js";
+import { createTranslationRouter } from "./api/routes/translation.js";
 import { type NotificationDeps, initNotifications } from "./events/notifications.js";
 import { announcePluginMetaDiagnostics } from "./plugins/diagnostics.js";
 import { createChatService } from "@mulmobridge/chat-service";
@@ -541,6 +542,7 @@ const notificationDeps: NotificationDeps = {
 };
 app.use(createNotificationsRouter(notificationDeps));
 app.use(createJournalRouter());
+app.use(createTranslationRouter());
 app.use(mcpToolsRouter);
 app.use(schedulerTasksRoutes);
 
