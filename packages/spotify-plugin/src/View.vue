@@ -85,26 +85,27 @@ async function saveClientId(): Promise<void> {
 //   1. `localhost` is rejected — must use `127.0.0.1` or `[::1]`
 //   2. URI must match the one registered in the Dashboard EXACTLY
 //
-// In Vite dev, `window.location.origin` is the Vite dev server
-// (`localhost:5173`). Using that as the redirectUri would (a)
-// break Spotify's `127.0.0.1`-only rule, and (b) require the user
-// to register both the Vite-dev URI and the production-server URI
-// in their Dashboard.
+// We honour the actual page origin so that:
+//   - Custom port via `--port 3099` → redirectUri uses 3099 (user
+//     registers `127.0.0.1:3099/api/...` in their Dashboard).
+//   - Vite dev (`5173`) → redirectUri uses 5173 (Vite proxy
+//     forwards `/api/*` to the server).
+//   - Production (server serves the SPA on 3001) → matches.
 //
-// Always use `127.0.0.1:3001` so the Dashboard URI is a single
-// stable string that matches `docs/tips/spotify-setup.md`. Users
-// running the server on a different port (`npm run server -- --port
-// 3099`) need to substitute the port and register the same URI in
-// the Dashboard — the host's runtime registry doesn't expose its
-// own port to plugins, so we can't auto-detect.
-const SPOTIFY_REDIRECT_URI = "http://127.0.0.1:3001/api/plugins/runtime/oauth-callback/spotify";
+// `localhost` is coerced to `127.0.0.1` because Spotify rejects
+// `localhost` outright — the proxy / browser still hits the same
+// loopback address either way.
+function computeRedirectUri(): string {
+  const origin = window.location.origin.replace("//localhost:", "//127.0.0.1:").replace("//localhost/", "//127.0.0.1/");
+  return `${origin}/api/plugins/runtime/oauth-callback/spotify`;
+}
 
 async function startConnect(): Promise<void> {
   isConnecting.value = true;
   try {
     const response = await dispatch<{ ok: boolean; data?: { authorizeUrl?: string }; message?: string }>({
       kind: "connect",
-      redirectUri: SPOTIFY_REDIRECT_URI,
+      redirectUri: computeRedirectUri(),
     });
     if (response.ok && response.data?.authorizeUrl) {
       // Open the consent screen in a new tab. The original tab

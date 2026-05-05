@@ -553,9 +553,9 @@ function mapPlayerError(error: SpotifyClientError, kind: PlayerKind) {
     return {
       ok: false,
       error: "scope_missing",
-      message: "新しい権限の追加が必要です。「Connect」をやり直してください。",
+      message: "新しい権限の追加が必要です。Spotify View ヘッダの「Reconnect」ボタンを押して再認可してください。",
       instructions:
-        "PR 3 で追加された Player 制御は新しい OAuth scope を要求します。View の「Disconnect」→「Connect」を再実行することで scope が更新されます。",
+        "PR 3 で追加された Player 制御は新しい OAuth scope を要求します。View 右上の「Reconnect」ボタンで Spotify の同意画面を開き直すと scope が更新されます。",
     };
   }
   return mapClientError(error);
