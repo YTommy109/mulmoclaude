@@ -409,35 +409,41 @@ The standalone route follows the existing pattern: route registered in `src/rout
 
 ## Phasing
 
-**Order of operations**: Dev-mode scaffolding ships first (PR 1), so the Notifier engine (PR 2) can ship with a real test plugin behind a Debug role rather than an HTTP-only harness or a test plugin that pollutes production roles. Encore (PRs 3 + 4) follows once the engine is proven.
+**Order of operations**: A tiny client-only dev-mode gate ships first (PR 1) so the Notifier engine (PR 2) can ship with a real test plugin behind a Debug role rather than an HTTP-only harness or a test plugin that pollutes production roles. Encore (PRs 3 + 4) follows once the engine is proven.
 
-### PR 1 — Dev mode + Debug role (host only, no Notifier, no Encore)
+### PR 1 — Dev mode + Debug role (client-only, ~25-line diff)
 
-A general-purpose dev-only role gate that any future test plugin can sit behind. Encore needs it; the Notifier test plugin in PR 2 is the first consumer; later infrastructure work (mock LLM provider, fake source fetcher, etc.) can reuse it.
+A minimal client-only dropdown gate. PR 2's `_notifierTest` plugin will sit on the same `VITE_DEV_MODE` flag, but the gating mechanism for *roles* lives entirely in the role schema + the dropdown component.
 
-**`DEV_MODE` env flag**:
+**Schema**:
 
-- New `.env` entry `DEV_MODE=1` (defaults `0`). Off in production.
-- Server-side: `server/system/env.ts` adds `devMode: asFlag(process.env.DEV_MODE)`.
-- Client-side: mirrored as `VITE_DEV_MODE` so test-plugin module imports tree-shake out of production bundles.
+- `src/config/roles.ts` — add optional `isDebugRole?: boolean` to `RoleSchema` and the inferred `Role` type. Existing custom roles in workspace files don't need to update — the field is optional.
 
 **Debug role**:
 
-- New entry in `src/config/roles.ts` (id `debug`, name `Debug`, icon `code`). Same prompt and same `availablePlugins` as `general`, plus any test-plugin tool names.
-- `RoleSelector.vue` filters the dropdown — Debug only renders when devMode is true. A new `useSystemConfig()` composable fetches a new lightweight `/api/system/config` endpoint (returning `{ devMode }`) once on boot.
+- New entry at the end of `ROLES` in `src/config/roles.ts`, copied verbatim from General with `isDebugRole: true` set. No factoring of shared prompt/plugin constants — the data is literal so each role stays independently editable.
 
-**Test-plugin convention**:
+**Visibility filter**:
 
-- Live under `src/plugins/_<name>/` — underscore prefix mirrors the existing `_extras.ts` / `_generated/` "non-user-facing" marker.
-- Tool names also underscore-prefixed: `_notifierTest`, `_<other>` later.
-- Registration in `src/plugins/metas.ts` wrapped in a `VITE_DEV_MODE`-guarded conditional so production builds don't ship them.
+- `src/components/RoleSelector.vue` adds a `visibleRoles = computed(...)` that filters out `isDebugRole` entries unless `import.meta.env.VITE_DEV_MODE === "1"`. The `v-for` iterates `visibleRoles`. That's the entire visible behavior change.
 
-**Test coverage**:
+**Env wiring**:
 
-- Unit: `useSystemConfig` returns `{ devMode: false }` when the endpoint reports false; role-list filter excludes Debug accordingly.
-- E2E: with `DEV_MODE=0`, Debug role absent from dropdown; with `DEV_MODE=1`, Debug appears with the General plugin set.
+- Set `VITE_DEV_MODE=1` in `.env`. Vite exposes `VITE_*` to client code by default — no `vite.config.ts` change needed.
+- `src/vite-env.d.ts` types `VITE_DEV_MODE?: "1" | "0"` for the typecheck.
 
-**Acceptance bar**: Debug role appears (when enabled) with the same plugin set as General, no test plugins yet — those land in PR 2 against this scaffold.
+**Out of scope intentionally** (rejected from earlier draft as overengineered for what is a single client-side gate):
+
+- No server-side `DEV_MODE` flag. The server doesn't filter roles in `/api/roles` (it returns custom roles only — built-ins flow client-only via the bundled `ROLES` constant), so there's nothing for the server to gate.
+- No `/api/system/config` endpoint. No runtime config to fetch — the flag is a compile-time constant.
+- No `useSystemConfig` composable. `import.meta.env.VITE_DEV_MODE` is read once where it's needed.
+- No filter inside `useRoles`. The dropdown is the only surface that needs filtering.
+- No `vite.config.ts` mirror plumbing. `VITE_*` is the convention; using `DEV_MODE=1` instead would force one extra `define` line for no real gain.
+- No factoring of `GENERAL_PROMPT` / `GENERAL_AVAILABLE_PLUGINS`. Debug holds a literal copy.
+
+Existing chat sessions tied to a debug role still render normally (icon, history, tabs) — only the dropdown hides Debug. If devMode is off and a user somehow has an active Debug session, it stays usable. New sessions in non-dev-mode simply can't pick the role.
+
+**Acceptance bar**: with `VITE_DEV_MODE=1`, Debug appears at the bottom of the role dropdown with General's plugin set; without it, Debug is absent. Total diff: ~25 lines across 3 files (`roles.ts`, `RoleSelector.vue`, `vite-env.d.ts`).
 
 ### PR 2 — Notifier engine + `_notifierTest` plugin (host only, no Encore)
 
@@ -475,22 +481,20 @@ Encore translates obligation + item state into `notifier.schedule()` calls. All 
 
 ## Open questions
 
-To resolve before PR 1 (Dev mode):
-
-1. **`VITE_DEV_MODE` synchronization with `DEV_MODE`.** Single source of truth in `.env` is preferable. Vite reads `.env` natively but only exposes `VITE_`-prefixed vars to the client. Either (a) require both `DEV_MODE=1` and `VITE_DEV_MODE=1`, (b) re-export at vite-config time, or (c) read server-side and surface only via `/api/system/config`. **Default: (b) — vite-config mirrors `DEV_MODE` to `VITE_DEV_MODE` so a single `.env` line drives both.**
+PR 1 resolved: client-only `VITE_DEV_MODE` flag, no server-side mirror, no runtime endpoint.
 
 To resolve before PR 2 (Notifier):
 
-2. **Declarative vs imperative scheduling.** Plan above is *imperative* — plugin computes each fire time and re-registers. A declarative spec ("every Sunday until acked, escalate after 2 weeks") is more powerful but a bigger surface. Imperative matches how `task-scheduler` already works; declarative may be worth it once we see 3+ plugins repeating the same pattern. **Default: imperative for v1.**
-3. **Type-1 panel affordance: button or checkbox?** Per-row close-button is simplest; leading checkbox + bulk "Acknowledge selected" wins for catch-up sessions where many `fyi` rows pile up. **Default: leading checkbox (covers both — single-row click still works via the row's own close-`×`).**
-4. **Severity → channel mapping config UI.** Hidden file (`config/notifier.json`) for v1, settings page later? Or settings page from day one? **Default: hidden file for v1, settings UI in a follow-up.**
-5. **Re-surface cap.** A reminder ignored for a week should not fire 50 times. Cap at `escalateAt.length` re-surfaces? Hard ceiling of N per 24h? **Default: re-surface only at the explicit `escalateAt` points; no auto-multiplication.**
-6. **Signal namespace.** `"encore:taxes:w2-received"` is the obvious shape, but signals are global. Risk of name collision across plugins. **Default: enforce `<pluginPkg>:` prefix at the Notifier API boundary.**
-7. **Conflict with `task-scheduler`.** The existing scheduler also fires things on a schedule. Notifier is *user-facing reminders*; scheduler is *task execution*. They may share scheduling primitives internally; they should not share API surfaces. **Default: keep them separate; revisit if duplication becomes painful.**
+1. **Declarative vs imperative scheduling.** Plan above is *imperative* — plugin computes each fire time and re-registers. A declarative spec ("every Sunday until acked, escalate after 2 weeks") is more powerful but a bigger surface. Imperative matches how `task-scheduler` already works; declarative may be worth it once we see 3+ plugins repeating the same pattern. **Default: imperative for v1.**
+2. **Type-1 panel affordance: button or checkbox?** Per-row close-button is simplest; leading checkbox + bulk "Acknowledge selected" wins for catch-up sessions where many `fyi` rows pile up. **Default: leading checkbox (covers both — single-row click still works via the row's own close-`×`).**
+3. **Severity → channel mapping config UI.** Hidden file (`config/notifier.json`) for v1, settings page later? Or settings page from day one? **Default: hidden file for v1, settings UI in a follow-up.**
+4. **Re-surface cap.** A reminder ignored for a week should not fire 50 times. Cap at `escalateAt.length` re-surfaces? Hard ceiling of N per 24h? **Default: re-surface only at the explicit `escalateAt` points; no auto-multiplication.**
+5. **Signal namespace.** `"encore:taxes:w2-received"` is the obvious shape, but signals are global. Risk of name collision across plugins. **Default: enforce `<pluginPkg>:` prefix at the Notifier API boundary.**
+6. **Conflict with `task-scheduler`.** The existing scheduler also fires things on a schedule. Notifier is *user-facing reminders*; scheduler is *task execution*. They may share scheduling primitives internally; they should not share API surfaces. **Default: keep them separate; revisit if duplication becomes painful.**
 
 To resolve before PR 3 (Encore CRUD):
 
-8. **i18n surface for Encore.** All 8 locales need the obligation-type vocabulary ("taxes", "registration", "annual physical"). Are these built-in templates the user picks from, or free-form titles the user types? **Default: free-form for v1, suggested templates as a chat-side affordance.**
+7. **i18n surface for Encore.** All 8 locales need the obligation-type vocabulary ("taxes", "registration", "annual physical"). Are these built-in templates the user picks from, or free-form titles the user types? **Default: free-form for v1, suggested templates as a chat-side affordance.**
 
 ---
 
