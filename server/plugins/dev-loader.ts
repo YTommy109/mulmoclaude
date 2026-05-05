@@ -121,6 +121,31 @@ export async function loadDevPlugins(inputs: readonly DevPluginInput[], deps: Lo
   return { plugins, errors };
 }
 
+/** Boot-time gate verdict. The server's plugin-init IIFE composes
+ *  loadDevPlugins + detectDevCollisions to decide whether to abort
+ *  startup. Splitting the verdict out as a pure function keeps the
+ *  hard-exit policy testable without spawning a server process. */
+export type DevPluginGate = { ok: true; plugins: readonly RuntimePlugin[] } | { ok: false; fatalMessages: readonly string[] };
+
+/** Compose `loadDevPlugins` + `detectDevCollisions` into a single
+ *  pass/fail verdict. The caller (server/index.ts) logs each
+ *  fatalMessage and `process.exit(1)`s; tests assert on the verdict
+ *  shape directly. */
+export function evaluateDevPluginGate(devLoad: LoadDevPluginsResult, otherPlugins: readonly RuntimePlugin[]): DevPluginGate {
+  if (devLoad.errors.length > 0) {
+    const messages = devLoad.errors.map((entry) => `[plugins/dev] ${entry}`);
+    messages.push(`[plugins/dev] ${devLoad.errors.length} dev plugin(s) failed to load — refusing to start.`);
+    return { ok: false, fatalMessages: messages };
+  }
+  const collisions = detectDevCollisions(devLoad.plugins, otherPlugins);
+  if (collisions.length > 0) {
+    const messages = collisions.map((collision) => `[plugins/dev] name collision: ${collision.name} sources=${JSON.stringify(collision.sources)}`);
+    messages.push("[plugins/dev] dev plugin name collides with installed plugin or another dev plugin — refusing to start.");
+    return { ok: false, fatalMessages: messages };
+  }
+  return { ok: true, plugins: devLoad.plugins };
+}
+
 /** Detect name collisions: within the dev set, and across dev↔prod.
  *  Returns one entry per collided name; sources lists every cachePath
  *  involved. Empty when clean. */

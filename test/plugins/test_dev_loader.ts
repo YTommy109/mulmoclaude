@@ -6,7 +6,14 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { detectDevCollisions, DEV_VERSION, loadDevPlugins, parseDevPluginsEnv, validateDevPluginPath } from "../../server/plugins/dev-loader.js";
+import {
+  detectDevCollisions,
+  DEV_VERSION,
+  evaluateDevPluginGate,
+  loadDevPlugins,
+  parseDevPluginsEnv,
+  validateDevPluginPath,
+} from "../../server/plugins/dev-loader.js";
 import type { RuntimePlugin } from "../../server/plugins/runtime-loader.js";
 
 interface FixtureOpts {
@@ -164,18 +171,18 @@ describe("loadDevPlugins", () => {
   });
 });
 
-describe("detectDevCollisions", () => {
-  function fakePlugin(name: string, cachePath: string): RuntimePlugin {
-    return {
-      name,
-      version: DEV_VERSION,
-      cachePath,
-      definition: { type: "function", name: `tool_${name}`, description: "", parameters: { type: "object", properties: {}, required: [] } },
-      execute: async () => ({}),
-      oauthCallbackAlias: null,
-    };
-  }
+function fakePlugin(name: string, cachePath: string): RuntimePlugin {
+  return {
+    name,
+    version: DEV_VERSION,
+    cachePath,
+    definition: { type: "function", name: `tool_${name}`, description: "", parameters: { type: "object", properties: {}, required: [] } },
+    execute: async () => ({}),
+    oauthCallbackAlias: null,
+  };
+}
 
+describe("detectDevCollisions", () => {
   it("returns [] when names are all unique across dev + prod", () => {
     const dev = [fakePlugin("@a/one", "/dev/one")];
     const prod = [fakePlugin("@a/two", "/prod/two")];
@@ -210,5 +217,57 @@ describe("detectDevCollisions", () => {
     assert.ok(conflict);
     assert.equal(dup.sources.length, 2);
     assert.equal(conflict.sources.length, 2);
+  });
+});
+
+describe("evaluateDevPluginGate", () => {
+  it("ok=true with the loaded plugins when devLoad has no errors AND no collisions", () => {
+    const devLoad = { plugins: [fakePlugin("@a/one", "/dev/one")], errors: [] };
+    const verdict = evaluateDevPluginGate(devLoad, []);
+    assert.equal(verdict.ok, true);
+    if (verdict.ok) {
+      assert.equal(verdict.plugins.length, 1);
+      assert.equal(verdict.plugins[0].name, "@a/one");
+    }
+  });
+
+  it("ok=false when devLoad has any errors — fatalMessages include each error + a refusing-to-start summary", () => {
+    const devLoad = { plugins: [], errors: ["./bad: dist/index.js not found at /abs/bad/dist/index.js"] };
+    const verdict = evaluateDevPluginGate(devLoad, []);
+    assert.equal(verdict.ok, false);
+    if (!verdict.ok) {
+      assert.equal(verdict.fatalMessages.length, 2);
+      assert.match(verdict.fatalMessages[0], /dist\/index\.js not found/);
+      assert.match(verdict.fatalMessages[1], /refusing to start/);
+    }
+  });
+
+  it("ok=false when there's a dev/prod name collision — fatalMessages include the abs paths and a summary", () => {
+    const devLoad = { plugins: [fakePlugin("@a/conflict", "/dev/path")], errors: [] };
+    const prod = [fakePlugin("@a/conflict", "/prod/cache/conflict")];
+    const verdict = evaluateDevPluginGate(devLoad, prod);
+    assert.equal(verdict.ok, false);
+    if (!verdict.ok) {
+      const joined = verdict.fatalMessages.join("\n");
+      assert.match(joined, /name collision: @a\/conflict/);
+      assert.match(joined, /\/dev\/path/);
+      assert.match(joined, /\(installed\) \/prod\/cache\/conflict/);
+      assert.match(joined, /refusing to start/);
+    }
+  });
+
+  it("errors take precedence over collisions — short-circuits before the collision pass", () => {
+    // If we couldn't even load the dev plugin, the collision check is
+    // moot. The dev needs to fix the load failure first.
+    const devLoad = { plugins: [], errors: ["broken: package.json missing"] };
+    const prod = [fakePlugin("@a/anything", "/prod/whatever")];
+    const verdict = evaluateDevPluginGate(devLoad, prod);
+    assert.equal(verdict.ok, false);
+    if (!verdict.ok) {
+      const joined = verdict.fatalMessages.join("\n");
+      assert.match(joined, /package\.json missing/);
+      // Collision message should NOT appear — we bailed earlier.
+      assert.doesNotMatch(joined, /name collision/);
+    }
   });
 });

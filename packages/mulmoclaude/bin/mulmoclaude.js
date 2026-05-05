@@ -9,13 +9,14 @@ import { execSync, spawn } from "child_process";
 import { existsSync } from "fs";
 import { get as httpGet } from "http";
 import { createRequire } from "module";
-import { join, dirname, delimiter as PATH_DELIMITER, resolve as resolvePath } from "path";
+import { join, dirname, delimiter as PATH_DELIMITER } from "path";
 import { fileURLToPath } from "url";
 
 // Shared with `server/index.ts` — the launcher and the dev server use
 // the same probe + fallback logic. See server/utils/port.mjs for why
 // it's plain JS rather than TypeScript.
 import { isPortFree, findAvailablePort, MAX_PORT_PROBES } from "../server/utils/port.mjs";
+import { parseDevPluginArgs } from "../server/utils/dev-plugin-args.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -118,23 +119,18 @@ if (args.includes("--version")) {
 
 const { requestedPort, portExplicit } = parsePortArg();
 const noOpen = args.includes("--no-open");
-const devPluginPaths = parseDevPluginArgs();
+const devPluginPaths = resolveDevPluginPaths();
 
-function parseDevPluginArgs() {
-  const resolved = [];
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] !== "--dev-plugin") continue;
-    const raw = args[i + 1];
-    if (raw === undefined || raw.startsWith("-")) {
-      error("--dev-plugin requires a path argument");
-      process.exit(1);
-    }
-    const abs = resolvePath(process.cwd(), raw);
-    log(`[dev-plugin] ${raw} → ${abs}`);
-    resolved.push(abs);
-    i++;
+function resolveDevPluginPaths() {
+  const result = parseDevPluginArgs(args, process.cwd());
+  if (!result.ok) {
+    error(result.reason);
+    process.exit(1);
   }
-  return resolved;
+  for (const { rawInput, absPath } of result.resolved) {
+    log(`[dev-plugin] ${rawInput} → ${absPath}`);
+  }
+  return result.resolved.map((entry) => entry.absPath);
 }
 
 function parsePortArg() {

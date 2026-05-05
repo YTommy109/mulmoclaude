@@ -26,7 +26,7 @@ import configRoutes from "./api/routes/config.js";
 import skillsRoutes from "./api/routes/skills.js";
 import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
 import { loadRuntimePlugins } from "./plugins/runtime-loader.js";
-import { detectDevCollisions, loadDevPlugins, parseDevPluginsEnv } from "./plugins/dev-loader.js";
+import { evaluateDevPluginGate, loadDevPlugins, parseDevPluginsEnv } from "./plugins/dev-loader.js";
 import { loadPresetPlugins } from "./plugins/preset-loader.js";
 import { registerRuntimePlugins } from "./plugins/runtime-registry.js";
 import { makePluginRuntime } from "./plugins/runtime.js";
@@ -755,17 +755,9 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
       // so the developer can't accidentally trial-and-error against a
       // server that silently dropped their plugin. Same policy for
       // collisions per #1159 PR2 spec.
-      if (devLoad.errors.length > 0) {
-        for (const message of devLoad.errors) log.error("plugins/dev", message);
-        log.error("plugins/dev", `${devLoad.errors.length} dev plugin(s) failed to load — refusing to start.`);
-        process.exit(1);
-      }
-      const collisions = detectDevCollisions(devLoad.plugins, [...presets, ...userInstalled]);
-      if (collisions.length > 0) {
-        for (const collision of collisions) {
-          log.error("plugins/dev", `name collision: ${collision.name}`, { sources: collision.sources });
-        }
-        log.error("plugins/dev", "dev plugin name collides with installed plugin or another dev plugin — refusing to start.");
+      const devGate = evaluateDevPluginGate(devLoad, [...presets, ...userInstalled]);
+      if (!devGate.ok) {
+        for (const message of devGate.fatalMessages) log.error("plugins/dev", message);
         process.exit(1);
       }
       // Pass the full static-tool set (MCP plugins + ENABLED MCP tools
