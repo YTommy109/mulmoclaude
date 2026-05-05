@@ -32,6 +32,13 @@ const L02_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 // headroom for the slowest TTS provider on a cold cache.
 const L03_TIMEOUT_MS = 10 * ONE_MINUTE_MS;
 const L03_GENERATION_TIMEOUT_MS = 8 * ONE_MINUTE_MS;
+// L-04 (animation:true) compose is per-frame Puppeteer screenshot
+// + ffmpeg encode. A 1-beat / 2-second / 30fps fixture is ~60
+// frames; in practice it lands in 30–90s, so the ceilings here are
+// the same order as L-03 with a little extra slack for cold-cache
+// browser launches.
+const L04_TIMEOUT_MS = 8 * ONE_MINUTE_MS;
+const L04_GENERATION_TIMEOUT_MS = 6 * ONE_MINUTE_MS;
 // L-05 has to absorb the LLM picking the generateImage tool plus the
 // Gemini image-gen round trip. Cold Gemini calls land in 30–60s in
 // practice; 4 minutes leaves slack for slow networks without inviting
@@ -118,6 +125,41 @@ test.describe("media (real LLM)", () => {
     }
   });
 
+  test("L-04: animation:true の mulmoScript → 動画生成がエラーなく完走する", async ({ page }, testInfo) => {
+    test.setTimeout(L04_TIMEOUT_MS);
+    // Same ffmpeg precondition as L-03 — mulmocast shells out to
+    // system ffmpeg via fluent-ffmpeg for the per-frame compose
+    // step, so without ffmpeg on PATH the test would silently hang
+    // on the 6-minute generation timeout instead of skipping cleanly.
+    test.skip(!isFFmpegAvailable(), "ffmpeg not in PATH; required for the mulmoScript animation compose pipeline (see issue #1049)");
+    // L-04 covers B-46 — `animation: true` on an html_tailwind beat
+    // used to break the movie compose path. We seed a fixture with
+    // exactly one short animated beat (text="" so TTS stays out of
+    // the picture, no GEMINI_API_KEY required) and drive the same
+    // Generate → Download UI flow as L-03; B-46 manifests as the
+    // Download Movie button never appearing.
+    //
+    // Project-name suffix mirrors L-03's race guard against the
+    // server's `inFlightMovies` set — keeps chromium / webkit from
+    // contending on the same fixture path during parallel runs.
+    const slug = testInfo.project.name;
+    const fixtureBasename = `e2e-live-l04-${slug}.json`;
+    const workspaceScriptRel = path.posix.join("artifacts/stories", fixtureBasename);
+    const wireFilePath = path.posix.join("stories", fixtureBasename);
+    await placeFixtureInWorkspace("mulmo/l04-animation.json", workspaceScriptRel);
+    try {
+      await startNewSession(page);
+      await sendL03FilePathPrompt(page, wireFilePath);
+      await waitForMulmoScriptViewReady(page);
+      await waitForAssistantResponseComplete(page);
+      await generateAndDownloadMovieWithTimeout(page, L04_GENERATION_TIMEOUT_MS);
+    } finally {
+      const sessionId = getCurrentSessionId(page);
+      if (sessionId) await deleteSession(page, sessionId);
+      await removeFromWorkspace(workspaceScriptRel);
+    }
+  });
+
   test("L-03: 既存 mulmoScript → 動画生成 → 動画 DL が成功する", async ({ page }, testInfo) => {
     test.setTimeout(L03_TIMEOUT_MS);
     // mulmocast spawns system ffmpeg via fluent-ffmpeg (not bundled).
@@ -157,7 +199,7 @@ test.describe("media (real LLM)", () => {
       await sendL03FilePathPrompt(page, wireFilePath);
       await waitForMulmoScriptViewReady(page);
       await waitForAssistantResponseComplete(page);
-      await generateAndDownloadMovie(page);
+      await generateAndDownloadMovieWithTimeout(page, L03_GENERATION_TIMEOUT_MS);
     } finally {
       const sessionId = getCurrentSessionId(page);
       if (sessionId) await deleteSession(page, sessionId);
@@ -298,12 +340,15 @@ async function waitForMulmoScriptViewReady(page: Page): Promise<void> {
 /**
  * Drive the Generate → Download flow end-to-end. The Download pill
  * only appears once the server has finished compose, so its
- * visibility doubles as a "generation complete" signal.
+ * visibility doubles as a "generation complete" signal. Caller
+ * supplies the generation timeout because L-03 (TTS + textSlide
+ * compose) and L-04 (per-frame animation compose) have different
+ * cost profiles.
  */
-async function generateAndDownloadMovie(page: Page): Promise<void> {
+async function generateAndDownloadMovieWithTimeout(page: Page, generationTimeoutMs: number): Promise<void> {
   await page.getByTestId("mulmo-script-generate-movie-button").first().click();
   const downloadBtn = page.getByTestId("mulmo-script-download-movie-button").first();
-  await expect(downloadBtn).toBeVisible({ timeout: L03_GENERATION_TIMEOUT_MS });
+  await expect(downloadBtn).toBeVisible({ timeout: generationTimeoutMs });
   const downloadPromise = page.waitForEvent("download");
   await downloadBtn.click();
   const movie = await readMovieDownload(await downloadPromise);
