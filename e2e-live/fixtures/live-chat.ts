@@ -182,15 +182,30 @@ function shouldKeepSessions(): boolean {
 /**
  * Poll `GET /api/sessions` until `session.isRunning` flips to false
  * for the given id. Bridges the gap between "the assistant
- * `thinking-indicator` went hidden" (UI signal that
- * `waitForAssistantResponseComplete` waits on) and
- * "server-side `live.isRunning || pendingGenerations` is empty"
- * (the gate `DELETE /api/sessions/:id` checks). Without this, the
- * UI cleanup click sequence races server-side state and the DELETE
- * route returns 409 — silently from the UI's point of view, so the
- * test passes but the file stays on disk. See
- * `server/api/routes/sessions.ts` lines 150 / 401 for the two ends
- * of that gap.
+ * `thinking-indicator` went hidden" (the UI signal
+ * `waitForAssistantResponseComplete` waits on) and "the server is
+ * willing to accept the DELETE" — without this wait, the UI
+ * cleanup click sequence races server state and the route returns
+ * 409 silently from the UI's point of view, the test passes, and
+ * the file stays on disk.
+ *
+ * Predicate-asymmetry note (codex iter-2): the summary `isRunning`
+ * we read here is `live.isRunning || pendingGenerations.length>0`
+ * (server/api/routes/sessions.ts:150), but `DELETE /api/sessions/:id`
+ * only checks `getSession()?.isRunning` proper (line 401), without
+ * pendingGenerations. We intentionally wait on the STRICTER summary
+ * predicate because:
+ *   * the summary is the only `isRunning`-shaped field exposed on
+ *     the public API today — querying just `live.isRunning` would
+ *     need a server-side endpoint addition
+ *   * waiting too long is the safe direction (we never delete
+ *     before the server is ready); waiting too SHORT is the
+ *     regression we are explicitly closing
+ *   * for every spec in this suite, the test already waits for
+ *     the user-visible artifact to render (Download Movie button
+ *     for L-04, etc.) before reaching cleanup — by then
+ *     pendingGenerations is empty in practice, so the stricter
+ *     predicate doesn't add measurable wall time
  *
  * Runs the fetch inside `page.evaluate` so the browser's bearer
  * header (read from `<meta name="mulmoclaude-auth">`) is reused

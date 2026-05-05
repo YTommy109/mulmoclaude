@@ -92,13 +92,23 @@ test.describe("session (real LLM)", () => {
       // would point at the wrong root cause.
       expect(getCurrentSessionId(page), "session id must survive a reload before we can probe context").toBe(sessionIdBeforeReload);
 
+      // Pin the baseline AFTER the turn-1 transcript has fully
+      // hydrated. Without this wait `preRecallCodeCount` can land
+      // on 0 (hydration in flight), and any late-arriving turn-1
+      // user-prompt bubble would later push the count up even if
+      // the agent's turn-2 reply contained nothing — which is
+      // exactly the false-positive shape codex iter-2 flagged.
+      // Waiting on the user prompt itself is locale-agnostic
+      // (the app never localises user input) and proves the
+      // transcript carries the code from turn-1 before we measure.
+      await expect(page.getByText(rememberPrompt).first(), "turn-1 transcript must rehydrate before sampling the magic-code baseline").toBeVisible();
       // Count how many times the magic code appears BEFORE turn 2.
-      // After reload there is already at least one occurrence — the
-      // user's own turn-1 prompt is back in the transcript (and the
-      // sidebar history preview likely shows it too). Anchoring the
-      // post-recall assertion to "the count went up" is what makes
-      // this an actual B-16 canary: if the agent fails to recall,
-      // its turn-2 reply won't contain the code and the count stays
+      // After hydration there is already at least one occurrence
+      // (the user's own turn-1 prompt; the sidebar history preview
+      // typically shows it too). Anchoring the post-recall
+      // assertion to "the count went up" is what makes this an
+      // actual B-16 canary: if the agent fails to recall, its
+      // turn-2 reply won't contain the code and the count stays
       // flat, even though the page still has the code from turn 1.
       const preRecallCodeCount = await page.getByText(L12_MAGIC_CODE).count();
 
