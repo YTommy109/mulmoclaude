@@ -53,12 +53,12 @@ docs/plugin-runtime.md                # OAuth-using plugin recipe を追加
 
 ## OAuth (Authorization Code + PKCE)
 
-1. View で「Connect Spotify」 → `runtime.dispatch({ kind: "connect", redirectUri })` を呼ぶ。`redirectUri` は View が `${window.location.origin}/api/plugins/runtime/${encodeURIComponent(pkg)}/oauth/callback` で組み立て
+1. View で「Connect Spotify」 → `runtime.dispatch({ kind: "connect", redirectUri })` を呼ぶ。`redirectUri` は View が `${window.location.origin}/api/plugins/runtime/oauth-callback/spotify` で組み立て (`spotify` は plugin が `OAUTH_CALLBACK_ALIAS` 名前付き export で宣言した alias)
 2. Plugin が PKCE `code_verifier` + 単発の `state` を生成、in-memory に保存、authorize URL を返す
 3. View が `window.location.href = authorizeUrl` でブラウザを Spotify 同意画面に遷移
 4. 同意後、Spotify は `redirectUri` (= 上記の callback URL) にブラウザを redirect
-5. **Host の generic OAuth callback endpoint** (`GET /api/plugins/runtime/:pkg/oauth/callback`) が browser を受ける
-   - URL から `:pkg` を取り出して runtime registry に照会
+5. **Host の generic OAuth callback endpoint** (`GET /api/plugins/runtime/oauth-callback/:alias`) が browser を受ける
+   - URL から `:alias` を取り出して runtime registry の alias index に照会
    - `plugin.execute({}, { kind: "oauthCallback", code, state, error })` を呼ぶ
 6. Plugin が `state` を検証 → `code + code_verifier` で token endpoint を叩いて access + refresh を取得 → `runtime.files.config` に `tokens.json` 保存 → pubsub `connected` を publish → `{ html, message }` を返す
 7. Host が plugin の `html` (もしくは fallback) をブラウザに render

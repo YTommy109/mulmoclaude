@@ -33,7 +33,7 @@
 import { realpathSync } from "node:fs";
 import { Router, type Request, type Response } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
-import { getRuntimePlugins } from "../../plugins/runtime-registry.js";
+import { getRuntimePluginByOauthAlias, getRuntimePlugins } from "../../plugins/runtime-registry.js";
 import { notFound, serverError } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
 import { isRecord } from "../../utils/types.js";
@@ -123,22 +123,22 @@ function sendOauthCallbackResult(res: Response, result: unknown): void {
     .send(html ?? renderFallbackCallbackHtml(ok ? "OAuth complete" : "OAuth failed", message || "(no message)"));
 }
 
-router.get(API_ROUTES.plugins.runtimeOauthCallback, async (req: Request<{ pkg: string }>, res: Response) => {
-  const pkg = decodeURIComponent(req.params.pkg);
-  const plugin = getRuntimePlugins().find((entry) => entry.name === pkg);
+router.get(API_ROUTES.plugins.runtimeOauthCallback, async (req: Request<{ alias: string }>, res: Response) => {
+  const { alias } = req.params;
+  const plugin = getRuntimePluginByOauthAlias(alias);
   if (!plugin) {
-    notFound(res, `runtime plugin "${pkg}" not registered`);
+    notFound(res, `no runtime plugin registered for OAuth callback alias "${alias}"`);
     return;
   }
   if (!plugin.execute) {
-    serverError(res, `runtime plugin "${pkg}" has no execute()`);
+    serverError(res, `runtime plugin "${plugin.name}" has no execute()`);
     return;
   }
   try {
     const result = await plugin.execute({}, buildOauthCallbackArgs(req.query));
     sendOauthCallbackResult(res, result);
   } catch (err) {
-    log.error(LOG_PREFIX, "oauth callback dispatch threw", { pkg, error: errorMessage(err) });
+    log.error(LOG_PREFIX, "oauth callback dispatch threw", { alias, plugin: plugin.name, error: errorMessage(err) });
     res
       .status(500)
       .type("text/html")

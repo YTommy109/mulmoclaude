@@ -59,6 +59,7 @@ const fakePlugin = (name: string, version: string, cachePath: string): RuntimePl
     parameters: { type: "object", properties: {}, required: [] },
   },
   execute: null,
+  oauthCallbackAlias: null,
 });
 
 describe("resolvePluginRoot — registry membership", () => {
@@ -138,6 +139,7 @@ describe("POST /api/plugins/runtime/:pkg/dispatch — call signature", () => {
         calls.push({ context, args });
         return { ok: true };
       },
+      oauthCallbackAlias: null,
     };
     registerRuntimePlugins(new Set(), [spyPlugin]);
 
@@ -164,12 +166,13 @@ describe("POST /api/plugins/runtime/:pkg/dispatch — call signature", () => {
 });
 
 // Generic OAuth callback endpoint (#1162). Hosts the redirect URI
-// registered with any OAuth provider; routes by `:pkg` to the
-// matching runtime plugin's `kind: "oauthCallback"` dispatch. Same
-// trust model as the asset path: registry-membership decides whether
-// the URL resolves at all.
-describe("GET /api/plugins/runtime/:pkg/oauth/callback", () => {
-  it("forwards code/state/error to the registered plugin and renders the plugin's HTML", async () => {
+// registered with any OAuth provider; routes by `:alias` (plugin-
+// declared via `OAUTH_CALLBACK_ALIAS`) to the matching runtime
+// plugin's `kind: "oauthCallback"` dispatch. The alias indirection
+// exists because Spotify's Dashboard rejects redirect URIs containing
+// percent-encoded `@` / `/` characters from the npm scoped name.
+describe("GET /api/plugins/runtime/oauth-callback/:alias", () => {
+  it("forwards code/state/error to the plugin registered under the alias and renders the plugin's HTML", async () => {
     const calls: { args: unknown }[] = [];
     const oauthPlugin: RuntimePlugin = {
       name: "@fixture/oauth-plugin",
@@ -185,6 +188,7 @@ describe("GET /api/plugins/runtime/:pkg/oauth/callback", () => {
         calls.push({ args });
         return { ok: true, message: "Connected.", html: "<h1>Connected!</h1>" };
       },
+      oauthCallbackAlias: "fixture-alias",
     };
     registerRuntimePlugins(new Set(), [oauthPlugin]);
 
@@ -194,7 +198,7 @@ describe("GET /api/plugins/runtime/:pkg/oauth/callback", () => {
     const server = app.listen(0);
     try {
       const { port } = server.address() as AddressInfo;
-      const url = `http://127.0.0.1:${port}/api/plugins/runtime/${encodeURIComponent("@fixture/oauth-plugin")}/oauth/callback?code=auth-code-123&state=state-xyz`;
+      const url = `http://127.0.0.1:${port}/api/plugins/runtime/oauth-callback/fixture-alias?code=auth-code-123&state=state-xyz`;
       const res = await fetch(url);
       assert.equal(res.status, 200);
       assert.match(res.headers.get("content-type") ?? "", /text\/html/);
@@ -211,7 +215,7 @@ describe("GET /api/plugins/runtime/:pkg/oauth/callback", () => {
     }
   });
 
-  it("returns 404 when the pkg is not in the runtime registry (other plugins can't impersonate)", async () => {
+  it("returns 404 when no plugin claims the alias (other plugins can't impersonate)", async () => {
     registerRuntimePlugins(new Set(), [
       {
         name: "@fixture/registered",
@@ -219,6 +223,7 @@ describe("GET /api/plugins/runtime/:pkg/oauth/callback", () => {
         cachePath: fixtureDir,
         definition: { type: "function", name: "tool", description: "x", parameters: { type: "object", properties: {}, required: [] } },
         execute: async () => ({ ok: true }),
+        oauthCallbackAlias: "registered-alias",
       },
     ]);
     const app = express();
@@ -227,7 +232,7 @@ describe("GET /api/plugins/runtime/:pkg/oauth/callback", () => {
     const server = app.listen(0);
     try {
       const { port } = server.address() as AddressInfo;
-      const res = await fetch(`http://127.0.0.1:${port}/api/plugins/runtime/${encodeURIComponent("@fixture/never-registered")}/oauth/callback?code=x&state=y`);
+      const res = await fetch(`http://127.0.0.1:${port}/api/plugins/runtime/oauth-callback/never-claimed?code=x&state=y`);
       assert.equal(res.status, 404);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -246,6 +251,7 @@ describe("GET /api/plugins/runtime/:pkg/oauth/callback", () => {
           calls.push({ args });
           return { ok: false, message: "User denied." };
         },
+        oauthCallbackAlias: "fixture-alias",
       },
     ]);
     const app = express();
@@ -254,7 +260,7 @@ describe("GET /api/plugins/runtime/:pkg/oauth/callback", () => {
     const server = app.listen(0);
     try {
       const { port } = server.address() as AddressInfo;
-      const res = await fetch(`http://127.0.0.1:${port}/api/plugins/runtime/${encodeURIComponent("@fixture/oauth-plugin")}/oauth/callback?error=access_denied`);
+      const res = await fetch(`http://127.0.0.1:${port}/api/plugins/runtime/oauth-callback/fixture-alias?error=access_denied`);
       assert.equal(res.status, 400);
       assert.deepEqual(calls[0].args, { kind: "oauthCallback", code: undefined, state: undefined, error: "access_denied" });
     } finally {
@@ -270,6 +276,7 @@ describe("GET /api/plugins/runtime/:pkg/oauth/callback", () => {
         cachePath: fixtureDir,
         definition: { type: "function", name: "tool", description: "x", parameters: { type: "object", properties: {}, required: [] } },
         execute: async () => ({ ok: true, message: "Connected without custom HTML." }),
+        oauthCallbackAlias: "no-html-alias",
       },
     ]);
     const app = express();
@@ -278,7 +285,7 @@ describe("GET /api/plugins/runtime/:pkg/oauth/callback", () => {
     const server = app.listen(0);
     try {
       const { port } = server.address() as AddressInfo;
-      const res = await fetch(`http://127.0.0.1:${port}/api/plugins/runtime/${encodeURIComponent("@fixture/no-html")}/oauth/callback?code=c&state=s`);
+      const res = await fetch(`http://127.0.0.1:${port}/api/plugins/runtime/oauth-callback/no-html-alias?code=c&state=s`);
       assert.equal(res.status, 200);
       const body = await res.text();
       assert.match(body, /OAuth complete/);
@@ -286,5 +293,33 @@ describe("GET /api/plugins/runtime/:pkg/oauth/callback", () => {
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+
+  it("first-registered plugin keeps an OAuth alias on collision; second is reported in oauthAliasCollisions", () => {
+    const result = registerRuntimePlugins(new Set(), [
+      {
+        name: "@fixture/first",
+        version: "1.0.0",
+        cachePath: fixtureDir,
+        definition: { type: "function", name: "tool_first", description: "x", parameters: { type: "object", properties: {}, required: [] } },
+        execute: async () => ({ ok: true }),
+        oauthCallbackAlias: "shared",
+      },
+      {
+        name: "@fixture/second",
+        version: "1.0.0",
+        cachePath: fixtureDir,
+        definition: { type: "function", name: "tool_second", description: "x", parameters: { type: "object", properties: {}, required: [] } },
+        execute: async () => ({ ok: true }),
+        oauthCallbackAlias: "shared",
+      },
+    ]);
+    // Both plugins still register (tool names differ); only the
+    // second's alias is dropped.
+    assert.equal(result.registered.length, 2);
+    assert.equal(result.oauthAliasCollisions.length, 1);
+    assert.equal(result.oauthAliasCollisions[0].plugin.name, "@fixture/second");
+    assert.equal(result.oauthAliasCollisions[0].alias, "shared");
+    assert.equal(result.oauthAliasCollisions[0].existingPlugin, "@fixture/first");
   });
 });

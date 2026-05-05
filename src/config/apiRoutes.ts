@@ -163,16 +163,23 @@ const HOST_API_ROUTES = {
     runtimeList: "/api/plugins/runtime/list",
     runtimeDispatch: "/api/plugins/runtime/:pkg/dispatch",
     /** Generic OAuth callback receiver for runtime plugins (#1162).
-     *  Spotify (and any future OAuth-using plugin) registers this URL
-     *  as the redirect_uri in its provider's developer dashboard. The
-     *  host extracts `:pkg` from the URL, looks up the registered
-     *  runtime plugin, and forwards `{ code, state, error }` as
-     *  `kind: "oauthCallback"` dispatch args. The plugin owns state
-     *  validation + token exchange — the host's role is just URL
-     *  routing + HTML response rendering. Bearer-auth-EXEMPT (browser
-     *  redirect carries no Authorization header); CSRF defended by
-     *  the plugin's single-use `state`. */
-    runtimeOauthCallback: "/api/plugins/runtime/:pkg/oauth/callback",
+     *  The plugin declares a short alias (e.g. `OAUTH_CALLBACK_ALIAS
+     *  = "spotify"`) and registers this URL as the redirect_uri in
+     *  its provider's developer dashboard. The host extracts the
+     *  alias, looks up the plugin in the registry, and forwards
+     *  `{ code, state, error }` as `kind: "oauthCallback"` dispatch
+     *  args.
+     *
+     *  Why a short alias instead of the npm package name in the path?
+     *  Spotify's Dashboard rejects redirect URIs containing
+     *  percent-encoded `@` / `/` characters (the natural shape when
+     *  the npm scoped name lands in a single path segment), so each
+     *  OAuth-using plugin declares its own short, alphanumeric alias.
+     *  Collisions are detected at boot and logged.
+     *
+     *  Bearer-auth-EXEMPT (browser redirect carries no Authorization
+     *  header); CSRF defended by the plugin's single-use `state`. */
+    runtimeOauthCallback: "/api/plugins/runtime/oauth-callback/:alias",
     /** Boot-time META aggregator collisions (host vs plugin, plugin
      *  vs plugin). Returns an empty array when clean. Frontend
      *  fetches once at mount so a tab that opens after server boot

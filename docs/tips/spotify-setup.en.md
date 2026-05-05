@@ -17,11 +17,11 @@ Click **Create app** and fill in:
 
 - **App name**: anything (e.g. `MulmoClaude (local)`)
 - **App description**: anything (e.g. `Personal listening data integration`)
-- **Redirect URIs**: add and save `http://127.0.0.1:3001/api/plugins/runtime/%40mulmoclaude%2Fspotify-plugin/oauth/callback` (replace `3001` with whatever port mulmoclaude is on)
+- **Redirect URIs**: add and save `http://127.0.0.1:3001/api/plugins/runtime/oauth-callback/spotify` (replace `3001` with whatever port mulmoclaude is on)
 - **Which API/SDKs are you planning to use?**: check **Web API**
 - Accept the terms, click Save
 
-> **Heads-up**: Spotify matches the redirect URI **exactly**. Use `127.0.0.1`, not `localhost`. Loopback redirects (`http://127.0.0.1` / `http://[::1]`) are exempt from Spotify's HTTPS requirement. `%40` / `%2F` are the URL-encoded forms of `@` / `/` — needed because the plugin name (`@mulmoclaude/spotify-plugin`) appears in the URL path.
+> **Heads-up**: Spotify matches the redirect URI **exactly**. Use `127.0.0.1`, not `localhost`. Loopback redirects (`http://127.0.0.1` / `http://[::1]`) are exempt from Spotify's HTTPS requirement. The trailing `spotify` segment is the OAuth callback alias the plugin declared via its `OAUTH_CALLBACK_ALIAS` named export.
 
 ### 2. Copy the Client ID
 
@@ -55,7 +55,7 @@ Ask mulmoclaude in chat to "connect Spotify". The LLM calls `manageSpotify({ kin
 The redirect URI registered in your Spotify Dashboard doesn't match the port mulmoclaude is currently running on.
 
 1. Check mulmoclaude's startup log for the port (e.g. `listening port=3099`)
-2. In the Dashboard Settings, add `http://127.0.0.1:<that port>/api/plugins/runtime/%40mulmoclaude%2Fspotify-plugin/oauth/callback` to Redirect URIs
+2. In the Dashboard Settings, add `http://127.0.0.1:<that port>/api/plugins/runtime/oauth-callback/spotify` to Redirect URIs
 3. Save → retry "connect Spotify"
 
 If you switch `--port` regularly, register the common ports (3001 / 3099 / etc.) all at once.

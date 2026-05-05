@@ -30,6 +30,15 @@ import type { SpotifyTokens } from "./types";
 
 export { TOOL_DEFINITION };
 
+// Short, URL-safe alias the host registers as
+// `/api/plugins/runtime/oauth-callback/:alias`. Spotify's Dashboard
+// rejects redirect URIs that contain percent-encoded path characters
+// (the natural shape when `:pkg` is `@mulmoclaude/spotify-plugin`), so
+// each OAuth-using runtime plugin declares its own alphanumeric alias.
+// Collisions with other plugins are detected at boot and surfaced as
+// startup diagnostics.
+export const OAUTH_CALLBACK_ALIAS = "spotify";
+
 /** Read-only scope set for v1. Sorted so the authorize URL is
  *  stable across boots. */
 const SPOTIFY_SCOPES: readonly string[] = ["playlist-read-private", "user-library-read", "user-read-currently-playing", "user-read-recently-played"] as const;
@@ -43,7 +52,7 @@ const CLIENT_ID_MISSING_INSTRUCTIONS = [
   "Spotify の Client ID が未設定です。",
   "",
   "1. https://developer.spotify.com/dashboard を開いて Spotify アカウントでログイン",
-  "2. 「Create app」 → Redirect URIs に http://127.0.0.1:<PORT>/api/plugins/runtime/%40mulmoclaude%2Fspotify-plugin/oauth/callback を追加 (PORT は mulmoclaude が動いているポート)",
+  "2. 「Create app」 → Redirect URIs に http://127.0.0.1:<PORT>/api/plugins/runtime/oauth-callback/spotify を追加 (PORT は mulmoclaude が動いているポート)",
   "3. Web API をチェックして保存",
   "4. Client ID をコピー",
   "5. plugin View の「Configure」で貼り付ける",

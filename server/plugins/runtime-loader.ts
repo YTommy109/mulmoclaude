@@ -53,6 +53,16 @@ export interface RuntimePlugin {
    *  TOOL_DEFINITION but no matching handler — the dispatch will 500
    *  with a useful message. */
   execute: ((context: unknown, args: unknown) => unknown) | null;
+  /** Optional short, URL-safe alias for the OAuth callback route
+   *  (#1162). When the plugin's module exports
+   *  `OAUTH_CALLBACK_ALIAS = "<alias>"`, the host registers
+   *  `/api/plugins/runtime/oauth-callback/<alias>` and forwards
+   *  `kind: "oauthCallback"` dispatch args to this plugin. The
+   *  package-name-in-path shape was rejected by Spotify Dashboard
+   *  because of the percent-encoded `@` / `/` characters, so OAuth
+   *  plugins declare a short alias (e.g. `"spotify"`) instead. Null
+   *  for non-OAuth plugins. */
+  oauthCallbackAlias: string | null;
 }
 
 interface PackageJson {
@@ -267,6 +277,22 @@ function resolveExecute(
   return handler as (context: unknown, args: unknown) => unknown;
 }
 
+/** Read the optional `OAUTH_CALLBACK_ALIAS` named export. Validated
+ *  against `^[a-z0-9][a-z0-9-]{0,30}$` — short, lowercase,
+ *  URL-friendly, can't be `..` or contain `/`. A bad alias is logged
+ *  and ignored (the plugin still loads; just skips the OAuth route
+ *  registration). */
+const OAUTH_CALLBACK_ALIAS_RE = /^[a-z0-9][a-z0-9-]{0,30}$/;
+function resolveOauthCallbackAlias(name: string, mod: Record<string, unknown>): string | null {
+  const raw = mod.OAUTH_CALLBACK_ALIAS;
+  if (raw === undefined) return null;
+  if (typeof raw !== "string" || !OAUTH_CALLBACK_ALIAS_RE.test(raw)) {
+    log.warn(LOG_PREFIX, "OAUTH_CALLBACK_ALIAS export is not a valid alias — ignoring", { name, raw: String(raw) });
+    return null;
+  }
+  return raw;
+}
+
 /** Load a plugin from an already-extracted cache directory. Pure
  *  function — accepts paths explicitly, so tests don't need a real
  *  workspace. Returns null on any structural failure (missing
@@ -297,7 +323,8 @@ export async function loadPluginFromCacheDir(name: string, version: string, cach
         shape: usingFactory ? "factory" : "legacy",
       });
     }
-    return { name, version, cachePath, definition, execute };
+    const oauthCallbackAlias = resolveOauthCallbackAlias(name, mod);
+    return { name, version, cachePath, definition, execute, oauthCallbackAlias };
   } catch (err) {
     log.error(LOG_PREFIX, "import failed", { name, entrySpec, error: String(err) });
     return null;
