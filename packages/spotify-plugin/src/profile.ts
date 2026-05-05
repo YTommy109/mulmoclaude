@@ -1,0 +1,116 @@
+// Spotify user profile cache (PR 3). Reads `/v1/me` once and
+// caches the `product` field so the player-control gate doesn't
+// need a fresh API roundtrip on every `play` dispatch.
+//
+// TTL is 24 h: long enough that a typical user paying for Premium
+// once doesn't get rate-limited extra GETs to `/v1/me`, short
+// enough that a Free → Premium upgrade is reflected within a day
+// without manually reconnecting.
+//
+// On a stale cache miss the loader fires `/v1/me` once and writes
+// the result to `profile.json`. If the API call fails we keep the
+// stale snapshot rather than locking the user out — the player
+// gate then errs on the side of "let them try" with a softer error
+// message. This intentionally trades strict correctness for UX:
+// a network blip on Spotify's side shouldn't break playback.
+
+import type { FileOps, PluginRuntime } from "gui-chat-protocol";
+
+import { spotifyApi } from "./client";
+import type { SpotifyClientError } from "./client";
+import { ONE_SECOND_MS } from "./time";
+import type { SpotifyProfile, SpotifyTokens } from "./types";
+
+const PROFILE_FILE = "profile.json";
+const PROFILE_TTL_MS = 24 * 60 * 60 * ONE_SECOND_MS;
+
+const PREMIUM_PRODUCT = "premium";
+
+interface RawProfile {
+  product?: unknown;
+  display_name?: unknown;
+}
+
+export interface ProfileDeps {
+  runtime: PluginRuntime;
+  clientId: string;
+  tokens: SpotifyTokens;
+  now?: () => Date;
+}
+
+export async function readProfile(files: FileOps): Promise<SpotifyProfile | null> {
+  if (!(await files.exists(PROFILE_FILE))) return null;
+  try {
+    const raw = await files.read(PROFILE_FILE);
+    const parsed = JSON.parse(raw) as Partial<SpotifyProfile>;
+    if (typeof parsed.product !== "string") return null;
+    if (typeof parsed.fetchedAtMs !== "number" || !Number.isFinite(parsed.fetchedAtMs)) return null;
+    return {
+      product: parsed.product,
+      displayName: typeof parsed.displayName === "string" ? parsed.displayName : "",
+      fetchedAtMs: parsed.fetchedAtMs,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function writeProfile(files: FileOps, profile: SpotifyProfile): Promise<void> {
+  await files.write(PROFILE_FILE, JSON.stringify(profile, null, 2));
+}
+
+function isCacheFresh(profile: SpotifyProfile, now: Date): boolean {
+  return now.getTime() - profile.fetchedAtMs < PROFILE_TTL_MS;
+}
+
+/** Get the cached profile if fresh; otherwise fetch + persist a
+ *  new snapshot. On API failure with a stale cache we keep the
+ *  stale value (better than locking the user out). */
+export async function getProfile(deps: ProfileDeps): Promise<{ ok: true; profile: SpotifyProfile } | { ok: false; error: SpotifyClientError }> {
+  const now = deps.now ?? (() => new Date());
+  const cached = await readProfile(deps.runtime.files.config);
+  if (cached && isCacheFresh(cached, now())) return { ok: true, profile: cached };
+  const fresh = await fetchProfile(deps);
+  if (fresh.ok) {
+    await writeProfile(deps.runtime.files.config, fresh.profile);
+    return { ok: true, profile: fresh.profile };
+  }
+  if (cached) {
+    deps.runtime.log.warn("profile fetch failed; serving stale cache", { detail: errorMessage(fresh.error) });
+    return { ok: true, profile: cached };
+  }
+  return fresh;
+}
+
+async function fetchProfile(deps: ProfileDeps): Promise<{ ok: true; profile: SpotifyProfile } | { ok: false; error: SpotifyClientError }> {
+  const result = await spotifyApi<RawProfile>(deps.runtime, deps.clientId, deps.tokens, "GET", "/v1/me", {}, deps.now);
+  if (!result.ok) return result;
+  const raw = result.data;
+  const product = typeof raw.product === "string" ? raw.product : "free";
+  const displayName = typeof raw.display_name === "string" ? raw.display_name : "";
+  const now = deps.now ?? (() => new Date());
+  return { ok: true, profile: { product, displayName, fetchedAtMs: now().getTime() } };
+}
+
+export function isPremium(profile: SpotifyProfile): boolean {
+  return profile.product === PREMIUM_PRODUCT;
+}
+
+function errorMessage(error: SpotifyClientError): string {
+  switch (error.kind) {
+    case "auth_expired":
+      return error.detail;
+    case "rate_limited":
+      return `rate limited (retry ${error.retryAfterSec}s)`;
+    case "spotify_api_error":
+      return `${error.status}: ${error.body}`;
+    case "not_connected":
+      return "not connected";
+  }
+}
+
+/** Test-only: clear the cache. Production callers should not need
+ *  this — the TTL handles it. */
+export async function clearProfileCache(files: FileOps): Promise<void> {
+  if (await files.exists(PROFILE_FILE)) await files.unlink(PROFILE_FILE);
+}

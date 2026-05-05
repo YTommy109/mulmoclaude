@@ -39,4 +39,12 @@ export default {
   tracksCount: "tracks",
 
   previewSummary: "Spotify",
+
+  // Player Controls (PR 3)
+  playerControls: "Playback",
+  premiumRequired: "Spotify Premium is required to control playback. Free / open accounts cannot use these controls; the rest of the plugin still works.",
+  volume: "Volume",
+  devices: "Devices",
+  deviceActive: "active",
+  transferToDevice: "Transfer here",
 } as const;

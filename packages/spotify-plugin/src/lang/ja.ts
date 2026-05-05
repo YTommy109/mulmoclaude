@@ -40,4 +40,12 @@ export default {
   tracksCount: "曲",
 
   previewSummary: "Spotify",
+
+  // Player Controls (PR 3)
+  playerControls: "再生制御",
+  premiumRequired: "再生制御には Spotify Premium が必要です。Free / Open アカウントでは利用できません。それ以外の機能はそのまま使えます。",
+  volume: "音量",
+  devices: "デバイス",
+  deviceActive: "アクティブ",
+  transferToDevice: "ここに移す",
 } as const;

@@ -85,3 +85,31 @@ export interface RecentlyPlayedItem {
   /** ISO-8601 timestamp from Spotify's `played_at`. */
   playedAt: string;
 }
+
+/** Spotify Connect device (a place where the user can play music —
+ *  desktop app, phone, web player, smart speaker). The View shows
+ *  a dropdown so the user can pick a target device. */
+export interface NormalisedDevice {
+  id: string;
+  name: string;
+  /** "Computer" / "Smartphone" / "Speaker" — Spotify's `type`. */
+  type: string;
+  isActive: boolean;
+  /** 0-100, present when the device exposes volume control. */
+  volumePercent?: number;
+}
+
+/** Persisted at `runtime.files.config/profile.json`. Caches
+ *  `/v1/me`'s `product` field so we don't re-call Spotify on every
+ *  `play` dispatch. TTL keeps the cache fresh enough that a user
+ *  upgrading from Free → Premium sees controls within ~24h
+ *  without manually reconnecting. */
+export interface SpotifyProfile {
+  /** "premium" / "free" / "open" (open is a legacy free-tier
+   *  marker Spotify still emits for some accounts). */
+  product: string;
+  /** Free-form display name from `/v1/me`; surfaced in `diagnose`. */
+  displayName: string;
+  /** Epoch ms when this snapshot was fetched. */
+  fetchedAtMs: number;
+}
