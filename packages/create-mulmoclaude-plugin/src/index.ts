@@ -102,17 +102,16 @@ function formatSuccessMessage(dirName: string, packageName: string): string {
 // tests should not exit the process. Compare resolved paths (handles
 // Windows separators, symlinks via npm bin shims, and any future
 // `dist/index.mjs` build target).
-function isInvokedDirectly(): boolean {
-  const [, entry] = process.argv;
+export function entryMatchesModule(entry: string | undefined, moduleUrl: string): boolean {
   if (!entry) return false;
   try {
-    return realpathSync(entry) === fileURLToPath(import.meta.url);
+    return realpathSync(entry) === fileURLToPath(moduleUrl);
   } catch {
     return false;
   }
 }
 
-if (isInvokedDirectly()) {
+if (entryMatchesModule(process.argv[1], import.meta.url)) {
   runCli(process.argv.slice(2), process.cwd(), (text) => process.stdout.write(text))
     .then((result) => {
       process.exit(result.exitCode);
