@@ -7,6 +7,8 @@
 // would invite the model to mutate user secrets). The plugin's Zod
 // `DispatchArgsSchema` still accepts it.
 
+import { LLM_CALLABLE_KINDS } from "./schemas";
+
 export const TOOL_DEFINITION = {
   type: "function" as const,
   name: "manageSpotify" as const,
@@ -16,7 +18,7 @@ export const TOOL_DEFINITION = {
     properties: {
       kind: {
         type: "string",
-        enum: ["connect", "oauthCallback", "status", "diagnose", "liked", "playlists", "playlistTracks", "recent", "nowPlaying"],
+        enum: [...LLM_CALLABLE_KINDS],
         description: "Action to perform.",
       },
       // `connect` args

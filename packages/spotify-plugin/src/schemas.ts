@@ -4,6 +4,41 @@
 
 import { z } from "zod";
 
+/** Single source of truth for `manageSpotify`'s `kind` discriminator.
+ *  `definition.ts` derives the LLM-facing enum from `LLM_CALLABLE_KINDS`,
+ *  the Zod union below uses these same literals — the previous setup
+ *  duplicated the strings across both surfaces and risked drift
+ *  (CodeRabbit review on PR #1166). */
+export const SPOTIFY_KINDS = {
+  connect: "connect",
+  oauthCallback: "oauthCallback",
+  status: "status",
+  diagnose: "diagnose",
+  configure: "configure",
+  liked: "liked",
+  playlists: "playlists",
+  playlistTracks: "playlistTracks",
+  recent: "recent",
+  nowPlaying: "nowPlaying",
+} as const;
+
+/** Kinds the LLM is allowed to invoke directly (= advertised in
+ *  `TOOL_DEFINITION.parameters.kind.enum`). `configure` is omitted
+ *  intentionally — it's a View-only action that writes the user's
+ *  Client ID; exposing it to the LLM would invite the model to
+ *  mutate user secrets. */
+export const LLM_CALLABLE_KINDS = [
+  SPOTIFY_KINDS.connect,
+  SPOTIFY_KINDS.oauthCallback,
+  SPOTIFY_KINDS.status,
+  SPOTIFY_KINDS.diagnose,
+  SPOTIFY_KINDS.liked,
+  SPOTIFY_KINDS.playlists,
+  SPOTIFY_KINDS.playlistTracks,
+  SPOTIFY_KINDS.recent,
+  SPOTIFY_KINDS.nowPlaying,
+] as const;
+
 /** Persisted at `runtime.files.config/tokens.json`. Per-machine
  *  secret — not synced via mulmoclaude's backup story. */
 export const TokensSchema = z.object({
@@ -41,7 +76,7 @@ export const PendingAuthSchema = z.object({
  *  View doesn't need a separate endpoint. */
 export const DispatchArgsSchema = z.discriminatedUnion("kind", [
   z.object({
-    kind: z.literal("connect"),
+    kind: z.literal(SPOTIFY_KINDS.connect),
     /** Absolute URL the browser will be redirected back to after the
      *  consent screen. Computed by the View as
      *  `${window.location.origin}/api/plugins/runtime/oauth-callback/<alias>`
@@ -50,15 +85,15 @@ export const DispatchArgsSchema = z.discriminatedUnion("kind", [
     redirectUri: z.string().url(),
   }),
   z.object({
-    kind: z.literal("oauthCallback"),
+    kind: z.literal(SPOTIFY_KINDS.oauthCallback),
     code: z.string().optional(),
     state: z.string().optional(),
     error: z.string().optional(),
   }),
-  z.object({ kind: z.literal("status") }),
-  z.object({ kind: z.literal("diagnose") }),
+  z.object({ kind: z.literal(SPOTIFY_KINDS.status) }),
+  z.object({ kind: z.literal(SPOTIFY_KINDS.diagnose) }),
   z.object({
-    kind: z.literal("configure"),
+    kind: z.literal(SPOTIFY_KINDS.configure),
     /** Spotify Developer Dashboard Client ID. PKCE flow needs no
      *  Client Secret. Validated lightly — Spotify's IDs are
      *  alphanumeric, but we trust the user not to paste random
@@ -66,13 +101,13 @@ export const DispatchArgsSchema = z.discriminatedUnion("kind", [
     clientId: z.string().min(1).max(64),
   }),
   z.object({
-    kind: z.literal("liked"),
+    kind: z.literal(SPOTIFY_KINDS.liked),
     /** 1-50, default 50 (the Spotify endpoint's hard cap). */
     limit: z.number().int().min(1).max(50).optional(),
   }),
-  z.object({ kind: z.literal("playlists") }),
+  z.object({ kind: z.literal(SPOTIFY_KINDS.playlists) }),
   z.object({
-    kind: z.literal("playlistTracks"),
+    kind: z.literal(SPOTIFY_KINDS.playlistTracks),
     /** Spotify playlist ID (the bare ID, not a URI). The View
      *  obtains it from the prior `playlists` response. */
     playlistId: z.string().min(1).max(64),
@@ -80,11 +115,11 @@ export const DispatchArgsSchema = z.discriminatedUnion("kind", [
     limit: z.number().int().min(1).max(100).optional(),
   }),
   z.object({
-    kind: z.literal("recent"),
+    kind: z.literal(SPOTIFY_KINDS.recent),
     /** 1-50, default 50 (the Spotify endpoint's hard cap). */
     limit: z.number().int().min(1).max(50).optional(),
   }),
-  z.object({ kind: z.literal("nowPlaying") }),
+  z.object({ kind: z.literal(SPOTIFY_KINDS.nowPlaying) }),
 ]);
 
 export type DispatchArgs = z.infer<typeof DispatchArgsSchema>;
