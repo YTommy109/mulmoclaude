@@ -8,6 +8,7 @@ import type { ToolDefinition } from "gui-chat-protocol";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
 import { TOOL_ENDPOINTS, PLUGIN_DEFS, MCP_PLUGIN_NAMES } from "./plugin-names.js";
 import { loadRuntimePlugins } from "../plugins/runtime-loader.js";
+import { loadDevPlugins, parseDevPluginsEnv } from "../plugins/dev-loader.js";
 import { loadPresetPlugins } from "../plugins/preset-loader.js";
 import { registerRuntimePlugins, getRuntimePlugins } from "../plugins/runtime-registry.js";
 import { errorMessage } from "../utils/errors.js";
@@ -125,9 +126,16 @@ const runtimeReady: Promise<void> = (async () => {
   try {
     // Same merge order as the parent server (server/index.ts):
     // presets first so they win the runtime-vs-runtime collision.
+    // Dev plugins (`--dev-plugin`) come last and rely on the parent
+    // server having already validated paths + collision-free; the
+    // child re-loads them here so the MCP tool table sees them too.
+    // Failures are logged in the parent's pre-flight, so anything that
+    // gets through `loadDevPlugins` here should be clean — but we still
+    // collect errors silently and skip rather than abort the MCP child.
     const presets = await loadPresetPlugins();
     const userInstalled = await loadRuntimePlugins();
-    registerRuntimePlugins(STATIC_TOOL_NAMES, [...presets, ...userInstalled]);
+    const devLoad = await loadDevPlugins(parseDevPluginsEnv(process.env.MULMOCLAUDE_DEV_PLUGINS, process.cwd()));
+    registerRuntimePlugins(STATIC_TOOL_NAMES, [...presets, ...userInstalled, ...devLoad.plugins]);
     for (const plugin of getRuntimePlugins()) {
       // Build from the canonical route constant so a future rename
       // ripples here automatically — `runtime-plugin.ts` registers

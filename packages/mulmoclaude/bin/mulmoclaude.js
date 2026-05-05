@@ -9,7 +9,7 @@ import { execSync, spawn } from "child_process";
 import { existsSync } from "fs";
 import { get as httpGet } from "http";
 import { createRequire } from "module";
-import { join, dirname } from "path";
+import { join, dirname, delimiter as PATH_DELIMITER, resolve as resolvePath } from "path";
 import { fileURLToPath } from "url";
 
 // Shared with `server/index.ts` — the launcher and the dev server use
@@ -99,10 +99,14 @@ if (args.includes("--help") || args.includes("-h")) {
 Usage: npx mulmoclaude [options]
 
 Options:
-  --port <number>   Server port (default: ${DEFAULT_PORT})
-  --no-open         Don't open browser automatically
-  --version         Show version
-  --help            Show this help
+  --port <number>      Server port (default: ${DEFAULT_PORT})
+  --no-open            Don't open browser automatically
+  --dev-plugin <path>  Load a plugin from a local project dir for development
+                       (repeatable). Path can be absolute or relative to cwd.
+                       The dir must have package.json and dist/index.js
+                       (run \`yarn build\` or \`yarn dev\` in the plugin first).
+  --version            Show version
+  --help               Show this help
 `);
   process.exit(0);
 }
@@ -114,6 +118,24 @@ if (args.includes("--version")) {
 
 const { requestedPort, portExplicit } = parsePortArg();
 const noOpen = args.includes("--no-open");
+const devPluginPaths = parseDevPluginArgs();
+
+function parseDevPluginArgs() {
+  const resolved = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] !== "--dev-plugin") continue;
+    const raw = args[i + 1];
+    if (raw === undefined || raw.startsWith("-")) {
+      error("--dev-plugin requires a path argument");
+      process.exit(1);
+    }
+    const abs = resolvePath(process.cwd(), raw);
+    log(`[dev-plugin] ${raw} → ${abs}`);
+    resolved.push(abs);
+    i++;
+  }
+  return resolved;
+}
 
 function parsePortArg() {
   const idx = args.indexOf("--port");
@@ -195,13 +217,18 @@ try {
   process.exit(1);
 }
 
+const serverEnv = {
+  ...process.env,
+  NODE_ENV: "production",
+  PORT: String(port),
+};
+if (devPluginPaths.length > 0) {
+  serverEnv.MULMOCLAUDE_DEV_PLUGINS = devPluginPaths.join(PATH_DELIMITER);
+}
+
 const server = spawn(process.execPath, [tsxCli, SERVER_ENTRY], {
   cwd: PKG_DIR,
-  env: {
-    ...process.env,
-    NODE_ENV: "production",
-    PORT: String(port),
-  },
+  env: serverEnv,
   stdio: "inherit",
 });
 
