@@ -55,7 +55,7 @@
     "node-pty": "^1.1.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.12"
   },
   "license": "MIT",
   "repository": {

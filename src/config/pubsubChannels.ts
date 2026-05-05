@@ -141,6 +141,12 @@ const HOST_STATIC_CHANNELS = {
    *  the same channel. Subscriber list starts empty — the UI lands
    *  in a separate PR. Payload: `{ message: string, firedAt: ISO8601 }`. */
   notifications: "notifications",
+  /** Dev plugin (`--dev-plugin <path>`) `dist/` changed — debounced.
+   *  Publisher: `server/plugins/dev-watcher.ts` after fs.watch fires.
+   *  Subscriber: `src/composables/useDevPluginReload.ts` triggers
+   *  `location.reload()` so the author sees their save without ⌘R.
+   *  Payload: `{ name: string, changedFiles: string[], serverSideChange: boolean }`. */
+  devPluginChanged: "dev-plugin-changed",
 } as const;
 
 // First-write-wins host+plugin aggregate (see `defineHostAggregate`):

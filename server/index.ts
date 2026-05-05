@@ -27,6 +27,7 @@ import skillsRoutes from "./api/routes/skills.js";
 import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
 import { loadRuntimePlugins } from "./plugins/runtime-loader.js";
 import { evaluateDevPluginGate, loadDevPlugins, parseDevPluginsEnv } from "./plugins/dev-loader.js";
+import { watchDevPlugins } from "./plugins/dev-watcher.js";
 import { loadPresetPlugins } from "./plugins/preset-loader.js";
 import { registerRuntimePlugins } from "./plugins/runtime-registry.js";
 import { makePluginRuntime } from "./plugins/runtime.js";
@@ -762,6 +763,25 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
         for (const message of devGate.fatalMessages) log.error("plugins/dev", message);
         process.exit(1);
       }
+      // Auto-reload (#1159 PR3): watch each dev plugin's dist/ and
+      // publish on debounced change so the browser refreshes without
+      // ⌘R. Server-side `dist/index.js` cannot be hot-replaced (Node
+      // ESM cache), so the watcher logs an explicit hint when that
+      // file is in the changed set.
+      if (devLoad.plugins.length > 0) {
+        const handle = watchDevPlugins(devLoad.plugins, {
+          publish: (name, payload) =>
+            pubsub.publish(PUBSUB_CHANNELS.devPluginChanged, {
+              name,
+              changedFiles: payload.changedFiles,
+              serverSideChange: payload.serverSideChange,
+            }),
+          warnServerSideChange: (name) => log.warn("plugins/dev", `${name}: dist/index.js changed — restart mulmoclaude to pick up server-side changes`),
+          onWatcherError: (name, error) =>
+            log.warn("plugins/dev", `${name}: watcher error — auto-reload disabled for this plugin until restart`, { error: String(error) }),
+        });
+        registerShutdownHook(() => handle.close());
+      }
       // Pass the full static-tool set (MCP plugins + ENABLED MCP tools
       // like readXPost / searchX) as the collision policy so the floor
       // matches the standalone mcp-server's STATIC_TOOL_NAMES exactly
@@ -891,11 +911,22 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
 // dead token. Crashes that skip this are harmless — see
 // plans/done/feat-bearer-token-auth.md; the next startup overwrites and
 // the stale file's token no longer matches the live in-memory one.
+const shutdownHooks: (() => void)[] = [];
+function registerShutdownHook(hook: () => void): void {
+  shutdownHooks.push(hook);
+}
 let isShuttingDown = false;
 async function gracefulShutdown(signal: string): Promise<void> {
   if (isShuttingDown) return;
   isShuttingDown = true;
   log.info("server", "shutting down", { signal });
+  for (const hook of shutdownHooks) {
+    try {
+      hook();
+    } catch (err) {
+      log.warn("server", "shutdown hook threw", { error: String(err) });
+    }
+  }
   await deleteTokenFile();
   process.exit(0);
 }

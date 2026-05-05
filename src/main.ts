@@ -6,6 +6,7 @@ import i18n from "./lib/vue-i18n";
 import { setAuthToken } from "./utils/api";
 import { readAuthTokenFromMeta } from "./utils/dom/authTokenMeta";
 import { loadRuntimePlugins } from "./tools/runtimeLoader";
+import { startDevPluginReloadListener } from "./composables/useDevPluginReload";
 import { installHostContext, type EndpointRegistry } from "./plugins/api";
 import { API_ROUTES } from "./config/apiRoutes";
 import { BUILTIN_ROLE_IDS } from "./config/roles";
@@ -98,6 +99,11 @@ installHostContext({
 loadRuntimePlugins().catch((err: unknown) => {
   console.warn("[runtime-plugin] boot loader threw", err);
 });
+
+// PR3 of #1159: when `--dev-plugin` is in use and the watched dist/
+// changes, this listener reloads the page. No-ops in production
+// because the server only publishes when a dev plugin is loaded.
+startDevPluginReloadListener();
 
 installGuards(router);
 
