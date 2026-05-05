@@ -20,7 +20,18 @@ import path from "node:path";
 import type { RuntimePlugin } from "./runtime-loader.js";
 import { DEV_PLUGIN_WATCH_DEBOUNCE_MS } from "../utils/time.js";
 
-const SERVER_ENTRY_FILENAME = "index.js";
+// Relative path (within `dist/`) of the server entry. Only the root
+// `dist/index.js` triggers the "restart mulmoclaude" warning — vite
+// also emits chunks like `dist/assets/index.js` for code-split Vue
+// components, and those don't need a launcher restart.
+const SERVER_ENTRY_RELATIVE_PATH = "index.js";
+
+function isServerEntry(relativePath: string): boolean {
+  // `fs.watch` reports filenames with the platform path separator —
+  // backslashes on Windows. Normalize before comparison so a match
+  // is cross-platform, not just POSIX.
+  return relativePath.split(/[\\/]/).join("/") === SERVER_ENTRY_RELATIVE_PATH;
+}
 
 export interface DevPluginChangedPayload {
   /** Files changed during the debounce window (relative to dist/). */
@@ -92,7 +103,7 @@ export function watchDevPlugins(plugins: readonly RuntimePlugin[], opts: WatchDe
           timers.delete(plugin.name);
           if (!files || files.size === 0) return;
           const changedFiles = Array.from(files).sort();
-          const serverSideChange = changedFiles.some((file) => path.basename(file) === SERVER_ENTRY_FILENAME);
+          const serverSideChange = changedFiles.some(isServerEntry);
           if (serverSideChange) opts.warnServerSideChange?.(plugin.name);
           opts.publish(plugin.name, { changedFiles, serverSideChange });
         }, debounceMs),

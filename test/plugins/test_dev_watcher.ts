@@ -159,6 +159,35 @@ describe("watchDevPlugins — server-side classification", () => {
     assert.equal(rig.rec.warns.length, 1);
     rig.close();
   });
+
+  it("does NOT match nested `assets/index.js` chunks (vite code-split output)", async () => {
+    // Real-world false-positive: vite splits Vue components into
+    // separate chunks like `dist/assets/index.js`. Treating those as
+    // a server-side change would log a misleading "restart
+    // mulmoclaude" hint on every component edit.
+    const plugin = fakePlugin("@test/nested-index");
+    const rig = makeRig(plugin, 30);
+    rig.fire("assets/index.js");
+    rig.fire("vue.js");
+    await sleep(80);
+    assert.equal(rig.rec.calls.length, 1);
+    assert.equal(rig.rec.calls[0].serverSideChange, false);
+    assert.deepEqual(rig.rec.warns, []);
+    rig.close();
+  });
+
+  it("normalizes Windows-style backslash paths the same way", async () => {
+    // `fs.watch` reports filenames with the platform separator. On
+    // Windows that's `\`. The check must handle both so we don't
+    // false-positive `assets\index.js` either.
+    const plugin = fakePlugin("@test/windows-nested");
+    const rig = makeRig(plugin, 30);
+    rig.fire("assets\\index.js");
+    await sleep(80);
+    assert.equal(rig.rec.calls.length, 1);
+    assert.equal(rig.rec.calls[0].serverSideChange, false);
+    rig.close();
+  });
 });
 
 describe("watchDevPlugins — multiple plugins", () => {
