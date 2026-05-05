@@ -81,11 +81,31 @@ async function saveClientId(): Promise<void> {
   }
 }
 
+// Spotify's redirect-URI policy:
+//   1. `localhost` is rejected — must use `127.0.0.1` or `[::1]`
+//   2. URI must match the one registered in the Dashboard EXACTLY
+//
+// In Vite dev, `window.location.origin` is the Vite dev server
+// (`localhost:5173`). Using that as the redirectUri would (a)
+// break Spotify's `127.0.0.1`-only rule, and (b) require the user
+// to register both the Vite-dev URI and the production-server URI
+// in their Dashboard.
+//
+// Always use `127.0.0.1:3001` so the Dashboard URI is a single
+// stable string that matches `docs/tips/spotify-setup.md`. Users
+// running the server on a different port (`npm run server -- --port
+// 3099`) need to substitute the port and register the same URI in
+// the Dashboard — the host's runtime registry doesn't expose its
+// own port to plugins, so we can't auto-detect.
+const SPOTIFY_REDIRECT_URI = "http://127.0.0.1:3001/api/plugins/runtime/oauth-callback/spotify";
+
 async function startConnect(): Promise<void> {
   isConnecting.value = true;
   try {
-    const redirectUri = `${window.location.origin}/api/plugins/runtime/oauth-callback/spotify`;
-    const response = await dispatch<{ ok: boolean; data?: { authorizeUrl?: string }; message?: string }>({ kind: "connect", redirectUri });
+    const response = await dispatch<{ ok: boolean; data?: { authorizeUrl?: string }; message?: string }>({
+      kind: "connect",
+      redirectUri: SPOTIFY_REDIRECT_URI,
+    });
     if (response.ok && response.data?.authorizeUrl) {
       window.location.href = response.data.authorizeUrl;
     } else {
