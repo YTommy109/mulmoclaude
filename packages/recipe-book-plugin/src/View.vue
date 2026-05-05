@@ -87,31 +87,13 @@ watch(
     detailLoading.value = true;
     detailError.value = null;
     try {
-      // The plugin's "list" returns summaries only — there's no detail
-      // endpoint exposed yet. Read the same recipe back through
-      // `list` and find by slug; the body is in the summary's
-      // backing markdown but not surfaced. For PR-A we re-derive
-      // detail from list (it's small N); a dedicated `detail` action
-      // can land in PR-B once a single-recipe canvas needs more.
-      const result = await dispatch<{ ok: boolean; recipes?: { slug: string; title: string; tags: string[]; servings: number | null; updated: string }[] }>({
-        kind: "list",
-      });
+      const result = await dispatch<{ ok: boolean; recipe?: RecipeDetail; error?: string }>({ kind: "read", slug });
       if (selectedSlug.value !== slug) return;
-      // Detail "lite" view from list — body / prep / cook / created
-      // are not in the summary. PR-B will add a `read` dispatch. For
-      // now show what we have.
-      const summary = result.ok && result.recipes ? result.recipes.find((recipe) => recipe.slug === slug) : null;
-      if (!summary) {
-        detailError.value = `recipe not found: ${slug}`;
-        detail.value = null;
+      if (result.ok && result.recipe) {
+        detail.value = result.recipe;
       } else {
-        detail.value = {
-          ...summary,
-          prepTime: null,
-          cookTime: null,
-          created: summary.updated,
-          body: "",
-        };
+        detailError.value = result.error ?? `recipe not found: ${slug}`;
+        detail.value = null;
       }
     } catch (err) {
       if (selectedSlug.value !== slug) return;

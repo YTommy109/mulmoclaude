@@ -16,8 +16,8 @@ export const TOOL_DEFINITION = {
     properties: {
       kind: {
         type: "string",
-        enum: ["list", "save", "update", "delete"],
-        description: "Operation to perform. Default: list.",
+        enum: ["list", "read", "save", "update", "delete"],
+        description: "Operation to perform. Default: list. Use `read` to fetch one recipe's full body + frontmatter by slug.",
       },
       slug: {
         type: "string",

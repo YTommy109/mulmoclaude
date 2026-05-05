@@ -27,6 +27,7 @@ const FRONTMATTER_CLOSE = /(?:^|\r?\n)---\s*(?:\r?\n|$)/;
 
 const Args = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("list") }),
+  z.object({ kind: z.literal("read"), slug: z.string() }),
   z.object({
     kind: z.literal("save"),
     slug: z.string(),
@@ -225,6 +226,15 @@ export default definePlugin(({ pubsub, files, log }) => {
         case "list": {
           const recipes = await listRecipes();
           return { ok: true, recipes: recipes.map(summarise) };
+        }
+
+        case "read": {
+          if (!isValidSlug(args.slug)) {
+            return { ok: false, error: "invalid_slug", slug: args.slug };
+          }
+          const recipe = await readRecipe(args.slug);
+          if (!recipe) return { ok: false, error: "not_found", slug: args.slug };
+          return { ok: true, recipe };
         }
 
         case "save": {
