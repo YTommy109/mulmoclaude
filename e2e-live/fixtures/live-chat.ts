@@ -179,6 +179,40 @@ function shouldKeepSessions(): boolean {
   return process.env[KEEP_SESSIONS_ENV] === "1";
 }
 
+/**
+ * Poll `GET /api/sessions` until `session.isRunning` flips to false
+ * for the given id. Bridges the gap between "the assistant
+ * `thinking-indicator` went hidden" (UI signal that
+ * `waitForAssistantResponseComplete` waits on) and
+ * "server-side `live.isRunning || pendingGenerations` is empty"
+ * (the gate `DELETE /api/sessions/:id` checks). Without this, the
+ * UI cleanup click sequence races server-side state and the DELETE
+ * route returns 409 — silently from the UI's point of view, so the
+ * test passes but the file stays on disk. See
+ * `server/api/routes/sessions.ts` lines 150 / 401 for the two ends
+ * of that gap.
+ *
+ * Runs the fetch inside `page.evaluate` so the browser's bearer
+ * header (read from `<meta name="mulmoclaude-auth">`) is reused
+ * verbatim — no need to plumb the token into the test process.
+ */
+const SESSION_IDLE_TIMEOUT_MS = 30_000;
+
+async function waitForSessionIdle(page: Page, sessionId: string, timeoutMs: number = SESSION_IDLE_TIMEOUT_MS): Promise<void> {
+  await expect(async () => {
+    const stillRunning = await page.evaluate(async (sid) => {
+      const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
+      const token = meta?.getAttribute("content") ?? "";
+      const res = await fetch("/api/sessions", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return true;
+      const data = (await res.json()) as { sessions?: { id: string; isRunning?: boolean }[] };
+      const session = data.sessions?.find((row) => row.id === sid);
+      return session?.isRunning === true;
+    }, sessionId);
+    expect(stillRunning, `session ${sessionId} should report isRunning=false before delete`).toBe(false);
+  }).toPass({ timeout: timeoutMs, intervals: [200, 500, 1000] });
+}
+
 export async function deleteSession(page: Page, sessionId: string): Promise<void> {
   if (page.isClosed()) return;
   if (shouldKeepSessions()) {
@@ -195,6 +229,13 @@ export async function deleteSession(page: Page, sessionId: string): Promise<void
     if (page.url().includes(`/chat/${sessionId}`)) {
       await page.goto("/");
     }
+    // Then wait for the SERVER side to agree the session is no
+    // longer running — `thinking-indicator` going hidden is a UI
+    // signal, but `live.isRunning || pendingGenerations` lingers a
+    // little longer on the server. Skipping this wait is exactly
+    // the regression that surfaced as a silent 409 inside the
+    // route handler while the UI dance reported success.
+    await waitForSessionIdle(page, sessionId);
     // The session-row kebab menu lives inside the session-history
     // side panel, which is collapsed by default. Open it via the
     // toggle button (testid switches between -off and -on) before
