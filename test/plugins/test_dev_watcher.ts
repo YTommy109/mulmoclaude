@@ -1,0 +1,210 @@
+// Tests for `server/plugins/dev-watcher.ts` — the debounce + classify
+// pass that turns vite's burst of file writes into one reload event.
+
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
+
+import { watchDevPlugins } from "../../server/plugins/dev-watcher.js";
+import type { RuntimePlugin } from "../../server/plugins/runtime-loader.js";
+
+// Make a fake `FSWatcher`. `node:fs.watch` returns an EventEmitter +
+// `.close()`; tests push synthetic file changes through `onChange`
+// captured at registration time.
+type FakeWatcher = ReturnType<typeof makeFakeWatcher>;
+function makeFakeWatcher() {
+  const emitter = new EventEmitter() as EventEmitter & { close: () => void; closed: boolean };
+  emitter.closed = false;
+  emitter.close = () => {
+    emitter.closed = true;
+    emitter.removeAllListeners();
+  };
+  return emitter;
+}
+
+function fakePlugin(name: string, cachePath = `/cache/${name}`): RuntimePlugin {
+  return {
+    name,
+    version: "dev",
+    cachePath,
+    definition: { type: "function", name: `tool_${name}`, description: "", parameters: { type: "object", properties: {}, required: [] } },
+    execute: async () => ({}),
+    oauthCallbackAlias: null,
+  };
+}
+
+interface PublishCall {
+  name: string;
+  changedFiles: string[];
+  serverSideChange: boolean;
+}
+
+function recorder() {
+  const calls: PublishCall[] = [];
+  const warns: string[] = [];
+  return {
+    publish: (name: string, payload: { changedFiles: string[]; serverSideChange: boolean }) => {
+      calls.push({ name, ...payload });
+    },
+    warnServerSideChange: (name: string) => {
+      warns.push(name);
+    },
+    calls,
+    warns,
+  };
+}
+
+interface TestRig {
+  fire: (relativePath: string) => void;
+  watcher: FakeWatcher;
+  rec: ReturnType<typeof recorder>;
+  close: () => void;
+}
+
+function makeRig(plugin: RuntimePlugin, debounceMs: number): TestRig {
+  const watcher = makeFakeWatcher();
+  let onChange: ((relativePath: string) => void) | null = null;
+  const rec = recorder();
+  const handle = watchDevPlugins([plugin], {
+    publish: rec.publish,
+    warnServerSideChange: rec.warnServerSideChange,
+    debounceMs,
+    watcherFactory: (_absDistPath, callback) => {
+      onChange = callback;
+      return watcher as unknown as ReturnType<typeof watchDevPlugins>["close"] extends never ? never : import("node:fs").FSWatcher;
+    },
+  });
+  return {
+    fire: (relativePath) => onChange?.(relativePath),
+    watcher,
+    rec,
+    close: handle.close,
+  };
+}
+
+const sleep = (delayMs: number) => new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+
+describe("watchDevPlugins — debounce", () => {
+  it("collapses a burst of file events into a single publish", async () => {
+    const plugin = fakePlugin("@test/burst");
+    const rig = makeRig(plugin, 50);
+    rig.fire("vue.js");
+    rig.fire("style.css");
+    rig.fire("definition-Dvdjo6Xe.js");
+    rig.fire("vue.js"); // duplicate file in burst — still 1 publish
+    await sleep(150);
+    assert.equal(rig.rec.calls.length, 1, `expected 1 publish; got ${rig.rec.calls.length}`);
+    assert.equal(rig.rec.calls[0].name, "@test/burst");
+    assert.deepEqual(
+      rig.rec.calls[0].changedFiles.sort(),
+      ["definition-Dvdjo6Xe.js", "style.css", "vue.js"],
+      "publish should include every distinct file in the burst",
+    );
+    rig.close();
+  });
+
+  it("emits twice when bursts are separated by more than the debounce window", async () => {
+    const plugin = fakePlugin("@test/two-bursts");
+    const rig = makeRig(plugin, 30);
+    rig.fire("vue.js");
+    await sleep(80); // beyond debounce → flush
+    rig.fire("vue.js");
+    await sleep(80);
+    assert.equal(rig.rec.calls.length, 2);
+    rig.close();
+  });
+
+  it("does not publish when nothing changed (close before window elapses)", async () => {
+    const plugin = fakePlugin("@test/no-events");
+    const rig = makeRig(plugin, 30);
+    // Close immediately — watcher fires nothing.
+    rig.close();
+    await sleep(60);
+    assert.equal(rig.rec.calls.length, 0);
+  });
+});
+
+describe("watchDevPlugins — server-side classification", () => {
+  it("flags serverSideChange + warns when dist/index.js is in the burst", async () => {
+    const plugin = fakePlugin("@test/server-side");
+    const rig = makeRig(plugin, 30);
+    rig.fire("index.js");
+    rig.fire("vue.js");
+    await sleep(80);
+    assert.equal(rig.rec.calls.length, 1);
+    assert.equal(rig.rec.calls[0].serverSideChange, true);
+    assert.deepEqual(rig.rec.warns, ["@test/server-side"]);
+    rig.close();
+  });
+
+  it("does NOT flag serverSideChange for browser-only changes", async () => {
+    const plugin = fakePlugin("@test/browser-only");
+    const rig = makeRig(plugin, 30);
+    rig.fire("vue.js");
+    rig.fire("style.css");
+    await sleep(80);
+    assert.equal(rig.rec.calls.length, 1);
+    assert.equal(rig.rec.calls[0].serverSideChange, false);
+    assert.deepEqual(rig.rec.warns, []);
+    rig.close();
+  });
+
+  it("warns at most once per burst even if index.js fires multiple times", async () => {
+    const plugin = fakePlugin("@test/multi-index");
+    const rig = makeRig(plugin, 30);
+    rig.fire("index.js");
+    rig.fire("index.js");
+    rig.fire("index.js");
+    await sleep(80);
+    assert.equal(rig.rec.warns.length, 1);
+    rig.close();
+  });
+});
+
+describe("watchDevPlugins — multiple plugins", () => {
+  it("debounces independently per plugin", async () => {
+    const pluginA = fakePlugin("@test/multi-a");
+    const pluginB = fakePlugin("@test/multi-b");
+    const rec = recorder();
+    const callbacks = new Map<string, (relativePath: string) => void>();
+    const handle = watchDevPlugins([pluginA, pluginB], {
+      publish: rec.publish,
+      warnServerSideChange: rec.warnServerSideChange,
+      debounceMs: 30,
+      watcherFactory: (absDistPath, callback) => {
+        callbacks.set(absDistPath, callback);
+        return makeFakeWatcher() as unknown as import("node:fs").FSWatcher;
+      },
+    });
+    for (const [absDistPath, callback] of callbacks) {
+      // Each plugin fires its own change — debounce is per-plugin.
+      callback("vue.js");
+      assert.ok(absDistPath.includes("multi-"), `unexpected watcher path: ${absDistPath}`);
+    }
+    await sleep(80);
+    assert.equal(rec.calls.length, 2);
+    const names = rec.calls.map((entry) => entry.name).sort();
+    assert.deepEqual(names, ["@test/multi-a", "@test/multi-b"]);
+    handle.close();
+  });
+});
+
+describe("watchDevPlugins — close()", () => {
+  it("close() cancels pending timers and shuts watchers down", async () => {
+    const plugin = fakePlugin("@test/close");
+    const rig = makeRig(plugin, 30);
+    rig.fire("vue.js");
+    rig.close();
+    await sleep(80);
+    // No publish fires after close, even though the burst was queued.
+    assert.equal(rig.rec.calls.length, 0);
+    assert.equal(rig.watcher.closed, true);
+  });
+
+  it("close() is idempotent", () => {
+    const plugin = fakePlugin("@test/close-twice");
+    const rig = makeRig(plugin, 30);
+    rig.close();
+    rig.close(); // must not throw
+  });
+});

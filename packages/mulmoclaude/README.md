@@ -29,10 +29,13 @@ npx mulmoclaude --version                    # Show version
 
 `--dev-plugin <path>` is the plugin author's dev loop. Pair with
 `yarn dev` (vite watch) in the plugin directory: edits → vite
-rebuilds `dist/` → reload the browser to pick up the new bundle.
-The plugin's `package.json` name + `dist/index.js` must already be
-in place; the launcher refuses to start on missing files or on a
-name collision with an already-installed plugin.
+rebuilds `dist/` → **the browser auto-reloads** via a debounced
+watcher on the plugin's `dist/`. The plugin's `package.json` name +
+`dist/index.js` must already be in place; the launcher refuses to
+start on missing files or on a name collision with an already-
+installed plugin. Server-side `definePlugin` factory edits still
+require a launcher restart (Node ESM has no cache invalidation API);
+the launcher log explicitly says so when `dist/index.js` changes.
 
 ## How it works
 
