@@ -189,6 +189,67 @@ describe("watchDevPlugins — multiple plugins", () => {
   });
 });
 
+describe("watchDevPlugins — error isolation", () => {
+  it("calls onWatcherError + closes the watcher when fs.watch emits `error`", async () => {
+    const plugin = fakePlugin("@test/error");
+    const watcher = makeFakeWatcher();
+    const rec = recorder();
+    const errorEvents: { name: string; error: Error }[] = [];
+    watchDevPlugins([plugin], {
+      publish: rec.publish,
+      warnServerSideChange: rec.warnServerSideChange,
+      onWatcherError: (name, error) => errorEvents.push({ name, error }),
+      debounceMs: 30,
+      watcherFactory: () => watcher as unknown as import("node:fs").FSWatcher,
+    });
+    const boom = new Error("ENOENT: dist disappeared");
+    watcher.emit("error", boom);
+    assert.equal(errorEvents.length, 1);
+    assert.equal(errorEvents[0].name, "@test/error");
+    assert.equal(errorEvents[0].error.message, "ENOENT: dist disappeared");
+    assert.equal(watcher.closed, true, "watcher should self-close on error");
+  });
+
+  it("subsequent file events from a closed-on-error watcher do not publish", async () => {
+    // Even if the fake watcher kept emitting after error (a real
+    // EventEmitter wouldn't, but we want defence in depth), the
+    // debounce timer was cleared and the buffer wiped.
+    const plugin = fakePlugin("@test/error-then-event");
+    const watcher = makeFakeWatcher();
+    const rec = recorder();
+    const captured: ((relativePath: string) => void)[] = [];
+    watchDevPlugins([plugin], {
+      publish: rec.publish,
+      warnServerSideChange: rec.warnServerSideChange,
+      onWatcherError: () => {},
+      debounceMs: 20,
+      watcherFactory: (_absDistPath, callback) => {
+        captured.push(callback);
+        return watcher as unknown as import("node:fs").FSWatcher;
+      },
+    });
+    captured[0]("vue.js"); // queues a debounced publish
+    watcher.emit("error", new Error("simulated"));
+    await sleep(60);
+    assert.equal(rec.calls.length, 0, "no publish after error wiped the buffer");
+  });
+
+  it("does not throw when onWatcherError is omitted (production-safe default)", () => {
+    // Production wires onWatcherError through the structured logger;
+    // tests / single-shot scripts may omit it. The watcher must
+    // still self-close cleanly without an unhandled-error crash.
+    const plugin = fakePlugin("@test/no-handler");
+    const watcher = makeFakeWatcher();
+    const rec = recorder();
+    watchDevPlugins([plugin], {
+      publish: rec.publish,
+      watcherFactory: () => watcher as unknown as import("node:fs").FSWatcher,
+    });
+    assert.doesNotThrow(() => watcher.emit("error", new Error("silent")));
+    assert.equal(watcher.closed, true);
+  });
+});
+
 describe("watchDevPlugins — close()", () => {
   it("close() cancels pending timers and shuts watchers down", async () => {
     const plugin = fakePlugin("@test/close");

@@ -775,6 +775,8 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
               serverSideChange: payload.serverSideChange,
             }),
           warnServerSideChange: (name) => log.warn("plugins/dev", `${name}: dist/index.js changed — restart mulmoclaude to pick up server-side changes`),
+          onWatcherError: (name, error) =>
+            log.warn("plugins/dev", `${name}: watcher error — auto-reload disabled for this plugin until restart`, { error: String(error) }),
         });
         registerShutdownHook(() => handle.close());
       }

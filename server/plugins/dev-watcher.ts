@@ -4,18 +4,22 @@
 //
 // Uses Node's built-in `fs.watch` with `recursive: true` rather than
 // chokidar to avoid pulling another runtime dependency. Recursive
-// watching is supported on macOS / Linux / Windows since Node 20.
+// watching is reliable on macOS / Linux / Windows starting from Node
+// 20.12 (Linux had race conditions and crash-on-delete bugs in earlier
+// 20.x patches; engines.node is set to >=20.12 to encode this).
 //
 // The publish + warnServerSideChange callbacks are injected so tests
 // can exercise the debounce + classification logic without booting the
-// pubsub or hitting the structured logger.
+// pubsub or hitting the structured logger. `onWatcherError` is also
+// injectable so tests can verify the crash-isolation path; production
+// wiring routes it through the structured logger.
 
 import { watch, type FSWatcher } from "node:fs";
 import path from "node:path";
 
 import type { RuntimePlugin } from "./runtime-loader.js";
+import { DEV_PLUGIN_WATCH_DEBOUNCE_MS } from "../utils/time.js";
 
-const DEFAULT_DEBOUNCE_MS = 300;
 const SERVER_ENTRY_FILENAME = "index.js";
 
 export interface DevPluginChangedPayload {
@@ -34,6 +38,14 @@ export interface WatchDevPluginsOptions {
    *  publishes (the browser reload is harmless), but the dev needs
    *  this hint to know why their server-side change didn't take. */
   warnServerSideChange?: (pluginName: string) => void;
+  /** Called when an `fs.watch` instance emits an `error` event
+   *  (e.g. ENOENT after a `rm -rf dist/` clean-rebuild, mount
+   *  unavailability, etc.). The watcher closes itself and stops
+   *  firing for that plugin so the rest of mulmoclaude keeps
+   *  running. Without this handler, the unhandled `error` event
+   *  would propagate as an uncaught exception and crash the
+   *  server. */
+  onWatcherError?: (pluginName: string, error: Error) => void;
   /** Override for testing. */
   debounceMs?: number;
   /** Override the watcher factory for tests. Default uses node:fs. */
@@ -57,7 +69,7 @@ function defaultWatcherFactory(absDistPath: string, onChange: (relativePath: str
  *  handle whose `close()` shuts every watcher down — call it from the
  *  graceful shutdown path. */
 export function watchDevPlugins(plugins: readonly RuntimePlugin[], opts: WatchDevPluginsOptions): DevWatcherHandle {
-  const debounceMs = opts.debounceMs ?? DEFAULT_DEBOUNCE_MS;
+  const debounceMs = opts.debounceMs ?? DEV_PLUGIN_WATCH_DEBOUNCE_MS;
   const factory = opts.watcherFactory ?? defaultWatcherFactory;
   const watchers: FSWatcher[] = [];
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -85,6 +97,24 @@ export function watchDevPlugins(plugins: readonly RuntimePlugin[], opts: WatchDe
           opts.publish(plugin.name, { changedFiles, serverSideChange });
         }, debounceMs),
       );
+    });
+    // Isolate each watcher's failure: log + close just this one
+    // instead of letting the unhandled `error` event terminate the
+    // whole server. Real-world trigger: `rm -rf dist && yarn build`
+    // emits ENOENT mid-watch (fs.watch surfaces it as an `error`,
+    // not a `change`). Production wires onWatcherError through the
+    // structured logger.
+    watcher.on("error", (err) => {
+      opts.onWatcherError?.(plugin.name, err);
+      try {
+        watcher.close();
+      } catch {
+        // Already torn down — nothing to do.
+      }
+      const pending = timers.get(plugin.name);
+      if (pending) clearTimeout(pending);
+      timers.delete(plugin.name);
+      pendingFiles.delete(plugin.name);
     });
     watchers.push(watcher);
   }
