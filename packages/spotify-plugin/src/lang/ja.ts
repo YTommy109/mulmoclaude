@@ -15,6 +15,7 @@ export default {
   connect: "Spotify に接続",
   connecting: "Spotify の同意画面を開きます…",
   connected: "接続済み",
+  reconnect: "再接続",
   disconnect: "切断",
   refresh: "更新",
   setupGuideLink: "Client ID の取得方法",
@@ -49,4 +50,16 @@ export default {
   tracksCount: "曲",
 
   previewSummary: "Spotify",
+
+  // Player Controls (PR 3)
+  playerControls: "再生制御",
+  premiumRequired: "再生制御には Spotify Premium が必要です。Free / Open アカウントでは利用できません。それ以外の機能はそのまま使えます。",
+  volume: "音量",
+  devices: "デバイス",
+  deviceActive: "アクティブ",
+  transferToDevice: "ここに移す",
+  btnPrevious: "前の曲",
+  btnPause: "一時停止",
+  btnPlay: "再生",
+  btnNext: "次の曲",
 } as const;

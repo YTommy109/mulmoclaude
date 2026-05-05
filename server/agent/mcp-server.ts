@@ -8,6 +8,7 @@ import type { ToolDefinition } from "gui-chat-protocol";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
 import { TOOL_ENDPOINTS, PLUGIN_DEFS, MCP_PLUGIN_NAMES } from "./plugin-names.js";
 import { loadRuntimePlugins } from "../plugins/runtime-loader.js";
+import { loadDevPlugins, parseDevPluginsEnv } from "../plugins/dev-loader.js";
 import { loadPresetPlugins } from "../plugins/preset-loader.js";
 import { registerRuntimePlugins, getRuntimePlugins } from "../plugins/runtime-registry.js";
 import { errorMessage } from "../utils/errors.js";
@@ -60,6 +61,25 @@ interface ToolDef {
   description: string;
   inputSchema: object;
   endpoint?: string;
+}
+
+// Shape returned by a plugin endpoint dispatch. `data` is the
+// protocol's render-eligibility signal — present means "render a
+// card", absent means narrate-only (see `gui-chat-protocol`'s
+// `ToolResult` docs). `message` / `instructions` are read by the
+// bridge for the LLM-facing return value; other fields (title,
+// jsonData, action, etc.) flow through to the frontend untouched.
+// `toolName` / `uuid` are listed so the post-spread override in
+// `handleToolCall` is type-checked rather than relying on
+// object-shape coincidence — the bridge always re-asserts them
+// from its own state.
+interface PluginResultEnvelope {
+  data?: unknown;
+  message?: unknown;
+  instructions?: unknown;
+  toolName?: unknown;
+  uuid?: unknown;
+  [key: string]: unknown;
 }
 
 // Combine `description` (one-liner) and `prompt` (detailed usage
@@ -125,9 +145,16 @@ const runtimeReady: Promise<void> = (async () => {
   try {
     // Same merge order as the parent server (server/index.ts):
     // presets first so they win the runtime-vs-runtime collision.
+    // Dev plugins (`--dev-plugin`) come last and rely on the parent
+    // server having already validated paths + collision-free; the
+    // child re-loads them here so the MCP tool table sees them too.
+    // Failures are logged in the parent's pre-flight, so anything that
+    // gets through `loadDevPlugins` here should be clean — but we still
+    // collect errors silently and skip rather than abort the MCP child.
     const presets = await loadPresetPlugins();
     const userInstalled = await loadRuntimePlugins();
-    registerRuntimePlugins(STATIC_TOOL_NAMES, [...presets, ...userInstalled]);
+    const devLoad = await loadDevPlugins(parseDevPluginsEnv(process.env.MULMOCLAUDE_DEV_PLUGINS, process.cwd()));
+    registerRuntimePlugins(STATIC_TOOL_NAMES, [...presets, ...userInstalled, ...devLoad.plugins]);
     for (const plugin of getRuntimePlugins()) {
       // Build from the canonical route constant so a future rename
       // ripples here automatically — `runtime-plugin.ts` registers
@@ -406,14 +433,29 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   // for the slowest realistic completion — see PLUGIN_BRIDGE_TIMEOUT_MS
   // and the timeout-policy comment on `postJson`.
   const res = await postJson(tool.endpoint, args, { timeoutMs: PLUGIN_BRIDGE_TIMEOUT_MS });
-  const result = await res.json();
+  const result = ((await res.json()) ?? {}) as PluginResultEnvelope;
 
-  // Push visual ToolResult to the frontend via the session
-  await postJson(API_ROUTES.agent.internal.toolResult, {
-    toolName: name,
-    uuid: makeUuid(),
-    ...result,
-  });
+  // Push visual ToolResult to the frontend via the session — but
+  // only when the handler set `data`, which is the protocol's
+  // render-eligibility signal. Narrate-only actions (e.g.
+  // accounting `getReport`, `getBooks`, plugin validation-error
+  // branches) deliberately omit `data` and behave like a plain
+  // MCP tool call: the LLM gets `message` / `instructions` via
+  // the return value below, and nothing lands in the session's
+  // `toolResults` or its on-disk JSONL log. (`jsonData` is
+  // orthogonal — the LLM-readable copy — and does NOT gate
+  // rendering on its own.)
+  if (result.data !== undefined) {
+    // Spread `result` first so the bridge's own `toolName` and `uuid`
+    // are authoritative — a plugin handler that (intentionally or
+    // accidentally) returned those keys can't impersonate a different
+    // tool or collide on uuid.
+    await postJson(API_ROUTES.agent.internal.toolResult, {
+      ...result,
+      toolName: name,
+      uuid: makeUuid(),
+    });
+  }
 
   const parts = [result.message, result.instructions].filter(Boolean);
   return parts.length > 0 ? parts.join("\n") : "Done";

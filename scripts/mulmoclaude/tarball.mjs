@@ -207,7 +207,12 @@ export async function readTokenFromLauncherLog({ logFile, readFileImpl = readFil
 // installed plugins were resolved through the workspace ledger, but
 // is NOT required for ok=true: a fresh install (no presets, no user
 // ledger) legitimately reports zero. Plugin count is informational.
-export async function probeRuntimePlugins({ port, token, fetchImpl = globalThis.fetch } = {}) {
+//
+// `expectedDevPlugin` (optional) extends the assertion: when set, the
+// list MUST contain a plugin matching that name with version `"dev"`.
+// This is what proves the `--dev-plugin` CLI flag → env-var → server
+// loader → registry → /list pipeline made it end-to-end (#1159 PR2).
+export async function probeRuntimePlugins({ port, token, fetchImpl = globalThis.fetch, expectedDevPlugin = null } = {}) {
   if (!token) {
     return { ok: false, status: null, plugins: 0, lastError: "no bearer token (could not extract from launcher log)" };
   }
@@ -231,7 +236,45 @@ export async function probeRuntimePlugins({ port, token, fetchImpl = globalThis.
   if (!Array.isArray(body?.plugins)) {
     return { ok: false, status: 200, plugins: 0, lastError: "response body is not { plugins: [...] }" };
   }
+  if (expectedDevPlugin) {
+    const match = body.plugins.find((entry) => entry.name === expectedDevPlugin && entry.version === "dev");
+    if (!match) {
+      const seen = body.plugins.map((entry) => `${entry.name}@${entry.version}`).join(", ");
+      return { ok: false, status: 200, plugins: body.plugins.length, lastError: `dev plugin "${expectedDevPlugin}@dev" not in list — saw: ${seen}` };
+    }
+  }
   return { ok: true, status: 200, plugins: body.plugins.length, lastError: null };
+}
+
+// Lay out a minimal dev-plugin fixture: a directory with package.json
+// (name + ESM exports pointing at dist/index.js) and an index.js
+// exporting a TOOL_DEFINITION the runtime loader will accept. Pure
+// enough to test without spawning the launcher — see
+// `test_tarball.ts`. Returns `{ absPath, name }` for piping into
+// `--dev-plugin <absPath>` and the corresponding probe assertion.
+export async function makeDevPluginFixture({ workDir, name = "@smoke/dev-fixture", subdir = "dev-plugin-fixture" } = {}) {
+  const absPath = path.join(workDir, subdir);
+  await mkdir(path.join(absPath, "dist"), { recursive: true });
+  const pkg = {
+    name,
+    version: "0.1.0",
+    type: "module",
+    exports: { ".": { import: "./dist/index.js" } },
+  };
+  await writeFile(path.join(absPath, "package.json"), JSON.stringify(pkg, null, 2), "utf8");
+  await writeFile(
+    path.join(absPath, "dist", "index.js"),
+    `export const TOOL_DEFINITION = {
+  type: "function",
+  name: "smokeDevTool",
+  description: "smoke fixture for the --dev-plugin pipeline",
+  parameters: { type: "object", properties: {}, required: [] }
+};
+export const smokeDevTool = async () => ({ ok: true });
+`,
+    "utf8",
+  );
+  return { absPath, name };
 }
 
 // Verify the sandbox build context made it through `npm pack` / `npm
@@ -275,9 +318,9 @@ async function installTarball({ workDir, tarballAbsolutePath, installTimeoutMs }
 // full boot timeout waiting for a child that never started, and
 // the smoke would look like a boot-too-slow failure instead of
 // the actual install/permission bug.
-async function bootAndProbe({ workDir, port, bootTimeoutMs, logFile }) {
+async function bootAndProbe({ workDir, port, bootTimeoutMs, logFile, extraArgs = [] }) {
   const bin = path.join(workDir, "node_modules", ".bin", "mulmoclaude");
-  const child = spawn(bin, ["--no-open", "--port", String(port)], {
+  const child = spawn(bin, ["--no-open", "--port", String(port), ...extraArgs], {
     cwd: workDir,
     env: { ...process.env, NODE_ENV: "production" },
     stdio: ["ignore", "pipe", "pipe"],
@@ -344,7 +387,22 @@ async function killGracefully(child) {
 //     tarballs don't pile up across runs.
 //   - `*.tgz` is gitignored, so local leftovers never reach a
 //     commit.
-export async function runTarballSmoke({ root = process.cwd(), workDir, logFile, bootTimeoutMs, packTimeoutMs, installTimeoutMs, port } = {}) {
+export async function runTarballSmoke({
+  root = process.cwd(),
+  workDir,
+  logFile,
+  bootTimeoutMs,
+  packTimeoutMs,
+  installTimeoutMs,
+  port,
+  // When set, the smoke creates a minimal dev-plugin fixture and
+  // boots the launcher with `--dev-plugin <absPath>`. The plugin
+  // probe then asserts the fixture appears in
+  // `/api/plugins/runtime/list` with version `"dev"`. This exercises
+  // the full PR2 pipeline (CLI flag → env var → server loader →
+  // registry → API list) on every CI run.
+  devPlugin = false,
+} = {}) {
   const weAllocatedWorkDir = !workDir;
   const runDir = workDir ?? (await mkdtemp(path.join(os.tmpdir(), "mc-smoke-")));
   const resolvedLog = logFile ?? path.join(runDir, "launcher.log");
@@ -362,13 +420,20 @@ export async function runTarballSmoke({ root = process.cwd(), workDir, logFile, 
     if (!sandboxCheck.ok) {
       throw new Error(`sandbox build context missing from tarball: ${sandboxCheck.missing.join(", ")} (under ${sandboxCheck.checkedDir})`);
     }
+    let devPluginExpected = null;
+    let extraArgs = [];
+    if (devPlugin) {
+      const fixture = await makeDevPluginFixture({ workDir: runDir });
+      devPluginExpected = fixture.name;
+      extraArgs = ["--dev-plugin", fixture.absPath];
+    }
     const resolvedPort = port ?? (await allocateRandomPort());
-    const booted = await bootAndProbe({ workDir: runDir, port: resolvedPort, bootTimeoutMs, logFile: resolvedLog });
+    const booted = await bootAndProbe({ workDir: runDir, port: resolvedPort, bootTimeoutMs, logFile: resolvedLog, extraArgs });
     child = booted.child;
     let pluginProbe = null;
     if (booted.probe.ok) {
       const token = await readTokenFromLauncherLog({ logFile: resolvedLog });
-      pluginProbe = await probeRuntimePlugins({ port: resolvedPort, token });
+      pluginProbe = await probeRuntimePlugins({ port: resolvedPort, token, expectedDevPlugin: devPluginExpected });
     }
     const overallOk = booted.probe.ok && (pluginProbe?.ok ?? false);
     succeeded = overallOk;

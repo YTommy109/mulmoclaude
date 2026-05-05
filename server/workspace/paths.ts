@@ -103,6 +103,7 @@ const HOST_WORKSPACE_DIRS = {
   contacts: "data/contacts",
   scheduler: "data/scheduler",
   sources: "data/sources",
+  translation: "data/translation",
   // Pasted/dropped chat attachments — saved at upload time so the
   // LLM can be handed a stable workspace path instead of inline
   // base64. Conversion artefacts (e.g. PPTX → PDF) live alongside

@@ -21,6 +21,18 @@ export const SPOTIFY_KINDS = {
   recent: "recent",
   nowPlaying: "nowPlaying",
   search: "search",
+  // Player Controls (PR 3). All except `getDevices` require the
+  // user to have Spotify Premium — the plugin gates them at the
+  // dispatch boundary by reading `/v1/me/{product}` and refusing
+  // with `premium_required` for free-tier accounts.
+  play: "play",
+  pause: "pause",
+  next: "next",
+  previous: "previous",
+  seek: "seek",
+  setVolume: "setVolume",
+  transferPlayback: "transferPlayback",
+  getDevices: "getDevices",
 } as const;
 
 /** Kinds the LLM is allowed to invoke directly (= advertised in
@@ -39,6 +51,14 @@ export const LLM_CALLABLE_KINDS = [
   SPOTIFY_KINDS.recent,
   SPOTIFY_KINDS.nowPlaying,
   SPOTIFY_KINDS.search,
+  SPOTIFY_KINDS.play,
+  SPOTIFY_KINDS.pause,
+  SPOTIFY_KINDS.next,
+  SPOTIFY_KINDS.previous,
+  SPOTIFY_KINDS.seek,
+  SPOTIFY_KINDS.setVolume,
+  SPOTIFY_KINDS.transferPlayback,
+  SPOTIFY_KINDS.getDevices,
 ] as const;
 
 /** Persisted at `runtime.files.config/tokens.json`. Per-machine
@@ -125,8 +145,12 @@ export const DispatchArgsSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal(SPOTIFY_KINDS.search),
     /** Free-form query — Spotify supports field filters
-     *  (`artist:Bach`, `year:2020`) and quoted phrases. */
-    query: z.string().min(1).max(200),
+     *  (`artist:Bach`, `year:2020`) and quoted phrases. `.trim()`
+     *  before `min(1)` so a whitespace-only query (like `"   "`)
+     *  fails validation here instead of slipping through to
+     *  Spotify and coming back as a 4xx (Codex review on
+     *  PR #1168). */
+    query: z.string().trim().min(1).max(200),
     /** Categories to include. Spotify's `/v1/search` accepts
      *  `track`, `artist`, `album`, `playlist`. Default is all four
      *  so a casual `manageSpotify({ kind: "search", query })` from
@@ -141,6 +165,57 @@ export const DispatchArgsSchema = z.discriminatedUnion("kind", [
      *  context window holds N results × M categories. */
     limit: z.number().int().min(1).max(50).optional(),
   }),
+  z.object({
+    kind: z.literal(SPOTIFY_KINDS.play),
+    /** Optional: target a specific device. Defaults to the user's
+     *  active device. */
+    deviceId: z.string().min(1).max(128).optional(),
+    /** Optional: a Spotify URI for an album / playlist / artist
+     *  context to play (e.g. `spotify:playlist:abc123`). Mutually
+     *  exclusive with `trackUris` — the dispatcher in `index.ts`
+     *  rejects when both are set, because Zod's
+     *  `discriminatedUnion` doesn't accept refined arms (refining
+     *  this arm would corrupt the kind discriminator). */
+    contextUri: z.string().min(1).max(256).optional(),
+    /** Optional: explicit list of track URIs to queue
+     *  (`spotify:track:abc123`). Mutually exclusive with
+     *  `contextUri` (see comment above). */
+    trackUris: z.array(z.string().min(1).max(256)).min(1).max(100).optional(),
+  }),
+  z.object({
+    kind: z.literal(SPOTIFY_KINDS.pause),
+    deviceId: z.string().min(1).max(128).optional(),
+  }),
+  z.object({
+    kind: z.literal(SPOTIFY_KINDS.next),
+    deviceId: z.string().min(1).max(128).optional(),
+  }),
+  z.object({
+    kind: z.literal(SPOTIFY_KINDS.previous),
+    deviceId: z.string().min(1).max(128).optional(),
+  }),
+  z.object({
+    kind: z.literal(SPOTIFY_KINDS.seek),
+    /** Position in milliseconds. Spotify caps at the track length;
+     *  positions past the end stop playback. */
+    positionMs: z.number().int().min(0).max(86_400_000),
+    deviceId: z.string().min(1).max(128).optional(),
+  }),
+  z.object({
+    kind: z.literal(SPOTIFY_KINDS.setVolume),
+    /** 0-100 inclusive. */
+    volumePercent: z.number().int().min(0).max(100),
+    deviceId: z.string().min(1).max(128).optional(),
+  }),
+  z.object({
+    kind: z.literal(SPOTIFY_KINDS.transferPlayback),
+    /** Spotify ID of the device to transfer to. Get from `getDevices`. */
+    deviceId: z.string().min(1).max(128),
+    /** When true, playback continues after transfer. Default false
+     *  (matches Spotify's API default). */
+    play: z.boolean().optional(),
+  }),
+  z.object({ kind: z.literal(SPOTIFY_KINDS.getDevices) }),
 ]);
 
 export type DispatchArgs = z.infer<typeof DispatchArgsSchema>;

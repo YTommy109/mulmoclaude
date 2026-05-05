@@ -52,6 +52,34 @@ export const TOOL_DEFINITION = {
         items: { type: "string", enum: ["track", "artist", "album", "playlist"] },
         description: "Categories to search. Default = all four.",
       },
+      // Player Controls (PR 3) — Spotify Premium required at runtime
+      // for play / pause / next / previous / seek / setVolume /
+      // transferPlayback. `getDevices` works for Free accounts too.
+      deviceId: {
+        type: "string",
+        description: "Spotify Connect device ID. Obtained from `getDevices`. Optional for play/pause/etc; defaults to the active device.",
+      },
+      contextUri: {
+        type: "string",
+        description: "Spotify URI for an album / playlist / artist context to play (e.g. `spotify:playlist:abc123`). Mutually exclusive with `trackUris`.",
+      },
+      trackUris: {
+        type: "array",
+        items: { type: "string" },
+        description: "Explicit list of track URIs to play (`spotify:track:abc123`). Mutually exclusive with `contextUri`.",
+      },
+      positionMs: {
+        type: "number",
+        description: "Seek position in milliseconds (`seek` only).",
+      },
+      volumePercent: {
+        type: "number",
+        description: "Volume 0-100 inclusive (`setVolume` only).",
+      },
+      play: {
+        type: "boolean",
+        description: "When transferring playback, whether to start playing on the new device. Default false.",
+      },
     },
     required: ["kind"],
   },

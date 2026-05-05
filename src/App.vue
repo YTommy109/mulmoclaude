@@ -125,7 +125,7 @@
           v-model="userInput"
           v-model:pasted-file="pastedFile"
           :is-running="activeSessionRunning"
-          :queries="sessionRole.queries ?? []"
+          :queries="sessionRoleQueries"
           @send="sendMessage()"
           @suggestion-send="(q) => sendMessage(q)"
         />
@@ -209,7 +209,7 @@
             v-model="userInput"
             v-model:pasted-file="pastedFile"
             :is-running="activeSessionRunning"
-            :queries="sessionRole.queries ?? []"
+            :queries="sessionRoleQueries"
             @send="sendMessage()"
             @suggestion-send="(q) => sendMessage(q)"
           />
@@ -284,7 +284,6 @@ import { pushErrorMessage, beginUserTurn, updateResult } from "./utils/session/s
 import { roleName, roleIcon } from "./utils/role/icon";
 import { createEmptySession } from "./utils/session/sessionFactory";
 import { buildLoadedSession, parseSessionEntries } from "./utils/session/sessionEntries";
-import { isSidebarVisible } from "./utils/tools/sidebarVisibleApp";
 import { resolveNotificationTarget } from "./utils/notification/dispatch";
 import { usePendingCalls } from "./composables/usePendingCalls";
 import { useRunElapsed } from "./composables/useRunElapsed";
@@ -303,6 +302,7 @@ import { useSelectedResult } from "./composables/useSelectedResult";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
 import { useCurrentRole } from "./composables/useCurrentRole";
+import { useTranslatedQueries } from "./composables/useTranslatedQueries";
 import { BUILTIN_ROLE_IDS, type Role } from "./config/roles";
 import { usePubSub } from "./composables/usePubSub";
 import { sessionChannel } from "./config/pubsubChannels";
@@ -318,7 +318,7 @@ import { apiGet } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 // --- Per-session state ---
 // Declared early so that pub/sub callbacks and function declarations
@@ -457,6 +457,12 @@ const sessionRole = computed<Role>(() => {
   }
   return roles.value[0];
 });
+
+// Translated suggested-query strings for the active session's role.
+// Falls back to the role's English source until /api/translation
+// returns; subsequent role swaps hit the in-memory cache.
+const currentLocale = computed(() => String(locale.value));
+const { queries: sessionRoleQueries } = useTranslatedQueries(sessionRole, currentLocale);
 
 const { mergedSessions, tabSessions } = useMergedSessions({
   sessionMap,
@@ -769,9 +775,6 @@ async function loadSession(sessionId: string) {
     urlResult: typeof route.query.result === "string" ? route.query.result : null,
     serverSummary: sessions.value.find((summary) => summary.id === sessionId),
     nowIso: new Date().toISOString(),
-    // Skip sidebar-hidden results when auto-picking a selection so
-    // the restored session never lands on a card the user can't see.
-    isVisible: isSidebarVisible,
   });
   sessionMap.set(sessionId, newSession);
   activateSession(sessionId, replaced);

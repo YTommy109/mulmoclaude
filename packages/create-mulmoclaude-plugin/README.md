@@ -46,20 +46,33 @@ yarn install
 yarn build
 ```
 
-To develop against MulmoClaude before publishing, the current path is
-`yarn link`:
+To develop against MulmoClaude, hand the plugin's project dir to
+the launcher with `--dev-plugin`:
 
 ```bash
-# In the plugin directory:
-yarn link
+# Terminal A — keep dist/ fresh on every save
+cd my-plugin
+yarn dev          # vite build --watch
 
-# In the mulmoclaude monorepo:
-yarn link my-plugin
+# Terminal B — start mulmoclaude with the dev plugin loaded
+mulmoclaude --dev-plugin /abs/path/to/my-plugin
+# or, repeat for multiple
+mulmoclaude --dev-plugin ./my-plugin --dev-plugin ../other-plugin
 ```
 
-A first-class "install from local path" surface is being tracked at
+The plugin appears in the runtime registry under its `package.json`
+name with version `dev` and is served straight from your `dist/`. Edit
+source → vite rebuilds → reload mulmoclaude in the browser to pick
+up the new bundle.
+
+Hard-fails fast on:
+- Missing `dist/index.js` (run `yarn build` or `yarn dev` first).
+- Name collision between the dev plugin and an installed (published)
+  one — both abs paths are logged so you can see what conflicted.
+
+Auto-reload (chokidar push) is tracked at
 [receptron/mulmoclaude#1159](https://github.com/receptron/mulmoclaude/issues/1159)
-PR2 / PR3.
+PR3.
 
 ## Why a sample, not an empty plugin
 

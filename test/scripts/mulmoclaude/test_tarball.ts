@@ -271,4 +271,90 @@ describe("probeRuntimePlugins", () => {
     assert.equal(result.ok, false);
     assert.match(result.lastError ?? "", /ECONNREFUSED/);
   });
+
+  // The expectedDevPlugin filter is what makes the smoke an end-to-end
+  // PR2 regression test. Drive both branches.
+  it("ok=true when expectedDevPlugin is present in the list with version `dev`", async () => {
+    const fetchImpl = fakeFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            plugins: [
+              { name: "@example/installed", version: "0.1.0" },
+              { name: "@smoke/dev-fixture", version: "dev" },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    const result = await tarball.probeRuntimePlugins({ port: 3099, token: "tok", fetchImpl, expectedDevPlugin: "@smoke/dev-fixture" });
+    assert.equal(result.ok, true);
+  });
+
+  it("ok=false when expectedDevPlugin is absent from the list — error names what was seen", async () => {
+    const fetchImpl = fakeFetch(
+      () =>
+        new Response(JSON.stringify({ plugins: [{ name: "@example/installed", version: "0.1.0" }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    const result = await tarball.probeRuntimePlugins({ port: 3099, token: "tok", fetchImpl, expectedDevPlugin: "@smoke/dev-fixture" });
+    assert.equal(result.ok, false);
+    assert.match(result.lastError ?? "", /@smoke\/dev-fixture@dev/);
+    assert.match(result.lastError ?? "", /@example\/installed@0\.1\.0/);
+  });
+
+  it("ok=false when name matches but version is not `dev` (would mean prod plugin was loaded under wrong version)", async () => {
+    // Prevents a regression where dev plugins start being stamped
+    // with the package.json's literal version. The "dev" sentinel is
+    // load-bearing — it's how the asset URL stays distinguishable
+    // and how operators tell at a glance which plugins are dev-only.
+    const fetchImpl = fakeFetch(
+      () =>
+        new Response(JSON.stringify({ plugins: [{ name: "@smoke/dev-fixture", version: "0.1.0" }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    const result = await tarball.probeRuntimePlugins({ port: 3099, token: "tok", fetchImpl, expectedDevPlugin: "@smoke/dev-fixture" });
+    assert.equal(result.ok, false);
+  });
+});
+
+describe("makeDevPluginFixture", () => {
+  it("creates a directory with package.json + dist/index.js the loader can accept", async () => {
+    const { mkdtemp, readFile, rm } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const path = await import("node:path");
+    const workDir = await mkdtemp(path.join(tmpdir(), "mulmo-fixture-test-"));
+    try {
+      const fixture = await tarball.makeDevPluginFixture({ workDir });
+      assert.equal(fixture.name, "@smoke/dev-fixture");
+      const pkg = JSON.parse(await readFile(path.join(fixture.absPath, "package.json"), "utf8"));
+      assert.equal(pkg.name, "@smoke/dev-fixture");
+      assert.equal(pkg.type, "module");
+      const indexJs = await readFile(path.join(fixture.absPath, "dist", "index.js"), "utf8");
+      assert.match(indexJs, /TOOL_DEFINITION/);
+      assert.match(indexJs, /smokeDevTool/);
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it("respects a caller-overridden name and subdir", async () => {
+    const { mkdtemp, readFile, rm } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const path = await import("node:path");
+    const workDir = await mkdtemp(path.join(tmpdir(), "mulmo-fixture-test-"));
+    try {
+      const fixture = await tarball.makeDevPluginFixture({ workDir, name: "@my/custom", subdir: "alt-dir" });
+      assert.equal(fixture.name, "@my/custom");
+      assert.equal(path.basename(fixture.absPath), "alt-dir");
+      const pkg = JSON.parse(await readFile(path.join(fixture.absPath, "package.json"), "utf8"));
+      assert.equal(pkg.name, "@my/custom");
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
+    }
+  });
 });

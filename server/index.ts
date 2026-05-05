@@ -26,12 +26,14 @@ import configRoutes from "./api/routes/config.js";
 import skillsRoutes from "./api/routes/skills.js";
 import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
 import { loadRuntimePlugins } from "./plugins/runtime-loader.js";
+import { evaluateDevPluginGate, loadDevPlugins, parseDevPluginsEnv } from "./plugins/dev-loader.js";
 import { loadPresetPlugins } from "./plugins/preset-loader.js";
 import { registerRuntimePlugins } from "./plugins/runtime-registry.js";
 import { makePluginRuntime } from "./plugins/runtime.js";
 import { MCP_PLUGIN_NAMES } from "./agent/plugin-names.js";
 import { createNotificationsRouter } from "./api/routes/notifications.js";
 import { createJournalRouter } from "./api/routes/journal.js";
+import { createTranslationRouter } from "./api/routes/translation.js";
 import { type NotificationDeps, initNotifications } from "./events/notifications.js";
 import { announcePluginMetaDiagnostics } from "./plugins/diagnostics.js";
 import { createChatService } from "@mulmobridge/chat-service";
@@ -540,6 +542,7 @@ const notificationDeps: NotificationDeps = {
 };
 app.use(createNotificationsRouter(notificationDeps));
 app.use(createJournalRouter());
+app.use(createTranslationRouter());
 app.use(mcpToolsRouter);
 app.use(schedulerTasksRoutes);
 
@@ -744,7 +747,21 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
           // enhancement: per-request locale from Accept-Language.
           locale: process.env.LANG?.split(/[._]/)[0] || "en",
         });
-      const [presets, userInstalled] = await Promise.all([loadPresetPlugins({ runtimeFactory }), loadRuntimePlugins({ runtimeFactory })]);
+      const [presets, userInstalled, devLoad] = await Promise.all([
+        loadPresetPlugins({ runtimeFactory }),
+        loadRuntimePlugins({ runtimeFactory }),
+        loadDevPlugins(parseDevPluginsEnv(process.env.MULMOCLAUDE_DEV_PLUGINS, process.cwd()), { runtimeFactory }),
+      ]);
+      // Dev plugin failures (missing dist/index.js, broken package.json,
+      // …) are a setup error the dev needs to see and fix. Hard-exit
+      // so the developer can't accidentally trial-and-error against a
+      // server that silently dropped their plugin. Same policy for
+      // collisions per #1159 PR2 spec.
+      const devGate = evaluateDevPluginGate(devLoad, [...presets, ...userInstalled]);
+      if (!devGate.ok) {
+        for (const message of devGate.fatalMessages) log.error("plugins/dev", message);
+        process.exit(1);
+      }
       // Pass the full static-tool set (MCP plugins + ENABLED MCP tools
       // like readXPost / searchX) as the collision policy so the floor
       // matches the standalone mcp-server's STATIC_TOOL_NAMES exactly
@@ -755,10 +772,11 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
       // accepted by the child, and the child's `/dispatch` would 404
       // because the parent never registered a route for it.
       const staticToolNames = new Set([...MCP_PLUGIN_NAMES, ...mcpTools.filter(isMcpToolEnabled).map((tool) => tool.definition.name)]);
-      const result = registerRuntimePlugins(staticToolNames, [...presets, ...userInstalled]);
+      const result = registerRuntimePlugins(staticToolNames, [...presets, ...userInstalled, ...devLoad.plugins]);
       log.info("plugins/runtime", "registered runtime plugins", {
         presets: presets.length,
         userInstalled: userInstalled.length,
+        dev: devLoad.plugins.length,
         registered: result.registered.length,
         collisions: result.collisions.length,
         oauthAliasCollisions: result.oauthAliasCollisions.length,

@@ -9,13 +9,14 @@ import { execSync, spawn } from "child_process";
 import { existsSync } from "fs";
 import { get as httpGet } from "http";
 import { createRequire } from "module";
-import { join, dirname } from "path";
+import { join, dirname, delimiter as PATH_DELIMITER } from "path";
 import { fileURLToPath } from "url";
 
 // Shared with `server/index.ts` — the launcher and the dev server use
 // the same probe + fallback logic. See server/utils/port.mjs for why
 // it's plain JS rather than TypeScript.
 import { isPortFree, findAvailablePort, MAX_PORT_PROBES } from "../server/utils/port.mjs";
+import { parseDevPluginArgs } from "../server/utils/dev-plugin-args.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -99,10 +100,14 @@ if (args.includes("--help") || args.includes("-h")) {
 Usage: npx mulmoclaude [options]
 
 Options:
-  --port <number>   Server port (default: ${DEFAULT_PORT})
-  --no-open         Don't open browser automatically
-  --version         Show version
-  --help            Show this help
+  --port <number>      Server port (default: ${DEFAULT_PORT})
+  --no-open            Don't open browser automatically
+  --dev-plugin <path>  Load a plugin from a local project dir for development
+                       (repeatable). Path can be absolute or relative to cwd.
+                       The dir must have package.json and dist/index.js
+                       (run \`yarn build\` or \`yarn dev\` in the plugin first).
+  --version            Show version
+  --help               Show this help
 `);
   process.exit(0);
 }
@@ -114,6 +119,19 @@ if (args.includes("--version")) {
 
 const { requestedPort, portExplicit } = parsePortArg();
 const noOpen = args.includes("--no-open");
+const devPluginPaths = resolveDevPluginPaths();
+
+function resolveDevPluginPaths() {
+  const result = parseDevPluginArgs(args, process.cwd());
+  if (!result.ok) {
+    error(result.reason);
+    process.exit(1);
+  }
+  for (const { rawInput, absPath } of result.resolved) {
+    log(`[dev-plugin] ${rawInput} → ${absPath}`);
+  }
+  return result.resolved.map((entry) => entry.absPath);
+}
 
 function parsePortArg() {
   const idx = args.indexOf("--port");
@@ -195,13 +213,18 @@ try {
   process.exit(1);
 }
 
+const serverEnv = {
+  ...process.env,
+  NODE_ENV: "production",
+  PORT: String(port),
+};
+if (devPluginPaths.length > 0) {
+  serverEnv.MULMOCLAUDE_DEV_PLUGINS = devPluginPaths.join(PATH_DELIMITER);
+}
+
 const server = spawn(process.execPath, [tsxCli, SERVER_ENTRY], {
   cwd: PKG_DIR,
-  env: {
-    ...process.env,
-    NODE_ENV: "production",
-    PORT: String(port),
-  },
+  env: serverEnv,
   stdio: "inherit",
 });
 
