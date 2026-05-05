@@ -16,6 +16,14 @@ const NAMESPACE_RE = /^[a-zA-Z0-9_-]+$/;
 // eslint-disable-next-line security/detect-unsafe-regex -- single-pass match against a 2- or 5-char locale code, no backtracking.
 const LANGUAGE_RE = /^[a-z]{2}(?:-[A-Z]{2})?$/;
 
+// Bound the request shape so a single call cannot blow past the
+// `claude -p <json>` argv limit (POSIX `E2BIG`, typically ~128 KiB)
+// or balloon the per-call cost. UI-string callers stay well inside
+// these — Role suggested queries are ~5 strings × ~50 chars.
+const MAX_SENTENCES = 256;
+const MAX_SENTENCE_CHARS = 1024;
+const MAX_TOTAL_CHARS = 32 * 1024;
+
 export class TranslationInputError extends Error {
   constructor(message: string) {
     super(message);
@@ -33,9 +41,20 @@ function validateRequest(req: TranslateRequest): void {
   if (!Array.isArray(req.sentences) || req.sentences.length === 0) {
     throw new TranslationInputError("sentences must be a non-empty array");
   }
+  if (req.sentences.length > MAX_SENTENCES) {
+    throw new TranslationInputError(`sentences exceeds ${MAX_SENTENCES} entries`);
+  }
+  let totalChars = 0;
   for (const sentence of req.sentences) {
     if (typeof sentence !== "string" || sentence.length === 0) {
       throw new TranslationInputError("sentences must contain non-empty strings");
+    }
+    if (sentence.length > MAX_SENTENCE_CHARS) {
+      throw new TranslationInputError(`sentence exceeds ${MAX_SENTENCE_CHARS} characters`);
+    }
+    totalChars += sentence.length;
+    if (totalChars > MAX_TOTAL_CHARS) {
+      throw new TranslationInputError(`total sentence length exceeds ${MAX_TOTAL_CHARS} characters`);
     }
   }
 }
