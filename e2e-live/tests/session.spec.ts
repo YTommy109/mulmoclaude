@@ -92,17 +92,28 @@ test.describe("session (real LLM)", () => {
       // would point at the wrong root cause.
       expect(getCurrentSessionId(page), "session id must survive a reload before we can probe context").toBe(sessionIdBeforeReload);
 
+      // Count how many times the magic code appears BEFORE turn 2.
+      // After reload there is already at least one occurrence — the
+      // user's own turn-1 prompt is back in the transcript (and the
+      // sidebar history preview likely shows it too). Anchoring the
+      // post-recall assertion to "the count went up" is what makes
+      // this an actual B-16 canary: if the agent fails to recall,
+      // its turn-2 reply won't contain the code and the count stays
+      // flat, even though the page still has the code from turn 1.
+      const preRecallCodeCount = await page.getByText(L12_MAGIC_CODE).count();
+
       await sendChatMessage(page, recallPrompt);
       await waitForAssistantResponseComplete(page);
 
-      // The magic code must show up in the page somewhere as part
-      // of the assistant's reply. We don't pin to a specific bubble
-      // testid because the chat surface has none; getByText with a
-      // 6-digit string is unique enough — the user's own prompts
-      // include the code too, but every match strengthens the
-      // assertion (history hydrated AND the agent answered with the
-      // same code). `.first()` keeps strict-mode happy.
-      await expect(page.getByText(L12_MAGIC_CODE).first(), "the agent must echo the magic code from turn-1 — B-16 canary").toBeVisible();
+      // The recall prompt itself doesn't contain the code, so the
+      // only way for the count to increase is for the assistant to
+      // have echoed it back from turn-1 context. `expect.toPass`
+      // gives the transcript a moment to flush the streamed reply
+      // into the DOM after `thinking-indicator` goes hidden.
+      await expect(async () => {
+        const postRecallCodeCount = await page.getByText(L12_MAGIC_CODE).count();
+        expect(postRecallCodeCount, "the agent must echo the magic code from turn-1 — B-16 canary").toBeGreaterThan(preRecallCodeCount);
+      }).toPass({ timeout: ONE_MINUTE_MS });
     } finally {
       if (sessionIdForCleanup !== null) await deleteSession(page, sessionIdForCleanup);
     }
