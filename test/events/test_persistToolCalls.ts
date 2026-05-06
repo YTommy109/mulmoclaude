@@ -1,5 +1,5 @@
 // Coverage for the opt-in `tool_call` jsonl persistence
-// (PERSIST_TOOL_CALLS=1). See plans/feat-persist-tool-calls.md /
+// (PERSIST_TOOL_CALLS=1). See plans/done/feat-persist-tool-calls.md /
 // issue #1096. Two angles:
 //
 //   1. Default (env flag off) — `pushSessionEvent` for a `tool_call`

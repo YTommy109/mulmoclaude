@@ -8,7 +8,7 @@ import { TIME_SERIES_GRANULARITIES, TIME_SERIES_METRICS } from "./timeSeriesEnum
 // MCP tool definition for the accounting plugin.
 //
 // **Opt-in only.** Not added to any built-in Role's
-// `availablePlugins` (see plans/feat-accounting.md hard
+// `availablePlugins` (see plans/done/feat-accounting.md hard
 // constraint 1). A user wanting access creates a custom Role and
 // includes `manageAccounting` in its plugin list.
 //

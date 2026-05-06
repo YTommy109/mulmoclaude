@@ -11,7 +11,7 @@
 // the Vue UI — paths only.
 //
 // Background: feat/attachments-as-paths refactor (image side
-// completed in plans/refactor-edit-images-array.md).
+// completed in plans/done/refactor-edit-images-array.md).
 
 import type { PastedFile } from "../../types/pastedFile";
 import { apiPost } from "../api";

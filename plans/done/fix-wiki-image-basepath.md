@@ -61,4 +61,4 @@ const WIKI_BASE_DIR = computed(() => (action.value === "page" ? "data/wiki/pages
 
 ## 備考
 
-- 過去の似た移行漏れに [`plans/fix-legacy-path-migration-773.md`](fix-legacy-path-migration-773.md) があり、issue #284 由来のレガシーパス整理が継続的に発生している。今回も同系統。
+- 過去の似た移行漏れに [`plans/done/fix-legacy-path-migration-773.md`](fix-legacy-path-migration-773.md) があり、issue #284 由来のレガシーパス整理が継続的に発生している。今回も同系統。

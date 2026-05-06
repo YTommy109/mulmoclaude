@@ -33,7 +33,7 @@ export interface RefreshResponseFields {
 
 /** Reason codes the plugin returns to the LLM / View when an
  *  operation can't proceed. The dispatch contract documented in
- *  plans/feat-spotify-plugin.md keeps these aligned with the
+ *  plans/done/feat-spotify-plugin.md keeps these aligned with the
  *  user-facing `instructions` strings. */
 export type SpotifyError =
   | { kind: "client_id_missing"; instructions: string; setupGuide: string }

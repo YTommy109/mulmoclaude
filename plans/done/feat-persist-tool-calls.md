@@ -37,7 +37,7 @@ Add the flag, mirroring `disableSandbox`:
 
 ```ts
 // Opt-in debug aid: persist `tool_call` events to the session
-// jsonl alongside `tool_result`. See plans/feat-persist-tool-calls.md
+// jsonl alongside `tool_result`. See plans/done/feat-persist-tool-calls.md
 // for the rationale (off by default — args can be large + carry
 // inline payloads).
 persistToolCalls: asFlag(process.env.PERSIST_TOOL_CALLS),

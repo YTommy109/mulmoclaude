@@ -27,7 +27,7 @@ import type { MulmoclaudeRuntime, NotifierRuntimeApi } from "../notifier/runtime
 const DEFAULT_FETCH_TIMEOUT_MS = 10 * ONE_SECOND_MS;
 
 // ─────────────────────────────────────────────────────────────────────
-// Path normalisation contract (see plans/feat-plugin-runtime-extensions-1110.md)
+// Path normalisation contract (see plans/done/feat-plugin-runtime-extensions-1110.md)
 //
 //   1. Replace `\` with `/` (Windows path.join leak repair).
 //   2. `path.posix.normalize` (folds `..`, `.`, `//`).
