@@ -34,16 +34,44 @@ export function initNotifier(injected: NotifierDeps): void {
   deps = injected;
 }
 
+/** In-process event listeners — separate from the socket.io pubsub
+ *  so server-side adapters (bridge / macOS push, future Encore) can
+ *  react to state changes without going through a websocket
+ *  round-trip. The host's `IPubSub.publish` is fan-out-only with no
+ *  server-side subscribe, so this listener registry is the
+ *  in-process equivalent. Registered listeners run synchronously
+ *  inside `emit`, before the pubsub fan-out. */
+type NotifierEventListener = (event: NotifierEvent) => void;
+const listeners: NotifierEventListener[] = [];
+
+/** Register an in-process listener for engine events. Returns an
+ *  unsubscribe function the caller can use during teardown. */
+export function onEvent(listener: NotifierEventListener): () => void {
+  listeners.push(listener);
+  return () => {
+    const idx = listeners.indexOf(listener);
+    if (idx >= 0) listeners.splice(idx, 1);
+  };
+}
+
 function emit(event: NotifierEvent): void {
+  // In-process fan-out first. Each listener is wrapped: a throwing
+  // listener must not poison the rest, and must not propagate out of
+  // `processBatch` and strand the still-unsettled waiters (their
+  // resolve/reject is called *after* this emit loop). Fan-out is
+  // best-effort by contract — losing one subscriber must not lose
+  // the write that already committed.
+  for (const listener of listeners) {
+    try {
+      listener(event);
+    } catch (err) {
+      log.error("notifier", "in-process listener failed", { type: event.type, error: String(err) });
+    }
+  }
   if (!deps) {
     log.warn("notifier", "emit before init", { type: event.type });
     return;
   }
-  // Defensive: a throwing pubsub.publish would otherwise propagate
-  // out of `processBatch` and strand the still-unsettled waiters
-  // (their resolve/reject is called *after* this emit loop in
-  // `processBatch`). Fan-out is best-effort by contract — losing one
-  // subscriber must not lose the write that already committed.
   try {
     deps.publish(PUBSUB_CHANNELS.notifier, event);
   } catch (err) {

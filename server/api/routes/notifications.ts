@@ -23,12 +23,14 @@
 // For a one-shot "fire one of every target kind" run,
 // scripts/dev/fire-sample-notifications.sh drives this endpoint.
 //
-// The route is exported as a factory so the host wiring can inject
-// the pub-sub publisher and the chat-service push handle without
-// this file pulling in either module directly.
+// PR 4 of feat-encore made `publishNotification()` a thin wrapper
+// over the notifier engine, so this route no longer needs injected
+// pubsub / bridge deps — bridge push fans out via the legacy
+// adapter subscribed to the engine, and `scheduleTestNotification`
+// just calls the wrapper.
 
 import { Router, type Request, type Response } from "express";
-import { scheduleTestNotification, type NotificationDeps, type ScheduleNotificationOptions } from "../../events/notifications.js";
+import { scheduleTestNotification, type ScheduleNotificationOptions } from "../../events/notifications.js";
 import { log } from "../../system/logger/index.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import {
@@ -105,11 +107,11 @@ function parseBody(body: TestRequestBody): ScheduleNotificationOptions {
   return opts;
 }
 
-export function createNotificationsRouter(deps: NotificationDeps): Router {
+export function createNotificationsRouter(): Router {
   const router = Router();
   router.post(API_ROUTES.notifications.test, (req: Request<object, unknown, TestRequestBody>, res: Response<TestResponse>) => {
     const opts = parseBody(req.body ?? {});
-    const scheduled = scheduleTestNotification(opts, deps);
+    const scheduled = scheduleTestNotification(opts);
     log.info("notifications", "scheduled test push", {
       delaySeconds: scheduled.delaySeconds,
       firesAt: scheduled.firesAt,

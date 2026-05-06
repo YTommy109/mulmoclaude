@@ -134,13 +134,6 @@ const HOST_STATIC_CHANNELS = {
    *  demo counter. Useful for sanity-checking that the WS pipe is
    *  alive end-to-end. */
   debugBeat: "debug.beat",
-  /** Broadcast push notifications to every open Web tab (scaffold for
-   *  the in-app notification center #144). The test endpoint
-   *  `POST /api/notifications/test` publishes here; the production
-   *  triggers (scheduler / todo reminders / journal) will follow
-   *  the same channel. Subscriber list starts empty — the UI lands
-   *  in a separate PR. Payload: `{ message: string, firedAt: ISO8601 }`. */
-  notifications: "notifications",
   /** Dev plugin (`--dev-plugin <path>`) `dist/` changed — debounced.
    *  Publisher: `server/plugins/dev-watcher.ts` after fs.watch fires.
    *  Subscriber: `src/composables/useDevPluginReload.ts` triggers

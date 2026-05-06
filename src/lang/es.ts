@@ -65,9 +65,13 @@ const esMessages = {
   },
   notificationBell: {
     notifications: "Notificaciones",
-    markAllRead: "Marcar todo como leído",
-    noNotifications: "No hay notificaciones",
+    activeSection: "Activas",
+    historySection: "Historial",
+    noActive: "Sin notificaciones activas",
+    noHistory: "Sin actividad reciente",
+    clearAll: "Borrar",
     dismiss: "Descartar",
+    cancel: "Cancelar",
   },
   pluginDiagnostics: {
     title: "Problema de configuración del plugin",
