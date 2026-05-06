@@ -94,6 +94,16 @@ function findWorkspaces({ relDir, scope, nameSuffix }) {
   return found;
 }
 
+// Track every spawned build so we can kill the still-running siblings
+// when one of them fails — matching `concurrently --kill-others-on-fail`
+// semantics. Without this, `Promise.all` rejects on the first failure
+// and `process.exit(1)` leaves the others orphaned (Codex review on
+// PR #1189). On Unix the orphans keep running and can keep CI busy +
+// contend for shared output dirs; on Windows the spawn-through-shell
+// path makes signal delivery flakier so we fall back to `taskkill /T`
+// via the shell-spawned wrapper getting SIGTERM.
+const liveChildren = new Set();
+
 function runOne(pkgName) {
   return new Promise((resolve, reject) => {
     const child = spawn("yarn", ["workspace", pkgName, "run", "build"], {
@@ -103,6 +113,7 @@ function runOne(pkgName) {
       // predictable signal handling.
       shell: process.platform === "win32",
     });
+    liveChildren.add(child);
     const prefix = `[${pkgName}]`;
     const stamp = (chunk, stream) => {
       const text = chunk.toString();
@@ -112,13 +123,27 @@ function runOne(pkgName) {
     };
     child.stdout.on("data", (chunk) => stamp(chunk, process.stdout));
     child.stderr.on("data", (chunk) => stamp(chunk, process.stderr));
-    child.on("error", reject);
+    child.on("error", (err) => {
+      liveChildren.delete(child);
+      reject(err);
+    });
     child.on("exit", (code, signal) => {
+      liveChildren.delete(child);
       if (code === 0) resolve();
       else if (signal) reject(new Error(`${pkgName} terminated by ${signal}`));
       else reject(new Error(`${pkgName} exited with code ${code}`));
     });
   });
+}
+
+function killSurvivors() {
+  for (const child of liveChildren) {
+    try {
+      child.kill("SIGTERM");
+    } catch {
+      // Already dead or unkillable — nothing useful to do.
+    }
+  }
 }
 
 async function main() {
@@ -130,15 +155,23 @@ async function main() {
   }
   console.log(`[build-workspaces] building ${workspaces.length} package(s) in parallel under ${args.relDir}: ${workspaces.join(", ")}`);
 
-  // Promise.all rejects on first failure, but the other in-flight
-  // builds keep running until they finish on their own. That matches
-  // `concurrently --kill-others-on-fail` semantics closely enough for
-  // our use — we surface the first error and bail with non-zero. If
-  // we ever need true kill-others, swap in AbortController + child.kill().
+  // If our own process is signalled (Ctrl-C in dev, CI timeout, etc.),
+  // forward SIGTERM to every still-running build before exiting.
+  // Otherwise the children get reparented to init and keep running.
+  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+    process.once(sig, () => {
+      killSurvivors();
+      process.exit(130);
+    });
+  }
+
   try {
     await Promise.all(workspaces.map(runOne));
   } catch (err) {
     console.error(`[build-workspaces] failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Match `concurrently --kill-others-on-fail`: terminate the
+    // siblings before exiting, so they don't keep running orphaned.
+    killSurvivors();
     process.exit(1);
   }
 }
