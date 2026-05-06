@@ -255,7 +255,15 @@ async function probeSessionIdle(args: { sid: string; listUrl: string; perAttempt
     });
     if (!res.ok) return { ok: false as const, reason: `GET ${listUrl} returned HTTP ${res.status} ${res.statusText}` };
     const data = (await res.json()) as { sessions?: { id: string; isRunning?: boolean }[] };
-    const session = data.sessions?.find((row) => row.id === sid);
+    // Fail closed on a malformed payload (codex iter-4: missing /
+    // null / non-array `sessions` field would otherwise let
+    // `?.find()` return undefined → stillRunning=false → cleanup
+    // proceeds without ever proving the server is idle, reopening
+    // the same silent 409 race the helper exists to close).
+    if (!Array.isArray(data.sessions)) {
+      return { ok: false as const, reason: `GET ${listUrl} returned an unexpected payload (no sessions array)` };
+    }
+    const session = data.sessions.find((row) => row.id === sid);
     return { ok: true as const, stillRunning: session?.isRunning === true };
   } catch (err) {
     // Network drop / AbortSignal timeout / JSON parse throw — anything
