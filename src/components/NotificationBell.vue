@@ -173,30 +173,33 @@ async function navigateAndClose(target: string, entryId: string): Promise<void> 
   await router.push(appendNotificationId(target, entryId)).catch(() => {});
 }
 
+/** Lifecycle-correct primary action for an Active row. The keyboard
+ *  Enter/Space handler routes through here so keyboard users get a
+ *  single, predictable activation regardless of where focus is —
+ *  separate from the mouse two-tier UX that distinguishes body click
+ *  vs row-padding click. fyi: navigate (if target) then clear.
+ *  action: navigate only (plugin owns the clear). */
+function performPrimaryAction(entry: NotifierEntry): void {
+  if (entry.navigateTarget) void navigateAndClose(entry.navigateTarget, entry.id);
+  if ((entry.lifecycle ?? "fyi") === "fyi") void clear(entry.id);
+}
+
 // Body click on an Active row. Stop propagation so the outer <li>'s
 // fyi-clear handler doesn't double-fire when a fyi click already
 // lands here (matches the debug popup's two-layer click handling).
 function onActiveRowBodyClick(entry: NotifierEntry, event: MouseEvent): void {
   event.stopPropagation();
-  if (entry.lifecycle === "action" && entry.navigateTarget) {
-    void navigateAndClose(entry.navigateTarget, entry.id);
-    return;
-  }
-  // fyi: navigate-then-clear, or just clear when there's no target.
-  if (entry.navigateTarget) {
-    void navigateAndClose(entry.navigateTarget, entry.id);
-  }
-  void clear(entry.id);
+  performPrimaryAction(entry);
 }
 
 // Outer-row click — fyi only. Action rows must use the body div or
 // the trailing × so the user can't accidentally cancel by clicking
-// padding.
+// padding. Keyboard activation goes through `performPrimaryAction`
+// instead, which works for both lifecycles.
 function onActiveRowClick(entry: NotifierEntry): void {
   const lifecycle = entry.lifecycle ?? "fyi";
   if (lifecycle !== "fyi") return;
-  if (entry.navigateTarget) void navigateAndClose(entry.navigateTarget, entry.id);
-  void clear(entry.id);
+  performPrimaryAction(entry);
 }
 
 async function handleDismiss(event: Event, entry: NotifierEntry): Promise<void> {
@@ -270,8 +273,13 @@ async function clearAllFyi(): Promise<void> {
             :key="entry.id"
             :data-testid="`notification-item-${entry.id}`"
             :data-lifecycle="entry.lifecycle ?? 'fyi'"
-            :class="['px-3 py-2 group', (entry.lifecycle ?? 'fyi') === 'fyi' ? 'cursor-pointer hover:bg-gray-50' : '']"
+            role="button"
+            tabindex="0"
+            :aria-label="localizeTitle(entry)"
+            :class="['px-3 py-2 group focus:bg-gray-100 focus:outline-none', (entry.lifecycle ?? 'fyi') === 'fyi' ? 'cursor-pointer hover:bg-gray-50' : '']"
             @click="onActiveRowClick(entry)"
+            @keydown.enter.prevent.self="(e) => !e.repeat && performPrimaryAction(entry)"
+            @keydown.space.prevent.self="(e) => !e.repeat && performPrimaryAction(entry)"
           >
             <div class="flex items-start gap-2">
               <span
@@ -328,7 +336,18 @@ async function clearAllFyi(): Promise<void> {
           {{ t("notificationBell.noHistory") }}
         </p>
         <ul v-else class="divide-y divide-gray-100">
-          <li v-for="entry in visibleHistory" :key="`${entry.id}-${entry.terminalAt}`" :data-testid="`notification-history-${entry.id}`" class="px-3 py-2">
+          <li
+            v-for="entry in visibleHistory"
+            :key="`${entry.id}-${entry.terminalAt}`"
+            :data-testid="`notification-history-${entry.id}`"
+            :role="entry.navigateTarget ? 'button' : undefined"
+            :tabindex="entry.navigateTarget ? 0 : undefined"
+            :aria-label="entry.navigateTarget ? localizeTitle(entry) : undefined"
+            :class="['px-3 py-2 focus:bg-gray-100 focus:outline-none', entry.navigateTarget ? 'cursor-pointer hover:bg-gray-50' : '']"
+            @click="entry.navigateTarget && handleHistoryClick(entry)"
+            @keydown.enter.prevent.self="(e) => entry.navigateTarget && !e.repeat && handleHistoryClick(entry)"
+            @keydown.space.prevent.self="(e) => entry.navigateTarget && !e.repeat && handleHistoryClick(entry)"
+          >
             <div class="flex items-start gap-2">
               <!-- eslint-disable @intlify/vue-i18n/no-raw-text --
                 Symbolic glyph (✓ / ✗) — language-neutral terminal-state
@@ -339,10 +358,7 @@ async function clearAllFyi(): Promise<void> {
               </span>
               <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
               <span :class="['mt-1 inline-block w-2 h-2 rounded-full shrink-0 opacity-30', severityDotClassForHistory(entry.severity)]" aria-hidden="true" />
-              <div
-                :class="['flex-1 min-w-0', entry.navigateTarget ? 'cursor-pointer hover:underline' : '']"
-                @click="entry.navigateTarget && handleHistoryClick(entry)"
-              >
+              <div :class="['flex-1 min-w-0', entry.navigateTarget ? 'hover:underline' : '']">
                 <div class="flex items-baseline gap-2">
                   <span class="text-gray-700 truncate">{{ localizeTitle(entry) }}</span>
                 </div>
