@@ -77,10 +77,73 @@ describe("publish", () => {
       severity: "urgent",
       lifecycle: "action",
       title: "File taxes",
+      navigateTarget: "/encore/taxes",
       pluginData,
     });
     const entry = await get(id);
     assert.deepEqual(entry?.pluginData, pluginData);
+  });
+
+  it("rejects action lifecycle without a navigateTarget", async () => {
+    await assert.rejects(
+      publish({
+        pluginPkg: "x",
+        severity: "nudge",
+        lifecycle: "action",
+        title: "no link",
+      }),
+      /navigateTarget/,
+    );
+  });
+
+  it("rejects action lifecycle with an empty-string navigateTarget", async () => {
+    await assert.rejects(
+      publish({
+        pluginPkg: "x",
+        severity: "nudge",
+        lifecycle: "action",
+        title: "empty link",
+        navigateTarget: "",
+      }),
+      /navigateTarget/,
+    );
+  });
+
+  it("rejects action lifecycle with info severity (incoherent combination)", async () => {
+    await assert.rejects(
+      publish({
+        pluginPkg: "x",
+        severity: "info",
+        lifecycle: "action",
+        title: "low-priority obligation",
+        navigateTarget: "/somewhere",
+      }),
+      /info severity/,
+    );
+  });
+
+  it("accepts action lifecycle with nudge or urgent severity (paired with navigateTarget)", async () => {
+    const { id: nudgeId } = await publish({
+      pluginPkg: "x",
+      severity: "nudge",
+      lifecycle: "action",
+      title: "nudge action",
+      navigateTarget: "/x",
+    });
+    const { id: urgentId } = await publish({
+      pluginPkg: "x",
+      severity: "urgent",
+      lifecycle: "action",
+      title: "urgent action",
+      navigateTarget: "/y",
+    });
+    assert.ok(await get(nudgeId));
+    assert.ok(await get(urgentId));
+  });
+
+  it("accepts fyi lifecycle without a navigateTarget (no link required)", async () => {
+    const { id } = await publish({ pluginPkg: "x", severity: "info", lifecycle: "fyi", title: "no link needed" });
+    assert.ok(await get(id));
   });
 
   it("persists across engine 'restart' (re-reading from disk)", async () => {

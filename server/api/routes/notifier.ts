@@ -51,6 +51,23 @@ function asLifecycle(value: unknown): NotifierLifecycle | undefined {
   return undefined;
 }
 
+// `action` lifecycle constraints, mirrored from `engine.publish`
+// so HTTP callers get a clean 400 instead of a 500 from the engine
+// throw. The engine still enforces independently for plugin-runtime
+// callers; this is the route-level mirror.
+function validateActionConstraints(severity: NotifierSeverity, lifecycle: NotifierLifecycle | undefined, navigateTarget: string | undefined): string | null {
+  if (lifecycle !== "action") return null;
+  if (severity === "info") return "action lifecycle is incompatible with info severity (use fyi for low-priority pings)";
+  if (navigateTarget === undefined || navigateTarget.length === 0) return "action lifecycle requires a non-empty navigateTarget";
+  return null;
+}
+
+function checkOptionalString(value: unknown, fieldName: string): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") return `${fieldName} must be a string when set`;
+  return null;
+}
+
 function parsePublishInput(body: DispatchBody): PublishInput | string {
   if (!isNonEmptyString(body.pluginPkg)) return "pluginPkg required";
   if (!isNonEmptyString(body.title)) return "title required";
@@ -59,19 +76,21 @@ function parsePublishInput(body: DispatchBody): PublishInput | string {
   if (body.lifecycle !== undefined && body.lifecycle !== null && asLifecycle(body.lifecycle) === undefined) {
     return "lifecycle must be one of fyi | action when set";
   }
-  if (body.body !== undefined && body.body !== null && typeof body.body !== "string") {
-    return "body must be a string when set";
-  }
-  if (body.navigateTarget !== undefined && body.navigateTarget !== null && typeof body.navigateTarget !== "string") {
-    return "navigateTarget must be a string when set";
-  }
+  const bodyError = checkOptionalString(body.body, "body");
+  if (bodyError) return bodyError;
+  const navigateTargetError = checkOptionalString(body.navigateTarget, "navigateTarget");
+  if (navigateTargetError) return navigateTargetError;
+  const lifecycle = asLifecycle(body.lifecycle);
+  const navigateTarget = typeof body.navigateTarget === "string" ? body.navigateTarget : undefined;
+  const actionError = validateActionConstraints(severity, lifecycle, navigateTarget);
+  if (actionError) return actionError;
   return {
     pluginPkg: body.pluginPkg,
     severity,
     title: body.title,
     body: typeof body.body === "string" ? body.body : undefined,
-    lifecycle: asLifecycle(body.lifecycle),
-    navigateTarget: typeof body.navigateTarget === "string" ? body.navigateTarget : undefined,
+    lifecycle,
+    navigateTarget,
     pluginData: body.pluginData,
   };
 }

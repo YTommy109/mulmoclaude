@@ -76,7 +76,7 @@ type NotifierLifecycle = "fyi" | "action";
 
 | Lifecycle | Example | Has body content? | Who calls `clear`? |
 |---|---|---|---|
-| `fyi` | "Backup completed" | No | The bell panel — user acknowledges (button or bulk-checkbox) |
+| `fyi` | "Backup completed" | No | The bell panel — user dismisses via the row's `×` |
 | `action` | "Pay H2 property tax" / "Daily news digest is ready" | Yes — plugin-owned target | The plugin — either on view mount ("show this once" semantics) or after the domain action completes |
 
 `action` collapses what an earlier draft split into `read` and `action`: from the engine's perspective both are "the plugin owns the close call", so the distinction was bookkeeping with no runtime effect. The plugin chooses *when* to call `clear` based on its own UX — on mount for read-once notifications, after an explicit action for things like "Pay property tax." If the user never visits the plugin's view (e.g. submits the journal entry via chat instead), the plugin can still detect the underlying state change and call `clear` from there; the panel click is convenience routing, not the close trigger.
@@ -168,12 +168,12 @@ The toolbar bell shows the count of notifications in `delivered` or `seen` state
 
 The bell panel is one scrollable popup with two stacked sections — Active on top, History below; no tabs, single scroll region (see `feat-notifier-ux.md` for the layout and rationale). Row affordance differs by `lifecycle`:
 
-- **`fyi`** — leading checkbox; clicking the row body toggles it. "Acknowledge selected" button at the foot of the Active section moves all checked rows to History as `cleared`. No per-row × — fyi has no `cancel` semantic, only "user acknowledges."
-- **`action`** — no checkbox. Clicking the row body closes the panel and routes the user to the deep-link target with `?notificationId=<uuid>` appended; the landing page calls `notifier.get(uuid)` to recover `pluginData`, highlights the relevant item, and decides when to clear it. The notification stays in Active until the plugin calls `notifier.clear(id)`. Trailing `×` button → `cancel`: the user has decided this is no longer relevant, the entry moves to History as `cancelled`.
+- **`fyi`** — body click is a no-op (no `navigateTarget` by construction). Trailing `×` calls `clear` (fyi has no `cancel` notion — "user acknowledges" IS the close). The entry moves to History as `cleared`.
+- **`action`** — body click closes the panel and routes the user to `navigateTarget` with `?notificationId=<uuid>` appended; the landing page calls `notifier.get(uuid)` to recover `pluginData`, highlights the relevant item, and decides when to clear. The notification stays in Active until the plugin calls `notifier.clear(id)`. Trailing `×` calls `cancel` ("user has decided this is no longer relevant"); the entry moves to History as `cancelled`. Two publish-time rules, enforced by the engine and the HTTP layer in lockstep: `action` requires a **non-empty `navigateTarget`**, and `action` is **incompatible with `info` severity** (low-priority obligation is incoherent — fyi instead).
 
 History rows are read-only with one capability: rows whose original entry had a `navigateTarget` stay clickable and re-route to that target — the migration's answer to "what happened earlier?" since the panel no longer shows acked items inline. Visual marker `✓` / `✗` for `cleared` / `cancelled`; severity color persists.
 
-`NotificationBell.vue` gains `lifecycle`-aware rendering for the row affordances and a History section underneath Active. `NotificationToast.vue` is **removed in v1** (toast as a delivery surface goes away — see "no toast" below). Testids: `[notification-row-fyi]`, `[notification-row-action]`, `[notification-acknowledge-bulk]`, `[notification-row-cancel]` (the action × button), `[notification-history-row]`.
+`NotificationBell.vue` gains `lifecycle`-aware rendering for the row affordances and a History section underneath Active. `NotificationToast.vue` is **removed in v1** (toast as a delivery surface goes away — see "no toast" below). Testids: `[notification-row-fyi]`, `[notification-row-action]`, `[notification-row-dismiss]` (the trailing × on either row), `[notification-history-row]`.
 
 #### Severity → channel mapping
 
@@ -207,7 +207,7 @@ New channels in `src/config/pubsubChannels.ts`:
 
 #### Notification center
 
-The bell panel becomes a thin client over the new state — same toolbar position, but the surface inside changes shape: Active section on top, History section below, single scroll, no tabs. Each Active row renders per its `lifecycle` (fyi → checkbox; action → click-to-navigate + `×`-to-cancel) and gains affordances unlocked by the full engine (snooze button, "remind me again in 1h" picker). History rows are read-only but route on click when they had a `navigateTarget`. `NotificationBell.vue` carries all of this; `NotificationToast.vue` is removed. The existing `[notification-badge]` testid stays. See `feat-notifier-ux.md` for the full layout, empty states, and the rationale.
+The bell panel becomes a thin client over the new state — same toolbar position, but the surface inside changes shape: Active section on top, History section below, single scroll, no tabs. Active rows share one visual layout (severity dot + title/body/meta + trailing `×`); body click navigates for `action`, no-ops for `fyi`. The full engine adds affordances (snooze button, "remind me again in 1h" picker) on top of this. History rows are read-only but route on click when they had a `navigateTarget`. `NotificationBell.vue` carries all of this; `NotificationToast.vue` is removed. The existing `[notification-badge]` testid stays. See `feat-notifier-ux.md` for the full layout, empty states, and the rationale.
 
 ### What stays — and the legacy migration
 
@@ -552,8 +552,8 @@ Builds the new bell UX on the dev-mode debug surface (next to the bell, gated by
 **Debug button popup** (`NotifierDebugPopup.vue` — full rewrite)
 
 - Replaces the PR 2 scripted-test panel. Implements the layout + row behaviours from `feat-notifier-ux.md`: Active section on top, History section below, single scroll, no tabs.
-- fyi rows: leading checkbox; click body toggles. Footer "Acknowledge selected" button when ≥1 fyi is checked.
-- action rows: click body navigates (`router.push` to `navigateTarget` with `&notificationId=<uuid>` appended). Trailing `×` cancels.
+- Active rows share one layout (severity dot + title/body/meta + trailing `×`). fyi: body click no-ops; `×` clears. action: body click navigates (`router.push` to `navigateTarget` with `&notificationId=<uuid>` appended); `×` cancels.
+- Two `action`-publish rules are rejected at the engine and HTTP-route boundaries (defended in depth so plugin-runtime callers and HTTP callers hit the same wall): `action` requires a non-empty `navigateTarget`, and `action` cannot use `info` severity.
 - History rows: read-only with `✓` / `✗` markers. Rows with `navigateTarget` re-route on click.
 - Empty states: "No active notifications" / "No recent activity".
 - Badge stays as in PR 2 (count + worst-severity color + `99+` cap).
@@ -595,7 +595,7 @@ Builds on the prototype to deliver the engine specced in Part 1 above and the us
 
 - Bell badge: pending-count semantics, worst-severity color (gray / amber / red), `99+` cap. Replaces today's "unread" count.
 - Bell panel layout: Active section on top, History section below, single scroll, no tabs. Empty states: "No active notifications" / "No recent activity."
-- fyi rows: leading checkbox + footer "Acknowledge selected" button (one-row "bulk" still works). No per-row × on fyi.
+- fyi rows: trailing `×` button calls `clear` (fyi has no `cancel` notion).
 - action rows: click-to-navigate (panel closes, `?notificationId=<uuid>` appended), trailing × → cancel. Plugin owns the clear.
 - History rows: read-only display, but rows with a `navigateTarget` stay clickable and re-route. Visual `✓` / `✗` for cleared / cancelled.
 - `NotificationToast.vue` is removed; toast as a delivery surface goes away in v1. Worst-severity badge color is the at-a-distance signal.

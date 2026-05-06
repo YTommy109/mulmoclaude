@@ -201,6 +201,26 @@ function buildHistoryEntry(entry: NotifierEntry, terminalType: "cleared" | "canc
 // ── Public API ────────────────────────────────────────────────────
 
 export async function publish<TPluginData = unknown>(input: PublishInput<TPluginData>): Promise<{ id: string }> {
+  // `action` lifecycle constraints. Enforced at the engine boundary
+  // so both HTTP callers and plugin-runtime callers hit the same
+  // wall. See `feat-notifier-ux.md` for the rationale.
+  //
+  //   1. `action` requires a non-empty `navigateTarget`. Without
+  //      one, the bell click does nothing and the entry is a
+  //      degraded fyi.
+  //   2. `action` cannot use `info` severity. The two together mean
+  //      "low-priority obligation," which is incoherent — if it's
+  //      low-priority enough to be info, it's an fyi (just an
+  //      informational ping); if it's a real obligation worth a
+  //      domain landing page, it's at least `nudge`.
+  if (input.lifecycle === "action") {
+    if (input.severity === "info") {
+      throw new Error("notifier.publish: action lifecycle is incompatible with info severity (use fyi for low-priority pings)");
+    }
+    if (typeof input.navigateTarget !== "string" || input.navigateTarget.length === 0) {
+      throw new Error("notifier.publish: action lifecycle requires a non-empty navigateTarget");
+    }
+  }
   const entryId = randomUUID();
   const entry: NotifierEntry<TPluginData> = {
     id: entryId,

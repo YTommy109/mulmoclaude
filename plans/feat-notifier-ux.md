@@ -15,10 +15,10 @@ These are not just two skins on the same data — they answer different question
 
 Two notification types, distinguished by who is responsible for the close call:
 
-- **fyi** — informational ("Backup completed", "Build #42 finished"). Closed when the user acknowledges (individually or in bulk). No deep-link target.
-- **action** — pending obligation ("Pay property tax", "News digest ready"). Has a deep-link target. The *plugin* owns the close call, fired when the underlying domain state changes (the user paid the tax, the user marked the digest read, etc.).
+- **fyi** — informational ("Backup completed", "Build #42 finished"). Closed when the user dismisses it from the bell panel. No deep-link target.
+- **action** — pending obligation ("Pay property tax", "News digest ready"). **Requires** a `navigateTarget` — the engine and the HTTP layer reject `action` publishes that omit it (an `action` with no link is a degraded fyi: clicking it does nothing, and the plugin has no landing page to react to). **Cannot use `info` severity** for the same coherence reason: a low-priority obligation is a contradiction — if it's just a ping, use fyi; if it's a real obligation worth a landing page, use `nudge` or `urgent`. The *plugin* owns the close call, fired when the underlying domain state changes (the user paid the tax, the user marked the digest read, etc.). Whether the plugin clears on landing-page mount (read-once) or only after an explicit user action is the plugin's choice — both patterns are first-class.
 
-The engine never reads `lifecycle`; it's stored on the entry for the UI to render rows differently. As far as the data flow is concerned, lifecycle is documentation.
+The engine never reads `lifecycle` for routing; it's stored on the entry for the UI to render rows differently and validated only at publish time. Once published, lifecycle is documentation as far as the data flow is concerned.
 
 ## Bell panel layout
 
@@ -29,11 +29,9 @@ One scrollable popup with two stacked sections — Active on top, History below.
 │ Notifications              │
 ├────────────────────────────┤
 │ Active (N)                 │
-│ [ ] Pay property tax  [×]  │   ← action row (× cancels)
-│ [ ] Build #42 finished     │   ← fyi row (checkbox for bulk)
-│ [ ] News digest ready [×]  │
-├────────────────────────────┤
-│ [ Acknowledge selected ]   │   ← fyi bulk-ack button
+│  ●  Pay property tax  [×]  │   ← action row (click body → navigate, × → cancel)
+│  ●  Build #42 finished [×] │   ← fyi row    (× → clear)
+│  ●  News digest ready [×]  │   ← action row
 ├────────────────────────────┤
 │ History (≤ 50)             │
 │  ✓  Backup completed       │
@@ -58,18 +56,20 @@ One scrollable popup with two stacked sections — Active on top, History below.
 
 ## Row behaviour
 
+Active rows share one visual layout — severity dot + title/body/meta + trailing `×` button. Click semantics differ by `lifecycle`:
+
 ### fyi rows
 
-- Leading checkbox; clicking the row body toggles the checkbox.
-- "Acknowledge selected" button at the foot of the Active section, visible while ≥1 fyi is selected.
-- No `×` button — fyi has no `cancel` semantic, only "the user acknowledges." Single-row instant ack happens by clicking the row's check then the bulk-ack button (a one-row "bulk" is still a bulk).
+- Body click does nothing (fyi has no `navigateTarget` by construction).
+- Trailing `×` calls `clear` — the only verb that applies, since fyi has no `cancel` notion ("the user acknowledges" IS the close). Entry moves to History marked `cleared`.
 
 ### action rows
 
-- No checkbox — the bulk-ack flow doesn't apply, because the plugin owns the close.
-- Clicking the row body closes the panel and routes the user to the deep-link target. The URL carries `?notificationId=<uuid>` so the landing page can recover the entry, highlight the relevant item, and decide when to clear it.
-- The notification stays in Active until the plugin calls `clear`. Clicking-and-immediately-leaving doesn't clear it — the plugin waits for the underlying state change. This is what makes the model "obligations, not events."
-- Trailing `×` button → `cancel` ("the user has decided this is no longer relevant"). The entry moves to History marked cancelled.
+- Body click closes the panel and routes the user to `navigateTarget` with `?notificationId=<uuid>` appended. The landing page can recover the entry, highlight the relevant item, and decide when to clear.
+- Trailing `×` calls `cancel` ("the user has decided this is no longer relevant"). Entry moves to History marked `cancelled`.
+- Clicking-and-immediately-leaving the landing page does *not* clear the entry — the plugin waits for the underlying state change. This is what makes the model "obligations, not events."
+
+An earlier draft gave fyi rows a leading checkbox and a footer "Acknowledge selected" button for bulk ack. Dropped: the unified single-`×` UI is faster for the typical case (dismiss one row) and the bulk-catch-up case (acknowledge N rows at once) is rare enough not to warrant a separate UI mode.
 
 ### History rows
 
@@ -90,7 +90,7 @@ The right-corner toast popup that fires on every legacy `publishNotification()` 
 These remain open. Each is small enough that the migration PR can land with a default and the choice can be revised by feel.
 
 - **Empty History text.** Default proposal: "No recent activity." Keeps the section header so the structure stays consistent across states. Alternative: hide the section header entirely on empty.
-- **Undo for accidental ack.** A user might check the wrong fyi and hit "Acknowledge selected" before noticing. Options:
+- **Undo for accidental dismiss.** A user might mis-tap the `×` on the wrong row. Options:
   - Snackbar with "Undo" for N seconds.
   - No undo — the row lands in History, the user re-reads or re-acts from there.
   - No undo and no recovery.

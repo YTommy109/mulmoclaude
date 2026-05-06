@@ -128,16 +128,20 @@ interface Scenario {
 }
 
 const scenarios: Scenario[] = [
+  // fyi covers all three severities — the engine has no fyi/severity
+  // restriction, so info/nudge/urgent are all valid.
   { label: "fyi / info", args: { severity: "info", lifecycle: "fyi", title: "Backup completed" } },
   { label: "fyi / nudge", args: { severity: "nudge", lifecycle: "fyi", title: "Disk usage 85%" } },
   { label: "fyi / urgent", args: { severity: "urgent", lifecycle: "fyi", title: "Service degraded" } },
-  { label: "action / info", args: { severity: "info", lifecycle: "action", title: "Weekly summary ready", body: "Click to read" } },
-  { label: "action / nudge", args: { severity: "nudge", lifecycle: "action", title: "News digest ready", body: "12 new items" } },
-  { label: "action / urgent", args: { severity: "urgent", lifecycle: "action", title: "Pay property tax", body: "Due 2026-12-15" } },
+  // action only pairs with `nudge` or `urgent` (info is rejected by
+  // the engine + HTTP layer). Whether to auto-clear on open or wait
+  // for an explicit Done click is an application-level choice — the
+  // debug page surfaces both modes for both severities so the
+  // landing flow can be eyeballed for each combination.
   {
-    label: "action — clears on open (hyperlink test)",
+    label: "action / nudge — clears on open",
     args: {
-      severity: "info",
+      severity: "nudge",
       lifecycle: "action",
       title: "Daily digest is ready",
       body: "Auto-clears when you open this page",
@@ -145,19 +149,39 @@ const scenarios: Scenario[] = [
     },
   },
   {
-    label: "action — clears on Done (hyperlink test)",
+    label: "action / nudge — clears on Done",
     args: {
       severity: "nudge",
       lifecycle: "action",
-      title: "Approve this thing",
-      body: "Stays until you press Done",
+      title: "News digest ready",
+      body: "Stays in Active until you press Done on the landing page",
+      navigateTarget: "/debug?mode=manual-clear",
+    },
+  },
+  {
+    label: "action / urgent — clears on open",
+    args: {
+      severity: "urgent",
+      lifecycle: "action",
+      title: "Service incident report ready",
+      body: "Auto-clears when you open this page",
+      navigateTarget: "/debug?mode=auto-clear",
+    },
+  },
+  {
+    label: "action / urgent — clears on Done",
+    args: {
+      severity: "urgent",
+      lifecycle: "action",
+      title: "Pay property tax",
+      body: "Stays in Active until you press Done on the landing page",
       navigateTarget: "/debug?mode=manual-clear",
     },
   },
 ];
 
 async function fireMixed(): Promise<void> {
-  for (const scenario of scenarios.slice(0, 6)) {
+  for (const scenario of scenarios) {
     await publish(scenario.args);
   }
 }

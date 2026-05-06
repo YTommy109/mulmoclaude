@@ -53,8 +53,10 @@ const open = ref(false);
 const rootRef = ref<HTMLElement | null>(null);
 const entries = ref<NotifierEntry[]>([]);
 const history = ref<NotifierHistoryEntry[]>([]);
-const checkedFyi = ref<Set<string>>(new Set());
-const status = ref<string>("idle");
+// Surfaces API failure messages in the popup header. Empty when
+// everything is fine — the span is hidden so an idle popup shows
+// just the section labels.
+const status = ref<string>("");
 
 const devMode = import.meta.env.VITE_DEV_MODE === "1";
 
@@ -62,6 +64,13 @@ const visibleEntries = computed(() => [...entries.value].sort((left, right) => l
 const visibleHistory = computed(() => history.value);
 
 const badgeText = computed(() => (entries.value.length > 99 ? "99+" : String(entries.value.length)));
+
+const fyiCount = computed(() => visibleEntries.value.filter((entry) => entry.lifecycle === "fyi").length);
+
+// True while the "Clear FYIs" button is hovered. Forces every fyi
+// row's hover-check icon to render — "this is what's about to get
+// swept" — so the bulk action's effect is legible before clicking.
+const hoveringClearFyis = ref(false);
 
 // Worst-severity-wins: any urgent → red, else any nudge → amber,
 // else gray. Mirrors the bell-badge color encoding called out in
@@ -71,8 +80,6 @@ const badgeColor = computed(() => {
   if (entries.value.some((entry) => entry.severity === "nudge")) return "bg-amber-500";
   return "bg-gray-400";
 });
-
-const checkedFyiCount = computed(() => visibleEntries.value.filter((entry) => entry.lifecycle === "fyi" && checkedFyi.value.has(entry.id)).length);
 
 async function refreshActive(): Promise<void> {
   const result = await apiPost<{ entries: NotifierEntry[] }>(API_ROUTES.notifier.dispatch, { action: "list" });
@@ -98,7 +105,6 @@ function applyEvent(event: NotifierEvent): void {
     case "cancelled": {
       const removed = entries.value.find((entry) => entry.id === event.id);
       entries.value = entries.value.filter((entry) => entry.id !== event.id);
-      checkedFyi.value.delete(event.id);
       if (removed) {
         const historyEntry: NotifierHistoryEntry = {
           ...removed,
@@ -156,21 +162,39 @@ async function cancelById(entryId: string): Promise<void> {
   if (!result.ok) status.value = `cancel failed: ${result.error}`;
 }
 
-function toggleCheck(entryId: string): void {
-  const next = new Set(checkedFyi.value);
-  if (next.has(entryId)) next.delete(entryId);
-  else next.add(entryId);
-  checkedFyi.value = next;
-}
-
-async function ackSelected(): Promise<void> {
-  const ids = visibleEntries.value.filter((entry) => entry.lifecycle === "fyi" && checkedFyi.value.has(entry.id)).map((entry) => entry.id);
-  for (const entryId of ids) await clearById(entryId);
-}
-
 async function navigateAndClose(target: string, entryId: string): Promise<void> {
   open.value = false;
   await router.push(appendNotificationId(target, entryId));
+}
+
+// Body click on an Active row. Defined as a method so Vue actually
+// invokes it on click — `@click="(entry) => { ... }"` would be a
+// function-literal expression that Vue evaluates and discards.
+// Stop propagation so the outer <li>'s fyi-clear handler doesn't
+// double-fire when a fyi click already lands here.
+function onActiveRowBodyClick(entry: NotifierEntry, event: MouseEvent): void {
+  event.stopPropagation();
+  if (entry.lifecycle === "action" && entry.navigateTarget) {
+    void navigateAndClose(entry.navigateTarget, entry.id);
+  } else if (entry.lifecycle === "fyi") {
+    void clearById(entry.id);
+  }
+}
+
+// Outer-row click — fires when the click lands on a part of the
+// row that isn't the body div or the trailing × button (severity
+// dot, hover-check icon, padding). For fyi: clear. For action: no
+// row-level click target (must use body or `×`).
+function onActiveRowClick(entry: NotifierEntry): void {
+  if (entry.lifecycle === "fyi") void clearById(entry.id);
+}
+
+// Bulk-clear every fyi currently in Active. Action entries stay —
+// they need plugin-driven clear / explicit cancel and shouldn't get
+// swept by a "clear all" gesture aimed at fyi noise.
+async function clearAllFyi(): Promise<void> {
+  const ids = visibleEntries.value.filter((entry) => entry.lifecycle === "fyi").map((entry) => entry.id);
+  for (const entryId of ids) await clearById(entryId);
 }
 
 function severityDot(severity: NotifierEntry["severity"]): string {
@@ -183,6 +207,14 @@ function severityDot(severity: NotifierEntry["severity"]): string {
     default:
       return "bg-gray-300";
   }
+}
+
+// Strip the leading `@scope/` from a scoped npm package name for
+// display. The `@mulmoclaude/` prefix on every dev plugin name is
+// noise in the popup row — what the user wants to see is the
+// suffix (`debug-plugin`). Unscoped names pass through unchanged.
+function shortPkg(pluginPkg: string): string {
+  return pluginPkg.startsWith("@") ? pluginPkg.split("/").slice(1).join("/") || pluginPkg : pluginPkg;
 }
 </script>
 
@@ -219,41 +251,47 @@ function severityDot(severity: NotifierEntry["severity"]): string {
     >
       <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
         <span class="font-semibold text-gray-700">Notifications</span>
-        <span class="ml-auto text-gray-400">{{ status }}</span>
+        <span v-if="status" class="ml-auto text-red-500">{{ status }}</span>
       </div>
       <div class="flex-1 overflow-y-auto">
-        <div class="px-3 py-1.5 text-gray-500 font-medium border-b border-gray-100 bg-gray-50">Active ({{ visibleEntries.length }})</div>
+        <div class="flex items-center px-3 py-1.5 border-b border-gray-100 bg-gray-50">
+          <span class="text-gray-500 font-medium">Active ({{ visibleEntries.length }})</span>
+          <button
+            v-if="fyiCount > 0"
+            type="button"
+            class="ml-auto text-gray-500 font-medium hover:text-green-600"
+            data-testid="notifier-debug-clear-fyis"
+            @click="clearAllFyi"
+            @mouseenter="hoveringClearFyis = true"
+            @mouseleave="hoveringClearFyis = false"
+          >
+            Clear
+          </button>
+        </div>
         <p v-if="visibleEntries.length === 0" class="px-3 py-3 text-gray-400 italic">No active notifications</p>
         <ul v-else class="divide-y divide-gray-100">
-          <li v-for="entry in visibleEntries" :key="entry.id" data-testid="notifier-debug-active-entry" class="px-3 py-2">
+          <li
+            v-for="entry in visibleEntries"
+            :key="entry.id"
+            data-testid="notifier-debug-active-entry"
+            :class="['px-3 py-2 group', entry.lifecycle === 'fyi' ? 'cursor-pointer hover:bg-gray-50' : '']"
+            @click="onActiveRowClick(entry)"
+          >
             <div class="flex items-start gap-2">
-              <input
-                v-if="entry.lifecycle === 'fyi'"
-                type="checkbox"
-                :checked="checkedFyi.has(entry.id)"
-                class="mt-0.5 shrink-0 cursor-pointer"
-                data-testid="notifier-debug-fyi-check"
-                @click.stop="toggleCheck(entry.id)"
-              />
-              <span :class="['mt-1 inline-block w-2 h-2 rounded-full shrink-0', severityDot(entry.severity)]" :title="entry.severity"></span>
+              <span :class="['mt-0.5 inline-block w-2.5 h-2.5 rounded-full shrink-0', severityDot(entry.severity)]" :title="entry.severity"></span>
               <div
                 :class="[
                   'flex-1 min-w-0',
                   entry.lifecycle === 'action' && entry.navigateTarget ? 'cursor-pointer hover:underline' : entry.lifecycle === 'fyi' ? 'cursor-pointer' : '',
                 ]"
-                @click="
-                  () => {
-                    if (entry.lifecycle === 'action' && entry.navigateTarget) navigateAndClose(entry.navigateTarget, entry.id);
-                    else if (entry.lifecycle === 'fyi') toggleCheck(entry.id);
-                  }
-                "
+                :title="entry.body || undefined"
+                @click="onActiveRowBodyClick(entry, $event)"
               >
                 <div class="flex items-baseline gap-2">
                   <span class="font-medium text-gray-800 truncate">{{ entry.title }}</span>
                   <span v-if="entry.lifecycle" class="text-[10px] uppercase tracking-wide text-gray-400">{{ entry.lifecycle }}</span>
                 </div>
-                <div v-if="entry.body" class="text-gray-600 mt-0.5 truncate">{{ entry.body }}</div>
-                <div class="text-gray-400 mt-0.5 font-mono text-[10px]">{{ entry.pluginPkg }} · {{ entry.id.slice(0, 8) }}</div>
+                <div class="text-gray-400 mt-0.5 font-mono text-[10px]">{{ shortPkg(entry.pluginPkg) }} · {{ entry.id.slice(0, 8) }}</div>
               </div>
               <button
                 v-if="entry.lifecycle === 'action'"
@@ -266,28 +304,26 @@ function severityDot(severity: NotifierEntry["severity"]): string {
               >
                 <span class="material-icons text-sm">close</span>
               </button>
+              <span
+                v-else-if="entry.lifecycle === 'fyi'"
+                :class="['text-green-500 shrink-0 transition-opacity', hoveringClearFyis ? 'opacity-100' : 'opacity-0 group-hover:opacity-100']"
+                aria-hidden="true"
+                data-testid="notifier-debug-fyi-hover-check"
+              >
+                <span class="material-icons text-sm">check</span>
+              </span>
             </div>
           </li>
         </ul>
-        <div v-if="checkedFyiCount > 0" class="px-3 py-2 border-y border-gray-100 bg-white sticky bottom-0">
-          <button
-            type="button"
-            data-testid="notifier-debug-ack-bulk"
-            class="w-full px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white"
-            @click="ackSelected"
-          >
-            Acknowledge selected ({{ checkedFyiCount }})
-          </button>
-        </div>
         <div class="px-3 py-1.5 text-gray-500 font-medium border-y border-gray-100 bg-gray-50">History ({{ visibleHistory.length }})</div>
         <p v-if="visibleHistory.length === 0" class="px-3 py-3 text-gray-400 italic">No recent activity</p>
         <ul v-else class="divide-y divide-gray-100">
           <li v-for="entry in visibleHistory" :key="`${entry.id}-${entry.terminalAt}`" data-testid="notifier-debug-history-entry" class="px-3 py-2">
             <div class="flex items-start gap-2">
-              <span :class="['mt-0.5 shrink-0 font-bold', entry.terminalType === 'cleared' ? 'text-green-600' : 'text-gray-400']">
+              <span class="mt-0.5 shrink-0 font-bold text-gray-400">
                 {{ entry.terminalType === "cleared" ? "✓" : "✗" }}
               </span>
-              <span :class="['mt-1 inline-block w-2 h-2 rounded-full shrink-0 opacity-60', severityDot(entry.severity)]"></span>
+              <span :class="['mt-1 inline-block w-2 h-2 rounded-full shrink-0 opacity-30', severityDot(entry.severity)]"></span>
               <div
                 :class="['flex-1 min-w-0', entry.navigateTarget ? 'cursor-pointer hover:underline' : '']"
                 @click="
@@ -299,7 +335,7 @@ function severityDot(severity: NotifierEntry["severity"]): string {
                 <div class="flex items-baseline gap-2">
                   <span class="text-gray-700 truncate">{{ entry.title }}</span>
                 </div>
-                <div class="text-gray-400 mt-0.5 font-mono text-[10px]">{{ entry.pluginPkg }} · {{ entry.terminalType }}</div>
+                <div class="text-gray-400 mt-0.5 font-mono text-[10px]">{{ shortPkg(entry.pluginPkg) }} · {{ entry.terminalType }}</div>
               </div>
             </div>
           </li>
