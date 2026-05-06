@@ -149,6 +149,21 @@ yarn test:e2e:live:<category>   # 該当カテゴリだけ
 
 **注意 — dev server の stale**: `yarn dev` の server プロセスは `tsx server/index.ts`（`--watch` なし）で起動するため、 server/*.ts や server に取り込まれる `src/utils/**` の変更は再起動するまで反映されない。 `git pull` で main を更新した直後・branch を切り替えた直後に走らせると、 ソース上は修正済の bug が再発したように見える（実例: PR #991 後の webkit L-01 fail → 誤った issue #1015 起票、 dev 再起動だけで解消）。 走らせる前にユーザーに 「dev 再起動済か？」 を 1 回確認する。
 
+#### test fail を見たときの鉄則
+
+1. **fail trace を **再走前に** rename して保存する** — Playwright は `outputDir` を毎 run の冒頭で clean するので、 fail を見たまま再走すると trace.zip / video / screenshot / error-context.md が **永久に消える**。 「もう一回走らせれば pass するかも」 で trace を捨てない。 例:
+
+   ```bash
+   FAILED_DIR=$(ls -td test-results-live/<category>/*-<project>/ 2>/dev/null | head -1)
+   cp -r "$FAILED_DIR" "/tmp/e2e-live-fail-$(date +%s)"
+   ```
+
+   保存してからでないと「なぜ fail したか」 を再現できない。 push してから CI で同じ症状が出ても、 ローカルの trace が無いと triage 不能。
+
+2. **PW report を先に見る、 source 漁りは最後** — fail の原因切り分けは `playwright-report-live/<category>/index.html` か trace.zip の `0-trace.network` (HTTP status / response body) → `0-trace.trace` (ステップとアサーション) → 失敗時 screenshot / video → error-context.md の page snapshot、 の順で見る。 これらに答えが無いことを確認してから初めて source code を grep する。 source 先行は推測ベースの triage を生み、 「環境負荷のせい」 のような根拠の無い結論に流れる。
+
+3. **「ホスト負荷 / dev server stale / flake」 を結論にしない** — それらは可能性の一つで、 trace の HTTP status と response body を見て初めて支持される仮説。 trace を保全せずに 「load avg 高いから transient」 と決めつけるのは、 user の時間と CI の時間の両方を浪費する。 本当に flake と分かったあとも、 何回連続 pass で flake と判定したか / どの response body が決め手になったか をログに残す。
+
 ### Docker on / off
 
 このメンテ skill では基本 **片モードだけ** で OK。 「両モード巡回」 は実行用 `/e2e-live` の責任なので、 メンテ中は手元の dev のモードで pass まで持っていけば十分。 PR で「両モードで pass 確認した」と書く必要があれば、 commit 前にユーザーに `DISABLE_SANDBOX` 切替を依頼する。

@@ -10,7 +10,8 @@ import { fileURLToPath } from "node:url";
 
 import { type Download, type FrameLocator, type Page, expect } from "@playwright/test";
 
-import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
+import { ONE_MINUTE_MS, ONE_SECOND_MS } from "../../server/utils/time.ts";
+import { API_ROUTES } from "../../src/config/apiRoutes.ts";
 
 const FIXTURES_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -179,6 +180,129 @@ function shouldKeepSessions(): boolean {
   return process.env[KEEP_SESSIONS_ENV] === "1";
 }
 
+/**
+ * Poll `GET /api/sessions` until `session.isRunning` flips to false
+ * for the given id. Bridges the gap between "the assistant
+ * `thinking-indicator` went hidden" (the UI signal
+ * `waitForAssistantResponseComplete` waits on) and "the server is
+ * willing to accept the DELETE" — without this wait, the UI
+ * cleanup click sequence races server state and the route returns
+ * 409 silently from the UI's point of view, the test passes, and
+ * the file stays on disk.
+ *
+ * Predicate-asymmetry note (codex iter-2): the summary `isRunning`
+ * we read here is `live.isRunning || pendingGenerations.length>0`
+ * (server/api/routes/sessions.ts:150), but `DELETE /api/sessions/:id`
+ * only checks `getSession()?.isRunning` proper (line 401), without
+ * pendingGenerations. We intentionally wait on the STRICTER summary
+ * predicate because:
+ *   * the summary is the only `isRunning`-shaped field exposed on
+ *     the public API today — querying just `live.isRunning` would
+ *     need a server-side endpoint addition
+ *   * waiting too long is the safe direction (we never delete
+ *     before the server is ready); waiting too SHORT is the
+ *     regression we are explicitly closing
+ *   * for every spec in this suite, the test already waits for
+ *     the user-visible artifact to render (Download Movie button
+ *     for L-04, etc.) before reaching cleanup — by then
+ *     pendingGenerations is empty in practice, so the stricter
+ *     predicate doesn't add measurable wall time
+ *
+ * Runs the fetch inside `page.evaluate` so the browser's bearer
+ * header (read from `<meta name="mulmoclaude-auth">`) is reused
+ * verbatim — no need to plumb the token into the test process.
+ */
+const SESSION_IDLE_TIMEOUT_MS = 30 * ONE_SECOND_MS;
+// Per-attempt fetch deadline — short enough that a stuck request fails
+// fast and the next interval in `toPass` can retry, instead of one
+// hung attempt eating the whole `SESSION_IDLE_TIMEOUT_MS`. 5s is the
+// same magnitude the server uses for subprocess probes
+// (SUBPROCESS_PROBE_TIMEOUT_MS) so the choice stays consistent.
+const SESSION_IDLE_PER_ATTEMPT_TIMEOUT_MS = 5 * ONE_SECOND_MS;
+// Polling cadence for `toPass`. Mirrors a typical exponential-ish
+// backoff (200 / 500 / 1000 ms) but expressed via ONE_SECOND_MS so
+// no raw time literal lives in the helper (CLAUDE.md `Time: NEVER
+// use raw numbers` rule).
+const SESSION_IDLE_RETRY_INTERVALS_MS = [ONE_SECOND_MS / 5, ONE_SECOND_MS / 2, ONE_SECOND_MS];
+
+// Probe shape returned by the in-page evaluate. We carry both the
+// HTTP outcome and the session-running flag so the polling site can
+// distinguish "API healthy + session still busy" (retry quietly)
+// from "API failed" (surface as a real assertion failure inside
+// `toPass`, with the offending status / error message in the
+// log). Without this split, a 401/5xx or a network blip silently
+// looks like "session is still running" and the poller waits the
+// full timeout before falling through to the swallowed UI cleanup
+// — exactly the silent failure the original wait was added to fix.
+type SessionIdleProbe = { ok: true; stillRunning: boolean } | { ok: false; reason: string };
+
+// In-page probe body — runs inside `page.evaluate`, so this function
+// must be self-contained (no closure imports). Reads the bearer
+// from `<meta name="mulmoclaude-auth">`, hits the sessions list with
+// a per-attempt AbortSignal so a stuck request can't eat the whole
+// `toPass` budget, and returns the discriminated `SessionIdleProbe`.
+// Extracted out of `waitForSessionIdle` to keep that helper under
+// the 20-line cap and make this body unit-testable in isolation
+// (codex iter-3 nit).
+async function probeSessionIdle(args: { sid: string; listUrl: string; perAttemptTimeoutMs: number }): Promise<SessionIdleProbe> {
+  const { sid, listUrl, perAttemptTimeoutMs } = args;
+  const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
+  const token = meta?.getAttribute("content") ?? "";
+  try {
+    const res = await fetch(listUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(perAttemptTimeoutMs),
+    });
+    if (!res.ok) return { ok: false as const, reason: `GET ${listUrl} returned HTTP ${res.status} ${res.statusText}` };
+    const data = (await res.json()) as { sessions?: { id: string; isRunning?: boolean }[] };
+    // Fail closed on a malformed payload (codex iter-4: missing /
+    // null / non-array `sessions` field would otherwise let
+    // `?.find()` return undefined → stillRunning=false → cleanup
+    // proceeds without ever proving the server is idle, reopening
+    // the same silent 409 race the helper exists to close).
+    if (!Array.isArray(data.sessions)) {
+      return { ok: false as const, reason: `GET ${listUrl} returned an unexpected payload (no sessions array)` };
+    }
+    const session = data.sessions.find((row) => row.id === sid);
+    return { ok: true as const, stillRunning: session?.isRunning === true };
+  } catch (err) {
+    // Network drop / AbortSignal timeout / JSON parse throw — anything
+    // that would otherwise surface as an opaque page.evaluate failure
+    // outside `toPass`'s retry semantics. Funnel it back as a
+    // structured failure so the assertion message names the cause.
+    return { ok: false as const, reason: `GET ${listUrl} threw: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+// Translate a single probe result into Playwright assertions inside
+// `toPass`. Throws on probe failure (so `toPass` retries on the next
+// interval) and on `stillRunning=true` (so we keep waiting for the
+// server to release the session). Pure post-evaluate function — no
+// page interaction — so the assertion shape stays trivially testable.
+function assertSessionProbeIdle(probe: SessionIdleProbe, sessionId: string): void {
+  expect(probe.ok, probe.ok ? "session probe ok" : `session probe failed for ${sessionId}: ${probe.reason}`).toBe(true);
+  if (probe.ok) {
+    expect(probe.stillRunning, `session ${sessionId} should report isRunning=false before delete`).toBe(false);
+  }
+}
+
+async function waitForSessionIdle(page: Page, sessionId: string, timeoutMs: number = SESSION_IDLE_TIMEOUT_MS): Promise<void> {
+  // Resolve the sessions-list URL once on the test process side via
+  // the canonical `API_ROUTES.sessions.list` constant
+  // (src/config/apiRoutes.ts) so this helper stays coupled to the
+  // app's route registry — if the path is renamed, the build
+  // catches the consumer here instead of letting the poll silently
+  // 404 itself into a swallowed best-effort warn. Pass the resolved
+  // URL string into page.evaluate's argument map so the in-page
+  // closure has nothing to import from a Node-only module.
+  const sessionsListUrl = API_ROUTES.sessions.list;
+  const probeArgs = { sid: sessionId, listUrl: sessionsListUrl, perAttemptTimeoutMs: SESSION_IDLE_PER_ATTEMPT_TIMEOUT_MS };
+  await expect(async () => {
+    const probe: SessionIdleProbe = await page.evaluate(probeSessionIdle, probeArgs);
+    assertSessionProbeIdle(probe, sessionId);
+  }).toPass({ timeout: timeoutMs, intervals: SESSION_IDLE_RETRY_INTERVALS_MS });
+}
+
 export async function deleteSession(page: Page, sessionId: string): Promise<void> {
   if (page.isClosed()) return;
   if (shouldKeepSessions()) {
@@ -195,6 +319,13 @@ export async function deleteSession(page: Page, sessionId: string): Promise<void
     if (page.url().includes(`/chat/${sessionId}`)) {
       await page.goto("/");
     }
+    // Then wait for the SERVER side to agree the session is no
+    // longer running — `thinking-indicator` going hidden is a UI
+    // signal, but `live.isRunning || pendingGenerations` lingers a
+    // little longer on the server. Skipping this wait is exactly
+    // the regression that surfaced as a silent 409 inside the
+    // route handler while the UI dance reported success.
+    await waitForSessionIdle(page, sessionId);
     // The session-row kebab menu lives inside the session-history
     // side panel, which is collapsed by default. Open it via the
     // toggle button (testid switches between -off and -on) before
