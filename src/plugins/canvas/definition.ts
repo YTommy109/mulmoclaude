@@ -1,6 +1,9 @@
 import type { ToolDefinition } from "gui-chat-protocol";
+import { META } from "./meta";
+import type { ResolvedRoute } from "../meta-types";
 
-export const TOOL_NAME = "openCanvas";
+export const TOOL_NAME = META.toolName;
+export type CanvasEndpoints = { readonly [K in keyof typeof META.apiRoutes]: ResolvedRoute };
 
 export interface ImageToolData {
   imageData: string;
@@ -21,10 +24,9 @@ const toolDefinition: ToolDefinition = {
 
 export default toolDefinition;
 
-export const executeOpenCanvas = async () => {
-  return {
-    message: "Drawing canvas opened",
-    instructions: "Tell the user that you are able to turn the drawing into a photographic image, a manga or any other art style.",
-    title: "Drawing Canvas",
-  };
-};
+export const executeOpenCanvas = async (imagePath: string) => ({
+  message: `Drawing canvas opened. The drawing will be saved to: ${imagePath}`,
+  instructions:
+    "The drawing canvas is now displayed and the user is about to draw on it. Tell them you can turn their drawing into a photographic image, manga, or any other art style once they're done.",
+  title: "Drawing Canvas",
+});

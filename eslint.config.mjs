@@ -4,6 +4,7 @@ import tseslint from "typescript-eslint";
 import eslintConfigPrettier from "eslint-config-prettier";
 import prettierPlugin from "eslint-plugin-prettier";
 import sonarjs from "eslint-plugin-sonarjs";
+import securityPlugin from "eslint-plugin-security";
 import importPlugin from "eslint-plugin-import";
 import vuePlugin from "eslint-plugin-vue";
 import vueParser from "vue-eslint-parser";
@@ -22,6 +23,17 @@ export default [
       "src/plugins/spreadsheet/engine",
       "packages/*/dist",
       "packages/bridges/*/dist",
+      // Sample runtime plugin (#1110) — has its own eslint.config.mjs
+      // that uses gui-chat-protocol/eslint-preset. The host's much
+      // stricter rules (T[] over Array<T>, identifier length, etc.)
+      // would force plugin authors to satisfy mulmoclaude conventions
+      // they have no reason to know.
+      "packages/bookmarks-plugin",
+      // todo-plugin migration in progress (#1145). Same exemption
+      // rationale as bookmarks-plugin — has its own eslint config
+      // with gui-chat-protocol/eslint-preset enforcing the
+      // platform-bypass restrictions.
+      "packages/todo-plugin",
       // mulmoclaude launcher copies server/client/shared src here at
       // publish time. Original sources are linted at their real paths.
       "packages/mulmoclaude/client",
@@ -31,11 +43,19 @@ export default [
       // import-extraction regex in scripts/mulmoclaude/deps.mjs.
       // They're inputs to a parser test, not production code.
       "test/scripts/mulmoclaude/fixtures",
+      // esbuild output committed to git (`yarn build:hooks`
+      // regenerates from server/workspace/wiki-history/hook/snapshot.ts).
+      // Linting the bundle is meaningless — it's machine-formatted
+      // and would force formatter-friendly output options on
+      // esbuild for no real win.
+      "server/workspace/wiki-history/hook/snapshot.mjs",
     ],
   },
   eslint.configs.recommended,
   sonarjs.configs.recommended,
-  ...tseslint.configs.recommended,
+  securityPlugin.configs.recommended,
+  ...tseslint.configs.strict,
+  ...tseslint.configs.stylistic,
   ...vuePlugin.configs["flat/recommended"],
   ...vueI18n.configs.recommended,
   {
@@ -133,6 +153,30 @@ export default [
           ],
         },
       ],
+      // Catch TDZ-style `use-before-define` (e.g. accessing a `const`
+      // before its declaration line). #920. Function declarations are
+      // exempt — TS hoists them safely, and top-down narrative-style
+      // (`main()` first, helpers below) is a common pattern in the
+      // codebase. Runtime type references are exempt via
+      // `ignoreTypeReferences` — type position is erased at runtime,
+      // so order doesn't affect execution.
+      //
+      // `typedefs: true` graduated to error after measuring zero
+      // violations across the codebase — the codebase already orders
+      // type/interface declarations correctly, so the rule is free
+      // value going forward (catches future drift without churn).
+      "no-use-before-define": "off",
+      "@typescript-eslint/no-use-before-define": [
+        "error",
+        {
+          functions: false,
+          classes: true,
+          variables: true,
+          enums: true,
+          typedefs: true,
+          ignoreTypeReferences: true,
+        },
+      ],
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
@@ -143,6 +187,76 @@ export default [
         },
       ],
       "linebreak-style": ["error", "unix"],
+      // `==`/`!=` triggers JS coercion (`null == undefined` → true,
+      // `"" == 0` → true). `smart` keeps the `x == null` idiom (covers
+      // both null and undefined in one check) so existing
+      // null-or-undefined guards don't all need to be rewritten.
+      // #921.
+      eqeqeq: ["error", "smart"],
+      "no-throw-literal": "error",
+      "no-implicit-coercion": ["error", { boolean: true, number: true, string: true, disallowTemplateShorthand: false }],
+      "no-unneeded-ternary": ["error", { defaultAssignment: false }],
+      "no-else-return": ["error", { allowElseIf: false }],
+      "@typescript-eslint/no-non-null-assertion": "error",
+      "@typescript-eslint/no-dynamic-delete": "error",
+      "@typescript-eslint/no-empty-function": "off",
+      "@typescript-eslint/no-import-type-side-effects": "error",
+      "@typescript-eslint/no-useless-empty-export": "error",
+      "@typescript-eslint/method-signature-style": ["error", "property"],
+      "default-case-last": "error",
+      "prefer-template": "error",
+      "prefer-arrow-callback": "error",
+      "arrow-body-style": ["error", "as-needed"],
+      "no-multi-assign": "error",
+      "prefer-rest-params": "error",
+      "prefer-spread": "error",
+      "no-self-compare": "error",
+      "no-unmodified-loop-condition": "error",
+      "no-constructor-return": "error",
+      "import/no-duplicates": "error",
+      "array-callback-return": "error",
+      "default-param-last": "error",
+      "no-new-wrappers": "error",
+      "no-octal-escape": "error",
+      "no-proto": "error",
+      "no-script-url": "error",
+      "no-useless-call": "error",
+      "no-useless-concat": "error",
+      "no-useless-rename": "error",
+      radix: "error",
+      "prefer-object-spread": "error",
+      "prefer-numeric-literals": "error",
+      "prefer-promise-reject-errors": "error",
+      "no-lonely-if": "error",
+      "no-floating-decimal": "error",
+      "no-unused-private-class-members": "error",
+      // `require-await` (and the type-checked variant) misfires on
+      // Playwright route handlers, Express middleware, and any
+      // framework-imposed async contract that returns a Promise
+      // without `await`-ing inside. Off — signal-to-noise too low
+      // without type information.
+      "require-await": "off",
+      "no-loop-func": "error",
+      "no-new": "error",
+      "no-undef-init": "error",
+      "no-useless-return": "error",
+      "prefer-regex-literals": "error",
+      "prefer-exponentiation-operator": "error",
+      "@typescript-eslint/consistent-type-assertions": "error",
+      "@typescript-eslint/no-require-imports": "error",
+      "@typescript-eslint/prefer-enum-initializers": "error",
+      "import/first": "error",
+      "import/newline-after-import": "error",
+      "import/no-anonymous-default-export": "error",
+      "import/no-mutable-exports": "error",
+      "import/no-self-import": "error",
+      "import/no-useless-path-segments": "error",
+      "consistent-return": "error",
+      "class-methods-use-this": "error",
+      "prefer-destructuring": "error",
+      complexity: ["error", { max: 15 }],
+      "max-depth": ["error", { max: 4 }],
+      "max-params": ["error", { max: 6 }],
       quotes: "off",
       "no-shadow": "error",
       "no-param-reassign": "error",
@@ -174,7 +288,39 @@ export default [
       // MulmoClaude is a local desktop app — spawning claude/docker/git
       // via PATH is normal operation, not a server-side injection risk.
       "sonarjs/no-os-command-from-path": "off",
-      "sonarjs/cors": "off"
+      "sonarjs/cors": "off",
+      // ── eslint-plugin-security tuning ──────────────────────────
+      // Three high-volume rules are disabled because they fire on
+      // patterns that are normal in this codebase, drowning the
+      // signal-rich rules:
+      //   - detect-non-literal-fs-filename: every workspace-aware
+      //     `fs.readFile(WORKSPACE_PATHS.foo)` looks "non-literal"
+      //     to the rule. WORKSPACE_PATHS is a static constants table,
+      //     not user input. Keeping this on produced 527 warnings
+      //     and 0 actionable findings on first audit.
+      //   - detect-object-injection: any `obj[key]` with a dynamic
+      //     key trips it (incl. `arr[i]`, locale-keyed message maps).
+      //     Famously high-FP; SonarJS covers the real cases via
+      //     `sonarjs/no-built-in-shadow` etc. 329 warnings / 0
+      //     actionable on first audit.
+      //   - detect-non-literal-regexp: e2e tests build regexps from
+      //     testid prefixes — controlled inputs, not attacker-supplied.
+      //     27 warnings / 0 actionable.
+      // The remaining rules (detect-eval-with-expression, detect-
+      // child-process, detect-possible-timing-attacks,
+      // detect-non-literal-require, detect-pseudoRandomBytes,
+      // detect-buffer-noassert, detect-disable-mustache-escape,
+      // detect-no-csrf-before-method-override, detect-bidi-characters,
+      // detect-new-buffer) stay as warnings — tripwires for future
+      // additions, audited at PR review time.
+      "security/detect-non-literal-fs-filename": "off",
+      "security/detect-object-injection": "off",
+      "security/detect-non-literal-regexp": "off",
+      // `detect-unsafe-regex` is graduated to error: every legitimate
+      // site (currently the two regexes in `src/utils/image/htmlSrcAttrs.ts`)
+      // already has a `// eslint-disable-next-line` with a ReDoS-safety
+      // rationale and a unit test pinning the bound.
+      "security/detect-unsafe-regex": "error",
     },
     plugins: {
       prettier: prettierPlugin,
@@ -236,10 +382,79 @@ export default [
       // (`src/plugins/<name>/View.vue`). The Vue-recommended rule
       // against single-word names fights that on purpose.
       "vue/multi-word-component-names": "off",
-      // `wiki/View.vue` uses `v-html` intentionally to render
-      // sanitised markdown. Warn so the justified usage doesn't
-      // block CI — audit per-use at review time.
-      "vue/no-v-html": "warn",
+      // Legitimate v-html usages (sanitised markdown / app-owned
+      // HTML) carry per-line eslint-disable comments with a
+      // rationale. Promote to error so any new unjustified usage
+      // fails CI.
+      "vue/no-v-html": "error",
+      "vue/no-useless-mustaches": "error",
+      "vue/no-useless-v-bind": "error",
+      "vue/prefer-true-attribute-shorthand": "error",
+      "vue/no-empty-component-block": "error",
+    },
+  },
+  // Plugin import restrictions — codify the loose-coupling pattern
+  // the recent #1141 / #1143 work established. Plugin code under
+  // `src/plugins/<name>/` must reach the host only through the
+  // documented DI surface (`../api`, META types, scope wrapper); it
+  // must NEVER import host-internal config, tool registry, or
+  // server modules directly.
+  //
+  // Scope: plugin directories only. Top-level infra under
+  // `src/plugins/{api,scope,metas,index,server,_extras,
+  // server-bindings-types,meta-types}.ts` and the codegen output
+  // (`_generated/`) are deliberately excluded — they ARE the host's
+  // plugin infrastructure and need to import host config.
+  //
+  // Phase 1 (this rule): block what's already clean inside plugin
+  // directories — `src/config/*`, `src/tools/*` (value imports),
+  // `server/*`. These three were violation-free as of #1143.
+  //
+  // Phase 2 (deferred — separate cleanup PR): tighten by also
+  // blocking `src/components/*` once the 4 cross-plugin component
+  // imports today (textResponse → SentAttachmentChip, manageSource
+  // → SourcesManager, wiki → PageChatComposer / FilterChip) have
+  // been hoisted into a shared package or moved into the consuming
+  // plugin's directory. Locking the door before the cleanup would
+  // force the rule's violations into a single PR.
+  {
+    files: ["src/plugins/*/**/*.ts", "src/plugins/*/**/*.vue"],
+    ignores: [
+      // The codegen output ships with the bundle but isn't really
+      // plugin code — it composes host registries. Excluded.
+      "src/plugins/_generated/**",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          // Patterns are picomatch globs evaluated against the
+          // import specifier as written. `**/config/**` catches
+          // `../config/foo`, `../../config/foo`, `../../../config/sub/bar`
+          // — depth-agnostic so a plugin file at any nesting level
+          // can't bypass the rule with extra `../` segments (Codex
+          // iter-1 #1144). The leading `**` covers every relative
+          // depth; the trailing `**` covers nested subpaths under
+          // each guarded host directory.
+          patterns: [
+            {
+              group: ["**/config/**"],
+              message:
+                "Plugin code must not import from `src/config/*`. Use `pluginEndpoints(scope)`, `pluginBuiltinRoleIds()`, or `pluginPageRoute(name)` from `../api` instead — the host wires those at boot via `installHostContext`.",
+            },
+            {
+              group: ["**/tools/**"],
+              message: "Plugin code must not import value bindings from the host tool registry (`src/tools/*`). Type imports are allowed (`PluginRegistration`, `ToolPlugin`).",
+              allowTypeImports: true,
+            },
+            {
+              group: ["**/server/**"],
+              message: "Plugin code must not import server-side modules. Plugin executors run client-side; server-side helpers cross the protocol boundary.",
+              allowTypeImports: true,
+            },
+          ],
+        },
+      ],
     },
   },
   eslintConfigPrettier,

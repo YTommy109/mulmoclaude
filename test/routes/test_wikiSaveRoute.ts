@@ -22,7 +22,7 @@ type Handler = (req: Request, res: Response) => Promise<void> | void;
 interface StackFrame {
   route?: {
     path: string;
-    stack: Array<{ method: string; handle: Handler }>;
+    stack: { method: string; handle: Handler }[];
   };
 }
 interface RouterInternals {
@@ -66,11 +66,19 @@ function req(body: unknown): Request {
   return { body } as unknown as Request;
 }
 
+// GET /api/wiki?slug=… mock — the wiki route reads `req.query.slug`
+// (forwarded by `getOptionalStringQuery`), so the test harness only
+// needs to expose that field.
+function getReqWithSlug(slug: string): Request {
+  return { query: { slug } } as unknown as Request;
+}
+
 let tmpRoot: string;
 let pagesDir: string;
 let originalHome: string | undefined;
 let originalUserProfile: string | undefined;
 let postWikiHandler: Handler;
+let getWikiHandler: Handler;
 
 before(async () => {
   tmpRoot = await mkdtemp(path.join(tmpdir(), "mulmo-wiki-save-route-"));
@@ -86,6 +94,7 @@ before(async () => {
 
   const wikiMod: WikiModule = await import("../../server/api/routes/wiki.js");
   postWikiHandler = extractRouteHandler(wikiMod, "/api/wiki", "post");
+  getWikiHandler = extractRouteHandler(wikiMod, "/api/wiki", "get");
 });
 
 after(async () => {
@@ -110,7 +119,10 @@ describe("POST /api/wiki — action: save", () => {
     __resetPageIndexCache();
   });
 
-  it("overwrites an existing page atomically", async () => {
+  it("overwrites an existing page atomically (with auto-stamped frontmatter)", async () => {
+    // Post-#895-PR-B: even body-only saves get a frontmatter
+    // envelope stamped with created / updated / editor. The body
+    // content survives verbatim; the wrapper is the new shape.
     const slug = "test-page";
     const filePath = path.join(pagesDir, `${slug}.md`);
     await writeFile(filePath, "# Original\n\n- [ ] task\n", "utf-8");
@@ -121,13 +133,21 @@ describe("POST /api/wiki — action: save", () => {
 
     assert.equal(state.status, 200);
     const onDisk = await readFile(filePath, "utf-8");
-    assert.equal(onDisk, newContent);
-    // Response carries the canonical post-write content.
-    assert.equal(state.body?.data?.content, newContent);
+    // Body must be preserved verbatim, but the file now carries a
+    // frontmatter envelope with auto-stamped fields.
+    assert.match(onDisk, /\n- \[x\] task\n$/);
+    assert.match(onDisk, /^---\n/);
+    assert.match(onDisk, /editor: user/);
+    // Response should reflect the on-disk canonical content.
+    assert.equal(state.body?.data?.content, onDisk);
     assert.equal(state.body?.data?.pageExists, true);
   });
 
   it("preserves frontmatter when the body has been toggled", async () => {
+    // The route now stamps `created` / `updated` / `editor` on save
+    // (#895 PR B). Existing user-supplied keys must still survive
+    // verbatim. Assert the stable fields explicitly rather than
+    // comparing the whole file byte-for-byte.
     const slug = "with-frontmatter";
     const filePath = path.join(pagesDir, `${slug}.md`);
     const original = "---\ntitle: Foo\ntags: [a, b]\n---\n\n- [ ] task one\n- [ ] task two\n";
@@ -139,8 +159,83 @@ describe("POST /api/wiki — action: save", () => {
 
     assert.equal(state.status, 200);
     const onDisk = await readFile(filePath, "utf-8");
-    assert.equal(onDisk, updated);
-    assert.match(onDisk, /^---\ntitle: Foo/, "frontmatter delimiters should round-trip");
+    assert.match(onDisk, /^---\n/, "frontmatter delimiters should round-trip");
+    assert.match(onDisk, /title: Foo/, "user-supplied title preserved");
+    assert.match(onDisk, /\n- \[x\] task one\n- \[ \] task two\n$/, "body toggled correctly");
+    // `tags` round-trips as either flow-style `[a, b]` or block list.
+    // Either is fine — assert both entries appear somewhere in the
+    // header rather than pinning a specific YAML serialisation.
+    const headerEnd = onDisk.indexOf("\n---\n", 4);
+    const header = onDisk.slice(0, headerEnd);
+    assert.match(header, /\ba\b/);
+    assert.match(header, /\bb\b/);
+  });
+
+  it("end-to-end: header-less page → save → reload (GET) shows frontmatter, body byte-identical (#895 完了条件)", async () => {
+    // The issue body's last unchecked completion item:
+    //   "header の無い既存 md を書き込む → 自動で minimal header 付与"
+    //   "e2e: 既存 header なし wiki page を編集 → 次回読み込みで
+    //   header あり / body は変わらない"
+    //
+    // Route-level integration test for that flow. We exercise BOTH
+    // the POST save handler and the GET reload handler (codex
+    // review iter-1 #915 — reading the file directly via fs.readFile
+    // doesn't actually pin the GET / buildPageResponse path the
+    // frontend hits on a real reload).
+    //
+    //   1. Seed a header-less page on disk (legacy wiki content shape).
+    //   2. POST /api/wiki { action: "save", content: <new body> } —
+    //      same call shape the frontend's task-checkbox toggler uses.
+    //   3. GET  /api/wiki?slug=<slug> — same call the wiki view
+    //      issues on reload.
+    //   4. Read the file too, assert (a) frontmatter envelope
+    //      wraps the body, (b) body bytes BYTE-identical to what
+    //      the caller sent (no `trimStart()` slack — the offset
+    //      includes the canonical envelope spacer `\n---\n\n`),
+    //      (c) GET response content matches the file on disk.
+    const slug = "lazy-on-write";
+    const filePath = path.join(pagesDir, `${slug}.md`);
+    const headerlessOriginal = "# Lazy\n\nA pre-existing page that has no frontmatter yet.\n";
+    await writeFile(filePath, headerlessOriginal, "utf-8");
+
+    const newBody = "# Lazy\n\nUpdated body — same shape, different prose.\n";
+    const postCtx = mockRes();
+    await postWikiHandler(req({ action: "save", pageName: slug, content: newBody }), postCtx.res);
+
+    assert.equal(postCtx.state.status, 200);
+
+    // Read on disk.
+    const onDisk = await readFile(filePath, "utf-8");
+
+    // Header now exists with the auto-stamped minimum.
+    assert.match(onDisk, /^---\n/);
+    assert.match(onDisk, /\ncreated: /);
+    assert.match(onDisk, /\nupdated: /);
+    assert.match(onDisk, /\neditor: user\n/);
+    assert.match(onDisk, /\n---\n\n/);
+
+    // BYTE-identical body extraction. `serializeWithFrontmatter`
+    // emits `---\n${yaml}\n---\n\n${body}` — the closing fence
+    // sequence is exactly `\n---\n\n` (closing newline + fence +
+    // newline + spacer line). Slice past those bytes and the
+    // remainder is the user-supplied body verbatim.
+    const fenceEnd = onDisk.indexOf("\n---\n\n", 4);
+    assert.notEqual(fenceEnd, -1, "closing fence + spacer not found");
+    const bodyAfter = onDisk.slice(fenceEnd + "\n---\n\n".length);
+    assert.equal(bodyAfter, newBody);
+
+    // POST response carries the same canonical content the GET
+    // would return — the optimistic client update matches reload.
+    assert.equal(postCtx.state.body?.data?.content, onDisk);
+
+    // GET /api/wiki?slug=… — the actual reload path the frontend
+    // would take. The response's `data.content` MUST match the
+    // file on disk (i.e. round-trips through `buildPageResponse`).
+    const getCtx = mockRes();
+    await getWikiHandler(getReqWithSlug(slug), getCtx.res);
+    assert.equal(getCtx.state.status, 200);
+    assert.equal(getCtx.state.body?.data?.content, onDisk);
+    assert.equal(getCtx.state.body?.data?.pageExists, true);
   });
 
   it("rejects a request with no pageName", async () => {

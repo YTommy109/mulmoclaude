@@ -8,11 +8,17 @@
 
 **English** · [日本語](README.ja.md) · [简体中文](README.zh.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Português (BR)](README.pt-BR.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
 
-GUI-chat with Claude Code — plus long-term memory, visual tools, and messaging app access.
+GUI-chat with Claude Code — long-term memory, rich visual output, sandboxed execution, and remote access from anywhere.
 
-Chat with Claude Code and get back not just text but **interactive visual output**: documents, spreadsheets, mind maps, charts, images, forms, 3D scenes, and more. A built-in personal wiki gives Claude **persistent knowledge** that grows with every conversation.
+**Long-term memory**: a built-in personal wiki — inspired by Andrej Karpathy's idea of giving an LLM a notebook that grows over time — gives Claude **persistent knowledge** that builds with every conversation.
+
+Chat with Claude Code and get back not just text but **interactive visual output**: documents, spreadsheets, mind maps, charts, images, forms, 3D scenes, and more.
+
+**Sandboxed execution**: Claude Code runs inside a sandbox, protecting your system against prompt injection attacks.
 
 **Access from anywhere**: connect Telegram, Slack, LINE, Discord, or [10 other messaging apps](#messaging-bridges) to talk to your AI agent from your phone.
+
+**Scheduled tasks**: hand off recurring work — daily summaries, periodic checks, timed reminders — to a built-in scheduler that runs your agent on a cron schedule.
 
 ## Quick Start
 
@@ -45,6 +51,10 @@ Open [http://localhost:5173](http://localhost:5173). That's it — start chattin
 | "Ingest this article: URL"      | Wiki page with `[[links]]` for long-term memory |
 | "Schedule a daily news digest"  | Recurring task that runs automatically          |
 | "Generate an image of a sunset" | AI-generated image (Gemini)                     |
+| "Subscribe to this RSS feed"    | Source on `/sources`, fetched on a schedule     |
+| "What's new in my feeds?"       | Unread inbox at `/news` with per-article chat   |
+
+> **Pages you can visit directly**: `/wiki` (browse + lint), `/news` (unread inbox), `/sources` (manage feeds), `/automations` (recurring tasks), `/calendar`, `/files`, `/skills`, `/roles`. Each has its own scoped chat composer that spawns a fresh chat already aware of the page context.
 
 > **Hacking on MulmoClaude?** See [`docs/developer.md`](docs/developer.md) for environment variables, scripts, and architecture.
 
@@ -145,6 +155,8 @@ When the Docker sandbox is active on macOS, credentials are managed automaticall
 If Docker is not installed, the app shows a warning banner and continues to work without sandboxing.
 
 > **Debug mode**: To run without the sandbox even when Docker is installed, set `DISABLE_SANDBOX=1` before starting the server.
+>
+> **Tool-call history**: Set `PERSIST_TOOL_CALLS=1` to also record `tool_call` events (with their `args`) in the per-session jsonl alongside `tool_result`. Off by default because `args` can be large and may carry payload bytes you didn't expect to land on disk; useful for debugging after a page refresh or server restart. See [issue #1096](https://github.com/receptron/mulmoclaude/issues/1096).
 
 ## Logging
 
@@ -602,13 +614,15 @@ Full documentation lives in [`docs/`](docs/README.md). Here are the key entry po
 
 ### For developers
 
-| Guide                                              | Description                                             |
-| -------------------------------------------------- | ------------------------------------------------------- |
-| [Developer Guide](docs/developer.md)               | Environment variables, scripts, workspace structure, CI |
-| [Bridge Protocol](docs/bridge-protocol.md)         | Wire-level spec for writing new messaging bridges       |
-| [Sandbox Credentials](docs/sandbox-credentials.md) | Docker sandbox credential forwarding (SSH, GitHub CLI)  |
-| [Logging](docs/logging.md)                         | Log levels, formats, file rotation                      |
-| [CHANGELOG](docs/CHANGELOG.md)                     | Release history                                         |
+| Guide                                                                                | Description                                                                                                                                          |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Developer Guide](docs/developer.md)                                                 | Environment variables, scripts, workspace structure, CI                                                                                              |
+| [Built-in Plugin Development](docs/developer.md#plugin-development)                  | Author a plugin co-located in `src/plugins/<name>/` — META shape, `useRuntime<E>()` API, mounting paths, sync invariants                             |
+| [Runtime-Loaded Plugins](docs/plugin-runtime.md)                                     | Author a plugin distributed as an npm package and installed into a workspace at runtime                                                              |
+| [Bridge Protocol](docs/bridge-protocol.md)                                           | Wire-level spec for writing new messaging bridges                                                                                                    |
+| [Sandbox Credentials](docs/sandbox-credentials.md)                                   | Docker sandbox credential forwarding (SSH, GitHub CLI)                                                                                               |
+| [Logging](docs/logging.md)                                                           | Log levels, formats, file rotation                                                                                                                   |
+| [CHANGELOG](docs/CHANGELOG.md)                                                       | Release history                                                                                                                                      |
 
 ## License
 

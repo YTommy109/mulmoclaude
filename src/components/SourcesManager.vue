@@ -257,6 +257,19 @@
         {{ t("pluginManageSource.archiveErrorsSuffix", { count: lastRebuild.archiveErrors.length }) }}
       </span>
     </div>
+
+    <!-- Per-page chat composer (standalone /sources route only).
+         Sending spawns a fresh chat with a prepended pointer to
+         config/helps/sources.md so the agent loads source-management
+         conventions before answering. Hidden in plugin mode where
+         the enclosing chat already has its own composer. -->
+    <PageChatComposer
+      v-if="mode === 'page'"
+      :placeholder="t('pluginManageSource.chatPlaceholder')"
+      prepend-text="Before answering, read config/helps/sources.md for source-management conventions."
+      :suggestions="SOURCE_SUGGESTIONS"
+      test-id-prefix="sources-page-chat"
+    />
   </div>
 </template>
 
@@ -268,8 +281,22 @@ import DOMPurify from "dompurify";
 import type { ManageSourceData, RebuildSummary, Source } from "../plugins/manageSource/index";
 import { apiGet, apiPost, apiDelete } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
+import { buildRouteUrl } from "../plugins/meta-types";
 import { SOURCE_FILTER_KEYS, countByFilter, matchesSourceFilter, type SourceFilterKey } from "../utils/sources/filter";
 import FilterChip from "./FilterChip.vue";
+import PageChatComposer from "./PageChatComposer.vue";
+
+// Starter prompts for the per-page chat composer. Migrated from the
+// retired sourceManager role's `queries` field — kept English-only to
+// match the role-queries convention (the chat agent itself replies
+// in the user's language regardless).
+const SOURCE_SUGGESTIONS = [
+  "Show my information sources",
+  "Register the Hacker News RSS feed (https://news.ycombinator.com/rss)",
+  "Register the anthropics/claude-code GitHub releases",
+  "Register an arXiv query for cs.CL new submissions",
+  "Rebuild today's brief",
+];
 
 const { t } = useI18n();
 
@@ -286,6 +313,7 @@ const props = defineProps<{
 }>();
 
 const localSources = ref<Source[] | null>(props.initialData?.sources ?? null);
+const sources = computed<Source[]>(() => localSources.value ?? []);
 const lastRebuild = ref<RebuildSummary | null>(props.initialData?.lastRebuild ?? null);
 const highlightSlugLocal = ref<string | null>(props.initialData?.highlightSlug ?? null);
 const actionMessage = ref("");
@@ -405,7 +433,7 @@ function buildRegisterPayload(input: DraftState): RegisterPayload | BuildError {
       }
       let hostname: string;
       try {
-        hostname = new URL(primary).hostname;
+        ({ hostname } = new URL(primary));
       } catch {
         return { errorKey: "pluginManageSource.errRssUrlInvalid" };
       }
@@ -453,7 +481,7 @@ async function commitAdd(): Promise<void> {
   }
   draftError.value = "";
   busy.value = "add";
-  const response = await apiPost<unknown>(API_ROUTES.sources.create, payload);
+  const response = await apiPost<unknown>(API_ROUTES.sources.create.url, payload);
   if (!response.ok) {
     draftError.value = response.error || t("pluginManageSource.flashRegisterFailed");
     busy.value = null;
@@ -553,7 +581,7 @@ async function installPreset(preset: Preset): Promise<void> {
   }
   const failures: string[] = [];
   for (const entry of toRegister) {
-    const response = await apiPost<unknown>(API_ROUTES.sources.create, {
+    const response = await apiPost<unknown>(API_ROUTES.sources.create.url, {
       slug: entry.slug,
       title: entry.title,
       url: entry.url,
@@ -594,7 +622,7 @@ async function installPreset(preset: Preset): Promise<void> {
 // Rebuild step extracted so commitAdd can chain it without recursing
 // into rebuild()'s own busy-state machine.
 async function rebuildInline(): Promise<void> {
-  const response = await apiPost<RebuildSummary>(API_ROUTES.sources.rebuild);
+  const response = await apiPost<RebuildSummary>(API_ROUTES.sources.rebuild.url);
   if (!response.ok) {
     flash(t("pluginManageSource.flashRegisterSucceededRebuildFailed", { error: response.error }), true);
     return;
@@ -605,7 +633,6 @@ async function rebuildInline(): Promise<void> {
   await loadBrief(summary.isoDate);
 }
 
-const sources = computed<Source[]>(() => localSources.value ?? []);
 const highlightSlug = computed(() => highlightSlugLocal.value);
 
 // Filter chip state (#768). Single-select. `all` is the implicit
@@ -636,6 +663,10 @@ function filterChipLabel(key: SourceFilterKey): string {
       return t("pluginManageSource.filter.scheduleWeekly");
     case "schedule:manual":
       return t("pluginManageSource.filter.scheduleManual");
+    default: {
+      const exhaustive: never = key;
+      throw new Error(`unreachable SourceFilterKey: ${String(exhaustive)}`);
+    }
   }
 }
 
@@ -679,6 +710,10 @@ function kindLabel(kind: Source["fetcherKind"]): string {
       return t("pluginManageSource.kindGithubIss");
     case "arxiv":
       return t("pluginManageSource.kindArxiv");
+    default: {
+      const exhaustive: never = kind;
+      throw new Error(`unreachable fetcherKind: ${String(exhaustive)}`);
+    }
   }
 }
 
@@ -692,6 +727,10 @@ function kindBadgeClass(kind: Source["fetcherKind"]): string {
       return "bg-indigo-100 text-indigo-700";
     case "arxiv":
       return "bg-emerald-100 text-emerald-700";
+    default: {
+      const exhaustive: never = kind;
+      throw new Error(`unreachable fetcherKind: ${String(exhaustive)}`);
+    }
   }
 }
 
@@ -707,7 +746,7 @@ function flash(message: string, isError = false): void {
 // initial page-mode load) can keep that error visible in the UI
 // rather than rely on the transient flash toast.
 async function refreshList(): Promise<string | null> {
-  const response = await apiGet<{ sources: Source[] }>(API_ROUTES.sources.list);
+  const response = await apiGet<{ sources: Source[] }>(API_ROUTES.sources.list.url);
   if (!response.ok) {
     flash(t("pluginManageSource.flashRefreshListFailed", { error: response.error }), true);
     return response.error || t("pluginManageSource.initialLoadFailed");
@@ -719,7 +758,7 @@ async function refreshList(): Promise<string | null> {
 async function remove(slug: string): Promise<void> {
   if (!confirm(t("pluginManageSource.confirmRemove", { slug }))) return;
   busy.value = slug;
-  const response = await apiDelete<unknown>(API_ROUTES.sources.remove.replace(":slug", encodeURIComponent(slug)));
+  const response = await apiDelete<unknown>(buildRouteUrl(API_ROUTES.sources.remove, { slug }));
   busy.value = null;
   if (!response.ok) {
     flash(t("pluginManageSource.flashRemoveFailed", { error: response.error }), true);
@@ -731,7 +770,7 @@ async function remove(slug: string): Promise<void> {
 
 async function rebuild(): Promise<void> {
   busy.value = "rebuild";
-  const response = await apiPost<RebuildSummary>(API_ROUTES.sources.rebuild);
+  const response = await apiPost<RebuildSummary>(API_ROUTES.sources.rebuild.url);
   if (!response.ok) {
     flash(t("pluginManageSource.flashRebuildFailed", { error: response.error }), true);
     busy.value = null;
@@ -785,6 +824,7 @@ async function loadBrief(isoDate: string): Promise<void> {
   const relPath = dailyPathFor(isoDate);
   briefFilePath.value = relPath;
   const response = await apiGet<{ content?: string; kind?: string }>(API_ROUTES.files.content, { path: relPath });
+  // eslint-disable-next-line security/detect-possible-timing-attacks -- in-memory race-token guard, not an auth compare
   if (token !== briefLoadToken) return;
   if (!response.ok) {
     if (response.status === 404) {

@@ -15,7 +15,9 @@ import type { ToolResult } from "gui-chat-protocol";
 import { isFilePath, type MarkdownToolData } from "./definition";
 import { extractFirstH1 } from "../../utils/markdown/extractFirstH1";
 import { apiGet } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
+
+const filesEndpoints = pluginEndpoints<{ content: string }>("files");
 
 const props = defineProps<{
   result: ToolResult<MarkdownToolData>;
@@ -29,7 +31,7 @@ async function fetchContent(): Promise<void> {
     fetchedContent.value = "";
     return;
   }
-  const result = await apiGet<{ content?: string }>(API_ROUTES.files.content, {
+  const result = await apiGet<{ content?: string }>(filesEndpoints.content, {
     path: raw,
   });
   if (!result.ok) {
@@ -42,6 +44,12 @@ async function fetchContent(): Promise<void> {
 fetchContent();
 watch(() => props.result.data?.markdown, fetchContent);
 
+const resolvedMarkdown = computed(() => {
+  const raw = props.result.data?.markdown;
+  if (!raw) return "";
+  return isFilePath(raw) ? fetchedContent.value : raw;
+});
+
 const displayTitle = computed(() => {
   if (props.result.title) {
     return props.result.title;
@@ -52,12 +60,6 @@ const displayTitle = computed(() => {
     if (heading) return heading;
   }
   return "Markdown Document";
-});
-
-const resolvedMarkdown = computed(() => {
-  const raw = props.result.data?.markdown;
-  if (!raw) return "";
-  return isFilePath(raw) ? fetchedContent.value : raw;
 });
 
 function extractPreview(markdown: string): string {

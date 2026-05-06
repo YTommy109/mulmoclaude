@@ -5,11 +5,11 @@
 import { computed, nextTick, watch, type ComputedRef, type Ref } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 
-export function useChatScroll(opts: {
+export function useChatScroll<T extends { focus: () => void }>(opts: {
   sessionSidebarRef: Ref<{ root: HTMLDivElement | null } | null>;
   toolResults: ComputedRef<ToolResultComplete[]>;
   isRunning: ComputedRef<boolean>;
-  chatInputRef: Ref<{ focus: () => void } | null>;
+  chatInputRef: Ref<T | null>;
 }) {
   const { sessionSidebarRef, toolResults, isRunning, chatInputRef } = opts;
 

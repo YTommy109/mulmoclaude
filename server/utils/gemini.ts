@@ -1,4 +1,4 @@
-import { GoogleGenAI, type GenerateContentParameters } from "@google/genai";
+import { GoogleGenAI, type GenerateContentParameters, type GenerateContentResponse, type Part } from "@google/genai";
 import { env } from "../system/env.js";
 import { log } from "../system/logger/index.js";
 import { errorMessage } from "./errors.js";
@@ -29,6 +29,32 @@ export interface GeminiImageResult {
   message?: string;
 }
 
+// Pull the first candidate's `content.parts` array out of a Gemini
+// response, defaulting to `[]` when any layer of the optional chain is
+// absent. Pure — exported for unit tests.
+export function firstCandidateParts(response: GenerateContentResponse): readonly Part[] {
+  return response.candidates?.[0]?.content?.parts ?? [];
+}
+
+// Pull the first candidate's `finishReason` (used in debug logs).
+// Pure — exported for unit tests.
+export function firstFinishReason(response: GenerateContentResponse): string | undefined {
+  return response.candidates?.[0]?.finishReason;
+}
+
+// Reduce a Gemini response's `parts` array down to the {imageData,
+// message} pair the rest of the app cares about. Last text wins; last
+// inline-image wins. Parts without text or `inlineData.data` are
+// skipped. Pure — exported for unit tests.
+export function extractImageResult(parts: readonly Part[]): GeminiImageResult {
+  const result: GeminiImageResult = {};
+  for (const part of parts) {
+    if (part.text) result.message = part.text;
+    if (part.inlineData?.data) result.imageData = part.inlineData.data;
+  }
+  return result;
+}
+
 // Low-level wrapper around `ai.models.generateContent` that pulls
 // the first inline image and text part out of the response. Use this
 // when you need to pass custom `contents` (e.g. text + reference
@@ -48,7 +74,7 @@ export async function generateGeminiImageContent(
   const client = getGeminiClient();
   log.debug("gemini", "generateContent: request", {
     model,
-    hasConfig: !!config,
+    hasConfig: Boolean(config),
     aspectRatio: config?.imageConfig?.aspectRatio,
   });
   let response;
@@ -62,18 +88,14 @@ export async function generateGeminiImageContent(
     log.debug("gemini", "generateContent: SDK threw", { model, error: errorMessage(err) });
     throw err;
   }
-  const parts = response.candidates?.[0]?.content?.parts ?? [];
-  const result: GeminiImageResult = {};
-  for (const part of parts) {
-    if (part.text) result.message = part.text;
-    if (part.inlineData?.data) result.imageData = part.inlineData.data;
-  }
+  const parts = firstCandidateParts(response);
+  const result = extractImageResult(parts);
   log.debug("gemini", "generateContent: response", {
     model,
     parts: parts.length,
-    hasImage: !!result.imageData,
-    hasText: !!result.message,
-    finishReason: response.candidates?.[0]?.finishReason,
+    hasImage: Boolean(result.imageData),
+    hasText: Boolean(result.message),
+    finishReason: firstFinishReason(response),
   });
   return result;
 }

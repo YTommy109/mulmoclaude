@@ -1,6 +1,9 @@
 import type { ToolDefinition } from "gui-chat-protocol";
+import { META } from "./meta";
+import type { ResolvedRoute } from "../meta-types";
 
-export const TOOL_NAME = "presentSpreadsheet";
+export const TOOL_NAME = META.toolName;
+export type SpreadsheetEndpoints = { readonly [K in keyof typeof META.apiRoutes]: ResolvedRoute };
 
 export interface SpreadsheetCell {
   v: string | number;
@@ -9,7 +12,7 @@ export interface SpreadsheetCell {
 
 export interface SpreadsheetSheet {
   name: string;
-  data: Array<Array<SpreadsheetCell>>;
+  data: SpreadsheetCell[][];
 }
 
 export interface SpreadsheetToolData {

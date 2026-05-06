@@ -19,6 +19,7 @@ import {
   type NotificationKind,
   type NotificationAction,
   type NotificationPriority,
+  type NotificationI18n,
 } from "../../src/types/notification.js";
 import { ONE_SECOND_MS, MAX_NOTIFICATION_DELAY_SEC } from "../utils/time.js";
 import { log } from "../system/logger/index.js";
@@ -57,12 +58,23 @@ export interface PublishNotificationOpts {
   priority?: NotificationPriority;
   sessionId?: string;
   transportId?: string;
+  /** Override the auto-generated UUID with a caller-supplied stable
+   *  id. Used by the plugin-meta diagnostics: the same diagnostic
+   *  id is also returned from `/api/plugins/diagnostics`, so the
+   *  bell's id-based dedup collapses the boot-time live publish and
+   *  the late-mount fetch into one entry instead of double-counting
+   *  (Codex review iter-4 #1125). */
+  id?: string;
+  /** vue-i18n keys + params for clients to localize the title/body.
+   *  Server-side `title` / `body` stay set as English fallbacks for
+   *  logs and macOS / bridge push paths. */
+  i18n?: NotificationI18n;
 }
 
 export function publishNotification(opts: PublishNotificationOpts): void {
   try {
     const payload: NotificationPayload = {
-      id: makeUuid(),
+      id: opts.id ?? makeUuid(),
       kind: opts.kind,
       title: opts.title,
       body: opts.body,
@@ -72,6 +84,7 @@ export function publishNotification(opts: PublishNotificationOpts): void {
       priority: opts.priority ?? NOTIFICATION_PRIORITIES.normal,
       sessionId: opts.sessionId,
       transportId: opts.transportId,
+      i18n: opts.i18n,
     };
 
     // Store for bell panel

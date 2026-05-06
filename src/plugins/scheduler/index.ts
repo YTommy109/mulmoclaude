@@ -1,10 +1,17 @@
-import type { ToolPlugin } from "../../tools/types";
+// #824: two plugins share /api/scheduler — the server already dispatches per-action via TASK_ACTIONS, so each plugin
+// just differs in the tool definition (action enum the LLM sees) and the View component.
+
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
-import View from "./View.vue";
+import CalendarView from "./CalendarView.vue";
+import AutomationsView from "./AutomationsView.vue";
 import Preview from "./Preview.vue";
-import toolDefinition from "./definition";
-import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import AutomationsPreview from "./AutomationsPreview.vue";
+import calendarDefinition, { TOOL_NAME as MANAGE_CALENDAR } from "./calendarDefinition";
+import automationsDefinition, { TOOL_NAME as MANAGE_AUTOMATIONS, type SchedulerEndpoints } from "./automationsDefinition";
+import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
+import { apiCall } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
 export interface ScheduledItem {
@@ -18,29 +25,49 @@ export interface SchedulerData {
   items: ScheduledItem[];
 }
 
-const schedulerPlugin: ToolPlugin<SchedulerData> = {
-  toolDefinition,
-
-  async execute(_context, args) {
-    const result = await apiPost<ToolResult<SchedulerData>>(API_ROUTES.scheduler.base, args);
+// `toolName` is captured so the result carries the matching name through to chat history and View lookup.
+function makeExecute(toolName: typeof MANAGE_CALENDAR | typeof MANAGE_AUTOMATIONS): ToolPlugin<SchedulerData>["execute"] {
+  return async function execute(_context, args) {
+    const endpoints = pluginEndpoints<SchedulerEndpoints>("scheduler");
+    const { method, url } = endpoints.dispatch;
+    const result = await apiCall<ToolResult<SchedulerData>>(url, { method, body: args });
     if (!result.ok) {
       return {
-        toolName: "manageScheduler",
+        toolName,
         uuid: makeUuid(),
         message: result.error,
       };
     }
     return {
       ...result.data,
-      toolName: "manageScheduler",
+      toolName,
       uuid: result.data.uuid ?? makeUuid(),
     };
-  },
+  };
+}
 
+export const manageCalendarPlugin: ToolPlugin<SchedulerData> = {
+  toolDefinition: calendarDefinition,
+  execute: makeExecute(MANAGE_CALENDAR),
   isEnabled: () => true,
-  generatingMessage: "Managing schedule...",
-  viewComponent: View,
-  previewComponent: Preview,
+  generatingMessage: "Updating calendar...",
+  viewComponent: wrapWithScope("scheduler", CalendarView),
+  previewComponent: wrapWithScope("scheduler", Preview),
 };
 
-export default schedulerPlugin;
+export const manageAutomationsPlugin: ToolPlugin<SchedulerData> = {
+  toolDefinition: automationsDefinition,
+  execute: makeExecute(MANAGE_AUTOMATIONS),
+  isEnabled: () => true,
+  generatingMessage: "Managing automations...",
+  viewComponent: wrapWithScope("scheduler", AutomationsView),
+  // Cannot share Preview.vue with manageCalendar — Preview auto-refreshes from /api/scheduler (calendar items), and
+  // the automations sidebar would otherwise show calendar data after the first refresh tick (#828 follow-up).
+  previewComponent: wrapWithScope("scheduler", AutomationsPreview),
+};
+
+// One plugin module, two tool registrations — see #824 split.
+export const REGISTRATIONS: PluginRegistration[] = [
+  { toolName: MANAGE_CALENDAR, entry: manageCalendarPlugin },
+  { toolName: MANAGE_AUTOMATIONS, entry: manageAutomationsPlugin },
+];

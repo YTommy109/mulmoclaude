@@ -58,6 +58,12 @@ export const env = Object.freeze({
 
   // Sandbox / Docker
   disableSandbox: asFlag(process.env.DISABLE_SANDBOX),
+  // Debug aid: also persist `tool_call` events to the session
+  // jsonl (the `tool_result` side already lands on disk). Off by
+  // default because args can be large and may carry payload bytes
+  // the user didn't expect to land in this exact form. See
+  // plans/feat-persist-tool-calls.md / issue #1096.
+  persistToolCalls: asFlag(process.env.PERSIST_TOOL_CALLS),
   // Host-credential opt-ins for the Docker sandbox (#259). Both off
   // by default. See docs/sandbox-credentials.md for the contract.
   sandboxSshAgentForward: asFlag(process.env.SANDBOX_SSH_AGENT_FORWARD),
@@ -107,7 +113,6 @@ export const env = Object.freeze({
   mcpSessionId: process.env.SESSION_ID ?? "",
   mcpHost: process.env.MCP_HOST ?? "localhost",
   mcpPluginNames: asCsv(process.env.PLUGIN_NAMES),
-  mcpRoleIds: asCsv(process.env.ROLE_IDS),
 });
 
 // ── Derived helpers ─────────────────────────────────────────────────

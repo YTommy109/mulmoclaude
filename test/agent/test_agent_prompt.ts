@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
 import { tmpdir } from "os";
 import {
   buildMemoryContext,
@@ -16,7 +16,6 @@ import {
   formatPluginSection,
 } from "../../server/agent/prompt.js";
 import { WORKSPACE_FILES } from "../../server/workspace/paths.js";
-import { dirname } from "path";
 import type { Role } from "../../src/config/roles.js";
 
 function ensureDir(dirPath: string): void {
@@ -219,6 +218,28 @@ describe("buildSystemPrompt", () => {
     assert.ok(result.includes(`Workspace directory: ${workspace}`));
   });
 
+  it("contains the image-reference convention (stage 2 of plans/done/feat-image-path-routing)", () => {
+    const role = makeRole();
+    const result = buildSystemPrompt({
+      role,
+      workspacePath: workspace,
+      useDocker: false,
+    });
+    assert.ok(result.includes("Image references in markdown / HTML"));
+    // Each rule in the section must appear so a future refactor that
+    // accidentally drops a bullet trips this test.
+    assert.match(result, /always use a \*\*relative path\*\*/i);
+    // Absolute `/artifacts/images/...` is explicitly forbidden because
+    // it breaks `file://` direct-disk rendering (Goal #2 of the plan).
+    assert.match(result, /never use an \*\*absolute path\*\*/i);
+    assert.match(result, /never use a workspace-rooted, no-leading-slash form/i);
+    assert.match(result, /never write `\/api\/files\/raw\?path=\.\.\.` urls/i);
+    // Stage D (#1011): explicit OK to use raw HTML tags inside .md
+    // files when markdown's ![]() can't express what's needed
+    // (`<picture>`, `<video poster>`, `<img width>`). Same path rules.
+    assert.match(result, /raw html tags work inside `\.md` files/i);
+  });
+
   it("contains today's date", () => {
     const role = makeRole();
     const result = buildSystemPrompt({
@@ -268,20 +289,22 @@ describe("buildSystemPrompt", () => {
   });
 
   it("includes plugin prompt sections from ToolDefinition.prompt", () => {
-    // manageTodoList has a single-paragraph prompt in its
+    // openCanvas has a single-paragraph prompt in its
     // definition.ts, so it should render in the compact bullet form
     // (`- **name**: body`) under the "Plugin Instructions" heading.
-    const role = makeRole({ availablePlugins: ["manageTodoList"] });
+    // The bullet uses the fully-qualified id so the LLM can pass it
+    // verbatim to `tool_use` (#1043 C-2 follow-up).
+    const role = makeRole({ availablePlugins: ["openCanvas"] });
     const result = buildSystemPrompt({
       role,
       workspacePath: workspace,
       useDocker: false,
     });
     assert.ok(result.includes("## Plugin Instructions"));
-    assert.ok(result.includes("- **manageTodoList**: "));
-    assert.ok(result.includes("todo list"));
+    assert.ok(result.includes("- **mcp__mulmoclaude__openCanvas**: "));
+    assert.ok(result.includes("draw an image"));
     // Compact form must not revert to the old heading layout.
-    assert.ok(!result.includes("### manageTodoList"));
+    assert.ok(!result.includes("### mcp__mulmoclaude__openCanvas\n\n"), "compact bullet, not heading");
   });
 
   it("emits the Sandbox Tools hint when useDocker is true", () => {
@@ -432,11 +455,11 @@ describe("buildInlinedHelpFiles", () => {
   });
 
   it("summarizes + points to large help files", () => {
-    const bigBody = "\n\n" + "filler paragraph. ".repeat(200);
-    writeHelp("big.md", "# Big Help\n\nFirst real content paragraph explaining the feature." + bigBody);
+    const bigBody = `\n\n${"filler paragraph. ".repeat(200)}`;
+    writeHelp("big.md", `# Big Help\n\nFirst real content paragraph explaining the feature.${bigBody}`);
     const result = buildInlinedHelpFiles("See config/helps/big.md", workspace);
     assert.equal(result.length, 1);
-    const section = result[0];
+    const [section] = result;
     assert.ok(section.includes("### config/helps/big.md"));
     assert.ok(section.includes("Big Help"));
     assert.ok(section.includes("First real content paragraph"));
@@ -464,13 +487,19 @@ describe("buildInlinedHelpFiles", () => {
 
 describe("buildPluginPromptSections", () => {
   it("returns compact bullet form for a short single-paragraph plugin prompt", () => {
-    // manageTodoList's real definition has a ~114-char single-paragraph
+    // openCanvas's real definition is a short single-paragraph
     // prompt, so it must collapse to the `- **name**: body` shape.
-    const role = makeRole({ availablePlugins: ["manageTodoList"] });
+    // The first entry is the MCP_PREFIX_HINT (#1043 C-2) — added when
+    // there's at least one plugin section so the LLM knows the
+    // mcp__<server>__<tool> shape for ToolSearch lookups.
+    // Section headers print the fully-qualified id so the LLM uses
+    // the exact tool name on tool_use.
+    const role = makeRole({ availablePlugins: ["openCanvas"] });
     const sections = buildPluginPromptSections(role);
-    assert.equal(sections.length, 1);
-    assert.ok(sections[0].startsWith("- **manageTodoList**: "));
-    assert.ok(!sections[0].includes("\n"));
+    assert.equal(sections.length, 2, "MCP-prefix hint + one plugin section");
+    assert.ok(sections[0].includes("mcp__mulmoclaude__"), "first entry is the prefix hint");
+    assert.ok(sections[1].startsWith("- **mcp__mulmoclaude__openCanvas**: "));
+    assert.ok(!sections[1].includes("\n"));
   });
 
   it("returns heading form for a multi-paragraph plugin prompt", () => {
@@ -479,13 +508,16 @@ describe("buildPluginPromptSections", () => {
     // survives.
     const role = makeRole({ availablePlugins: ["presentDocument"] });
     const sections = buildPluginPromptSections(role);
-    assert.equal(sections.length, 1);
-    assert.ok(sections[0].startsWith("### presentDocument\n\n"));
+    assert.equal(sections.length, 2, "MCP-prefix hint + one plugin section");
+    assert.ok(sections[0].includes("mcp__mulmoclaude__"), "first entry is the prefix hint");
+    assert.ok(sections[1].startsWith("### mcp__mulmoclaude__presentDocument\n\n"));
     // Body retains its paragraph break
-    assert.ok(sections[0].includes("\n\n"));
+    assert.ok(sections[1].includes("\n\n"));
   });
 
-  it("returns empty array when the role has no matching plugins", () => {
+  it("returns empty array when the role has no matching plugins (no orphan hint)", () => {
+    // No plugins → no hint either. The prefix hint is meaningless on
+    // its own and clutters the prompt of a tool-less role.
     const role = makeRole({ availablePlugins: [] });
     assert.deepEqual(buildPluginPromptSections(role), []);
   });

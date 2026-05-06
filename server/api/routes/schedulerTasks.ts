@@ -11,6 +11,7 @@ import { Router, type Request, type Response } from "express";
 import { getSchedulerTasks, getSchedulerLogs } from "../../events/scheduler-adapter.js";
 import type { TaskLogEntry } from "@receptron/task-scheduler";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { bindRoute } from "../../utils/router.js";
 import { SESSION_ORIGINS } from "../../../src/types/session.js";
 import { loadUserTasks, validateAndCreate, applyUpdate, withUserTaskLock } from "../../workspace/skills/user-tasks.js";
 import { badRequest, notFound, serverError } from "../../utils/httpError.js";
@@ -24,7 +25,7 @@ const router = Router();
 
 // ── List all tasks ──────────────────────────────────────────────
 
-router.get(API_ROUTES.scheduler.tasks, (_req: Request, res: Response) => {
+bindRoute(router, API_ROUTES.scheduler.tasksList, (_req: Request, res: Response) => {
   log.info("scheduler-tasks", "list: start");
   try {
     // getSchedulerTasks() returns system-only tasks (registered via
@@ -49,7 +50,7 @@ router.get(API_ROUTES.scheduler.tasks, (_req: Request, res: Response) => {
 
 // ── Create user task ────────────────────────────────────────────
 
-router.post(API_ROUTES.scheduler.tasks, async (req: Request, res: Response) => {
+bindRoute(router, API_ROUTES.scheduler.tasksCreate, async (req: Request, res: Response) => {
   log.info("scheduler-tasks", "create: start");
   const validated = validateAndCreate(req.body);
   if (validated.kind === "error") {
@@ -74,7 +75,7 @@ router.post(API_ROUTES.scheduler.tasks, async (req: Request, res: Response) => {
 
 // ── Update user task ────────────────────────────────────────────
 
-router.put(API_ROUTES.scheduler.task, async (req: Request<{ id: string }>, res: Response) => {
+bindRoute(router, API_ROUTES.scheduler.taskUpdate, async (req: Request<{ id: string }>, res: Response) => {
   const { id: taskId } = req.params;
   log.info("scheduler-tasks", "update: start", { taskId });
   try {
@@ -102,7 +103,7 @@ router.put(API_ROUTES.scheduler.task, async (req: Request<{ id: string }>, res: 
 
 // ── Delete user task ────────────────────────────────────────────
 
-router.delete(API_ROUTES.scheduler.task, async (req: Request<{ id: string }>, res: Response) => {
+bindRoute(router, API_ROUTES.scheduler.taskDelete, async (req: Request<{ id: string }>, res: Response) => {
   const { id: taskId } = req.params;
   log.info("scheduler-tasks", "delete: start", { taskId });
   try {
@@ -128,7 +129,7 @@ router.delete(API_ROUTES.scheduler.task, async (req: Request<{ id: string }>, re
 
 // ── Manual trigger ──────────────────────────────────────────────
 
-router.post(API_ROUTES.scheduler.taskRun, async (req: Request<{ id: string }>, res: Response) => {
+bindRoute(router, API_ROUTES.scheduler.taskRun, async (req: Request<{ id: string }>, res: Response) => {
   const { id: taskId } = req.params;
   log.info("scheduler-tasks", "run: start", { taskId });
   // Check user tasks first
@@ -176,11 +177,11 @@ interface LogQuery {
   limit?: string;
 }
 
-router.get(API_ROUTES.scheduler.logs, async (req: Request<object, unknown, object, LogQuery>, res: Response<{ logs: TaskLogEntry[] }>) => {
+bindRoute(router, API_ROUTES.scheduler.logs, async (req: Request<object, unknown, object, LogQuery>, res: Response<{ logs: TaskLogEntry[] }>) => {
   const MAX_LIMIT = 500;
   const rawLimitStr = getOptionalStringQuery(req, "limit");
   const rawLimit = rawLimitStr ? parseInt(rawLimitStr, 10) : undefined;
-  const limit = Number.isFinite(rawLimit) && rawLimit! > 0 ? Math.min(rawLimit!, MAX_LIMIT) : undefined;
+  const limit = rawLimit !== undefined && Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, MAX_LIMIT) : undefined;
   const taskId = getOptionalStringQuery(req, "taskId");
   log.info("scheduler-tasks", "logs: start", { taskId, limit });
   try {

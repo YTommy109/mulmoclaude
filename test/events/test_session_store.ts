@@ -9,9 +9,10 @@ import {
   cancelRun,
   markRead,
   getActiveSessionIds,
-  getSessionImageData,
   initSessionStore,
+  pushSessionEvent,
 } from "../../server/events/session-store/index.ts";
+import { EVENT_TYPES, GENERATION_KINDS, generationKey } from "../../src/types/events.ts";
 
 const NOW = "2026-04-17T00:00:00.000Z";
 
@@ -61,16 +62,14 @@ describe("getSession / getOrCreateSession", () => {
     assert.equal(sessionB.roleId, "general"); // not overwritten
   });
 
-  it("updates selectedImageData and updatedAt on re-access", () => {
+  it("updates updatedAt on re-access", () => {
     getOrCreateSession("s1", sessionOpts());
     const updated = getOrCreateSession(
       "s1",
       sessionOpts({
-        selectedImageData: "base64...",
         updatedAt: "2026-04-17T01:00:00Z",
       }),
     );
-    assert.equal(updated.selectedImageData, "base64...");
     assert.equal(updated.updatedAt, "2026-04-17T01:00:00Z");
   });
 
@@ -85,7 +84,7 @@ describe("beginRun / endRun / cancelRun", () => {
     getOrCreateSession("s1", sessionOpts());
     const abort = () => {};
     assert.equal(beginRun("s1", abort), true);
-    assert.equal(getSession("s1")!.isRunning, true);
+    assert.equal(getSession("s1")?.isRunning, true);
   });
 
   it("beginRun rejects when session is already running (409 guard)", () => {
@@ -110,7 +109,8 @@ describe("beginRun / endRun / cancelRun", () => {
     // initSessionStore is needed for endRun to publish
     initSessionStore(stubPubSub());
     endRun("s1");
-    const sess = getSession("s1")!;
+    const sess = getSession("s1");
+    assert.ok(sess);
     assert.equal(sess.isRunning, false);
     assert.equal(sess.hasUnread, true);
   });
@@ -187,13 +187,35 @@ describe("getActiveSessionIds", () => {
   });
 });
 
-describe("getSessionImageData", () => {
-  it("returns the selectedImageData for an existing session", () => {
-    getOrCreateSession("s1", sessionOpts({ selectedImageData: "img" }));
-    assert.equal(getSessionImageData("s1"), "img");
+describe("pushSessionEvent — pendingGenerations lifecycle", () => {
+  // Pin the start → finish round-trip so the in-store pending map
+  // both gains and loses the entry. Prior to the no-dynamic-delete
+  // fix the finish path used `delete obj[key]`; this test guards
+  // against a future regression of the equivalent
+  // `Reflect.deleteProperty` call.
+  beforeEach(() => {
+    initSessionStore(stubPubSub());
   });
 
-  it("returns undefined for unknown session", () => {
-    assert.equal(getSessionImageData("nope"), undefined);
+  function makeGenerationEvent(type: string) {
+    return { type, kind: GENERATION_KINDS.beatImage, filePath: "/tmp/foo.png", key: "k1" };
+  }
+
+  it("adds a pendingGenerations entry on generationStarted", () => {
+    getOrCreateSession("s1", sessionOpts());
+    pushSessionEvent("s1", makeGenerationEvent(EVENT_TYPES.generationStarted));
+    const pending = getSession("s1")?.pendingGenerations ?? {};
+    const expectedKey = generationKey(GENERATION_KINDS.beatImage, "/tmp/foo.png", "k1");
+    assert.ok(expectedKey in pending, "key should be present after start");
+  });
+
+  it("removes the entry on generationFinished (no leftover key)", () => {
+    getOrCreateSession("s1", sessionOpts());
+    pushSessionEvent("s1", makeGenerationEvent(EVENT_TYPES.generationStarted));
+    pushSessionEvent("s1", makeGenerationEvent(EVENT_TYPES.generationFinished));
+    const pending = getSession("s1")?.pendingGenerations ?? {};
+    const expectedKey = generationKey(GENERATION_KINDS.beatImage, "/tmp/foo.png", "k1");
+    assert.equal(expectedKey in pending, false, "key should be gone after finish");
+    assert.equal(Object.keys(pending).length, 0, "no leftover keys");
   });
 });

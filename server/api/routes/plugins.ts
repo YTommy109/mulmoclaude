@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { executeMindMap } from "@gui-chat-plugin/mindmap";
 import { executeSpreadsheet, type SpreadsheetArgs } from "../../../src/plugins/spreadsheet/definition.js";
 import { executeQuiz } from "@mulmochat-plugin/quiz";
-import { executeForm } from "@mulmochat-plugin/form";
+import { executeForm } from "../../../src/plugins/presentForm/plugin.js";
 import { executeOpenCanvas } from "../../../src/plugins/canvas/definition.js";
 import { executePresent3D } from "@gui-chat-plugin/present3d";
 import { errorMessage } from "../../utils/errors.js";
@@ -12,8 +12,11 @@ import { fillMarkdownImagePlaceholders } from "../../utils/files/markdown-image-
 import { saveMarkdown, overwriteMarkdown, isMarkdownPath } from "../../utils/files/markdown-store.js";
 import { saveSpreadsheet, overwriteSpreadsheet, isSpreadsheetPath } from "../../utils/files/spreadsheet-store.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { bindRoute } from "../../utils/router.js";
+import { collectPluginMetaDiagnostics } from "../../plugins/diagnostics.js";
 import { log } from "../../system/logger/index.js";
 import { previewSnippet } from "../../utils/logPreview.js";
+import { publishFileChange } from "../../events/file-change.js";
 
 const router = Router();
 
@@ -66,6 +69,7 @@ interface PresentDocumentBody {
 
 interface PresentDocumentSuccess {
   message: string;
+  instructions: string;
   title: string;
   data: { markdown: string; filenamePrefix: string };
 }
@@ -74,8 +78,9 @@ interface PresentDocumentError {
   error: string;
 }
 
-router.post(
-  API_ROUTES.plugins.presentDocument,
+bindRoute(
+  router,
+  API_ROUTES.markdown.create,
   async (req: Request<object, unknown, PresentDocumentBody>, res: Response<PresentDocumentSuccess | PresentDocumentError>) => {
     const { title, markdown, filenamePrefix } = req.body;
     log.info("plugins", "presentDocument: start", {
@@ -92,7 +97,8 @@ router.post(
     const markdownPath = await saveMarkdown(filledMarkdown, filenamePrefix);
     log.info("plugins", "presentDocument: ok", { markdownPath, bytes: filledMarkdown.length });
     res.json({
-      message: `Document "${title}" is ready.`,
+      message: `Saved markdown to ${markdownPath}`,
+      instructions: "Acknowledge that the document has been presented to the user.",
       title,
       data: { markdown: markdownPath, filenamePrefix },
     });
@@ -117,8 +123,9 @@ interface UpdateMarkdownError {
   error: string;
 }
 
-router.put(
-  API_ROUTES.plugins.updateMarkdown,
+bindRoute(
+  router,
+  API_ROUTES.markdown.update,
   async (req: Request<object, unknown, UpdateMarkdownBody>, res: Response<UpdateMarkdownResponse | UpdateMarkdownError>) => {
     const { relativePath, markdown } = req.body;
     log.info("plugins", "updateMarkdown: start", {
@@ -140,6 +147,7 @@ router.put(
     try {
       await overwriteMarkdown(relativePath, markdown);
       log.info("plugins", "updateMarkdown: ok", { pathPreview: previewSnippet(relativePath), bytes: markdown.length });
+      void publishFileChange(relativePath);
       res.json({ path: relativePath });
     } catch (err) {
       log.error("plugins", "updateMarkdown: threw", { pathPreview: previewSnippet(relativePath), error: errorMessage(err) });
@@ -156,8 +164,9 @@ router.put(
 // than fabricating a fake context.
 
 // presentSpreadsheet — validate, then save sheets to disk
-router.post(
-  API_ROUTES.plugins.presentSpreadsheet,
+bindRoute(
+  router,
+  API_ROUTES.spreadsheet.create,
   wrapPluginExecute<SpreadsheetArgs, unknown>(async (req) => {
     const result = await executeSpreadsheet(req.body);
     if (!Array.isArray(result.data.sheets)) {
@@ -184,8 +193,9 @@ interface UpdateSpreadsheetError {
   error: string;
 }
 
-router.put(
-  API_ROUTES.plugins.updateSpreadsheet,
+bindRoute(
+  router,
+  API_ROUTES.spreadsheet.update,
   async (req: Request<object, unknown, UpdateSpreadsheetBody>, res: Response<UpdateSpreadsheetResponse | UpdateSpreadsheetError>) => {
     const { relativePath, sheets } = req.body;
     log.info("plugins", "updateSpreadsheet: start", {
@@ -228,8 +238,9 @@ router.post(
 );
 
 // presentForm — form
-router.post(
-  API_ROUTES.plugins.form,
+bindRoute(
+  router,
+  API_ROUTES.form.dispatch,
   wrapPluginExecute((req) => executeForm(null as never, req.body)),
 );
 
@@ -240,11 +251,12 @@ router.post(
 const BLANK_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=";
 
 // openCanvas — drawing canvas
-router.post(
-  API_ROUTES.plugins.canvas,
+bindRoute(
+  router,
+  API_ROUTES.canvas.dispatch,
   wrapPluginExecute(async () => {
     const imagePath = await saveImage(BLANK_PNG_BASE64);
-    const base = await executeOpenCanvas();
+    const base = await executeOpenCanvas(imagePath);
     return { ...base, data: { imageData: imagePath, prompt: "" } };
   }),
 );
@@ -254,5 +266,13 @@ router.post(
   API_ROUTES.plugins.present3d,
   wrapPluginExecute((req) => executePresent3D(null as never, req.body)),
 );
+
+// META aggregator diagnostics — boot-time host/plugin or plugin/plugin
+// key collisions. The frontend fetches this once at mount so a tab
+// that opens after the boot-time `publishNotification` fired still
+// gets the warning. Empty array when clean.
+router.get(API_ROUTES.plugins.diagnostics, (_req, res) => {
+  res.json({ diagnostics: collectPluginMetaDiagnostics() });
+});
 
 export default router;

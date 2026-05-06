@@ -84,6 +84,7 @@ describe("isLocalhostOrigin — rejects everything else", () => {
   it("rejects a javascript: URI", () => {
     // `new URL("javascript:alert(1)").hostname` is "" — not in
     // the loopback set, so rejected.
+    // eslint-disable-next-line no-script-url -- guard test fixture
     assert.equal(isLocalhostOrigin("javascript:alert(1)"), false);
   });
 
@@ -116,8 +117,8 @@ interface FakeReq {
 interface FakeRes {
   statusCode: number;
   body: unknown;
-  status(code: number): FakeRes;
-  json(payload: unknown): FakeRes;
+  status: (code: number) => FakeRes;
+  json: (payload: unknown) => FakeRes;
 }
 
 function makeReq(method: string, origin?: string): FakeReq {

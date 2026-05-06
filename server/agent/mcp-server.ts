@@ -6,7 +6,11 @@
 
 import type { ToolDefinition } from "gui-chat-protocol";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
-import { TOOL_ENDPOINTS, PLUGIN_DEFS } from "./plugin-names.js";
+import { TOOL_ENDPOINTS, PLUGIN_DEFS, MCP_PLUGIN_NAMES } from "./plugin-names.js";
+import { loadRuntimePlugins } from "../plugins/runtime-loader.js";
+import { loadDevPlugins, parseDevPluginsEnv } from "../plugins/dev-loader.js";
+import { loadPresetPlugins } from "../plugins/preset-loader.js";
+import { registerRuntimePlugins, getRuntimePlugins } from "../plugins/runtime-registry.js";
 import { errorMessage } from "../utils/errors.js";
 import { isNonEmptyString, isRecord } from "../utils/types.js";
 import { API_ROUTES } from "../../src/config/apiRoutes.js";
@@ -37,7 +41,6 @@ const isJsonRpcMessage = (value: unknown): value is JsonRpcMessage => isRecord(v
 const SESSION_ID = env.mcpSessionId;
 const PORT = env.port;
 const PLUGIN_NAMES = env.mcpPluginNames;
-const ROLE_IDS = env.mcpRoleIds;
 const MCP_HOST = env.mcpHost;
 const BASE_URL = `http://${MCP_HOST}:${PORT}`;
 
@@ -57,7 +60,26 @@ interface ToolDef {
   name: string;
   description: string;
   inputSchema: object;
-  endpoint?: string; // absent for tools handled specially (e.g. switchRole)
+  endpoint?: string;
+}
+
+// Shape returned by a plugin endpoint dispatch. `data` is the
+// protocol's render-eligibility signal — present means "render a
+// card", absent means narrate-only (see `gui-chat-protocol`'s
+// `ToolResult` docs). `message` / `instructions` are read by the
+// bridge for the LLM-facing return value; other fields (title,
+// jsonData, action, etc.) flow through to the frontend untouched.
+// `toolName` / `uuid` are listed so the post-spread override in
+// `handleToolCall` is type-checked rather than relying on
+// object-shape coincidence — the bridge always re-asserts them
+// from its own state.
+interface PluginResultEnvelope {
+  data?: unknown;
+  message?: unknown;
+  instructions?: unknown;
+  toolName?: unknown;
+  uuid?: unknown;
+  [key: string]: unknown;
 }
 
 // Combine `description` (one-liner) and `prompt` (detailed usage
@@ -92,27 +114,65 @@ const mcpToolDefs: Record<string, ToolDef> = Object.fromEntries(
   ]),
 );
 
+// Static plugins land in ALL_TOOLS synchronously; runtime plugins
+// (#1043 C-2) are added once the async load completes. The MCP child
+// process is short-lived but cannot use top-level await — Docker
+// builds tsx with cjs output, where TLA fails at parse time.
+// Instead, the stdin handler awaits `runtimeReady` before serving
+// `tools/list` / `tools/call`, so requests arriving early just wait.
 const ALL_TOOLS: Record<string, ToolDef> = {
   ...mcpToolDefs,
   ...Object.fromEntries(PLUGIN_DEFS.map((def) => [def.name, fromPackage(def, TOOL_ENDPOINTS[def.name])])),
-  switchRole: {
-    name: "switchRole",
-    description: "Switch to a different AI role, resetting the conversation context. Use when the user's request is better served by another role.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        roleId: {
-          type: "string",
-          enum: ROLE_IDS,
-          description: "The ID of the role to switch to.",
-        },
-      },
-      required: ["roleId"],
-    },
-  },
 };
 
-const tools = PLUGIN_NAMES.map((name) => ALL_TOOLS[name]).filter(Boolean);
+let activeNames: string[] = [...PLUGIN_NAMES];
+let tools: ToolDef[] = activeNames.map((name) => ALL_TOOLS[name]).filter(Boolean);
+
+// Static collision floor — both the GUI plugin set (`MCP_PLUGIN_NAMES`)
+// AND the pure MCP tool set (`mcpToolDefs` keys: notify / readXPost /
+// searchX / …). A runtime plugin named `notify` must NOT shadow the
+// built-in notify tool; including both groups makes the collision
+// policy in `runtime-registry.ts` enforce that.
+const STATIC_TOOL_NAMES: ReadonlySet<string> = new Set([...MCP_PLUGIN_NAMES, ...Object.keys(mcpToolDefs)]);
+
+// Internal try/catch so a filesystem failure (EACCES on plugins.json,
+// busted tgz, runaway plugin import) can never strand the MCP
+// handshake. Runtime plugins are best-effort: any failure logs and
+// falls back to the static-only tool list initialised above. The
+// `tools/list` and `tools/call` paths downstream just call
+// `runtimeReady.then(...)` and proceed.
+const runtimeReady: Promise<void> = (async () => {
+  try {
+    // Same merge order as the parent server (server/index.ts):
+    // presets first so they win the runtime-vs-runtime collision.
+    // Dev plugins (`--dev-plugin`) come last and rely on the parent
+    // server having already validated paths + collision-free; the
+    // child re-loads them here so the MCP tool table sees them too.
+    // Failures are logged in the parent's pre-flight, so anything that
+    // gets through `loadDevPlugins` here should be clean — but we still
+    // collect errors silently and skip rather than abort the MCP child.
+    const presets = await loadPresetPlugins();
+    const userInstalled = await loadRuntimePlugins();
+    const devLoad = await loadDevPlugins(parseDevPluginsEnv(process.env.MULMOCLAUDE_DEV_PLUGINS, process.cwd()));
+    registerRuntimePlugins(STATIC_TOOL_NAMES, [...presets, ...userInstalled, ...devLoad.plugins]);
+    for (const plugin of getRuntimePlugins()) {
+      // Build from the canonical route constant so a future rename
+      // ripples here automatically — `runtime-plugin.ts` registers
+      // the same `:pkg` pattern (#1077 review).
+      const endpoint = API_ROUTES.plugins.runtimeDispatch.replace(":pkg", encodeURIComponent(plugin.name));
+      ALL_TOOLS[plugin.definition.name] = fromPackage(plugin.definition, endpoint);
+    }
+    // Runtime plugins are auto-included regardless of role.availablePlugins
+    // — the user explicitly installed them, so every role gets to use them.
+    // Roles still gate the static set via PLUGIN_NAMES env (set by the
+    // parent based on getActivePlugins(role)).
+    const runtimeToolNames = getRuntimePlugins().map((plugin) => plugin.definition.name);
+    activeNames = Array.from(new Set([...PLUGIN_NAMES, ...runtimeToolNames]));
+    tools = activeNames.map((name) => ALL_TOOLS[name]).filter(Boolean);
+  } catch (err) {
+    process.stderr.write(`[mcp-server] runtime plugin load failed; static tools only: ${String(err)}\n`);
+  }
+})();
 
 // MCP tools (e.g. readXPost, searchX) call external APIs through their
 // own handlers. The bridge timeout must exceed those inner timeouts
@@ -134,7 +194,7 @@ const MCP_TOOL_BRIDGE_TIMEOUT_MS = 30 * ONE_SECOND_MS;
 const PLUGIN_BRIDGE_TIMEOUT_MS = 20 * ONE_MINUTE_MS;
 
 function respond(msg: unknown): void {
-  process.stdout.write(JSON.stringify(msg) + "\n");
+  process.stdout.write(`${JSON.stringify(msg)}\n`);
 }
 
 // All bridge calls go to the same backend on the same session, so
@@ -287,7 +347,7 @@ async function handleManageSkillsSave(args: Record<string, unknown>): Promise<st
   // interpolate an accidental object / number into `/${name}`.
   const name = String(args.name ?? "");
   const res = await postJson(
-    API_ROUTES.skills.create,
+    API_ROUTES.skills.create.url,
     {
       name,
       description: args.description,
@@ -296,7 +356,7 @@ async function handleManageSkillsSave(args: Record<string, unknown>): Promise<st
     { allowHttpError: true },
   );
   if (!res.ok) {
-    return "Error: " + (await extractFetchError(res));
+    return `Error: ${await extractFetchError(res)}`;
   }
   await pushSkillsListResult(`Saved skill "${name}".`);
   return `Saved skill ${name}. Run with /${name}.`;
@@ -319,7 +379,7 @@ async function handleManageSkillsUpdate(args: Record<string, unknown>): Promise<
     throw new Error(`Network error calling PUT /api/skills/${name}: ${errorMessage(err)}`);
   }
   if (!res.ok) {
-    return "Error: " + (await extractFetchError(res));
+    return `Error: ${await extractFetchError(res)}`;
   }
   await pushSkillsListResult(`Updated skill "${name}".`);
   return `Updated skill ${name}. The changes take effect in new sessions.`;
@@ -338,36 +398,13 @@ async function handleManageSkillsDelete(args: Record<string, unknown>): Promise<
     throw new Error(`Network error calling DELETE ${url}: ${errorMessage(err)}`);
   }
   if (!res.ok) {
-    return "Error: " + (await extractFetchError(res));
+    return `Error: ${await extractFetchError(res)}`;
   }
   await pushSkillsListResult(`Deleted skill "${name}".`);
   return `Deleted skill ${name}.`;
 }
 
 async function handleToolCall(name: string, args: Record<string, unknown>): Promise<string> {
-  if (name === "switchRole") {
-    await postJson(API_ROUTES.agent.internal.switchRole, {
-      roleId: args.roleId,
-    });
-    return `Switching to ${args.roleId} role`;
-  }
-
-  if (name === "manageRoles") {
-    const res = await postJson(API_ROUTES.roles.manage, args);
-    const result = await res.json();
-
-    // For the list action, push a visual canvas result so the viewer renders
-    if (args.action === "list" && result.success) {
-      await postJson(API_ROUTES.agent.internal.toolResult, {
-        toolName: "manageRoles",
-        uuid: makeUuid(),
-        ...result,
-      });
-    }
-
-    return result.message ?? (result.error ? `Error: ${result.error}` : "Done");
-  }
-
   if (name === "manageSkills") return handleManageSkills(args);
 
   // Pure MCP tools — call via /api/mcp-tools/:tool, return text directly
@@ -389,20 +426,36 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 
   const tool = tools.find((toolDef) => toolDef.name === name);
   if (!tool) throw new Error(`Unknown tool: ${name}`);
+  if (!tool.endpoint) throw new Error(`Tool has no endpoint: ${name}`);
 
   // Plugin handlers can fan out to generative AI (image batches via
   // presentDocument, future video). The bridge MUST wait long enough
   // for the slowest realistic completion — see PLUGIN_BRIDGE_TIMEOUT_MS
   // and the timeout-policy comment on `postJson`.
-  const res = await postJson(tool.endpoint!, args, { timeoutMs: PLUGIN_BRIDGE_TIMEOUT_MS });
-  const result = await res.json();
+  const res = await postJson(tool.endpoint, args, { timeoutMs: PLUGIN_BRIDGE_TIMEOUT_MS });
+  const result = ((await res.json()) ?? {}) as PluginResultEnvelope;
 
-  // Push visual ToolResult to the frontend via the session
-  await postJson(API_ROUTES.agent.internal.toolResult, {
-    toolName: name,
-    uuid: makeUuid(),
-    ...result,
-  });
+  // Push visual ToolResult to the frontend via the session — but
+  // only when the handler set `data`, which is the protocol's
+  // render-eligibility signal. Narrate-only actions (e.g.
+  // accounting `getReport`, `getBooks`, plugin validation-error
+  // branches) deliberately omit `data` and behave like a plain
+  // MCP tool call: the LLM gets `message` / `instructions` via
+  // the return value below, and nothing lands in the session's
+  // `toolResults` or its on-disk JSONL log. (`jsonData` is
+  // orthogonal — the LLM-readable copy — and does NOT gate
+  // rendering on its own.)
+  if (result.data !== undefined) {
+    // Spread `result` first so the bridge's own `toolName` and `uuid`
+    // are authoritative — a plugin handler that (intentionally or
+    // accidentally) returned those keys can't impersonate a different
+    // tool or collide on uuid.
+    await postJson(API_ROUTES.agent.internal.toolResult, {
+      ...result,
+      toolName: name,
+      uuid: makeUuid(),
+    });
+  }
 
   const parts = [result.message, result.instructions].filter(Boolean);
   return parts.length > 0 ? parts.join("\n") : "Done";
@@ -438,17 +491,27 @@ process.stdin.on("data", (chunk: Buffer) => {
         },
       });
     } else if (method === "tools/list") {
-      respond({
-        jsonrpc: "2.0",
-        id: requestId,
-        result: {
-          tools: tools.map((toolDef) => ({
-            name: toolDef.name,
-            description: toolDef.description,
-            inputSchema: toolDef.inputSchema,
-          })),
-        },
-      });
+      // Await runtime-plugin load before responding so workspace-
+      // installed tools appear in the very first list call. Without
+      // this, an early tools/list could miss them and the LLM would
+      // never call them this session. `tools` is a `let` binding
+      // updated once when `runtimeReady` resolves; reading the latest
+      // value at callback time is the desired behaviour, not the
+      // loop-capture footgun the rule flags.
+      // eslint-disable-next-line no-loop-func -- read latest `tools` post-runtimeReady
+      runtimeReady.then(() =>
+        respond({
+          jsonrpc: "2.0",
+          id: requestId,
+          result: {
+            tools: tools.map((toolDef) => ({
+              name: toolDef.name,
+              description: toolDef.description,
+              inputSchema: toolDef.inputSchema,
+            })),
+          },
+        }),
+      );
     } else if (method === "tools/call") {
       if (!params?.name) {
         respond({
@@ -462,7 +525,9 @@ process.stdin.on("data", (chunk: Buffer) => {
         continue;
       }
       const toolArgs = params.arguments ?? {};
-      handleToolCall(params.name, toolArgs)
+      const callName = params.name;
+      runtimeReady
+        .then(() => handleToolCall(callName, toolArgs))
         .then((text) => {
           respond({
             jsonrpc: "2.0",
@@ -487,4 +552,16 @@ process.stdin.on("data", (chunk: Buffer) => {
   }
 });
 
-process.stdin.on("end", () => process.exit(0));
+// Drain pending responses before exiting. `tools/list` and `tools/call`
+// queue their replies on `runtimeReady.then(...)`, so a synchronous
+// `process.exit(0)` here can race them: if stdin closes before the
+// runtime plugin loader resolves, those `.then` callbacks never get
+// to write their response. Awaiting `runtimeReady` first lets the
+// pending replies flush, and setting `exitCode` (instead of calling
+// `exit`) lets the event loop drain the rest of the I/O before the
+// process leaves naturally.
+process.stdin.on("end", () => {
+  runtimeReady.finally(() => {
+    process.exitCode = 0;
+  });
+});

@@ -22,7 +22,8 @@
 
 import "dotenv/config";
 import WebSocket from "ws";
-import { createBridgeClient, chunkText } from "@mulmobridge/client";
+import { createBridgeClient, chunkText, formatAckReply } from "@mulmobridge/client";
+import { isObj, parseNotificationRaw, parseFrame, type JsonRecord, type ParsedStatus } from "./parse.js";
 
 const TRANSPORT_ID = "mastodon";
 const MAX_STATUS_LEN = 500; // Mastodon's default soft limit; many instances raise to 1000+
@@ -33,7 +34,7 @@ const RECONNECT_MAX_MS = 60_000;
 const instanceUrl = process.env.MASTODON_INSTANCE_URL;
 const accessToken = process.env.MASTODON_ACCESS_TOKEN;
 if (!instanceUrl || !accessToken) {
-  console.error("MASTODON_INSTANCE_URL and MASTODON_ACCESS_TOKEN are required.\n" + "See README for setup instructions.");
+  console.error("MASTODON_INSTANCE_URL and MASTODON_ACCESS_TOKEN are required.\nSee README for setup instructions.");
   process.exit(1);
 }
 
@@ -56,12 +57,6 @@ mulmo.onPush((pushEvent) => {
 });
 
 // ── Mastodon API ─────────────────────────────────────────────────
-
-type JsonRecord = Record<string, unknown>;
-
-function isObj(value: unknown): value is JsonRecord {
-  return typeof value === "object" && value !== null;
-}
 
 interface PostStatusOptions {
   inReplyTo: string | null;
@@ -120,40 +115,6 @@ async function postStatus(chatId: string, text: string, inReplyTo: string | null
   }
 }
 
-// ── HTML → plain text ───────────────────────────────────────────
-
-function stripTags(input: string): string {
-  // Walk char-by-char so we avoid regex backtracking on malformed HTML.
-  const out: string[] = [];
-  let inTag = false;
-  for (const char of input) {
-    if (char === "<") inTag = true;
-    else if (char === ">") inTag = false;
-    else if (!inTag) out.push(char);
-  }
-  return out.join("");
-}
-
-function decodeEntities(input: string): string {
-  return input
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
-
-function htmlToText(html: string): string {
-  const withNewlines = html.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>\s*<p>/gi, "\n\n");
-  return decodeEntities(stripTags(withNewlines)).trim();
-}
-
-function stripLeadingMentions(text: string): string {
-  // Remove one or more leading "@acct" / "@acct@instance" tokens
-  return text.replace(/^(?:@[A-Za-z0-9_.]+(?:@[A-Za-z0-9_.-]+)?\s+)+/, "").trim();
-}
-
 // ── Attachment fetching ─────────────────────────────────────────
 
 interface MulmoAttachment {
@@ -188,45 +149,23 @@ async function collectImageAttachments(media: unknown): Promise<MulmoAttachment[
 
 // ── Notification handling ───────────────────────────────────────
 
-interface ParsedStatus {
-  statusId: string;
-  senderAcct: string;
-  visibility: string;
-  text: string;
-  media: unknown;
-}
-
-function parseMentionStatus(notification: JsonRecord): ParsedStatus | null {
-  if (notification.type !== "mention") return null;
-  const status = notification.status;
-  if (!isObj(status)) return null;
-  const statusId = typeof status.id === "string" ? status.id : "";
-  const visibility = typeof status.visibility === "string" ? status.visibility : "public";
-  const account = isObj(status.account) ? status.account : null;
-  const senderAcct = account && typeof account.acct === "string" ? account.acct : "";
-  const content = typeof status.content === "string" ? status.content : "";
-  const text = stripLeadingMentions(htmlToText(content));
-  if (!statusId || !senderAcct) return null;
-  return { statusId, senderAcct, visibility, text, media: status.media_attachments };
+function shouldSkipNotification(parsed: ParsedStatus): string | null {
+  if (dmOnly && parsed.visibility !== "direct") {
+    return `skip non-DM from=${parsed.senderAcct} visibility=${parsed.visibility}`;
+  }
+  if (!allowAll && !allowedAccts.has(parsed.senderAcct)) {
+    return `denied from=${parsed.senderAcct}`;
+  }
+  return null;
 }
 
 async function handleNotification(raw: string): Promise<void> {
-  let notif: unknown;
-  try {
-    notif = JSON.parse(raw);
-  } catch {
-    return;
-  }
-  if (!isObj(notif)) return;
-  const parsed = parseMentionStatus(notif);
+  const parsed = parseNotificationRaw(raw);
   if (!parsed) return;
 
-  if (dmOnly && parsed.visibility !== "direct") {
-    console.log(`[mastodon] skip non-DM from=${parsed.senderAcct} visibility=${parsed.visibility}`);
-    return;
-  }
-  if (!allowAll && !allowedAccts.has(parsed.senderAcct)) {
-    console.log(`[mastodon] denied from=${parsed.senderAcct}`);
+  const skipReason = shouldSkipNotification(parsed);
+  if (skipReason) {
+    console.log(`[mastodon] ${skipReason}`);
     return;
   }
 
@@ -238,37 +177,13 @@ async function handleNotification(raw: string): Promise<void> {
 
   try {
     const ack = await mulmo.send(parsed.senderAcct, parsed.text, attachments.length > 0 ? attachments : undefined);
-    if (ack.ok) {
-      await postStatus(parsed.senderAcct, ack.reply ?? "", parsed.statusId, parsed.visibility);
-    } else {
-      const status = ack.status ? ` (${ack.status})` : "";
-      await postStatus(parsed.senderAcct, `Error${status}: ${ack.error ?? "unknown"}`, parsed.statusId, parsed.visibility);
-    }
+    await postStatus(parsed.senderAcct, formatAckReply(ack), parsed.statusId, parsed.visibility);
   } catch (err) {
     console.error(`[mastodon] message handling failed: ${err}`);
   }
 }
 
 // ── WebSocket stream ────────────────────────────────────────────
-
-interface StreamFrame {
-  event: string;
-  payload: string;
-}
-
-function parseFrame(raw: unknown): StreamFrame | null {
-  if (typeof raw !== "string") return null;
-  try {
-    const msg: unknown = JSON.parse(raw);
-    if (!isObj(msg)) return null;
-    const event = typeof msg.event === "string" ? msg.event : "";
-    const payload = typeof msg.payload === "string" ? msg.payload : "";
-    if (!event || !payload) return null;
-    return { event, payload };
-  } catch {
-    return null;
-  }
-}
 
 function connect(): void {
   const socket = new WebSocket(streamUrl);

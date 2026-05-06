@@ -15,30 +15,74 @@
           <span v-if="filePath" class="truncate">{{ filePath }}</span>
         </div>
       </div>
-      <div class="ml-4 shrink-0 flex gap-2">
-        <!-- Download Movie -->
-        <a
-          v-if="moviePath && !movieGenerating"
-          :href="`${downloadMovieBase}?moviePath=${encodeURIComponent(moviePath)}`"
-          download
-          class="px-3 py-1 text-xs rounded-full border transition-colors border-gray-200 text-gray-500 hover:bg-gray-50 flex items-center justify-center gap-1"
-        >
-          <span class="material-icons text-sm leading-none">download</span>
-          <span>{{ t("pluginMulmoScript.movie") }}</span>
-        </a>
-        <!-- Generate / Regenerate Movie -->
+      <div class="ml-4 shrink-0 flex items-center gap-2">
+        <!-- Play presentation: opens the lightbox at beat 0 and starts
+             audio. Same gating as Download Movie — only when a movie has
+             been generated, which is our proxy for "every beat has both
+             an image and audio on disk". Green outline + green icon
+             share the visual idiom with the (filled) Download button so
+             both completed-artifact actions read as the same family.
+             `isPlayReady` ensures we don't open the lightbox before the
+             first beat's image (and audio, if it has text) finish their
+             async load — moviePath can be set while loadExistingBeatImage
+             is still in flight. -->
         <button
-          class="px-3 py-1 text-xs rounded-full border transition-colors border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 flex items-center justify-center gap-1"
-          :disabled="movieGenerating"
+          v-if="moviePath && !movieGenerating"
+          class="h-8 w-8 flex items-center justify-center rounded border border-green-600 text-green-600 hover:bg-green-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          :disabled="!isPlayReady"
+          :title="t('pluginMulmoScript.playPresentation')"
+          :aria-label="t('pluginMulmoScript.playPresentation')"
+          @click="playPresentation"
+        >
+          <span class="material-icons text-base">play_arrow</span>
+        </button>
+        <!-- Download Movie: bearer-authenticated blob fetch, then a
+             synthetic <a download> click. The natural <a href download>
+             approach can't attach the Authorization header, which would
+             have forced a bearer-auth exemption on the route — the
+             reviewer's P1 was that any sibling process could then read
+             a caller-controlled movie path. Going through apiFetchRaw
+             (auto-attaches bearer) keeps the auth boundary intact. -->
+        <button
+          v-if="moviePath && !movieGenerating"
+          class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          :disabled="movieDownloading"
+          data-testid="mulmo-script-download-movie-button"
+          @click="downloadMovie"
+        >
+          <span class="material-icons text-base">download</span>
+          <span>{{ t("pluginMulmoScript.movie") }}</span>
+        </button>
+        <!-- Regenerate Movie (icon-only): collapses to a square once a
+             movie exists — the adjacent Download / Play already make
+             the subject clear, so the "Movie" label only adds noise. -->
+        <button
+          v-if="moviePath && !movieGenerating"
+          class="h-8 w-8 flex items-center justify-center rounded border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+          :title="t('pluginMulmoScript.regenerateMovie')"
+          :aria-label="t('pluginMulmoScript.regenerateMovie')"
+          data-testid="mulmo-script-regenerate-movie-button"
           @click="generateMovie"
         >
-          <svg v-if="movieGenerating" class="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none">
+          <span class="material-icons text-base">refresh</span>
+        </button>
+        <!-- Generate Movie (pill): no movie yet, or one is currently
+             generating. Keeps the label so first-time users know what
+             they're triggering. -->
+        <button
+          v-else
+          class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          :disabled="movieGenerating"
+          data-testid="mulmo-script-generate-movie-button"
+          @click="generateMovie"
+        >
+          <svg v-if="movieGenerating" class="animate-spin w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
           </svg>
           <span v-if="movieGenerating">{{ t("pluginMulmoScript.generating") }}</span>
           <template v-else>
-            <span class="material-icons text-sm leading-none">refresh</span>
+            <span class="material-icons text-sm">refresh</span>
             <span>{{ t("pluginMulmoScript.movie") }}</span>
           </template>
         </button>
@@ -216,7 +260,9 @@
                   {{ playingAudio?.index === index ? t("pluginMulmoScript.stop") : t("pluginMulmoScript.play") }}
                 </button>
                 <template v-else-if="audioErrors[index]">
-                  <span class="text-xs text-red-400" :title="audioErrors[index]">{{ t("pluginMulmoScript.errPrefix") }}</span>
+                  <span class="text-xs text-red-400 truncate min-w-0 max-w-[20rem]" :title="audioErrors[index]">
+                    {{ t("pluginMulmoScript.errPrefix") }} {{ audioErrors[index] }}
+                  </span>
                   <button
                     v-if="effectiveBeat(index).text"
                     class="text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-50"
@@ -234,7 +280,12 @@
                   {{ t("pluginMulmoScript.generateAudio") }}
                 </button>
               </div>
-              <button class="text-gray-400 hover:text-gray-600" :title="sourceOpen[index] ? 'Hide source' : 'Show source'" @click="toggleSource(index)">
+              <button
+                class="text-gray-400 hover:text-gray-600"
+                :title="sourceOpen[index] ? 'Hide source' : 'Show source'"
+                :data-testid="`mulmo-script-beat-source-toggle-${index}`"
+                @click="toggleSource(index)"
+              >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   class="w-3.5 h-3.5"
@@ -261,6 +312,7 @@
             :class="isValidBeat(index) ? 'outline-none' : 'outline outline-2 outline-red-400'"
             rows="8"
             spellcheck="false"
+            :data-testid="`mulmo-script-beat-source-textarea-${index}`"
           />
           <div class="flex items-center justify-end gap-2 px-2 pb-2">
             <span v-if="beatSaveErrors[index]" class="text-xs text-red-600" role="alert">{{
@@ -276,6 +328,7 @@
                   : 'border-gray-200 text-gray-300 cursor-not-allowed'
               "
               :disabled="!isValidBeat(index) || !!beatSaving[index]"
+              :data-testid="`mulmo-script-beat-update-button-${index}`"
               @click="updateBeat(index)"
             >
               {{ beatSaving[index] ? t("pluginMulmoScript.saving") : t("pluginMulmoScript.update") }}
@@ -308,42 +361,74 @@
     </div>
 
     <!-- Lightbox -->
-    <div v-if="lightbox" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80" @click="lightbox = null">
-      <div class="flex items-center gap-4" @click.stop>
-        <button
-          v-if="!lightbox.isCharacter"
-          class="text-white/60 hover:text-white disabled:opacity-20 text-4xl leading-none"
-          :disabled="!hasPrev"
-          @click="lightboxMove(-1)"
-        >
-          ‹
-        </button>
-        <div class="flex flex-col items-center gap-3">
-          <img :src="lightbox.src" class="max-w-[80vw] max-h-[80vh] object-contain rounded shadow-2xl" />
-          <div class="flex items-center gap-4">
-            <p v-if="lightbox.text" class="max-w-[80vw] text-center text-white text-2xl leading-relaxed">
-              {{ lightbox.text }}
-            </p>
-            <button
-              v-if="beatAudios[lightbox.index]"
-              class="shrink-0 text-sm px-3 py-1 rounded border"
-              :class="
-                playingAudio?.index === lightbox.index ? 'border-red-400 text-red-400 hover:bg-red-400/20' : 'border-white/60 text-white/60 hover:bg-white/20'
-              "
-              @click="playAudio(lightbox.index)"
-            >
-              {{ playingAudio?.index === lightbox.index ? t("pluginMulmoScript.stop") : t("pluginMulmoScript.play") }}
-            </button>
+    <div v-if="lightbox" class="fixed inset-0 z-50 bg-black/80 overflow-y-auto" @click="closeLightbox">
+      <button class="fixed top-2 right-4 z-10 text-white/60 hover:text-white text-3xl leading-none" :title="t('common.close')" @click.stop="closeLightbox">
+        ✕
+      </button>
+      <div class="flex flex-col items-center gap-4 pt-4 pb-8" @click.stop>
+        <div class="flex items-center gap-4">
+          <button
+            v-if="!lightbox.isCharacter"
+            class="text-white/60 hover:text-white disabled:opacity-20 text-5xl leading-none"
+            :disabled="!hasPrev"
+            @click="lightboxMove(-1)"
+          >
+            ‹
+          </button>
+          <div class="flex flex-col items-center">
+            <img :src="lightbox.src" class="max-w-[80vw] max-h-[85vh] object-contain rounded shadow-2xl" />
+            <div v-if="!lightbox.isCharacter && beats.length > 1" class="relative w-full h-1">
+              <div class="flex gap-1 h-full">
+                <div
+                  v-for="i in beats.length"
+                  :key="i - 1"
+                  class="group flex-1 cursor-pointer relative transition-colors"
+                  :class="
+                    i - 1 === lightbox.index
+                      ? 'bg-white/80 hover:bg-white'
+                      : i - 1 < lightbox.index
+                        ? 'bg-white/40 hover:bg-white/60'
+                        : 'bg-white/20 hover:bg-white/40'
+                  "
+                  @click="jumpToBeat(i - 1)"
+                >
+                  <span class="absolute -inset-y-3 inset-x-0" />
+                  <div
+                    v-if="beatTooltip(i - 1)"
+                    class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 px-2 py-1 rounded bg-black/90 text-white text-xs leading-tight w-48 max-h-[53px] overflow-hidden opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity"
+                  >
+                    {{ beatTooltip(i - 1) }}
+                  </div>
+                </div>
+              </div>
+              <div
+                v-if="playingAudio && playingAudio.index === lightbox.index"
+                class="absolute top-1/2 w-3.5 h-3.5 rounded-full bg-white shadow ring-2 ring-black/30 -translate-y-1/2 -translate-x-1/2 pointer-events-none"
+                :style="{ left: `${((lightbox.index + audioProgress) / beats.length) * 100}%` }"
+              />
+            </div>
           </div>
+          <button
+            v-if="!lightbox.isCharacter"
+            class="text-white/60 hover:text-white disabled:opacity-20 text-5xl leading-none"
+            :disabled="!hasNext"
+            @click="lightboxMove(1)"
+          >
+            ›
+          </button>
         </div>
-        <button
-          v-if="!lightbox.isCharacter"
-          class="text-white/60 hover:text-white disabled:opacity-20 text-4xl leading-none"
-          :disabled="!hasNext"
-          @click="lightboxMove(1)"
-        >
-          ›
-        </button>
+        <div v-if="lightbox.text || beatAudios[lightbox.index]" class="relative w-screen flex justify-center px-16">
+          <p v-if="lightbox.text" class="max-w-[80vw] text-center text-white leading-relaxed text-[clamp(0.8rem,1.76vw,1.6rem)]">
+            {{ lightbox.text }}
+          </p>
+          <button
+            v-if="beatAudios[lightbox.index]"
+            class="absolute top-0 right-4 text-sm px-3 py-1 rounded border border-white/60 text-white/60 hover:bg-white/20"
+            @click="playAudio(lightbox.index)"
+          >
+            {{ playingAudio?.index === lightbox.index ? t("pluginMulmoScript.stop") : t("pluginMulmoScript.play") }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -353,17 +438,21 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-
-const { t } = useI18n();
 import type { MulmoScriptData } from "./index";
 import { mulmoBeatSchema, mulmoScriptSchema } from "@mulmocast/types";
 import { extractErrorMessage, getMissingCharacterKeys, shouldAutoRenderBeat, streamMovieEvents, validateBeatJSON } from "./helpers";
 import { apiGet, apiPost, apiFetchRaw } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
+import type { MulmoScriptEndpoints } from "./definition";
 import { errorMessage } from "../../utils/errors";
 import { useClipboardCopy } from "../../composables/useClipboardCopy";
 import { useActiveSession } from "../../composables/useActiveSession";
 import { GENERATION_KINDS, type PendingGeneration } from "../../types/events";
+
+const endpoints = pluginEndpoints<MulmoScriptEndpoints>("mulmoScript");
+const filesEndpoints = pluginEndpoints<{ content: string }>("files");
+
+const { t } = useI18n();
 
 interface Beat {
   speaker?: string;
@@ -401,10 +490,6 @@ const script = computed<MulmoScript>(() => data.value?.script ?? {});
 const filePath = computed(() => data.value?.filePath ?? "");
 const beats = computed<Beat[]>(() => script.value.beats ?? []);
 
-// Exposed to the template so the `<a :href="...">` download button
-// can compose a query-string URL without inlining the API path.
-const downloadMovieBase = API_ROUTES.mulmoScript.downloadMovie;
-
 // Per-beat render state
 type RenderState = "idle" | "rendering" | "done" | "error";
 const renderState = reactive<Record<number, RenderState>>({});
@@ -416,16 +501,21 @@ const sourceText = reactive<Record<number, string>>({});
 // the Update button. Cleared on next successful save or editor close.
 // Store raw error + kind tag so the template picks a localized key,
 // instead of pre-composing an English-prefixed string here.
-type BeatSaveError = { kind: "invalidJson" | "saveFailed"; error: string };
+interface BeatSaveError {
+  kind: "invalidJson" | "saveFailed";
+  error: string;
+}
 const beatSaveErrors = reactive<Record<number, BeatSaveError>>({});
 const beatSaving = reactive<Record<number, boolean>>({});
 const localOverrides = reactive<Record<number, Beat>>({});
 const movieGenerating = ref(false);
+const movieDownloading = ref(false);
 const moviePath = ref<string | null>(null);
 const beatAudios = reactive<Record<number, string>>({});
 const audioState = reactive<Record<number, "generating" | "done" | "error">>({});
 const audioErrors = reactive<Record<number, string>>({});
 const playingAudio = ref<{ index: number; audio: HTMLAudioElement } | null>(null);
+const audioProgress = ref(0);
 const beatListEl = ref<HTMLElement | null>(null);
 const lightbox = ref<{
   src: string;
@@ -474,16 +564,58 @@ function characterPrompt(key: string): string {
   return (script.value.imageParams?.images?.[key]?.prompt as string) ?? "";
 }
 
+function stopPlayingAudio() {
+  if (!playingAudio.value) return;
+  playingAudio.value.audio.pause();
+  playingAudio.value = null;
+  audioProgress.value = 0;
+}
+
 function openLightbox(index: number) {
-  if (playingAudio.value) {
-    playingAudio.value.audio.pause();
-    playingAudio.value = null;
-  }
+  stopPlayingAudio();
   lightbox.value = {
     src: renderedImages[index],
     text: effectiveBeat(index).text,
     index,
   };
+}
+
+// Backdrop click handler. Stops any in-flight narration so the audio
+// doesn't keep playing after the lightbox is dismissed — without this,
+// the HTMLAudioElement created by playAudio() outlives the modal and
+// the user hears disembodied narration with no UI to stop it.
+function closeLightbox() {
+  stopPlayingAudio();
+  lightbox.value = null;
+}
+
+// "Play presentation" toolbar action. Opens the lightbox at beat 0 and
+// kicks off its narration audio; the existing on-ended hook then chains
+// through the rest of the deck (lightboxMove(1) → playAudio if the next
+// beat has audio), so one click runs the whole presentation. Only wired
+// to the toolbar button when moviePath is set, which is our proxy for
+// "every beat has both image and audio on disk".
+//
+// `moviePath` arrives synchronously from /movie-status, but the per-beat
+// image and audio data URIs are populated asynchronously by
+// loadExistingBeatImage / loadExistingBeatAudio in initializeScript().
+// The Play button can therefore become visible before beat 0's assets
+// hydrate — `isPlayReady` gates the click so the lightbox never opens
+// with an undefined src or silent narration on a beat that does have
+// text.
+const isPlayReady = computed<boolean>(() => {
+  if (beats.value.length === 0) return false;
+  if (!renderedImages[0]) return false;
+  // Audio is only required when the beat has text (the source of TTS).
+  // Beats without text are valid; they just play silently.
+  if (effectiveBeat(0).text && !beatAudios[0]) return false;
+  return true;
+});
+
+function playPresentation() {
+  if (!isPlayReady.value) return;
+  openLightbox(0);
+  if (beatAudios[0]) playAudio(0);
 }
 
 const hasPrev = computed(() => {
@@ -502,13 +634,39 @@ const hasNext = computed(() => {
   return false;
 });
 
+function jumpToBeat(index: number) {
+  if (!lightbox.value) return;
+  if (index === lightbox.value.index) return;
+  if (!renderedImages[index]) return;
+  const wasPlaying = playingAudio.value !== null;
+  openLightbox(index);
+  if (wasPlaying && beatAudios[index]) {
+    playAudio(index);
+  }
+}
+
+function beatTooltip(index: number): string {
+  const text = effectiveBeat(index).text ?? "";
+  return text.length > 80 ? `${text.slice(0, 80)}…` : text;
+}
+
 function lightboxMove(delta: number) {
   if (!lightbox.value) return;
   const total = beats.value.length;
+  // If audio was playing when the user clicked the arrow, carry the
+  // playback over to the next beat that has audio. openLightbox()
+  // unconditionally stops any active audio, so we capture the flag
+  // BEFORE that and replay AFTER. The on-ended auto-advance path
+  // already nulls playingAudio before calling lightboxMove, so this
+  // branch won't double-fire there.
+  const wasPlaying = playingAudio.value !== null;
   let i = lightbox.value.index + delta;
   while (i >= 0 && i < total) {
     if (renderedImages[i]) {
       openLightbox(i);
+      if (wasPlaying && beatAudios[i]) {
+        playAudio(i);
+      }
       return;
     }
     i += delta;
@@ -545,7 +703,7 @@ async function onSourceToggle(open: boolean) {
     let text = scriptSourceText.value;
     // Read the current file from disk so beat-level edits are reflected
     if (filePath.value) {
-      const response = await apiGet<{ content?: string }>(API_ROUTES.files.content, { path: filePath.value });
+      const response = await apiGet<{ content?: string }>(filesEndpoints.content, { path: filePath.value });
       if (response.ok && response.data.content) {
         text = response.data.content;
       }
@@ -568,7 +726,7 @@ async function applySource() {
     alert(extractErrorMessage(err));
     return;
   }
-  const response = await apiPost<unknown>(API_ROUTES.mulmoScript.updateScript, {
+  const response = await apiPost<unknown>(endpoints.updateScript.url, {
     filePath: filePath.value,
     script: parsed,
   });
@@ -602,7 +760,7 @@ function effectiveBeat(index: number): Beat {
 function toggleSource(index: number) {
   if (!sourceOpen[index]) {
     sourceText[index] = JSON.stringify(effectiveBeat(index), null, 2);
-    delete beatSaveErrors[index];
+    Reflect.deleteProperty(beatSaveErrors, index);
   }
   sourceOpen[index] = !sourceOpen[index];
 }
@@ -621,14 +779,14 @@ async function updateBeat(index: number) {
   }
   const prevImage = JSON.stringify(effectiveBeat(index).image);
 
-  delete beatSaveErrors[index];
+  Reflect.deleteProperty(beatSaveErrors, index);
   beatSaving[index] = true;
-  const response = await apiPost<unknown>(API_ROUTES.mulmoScript.updateBeat, {
+  const response = await apiPost<unknown>(endpoints.updateBeat.url, {
     filePath: filePath.value,
     beatIndex: index,
     beat,
   });
-  delete beatSaving[index];
+  Reflect.deleteProperty(beatSaving, index);
   if (!response.ok) {
     beatSaveErrors[index] = { kind: "saveFailed", error: response.error };
     return;
@@ -638,14 +796,14 @@ async function updateBeat(index: number) {
   sourceOpen[index] = false;
 
   if (JSON.stringify(beat.image) !== prevImage) {
-    delete renderedImages[index];
+    Reflect.deleteProperty(renderedImages, index);
     renderBeat(index);
   }
 }
 
 async function renderBeat(index: number) {
   renderState[index] = "rendering";
-  const response = await apiPost<{ image?: string; error?: string }>(API_ROUTES.mulmoScript.renderBeat, {
+  const response = await apiPost<{ image?: string; error?: string }>(endpoints.renderBeat.url, {
     filePath: filePath.value,
     beatIndex: index,
     chatSessionId: chatSessionId.value,
@@ -666,9 +824,9 @@ async function renderBeat(index: number) {
 }
 
 async function regenerateBeat(index: number) {
-  delete renderedImages[index];
+  Reflect.deleteProperty(renderedImages, index);
   renderState[index] = "rendering";
-  const response = await apiPost<{ image?: string; error?: string }>(API_ROUTES.mulmoScript.renderBeat, {
+  const response = await apiPost<{ image?: string; error?: string }>(endpoints.renderBeat.url, {
     filePath: filePath.value,
     beatIndex: index,
     force: true,
@@ -689,7 +847,7 @@ async function regenerateBeat(index: number) {
 }
 
 async function loadExistingBeatImage(index: number) {
-  const response = await apiGet<{ image?: string }>(API_ROUTES.mulmoScript.beatImage, { filePath: filePath.value, beatIndex: String(index) });
+  const response = await apiGet<{ image?: string }>(endpoints.beatImage.url, { filePath: filePath.value, beatIndex: String(index) });
   // silently ignore errors — image simply hasn't been generated yet
   if (response.ok && response.data.image) {
     renderedImages[index] = response.data.image;
@@ -698,7 +856,7 @@ async function loadExistingBeatImage(index: number) {
 }
 
 async function loadExistingBeatAudio(index: number) {
-  const response = await apiGet<{ audio?: string }>(API_ROUTES.mulmoScript.beatAudio, { filePath: filePath.value, beatIndex: String(index) });
+  const response = await apiGet<{ audio?: string }>(endpoints.beatAudio.url, { filePath: filePath.value, beatIndex: String(index) });
   // silently ignore errors
   if (response.ok && response.data.audio) {
     beatAudios[index] = response.data.audio;
@@ -708,8 +866,8 @@ async function loadExistingBeatAudio(index: number) {
 
 async function generateAudio(index: number) {
   audioState[index] = "generating";
-  delete audioErrors[index];
-  const response = await apiPost<{ audio?: string; error?: string }>(API_ROUTES.mulmoScript.generateBeatAudio, {
+  Reflect.deleteProperty(audioErrors, index);
+  const response = await apiPost<{ audio?: string; error?: string }>(endpoints.generateBeatAudio.url, {
     filePath: filePath.value,
     beatIndex: index,
     chatSessionId: chatSessionId.value,
@@ -739,9 +897,15 @@ function playAudio(index: number) {
   if (!src) return;
   const audio = new Audio(src);
   playingAudio.value = { index, audio };
+  audioProgress.value = 0;
+  audio.addEventListener("timeupdate", () => {
+    if (playingAudio.value?.index !== index) return;
+    if (audio.duration > 0) audioProgress.value = audio.currentTime / audio.duration;
+  });
   audio.addEventListener("ended", () => {
     if (playingAudio.value?.index !== index) return;
     playingAudio.value = null;
+    audioProgress.value = 0;
     if (lightbox.value?.index === index) {
       lightboxMove(1);
       const nextIndex = lightbox.value?.index;
@@ -770,7 +934,7 @@ async function onBeatDrop(event: DragEvent, index: number) {
   if (!file || !file.type.startsWith("image/")) return;
 
   renderState[index] = "rendering";
-  delete renderErrors[index];
+  Reflect.deleteProperty(renderErrors, index);
   let imageData: string;
   try {
     imageData = await new Promise<string>((resolve, reject) => {
@@ -784,7 +948,7 @@ async function onBeatDrop(event: DragEvent, index: number) {
     renderState[index] = "error";
     return;
   }
-  const response = await apiPost<{ image?: string; error?: string }>(API_ROUTES.mulmoScript.uploadBeatImage, {
+  const response = await apiPost<{ image?: string; error?: string }>(endpoints.uploadBeatImage.url, {
     filePath: filePath.value,
     beatIndex: index,
     imageData,
@@ -820,7 +984,7 @@ async function onCharDrop(event: DragEvent, key: string) {
   if (!file || !file.type.startsWith("image/")) return;
 
   charRenderState[key] = "rendering";
-  delete charErrors[key];
+  Reflect.deleteProperty(charErrors, key);
   let imageData: string;
   try {
     imageData = await new Promise<string>((resolve, reject) => {
@@ -834,7 +998,7 @@ async function onCharDrop(event: DragEvent, key: string) {
     charRenderState[key] = "error";
     return;
   }
-  const response = await apiPost<{ image?: string; error?: string }>(API_ROUTES.mulmoScript.uploadCharacterImage, { filePath: filePath.value, key, imageData });
+  const response = await apiPost<{ image?: string; error?: string }>(endpoints.uploadCharacterImage.url, { filePath: filePath.value, key, imageData });
   if (!response.ok) {
     charErrors[key] = response.error || "Upload failed";
     charRenderState[key] = "error";
@@ -863,7 +1027,7 @@ function openCharacterLightbox(key: string) {
 }
 
 async function loadExistingCharacterImage(key: string) {
-  const response = await apiGet<{ image?: string }>(API_ROUTES.mulmoScript.characterImage, { filePath: filePath.value, key });
+  const response = await apiGet<{ image?: string }>(endpoints.characterImage.url, { filePath: filePath.value, key });
   // silently ignore errors
   if (response.ok && response.data.image) {
     charImages[key] = response.data.image;
@@ -877,8 +1041,8 @@ function refreshMissingCharacterImages() {
 
 async function renderCharacter(key: string, force: boolean) {
   charRenderState[key] = "rendering";
-  delete charErrors[key];
-  const response = await apiPost<{ image?: string; error?: string }>(API_ROUTES.mulmoScript.renderCharacter, {
+  Reflect.deleteProperty(charErrors, key);
+  const response = await apiPost<{ image?: string; error?: string }>(endpoints.renderCharacter.url, {
     filePath: filePath.value,
     key,
     force,
@@ -902,43 +1066,65 @@ async function generateAllCharacters() {
   await Promise.all(characterKeys.value.filter((key) => charRenderState[key] !== "rendering").map((key) => renderCharacter(key, false)));
 }
 
+// Probe the server for an existing beat PNG before triggering any
+// generation. Only auto-renders when the disk is empty AND the beat
+// is a deterministic type — imagePrompt beats are left empty so the
+// user clicks Generate explicitly (avoids surprise paid text2image
+// calls on every page refresh).
+async function hydrateBeatImage(beat: Beat, index: number, hasCharacters: boolean, autoRenderTypes: readonly string[]): Promise<void> {
+  await loadExistingBeatImage(index);
+  if (renderedImages[index]) return;
+  if (shouldAutoRenderBeat(beat, hasCharacters, autoRenderTypes)) {
+    await renderBeat(index);
+  }
+}
+
 async function initializeScript() {
   // Reset scroll position so new results start at the top
   if (beatListEl.value) beatListEl.value.scrollTop = 0;
   // Reset per-script state
-  Object.keys(renderState).forEach((key) => delete renderState[+key]);
-  Object.keys(renderedImages).forEach((key) => delete renderedImages[+key]);
-  Object.keys(renderErrors).forEach((key) => delete renderErrors[+key]);
-  Object.keys(sourceOpen).forEach((key) => delete sourceOpen[+key]);
-  Object.keys(sourceText).forEach((key) => delete sourceText[+key]);
-  Object.keys(beatSaveErrors).forEach((key) => delete beatSaveErrors[+key]);
-  Object.keys(beatSaving).forEach((key) => delete beatSaving[+key]);
-  Object.keys(localOverrides).forEach((key) => delete localOverrides[+key]);
-  Object.keys(beatAudios).forEach((key) => delete beatAudios[+key]);
-  Object.keys(audioState).forEach((key) => delete audioState[+key]);
-  Object.keys(audioErrors).forEach((key) => delete audioErrors[+key]);
-  Object.keys(charRenderState).forEach((key) => delete charRenderState[key]);
-  Object.keys(charImages).forEach((key) => delete charImages[key]);
-  Object.keys(charErrors).forEach((key) => delete charErrors[key]);
-  Object.keys(beatDragOver).forEach((key) => delete beatDragOver[+key]);
+  Object.keys(renderState).forEach((key) => Reflect.deleteProperty(renderState, key));
+  Object.keys(renderedImages).forEach((key) => Reflect.deleteProperty(renderedImages, key));
+  Object.keys(renderErrors).forEach((key) => Reflect.deleteProperty(renderErrors, key));
+  Object.keys(sourceOpen).forEach((key) => Reflect.deleteProperty(sourceOpen, key));
+  Object.keys(sourceText).forEach((key) => Reflect.deleteProperty(sourceText, key));
+  Object.keys(beatSaveErrors).forEach((key) => Reflect.deleteProperty(beatSaveErrors, key));
+  Object.keys(beatSaving).forEach((key) => Reflect.deleteProperty(beatSaving, key));
+  Object.keys(localOverrides).forEach((key) => Reflect.deleteProperty(localOverrides, key));
+  Object.keys(beatAudios).forEach((key) => Reflect.deleteProperty(beatAudios, key));
+  Object.keys(audioState).forEach((key) => Reflect.deleteProperty(audioState, key));
+  Object.keys(audioErrors).forEach((key) => Reflect.deleteProperty(audioErrors, key));
+  Object.keys(charRenderState).forEach((key) => Reflect.deleteProperty(charRenderState, key));
+  Object.keys(charImages).forEach((key) => Reflect.deleteProperty(charImages, key));
+  Object.keys(charErrors).forEach((key) => Reflect.deleteProperty(charErrors, key));
+  Object.keys(beatDragOver).forEach((key) => Reflect.deleteProperty(beatDragOver, key));
   moviePath.value = null;
   if (sourceDetails.value) sourceDetails.value.open = false;
 
+  // Mount-time policy: prefer the existing PNG on the server. Every
+  // beat — deterministic AND imagePrompt — first probes /beat-image,
+  // and we only fall through to renderBeat() when the disk has nothing
+  // yet AND the type is safe to auto-render (deterministic content,
+  // no characters waiting). Without this probe a refresh would re-fire
+  // generateBeatImage for every beat, and for imagePrompt beats that
+  // means a paid text2image call against an image we already have.
+  //
+  // Stale-after-edit: if the user edits the script source the on-disk
+  // PNG is no longer in sync with the new content, but we don't try to
+  // detect that here — the per-beat ↺ button is one click away and a
+  // page refresh re-runs this same probe, so the user can opt back into
+  // a fresh render whenever they need to.
   const AUTO_RENDER_TYPES = ["textSlide", "markdown", "chart", "mermaid", "html_tailwind"] as const;
   const hasCharacters = characterKeys.value.length > 0;
   beats.value.forEach((beat, index) => {
-    if (shouldAutoRenderBeat(beat, hasCharacters, AUTO_RENDER_TYPES)) {
-      renderBeat(index);
-    } else if (beat.imagePrompt) {
-      loadExistingBeatImage(index);
-    }
+    void hydrateBeatImage(beat, index, hasCharacters, AUTO_RENDER_TYPES);
     if (beat.text) loadExistingBeatAudio(index);
   });
 
   characterKeys.value.forEach((key) => loadExistingCharacterImage(key));
 
   if (filePath.value) {
-    const response = await apiGet<{ moviePath?: string }>(API_ROUTES.mulmoScript.movieStatus, { filePath: filePath.value });
+    const response = await apiGet<{ moviePath?: string }>(endpoints.movieStatus.url, { filePath: filePath.value });
     if (response.ok && response.data.moviePath) {
       moviePath.value = response.data.moviePath;
     }
@@ -994,15 +1180,15 @@ async function reflectGenerationFinish(entry: PendingGeneration): Promise<void> 
   if (entry.kind === GENERATION_KINDS.beatImage) {
     const idx = Number(entry.key);
     await loadExistingBeatImage(idx);
-    if (renderState[idx] === "rendering") delete renderState[idx];
+    if (renderState[idx] === "rendering") Reflect.deleteProperty(renderState, idx);
   } else if (entry.kind === GENERATION_KINDS.beatAudio) {
     const idx = Number(entry.key);
     await loadExistingBeatAudio(idx);
-    if (audioState[idx] === "generating") delete audioState[idx];
+    if (audioState[idx] === "generating") Reflect.deleteProperty(audioState, idx);
   } else if (entry.kind === GENERATION_KINDS.characterImage) {
     await loadExistingCharacterImage(entry.key);
     if (charRenderState[entry.key] === "rendering") {
-      delete charRenderState[entry.key];
+      Reflect.deleteProperty(charRenderState, entry.key);
     }
   } else if (entry.kind === GENERATION_KINDS.movie) {
     movieGenerating.value = false;
@@ -1012,7 +1198,7 @@ async function reflectGenerationFinish(entry: PendingGeneration): Promise<void> 
 
 async function refreshMoviePath(): Promise<void> {
   if (!filePath.value) return;
-  const response = await apiGet<{ moviePath?: string }>(API_ROUTES.mulmoScript.movieStatus, { filePath: filePath.value });
+  const response = await apiGet<{ moviePath?: string }>(endpoints.movieStatus.url, { filePath: filePath.value });
   if (response.ok && response.data.moviePath) {
     moviePath.value = response.data.moviePath;
   }
@@ -1021,7 +1207,7 @@ async function refreshMoviePath(): Promise<void> {
 async function generateMovie() {
   movieGenerating.value = true;
   try {
-    const res = await apiFetchRaw(API_ROUTES.mulmoScript.generateMovie, {
+    const res = await apiFetchRaw(endpoints.generateMovie.url, {
       method: "POST",
       body: JSON.stringify({
         filePath: filePath.value,
@@ -1044,6 +1230,40 @@ async function generateMovie() {
     alert(extractErrorMessage(err));
   } finally {
     movieGenerating.value = false;
+  }
+}
+
+// Bearer-authenticated movie download. apiFetchRaw auto-attaches the
+// Authorization header (which a plain `<a href download>` cannot), so
+// the route stays behind the standard /api/* bearer guard. The blob
+// is hooked to a synthetic anchor whose `download` attribute carries
+// the filename — the browser still surfaces a native save dialog.
+async function downloadMovie() {
+  if (!moviePath.value || movieDownloading.value) return;
+  movieDownloading.value = true;
+  let objectUrl: string | null = null;
+  try {
+    const res = await apiFetchRaw(endpoints.downloadMovie.url, {
+      method: "GET",
+      query: { moviePath: moviePath.value },
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    objectUrl = URL.createObjectURL(blob);
+    const filename = moviePath.value.split("/").pop() ?? "movie.mp4";
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  } catch (err) {
+    alert(extractErrorMessage(err));
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    movieDownloading.value = false;
   }
 }
 </script>

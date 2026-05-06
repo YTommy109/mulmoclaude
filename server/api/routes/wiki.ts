@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import path from "path";
 import { WORKSPACE_PATHS } from "../../workspace/paths.js";
 import { readTextSafeSync, readTextSafe } from "../../utils/files/safe.js";
-import { writeFileAtomic } from "../../utils/files/atomic.js";
+import { writeWikiPage } from "../../workspace/wiki-pages/io.js";
 import { getPageIndex } from "./wiki/pageIndex.js";
 import { parseFrontmatterTags } from "./wiki/frontmatter.js";
 import { badRequest, notFound } from "../../utils/httpError.js";
@@ -15,6 +15,7 @@ import { previewSnippet } from "../../utils/logPreview.js";
 // different name avoids the no-shadow clash without renaming the
 // long-standing local.
 import { errorMessage as formatError } from "../../utils/errors.js";
+import { BULLET_LINK_PATTERN, BULLET_WIKI_LINK_PATTERN } from "../../utils/regex.js";
 
 const router = Router();
 
@@ -44,12 +45,12 @@ export function wikiSlugify(text: string): string {
 }
 
 const TABLE_SEPARATOR_PATTERN = /^\|[\s|:-]+\|$/;
-// Capture the href (group 2) alongside the title (group 1) so we can
-// derive the slug from the file name instead of re-slugifying the
-// title. This matters for non-ASCII titles like "さくらインターネット"
+// Bullet-link patterns (BULLET_LINK_PATTERN, BULLET_WIKI_LINK_PATTERN)
+// live in `server/utils/regex.ts` alongside other server regex audit
+// notes. Capture the href (group 2) alongside the title (group 1) so
+// we can derive the slug from the file name instead of re-slugifying
+// the title — important for non-ASCII titles like "さくらインターネット"
 // where `wikiSlugify` returns "" and the slug would otherwise be lost.
-const BULLET_LINK_PATTERN = /^[-*]\s+\[([^\]]+)\]\(([^)]*)\)(?:\s*[—–-]\s*(.*))?/;
-const BULLET_WIKI_LINK_PATTERN = /^[-*]\s+\[\[([^\]]+)\]\](?:\s*[—–-]\s*(.*))?/;
 // Unicode-aware tag body: any letter or number in any script
 // (so Japanese / Chinese / Korean tags like `#クラウド` or `#可視化`
 // work), plus `-` and `_` as internal joiners. First char is a
@@ -103,6 +104,28 @@ export function buildTableColumnMap(headerRow: string): Map<string, number> {
   return map;
 }
 
+interface TableColumnIndices {
+  slug: number;
+  title: number;
+  summary: number;
+  /** Undefined when the table has no `tags` column — caller skips
+   *  the tags lookup entirely and the row gets `tags: []`. */
+  tags: number | undefined;
+}
+
+/** Resolve the per-column indices the row parser needs. Falls back
+ *  to positional defaults (0/1/2) when the table has no header map.
+ *  "summary" is the canonical column name; "description" is accepted
+ *  as a legacy alias used by older fixtures. */
+function resolveTableColumnIndices(columnMap: Map<string, number> | null): TableColumnIndices {
+  return {
+    slug: columnMap?.get("slug") ?? 0,
+    title: columnMap?.get("title") ?? 1,
+    summary: columnMap?.get("summary") ?? columnMap?.get("description") ?? 2,
+    tags: columnMap?.get("tags"),
+  };
+}
+
 // Each parser returns the entry it produced (if any). The parent
 // loop tries them in order; the first non-null result wins.
 function parseTableRow(trimmed: string, columnMap: Map<string, number> | null): WikiPageEntry | null {
@@ -111,19 +134,14 @@ function parseTableRow(trimmed: string, columnMap: Map<string, number> | null): 
     .slice(1, -1)
     .map((column) => column.trim().replace(/^`|`$/g, ""));
   if (cols.length < 2) return null;
-  const slugIdx = columnMap?.get("slug") ?? 0;
-  const titleIdx = columnMap?.get("title") ?? 1;
-  // Accept either "summary" (the canonical column name in
-  // server/workspace/helps/wiki.md) or "description" (used by the
-  // existing unit test fixture). Fall back to column 2 when the
-  // table has no header map.
-  const summaryIdx = columnMap?.get("summary") ?? columnMap?.get("description") ?? 2;
-  const tagsIdx = columnMap?.get("tags");
-  const slug = cols[slugIdx] ?? "";
-  const title = cols[titleIdx] || slug;
-  const description = cols[summaryIdx] ?? "";
-  const tags = tagsIdx !== undefined ? parseTagsCell(cols[tagsIdx] ?? "") : [];
+
+  const idx = resolveTableColumnIndices(columnMap);
+  const slug = cols[idx.slug] ?? "";
+  const title = cols[idx.title] || slug;
   if (!slug || !title) return null;
+
+  const description = cols[idx.summary] ?? "";
+  const tags = idx.tags !== undefined ? parseTagsCell(cols[idx.tags] ?? "") : [];
   return { title, slug, description, tags };
 }
 
@@ -233,8 +251,9 @@ async function resolvePagePath(pageName: string): Promise<string | null> {
   const indexContent = readFileOrEmpty(indexFile());
   const entries = parseIndexEntries(indexContent);
   const titleMatch = entries.find((entry) => entry.title === pageName);
-  if (titleMatch && slugs.has(titleMatch.slug)) {
-    return path.join(dir, slugs.get(titleMatch.slug)!);
+  if (titleMatch) {
+    const file = slugs.get(titleMatch.slug);
+    if (file) return path.join(dir, file);
   }
 
   return null;
@@ -320,7 +339,7 @@ function buildIndexResponse(action: string): WikiResponse {
 // instructions distinctions that the GET and POST handlers share.
 export function buildPageResponseData(args: { action: string; pageName: string; resolvedTitle: string; content: string; exists: boolean }): WikiResponse {
   const { action, pageName, resolvedTitle, content, exists } = args;
-  const hasContent = !!content;
+  const hasContent = Boolean(content);
   // Three states:
   //   1. !exists              → page file is missing entirely.
   //   2. exists && !hasContent → page file exists but is empty (e.g.,
@@ -370,7 +389,7 @@ export function toPageResponse(args: { action: string; pageName: string; filePat
     pageName,
     resolvedTitle,
     content,
-    exists: !!filePath,
+    exists: Boolean(filePath),
   });
 }
 
@@ -508,9 +527,14 @@ type SaveOutcome = { ok: true; absPath: string } | { ok: false; reason: "not-fou
 async function saveExistingPage(pageName: string, content: string): Promise<SaveOutcome> {
   const absPath = await resolvePagePath(pageName);
   if (!absPath) return { ok: false, reason: "not-found" };
-  // Atomic write: tmp file alongside the destination, fsync, rename.
-  // Prevents a crashed write from leaving the wiki page truncated.
-  await writeFileAtomic(absPath, content);
+  // Funnel through the wiki-page write helper. Atomic write is
+  // guaranteed inside; the helper also routes the (old, new) pair
+  // to the snapshot pipeline (#763 PR 2 — currently a no-op stub).
+  // Editor identity defaults to "user" here because the route is
+  // hit by both LLM (`manageWiki` MCP) and frontend saves; PR 2
+  // disambiguates them via a request-side flag.
+  const slug = path.basename(absPath, ".md");
+  await writeWikiPage(slug, content, { editor: "user" });
   return { ok: true, absPath };
 }
 
@@ -529,7 +553,7 @@ async function handleSaveAction(
     badRequest(res, "pageName required for save action");
     return;
   }
-  const content = req.body.content;
+  const { content } = req.body;
   if (typeof content !== "string") {
     log.warn("wiki", "POST save: missing content", { pageNamePreview: previewSnippet(pageName) });
     badRequest(res, "content (string) required for save action");

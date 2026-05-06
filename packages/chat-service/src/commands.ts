@@ -5,7 +5,7 @@
 // reset arrive via the factory so this file has zero imports from
 // the host app — only sibling module types.
 
-import type { Role, SessionSummary } from "./types.js";
+import type { BridgeSkillSummary, Role, SessionSummary } from "./types.js";
 import type { ChatStateStore, TransportChatState } from "./chat-state.js";
 
 // ── Types ────────────────────────────────────────────────────
@@ -13,6 +13,11 @@ import type { ChatStateStore, TransportChatState } from "./chat-state.js";
 export interface CommandResult {
   reply: string;
   nextState?: TransportChatState;
+  /** When set, the relay must NOT short-circuit with `reply`. It
+   *  adopts `nextState` as the active chat state and forwards
+   *  `forwardAs` to the agent as the user message. Used by the
+   *  `//{skill}` shortcut: reset + run skill in one bridge turn. */
+  forwardAs?: string;
 }
 
 export type CommandHandler = (text: string, transportId: string, chatState: TransportChatState) => Promise<CommandResult | null>;
@@ -34,6 +39,40 @@ function formatRelativeTime(isoDate: string): string {
   return `${days}d ago`;
 }
 
+/**
+ * Split a `//{skill} [args...]` shortcut into the skill name and the
+ * verbatim argument text.
+ *
+ * The separator between the skill name and args is the FIRST run of
+ * whitespace (a single space, multiple spaces, a tab, a CRLF — the
+ * bridge can't disambiguate "long separator" from "short separator
+ * plus leading whitespace in args", so the simple choice is to drop
+ * the whole leading run as one logical separator). Whitespace INSIDE
+ * the args (after the first run) is preserved verbatim, so doubled
+ * spaces, tabs, and newlines pasted into a multi-line prompt all
+ * survive.
+ *
+ * Exported for unit tests; callers in the handler use it directly.
+ *
+ * Examples:
+ *   "//mag2"               → { skillName: "mag2", argsVerbatim: "" }
+ *   "//mag2 url"           → { skillName: "mag2", argsVerbatim: "url" }
+ *   "//mag2  url"          → { skillName: "mag2", argsVerbatim: "url" }
+ *   "//mag2\r\nurl"        → { skillName: "mag2", argsVerbatim: "url" }
+ *   "//mag2 a  b\tc"       → { skillName: "mag2", argsVerbatim: "a  b\tc" }
+ */
+export function parseSkillShortcut(text: string): { skillName: string; argsVerbatim: string } {
+  const sepIdx = text.search(/\s/);
+  if (sepIdx < 0) return { skillName: text.slice(2), argsVerbatim: "" };
+  const head = text.slice(0, sepIdx);
+  // Strip the full leading whitespace run — \s in JS already matches
+  // \r, \n, \t, \v, \f, NBSP (U+00A0), and the rest of Unicode whitespace,
+  // so CRLF separators collapse to nothing instead of leaving an orphan
+  // \n in argsVerbatim (Codex review iter-1).
+  const argsVerbatim = text.slice(sepIdx).replace(/^\s+/, "");
+  return { skillName: head.slice(2), argsVerbatim };
+}
+
 // ── Factory ──────────────────────────────────────────────────
 
 export function createCommandHandler(opts: {
@@ -49,8 +88,14 @@ export function createCommandHandler(opts: {
     messages: Array<{ source: string; text: string }>;
     total: number;
   }>;
+  /** Lists the skills the bridge command handler should expose.
+   *  Drives both the slash-command allowlist (only matching names
+   *  are forwarded to the agent) and the "Skills:" section in the
+   *  `/help` reply. When omitted, every unknown slash is rejected
+   *  and `/help` shows only the built-in commands. */
+  listRegisteredSkills?: () => Promise<BridgeSkillSummary[]>;
 }): CommandHandler {
-  const { loadAllRoles, getRole, resetChatState, connectSession, listSessions, getSessionHistory } = opts;
+  const { loadAllRoles, getRole, resetChatState, connectSession, listSessions, getSessionHistory, listRegisteredSkills } = opts;
 
   // Cache /sessions results per chat so /switch resolves to the correct list.
   // Key: "transportId:externalChatId". Bounded with max entries + TTL.
@@ -85,8 +130,12 @@ export function createCommandHandler(opts: {
 
   const getRolesText = (): string => ["Available roles:", ...loadAllRoles().map((r) => `  ${r.id} — ${r.name}`)].join("\n");
 
-  const getHelpText = (): string =>
-    [
+  // Built each time so `/help` reflects the live skill list. The
+  // `skills` argument is fetched once per command turn (see the
+  // `default:` branch and `case "/help"`) so we don't fs-scan twice
+  // when the handler both checks membership and renders help.
+  const buildHelpText = (skills: BridgeSkillSummary[]): string => {
+    const lines = [
       "Commands:",
       "  /reset  — Start a new session",
       "  /sessions [page] — List recent sessions (e.g. /sessions 2)",
@@ -96,9 +145,16 @@ export function createCommandHandler(opts: {
       "  /roles  — List available roles",
       "  /role <id> — Switch role",
       "  /status — Show current session info",
-      "",
-      "Send any other text to chat with the assistant.",
-    ].join("\n");
+    ];
+    if (skills.length > 0) {
+      lines.push("", "Skills:", ...skills.map((s) => `  /${s.name} — ${s.description}`));
+      lines.push("", "Tip: //<skill> [args...] starts a fresh session and runs the skill in one shot.");
+    }
+    lines.push("", "Send any other text to chat with the assistant.");
+    return lines.join("\n");
+  };
+
+  const fetchSkills = async (): Promise<BridgeSkillSummary[]> => (listRegisteredSkills ? await listRegisteredSkills() : []);
 
   const handleReset = async (transportId: string, chatState: TransportChatState): Promise<CommandResult> => {
     const nextState = await resetChatState(transportId, chatState.externalChatId, chatState.roleId);
@@ -254,6 +310,28 @@ export function createCommandHandler(opts: {
 
   const handleCommand: CommandHandler = async (text, transportId, chatState) => {
     if (!text.startsWith("/")) return null;
+
+    // `//{skill} [args...]` shortcut — start a new session AND run
+    // the skill in one bridge turn. Args after the skill name are
+    // forwarded verbatim — split at the FIRST whitespace character
+    // and preserve everything after it (including doubled spaces /
+    // tabs) so payloads like a URL with internal whitespace, or
+    // multi-paragraph prompts, aren't silently rewritten.
+    if (text.startsWith("//")) {
+      const skills = await fetchSkills();
+      const { skillName, argsVerbatim } = parseSkillShortcut(text);
+      if (skillName && skills.some((s) => s.name === skillName)) {
+        const nextState = await resetChatState(transportId, chatState.externalChatId, chatState.roleId);
+        const forwardAs = argsVerbatim.length > 0 ? `/${skillName} ${argsVerbatim}` : `/${skillName}`;
+        return {
+          reply: `Session reset. Running ${forwardAs}`,
+          nextState,
+          forwardAs,
+        };
+      }
+      return { reply: `Unknown command: ${text}\n\n${buildHelpText(skills)}` };
+    }
+
     const [command, ...args] = text.split(/\s+/);
 
     switch (command) {
@@ -266,15 +344,26 @@ export function createCommandHandler(opts: {
       case "/history":
         return handleHistory(chatState, args[0]);
       case "/help":
-        return { reply: getHelpText() };
+        return { reply: buildHelpText(await fetchSkills()) };
       case "/roles":
         return { reply: getRolesText() };
       case "/role":
         return handleRole(transportId, chatState, args[0]);
       case "/status":
         return handleStatus(chatState);
-      default:
-        return { reply: `Unknown command: ${command}\n\n${getHelpText()}` };
+      default: {
+        // Forward to the agent only if the command names a registered
+        // skill; otherwise reply with the standard "Unknown command"
+        // help. We deliberately do NOT pass arbitrary slash text
+        // through, so a typo can't accidentally invoke the agent and
+        // a slash that doesn't match anything stays a transport-level
+        // error. Reuse the same skill list for the membership check
+        // and the help text to avoid scanning the skills dir twice.
+        const skills = await fetchSkills();
+        const skillName = command.slice(1);
+        if (skillName && skills.some((s) => s.name === skillName)) return null;
+        return { reply: `Unknown command: ${command}\n\n${buildHelpText(skills)}` };
+      }
     }
   };
 

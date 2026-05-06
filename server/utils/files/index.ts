@@ -1,21 +1,11 @@
-// Consolidated workspace file I/O (#366).
-//
-// This barrel re-exports every public helper so call sites can do:
-//
-//   import { writeFileAtomic, readWorkspaceText } from "../utils/files/index.js";
-//
-// Grouped by concern:
-//
-//   atomic.ts        — write-then-rename primitives
-//   safe.ts          — ENOENT-swallowing wrappers (stat, readdir, readText, resolveWithinRoot)
-//   json.ts          — JSON read/write (sync legacy + async atomic)
-//   workspace-io.ts  — workspace-aware helpers (path resolve + I/O in one call)
+// #366: barrel for workspace file I/O. atomic = write-rename, safe = ENOENT-swallowing, json = sync read + atomic
+// write, workspace-io = path resolve + I/O in one call.
 
 export { writeFileAtomic, writeFileAtomicSync, type WriteAtomicOptions } from "./atomic.js";
 
 export { isEnoent, readTextSafeSync, statSafe, statSafeAsync, readDirSafe, readDirSafeAsync, readTextOrNull, resolveWithinRoot } from "./safe.js";
 
-export { loadJsonFile, saveJsonFile, writeJsonAtomic, readJsonOrNull } from "./json.js";
+export { loadJsonFile, writeJsonAtomic, readJsonOrNull } from "./json.js";
 
 export {
   resolveWorkspacePath,
@@ -36,9 +26,9 @@ export {
   ensureDirUnder,
 } from "./workspace-io.js";
 
-// ── Domain I/O ──────────────────────────────────────────────────
 export * from "./session-io.js";
-export * from "./todos-io.js";
+// todos-io.js removed (#1145) — todo persistence moved into the
+// `@mulmoclaude/todo-plugin` workspace package.
 export * from "./scheduler-io.js";
 export * from "./html-io.js";
 export * from "./reference-dirs-io.js";

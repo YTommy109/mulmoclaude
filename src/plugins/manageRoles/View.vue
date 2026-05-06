@@ -283,9 +283,9 @@ import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { useAppApi } from "../../composables/useAppApi";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { CustomRole, ManageRolesData } from "./index";
-import { getAllPluginNames } from "../../tools/index";
 import { apiGet, apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints, pluginAllPluginNames } from "../api";
+import type { RolesEndpoints } from "./definition";
 
 const { t } = useI18n();
 
@@ -296,15 +296,17 @@ interface PluginEntry {
 }
 
 // Plugins the user can assign — exclude internal/auto-managed ones
-const EXCLUDED = new Set(["text-response", "switchRole"]);
-const guiPlugins: PluginEntry[] = getAllPluginNames()
+const EXCLUDED = new Set(["text-response"]);
+const guiPlugins: PluginEntry[] = pluginAllPluginNames()
   .filter((name) => !EXCLUDED.has(name))
   .map((name) => ({ name, enabled: true, requiredEnv: [] }));
 
 const availablePlugins = ref<PluginEntry[]>(guiPlugins);
 
+const mcpEndpoints = pluginEndpoints<{ list: string }>("mcpTools");
+
 onMounted(async () => {
-  const result = await apiGet<PluginEntry[]>(API_ROUTES.mcpTools.list);
+  const result = await apiGet<PluginEntry[]>(mcpEndpoints.list);
   if (result.ok) {
     availablePlugins.value = [...guiPlugins, ...result.data];
   }
@@ -321,8 +323,10 @@ const appApi = useAppApi();
 
 const customRoles = ref<CustomRole[]>(props.selectedResult?.data?.customRoles ?? []);
 
+const rolesEndpoints = pluginEndpoints<RolesEndpoints>("roles");
+
 const { refresh: refreshCustomRoles } = useFreshPluginData<CustomRole[]>({
-  endpoint: () => API_ROUTES.roles.list,
+  endpoint: () => rolesEndpoints.list,
   extract: (json) => (Array.isArray(json) ? (json as CustomRole[]) : null),
   apply: (data) => {
     customRoles.value = data;
@@ -403,7 +407,7 @@ function selectRole(role: CustomRole) {
     name: role.name,
     icon: role.icon,
     prompt: role.prompt,
-    selectedPlugins: role.availablePlugins.filter((plugin) => plugin !== "switchRole"),
+    selectedPlugins: [...role.availablePlugins],
     queriesText: (role.queries ?? []).join("\n"),
   };
 }
@@ -417,7 +421,7 @@ interface ManageResult {
 }
 
 async function callManage(body: Record<string, unknown>): Promise<ManageResult> {
-  const result = await apiPost<ManageResult>(API_ROUTES.roles.manage, body);
+  const result = await apiPost<ManageResult>(rolesEndpoints.manage, body);
   if (!result.ok) {
     // Prefer the backend's error message (e.g. validation failure
     // details). Fall back to a status code only when the server didn't

@@ -15,17 +15,20 @@
 import { ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-
-const { t } = useI18n();
 import type { ManageRolesData, CustomRole } from "./index";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
+import type { RolesEndpoints } from "./definition";
+
+const { t } = useI18n();
 
 const props = defineProps<{ result: ToolResultComplete<ManageRolesData> }>();
 const customRoles = ref<CustomRole[]>(props.result.data?.customRoles ?? []);
 
+const endpoints = pluginEndpoints<RolesEndpoints>("roles");
+
 const { refresh } = useFreshPluginData<CustomRole[]>({
-  endpoint: () => API_ROUTES.roles.list,
+  endpoint: () => endpoints.list,
   extract: (json) => (Array.isArray(json) ? (json as CustomRole[]) : null),
   apply: (data) => {
     customRoles.value = data;

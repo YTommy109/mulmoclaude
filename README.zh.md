@@ -8,11 +8,17 @@
 
 [English](README.md) · [日本語](README.ja.md) · **简体中文** · [한국어](README.ko.md) · [Español](README.es.md) · [Português (BR)](README.pt-BR.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
 
-与 Claude Code 对话的 GUI 聊天界面 —— 并具备长期记忆、可视化工具以及对消息应用的访问能力。
+与 Claude Code 对话的 GUI 聊天界面 —— 具备长期记忆、丰富的可视化输出、沙箱执行，以及随处可用的远程访问。
 
-与 Claude Code 对话，获得的不仅仅是文本，而是 **交互式可视化输出**：文档、电子表格、思维导图、图表、图片、表单、3D 场景等等。内置的个人 wiki 为 Claude 提供 **持久化知识**，并随着每次对话不断增长。
+**长期记忆**：内置的个人 wiki —— 灵感来自 Andrej Karpathy 提出的「让 LLM 拥有一本随时间增长的笔记」这一想法 —— 为 Claude 提供 **持久化知识**，并随着每次对话不断丰富。
+
+与 Claude Code 对话，获得的不仅仅是文本，而是 **交互式可视化输出**：文档、电子表格、思维导图、图表、图片、表单、3D 场景等等。
+
+**沙箱执行**：Claude Code 在沙箱中运行，可保护你的系统免受提示注入攻击。
 
 **随处访问**：连接 Telegram、Slack、LINE、Discord 或 [另外 10 种消息应用](#messaging-bridges)，即可从手机与你的 AI 代理对话。
+
+**定时任务**：把每日摘要、周期性检查、定时提醒等重复性工作交给内置调度器，按 cron 计划运行你的代理。
 
 ## 快速开始
 
@@ -45,6 +51,10 @@ yarn dev
 | "抓取这篇文章：URL"  | 带 `[[链接]]` 的 wiki 页面，用作长期记忆 |
 | "安排每日新闻摘要"   | 自动运行的周期性任务                     |
 | "生成一张日落的图片" | AI 生成的图片 (Gemini)                   |
+| "订阅这个 RSS 源"    | 在 `/sources` 中注册并按计划抓取         |
+| "我的源有什么新内容?" | `/news` 的未读收件箱，每篇文章带聊天    |
+
+> **可直接访问的页面**: `/wiki`（浏览 + Lint）、`/news`（未读收件箱）、`/sources`（管理源）、`/automations`（周期任务）、`/calendar`、`/files`、`/skills`、`/roles`。每个页面都有自带页面上下文的聊天编辑器，可启动新会话。
 
 > **参与 MulmoClaude 开发？** 请参考 [`docs/developer.md`](docs/developer.md) 了解环境变量、脚本和架构。
 
@@ -147,6 +157,8 @@ MulmoClaude 使用 Claude Code 作为 AI 后端，它可以访问包括 Bash 在
 如果没有安装 Docker，应用会显示警告横幅，并在无沙盒的情况下继续工作。
 
 > **调试模式**：即使已安装 Docker，若想在没有沙盒的情况下运行，请在启动服务器之前设置 `DISABLE_SANDBOX=1`。
+>
+> **工具调用历史**：设置 `PERSIST_TOOL_CALLS=1` 后,`tool_call` 事件(包含 `args`)将与 `tool_result` 一起被记录到会话 jsonl。默认关闭,因为 `args` 可能很大,并可能携带你不希望写入磁盘的负载字节(图像 base64、MulmoScript JSON);适合在页面刷新或服务器重启后进行调试。详见 [issue #1096](https://github.com/receptron/mulmoclaude/issues/1096)。
 
 ## 日志
 

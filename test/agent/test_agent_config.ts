@@ -1,6 +1,6 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { unlinkSync } from "fs";
+import { existsSync, unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { __resetForTests as resetTokenState, generateAndWriteToken } from "../../server/api/auth/token.js";
@@ -24,7 +24,6 @@ describe("buildMcpConfig", () => {
       chatSessionId: "s1",
       port: 3001,
       activePlugins: ["manageTodoList", "presentDocument"],
-      roleIds: ["assistant", "cook"],
     }) as Record<string, unknown>;
 
     assert.ok(config.mcpServers);
@@ -39,22 +38,19 @@ describe("buildMcpConfig", () => {
     assert.equal(env.SESSION_ID, "s1");
     assert.equal(env.PORT, "3001");
     assert.equal(env.PLUGIN_NAMES, "manageTodoList,presentDocument");
-    assert.equal(env.ROLE_IDS, "assistant,cook");
   });
 
-  it("handles empty plugins and roles", async () => {
+  it("handles empty plugins", async () => {
     const config = buildMcpConfig({
       chatSessionId: "s2",
       port: 4000,
       activePlugins: [],
-      roleIds: [],
     }) as Record<string, unknown>;
 
     const servers = config.mcpServers as Record<string, unknown>;
     const server = servers.mulmoclaude as Record<string, unknown>;
     const env = server.env as Record<string, string>;
     assert.equal(env.PLUGIN_NAMES, "");
-    assert.equal(env.ROLE_IDS, "");
   });
 });
 
@@ -189,6 +185,7 @@ describe("buildDockerSpawnArgs", () => {
       platform: "darwin" as Platform,
       projectRoot: "/proj",
       homeDir: "/home/user",
+      chatSessionId: "chat-test-session",
     };
   }
 
@@ -244,6 +241,36 @@ describe("buildDockerSpawnArgs", () => {
     assert.ok(args.includes("/proj/src:/app/src:ro"));
   });
 
+  // The package bin script (`npx mulmoclaude` / `node packages/mulmoclaude/bin/...`)
+  // sets cwd to the package dir, where yarn-workspace dev installs leave an
+  // empty `node_modules/`. If the default falls back to `process.cwd()` the
+  // sandbox's `/app/node_modules` mount is empty and every MCP child crashes
+  // with "Cannot find module 'express'" — silently, before the `initialize`
+  // handshake. The default must instead resolve through an installed dep so
+  // it lands on the populated `node_modules/`.
+  it("default projectRoot resolves to a populated node_modules even when cwd is a yarn-workspace package", async () => {
+    const original = process.cwd();
+    const packageDir = join(original, "packages/mulmoclaude");
+    if (!existsSync(packageDir)) return; // not a workspace checkout — skip
+    try {
+      process.chdir(packageDir);
+      const args = buildDockerSpawnArgs({
+        workspacePath: "/ws",
+        cliArgs: [],
+        uid: 1000,
+        gid: 1000,
+        platform: "darwin" as Platform,
+        chatSessionId: "test",
+      });
+      const nmMount = args.find((arg) => typeof arg === "string" && arg.endsWith(":/app/node_modules:ro"));
+      assert.ok(nmMount, "expected a node_modules mount");
+      const hostPath = nmMount.replace(":/app/node_modules:ro", "");
+      assert.ok(existsSync(join(hostPath, "express")), `node_modules mount must point to a populated dir (got ${hostPath})`);
+    } finally {
+      process.chdir(original);
+    }
+  });
+
   it("mounts the .claude credentials from the home dir", async () => {
     const args = buildDockerSpawnArgs(baseParams());
     assert.ok(args.includes("/home/user/.claude:/home/node/.claude"));
@@ -258,6 +285,13 @@ describe("buildDockerSpawnArgs", () => {
     const idx = args.indexOf("--add-host");
     assert.ok(idx >= 0);
     assert.equal(args[idx + 1], "host.docker.internal:host-gateway");
+  });
+
+  it("forwards MULMOCLAUDE_CHAT_SESSION_ID into the container for the wiki-history hook (#963)", async () => {
+    const args = buildDockerSpawnArgs({ ...baseParams(), chatSessionId: "chat-abc-123" });
+    // -e flag arg pairs: `["-e", "KEY=value", ...]`
+    const envIdx = args.findIndex((arg, idx) => arg === "-e" && args[idx + 1] === "MULMOCLAUDE_CHAT_SESSION_ID=chat-abc-123");
+    assert.ok(envIdx >= 0, "expected MULMOCLAUDE_CHAT_SESSION_ID to be forwarded");
   });
 
   it("does not add host mapping on darwin", async () => {
@@ -344,7 +378,7 @@ describe("prepareUserServers", () => {
       api: { type: "http", url: "http://localhost:8080/mcp" },
     };
     const out = prepareUserServers(servers, true, hostWs);
-    const api = out.api;
+    const { api } = out;
     assert.ok(api && api.type === "http");
     assert.equal(api.url, "http://host.docker.internal:8080/mcp");
   });
@@ -372,7 +406,7 @@ describe("prepareUserServers", () => {
       },
     };
     const out = prepareUserServers(servers, true, hostWs);
-    const bad = out.bad;
+    const { bad } = out;
     assert.ok(bad && bad.type === "stdio");
     assert.deepEqual(bad.args, ["/etc/hosts"]);
   });
@@ -426,7 +460,6 @@ describe("buildMcpConfig — user servers", () => {
       chatSessionId: "s1",
       port: 3001,
       activePlugins: ["manageTodoList"],
-      roleIds: ["assistant"],
       userServers: {
         gmail: {
           type: "http",
@@ -444,7 +477,6 @@ describe("buildMcpConfig — user servers", () => {
       chatSessionId: "s1",
       port: 3001,
       activePlugins: ["manageTodoList"],
-      roleIds: ["assistant"],
       userServers: {
         mulmoclaude: {
           type: "http",
@@ -600,7 +632,6 @@ describe("buildMcpConfig — bearer token env (#325)", () => {
       chatSessionId: "s1",
       port: 3001,
       activePlugins: [],
-      roleIds: [],
     }) as Record<string, unknown>;
 
     const servers = config.mcpServers as Record<string, unknown>;
@@ -615,7 +646,6 @@ describe("buildMcpConfig — bearer token env (#325)", () => {
       chatSessionId: "s1",
       port: 3001,
       activePlugins: [],
-      roleIds: [],
     }) as Record<string, unknown>;
 
     const servers = config.mcpServers as Record<string, unknown>;

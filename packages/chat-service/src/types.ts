@@ -27,13 +27,26 @@ export interface Logger {
   debug(prefix: string, message: string, data?: Record<string, unknown>): void;
 }
 
-/** A file attached to a bridge message. Generic enough for images,
- *  PDFs, documents, videos, etc. The server decides what to do with
- *  each based on mimeType — images become vision content blocks,
- *  unsupported types are ignored with a log. */
+/** A file attached to a bridge or UI message. Generic enough for
+ *  images, PDFs, documents, videos, etc. The server decides what to
+ *  do with each based on mimeType — images become vision content
+ *  blocks, unsupported types are ignored with a log.
+ *
+ *  Either `data` (inline base64 bytes) or `path` (workspace-relative
+ *  path the server can read) MUST be set:
+ *
+ *    - Bridges over the socket transport ship raw bytes, so they
+ *      populate `data` (and usually `mimeType`).
+ *    - The Vue UI uploads paste/drop and sidebar-pick files to disk
+ *      before sending and populates `path`; the server reads bytes
+ *      from disk and infers `mimeType` from the extension.
+ *
+ *  Mirrors `@mulmobridge/protocol`'s `Attachment` (kept structurally
+ *  duplicated here per the package-contract rules in this file). */
 export interface Attachment {
-  mimeType: string;
-  data: string; // base64-encoded
+  mimeType?: string;
+  data?: string; // base64-encoded
+  path?: string;
   filename?: string;
 }
 
@@ -41,6 +54,16 @@ export interface StartChatParams {
   message: string;
   roleId: string;
   chatSessionId: string;
+  /** Bridge-only legacy carrier for "the user picked this image".
+   *  No in-tree bridge populates this today; the field stays on the
+   *  type so external bridge clients on older protocol versions still
+   *  type-check. Only workspace paths are accepted — `data:` URLs
+   *  are no longer supported and the host app drops them with a
+   *  warn. Bridges that need to ship raw bytes should use the
+   *  modern `attachments[]` field with `{ mimeType, data }` entries;
+   *  the host app persists those to `data/attachments/YYYY/MM/`
+   *  server-side and rewrites them as path-bearing attachments
+   *  before any other processing. */
   selectedImageData?: string;
   attachments?: Attachment[];
   /** Session origin — application-defined (e.g. "human", "bridge") */
@@ -109,4 +132,27 @@ export interface ChatServiceDeps {
     messages: Array<{ source: string; text: string }>;
     total: number;
   }>;
+  /**
+   * Return the skills the bridge command handler should expose. The
+   * handler uses the result for two things:
+   *   (1) Decide whether an unknown bridge slash command (e.g. `/foo`
+   *       from Telegram) names a registered skill — only matching
+   *       names are forwarded to the agent so the Claude CLI's
+   *       slash-command resolver runs the skill. Non-matches stay a
+   *       transport-level "Unknown command" reply.
+   *   (2) Render a "Skills:" section in the bridge `/help` text and
+   *       in the "Unknown command" fallback so a bridge user can
+   *       discover what skills exist without leaving the chat.
+   * When omitted, every unknown slash is rejected and `/help` shows
+   * only the built-in commands.
+   */
+  listRegisteredSkills?: () => Promise<BridgeSkillSummary[]>;
+}
+
+/** Minimal skill info the bridge command handler needs to render the
+ *  `/help` text and decide whether a slash command should be forwarded
+ *  to the agent. Sourced from SKILL.md frontmatter on the host side. */
+export interface BridgeSkillSummary {
+  name: string;
+  description: string;
 }

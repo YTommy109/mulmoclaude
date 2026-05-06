@@ -19,6 +19,7 @@ import { execSync, spawn } from "node:child_process";
 import path from "node:path";
 
 import { ONE_SECOND_MS } from "../../server/utils/time.ts";
+
 const PROJECT_ROOT = path.resolve(import.meta.dirname, "../..");
 
 function isDockerAvailable(): boolean {
@@ -47,7 +48,7 @@ interface JsonRpcResponse {
   id: number;
   result?: {
     serverInfo?: { name: string };
-    tools?: Array<{ name: string }>;
+    tools?: { name: string }[];
   };
 }
 
@@ -76,9 +77,7 @@ describe("MCP server Docker smoke test", { skip: !canRunDocker }, () => {
       "-e",
       "PORT=9999",
       "-e",
-      "PLUGIN_NAMES=manageTodoList,presentMulmoScript,manageWiki,switchRole",
-      "-e",
-      "ROLE_IDS=general",
+      "PLUGIN_NAMES=manageTodoList,presentMulmoScript",
       "mulmoclaude-sandbox",
       "tsx",
       "/app/server/agent/mcp-server.ts",
@@ -120,7 +119,7 @@ describe("MCP server Docker smoke test", { skip: !canRunDocker }, () => {
       ];
 
       for (const line of lines) {
-        child.stdin.write(line + "\n");
+        child.stdin.write(`${line}\n`);
       }
       child.stdin.end();
 

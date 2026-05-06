@@ -71,7 +71,7 @@ export function getMissingCharacterKeys(keys: readonly string[], images: Record<
  * without pulling the dep into this module.
  */
 export interface SafeParseSchema {
-  safeParse(value: unknown): { success: boolean };
+  safeParse: (value: unknown) => { success: boolean };
 }
 
 /**
@@ -102,9 +102,9 @@ export function extractErrorMessage(err: unknown): string {
  * sonarjs/cognitive-complexity threshold.
  */
 export interface MovieEventHandlers {
-  onBeatImageDone(beatIndex: number): void;
-  onBeatAudioDone(beatIndex: number): void;
-  onDone(moviePath: string): void;
+  onBeatImageDone: (beatIndex: number) => void;
+  onBeatAudioDone: (beatIndex: number) => void;
+  onDone: (moviePath: string) => void;
 }
 
 /**
@@ -130,7 +130,6 @@ export function applyMovieEvent(event: SSEEvent, handlers: MovieEventHandlers): 
     case "error":
       throw new Error(event.message);
     case "unknown":
-      return;
   }
 }
 

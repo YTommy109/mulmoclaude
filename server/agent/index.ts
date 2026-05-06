@@ -5,9 +5,9 @@ import { isDockerAvailable } from "../system/docker.js";
 import { refreshCredentials } from "../system/credentials.js";
 import { loadMcpConfig, loadSettings } from "../system/config.js";
 import type { Role } from "../../src/config/roles.js";
-import { loadAllRoles } from "../workspace/roles.js";
 import { buildSystemPrompt } from "./prompt.js";
 import { CONTAINER_WORKSPACE_PATH, buildMcpConfig, getActivePlugins, prepareUserServers, resolveMcpConfigPaths, userServerAllowedToolNames } from "./config.js";
+import { validateStdioPackages } from "./mcpHealth.js";
 import type { Attachment } from "@mulmobridge/protocol";
 import type { AgentEvent } from "./stream.js";
 import { log } from "../system/logger/index.js";
@@ -24,31 +24,43 @@ export interface RunAgentOptions {
   abortSignal?: AbortSignal;
 }
 
-export async function* runAgent(
-  message: string,
-  role: Role,
-  workspacePath: string,
-  sessionId: string,
-  port: number,
-  claudeSessionId?: string,
-  abortSignal?: AbortSignal,
-  attachments?: Attachment[],
-  userTimezone?: string,
-): AsyncGenerator<AgentEvent> {
+export interface RunAgentInput {
+  message: string;
+  role: Role;
+  workspacePath: string;
+  sessionId: string;
+  port: number;
+  claudeSessionId?: string;
+  abortSignal?: AbortSignal;
+  attachments?: Attachment[];
+  userTimezone?: string;
+}
+
+export async function* runAgent({
+  message,
+  role,
+  workspacePath,
+  sessionId,
+  port,
+  claudeSessionId,
+  abortSignal,
+  attachments,
+  userTimezone,
+}: RunAgentInput): AsyncGenerator<AgentEvent> {
   const activePlugins = getActivePlugins(role);
   const useDocker = await isDockerAvailable();
 
-  // User-defined MCP servers are read per invocation so Settings UI
-  // changes apply immediately. Disabled / malformed entries get
-  // filtered by prepareUserServers; remaining servers are merged into
-  // the --mcp-config payload below.
+  // Per-invocation read so Settings UI changes apply without a server restart.
   const userMcpRaw = loadMcpConfig().mcpServers;
   const userServers = prepareUserServers(userMcpRaw, useDocker, workspacePath);
   const hasUserServers = Object.keys(userServers).length > 0;
   const hasMcp = activePlugins.length > 0 || hasUserServers;
 
-  // On macOS sandbox, always refresh credentials from Keychain before each
-  // agent run so that expired OAuth tokens are replaced transparently.
+  // Catches the "catalog entry pinned to a non-existent npm package" failure where the MCP subprocess never starts and
+  // Claude silently falls back to WebSearch. Fire-and-forget; per-package cache amortizes the network round-trip.
+  validateStdioPackages(userServers).catch(() => {});
+
+  // macOS sandbox: refresh from Keychain so expired OAuth tokens get replaced transparently.
   if (useDocker && process.platform === "darwin") {
     await refreshCredentials();
   }
@@ -60,10 +72,9 @@ export async function* runAgent(
     userTimezone,
   });
 
-  // In debug mode (--debug), dump the full system prompt on the first
-  // message of each session so developers can inspect what the LLM sees.
+  // --debug: dump the full system prompt on the first message of each session.
   if (!claudeSessionId && process.argv.includes("--debug")) {
-    log.info("agent", "system prompt for new session:\n" + fullSystemPrompt);
+    log.info("agent", `system prompt for new session:\n${fullSystemPrompt}`);
   }
 
   const mcpPaths = resolveMcpConfigPaths({
@@ -75,39 +86,40 @@ export async function* runAgent(
     await mkdir(dirname(mcpPaths.hostPath), { recursive: true });
   }
 
+  // Surfaced in the --debug spawn log so developers can verify Settings UI changes reach Claude Code.
+  let mcpServerNames: string[] = [];
   if (hasMcp) {
     const mcpConfig = buildMcpConfig({
       chatSessionId: sessionId,
       port,
       activePlugins,
-      roleIds: loadAllRoles().map((loadedRole) => loadedRole.id),
       useDocker,
       userServers,
     });
-    // Write atomically so a partially-written file can't be picked
-    // up by a concurrent claude spawn (they share the --mcp-config
-    // path under the session dir).
+    mcpServerNames = Object.keys(mcpConfig.mcpServers).sort();
+    // Atomic so a concurrent claude spawn can't pick up a half-written file (they share the path under the session dir).
     await writeJsonAtomic(mcpPaths.hostPath, mcpConfig);
   }
 
-  // Fresh read on every invocation so the Settings UI can change
-  // allowedTools / MCP servers without a server restart.
+  // Per-invocation read so allowedTools / MCP-server changes apply without a server restart.
   const settings = loadSettings();
   const userServerAllowedTools = userServerAllowedToolNames(userServers, useDocker);
 
-  // Don't persist raw sessionId into log sinks (esp. the retained
-  // file sink). A boolean presence flag is enough for operational
-  // debugging and avoids writing identifiers that route back to a
-  // specific session into long-lived log files.
+  // Boolean presence flags only — never write raw sessionId into long-lived log sinks.
   const backend = getActiveBackend();
-  log.info("agent", "spawning agent", {
+  const spawnLog: Record<string, unknown> = {
     backend: backend.id,
     roleId: role.id,
     useDocker,
     hasMcp,
     resumed: Boolean(claudeSessionId),
     hasSessionId: Boolean(sessionId),
-  });
+  };
+  // --debug only: kept off the default log to avoid leaking user MCP server names into long-lived sinks.
+  if (process.argv.includes("--debug") && hasMcp) {
+    spawnLog.mcpServers = mcpServerNames;
+  }
+  log.info("agent", "spawning agent", spawnLog);
 
   try {
     yield* backend.runAgent({

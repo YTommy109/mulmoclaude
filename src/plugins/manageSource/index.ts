@@ -1,10 +1,11 @@
-import type { ToolPlugin } from "../../tools/types";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
-import toolDefinition, { TOOL_NAME } from "./definition";
+import toolDefinition, { TOOL_NAME, type SourcesEndpoints } from "./definition";
+import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
-import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { apiCall } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
 // Mirrors server/sources/types.ts#Source. Re-declared here so the
@@ -43,7 +44,9 @@ export interface ManageSourceData {
 const manageSourcePlugin: ToolPlugin<ManageSourceData> = {
   toolDefinition,
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<ManageSourceData>>(API_ROUTES.sources.manage, args);
+    const endpoints = pluginEndpoints<SourcesEndpoints>("sources");
+    const { method, url } = endpoints.manage;
+    const result = await apiCall<ToolResult<ManageSourceData>>(url, { method, body: args });
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,
@@ -59,9 +62,14 @@ const manageSourcePlugin: ToolPlugin<ManageSourceData> = {
   },
   isEnabled: () => true,
   generatingMessage: "Managing sources…",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("sources", View),
+  previewComponent: wrapWithScope("sources", Preview),
 };
 
 export default manageSourcePlugin;
 export { TOOL_NAME };
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: TOOL_NAME,
+  entry: manageSourcePlugin,
+};

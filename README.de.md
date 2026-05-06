@@ -8,11 +8,17 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Português (BR)](README.pt-BR.md) · [Français](README.fr.md) · **Deutsch**
 
-GUI-Chat mit Claude Code — zusätzlich mit Langzeitgedächtnis, visuellen Werkzeugen und Zugang zu Messaging-Apps.
+GUI-Chat mit Claude Code — Langzeitgedächtnis, reichhaltige visuelle Ausgaben, Sandbox-Ausführung und Fernzugriff von überall.
 
-Chatten Sie mit Claude Code und erhalten Sie nicht nur Text, sondern **interaktive visuelle Ausgaben**: Dokumente, Tabellenkalkulationen, Mindmaps, Diagramme, Bilder, Formulare, 3D-Szenen und vieles mehr. Ein integriertes persönliches Wiki gibt Claude ein **beständiges Wissen**, das mit jedem Gespräch wächst.
+**Langzeitgedächtnis**: Ein integriertes persönliches Wiki — inspiriert von Andrej Karpathys Idee, einem LLM ein mit der Zeit wachsendes Notizbuch zu geben — verleiht Claude **beständiges Wissen**, das mit jedem Gespräch wächst.
+
+Chatten Sie mit Claude Code und erhalten Sie nicht nur Text, sondern **interaktive visuelle Ausgaben**: Dokumente, Tabellenkalkulationen, Mindmaps, Diagramme, Bilder, Formulare, 3D-Szenen und vieles mehr.
+
+**Sandbox-Ausführung**: Claude Code läuft innerhalb einer Sandbox und schützt Ihr System so vor Prompt-Injection-Angriffen.
 
 **Zugriff von überall**: Verbinden Sie Telegram, Slack, LINE, Discord oder [10 weitere Messaging-Apps](#messaging-bridges), um vom Handy aus mit Ihrem KI-Agenten zu sprechen.
+
+**Geplante Aufgaben**: Übergeben Sie wiederkehrende Arbeit — tägliche Zusammenfassungen, regelmäßige Prüfungen, geplante Erinnerungen — an den integrierten Scheduler, der Ihren Agenten per Cron ausführt.
 
 ## Schnellstart
 
@@ -45,6 +51,10 @@ yarn dev
 | „Nimm diesen Artikel auf: URL"                            | Wiki-Seite mit `[[links]]` für das Langzeitgedächtnis |
 | „Plane eine tägliche Nachrichtenübersicht"                | Wiederkehrende Aufgabe, die automatisch läuft         |
 | „Erzeuge ein Bild eines Sonnenuntergangs"                 | KI-generiertes Bild (Gemini)                          |
+| „Abonniere diesen RSS-Feed"                               | Quelle in `/sources` registriert, geplante Abrufe     |
+| „Was gibt es Neues in meinen Feeds?"                      | Ungelesen-Inbox unter `/news` mit Chat pro Artikel    |
+
+> **Direkt erreichbare Seiten**: `/wiki` (Durchsuchen + Lint), `/news` (Ungelesen-Inbox), `/sources` (Feed-Verwaltung), `/automations` (wiederkehrende Aufgaben), `/calendar`, `/files`, `/skills`, `/roles`. Jede Seite hat einen eigenen Chat-Composer, der einen neuen Chat startet, der den Seitenkontext bereits kennt.
 
 > **Sie arbeiten an MulmoClaude?** Siehe [`docs/developer.md`](docs/developer.md) für Umgebungsvariablen, Skripte und Architektur.
 
@@ -145,6 +155,8 @@ Wenn die Docker-Sandbox auf macOS aktiv ist, werden Anmeldeinformationen automat
 Wenn Docker nicht installiert ist, zeigt die App einen Warnhinweis an und funktioniert weiterhin ohne Sandboxing.
 
 > **Debug-Modus**: Um auch bei installiertem Docker ohne Sandbox zu laufen, setzen Sie `DISABLE_SANDBOX=1` vor dem Start des Servers.
+>
+> **Tool-Call-Historie**: Setzen Sie `PERSIST_TOOL_CALLS=1`, damit `tool_call`-Ereignisse (inklusive `args`) zusätzlich zu `tool_result` im Sitzungs-jsonl protokolliert werden. Standardmäßig aus, weil `args` sehr groß werden und Payload-Bytes (Base64-Bilder, MulmoScript-JSON) enthalten können, die Sie nicht auf der Festplatte erwarten würden; nützlich zum Debuggen nach einem Seitenrefresh oder Server-Neustart. Siehe [Issue #1096](https://github.com/receptron/mulmoclaude/issues/1096).
 
 ## Logging
 

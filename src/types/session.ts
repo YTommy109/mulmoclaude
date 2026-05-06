@@ -41,6 +41,8 @@ export interface SessionSummary {
   keywords?: string[];
   /** Where this session originated. Missing = "human" (backward compat). */
   origin?: SessionOrigin;
+  /** User-set bookmark flag. Persisted in the meta sidecar. */
+  isBookmarked?: boolean;
   // Live state from the server session store (present when the
   // session has an active in-memory entry on the server).
   isRunning?: boolean;
@@ -62,6 +64,10 @@ export interface TextEntry extends SessionEntry {
   source: "user" | "assistant";
   type: typeof EVENT_TYPES.text;
   message: string;
+  // Workspace-relative paths the user attached for this turn. Persisted
+  // alongside the text so the chat history can render attachment chips
+  // after a session reload. Only present on user entries.
+  attachments?: string[];
 }
 
 export interface ToolResultEntry extends SessionEntry {

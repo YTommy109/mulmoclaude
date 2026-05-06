@@ -80,7 +80,7 @@ function fakeFetcher(kind: FetcherKind, itemsBySlug: Record<string, SourceItem[]
     kind,
     async fetch(source) {
       const items = itemsBySlug[source.slug] ?? [];
-      return { items, cursor: { fake: "cursor-after-" + source.slug } };
+      return { items, cursor: { fake: `cursor-after-${source.slug}` } };
     },
   };
 }
@@ -144,13 +144,14 @@ describe("runSourcesPipeline — happy path", () => {
     assert.equal(summaries.length, 1);
     assert.equal(summaries[0].length, 2);
     // Daily file exists and contains the JSON block.
-    const dailyPath = result.dailyPath;
+    const { dailyPath } = result;
     assert.equal(dailyPath, dailyNewsPath(workspace, toLocalIsoDate(FIXED_NOW_MS)));
     const daily = await readFile(dailyPath, "utf-8");
     assert.match(daily, /# Daily brief/);
     assert.match(daily, /```json/);
     const jsonMatch = /```json\n([\s\S]*?)\n```/.exec(daily);
-    const parsed = JSON.parse(jsonMatch![1]);
+    assert.ok(jsonMatch);
+    const parsed = JSON.parse(jsonMatch[1]);
     assert.equal(parsed.itemCount, 2);
     // Archive files created per source.
     assert.equal(result.archiveWrittenPaths.length, 2);

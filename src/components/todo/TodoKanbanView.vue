@@ -122,9 +122,8 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import draggable from "vuedraggable";
-import type { StatusColumn, TodoItem } from "../../plugins/todo/index";
-import { colorForLabel } from "../../plugins/todo/labels";
-import { PRIORITY_BORDER, PRIORITY_CLASSES, PRIORITY_LABELS, dueDateClasses, formatDueLabel } from "../../plugins/todo/priority";
+import type { StatusColumn, TodoItem } from "@mulmoclaude/todo-plugin/shared";
+import { colorForLabel, PRIORITY_BORDER, PRIORITY_CLASSES, PRIORITY_LABELS, dueDateClasses, formatDueLabel } from "@mulmoclaude/todo-plugin/shared";
 
 const { t } = useI18n();
 
@@ -191,8 +190,12 @@ const itemsByStatus = computed(() => {
   for (const item of props.filteredItems) {
     const columnId = item.status ?? props.columns[0]?.id;
     if (!columnId) continue;
-    if (!map.has(columnId)) map.set(columnId, []);
-    map.get(columnId)!.push(item);
+    let bucket = map.get(columnId);
+    if (!bucket) {
+      bucket = [];
+      map.set(columnId, bucket);
+    }
+    bucket.push(item);
   }
   for (const list of map.values()) {
     list.sort((left, right) => (left.order ?? 0) - (right.order ?? 0));

@@ -28,6 +28,10 @@
 // so they need to be counted (and writable) by the index walker.
 //
 // Captures: prefix (indent + any `>` chains), bullet, separator, mark.
+// `\s*` and `>\s*` operate on disjoint character classes from the
+// surrounding bullet / separator / mark, so the nested quantifiers
+// can't overlap to produce ReDoS — each pass is linear in line length.
+// eslint-disable-next-line security/detect-unsafe-regex -- markdown task-line parser, bounded captures with hard delimiters
 const TASK_LINE = /^(\s*(?:>\s*)*)([-*+]|\d+[.)])(\s+)\[([ xX])\]/;
 
 // Fenced code block opener/closer. CommonMark allows fences to be
@@ -43,6 +47,7 @@ const TASK_LINE = /^(\s*(?:>\s*)*)([-*+]|\d+[.)])(\s+)\[([ xX])\]/;
 // be miscounted as a task — making the View's count-cross-check
 // refuse all toggles in the whole document.
 const FENCE_LINE = /^( {0,3})(`{3,}|~{3,})/;
+// eslint-disable-next-line security/detect-unsafe-regex -- bounded blockquote-prefix parser; `\s*` / `>\s?` / outer `+` operate on disjoint character classes (no overlap)
 const BLOCKQUOTE_PREFIX = /^(\s*(?:>\s?)+)/;
 
 // Mutable state for the line walker. Pulled out so the main toggle
@@ -66,7 +71,7 @@ function stepFence(line: string, state: FenceState): boolean {
   const content = quoteMatch ? line.slice(quoteMatch[0].length) : line;
   const fenceMatch = content.match(FENCE_LINE);
   if (fenceMatch) {
-    const marker = fenceMatch[2];
+    const [, , marker] = fenceMatch;
     if (!state.inFence) {
       // Openers may carry an info string after the marker
       // (e.g. "```ts"). We don't need to keep it — just enter
@@ -103,7 +108,7 @@ function stepFence(line: string, state: FenceState): boolean {
 function flipMark(line: string, match: RegExpMatchArray): string {
   const [whole, prefix, bullet, sep, mark] = match;
   const flipped = mark === " " ? "x" : " ";
-  return `${prefix}${bullet}${sep}[${flipped}]` + line.slice(whole.length);
+  return `${prefix}${bullet}${sep}[${flipped}]${line.slice(whole.length)}`;
 }
 
 /** Find the source-line index of every task-list item, in document

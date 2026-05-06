@@ -29,19 +29,17 @@ const deMessages = {
   },
   chatInput: {
     placeholder: "Aufgabe eingeben oder Datei ziehen / einfügen / anhängen…",
-    expandEditor: "Editor erweitern",
-    composeMessage: "Nachricht verfassen",
-    sendHint: "Cmd+Eingabe zum Senden",
     send: "Senden",
-    stop: "Stoppen",
     attachFile: "Datei anhängen",
     fileTooLarge: "Datei zu groß ({sizeMB} MB). Das Maximum beträgt 30 MB.",
     unsupportedFileType: "Dateityp nicht unterstützt. Akzeptiert: Bilder, PDF, DOCX, XLSX, PPTX, Textdateien.",
+    attachImageFailed: "Anhängen des Bildes fehlgeschlagen: {error}",
   },
   sessionHistoryPanel: {
     filters: {
       all: "Alle",
       unread: "Ungelesen",
+      bookmarked: "Gemerkt",
       human: "Mensch",
       scheduler: "Scheduler",
       skill: "Skill",
@@ -54,6 +52,11 @@ const deMessages = {
     running: "Läuft",
     noMessages: "(keine Nachrichten)",
     openRowAria: "Sitzung öffnen: {preview}",
+    rowMenuAria: "Sitzungsaktionen",
+    bookmark: "Merken",
+    unbookmark: "Lesezeichen entfernen",
+    delete: "Löschen",
+    deleteConfirm: "Diese Sitzung löschen?\n\n{preview}\n\nDies kann nicht rückgängig gemacht werden.",
   },
   notificationBell: {
     notifications: "Benachrichtigungen",
@@ -61,11 +64,30 @@ const deMessages = {
     noNotifications: "Keine Benachrichtigungen",
     dismiss: "Verwerfen",
   },
+  pluginDiagnostics: {
+    title: "Plugin-Konfigurationsproblem",
+    hostBody:
+      "Das Plugin „{plugin}“ hat versucht, den {label}-Schlüssel „{key}“ zu registrieren, aber er ist vom Host reserviert. Der Plugin-Eintrag wurde verworfen.",
+    intraBody:
+      "Die Plugins „{first}“ und „{second}“ registrieren beide {dimension} „{key}“. „{first}“ hat ihn zuerst beansprucht, daher wird die Registrierung von „{second}“ ignoriert.",
+  },
+  pluginErrorBoundary: {
+    title: "Plugin {pkg} ist abgestürzt",
+    subtitle: "Das Plugin konnte nicht gerendert werden. Der Fehler wurde in der Konsole protokolliert.",
+    showDetails: "Details anzeigen",
+    hideDetails: "Details ausblenden",
+    retry: "Erneut versuchen",
+  },
   sidebarHeader: {
     home: "Zum neuesten Chat",
     toolCallHistory: "Tool-Aufrufverlauf",
     settings: "Einstellungen",
     settingsGeminiMissing: "Einstellungen — Gemini-API-Schlüssel fehlt",
+    todayJournal: "Heutige Zusammenfassung",
+    todayJournalNotFound: "Noch keine Zusammenfassung — chatte etwas und das Journal erstellt eine.",
+    todayJournalLoadFailed: "Journal konnte nicht geladen werden (Status {status}): {error}",
+    copyMarkdown: "Chat als Markdown kopieren",
+    copiedMarkdown: "Kopiert!",
   },
   rightSidebar: {
     toggleSystemPrompt: "System-Prompt umschalten",
@@ -206,6 +228,116 @@ const deMessages = {
     pdfPreview: "PDF-Vorschau",
     parseError: "Parse-Fehler",
   },
+  filesView: {
+    chatPlaceholder: "Frage zu dieser Datei stellen…",
+  },
+  systemFiles: {
+    schemaLabel: "Schema",
+    showDetails: "Details anzeigen",
+    hideDetails: "Details ausblenden",
+    editPolicy: {
+      "agent-managed-but-hand-editable": "Agent-verwaltet (manuelle Bearbeitung erlaubt)",
+      "user-editable": "Benutzer-bearbeitbar",
+      "agent-managed": "Agent-verwaltet",
+      "fragile-format": "Empfindliches Format",
+      ephemeral: "Flüchtig",
+    },
+    interests: {
+      title: "Interests-Konfiguration",
+      summary: "Themen, die die News-/Quellen-Pipeline beobachtet und für dich bewertet. Manuell editierbar; der Agent aktualisiert ebenfalls aus dem Chat.",
+    },
+    mcp: {
+      title: "MCP-Server",
+      summary:
+        "Externe Model-Context-Protocol-Server, die mit dem Agenten verbunden sind. HTTP- oder Stdio-Server hinzufügen, um die Werkzeugauswahl zu erweitern.",
+    },
+    settings: {
+      title: "App-Einstellungen",
+      summary: "Vom Benutzer bearbeitbare Verhaltenseinstellungen — Gemini-API-Schlüssel, erlaubte Werkzeuge, Sandbox-Konfiguration usw.",
+    },
+    schedulerTasks: {
+      title: "Scheduler-Aufgaben",
+      summary:
+        "Wiederkehrende Agent-Automationen, die nach Zeitplan ausgelöst werden. Verwaltet über die Automations-UI; diese Datei ist die Quelle auf Festplatte.",
+    },
+    schedulerOverrides: {
+      title: "Scheduler-Überschreibungen",
+      summary:
+        "Pro-Aufgabe Zeit-/Intervall-Überschreibungen über dem Systemzeitplan. Der Agent bearbeitet dies, wenn du den Zeitpunkt einer wiederkehrenden Aufgabe änderst.",
+    },
+    newsReadState: {
+      title: "Lesestatus der News",
+      summary: "Lokales Tracking, welche News du gesehen hast. Flüchtig — kann gelöscht werden; wird beim Lesen neu erzeugt.",
+    },
+    schedulerItems: {
+      title: "Scheduler-Item-Warteschlange",
+      summary: "Geplante Aufrufe, die zur Auslösung bereitstehen. Agent-verwaltet; nicht von Hand bearbeiten, ohne jedes Feld zu verstehen.",
+    },
+    todosItems: {
+      title: "Todo-Einträge",
+      summary:
+        "Deine Aufgaben in allen Spalten des Kanban-Boards. Der Agent schreibt hier, wenn du sagst: füge ein Todo hinzu — Handbearbeitung ist ebenfalls möglich.",
+    },
+    todosColumns: {
+      title: "Todo-Spalten",
+      summary: "Spaltenaufteilung des Kanban-Boards (Titel, Reihenfolge, IDs). Vom Benutzer bearbeitbar — frei umbenennen oder umsortieren.",
+    },
+    wikiIndex: {
+      title: "Wiki-Index",
+      summary:
+        "Automatisch erzeugter Index aller Wiki-Seiten. Wird bei jeder Wiki-Bearbeitung aktualisiert; nicht von Hand bearbeiten (Änderungen werden überschrieben).",
+    },
+    wikiLog: {
+      title: "Wiki-Bearbeitungsprotokoll",
+      summary:
+        "Aktivitätsprotokoll der Erstellungs- und Bearbeitungsvorgänge im Wiki. Agent-verwaltet und nur anhängend — nützlich als Feed der letzten Änderungen.",
+    },
+    wikiSummary: {
+      title: "Wiki-Übersicht",
+      summary: "Automatisch erzeugte Übersicht des Wikis — Themencluster, Seitenzahl, jüngste Aktivitäten. Vom Agenten aktualisiert.",
+    },
+    wikiSchema: {
+      title: "Wiki-Schema",
+      summary:
+        "Formatspezifikation, die der Agent liest, um Wiki-Seiten konsistent zu halten. Empfindlich — eine bestimmte Struktur wird erwartet; bevorzuge Agent-getriebene Bearbeitung.",
+    },
+    memory: {
+      title: "Memory",
+      summary:
+        "Destillierte Fakten über dich, immer als Kontext für neue Gespräche geladen. Der Journal-Extraktor hängt automatisch an; manuelle Bearbeitung ebenfalls möglich.",
+    },
+    summariesIndex: {
+      title: "Zusammenfassungs-Index",
+      summary:
+        "Durchsuchbarer Index, der zu den vom Journal erzeugten Tages- und Themen-Zusammenfassungen verlinkt. Agent-verwaltet; bei jedem Journal-Lauf aktualisiert.",
+    },
+    rolesJson: {
+      title: "Rollendefinition (JSON)",
+      summary: "Rollenkonfiguration — Modellauswahl, MCP-Server, erlaubte Plugins, Anfragen-Vorschläge. Vom Benutzer bearbeitbar, kein Neustart nötig.",
+    },
+    rolesMd: {
+      title: "Rollenbeschreibung (Markdown)",
+      summary:
+        "Persona und System-Prompt-Text der Rolle, geladen als Kontext, wenn diese Rolle aktiv ist. Vom Benutzer bearbeitbar; Änderungen wirken ab der nächsten Nachricht.",
+    },
+    sourceFeed: {
+      title: "Abonnierte Quelle",
+      summary: "Eine abonnierte Quelle (RSS, GitHub-Releases / Issues, arXiv usw.). Vom Benutzer bearbeitbar; die Quellen-Pipeline pollt nach Zeitplan.",
+    },
+    sourceState: {
+      title: "Quellenstatus",
+      summary:
+        "Flüchtiger Pipeline-Zustand für eine Quelle — zuletzt gesehene IDs, ETags, Fetch-Fehler. Kann gelöscht werden; wird beim nächsten Lauf neu erzeugt.",
+    },
+    journalDaily: {
+      title: "Tägliche Journal-Zusammenfassung",
+      summary: "Automatisch erzeugte Rückschau auf deine Aktivitäten an einem Kalendertag, vom Journal-Lauf aus den Chat-Sitzungen destilliert.",
+    },
+    journalTopic: {
+      title: "Themen-Journal",
+      summary: "Langlaufende Notizen zu einem bestimmten Thema, gesammelt und überarbeitet, während du weiter darüber sprichst. Agent-verwaltet.",
+    },
+  },
   settingsMcpTab: {
     explanation:
       "Externe MCP-Server hinzufügen. HTTP-Server funktionieren in allen Modi. Stdio-Server nutzen {npx} / {node} / {tsx} aus dem Sandbox-Image; wenn Docker aktiviert ist, müssen die Pfade im Workspace liegen.",
@@ -233,6 +365,148 @@ const deMessages = {
     errIdExists: 'Die Server-ID "{id}" existiert bereits.',
     errBadHttpUrl: "Die HTTP-URL muss mit http:// oder https:// beginnen",
     pendingEntryWarning: "Schließen Sie den ausstehenden MCP-Servereintrag zuerst ab oder brechen Sie ihn ab.",
+    customHeading: "Benutzerdefinierte Server",
+    catalog: {
+      heading: "Vorkonfigurierte MCP-Server",
+      audience: { general: "🟢 Allgemein", developer: "🔵 Entwickler" },
+      risk: { low: "niedrig", medium: "mittel", high: "hoch" },
+      upstream: "📦 Quelle",
+      setupGuide: "📚 Einrichtung",
+      entry: {
+        memory: {
+          displayName: "Memory",
+          description: "Lässt Claude den Gesprächskontext über Sitzungen hinweg merken.",
+        },
+        sequentialThinking: {
+          displayName: "Sequenzielles Denken",
+          description: "Hilft Claude, komplexe Probleme schrittweise zu lösen.",
+        },
+        context7: {
+          displayName: "Context7 (Bibliotheksdokumentation)",
+          description: "Aktuelle Dokumentation gängiger Bibliotheken — geht über das Trainings-Cutoff des Modells hinaus.",
+        },
+        deepwiki: {
+          displayName: "DeepWiki (Wiki für GitHub-Repositories)",
+          description: "Stelle Fragen zu beliebigen GitHub-Repositories und erhalte eine strukturierte Antwort im Wiki-Stil.",
+        },
+        notion: {
+          displayName: "Notion",
+          description: "Lese und schreibe in deinem Notion-Workspace — Seiten, Datenbanken und Suche.",
+          field: {
+            apiKey: {
+              label: "Notion-Integrationstoken",
+              help: "Erstelle eine Notion-Integration und kopiere das Internal Integration Secret. 🔑 öffnet die Integrationen-Seite.",
+            },
+          },
+        },
+        slack: {
+          displayName: "Slack",
+          description: "Kanäle auflisten, Nachrichten senden und den Verlauf deines Slack-Workspaces durchsuchen.",
+          field: {
+            botToken: {
+              label: "Bot-Token",
+              help: "Slack-App → OAuth & Permissions → Bot User OAuth Token. Beginnt mit xoxb-.",
+            },
+            teamId: {
+              label: "Team- / Workspace-ID",
+              help: "Rufe team.info auf oder prüfe die Workspace-URL — etwa T01ABC23DEF.",
+            },
+          },
+        },
+        googleMaps: {
+          displayName: "Google Maps",
+          description: "Orte suchen, Routen berechnen und Standortdetails abrufen.",
+          field: {
+            apiKey: {
+              label: "Google-Maps-API-Key",
+              help: "Google Cloud Console → APIs & Services → Credentials → API-Key erstellen. Aktiviere Places + Directions.",
+            },
+          },
+        },
+        appleNative: {
+          displayName: "Native Apple-Apps (macOS)",
+          description: "Liest und schreibt Erinnerungen, Kalender, Notizen, Mail und Karten via AppleScript. Nur macOS — keine Zugangsdaten nötig.",
+        },
+        gmail: {
+          displayName: "Gmail",
+          description:
+            "Liest, sendet und beschriftet dein Gmail. Nutzt einen Google-OAuth-Client, den du selbst in deinem eigenen Google-Cloud-Projekt erstellst (keine App-Verifizierung nötig).",
+          field: {
+            credentials: {
+              label: "Pfad zu credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth-Client-ID (Desktop app). Lade credentials.json herunter und füge den absoluten Pfad ein.",
+            },
+          },
+        },
+        googleCalendar: {
+          displayName: "Google Kalender",
+          description: "Liest und erstellt Termine im Google Kalender. Gleiches BYO-credentials.json-Muster wie Gmail.",
+          field: {
+            credentials: {
+              label: "Pfad zu credentials.json",
+              help: "Verwende denselben Google-Cloud-OAuth-Client wie Gmail, oder erstelle einen separaten nur für Calendar.",
+            },
+          },
+        },
+        googleDrive: {
+          displayName: "Google Drive",
+          description: "Sucht und liest Google-Drive-Dateien. BYO Google-OAuth-Zugangsdaten — Token wird lokal neben der Datei zwischengespeichert.",
+          field: {
+            credentials: {
+              label: "Pfad zu credentials.json",
+              help: "Google Cloud Console → APIs & Services → Credentials → OAuth-Client-ID (Desktop app). Aktiviere die Google-Drive-API im selben Projekt.",
+            },
+          },
+        },
+        github: {
+          displayName: "GitHub",
+          description:
+            "Liest Repos, Issues, PRs und führt Suchen mit einem Personal Access Token aus. Begrenze den Token-Scope — Schreibrechte (z.B. `repo`) erlauben dem Agenten Pushes auf jeden zugänglichen Repo.",
+          field: {
+            token: {
+              label: "Personal Access Token",
+              help: "GitHub → Settings → Developer settings → Personal access tokens. Bevorzuge fine-grained tokens, die nur auf Repos beschränkt sind, in denen der Agent arbeiten soll.",
+            },
+          },
+        },
+        linear: {
+          displayName: "Linear",
+          description: "Liest und aktualisiert Linear-Issues, -Projekte und -Cycles mit einem persönlichen API-Key.",
+          field: {
+            apiKey: {
+              label: "Linear-API-Key",
+              help: "Linear → Settings → API → Personal API keys. Klicke auf 🔑, um die Seite zu öffnen, und dann auf Create key.",
+            },
+          },
+        },
+        weatherOpenMeteo: {
+          displayName: "Wetter (Open-Meteo)",
+          description: "Kostenlose Wettervorhersagen und aktuelle Bedingungen weltweit — ohne API-Key.",
+        },
+        spotify: {
+          displayName: "Spotify",
+          description:
+            "Suche Tracks, verwalte Playlists, steuere die Wiedergabe. BYO Spotify-Developer-App — nur Client ID (PKCE-Flow, kein Client Secret nötig).",
+          field: {
+            clientId: {
+              label: "Client ID",
+              help: "Spotify Developer Dashboard → Create app, setze die Redirect URI auf http://127.0.0.1:8888/callback, kopiere die Client ID. Führe dann einmal im Terminal `SPOTIFY_CLIENT_ID=<id> npx spotify-mcp@latest auth` aus, um dich anzumelden (Refresh-Token wird in ~/.spotify-mcp/tokens.json gecacht).",
+            },
+          },
+        },
+        youtubeTranscript: {
+          displayName: "YouTube-Transkript",
+          description: "Holt die Untertitel zu jedem öffentlichen YouTube-Video per URL. Keine Zugangsdaten nötig.",
+        },
+      },
+      config: {
+        howToGet: "So erhältst du den Wert",
+        install: "Installieren",
+        errMissingRequired: "Pflichtfelder fehlen: {fields}",
+        requiredMarker: "*",
+        requiredAria: "Pflichtfeld",
+      },
+    },
   },
   pluginScheduler: {
     prev: "Zurück",
@@ -257,6 +531,7 @@ const deMessages = {
     moreCount: "+{count} weitere",
     previewIcon: "📅",
     previewUpcoming: "{count} anstehend",
+    previewAutomations: "{count} Automatisierung | {count} Automatisierungen",
     previewMore: "+ {count} weitere…",
   },
   pluginSchedulerTasks: {
@@ -284,6 +559,8 @@ const deMessages = {
     redo: "Wiederherstellen",
     clear: "Löschen",
     styleLabel: "Stil:",
+    stylePromptWithPath: "Wandle das Bild unter `{path}` in ein Bild im {style}-Stil um.",
+    stylePromptNoPath: "Wandle meine Zeichnung auf dem Canvas in ein Bild im {style}-Stil um.",
   },
   pluginChart: {
     untitled: "Diagramm",
@@ -291,20 +568,225 @@ const deMessages = {
     chartTitle: "Diagramm {num}",
     png: "PNG",
   },
-  pluginTodo: {
-    clearFilters: "Alle Filter zurücksetzen",
-    deleteItem: "Eintrag löschen",
-    apiError: "⚠ Aktualisieren der To-dos fehlgeschlagen: {error}",
-    loadFailed: "Todos konnten nicht geladen werden",
-    heading: "Aufgabenliste",
-    completedRatio: "{done}/{total} erledigt",
-    filter: "Filter:",
-    noItems: "Noch keine To-dos",
-    noMatchingFilter: "Keine Einträge passen zum aktiven Filter",
-    update: "Aktualisieren",
-    clearCompleted: "Erledigte entfernen",
-    clearButton: "Löschen ✕",
-    deleteSymbol: "✕",
+  pluginAccounting: {
+    title: "Buchhaltung",
+    noBook: 'Noch keine Bücher — klicken Sie oben auf "+ Neues Buch", um das erste anzulegen.',
+    common: {
+      cancel: "Abbrechen",
+      loading: "Lädt…",
+      error: "Fehler: {error}",
+      empty: "Noch keine Einträge.",
+    },
+    tabs: {
+      journal: "Journal",
+      newEntry: "Neuer Eintrag",
+      opening: "Eröffnung",
+      accounts: "Konten",
+      ledger: "Hauptbuch",
+      balanceSheet: "Bilanz",
+      profitLoss: "GuV",
+      settings: "Einstellungen",
+    },
+    bookSwitcher: {
+      label: "Buch",
+      newBook: "Neues Buch…",
+      create: "Anlegen",
+      nameLabel: "Name",
+      currencyLabel: "Währung",
+      countryLabel: "Land",
+      countryPlaceholder: "Land auswählen…",
+      countryHint:
+        "Das Land legt die Steuerjurisdiktion fest, damit der Assistent länderspezifische Hinweise geben kann (T-Nummer in Japan, USt-IdNr. in der EU usw.).",
+      fiscalYearEndLabel: "Geschäftsjahresende",
+      fiscalYearEndQ1: "31. März (Q1)",
+      fiscalYearEndQ2: "30. Juni (Q2)",
+      fiscalYearEndQ3: "30. September (Q3)",
+      fiscalYearEndQ4: "31. Dezember (Q4)",
+      fiscalYearEndHint:
+        "Bestimmt die Geschäftsjahresgrenze, die für die Datumsbereich-Schnellauswahl in diesem Buch verwendet wird. Standard: 31. Dezember (Q4 — Kalenderjahr).",
+      placeholder: "Buch auswählen…",
+      firstRunHint:
+        "Wählen Sie Name, Währung, Land und Geschäftsjahresende für Ihr erstes Buch. Die Währung ist pro Buch fest und nach den ersten Buchungen schwer zu ändern.",
+    },
+    deletedNotice: {
+      title: 'Das Buch "{bookName}" wurde gelöscht.',
+      body: "Wählen Sie oben ein anderes Buch aus oder legen Sie ein neues an.",
+    },
+    journalList: {
+      fromLabel: "Von",
+      toLabel: "Bis",
+      accountLabel: "Konto",
+      allAccounts: "Alle Konten",
+      void: "Stornieren",
+      edit: "Bearbeiten",
+      voidConfirm: "Diesen Eintrag stornieren? Das Original bleibt im Journal; ein Stornopaar wird angehängt.",
+      voidReason: "Grund (optional):",
+      columns: {
+        date: "Datum",
+        kind: "Art",
+        memo: "Memo",
+        lines: "Zeilen",
+      },
+      kind: {
+        normal: "—",
+        opening: "Eröffnung",
+        void: "Storno",
+        voidMarker: "Storno-Marker",
+      },
+    },
+    entryForm: {
+      title: "Neuer Eintrag",
+      editTitle: "Eintrag bearbeiten",
+      editBanner: "Beim Absenden wird der Originaleintrag storniert und durch diesen ersetzt.",
+      dateLabel: "Datum",
+      memoLabel: "Memo",
+      accountLabel: "Konto",
+      debitLabel: "Soll",
+      creditLabel: "Haben",
+      taxRegistrationIdLabel: "Steuernummer",
+      taxRegistrationIdPlaceholder: "USt-IdNr. / VAT ID / GSTIN…",
+      taxRegistrationIdMissingWarning: "Erforderlich",
+      addLine: "Zeile hinzufügen",
+      removeLine: "Entfernen",
+      submit: "Buchen",
+      submitting: "Bucht…",
+      update: "Aktualisieren",
+      updating: "Aktualisiert…",
+      cancelEdit: "Abbrechen",
+      success: "Eintrag gebucht.",
+      editSuccess: "Eintrag aktualisiert.",
+      editVoidReason: "bearbeitet",
+      imbalance: "Differenz: {amount}",
+      balanced: "Ausgeglichen ✓",
+    },
+    openingForm: {
+      title: "Eröffnungsbilanz",
+      asOfLabel: "Per",
+      explainer: "Nur Bilanzkonten (Aktiva/Passiva/Eigenkapital). Σ Soll = Σ Haben; die Differenz fließt in Retained Earnings.",
+      emptyHint:
+        "Sie können das Formular leer speichern — die Eröffnungsbilanz lässt sich später aktualisieren. Es reicht, dass einmalig eine Eröffnung hinterlegt ist, damit die übrigen Tabs freigeschaltet werden.",
+      explainer2: "Nur Bilanzkonten.",
+      submit: "Eröffnungsbilanz speichern",
+      replaceWarning: "Beim Speichern wird die bestehende Eröffnung ersetzt (die alte wird im Journal storniert).",
+      none: "Noch keine Eröffnungsbilanz.",
+      setBy: "Per {date} festgelegt",
+      success: "Eröffnungsbilanz gespeichert.",
+    },
+    ledger: {
+      selectAccount: "Konto wählen",
+      closingBalance: "Schlusssaldo",
+      columns: {
+        date: "Datum",
+        memo: "Memo",
+        debit: "Soll",
+        credit: "Haben",
+        balance: "Saldo",
+        taxRegistrationId: "Steuernummer",
+      },
+    },
+    dateRange: {
+      shortcutLabel: "Bereich",
+      currentQuarter: "Aktuelles Quartal",
+      previousQuarter: "Letztes Quartal",
+      currentYear: "Aktuelles Jahr",
+      previousYear: "Letztes Jahr",
+      lifetime: "Seit Eröffnung",
+      all: "Alle",
+      fromLabel: "Von",
+      toLabel: "Bis",
+    },
+    balanceSheet: {
+      asOfLabel: "Periode",
+      sections: {
+        asset: "Aktiva",
+        liability: "Passiva",
+        equity: "Eigenkapital",
+      },
+      total: "Summe",
+      imbalance: "Differenz: {amount}",
+      currentEarnings: "Periodenergebnis",
+      shortcutLabel: "Schnellauswahl",
+      thisMonth: "Dieser Monat",
+      lastMonth: "Letzter Monat",
+      lastQuarter: "Letztes Quartal",
+      lastYear: "Letztes Jahr",
+    },
+    profitLoss: {
+      fromLabel: "Von",
+      toLabel: "Bis",
+      income: "Erträge",
+      expense: "Aufwendungen",
+      netIncome: "Jahresüberschuss:",
+    },
+    accounts: {
+      listEmpty: "In dieser Kategorie sind noch keine Konten vorhanden.",
+      openLedgerAria: "Hauptbuch für {code} {name} öffnen",
+      manageButton: "Konten verwalten",
+      modalTitle: "Konten verwalten",
+      addAccount: "Konto hinzufügen",
+      sectionTitle: {
+        asset: "Aktiva",
+        liability: "Passiva",
+        equity: "Eigenkapital",
+        income: "Erträge",
+        expense: "Aufwendungen",
+      },
+      columnCode: "Code",
+      columnName: "Name",
+      columnType: "Typ",
+      columnNote: "Notiz",
+      typeOption: {
+        asset: "Aktivkonto",
+        liability: "Passivkonto",
+        equity: "Eigenkapital",
+        income: "Ertrag",
+        expense: "Aufwand",
+      },
+      edit: "Bearbeiten",
+      save: "Speichern",
+      cancel: "Abbrechen",
+      saving: "Wird gespeichert…",
+      addToCategory: "Konto vom Typ {type} hinzufügen",
+      deactivate: "Deaktivieren",
+      reactivate: "Aktivieren",
+      deactivateConfirm: "Soll „{name}“ aus den Buchungs- und Kontodropdowns ausgeblendet werden? Bestehende Buchungen bleiben unberührt.",
+      errorEmptyCode: "Code ist erforderlich.",
+      errorReservedCode: "Codes, die mit „_“ beginnen, sind für Systemzeilen reserviert.",
+      errorInvalidCodeFormat: "Der Kontocode muss genau 4 Ziffern haben.",
+      errorCodeTypeMismatch: "Der Code muss zur Kontoart passen: 1xxx Aktivkonto, 2xxx Passivkonto, 3xxx Eigenkapital, 4xxx Ertrag, 5xxx Aufwand.",
+      errorEmptyName: "Name ist erforderlich.",
+      errorDuplicateCode: "Ein Konto mit diesem Code existiert bereits.",
+      errorDuplicateName: "Ein Konto mit diesem Namen existiert bereits.",
+      success: "Konto gespeichert.",
+      codeReadOnlyHint: "Der Code kann nach dem Anlegen des Kontos nicht mehr geändert werden.",
+      noteOptional: "(optional)",
+    },
+    settings: {
+      bookInfo: "Buchinformationen",
+      bookInfoExplain:
+        "Ändern Sie das Land, um die Hinweise zur Steuerjurisdiktion zu aktualisieren. Die Währung kann nach gebuchten Einträgen nicht mehr geändert werden.",
+      countryUnset: "(nicht gesetzt)",
+      fiscalYearEndExplain: "Ändert nur, wie die Datumsbereich-Schnellauswahl ab jetzt aufgelöst wird; bestehende Buchungen werden nicht verschoben.",
+      saveChanges: "Änderungen speichern",
+      updateOk: "Buch aktualisiert.",
+      rebuild: "Snapshots neu aufbauen",
+      rebuildExplain: "Verwirft alle Monats-Snapshots und berechnet sie aus dem Journal neu. Nützlich nach manueller Bearbeitung.",
+      rebuildOk: "{count} Periode(n) neu aufgebaut.",
+      advanced: "Erweitert…",
+      deleteBook: "Buch löschen",
+      deleteBookExplain: "Löscht das Buch-Verzeichnis dauerhaft. Nicht rückgängig zu machen.",
+      deleteBookConfirm: 'Tippen Sie "{bookName}" zur Bestätigung:',
+      deleteBookButton: "Endgültig löschen",
+    },
+    preview: {
+      entry: "Eintrag am {date} gebucht",
+      pl: "GuV {from} → {to}: netto {net}",
+      bs: "Bilanz per {date} · Aktiva {assets}",
+      bookCreated: 'Buch "{name}" ({id}) angelegt',
+    },
+    previewSummary: "Buchhaltung · {bookId}",
+    previewError: "Buchhaltung: {error}",
+    previewGeneric: "Buchhaltungs-Ergebnis",
   },
   todoExplorer: {
     heading: "To-do",
@@ -320,14 +802,6 @@ const deMessages = {
     newColumnLabelField: "Label",
     newColumnPlaceholder: "Review",
     noMatchingFilter: "Keine Einträge passen zum aktuellen Filter",
-  },
-  todoPreview: {
-    completedRatio: "{done}/{total} erledigt",
-    moreItems: "+ {count} weitere…",
-    headerIcon: "☑",
-    doneIcon: "✓",
-    pendingIcon: "○",
-    moreLabels: "+{count}",
   },
   todoDialogs: {
     addTitle: "To-do hinzufügen",
@@ -358,6 +832,7 @@ const deMessages = {
     noMatchingFilter: "Keine Einträge passen zum aktuellen Filter",
     sortColumnAria: "Nach {column} sortieren",
     expandRowAria: "Aufgabe ausklappen: {task}",
+    deleteItem: "Eintrag löschen",
   },
   pluginWiki: {
     backToIndex: "Zurück zum Index",
@@ -378,13 +853,59 @@ const deMessages = {
     lintChat: "Wiki prüfen",
     taskCountMismatch:
       "Wiki-Quelle und gerendertes Ergebnis stimmen in der Anzahl der Aufgaben nicht überein. Die Umschaltung wurde abgelehnt, um eine Beschädigung der Datei zu vermeiden.",
+    metadataCreated: "Erstellt",
+    metadataUpdated: "Aktualisiert",
+    metadataEditor: "Bearbeiter",
+    pageEditHeader: "Wiki-Bearbeitung",
+    snapshotExpired: "Snapshot abgelaufen — aktuelle Seite wird angezeigt",
+    pageDeleted: "Seite gelöscht",
+    history: {
+      tabContent: "Inhalt",
+      tabHistory: "Verlauf",
+      empty: "Noch kein Verlauf — bearbeite diese Seite, und die erste Version erscheint hier.",
+      loading: "Verlauf wird geladen…",
+      backToList: "Zurück zum Verlauf",
+      restoreButton: "Diese Version wiederherstellen",
+      restoreConfirmTitle: "Diese Version wiederherstellen?",
+      restoreConfirmBody: "Seite auf die Version vom {ts} von {editor} zurücksetzen. Die aktuelle Seite wird ersetzt. Der bestehende Verlauf bleibt erhalten.",
+      restoreConfirmAction: "Wiederherstellen",
+      restoreConfirmCancel: "Abbrechen",
+      restoreSuccessToast: "Seite wiederhergestellt.",
+      restoreFailureBanner: "Wiederherstellung fehlgeschlagen: {error}",
+      compareCurrent: "Mit aktueller Seite vergleichen",
+      comparePrevious: "Mit vorheriger Version vergleichen",
+      diffNoPrevious: "Keine vorherige Version zum Vergleichen vorhanden.",
+      diffNoChanges: "Zwischen dieser Version und dem Vergleichsobjekt gibt es keine inhaltlichen Unterschiede.",
+      editorBadgeUser: "Benutzer",
+      editorBadgeLLM: "LLM",
+      editorBadgeSystem: "System",
+      hiddenLines: "{count} unveränderte Zeilen ausgeblendet",
+      expandHidden: "Anzeigen",
+    },
+  },
+  pluginPresentForm: {
+    fallbackTitle: "Formular",
+    fieldCount: "{count} Feld | {count} Felder",
+    submitted: "Gesendet",
+    errorSummary: "Bitte korrigieren Sie die folgenden Fehler",
+    requiredMarker: "*",
+    selectOption: "Bitte auswählen",
+    charactersCount: "{current} / {max} Zeichen",
+    charactersCountNoMax: "{current} Zeichen",
+    submit: "Senden",
+    progress: "{filled} von {total} Pflichtfeldern ausgefüllt",
   },
   pluginPresentHtml: {
     saveAsPdf: "Als PDF speichern (öffnet Druckdialog)",
     pdf: "PDF",
     untitled: "HTML-Seite",
-    hideSource: "Quelltext ausblenden <>",
-    showSource: "Quelltext anzeigen <>",
+    editSource: "HTML-Quelltext bearbeiten",
+    cancel: "Abbrechen",
+    applyChanges: "Änderungen anwenden",
+    saving: "Wird gespeichert...",
+    saveError: "⚠ Speichern fehlgeschlagen: {error}",
+    loadingSource: "Quelltext wird geladen…",
+    sourceError: "Quelltext konnte nicht geladen werden: {error}",
   },
   pluginNews: {
     title: "Nachrichten",
@@ -405,6 +926,7 @@ const deMessages = {
   pluginManageSource: {
     titlePlaceholder: "Titel (optional)",
     heading: "Informationsquellen",
+    chatPlaceholder: "Fragen Sie zu Ihren Informationsquellen…",
     sourceCount: "{count} Quelle | {count} Quellen",
     addButton: "Hinzufügen",
     rebuildNow: "Jetzt neu aufbauen",
@@ -498,7 +1020,6 @@ const deMessages = {
   pluginManageRoles: {
     heading: "Benutzerdefinierte Rollen",
     roleCount: "{count} Rolle | {count} Rollen",
-    previewCount: "{count} benutzerdefinierte Rolle | {count} benutzerdefinierte Rollen",
     addButton: "+ Hinzufügen",
     createPanel: "Neue Rolle erstellen",
     fieldId: "ID",
@@ -547,6 +1068,8 @@ const deMessages = {
     gen: "Generieren",
     play: "▶ Abspielen",
     stop: "■ Stoppen",
+    playPresentation: "Präsentation abspielen",
+    regenerateMovie: "Video neu generieren",
     errPrefix: "⚠ Fehler",
     noBeats: "Keine Beats im Skript gefunden",
     editSource: "Skript-Quelle bearbeiten",
@@ -611,6 +1134,11 @@ const deMessages = {
   },
   suggestionsPanel: {
     suggestions: "Vorschläge",
+    skills: "Skills",
+    tooltip: "Vorschläge und Skills",
+    emptySuggestions: "Keine Vorschläge.",
+    emptySkills: "Keine Skills installiert.",
+    skillsError: "Fehler beim Laden der Skills: {error}",
     sendEditHint: "klicken zum Senden · Shift+Klick zum Bearbeiten",
   },
   settingsToolsTab: {

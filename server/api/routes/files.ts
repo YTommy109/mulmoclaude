@@ -9,13 +9,20 @@ import { getOptionalStringQuery } from "../../utils/request.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { GitignoreFilter } from "../../utils/gitignore.js";
 import { getCachedReferenceDirs } from "../../workspace/reference-dirs.js";
+import { classifyAsWikiPage, writeWikiPage } from "../../workspace/wiki-pages/io.js";
 import { log } from "../../system/logger/index.js";
 import { previewSnippet } from "../../utils/logPreview.js";
+import { publishFileChange } from "../../events/file-change.js";
 
 const router = Router();
 
 const MAX_PREVIEW_BYTES = 1024 * 1024; // 1 MB — text content embedded in JSON
-const MAX_RAW_BYTES = 50 * 1024 * 1024; // 50 MB — cap for binary streaming
+const MAX_RAW_BYTES = 50 * 1024 * 1024; // 50 MB — cap for non-media streaming (images/pdf/binary load whole into the browser)
+// Audio/video are streamed via HTTP Range requests (see GET /raw),
+// so the browser never buffers the whole file. Podcasts commonly
+// run 100–300 MB and recorded video can run multi-GB; cap at 4 GB
+// just to keep an obviously-pathological file from being served.
+const MAX_MEDIA_BYTES = 4 * 1024 * 1024 * 1024;
 const HIDDEN_DIRS = new Set([".git"]);
 
 // Files whose basename exactly matches one of these is refused by
@@ -653,10 +660,13 @@ router.get(API_ROUTES.files.content, (req: Request<object, unknown, unknown, Pat
     modifiedMs: stat.mtimeMs,
   };
 
-  // Anything past the binary stream cap is "too-large" regardless of
-  // type — even images/PDFs, since the client would have to fetch
-  // them via /files/raw which enforces the same limit.
-  if (stat.size > MAX_RAW_BYTES) {
+  const kind = classify(absPath);
+  // Audio/video stream via Range requests, so they get the looser
+  // MAX_MEDIA_BYTES cap. Everything else (images/PDFs/binary) is
+  // loaded whole by the browser and stays at MAX_RAW_BYTES.
+  const isStreamingMedia = kind === "audio" || kind === "video";
+  const sizeCap = isStreamingMedia ? MAX_MEDIA_BYTES : MAX_RAW_BYTES;
+  if (stat.size > sizeCap) {
     res.json({
       kind: "too-large",
       ...meta,
@@ -665,7 +675,6 @@ router.get(API_ROUTES.files.content, (req: Request<object, unknown, unknown, Pat
     return;
   }
 
-  const kind = classify(absPath);
   if (kind === "image" || kind === "pdf" || kind === "audio" || kind === "video") {
     res.json({ kind, ...meta });
     return;
@@ -698,78 +707,133 @@ router.get(API_ROUTES.files.content, (req: Request<object, unknown, unknown, Pat
   res.json({ kind: "text", ...meta, content });
 });
 
-// Write the body of an existing text file. Only text-classified files
-// (per `classify`) are editable — binary, image, audio, etc. are
-// refused so the endpoint can't be used to ship arbitrary uploads.
-// The file must already exist; creating new files is out of scope.
-router.put(API_ROUTES.files.content, async (req: Request<object, unknown, WriteContentRequest>, res: Response<WriteContentResponse | ErrorResponse>) => {
-  const { path: relPathRaw, content: contentRaw } = req.body ?? {};
-  log.info("files", "PUT content: start", {
-    pathPreview: typeof relPathRaw === "string" ? previewSnippet(relPathRaw) : undefined,
-    bytes: typeof contentRaw === "string" ? Buffer.byteLength(contentRaw, "utf-8") : undefined,
-  });
+type PutContentValidation =
+  | { ok: true; relPath: string; content: string; bytes: number }
+  | { ok: false; logMsg: string; logExtra?: Record<string, unknown>; message: string };
+
+// Runtime-shape gate for PUT /api/files/content's body. Returns either
+// the narrowed inputs + their byte length (computed once and reused
+// downstream), or a structured rejection carrying the log message,
+// log extras, and the response message — so the caller can fan them
+// out into log.warn + badRequest without rebuilding context. `logExtra`
+// is optional so the missing-path branch can omit it: passing `{}` to
+// `log.warn` would emit `data: {}` (an observable change vs the
+// pre-refactor no-third-arg call); passing `undefined` skips the
+// `data` field entirely.
+function validatePutContentRequest(body: unknown): PutContentValidation {
+  const obj = (body ?? {}) as { path?: unknown; content?: unknown };
+  const { path: relPathRaw, content: contentRaw } = obj;
   if (typeof relPathRaw !== "string" || relPathRaw.length === 0) {
-    log.warn("files", "PUT content: missing path");
-    badRequest(res, "path required");
-    return;
+    return { ok: false, logMsg: "PUT content: missing path", message: "path required" };
   }
   if (typeof contentRaw !== "string") {
-    log.warn("files", "PUT content: missing content", { pathPreview: previewSnippet(relPathRaw) });
-    badRequest(res, "content required");
-    return;
+    return {
+      ok: false,
+      logMsg: "PUT content: missing content",
+      logExtra: { pathPreview: previewSnippet(relPathRaw) },
+      message: "content required",
+    };
   }
-  if (Buffer.byteLength(contentRaw, "utf-8") > MAX_PREVIEW_BYTES) {
-    log.warn("files", "PUT content: too large", { pathPreview: previewSnippet(relPathRaw), bytes: Buffer.byteLength(contentRaw, "utf-8") });
-    badRequest(res, `content exceeds ${MAX_PREVIEW_BYTES} byte limit`);
-    return;
+  const bytes = Buffer.byteLength(contentRaw, "utf-8");
+  if (bytes > MAX_PREVIEW_BYTES) {
+    return {
+      ok: false,
+      logMsg: "PUT content: too large",
+      logExtra: { pathPreview: previewSnippet(relPathRaw), bytes },
+      message: `content exceeds ${MAX_PREVIEW_BYTES} byte limit`,
+    };
   }
-  // Two-step resolution to distinguish "path outside workspace" (400)
-  // from "file does not exist" (404): realpath throws on ENOENT, so
-  // resolveSafe conflates the two. Stat the syntactic candidate
-  // first; if it exists, THEN run the symlink-hardened resolveSafe.
+  return { ok: true, relPath: relPathRaw, content: contentRaw, bytes };
+}
+
+type ResolvedTextFile = { ok: true; absPath: string } | { ok: false; status: 400 | 404; message: string };
+
+// Two-step path resolution + text-only gate for PUT /api/files/content.
+//
+// Why two steps: `resolveSafe` calls `realpathSync`, which throws
+// ENOENT for missing files. Conflating "path outside workspace"
+// (caller bug, 400) with "file does not exist" (404) loses the
+// signal. Stat the syntactic candidate first; only if it exists
+// do we run the symlink-hardened resolveSafe.
+//
+// The classifier check rejects binary / image / audio / etc. so
+// this endpoint can't be used as an arbitrary upload channel.
+async function resolveExistingTextFile(relPathRaw: string): Promise<ResolvedTextFile> {
   const candidate = path.resolve(workspaceReal, path.normalize(relPathRaw));
   const existing = await statSafeAsync(candidate);
   if (!existing) {
     const relativeFromWorkspace = path.relative(workspaceReal, candidate);
     const escapesSyntactically = relativeFromWorkspace === ".." || relativeFromWorkspace.startsWith(`..${path.sep}`);
-    if (escapesSyntactically) {
-      badRequest(res, "Path outside workspace");
-    } else {
-      notFound(res, "File not found");
-    }
-    return;
+    return escapesSyntactically ? { ok: false, status: 400, message: "Path outside workspace" } : { ok: false, status: 404, message: "File not found" };
   }
-  if (!existing.isFile()) {
-    badRequest(res, "Not a file");
-    return;
-  }
+  if (!existing.isFile()) return { ok: false, status: 400, message: "Not a file" };
   const absPath = resolveSafe(relPathRaw);
-  if (!absPath) {
-    badRequest(res, "Path outside workspace");
+  if (!absPath) return { ok: false, status: 400, message: "Path outside workspace" };
+  if (classify(absPath) !== "text") return { ok: false, status: 400, message: "File type not editable" };
+  return { ok: true, absPath };
+}
+
+// Wiki pages route through `writeWikiPage` so the (old, new) pair
+// reaches the edit-history pipeline (#763). Everything else takes
+// the generic atomic write. `uniqueTmp: true` appends a randomUUID
+// to the tmp filename so two simultaneous PUTs to the same path
+// can't clobber each other's staging file and race through rename
+// (writeWikiPage applies it internally).
+//
+// `workspaceReal` is the already-realpath'd workspace root —
+// resolveSafe returns a realpath'd absPath, so the classifier MUST
+// compare against the same realpath'd root. A symlinked workspace
+// (e.g. `~/mulmoclaude` → some real path elsewhere) would otherwise
+// silently bypass the wiki chokepoint.
+async function writeFileContent(absPath: string, content: string): Promise<void> {
+  const wikiClass = classifyAsWikiPage(absPath, { workspaceRoot: workspaceReal });
+  if (wikiClass.wiki) {
+    await writeWikiPage(wikiClass.slug, content, { editor: "user" }, { workspaceRoot: workspaceReal });
+  } else {
+    await writeFileAtomic(absPath, content, { uniqueTmp: true });
+  }
+}
+
+// Write the body of an existing text file. Only text-classified files
+// (per `classify`) are editable — binary, image, audio, etc. are
+// refused so the endpoint can't be used to ship arbitrary uploads.
+// The file must already exist; creating new files is out of scope.
+router.put(API_ROUTES.files.content, async (req: Request<object, unknown, WriteContentRequest>, res: Response<WriteContentResponse | ErrorResponse>) => {
+  const validation = validatePutContentRequest(req.body);
+  if (!validation.ok) {
+    log.warn("files", validation.logMsg, validation.logExtra);
+    badRequest(res, validation.message);
     return;
   }
-  if (classify(absPath) !== "text") {
-    badRequest(res, "File type not editable");
+  const { relPath, content, bytes: contentBytes } = validation;
+  log.info("files", "PUT content: start", { pathPreview: previewSnippet(relPath), bytes: contentBytes });
+
+  const resolved = await resolveExistingTextFile(relPath);
+  if (!resolved.ok) {
+    if (resolved.status === 404) notFound(res, resolved.message);
+    else badRequest(res, resolved.message);
     return;
   }
   try {
-    // `uniqueTmp: true` appends a randomUUID to the tmp filename so
-    // two simultaneous PUTs to the same path can't clobber each
-    // other's staging file and race through the rename.
-    await writeFileAtomic(absPath, contentRaw, { uniqueTmp: true });
+    await writeFileContent(resolved.absPath, content);
   } catch (err) {
-    log.error("files", "PUT content: write threw", { pathPreview: previewSnippet(relPathRaw), error: errorMessage(err) });
+    log.error("files", "PUT content: write threw", { pathPreview: previewSnippet(relPath), error: errorMessage(err) });
     serverError(res, `Failed to write file: ${errorMessage(err)}`);
     return;
   }
-  const fresh = await statSafeAsync(absPath);
+  const fresh = await statSafeAsync(resolved.absPath);
   log.info("files", "PUT content: ok", {
-    pathPreview: previewSnippet(relPathRaw),
-    bytes: fresh?.size ?? Buffer.byteLength(contentRaw, "utf-8"),
+    pathPreview: previewSnippet(relPath),
+    bytes: fresh?.size ?? contentBytes,
   });
+  // Notify subscribers + run side-effect hooks (e.g. memory topic
+  // index regeneration in #1032). Fire-and-forget; the publisher
+  // logs failures internally and the user-facing write already
+  // succeeded.
+  void publishFileChange(relPath);
   res.json({
-    path: relPathRaw,
-    size: fresh?.size ?? Buffer.byteLength(contentRaw, "utf-8"),
+    path: relPath,
+    size: fresh?.size ?? contentBytes,
     modifiedMs: fresh?.mtimeMs ?? Date.now(),
   });
 });
@@ -784,9 +848,11 @@ router.get(API_ROUTES.files.raw, (req: Request<object, unknown, unknown, PathQue
   }
   const { absPath, stat } = ctx;
 
-  if (stat.size > MAX_RAW_BYTES) {
-    log.warn("files", "GET raw: too large", { pathPreview: previewSnippet(requestedPath), bytes: stat.size });
-    sendError(res, 413, `File too large to stream (${stat.size} bytes, limit ${MAX_RAW_BYTES})`);
+  const rawKind = classify(absPath);
+  const rawSizeCap = rawKind === "audio" || rawKind === "video" ? MAX_MEDIA_BYTES : MAX_RAW_BYTES;
+  if (stat.size > rawSizeCap) {
+    log.warn("files", "GET raw: too large", { pathPreview: previewSnippet(requestedPath), bytes: stat.size, cap: rawSizeCap });
+    sendError(res, 413, `File too large to stream (${stat.size} bytes, limit ${rawSizeCap})`);
     return;
   }
   const ext = path.extname(absPath).toLowerCase();

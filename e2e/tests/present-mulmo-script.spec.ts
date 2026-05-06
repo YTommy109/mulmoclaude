@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
 
 import { ONE_SECOND_MS } from "../../server/utils/time.ts";
+
 const SCRIPT_TITLE = "Test Mulmo Script";
 const SCRIPT_DESCRIPTION = "A short test script used by the smoke test.";
 
@@ -44,8 +45,8 @@ async function setupScriptSession(page: Page) {
   // Session transcript with a presentMulmoScript tool result.
   await page.route(
     (url) => url.pathname.startsWith("/api/sessions/") && url.pathname !== "/api/sessions",
-    (route) => {
-      return route.fulfill({
+    (route) =>
+      route.fulfill({
         json: [
           {
             type: "session_meta",
@@ -68,8 +69,7 @@ async function setupScriptSession(page: Page) {
             },
           },
         ],
-      });
-    },
+      }),
   );
 
   // Stub every mulmo-script endpoint the View touches on mount. All
@@ -77,10 +77,8 @@ async function setupScriptSession(page: Page) {
   // with `// silently ignore`), so a 200 with an empty payload is
   // enough to keep the UI stable.
   await page.route(
-    (url) => url.pathname.startsWith("/api/mulmo-script/"),
-    (route) => {
-      return route.fulfill({ json: {} });
-    },
+    (url) => url.pathname.startsWith("/api/mulmoScript/"),
+    (route) => route.fulfill({ json: {} }),
   );
 }
 
@@ -137,7 +135,7 @@ test.describe("presentMulmoScript plugin", () => {
 
     const renderBeatCalls: unknown[] = [];
     await page.route(
-      (url) => url.pathname === "/api/mulmo-script/render-beat",
+      (url) => url.pathname === "/api/mulmoScript/render-beat",
       async (route) => {
         renderBeatCalls.push(route.request().postDataJSON());
         return route.fulfill({ json: { image: PNG_1X1 } });
@@ -150,17 +148,13 @@ test.describe("presentMulmoScript plugin", () => {
     await expect(page.getByRole("heading", { name: SCRIPT_TITLE, level: 2 })).toBeVisible();
 
     // Beat 0 is a textSlide → auto-rendered on mount via renderBeat,
-    // which hits /api/mulmo-script/render-beat. Wait for the mocked
+    // which hits /api/mulmoScript/render-beat. Wait for the mocked
     // image to surface in the DOM — proves the server→frontend
     // contract (`{ image: <data-uri> }` on 200) still holds through
     // the withStoryContext refactor.
-    await page.waitForFunction(
-      () => {
-        return Array.from(document.querySelectorAll("img")).some((img) => img.src.startsWith("data:image/png;base64,iVBOR"));
-      },
-      undefined,
-      { timeout: 5 * ONE_SECOND_MS },
-    );
+    await page.waitForFunction(() => Array.from(document.querySelectorAll("img")).some((img) => img.src.startsWith("data:image/png;base64,iVBOR")), undefined, {
+      timeout: 5 * ONE_SECOND_MS,
+    });
 
     expect(renderBeatCalls.length).toBeGreaterThan(0);
     for (const call of renderBeatCalls) {
@@ -173,7 +167,7 @@ test.describe("presentMulmoScript plugin", () => {
 
   test("render-beat error: mocked { error } surfaces to the UI", async ({ page }) => {
     await page.route(
-      (url) => url.pathname === "/api/mulmo-script/render-beat",
+      (url) => url.pathname === "/api/mulmoScript/render-beat",
       (route) =>
         route.fulfill({
           status: 500,
@@ -209,8 +203,8 @@ test.describe("presentMulmoScript plugin", () => {
     // are LIFO, so this added handler takes precedence.
     await page.route(
       (url) => url.pathname === "/api/sessions",
-      (route) => {
-        return route.fulfill({
+      (route) =>
+        route.fulfill({
           json: {
             sessions: [
               {
@@ -225,8 +219,7 @@ test.describe("presentMulmoScript plugin", () => {
             cursor: "v1:0",
             deletedIds: [],
           },
-        });
-      },
+        }),
     );
 
     await page.goto("/chat/mulmo-session");

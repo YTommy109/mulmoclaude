@@ -15,7 +15,7 @@
                 @click="brushSize = size"
               >
                 <div
-                  :class="'bg-gray-800 rounded-full mx-auto'"
+                  class="bg-gray-800 rounded-full mx-auto"
                   :style="{
                     width: Math.max(2, size * 1) + 'px',
                     height: Math.max(2, size * 1) + 'px',
@@ -63,14 +63,14 @@
         :key="`${selectedResult?.uuid || 'default'}-${canvasRenderKey}`"
         :width="canvasWidth"
         :height="canvasHeight"
-        :stroke-type="'dash'"
-        :line-cap="'round'"
-        :line-join="'round'"
+        stroke-type="dash"
+        line-cap="round"
+        line-join="round"
         :fill-shape="false"
         :eraser="false"
         :line-width="brushSize"
         :color="brushColor"
-        :background-color="'#FFFFFF'"
+        background-color="#FFFFFF"
         :background-image="backgroundImage"
         :watermark="undefined"
         save-as="png"
@@ -104,9 +104,11 @@ import VueDrawingCanvas from "vue-drawing-canvas";
 import type { ToolResult } from "gui-chat-protocol/vue";
 import type { ImageToolData } from "./definition";
 import { apiPut } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
 import { resolveImageSrc } from "../../utils/image/resolve";
 import { bumpImage } from "../../utils/image/cacheBust";
+
+const imageStoreEndpoints = pluginEndpoints<{ update: string }>("imageStore");
 
 const { t } = useI18n();
 
@@ -129,10 +131,6 @@ const artStyles = [
   { id: "pencilsketch", label: "Pencil Sketch" },
   { id: "pixelart", label: "Pixel Art" },
 ];
-
-const applyStyle = (style: { id: string; label: string }) => {
-  props.sendTextMessage?.(`Turn my drawing on the canvas into a ${style.label} style image.`);
-};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const canvasRef = ref<any>(null);
@@ -158,6 +156,16 @@ const imagePath = computed(() => {
   return stored;
 });
 
+const applyStyle = (style: { id: string; label: string }) => {
+  // Embed the canvas image's workspace path directly so the LLM has
+  // it in plain text and can quote it back as `imagePaths` to the
+  // editImages tool. Falls back to the path-less phrasing only when
+  // openCanvas hasn't been linked to a saved file yet.
+  const path = imagePath.value;
+  const text = path ? t("pluginCanvas.stylePromptWithPath", { path, style: style.label }) : t("pluginCanvas.stylePromptNoPath", { style: style.label });
+  props.sendTextMessage?.(text);
+};
+
 // Per-mount cache buster for the VueDrawingCanvas child. The URL
 // must be stable for the lifetime of one canvas instance — if it
 // changes while the child is alive (e.g. from a post-save bump),
@@ -177,25 +185,12 @@ const backgroundImage = computed(() => {
 let uploadInFlight = false;
 let pendingSave = false;
 
-// Undo/redo kick off the library's async redraw; give it a tick to
-// composite before we snapshot-and-upload.
-const undo = () => {
-  canvasRef.value?.undo();
-  setTimeout(saveDrawing, 50);
-};
-const redo = () => {
-  canvasRef.value?.redo();
-  setTimeout(saveDrawing, 50);
-};
-const clear = () => {
-  canvasRef.value?.reset();
-  saveDrawing();
-};
-
 // Snapshot the current bitmap and PUT it back to the pre-allocated
 // file. No result mutation — the path is fixed from canvas creation,
-// so nothing upstream needs to know about saves.
-const saveDrawing = async (): Promise<void> => {
+// so nothing upstream needs to know about saves. `function` (not
+// `const`) so the undo/redo/clear handlers below can reference it
+// without TDZ ordering problems.
+async function saveDrawing(): Promise<void> {
   if (!canvasRef.value || !imagePath.value) return;
   if (uploadInFlight) {
     pendingSave = true;
@@ -204,7 +199,7 @@ const saveDrawing = async (): Promise<void> => {
   uploadInFlight = true;
   try {
     const imageDataUri: string = await canvasRef.value.save();
-    const result = await apiPut<{ path: string }>(API_ROUTES.image.update, {
+    const result = await apiPut<{ path: string }>(imageStoreEndpoints.update, {
       relativePath: imagePath.value,
       imageData: imageDataUri,
     });
@@ -219,6 +214,21 @@ const saveDrawing = async (): Promise<void> => {
       void saveDrawing();
     }
   }
+}
+
+// Undo/redo kick off the library's async redraw; give it a tick to
+// composite before we snapshot-and-upload.
+const undo = () => {
+  canvasRef.value?.undo();
+  setTimeout(saveDrawing, 50);
+};
+const redo = () => {
+  canvasRef.value?.redo();
+  setTimeout(saveDrawing, 50);
+};
+const clear = () => {
+  canvasRef.value?.reset();
+  saveDrawing();
 };
 
 const updateCanvasSize = () => {

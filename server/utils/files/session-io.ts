@@ -1,19 +1,11 @@
-// Domain I/O: chat sessions
-//   conversations/chat/<id>.json   — metadata
-//   conversations/chat/<id>.jsonl  — event log
-//
-// All functions take optional `root` for test DI.
-
-import { appendFile } from "fs/promises";
+import { appendFile, rm } from "fs/promises";
 import path from "node:path";
-import { WORKSPACE_DIRS } from "../../workspace/paths.js";
-import { workspacePath } from "../../workspace/paths.js";
+import { WORKSPACE_DIRS, workspacePath } from "../../workspace/paths.js";
 import { readTextUnder, writeTextUnder, resolvePath, ensureWorkspaceDir } from "./workspace-io.js";
 
 const CHAT = WORKSPACE_DIRS.chat;
 const root = (rootOverride?: string) => rootOverride ?? workspacePath;
 
-/** Ensure the chat directory exists. Called once at session start. */
 export function ensureChatDir(): void {
   ensureWorkspaceDir(CHAT);
 }
@@ -26,21 +18,19 @@ function jsonlRel(sessionId: string): string {
   return path.posix.join(CHAT, `${sessionId}.jsonl`);
 }
 
-// ── Meta ────────────────────────────────────────────────────────
-
 export interface SessionMeta {
   roleId?: string;
   startedAt?: string;
   firstUserMessage?: string;
   claudeSessionId?: string;
   hasUnread?: boolean;
+  isBookmarked?: boolean;
   origin?: "human" | "scheduler" | "skill" | "bridge";
   [key: string]: unknown;
 }
 
 export type ReadMetaResult = { kind: "missing" } | { kind: "ok"; meta: SessionMeta } | { kind: "corrupt"; raw: string };
 
-/** Read session metadata with full outcome discrimination. */
 export async function readSessionMetaFull(sessionId: string, rootOverride?: string): Promise<ReadMetaResult> {
   const raw = await readTextUnder(root(rootOverride), metaRel(sessionId));
   if (raw === null) return { kind: "missing" };
@@ -51,8 +41,7 @@ export async function readSessionMetaFull(sessionId: string, rootOverride?: stri
   }
 }
 
-/** Convenience: returns the meta or null. Treats corrupt as null
- *  (callers that need to distinguish use readSessionMetaFull). */
+// Treats corrupt as null — callers that need to distinguish use readSessionMetaFull.
 export async function readSessionMeta(sessionId: string, rootOverride?: string): Promise<SessionMeta | null> {
   const result = await readSessionMetaFull(sessionId, rootOverride);
   return result.kind === "ok" ? result.meta : null;
@@ -103,18 +92,25 @@ export async function updateHasUnread(sessionId: string, hasUnread: boolean, roo
   await writeSessionMeta(sessionId, { ...meta, hasUnread }, rootOverride);
 }
 
-// ── Jsonl ───────────────────────────────────────────────────────
+export async function updateIsBookmarked(sessionId: string, isBookmarked: boolean, rootOverride?: string): Promise<void> {
+  const meta = await readSessionMeta(sessionId, rootOverride);
+  if (!meta) return;
+  await writeSessionMeta(sessionId, { ...meta, isBookmarked }, rootOverride);
+}
+
+// Hard-deletes the session's .jsonl event log and .json meta sidecar.
+// Missing files are tolerated — callers may invoke this for sessions
+// whose meta or jsonl was never written (e.g. a crash mid-create).
+export async function deleteSessionFiles(sessionId: string, rootOverride?: string): Promise<void> {
+  await rm(sessionJsonlAbsPath(sessionId, rootOverride), { force: true });
+  await rm(sessionMetaAbsPath(sessionId, rootOverride), { force: true });
+}
 
 export function sessionJsonlAbsPath(sessionId: string, rootOverride?: string): string {
   return resolvePath(root(rootOverride), jsonlRel(sessionId));
 }
 
-/**
- * Resolve the absolute path of a session's metadata JSON file. The
- * jsonl variant is the event log; this one is the sidecar that holds
- * `hasUnread`, `roleId`, `startedAt`, `origin`, etc. Its mtime bumps
- * whenever any of those fields change via `writeSessionMeta`.
- */
+// .json sidecar to the event-log jsonl. mtime bumps on every writeSessionMeta — used as a "session changed" signal.
 export function sessionMetaAbsPath(sessionId: string, rootOverride?: string): string {
   return resolvePath(root(rootOverride), metaRel(sessionId));
 }
@@ -123,13 +119,7 @@ export async function readSessionJsonl(sessionId: string, rootOverride?: string)
   return readTextUnder(root(rootOverride), jsonlRel(sessionId));
 }
 
-/**
- * Append a single line to the session event log (JSONL format).
- *
- * The function **ensures a trailing `\n`** — callers pass the raw
- * content and don't need to worry about line termination. This
- * prevents JSONL parse failures from missing newlines.
- */
+// Always ends with `\n` to prevent JSONL parse failures from a missing terminator.
 export async function appendSessionLine(sessionId: string, line: string, rootOverride?: string): Promise<void> {
   const normalized = line.endsWith("\n") ? line : `${line}\n`;
   await appendFile(resolvePath(root(rootOverride), jsonlRel(sessionId)), normalized);

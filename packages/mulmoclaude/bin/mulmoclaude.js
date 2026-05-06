@@ -9,13 +9,14 @@ import { execSync, spawn } from "child_process";
 import { existsSync } from "fs";
 import { get as httpGet } from "http";
 import { createRequire } from "module";
-import { join, dirname } from "path";
+import { join, dirname, delimiter as PATH_DELIMITER } from "path";
 import { fileURLToPath } from "url";
 
 // Shared with `server/index.ts` — the launcher and the dev server use
 // the same probe + fallback logic. See server/utils/port.mjs for why
 // it's plain JS rather than TypeScript.
 import { isPortFree, findAvailablePort, MAX_PORT_PROBES } from "../server/utils/port.mjs";
+import { parseDevPluginArgs } from "../server/utils/dev-plugin-args.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -56,7 +57,11 @@ function waitUntilReady(portNum, onReady) {
   const timeoutMs = 15000;
   const intervalMs = 300;
 
-  const attempt = () => {
+  // `function` declarations (not arrow consts) so the mutual
+  // reference between `attempt` and `retry` works without TDZ
+  // ordering problems. Both forms are hoisted to the top of the
+  // enclosing function scope.
+  function attempt() {
     const req = httpGet({ host: "127.0.0.1", port: portNum, path: "/", timeout: 1000 }, (res) => {
       res.resume();
       onReady();
@@ -66,12 +71,12 @@ function waitUntilReady(portNum, onReady) {
       req.destroy();
       retry();
     });
-  };
+  }
 
-  const retry = () => {
+  function retry() {
     if (Date.now() - startedAt > timeoutMs) return;
     setTimeout(attempt, intervalMs);
-  };
+  }
 
   attempt();
 }
@@ -95,21 +100,38 @@ if (args.includes("--help") || args.includes("-h")) {
 Usage: npx mulmoclaude [options]
 
 Options:
-  --port <number>   Server port (default: ${DEFAULT_PORT})
-  --no-open         Don't open browser automatically
-  --version         Show version
-  --help            Show this help
+  --port <number>      Server port (default: ${DEFAULT_PORT})
+  --no-open            Don't open browser automatically
+  --dev-plugin <path>  Load a plugin from a local project dir for development
+                       (repeatable). Path can be absolute or relative to cwd.
+                       The dir must have package.json and dist/index.js
+                       (run \`yarn build\` or \`yarn dev\` in the plugin first).
+  --version            Show version
+  --help               Show this help
 `);
   process.exit(0);
 }
 
 if (args.includes("--version")) {
-  console.log("mulmoclaude 0.4.0");
+  console.log("mulmoclaude 0.5.3");
   process.exit(0);
 }
 
 const { requestedPort, portExplicit } = parsePortArg();
 const noOpen = args.includes("--no-open");
+const devPluginPaths = resolveDevPluginPaths();
+
+function resolveDevPluginPaths() {
+  const result = parseDevPluginArgs(args, process.cwd());
+  if (!result.ok) {
+    error(result.reason);
+    process.exit(1);
+  }
+  for (const { rawInput, absPath } of result.resolved) {
+    log(`[dev-plugin] ${rawInput} → ${absPath}`);
+  }
+  return result.resolved.map((entry) => entry.absPath);
+}
 
 function parsePortArg() {
   const idx = args.indexOf("--port");
@@ -180,6 +202,10 @@ log(`Starting MulmoClaude on port ${port}...`);
 let tsxCli;
 try {
   const tsxPkgJson = require.resolve("tsx/package.json");
+  // Path is the resolved location of tsx's own package.json under
+  // node_modules — not user-influenced, so the dynamic require is
+  // safe. require.resolve already validated the path.
+  // eslint-disable-next-line security/detect-non-literal-require -- resolved package.json path from require.resolve, not user input
   const tsxPkg = require(tsxPkgJson);
   tsxCli = join(dirname(tsxPkgJson), tsxPkg.bin);
 } catch {
@@ -187,13 +213,18 @@ try {
   process.exit(1);
 }
 
+const serverEnv = {
+  ...process.env,
+  NODE_ENV: "production",
+  PORT: String(port),
+};
+if (devPluginPaths.length > 0) {
+  serverEnv.MULMOCLAUDE_DEV_PLUGINS = devPluginPaths.join(PATH_DELIMITER);
+}
+
 const server = spawn(process.execPath, [tsxCli, SERVER_ENTRY], {
   cwd: PKG_DIR,
-  env: {
-    ...process.env,
-    NODE_ENV: "production",
-    PORT: String(port),
-  },
+  env: serverEnv,
   stdio: "inherit",
 });
 

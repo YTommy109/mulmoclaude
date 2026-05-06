@@ -30,16 +30,11 @@ export async function applyAgentEvent(event: SseEvent, ctx: AgentEventContext): 
     case EVENT_TYPES.status:
       session.statusMessage = event.message;
       return;
-    case EVENT_TYPES.switchRole:
-      // The role selector is now user-owned; agent-initiated role
-      // switches no longer mutate it. Session.roleId still comes
-      // from the server on session load.
-      return;
     case EVENT_TYPES.rolesUpdated:
       await ctx.refreshRoles();
       return;
     case EVENT_TYPES.text:
-      applyTextEvent(session, event.message, event.source ?? "assistant");
+      applyTextEvent(session, event.message, event.source ?? "assistant", event.attachments);
       return;
     case EVENT_TYPES.toolResult:
       applyToolResultToSession(session, event.result);
@@ -61,11 +56,10 @@ export async function applyAgentEvent(event: SseEvent, ctx: AgentEventContext): 
     }
     case EVENT_TYPES.generationFinished: {
       const mapKey = generationKey(event.kind, event.filePath, event.key);
-      delete session.pendingGenerations[mapKey];
+      Reflect.deleteProperty(session.pendingGenerations, mapKey);
       if (Object.keys(session.pendingGenerations).length === 0) {
         ctx.onGenerationsDrained();
       }
-      return;
     }
   }
 }

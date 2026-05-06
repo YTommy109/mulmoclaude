@@ -144,7 +144,95 @@ manual smoke below is enough to catch a regression.
 exercises the same `{ error }` response shape — only the *editor UI
 wiring* on save failure needs manual verification.
 
-## 7. Cross-browser / responsive (beyond Chromium)
+## 7. Accounting plugin (test rollout)
+
+**Why manual**: the accounting plugin is opt-in. The default
+(General) role doesn't expose it, no `/accounting` route exists, no
+PluginLauncher button. The built-in **Accounting** role surfaces it
+via the role picker; custom roles that list `manageAccounting` in
+their `availablePlugins` work too. The E2E isolation test asserts
+the General role still doesn't see the plugin; the positive flow
+needs a human walking through real journal data.
+
+### Setup
+
+Pick the entry point that matches what you're testing:
+
+- **Recommended**: switch to the built-in **Accounting** role from
+  the role picker. The role exposes `manageAccounting`,
+  `presentForm`, and `presentDocument` — enough for the bookkeeping
+  flow with structured user prompts.
+- **Custom role (legacy / advanced)**: `/roles` → "New role" → in
+  the plugin picker, check `manageAccounting` (the picker
+  auto-populates from `TOOL_NAMES`). Useful when you want a
+  different plugin mix than the built-in role ships.
+- **File-edit (legacy / advanced)**: drop a JSON role definition
+  into `~/mulmoclaude/config/roles/<your-id>.json` containing
+  `{"id":"<your-id>","label":"<Label>","availablePlugins":["manageAccounting"]}`
+  and restart the server.
+
+In every case, switch to the role in the role picker. Claude can
+then call `manageAccounting` and the `openBook` action mounts
+`<AccountingApp>`.
+
+### Smoke checklist for a fresh book
+
+Run on a workspace with no `data/accounting/` directory yet:
+
+1. Open the app via Claude (`"open my books"` is enough). The empty
+   state appears with the New Book modal auto-opened.
+2. Create a book — confirm the directory is
+   `~/mulmoclaude/data/accounting/books/book-XXXXXXXX/` (8-hex-char
+   id, **not** `default/`).
+3. Set opening balances. Confirm the save button stays disabled
+   until Σ debit = Σ credit.
+4. Add an income entry (credit Sales 200, debit Cash 200) and an
+   expense entry (debit Rent 70, credit Cash 70). Both appear in
+   the journal list.
+5. Balance Sheet totals balance. P/L net income matches the entries.
+6. Create a second book; switch via the BookSwitcher. Journal list
+   contents change.
+7. Delete the non-active book. Active book stays.
+8. **Last-book deletion**: delete the remaining book. The empty
+   state reappears, the New Book modal auto-opens. Re-create a book
+   and confirm the BookSwitcher shows just the new id.
+
+### Recovery drills
+
+- **Stale snapshot**: hand-delete a snapshot file
+  (`~/mulmoclaude/data/accounting/books/<id>/snapshots/YYYY-MM.json`)
+  and request a Balance Sheet for that month. The lazy fallback
+  rebuilds it on read; the report is correct; the file reappears.
+- **`rebuildSnapshots` admin action**: from the settings tab, click
+  the rebuild button. Watch the server log for one
+  `snapshot rebuild started bookId=… fromPeriod=…` line and one
+  `snapshot rebuild done bookId=… periods=N` line.
+- **Async rebuild during normal writes**: tail the server log
+  (`yarn dev` output), add a journal entry. Confirm exactly one
+  start/done pair per write burst. Fire five entries rapidly and
+  confirm at most two start/done pairs — the queue coalesces.
+- **Corrupt JSONL line**: edit a `journal/YYYY-MM.jsonl` by hand,
+  inserting an invalid line. Reload the journal list — the parser
+  skips that line with a warning, the rest of the month still shows.
+
+### Void rendering
+
+- Add a normal entry, then click "void" on its row. A single dialog
+  prompts for a reason. Cancelling leaves the entry. Re-clicking,
+  entering a reason, submitting — the original row gets the
+  strikeout, the new void / void-marker rows render without
+  strikeout. The voiding entry's memo reads
+  `void of '<original memo>' on <original date>` (or `void of entry
+  on <date>` if the original carried no memo).
+
+### Soak
+
+Developers running personal books: aim for 1–2 months of real
+bookkeeping before considering GA flip. Track issues you hit (data
+shape changes, surprising error states, performance) on the GA-flip
+PR's checklist.
+
+## 8. Cross-browser / responsive (beyond Chromium)
 
 **Why manual**: E2E runs only Chromium (see `e2e/playwright.config.ts`).
 

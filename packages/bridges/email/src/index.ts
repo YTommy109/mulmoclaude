@@ -30,21 +30,32 @@ const DEFAULT_POLL_SEC = 30;
 const RECONNECT_BASE_MS = 2_000;
 const RECONNECT_MAX_MS = 60_000;
 
-const imapHost = process.env.EMAIL_IMAP_HOST;
-const imapUser = process.env.EMAIL_IMAP_USER;
-const imapPass = process.env.EMAIL_IMAP_PASSWORD;
-const smtpHost = process.env.EMAIL_SMTP_HOST;
-const smtpUser = process.env.EMAIL_SMTP_USER;
-const smtpPass = process.env.EMAIL_SMTP_PASSWORD;
-const fromAddress = process.env.EMAIL_FROM;
-
-if (!imapHost || !imapUser || !imapPass || !smtpHost || !smtpUser || !smtpPass || !fromAddress) {
-  console.error(
-    "Required: EMAIL_IMAP_HOST, EMAIL_IMAP_USER, EMAIL_IMAP_PASSWORD, EMAIL_SMTP_HOST, EMAIL_SMTP_USER, EMAIL_SMTP_PASSWORD, EMAIL_FROM.\n" +
-      "See README for setup instructions.",
-  );
-  process.exit(1);
+function readRequiredEnv(): {
+  imapHost: string;
+  imapUser: string;
+  imapPass: string;
+  smtpHost: string;
+  smtpUser: string;
+  smtpPass: string;
+  fromAddress: string;
+} {
+  const imapHost = process.env.EMAIL_IMAP_HOST;
+  const imapUser = process.env.EMAIL_IMAP_USER;
+  const imapPass = process.env.EMAIL_IMAP_PASSWORD;
+  const smtpHost = process.env.EMAIL_SMTP_HOST;
+  const smtpUser = process.env.EMAIL_SMTP_USER;
+  const smtpPass = process.env.EMAIL_SMTP_PASSWORD;
+  const fromAddress = process.env.EMAIL_FROM;
+  if (!imapHost || !imapUser || !imapPass || !smtpHost || !smtpUser || !smtpPass || !fromAddress) {
+    console.error(
+      "Required: EMAIL_IMAP_HOST, EMAIL_IMAP_USER, EMAIL_IMAP_PASSWORD, EMAIL_SMTP_HOST, EMAIL_SMTP_USER, EMAIL_SMTP_PASSWORD, EMAIL_FROM.\n" +
+        "See README for setup instructions.",
+    );
+    process.exit(1);
+  }
+  return { imapHost, imapUser, imapPass, smtpHost, smtpUser, smtpPass, fromAddress };
 }
+const { imapHost, imapUser, imapPass, smtpHost, smtpUser, smtpPass, fromAddress } = readRequiredEnv();
 
 const imapPort = Number(process.env.EMAIL_IMAP_PORT) || 993;
 const imapTls = (process.env.EMAIL_IMAP_TLS ?? "true").toLowerCase() !== "false";
@@ -84,7 +95,7 @@ interface ReplyMeta {
 
 async function sendReply(recipient: string, subject: string, references: string[], text: string): Promise<void> {
   const subj = subject.startsWith("Re:") ? subject : `Re: ${subject || "(no subject)"}`;
-  const truncated = text.length > MAX_REPLY_LEN ? text.slice(0, MAX_REPLY_LEN) + "\n\n…(truncated)" : text;
+  const truncated = text.length > MAX_REPLY_LEN ? `${text.slice(0, MAX_REPLY_LEN)}\n\n…(truncated)` : text;
   const inReplyTo = references[references.length - 1] ?? "";
   try {
     await smtp.sendMail({
@@ -177,7 +188,7 @@ function parseIncoming(parsed: ParsedMail): Incoming | null {
 }
 
 async function handleIncoming(msg: Incoming): Promise<void> {
-  if (msg.senderAddress === fromAddress!.toLowerCase()) return;
+  if (msg.senderAddress === fromAddress.toLowerCase()) return;
   if (!allowAll && !allowedSenders.has(msg.senderAddress)) {
     console.log(`[email] denied from=${msg.senderAddress}`);
     return;
@@ -197,7 +208,7 @@ async function handleIncoming(msg: Incoming): Promise<void> {
     // did `chunkText(msg.text, MAX_BODY_LEN).join("")` which is a
     // no-op — chunk-then-rejoin returns the original string. Replaced
     // with an explicit slice so the MAX_BODY_LEN cap actually bites.
-    const trimmed = msg.text.length > MAX_BODY_LEN ? msg.text.slice(0, MAX_BODY_LEN) + "\n\n…(input truncated)" : msg.text;
+    const trimmed = msg.text.length > MAX_BODY_LEN ? `${msg.text.slice(0, MAX_BODY_LEN)}\n\n…(input truncated)` : msg.text;
     const ack = await mulmo.send(msg.senderAddress, trimmed);
     const statusSuffix = ack.status ? ` (${ack.status})` : "";
     const replyText = ack.ok ? (ack.reply ?? "") : `Error${statusSuffix}: ${ack.error ?? "unknown"}`;
@@ -233,10 +244,10 @@ async function processUnread(client: ImapFlow): Promise<void> {
 
 function makeImapClient(): ImapFlow {
   return new ImapFlow({
-    host: imapHost!,
+    host: imapHost,
     port: imapPort,
     secure: imapTls,
-    auth: { user: imapUser!, pass: imapPass! },
+    auth: { user: imapUser, pass: imapPass },
     logger: false,
   });
 }
@@ -271,6 +282,7 @@ async function pollLoop(): Promise<void> {
       console.log(`[email] IMAP connected ${imapHost}:${imapPort}`);
       backoffMs = RECONNECT_BASE_MS; // reset after a good connect
 
+      // eslint-disable-next-line no-unmodified-loop-condition -- mutated by the `client.on("close")` handler above
       while (!closed) {
         try {
           await processUnread(client);

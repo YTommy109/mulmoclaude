@@ -4,6 +4,7 @@
       <span v-if="sessionRoleIcon" class="material-icons text-xs leading-none">{{ sessionRoleIcon }}</span>
       <span v-if="sessionRoleName" class="truncate">{{ sessionRoleName }}</span>
       <div class="ml-auto flex items-center gap-0.5 shrink-0">
+        <CopyChatButton :results="results" :result-timestamps="resultTimestamps" :session-role-name="sessionRoleName" />
         <button
           type="button"
           class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
@@ -55,16 +56,17 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { getPlugin } from "../tools";
 import { formatSmartTime } from "../utils/format/date";
 import CanvasViewToggle from "./CanvasViewToggle.vue";
+import CopyChatButton from "./CopyChatButton.vue";
 import type { LayoutMode } from "../utils/canvas/layoutMode";
 
 const { t } = useI18n();
 
-function sourceLabel(result: ToolResultComplete): string {
-  if (result.toolName === "text-response") return result.title ?? "Assistant";
-  return result.toolName;
-}
-
 defineProps<{
+  // Already filtered to "what the user should see" by the parent's
+  // `sidebarResults` computed (see useSessionDerived.ts) — keyboard
+  // navigation, selection, and this render all consume the same
+  // visible-only list so a hidden result can't slip into selected
+  // state and leave the sidebar showing no highlight.
   results: ToolResultComplete[];
   selectedUuid: string | null;
   resultTimestamps: Map<string, number>;
@@ -73,6 +75,18 @@ defineProps<{
   layoutMode: LayoutMode;
   showRightSidebar: boolean;
 }>();
+
+function sourceLabel(result: ToolResultComplete): string {
+  if (result.toolName === "text-response") return result.title ?? "Assistant";
+  // `action` lives on the persisted tool-result (see #670b40a5
+  // `feat(sidebar): use ToolResult.action for multi-feature labels`)
+  // but is not yet declared on `ToolResultComplete` in
+  // `gui-chat-protocol`. Cast to a local view so vue-tsc accepts
+  // the access; runtime is unchanged (it was already returning
+  // `undefined` for results that don't carry one).
+  const { action } = result as { action?: unknown };
+  return typeof action === "string" && action.length > 0 ? `${result.toolName}(${action})` : result.toolName;
+}
 
 const emit = defineEmits<{
   select: [uuid: string];
@@ -86,8 +100,7 @@ defineExpose({ root });
 </script>
 
 <style scoped>
-/* Prevent rendered markdown links inside preview cards from navigating.
-   Clicking a sidebar card should select the result, not follow links. */
+/* Card click selects the result; rendered markdown links inside the preview must not navigate. */
 :deep(a) {
   pointer-events: none;
   color: inherit;

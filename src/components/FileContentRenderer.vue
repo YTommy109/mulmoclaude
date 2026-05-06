@@ -6,15 +6,33 @@
     </div>
     <div v-else-if="contentLoading" class="p-4 text-sm text-gray-400">{{ t("common.loading") }}</div>
     <template v-else-if="content">
+      <!-- System-managed file? Show description banner above the
+           body so the user knows what the file is for, who writes
+           it, and whether hand-editing is safe (#832). -->
+      <SystemFileBanner v-if="systemDescriptor && selectedPath" :descriptor="systemDescriptor" :path="selectedPath" />
       <template v-if="content.kind === 'text'">
-        <!-- Scheduler items.json: render with the scheduler plugin's
-             calendar/list view by synthesizing a fake tool result. -->
+        <!-- Scheduler items.json holds calendar items only — task /
+             automation entries live in config/scheduler/tasks.json
+             with a different shape, so the file preview routes
+             through CalendarView (force-tab="calendar") to keep the
+             dual-tab bar from showing an empty Tasks panel (#828
+             follow-up). -->
+        <!-- Plugin-owned views require a `<PluginScopedRoot>` ancestor
+             so descendants' `useRuntime()` calls resolve. The plugin
+             registry's `wrapWithScope` covers the chat-mounted variants;
+             this renderer is a separate mount path (file preview), so
+             the wrappers go here. PluginScopedRoot renders a fragment
+             via <slot/>, so the styling div must be inside. -->
         <div v-if="schedulerResult" class="h-full">
-          <SchedulerView :selected-result="schedulerResult" />
+          <PluginScopedRoot pkg-name="scheduler" :endpoints="API_ROUTES.scheduler">
+            <CalendarView :selected-result="schedulerResult" />
+          </PluginScopedRoot>
         </div>
         <!-- Todos todos.json: full kanban / table / list explorer. -->
         <div v-else-if="todoExplorerResult" class="h-full">
-          <TodoExplorer :selected-result="todoExplorerResult" />
+          <PluginScopedRoot pkg-name="@mulmoclaude/todo-plugin">
+            <TodoExplorer :selected-result="todoExplorerResult" />
+          </PluginScopedRoot>
         </div>
         <!-- Markdown rendered: frontmatter panel + body -->
         <div v-else-if="isMarkdown && !mdRawMode" class="h-full flex flex-col overflow-auto">
@@ -23,12 +41,16 @@
               <span class="font-semibold text-gray-600 shrink-0">{{ field.key }}:</span>
               <template v-if="Array.isArray(field.value)">
                 <span class="flex flex-wrap gap-1">
-                  <span v-for="item in field.value" :key="item" class="rounded-full bg-white border border-gray-300 px-2 py-0.5 text-gray-700">
-                    {{ item }}
+                  <span
+                    v-for="(item, idx) in field.value"
+                    :key="String(idx) + ':' + formatScalarField(item)"
+                    class="rounded-full bg-white border border-gray-300 px-2 py-0.5 text-gray-700"
+                  >
+                    {{ formatScalarField(item) }}
                   </span>
                 </span>
               </template>
-              <span v-else class="text-gray-800 break-words">{{ field.value }}</span>
+              <span v-else class="text-gray-800 break-words">{{ formatScalarField(field.value) }}</span>
             </div>
           </div>
           <div class="flex-1 min-h-0" @click.capture="(e: MouseEvent) => emit('markdownLinkClick', e)">
@@ -51,10 +73,25 @@
              `allow-same-origin`, so the iframe keeps a null
              origin — it can't read MulmoClaude's cookies,
              localStorage, or the parent window's DOM.
-             A CSP meta tag is injected via wrapHtmlWithPreviewCsp
-             to restrict script loads to a vetted CDN whitelist +
-             inline; connect-src is `'none'` so the page can't
-             phone home. See src/utils/html/previewCsp.ts. -->
+
+             Two branches:
+              - Files under `artifacts/html/` load via iframe `src=`
+                pointing at the `/artifacts/html` static mount, so the
+                browser resolves relative `<img src="../images/...">`
+                against the file's real URL. CSP arrives as an HTTP
+                header on the response.
+              - Anything else falls back to `srcdoc` with a CSP meta
+                tag injected by `wrapHtmlWithPreviewCsp`. Relative
+                paths don't resolve under `srcdoc` (base URL is
+                `about:srcdoc`), but that's the historical behavior
+                for non-`artifacts/html/` HTML. -->
+        <iframe
+          v-else-if="isHtml && htmlPreviewUrl"
+          :src="htmlPreviewUrl"
+          class="w-full h-full border-0"
+          sandbox="allow-scripts"
+          :title="t('fileContentRenderer.htmlPreview')"
+        />
         <iframe
           v-else-if="isHtml"
           :srcdoc="sandboxedHtml"
@@ -111,20 +148,24 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import TextResponseView from "../plugins/textResponse/View.vue";
-import SchedulerView from "../plugins/scheduler/View.vue";
+import CalendarView from "../plugins/scheduler/CalendarView.vue";
 import TodoExplorer from "./TodoExplorer.vue";
+import PluginScopedRoot from "./PluginScopedRoot.vue";
+import SystemFileBanner from "./SystemFileBanner.vue";
 import type { FileContent } from "../composables/useFileSelection";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TextResponseData } from "../plugins/textResponse/types";
 import type { SchedulerData } from "../plugins/scheduler/index";
-import type { TodoData } from "../plugins/todo/index";
+import type { TodoData } from "@mulmoclaude/todo-plugin/shared";
 import { JSON_TOKEN_CLASS } from "../utils/format/jsonSyntax";
 import type { JsonToken, JsonlLine } from "../utils/format/jsonSyntax";
-import type { Frontmatter } from "../utils/format/frontmatter";
+import { formatScalarField, type MarkdownDocView } from "../composables/useMarkdownDoc";
 import { rewriteMarkdownImageRefs } from "../utils/image/rewriteMarkdownImageRefs";
 import { API_ROUTES } from "../config/apiRoutes";
+import { descriptorForPath } from "../config/systemFileDescriptors";
 
 const { t } = useI18n();
 
@@ -141,9 +182,10 @@ const props = defineProps<{
   isJsonl: boolean;
   mdRawMode: boolean;
   sandboxedHtml: string;
+  htmlPreviewUrl: string | null;
   jsonTokens: JsonToken[];
   jsonlLines: JsonlLine[];
-  mdFrontmatter: Frontmatter | null;
+  mdFrontmatter: MarkdownDocView | null;
   rawSaveError: string | null;
 }>();
 
@@ -151,6 +193,8 @@ const emit = defineEmits<{
   markdownLinkClick: [event: MouseEvent];
   updateSource: [newSource: string];
 }>();
+
+const systemDescriptor = computed(() => (props.selectedPath ? descriptorForPath(props.selectedPath) : null));
 
 function rawUrl(filePath: string): string {
   return `${API_ROUTES.files.raw}?path=${encodeURIComponent(filePath)}`;
@@ -164,13 +208,35 @@ function markdownResult(text: string): ToolResultComplete<TextResponseData> {
   const slash = current.lastIndexOf("/");
   const basePath = slash >= 0 ? current.slice(0, slash) : "";
   const rewritten = rewriteMarkdownImageRefs(text, basePath);
+  // The displayed text strips frontmatter (rendered separately as a
+  // metadata bar above) — but the PDF source must keep the original
+  // markdown so the server can decide what to keep / strip via the
+  // `pdfStripFrontmatter` flag. Otherwise non-wiki files with
+  // frontmatter would silently lose it from the PDF too.
+  const fullSource = props.content?.kind === "text" ? props.content.content : text;
+  // Strip frontmatter from the PDF whenever the UI shows it as a
+  // separate metadata panel — otherwise the YAML duplicates as plain
+  // text on page 1 of the PDF.
+  const hasFrontmatter = props.mdFrontmatter !== null;
   return {
     uuid: "files-preview",
     toolName: "text-response",
     message: rewritten,
     title: props.selectedPath ?? "",
-    // role: "user" hides the PDF download button in TextResponseView
-    data: { text: rewritten, role: "user", transportKind: "text-rest" },
+    data: {
+      text: rewritten,
+      role: "assistant",
+      transportKind: "text-rest",
+      // `pdfSourceText`: un-rewritten markdown so the server-side
+      // image inliner resolves against on-disk paths, not the
+      // `/api/files/raw?…` URLs the display layer produces.
+      pdfSourceText: fullSource,
+      // Pass basePath as-is (including empty string for top-level
+      // files like README.md). The server distinguishes empty
+      // (= workspace root) from undefined (= legacy default).
+      pdfBaseDir: basePath,
+      pdfStripFrontmatter: hasFrontmatter,
+    },
   };
 }
 </script>

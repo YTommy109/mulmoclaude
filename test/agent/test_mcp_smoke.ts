@@ -14,6 +14,8 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 
 import { ONE_SECOND_MS } from "../../server/utils/time.ts";
+import { TOOL_NAMES } from "../../src/config/toolNames.ts";
+
 const PROJECT_ROOT = path.resolve(import.meta.dirname, "../..");
 const MCP_SERVER = path.join(PROJECT_ROOT, "server/agent/mcp-server.ts");
 // Use npx tsx so the shell resolves .cmd wrappers on Windows.
@@ -26,7 +28,7 @@ interface JsonRpcResponse {
     protocolVersion?: string;
     capabilities?: object;
     serverInfo?: { name: string };
-    tools?: Array<{ name: string; description: string }>;
+    tools?: { name: string; description: string }[];
   };
   error?: { code: number; message: string };
 }
@@ -54,7 +56,7 @@ function sendAndReceive(lines: string[], env: Record<string, string>): Promise<J
 
     // Send all lines, then close stdin to signal EOF.
     for (const line of lines) {
-      child.stdin.write(line + "\n");
+      child.stdin.write(`${line}\n`);
     }
     child.stdin.end();
 
@@ -95,8 +97,7 @@ describe("MCP server subprocess smoke test", () => {
     const env: Record<string, string> = {
       SESSION_ID: "test-smoke",
       PORT: "0",
-      PLUGIN_NAMES: "manageTodoList,presentMulmoScript,manageWiki,switchRole",
-      ROLE_IDS: "general",
+      PLUGIN_NAMES: ["manageTodoList", TOOL_NAMES.presentMulmoScript].join(","),
     };
 
     const responses = await sendAndReceive(
@@ -138,11 +139,12 @@ describe("MCP server subprocess smoke test", () => {
 
     // The tools we requested via PLUGIN_NAMES should be present.
     const toolNames = toolsResp.result.tools.map((tool: { name: string }) => tool.name);
-    assert.ok(toolNames.includes("manageTodoList"), `manageTodoList not in tools: ${toolNames.join(", ")}`);
-    assert.ok(toolNames.includes("presentMulmoScript"), `presentMulmoScript not in tools: ${toolNames.join(", ")}`);
-    assert.ok(toolNames.includes("manageWiki"), `manageWiki not in tools: ${toolNames.join(", ")}`);
+    assert.ok(toolNames.includes("manageTodoList"), `${"manageTodoList"} not in tools: ${toolNames.join(", ")}`);
+    assert.ok(toolNames.includes(TOOL_NAMES.presentMulmoScript), `${TOOL_NAMES.presentMulmoScript} not in tools: ${toolNames.join(", ")}`);
 
-    // switchRole should always be included.
-    assert.ok(toolNames.includes("switchRole"), `switchRole not in tools: ${toolNames.join(", ")}`);
+    // manageWiki is intentionally absent (#963 Stage 3b) — the MCP
+    // tool definition was removed; the plugin record stays for
+    // canvas dispatch only, not for LLM-side calls.
+    assert.ok(!toolNames.includes(TOOL_NAMES.manageWiki), `${TOOL_NAMES.manageWiki} should not be exposed via MCP: ${toolNames.join(", ")}`);
   });
 });

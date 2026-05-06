@@ -51,6 +51,15 @@ NEVER use raw `fs.readFile` / `fs.writeFile` in route handlers. Use `server/util
 - Honour `sonarjs/cognitive-complexity` threshold (error at >15)
 - No re-export barrel files without specific reason
 
+### Lint warnings — drive them toward zero
+
+`yarn lint` runs at error-strict for most rules. A handful are kept at `warn` because graduating them to error would force a noisy cleanup and risk regressions. Treat warnings as a backlog, not a baseline.
+
+- **Reduce them.** When you touch a file, fix any warnings in it that are mechanically safe (`prefer-destructuring` auto-fix, missing `return undefined`, etc.). Don't leave a warning behind in code you just edited.
+- **Per-line `eslint-disable-next-line` is intentional.** When you see one with a `--` rationale (e.g. `vue/no-v-html`, `no-unmodified-loop-condition`, `no-script-url` test fixtures, `no-new` URL/Intl probes, `no-loop-func` Mocha closures), it has been audited. **Never remove these comments during refactors** — they encode a trust decision. If the surrounding code changes shape, port the disable to the new line; don't drop it.
+- **`vue/no-v-html` specifically.** Every `v-html` in this repo (NewsView, markdown/View, spreadsheet/View, textResponse/View, wiki/View) feeds from `marked.parse` or `XLSX.utils.sheet_to_html` over app-owned data — all intentional, all suppressed at the call site. If you add a new `v-html`, audit the data source and add the same comment with a one-sentence rationale; do NOT silence the rule globally.
+- **For multi-line elements**, `eslint-disable-next-line` only reaches one line. Use a `<!-- eslint-disable <rule> -->` … `<!-- eslint-enable <rule> -->` pair around the element instead.
+
 ### GitHub posts
 
 NEVER escape backticks with `\`` in `gh` commands. Use single-quoted heredoc (`<<'EOF'`).
@@ -97,6 +106,28 @@ See `/release-app` skill for app releases. See `/publish` skill for npm packages
 - MUST update `docs/CHANGELOG.md` before tagging
 - Package releases: `--latest=false` on `gh release create`
 
+## Build orchestration (`yarn build:packages`)
+
+The script runs **four tiers in order**:
+
+1. `@mulmobridge/protocol` + `@receptron/task-scheduler` — no internal deps, run in parallel
+2. `@mulmobridge/{client, chat-service, mock-server}` — depend on tier 1
+3. **All bridges** under `packages/bridges/*` whose name starts with `@mulmobridge/` and has a `build` script
+4. **All runtime plugins** under `packages/*` whose name starts with `@mulmoclaude/` AND ends with `-plugin` and has a `build` script
+
+Tiers 3 and 4 are auto-discovered by `scripts/build-workspaces.mjs`. Tiers 1 and 2 stay explicit in `package.json` because their dep-graph order can't be globbed.
+
+**Adding a new bridge or runtime plugin: just create the workspace directory — no `package.json` edit needed.** Selection rules are strict:
+
+- **Bridge**: lives at `packages/bridges/<name>/`, name `@mulmobridge/<name>`, has `scripts.build`
+- **Runtime plugin**: lives at `packages/<name>-plugin/`, name `@mulmoclaude/<name>-plugin`, has `scripts.build`
+
+If a workspace doesn't fit either pattern — e.g. a `@receptron/*` package, or a non-bridge `@mulmobridge/*` like `mock-server` — **MUST add it to the explicit tier-1 / tier-2 enumeration in `package.json`**; auto-discovery won't pick it up. Same goes for any new top-level core package that other workspaces depend on.
+
+NEVER name a non-runtime-plugin package `@mulmoclaude/foo-plugin` (e.g. a helper library); the build driver will try to run its `build` script in tier 4, after every consumer has already been built. Pick a different name (`@mulmoclaude/foo`, `@mulmoclaude/foo-helpers`, …) or move it to tier 2.
+
+The yarn 4 smoke workflow (`yarn4_smoke`) verifies the chain still works under yarn 4. Both tiers' driver only spawns `yarn workspace <name> run build` — identical syntax in yarn 1 and 4 — so portability is preserved.
+
 ## Architecture (summary)
 
 Full reference: [`docs/developer.md`](docs/developer.md)
@@ -136,9 +167,27 @@ artifacts/       ← charts/, documents/, html/, images/, spreadsheets/
 
 ## Plugin Development
 
-Full reference: [`docs/developer.md`](docs/developer.md#plugin-development)
+Full reference: [`docs/developer.md`](docs/developer.md#plugin-development) (built-in) / [`docs/plugin-runtime.md`](docs/plugin-runtime.md) (runtime / npm-package plugins)
 
-Adding a **local plugin** updates 8 places: `definition.ts`, `index.ts`, `server/api/routes/<name>.ts`, `server/agent/mcp-server.ts`, `src/tools/index.ts`, `src/config/roles.ts`, `server/agent/index.ts`, `src/config/apiRoutes.ts`.
+**Plugin-vs-host boundary (always apply).** Per-feature integrations (Spotify / GitHub / Apple Music / weather / bookmarks / …) live in `packages/<name>-plugin/` as **runtime plugins**. Host code (`server/`, `src/plugins/`, `src/config/`) only gets **generic infrastructure that benefits multiple plugins** — never provider-specific code. Examples of generic host infra: the `/api/plugins/runtime/:pkg/dispatch` route, the asset-mount route, the `/api/plugins/runtime/:pkg/oauth/callback` route (#1162). A new "Spotify route" or "GitHub route" in `server/api/routes/` is a smell — re-think whether the work belongs in the plugin package and whether the host's infra needs a generic extension instead.
+
+**Plugin owns its identity** (built-in path). Each built-in plugin declares its `toolName`, `apiRoutes`, `workspaceDirs`, and `staticChannels` in its own `src/plugins/<name>/meta.ts`. Host aggregators (`API_ROUTES`, `TOOL_NAMES`, `WORKSPACE_DIRS`, `PUBSUB_CHANNELS`) auto-merge those contributions via `defineHostAggregate` — host code holds zero plugin-specific literals.
+
+Adding a built-in plugin touches **6 plugin-local files** and **3 host barrels**:
+
+- `src/plugins/<name>/meta.ts` — `definePluginMeta({ toolName, apiRoutesKey?, apiRoutes?, workspaceDirs?, staticChannels? })`
+- `src/plugins/<name>/definition.ts` — MCP `ToolDefinition`; derive `TOOL_NAME = META.toolName`, endpoint types from `typeof META.apiRoutes`
+- `src/plugins/<name>/index.ts` — `PluginRegistration` (View / Preview wrapped via `wrapWithScope(scope, …)`, executor calls `pluginEndpoints<E>(scope)`)
+- `src/plugins/<name>/View.vue` / `Preview.vue` — Vue surfaces; call `useRuntime()` from `gui-chat-protocol/vue` for the typed `endpoints` map
+- `src/plugins/metas.ts` — append the META to `BUILT_IN_PLUGIN_METAS`
+- `src/plugins/index.ts` — append the registration to `BUILT_IN_PLUGINS`
+- `src/plugins/server.ts` — append `{ def, endpoint }` to `BUILT_IN_SERVER_BINDINGS` (skip for GUI-only plugins like wiki)
+- `server/api/routes/<name>.ts` — Express route handlers (only when the plugin owns endpoints)
+- `src/main.ts` — entry in the host endpoint registry passed to `installHostContext({ endpoints })`
+
+Adding to a Role's `availablePlugins` (`src/config/roles.ts`) is separate — roles gate which plugins each chat sees, independent of plugin registration.
+
+Standalone routes (`/todos`, `/calendar`, …) and inline file previews (`FileContentRenderer` rendering `data/todos/todos.json`) must wrap the plugin component with `<PluginScopedRoot pkg-name :endpoints>` so descendant `useRuntime()` calls resolve. The plugin registry's `wrapWithScope` already covers chat-mounted variants.
 
 ## Centralized Constants
 
@@ -148,11 +197,15 @@ Key ones to remember:
 
 | What | Source of truth |
 |---|---|
-| API routes | `src/config/apiRoutes.ts` → `API_ROUTES` |
+| API routes | `src/config/apiRoutes.ts` → `API_ROUTES` (host-fixed entries + plugin contributions auto-merged from `META.apiRoutes`) |
+| Tool names | `src/config/toolNames.ts` → `TOOL_NAMES` (host-fixed entries + plugin contributions auto-merged from `META.toolName`) |
 | Event types | `src/types/events.ts` → `EVENT_TYPES` |
-| Workspace paths | `server/workspace/paths.ts` → `WORKSPACE_PATHS` |
+| Workspace paths | `server/workspace/paths.ts` → `WORKSPACE_PATHS` (auto-derived from `WORKSPACE_DIRS` + `WORKSPACE_FILES`; plugin contributions merged from `META.workspaceDirs`) |
+| Pub-sub channels | `src/config/pubsubChannels.ts` → `PUBSUB_CHANNELS` (host-fixed + `META.staticChannels`) |
 | Time | `server/utils/time.ts` → `ONE_SECOND_MS` / `ONE_MINUTE_MS` / `ONE_HOUR_MS` |
 | Scheduler | `@receptron/task-scheduler` → `SCHEDULE_TYPES` / `TASK_RESULTS` |
+
+For the four plugin-aware aggregators above, edit the plugin's `meta.ts` rather than the host record — `defineHostAggregate` (`src/plugins/metas.ts`) merges them at module load with first-write-wins semantics; collisions surface as boot-time diagnostics on the bell.
 
 ## Testing
 

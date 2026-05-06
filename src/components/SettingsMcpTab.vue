@@ -6,6 +6,152 @@
       <template #tsx><code class="bg-gray-100 px-1 rounded">tsx</code></template>
     </i18n-t>
 
+    <!-- Catalog (#823 Phase 1) — checkbox install for curated MCP servers.
+         Phase 1 ships only config-free entries; per-server config (api keys
+         etc.) lands in Phase 2. -->
+    <section data-testid="mcp-catalog" class="space-y-2 pt-1">
+      <h3 class="text-xs font-semibold text-gray-700">{{ t("settingsMcpTab.catalog.heading") }}</h3>
+
+      <details class="group" open data-testid="mcp-catalog-audience-general">
+        <summary class="cursor-pointer text-xs font-medium text-gray-700 select-none py-1">
+          {{ t("settingsMcpTab.catalog.audience.general") }}
+          <span class="text-gray-400 ml-1">({{ generalEntries.length }})</span>
+        </summary>
+        <ul class="mt-2 space-y-2">
+          <li
+            v-for="entry in generalEntries"
+            :key="entry.id"
+            :data-testid="`mcp-catalog-entry-${entry.id}`"
+            class="border border-gray-200 rounded p-3 space-y-1.5"
+          >
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                :checked="isInstalled(entry.id)"
+                :data-testid="`mcp-catalog-toggle-${entry.id}`"
+                class="mt-1 shrink-0"
+                @change="onCatalogToggle(entry, $event)"
+              />
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-sm font-semibold text-gray-800">{{ t(entry.displayName) }}</span>
+                  <span class="text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5" :class="riskBadgeClass(entry.riskLevel)">
+                    {{ t(`settingsMcpTab.catalog.risk.${entry.riskLevel}`) }}
+                  </span>
+                </div>
+                <p class="text-xs text-gray-600 mt-0.5">{{ t(entry.description) }}</p>
+              </div>
+            </label>
+            <div class="text-[11px] text-gray-500 flex flex-wrap gap-x-3 ml-6">
+              <a
+                :href="entry.upstreamUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="hover:text-blue-600 hover:underline"
+                :data-testid="`mcp-catalog-upstream-${entry.id}`"
+                v-text="t('settingsMcpTab.catalog.upstream')"
+              ></a>
+              <a
+                v-if="entry.setupGuideUrl"
+                :href="entry.setupGuideUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="hover:text-blue-600 hover:underline"
+                :data-testid="`mcp-catalog-setup-${entry.id}`"
+                v-text="t('settingsMcpTab.catalog.setupGuide')"
+              ></a>
+            </div>
+
+            <!-- Per-server config form (Phase 2). Only the entry being
+                 actively configured renders the form; toggling a different
+                 entry on closes this one. -->
+            <form
+              v-if="configFormEntryId === entry.id"
+              :data-testid="`mcp-catalog-config-form-${entry.id}`"
+              class="ml-6 mt-2 space-y-3 border-l-2 border-blue-200 pl-3"
+              @submit.prevent="onConfigFormInstall(entry)"
+            >
+              <div v-for="field in entry.configSchema" :key="field.key" class="space-y-1">
+                <div class="flex items-center gap-1.5">
+                  <label :for="`mcp-config-${entry.id}-${field.key}`" class="text-xs font-medium text-gray-700">
+                    {{ t(field.label) }}
+                    <span v-if="field.required" class="text-red-500" :aria-label="t('settingsMcpTab.catalog.config.requiredAria')">{{
+                      t("settingsMcpTab.catalog.config.requiredMarker")
+                    }}</span>
+                  </label>
+                  <a
+                    v-if="field.helpUrl"
+                    :href="field.helpUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-xs text-blue-600 hover:underline"
+                    :title="t('settingsMcpTab.catalog.config.howToGet')"
+                    :aria-label="t('settingsMcpTab.catalog.config.howToGet')"
+                    :data-testid="`mcp-catalog-config-help-${entry.id}-${field.key}`"
+                  >
+                    🔑
+                  </a>
+                </div>
+                <!-- No HTML `required` attribute — empty-field
+                     validation is handled by interpolateMcpSpec()
+                     so the inline error block stays the single
+                     source of truth (and so the e2e can submit an
+                     empty form to exercise the validation path). -->
+                <select
+                  v-if="field.kind === 'select'"
+                  :id="`mcp-config-${entry.id}-${field.key}`"
+                  v-model="configFormValues[field.key]"
+                  :aria-required="field.required"
+                  :class="['w-full px-2 py-1 text-xs border rounded', configFormErrors.includes(field.key) ? 'border-red-400 bg-red-50' : 'border-gray-300']"
+                  :data-testid="`mcp-catalog-config-input-${entry.id}-${field.key}`"
+                >
+                  <option v-if="!field.required" value="">{{ field.placeholder ?? "" }}</option>
+                  <option v-for="option in field.options ?? []" :key="option" :value="option">{{ option }}</option>
+                </select>
+                <input
+                  v-else
+                  :id="`mcp-config-${entry.id}-${field.key}`"
+                  v-model="configFormValues[field.key]"
+                  :type="configFieldInputType(field)"
+                  :placeholder="field.placeholder ?? ''"
+                  :aria-required="field.required"
+                  :class="['w-full px-2 py-1 text-xs border rounded', configFormErrors.includes(field.key) ? 'border-red-400 bg-red-50' : 'border-gray-300']"
+                  :data-testid="`mcp-catalog-config-input-${entry.id}-${field.key}`"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <p v-if="field.helpText" class="text-[11px] text-gray-500">{{ t(field.helpText) }}</p>
+              </div>
+              <div v-if="configFormErrors.length > 0" class="text-xs text-red-600" :data-testid="`mcp-catalog-config-error-${entry.id}`">
+                {{ t("settingsMcpTab.catalog.config.errMissingRequired", { fields: configFormErrors.join(", ") }) }}
+              </div>
+              <div class="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  class="px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+                  :data-testid="`mcp-catalog-config-cancel-${entry.id}`"
+                  @click="onConfigFormCancel"
+                >
+                  {{ t("common.cancel") }}
+                </button>
+                <button
+                  type="submit"
+                  class="px-2 py-1 text-xs rounded bg-blue-500 text-white hover:bg-blue-600"
+                  :data-testid="`mcp-catalog-config-install-${entry.id}`"
+                >
+                  {{ t("settingsMcpTab.catalog.config.install") }}
+                </button>
+              </div>
+            </form>
+          </li>
+        </ul>
+      </details>
+    </section>
+
+    <hr class="border-gray-200" />
+
+    <h3 class="text-xs font-semibold text-gray-700">{{ t("settingsMcpTab.customHeading") }}</h3>
+
     <div v-if="servers.length === 0" class="text-xs text-gray-500 italic" data-testid="mcp-empty">{{ t("settingsMcpTab.noServers") }}</div>
 
     <ul v-else class="space-y-2" data-testid="mcp-server-list">
@@ -145,32 +291,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
+
+// UI-local representation of a configured server. Matches
+// server/config.ts#McpServerEntry. Re-declared in src/config/mcpTypes.ts
+// to avoid a cross-module type import from the server package.
+import type { HttpSpec, StdioSpec, McpServerSpec, McpServerEntry } from "../config/mcpTypes";
+import { MCP_CATALOG, requiredKeysOf, type McpCatalogEntry, type McpConfigField } from "../config/mcpCatalog";
+import { interpolateMcpSpec } from "../utils/mcp/interpolateSpec";
 
 const { t } = useI18n();
 
-// UI-local representation of a configured server. Matches
-// server/config.ts#McpServerEntry. Re-declared here to avoid a
-// cross-module type import from the server package.
-export interface HttpSpec {
-  type: "http";
-  url: string;
-  headers?: Record<string, string>;
-  enabled?: boolean;
-}
-export interface StdioSpec {
-  type: "stdio";
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-  enabled?: boolean;
-}
-export type ServerSpec = HttpSpec | StdioSpec;
-export interface McpServerEntry {
-  id: string;
-  spec: ServerSpec;
-}
+// Re-exported for callers that imported these from the SFC before the
+// types moved out (#823 Phase 1).
+export type { HttpSpec, StdioSpec, McpServerSpec, McpServerEntry };
+/** @deprecated alias kept for the previous SFC-local name. */
+export type ServerSpec = McpServerSpec;
 
 interface Props {
   servers: McpServerEntry[];
@@ -195,6 +332,153 @@ interface DraftState {
 const adding = ref(false);
 const draft = ref<DraftState>(emptyDraft());
 const draftError = ref("");
+
+// ── Catalog (#823 Phase 1) ─────────────────────────────────────
+//
+// Catalog membership is derived from `props.servers`: a checkbox is
+// "on" iff a custom server with the same id already exists. Toggle
+// emits `add` (with the catalog spec) or `remove` (by index) — the
+// parent owns persistence.
+//
+// Phase 1 only renders General audience. Developer entries are
+// out-of-band until Phase 3.
+
+const generalEntries = computed(() => MCP_CATALOG.filter((entry) => entry.audience === "general"));
+
+function isInstalled(serverId: string): boolean {
+  return props.servers.some((server) => server.id === serverId);
+}
+
+function onCatalogToggle(entry: McpCatalogEntry, event: Event): void {
+  const { checked } = event.target as HTMLInputElement;
+  if (checked) {
+    if (entry.configSchema.length > 0) {
+      openConfigForm(entry);
+      // Visually un-check until the form is submitted; install is gated
+      // on the form's required-field validation.
+      (event.target as HTMLInputElement).checked = false;
+      return;
+    }
+    emit("add", { id: entry.id, spec: { ...entry.spec, enabled: true } });
+    return;
+  }
+  const idx = props.servers.findIndex((server) => server.id === entry.id);
+  if (idx >= 0) emit("remove", idx);
+}
+
+// ── Per-server config form (#823 Phase 2) ──────────────────────
+//
+// Catalog entries with a non-empty `configSchema` open an inline
+// form on toggle. The user fills required fields, hits Install, and
+// the spec template's `${KEY}` placeholders are interpolated with
+// the entered values via `interpolateMcpSpec` before emitting `add`.
+//
+// Drafted values (NOT installed yet) are stashed in localStorage so
+// an accidental Cancel doesn't lose a freshly-pasted API key.
+// Persistence ends once the entry installs — values then live in
+// the spec env / url where mcp.json (0o600) protects them.
+
+const CONFIG_DRAFT_LS_PREFIX = "mcp-catalog-draft:";
+const configFormEntryId = ref<string | null>(null);
+const configFormValues = ref<Record<string, string>>({});
+const configFormErrors = ref<string[]>([]);
+
+function openConfigForm(entry: McpCatalogEntry): void {
+  configFormEntryId.value = entry.id;
+  configFormErrors.value = [];
+  configFormValues.value = readDraftFromStorage(entry.id);
+  // Pre-fill any missing keys with empty strings so reactive bindings
+  // work without `v-model` warnings.
+  for (const field of entry.configSchema) {
+    if (configFormValues.value[field.key] === undefined) configFormValues.value[field.key] = "";
+  }
+}
+
+function closeConfigForm(): void {
+  configFormEntryId.value = null;
+  configFormValues.value = {};
+  configFormErrors.value = [];
+}
+
+function onConfigFormCancel(): void {
+  closeConfigForm();
+}
+
+function onConfigFormInstall(entry: McpCatalogEntry): void {
+  configFormErrors.value = [];
+  const result = interpolateMcpSpec(entry.spec, configFormValues.value, requiredKeysOf(entry));
+  if (!result.ok) {
+    configFormErrors.value = result.missing;
+    persistDraftToStorage(entry.id, configFormValues.value, entry.configSchema);
+    return;
+  }
+  emit("add", { id: entry.id, spec: { ...result.spec, enabled: true } });
+  // Successful install — drop the draft so we don't leak the API key
+  // in localStorage past its useful lifetime.
+  clearDraftFromStorage(entry.id);
+  closeConfigForm();
+}
+
+function readDraftFromStorage(entryId: string): Record<string, string> {
+  try {
+    const raw = window.localStorage.getItem(CONFIG_DRAFT_LS_PREFIX + entryId);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === "string") out[key] = value;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function persistDraftToStorage(entryId: string, values: Record<string, string>, schema: McpConfigField[]): void {
+  // SECRET HYGIENE (Codex iter-1 #852): never write `kind: "secret"`
+  // values to localStorage. Plaintext API keys would survive cancel
+  // / reload outside the encrypted mcp.json path and remain
+  // recoverable via dev tools / XSS. Non-secret fields (host id,
+  // workspace path, etc.) keep their draft so a missing-field
+  // re-submission doesn't clobber the user's other typing.
+  const secretKeys = new Set(schema.filter((field) => field.kind === "secret").map((field) => field.key));
+  const safeValues: Record<string, string> = {};
+  for (const [key, value] of Object.entries(values)) {
+    if (secretKeys.has(key)) continue;
+    safeValues[key] = value;
+  }
+  try {
+    window.localStorage.setItem(CONFIG_DRAFT_LS_PREFIX + entryId, JSON.stringify(safeValues));
+  } catch {
+    // localStorage can throw in private browsing or when full — silent
+    // no-op; draft just won't survive the page reload.
+  }
+}
+
+function clearDraftFromStorage(entryId: string): void {
+  try {
+    window.localStorage.removeItem(CONFIG_DRAFT_LS_PREFIX + entryId);
+  } catch {
+    // Same rationale as persistDraftToStorage.
+  }
+}
+
+function configFieldInputType(field: McpConfigField): string {
+  // `select` is rendered as a <select> element, not <input>, so this
+  // helper is only ever called for input-rendered kinds. `path` falls
+  // through to plain text for now — file-picker UX is out of scope
+  // for Phase 2 (Codex iter-1 #852, partial).
+  if (field.kind === "secret") return "password";
+  if (field.kind === "url") return "url";
+  return "text";
+}
+
+function riskBadgeClass(level: McpCatalogEntry["riskLevel"]): string {
+  if (level === "low") return "bg-green-100 text-green-700";
+  if (level === "medium") return "bg-amber-100 text-amber-700";
+  return "bg-red-100 text-red-700";
+}
 
 function emptyDraft(): DraftState {
   return { id: "", type: "http", url: "", command: "npx", argsText: "" };

@@ -21,7 +21,6 @@ interface EnvSnapshot {
     mcpSessionId: string;
     mcpHost: string;
     mcpPluginNames: readonly string[];
-    mcpRoleIds: readonly string[];
   }>;
   isGeminiAvailable: () => boolean;
 }
@@ -48,7 +47,6 @@ const ENV_KEYS = [
   "SESSION_ID",
   "MCP_HOST",
   "PLUGIN_NAMES",
-  "ROLE_IDS",
 ] as const;
 
 const saved: Record<string, string | undefined> = {};
@@ -56,12 +54,14 @@ const saved: Record<string, string | undefined> = {};
 beforeEach(() => {
   for (const key of ENV_KEYS) {
     saved[key] = process.env[key];
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- key is from a fixed ENV_KEYS allow-list
     delete process.env[key];
   }
 });
 
 afterEach(() => {
   for (const key of ENV_KEYS) {
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- key is from a fixed ENV_KEYS allow-list
     if (saved[key] === undefined) delete process.env[key];
     else process.env[key] = saved[key];
   }
@@ -83,7 +83,6 @@ describe("env defaults", () => {
     assert.equal(env.mcpSessionId, "");
     assert.equal(env.mcpHost, "localhost");
     assert.deepEqual(env.mcpPluginNames, []);
-    assert.deepEqual(env.mcpRoleIds, []);
   });
 });
 
@@ -127,12 +126,10 @@ describe("env coercion", () => {
     assert.equal(env.isProduction, true);
   });
 
-  it("parses CSV env vars (PLUGIN_NAMES / ROLE_IDS)", async () => {
+  it("parses CSV env vars (PLUGIN_NAMES)", async () => {
     process.env.PLUGIN_NAMES = "a,b,c";
-    process.env.ROLE_IDS = "general,office";
     const { env } = await loadEnvFresh();
     assert.deepEqual(env.mcpPluginNames, ["a", "b", "c"]);
-    assert.deepEqual(env.mcpRoleIds, ["general", "office"]);
   });
 
   it("CSV parsing drops empty segments (so trailing commas don't yield '')", async () => {
@@ -207,9 +204,9 @@ describe("asCsv edge cases", () => {
   });
 
   it("trims whitespace-only entries to empty and drops them", async () => {
-    process.env.ROLE_IDS = " , a , , b , ";
+    process.env.PLUGIN_NAMES = " , a , , b , ";
     const { env } = await loadEnvFresh();
-    assert.deepEqual(env.mcpRoleIds, ["a", "b"]);
+    assert.deepEqual(env.mcpPluginNames, ["a", "b"]);
   });
 });
 
@@ -223,11 +220,5 @@ describe("env immutability", () => {
     process.env.PLUGIN_NAMES = "a,b";
     const { env } = await loadEnvFresh();
     assert.equal(Object.isFrozen(env.mcpPluginNames), true);
-  });
-
-  it("mcpRoleIds array is frozen", async () => {
-    process.env.ROLE_IDS = "x,y";
-    const { env } = await loadEnvFresh();
-    assert.equal(Object.isFrozen(env.mcpRoleIds), true);
   });
 });

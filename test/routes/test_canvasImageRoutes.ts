@@ -32,7 +32,7 @@ type Handler = (req: Request, res: Response) => Promise<void> | void;
 interface StackFrame {
   route?: {
     path: string;
-    stack: Array<{ method: string; handle: Handler }>;
+    stack: { method: string; handle: Handler }[];
   };
 }
 interface RouterInternals {
@@ -161,6 +161,12 @@ describe("POST /api/canvas — pre-allocate image file", () => {
     // Also surfaces the human-readable fields from executeOpenCanvas.
     assert.equal(body.title, "Drawing Canvas");
     assert.equal(typeof body.message, "string");
+    // message must surface the same imagePath the route allocated, so the
+    // LLM can reference the file when reading it back later.
+    assert.ok(body.message?.includes(body.data.imageData), `message should embed the allocated imagePath; got: ${body.message}`);
+    // instructions must read as pre-draw — the canvas was just shown, the
+    // user has not drawn yet. Guards against reverting to past-tense wording.
+    assert.match(body.instructions ?? "", /about to draw/i, `instructions should be pre-draw tense; got: ${body.instructions}`);
 
     createdImagePaths.push(body.data.imageData);
   });
@@ -171,8 +177,12 @@ describe("POST /api/canvas — pre-allocate image file", () => {
     const secondCall = mockRes();
     await canvasHandler(req({}), secondCall.res);
 
-    const firstPath = (firstCall.state.body as OpenCanvasBody).data!.imageData;
-    const secondPath = (secondCall.state.body as OpenCanvasBody).data!.imageData;
+    const firstBody = firstCall.state.body as OpenCanvasBody | undefined;
+    const secondBody = secondCall.state.body as OpenCanvasBody | undefined;
+    assert.ok(firstBody?.data);
+    assert.ok(secondBody?.data);
+    const firstPath = firstBody.data.imageData;
+    const secondPath = secondBody.data.imageData;
     assert.notEqual(firstPath, secondPath, "two consecutive opens must not share a filename");
 
     createdImagePaths.push(firstPath, secondPath);
@@ -184,7 +194,9 @@ describe("PUT /api/images/update — overwrite pre-allocated file", () => {
     // Allocate a canvas image the same way the client would.
     const { state: openState, res: openRes } = mockRes();
     await canvasHandler(req({}), openRes);
-    const relPath = (openState.body as OpenCanvasBody).data!.imageData;
+    const openBody = openState.body as OpenCanvasBody | undefined;
+    assert.ok(openBody?.data);
+    const relPath = openBody.data.imageData;
     createdImagePaths.push(relPath);
 
     const absPath = path.join(workspaceDir, relPath);
@@ -206,7 +218,9 @@ describe("PUT /api/images/update — overwrite pre-allocated file", () => {
   it("accepts raw base64 without a data-URI prefix (stripDataUri is a no-op)", async () => {
     const { state: openState, res: openRes } = mockRes();
     await canvasHandler(req({}), openRes);
-    const relPath = (openState.body as OpenCanvasBody).data!.imageData;
+    const openBody = openState.body as OpenCanvasBody | undefined;
+    assert.ok(openBody?.data);
+    const relPath = openBody.data.imageData;
     createdImagePaths.push(relPath);
 
     const { state, res } = mockRes();

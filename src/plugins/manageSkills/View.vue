@@ -147,7 +147,9 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { ManageSkillsData, SkillSummary } from "./index";
 import { useAppApi } from "../../composables/useAppApi";
 import { apiGet, apiPut, apiDelete } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
+import { buildRouteUrl } from "../meta-types";
+import type { SkillsEndpoints } from "./definition";
 
 const { t } = useI18n();
 
@@ -197,11 +199,13 @@ watch(
 
 const listError = ref<string | null>(null);
 
+const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
+
 // Standalone mode: if no selectedResult was passed, fetch the skill
 // list from the API on mount so the view is populated.
 onMounted(async () => {
   if (props.selectedResult || skills.value.length > 0) return;
-  const response = await apiGet<{ skills: SkillSummary[] }>(API_ROUTES.skills.list);
+  const response = await apiGet<{ skills: SkillSummary[] }>(endpoints.list.url);
   if (!response.ok) {
     listError.value = t("pluginManageSkills.errListFailed", { error: response.error });
     return;
@@ -229,7 +233,7 @@ watch(
     editing.value = false;
     detailLoading.value = true;
     detailError.value = null;
-    const response = await apiGet<{ skill: SkillDetail }>(API_ROUTES.skills.detail.replace(":name", encodeURIComponent(name)));
+    const response = await apiGet<{ skill: SkillDetail }>(buildRouteUrl(endpoints.detail, { name }));
     if (selectedName.value !== name) {
       // Selection changed while this request was in flight — drop it.
       return;
@@ -258,10 +262,10 @@ function cancelEdit(): void {
 
 async function saveEdit(): Promise<void> {
   if (!detail.value) return;
-  const name = detail.value.name;
+  const { name } = detail.value;
   saving.value = true;
   detailError.value = null;
-  const result = await apiPut<{ updated: boolean; path: string }>(API_ROUTES.skills.update.replace(":name", encodeURIComponent(name)), {
+  const result = await apiPut<{ updated: boolean; path: string }>(buildRouteUrl(endpoints.update, { name }), {
     description: editDescription.value,
     body: editBody.value,
   });
@@ -304,12 +308,12 @@ function runSkill(): void {
 // since the action is reversible by re-saving via the conversation.
 async function deleteSkill(): Promise<void> {
   if (!detail.value || detail.value.source !== "project") return;
-  const name = detail.value.name;
+  const { name } = detail.value;
   if (!window.confirm(t("pluginManageSkills.confirmDelete", { name }))) {
     return;
   }
   deleting.value = true;
-  const result = await apiDelete<unknown>(API_ROUTES.skills.remove.replace(":name", encodeURIComponent(name)));
+  const result = await apiDelete<unknown>(buildRouteUrl(endpoints.remove, { name }));
   deleting.value = false;
   if (!result.ok) {
     detailError.value = result.error || t("pluginManageSkills.errDeleteFailed");

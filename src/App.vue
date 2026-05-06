@@ -77,6 +77,8 @@
             :roles="roles"
             :error-message="historyError"
             @load-session="handleSessionSelect"
+            @toggle-bookmark="(id, bookmarked) => setBookmark(id, bookmarked)"
+            @delete-session="(id) => deleteSessionFromHistory(id)"
           />
           <SessionHistoryExpandButton :model-value="sidePanelExpanded" @update:model-value="(value: boolean) => (sidePanelExpanded = value)" />
         </div>
@@ -104,14 +106,11 @@
           @toggle-right-sidebar="toggleRightSidebar"
         />
 
-        <!-- Sample queries (expandable pane) -->
-        <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
-
-        <!-- Shared Thinking indicator. Sits between the suggestions
-             panel and the chat input so the user gets the same
-             "still alive" cue regardless of which plugin view fills
-             the canvas (the sidebar copy inside SessionSidebar
-             scrolls with results and can fall below the fold). -->
+        <!-- Shared Thinking indicator. Sits between the sidebar and
+             the chat input so the user gets the same "still alive"
+             cue regardless of which plugin view fills the canvas
+             (the sidebar copy inside SessionSidebar scrolls with
+             results and can fall below the fold). -->
         <ThinkingIndicator
           v-if="activeSessionRunning"
           :status-message="statusMessage || t('app.thinking')"
@@ -126,8 +125,9 @@
           v-model="userInput"
           v-model:pasted-file="pastedFile"
           :is-running="activeSessionRunning"
+          :queries="sessionRoleQueries"
           @send="sendMessage()"
-          @cancel="cancelActiveRun"
+          @suggestion-send="(q) => sendMessage(q)"
         />
       </div>
 
@@ -165,22 +165,56 @@
             @update:layout-mode="setLayoutMode"
             @toggle-right-sidebar="toggleRightSidebar"
           />
-          <!-- Distinct pages -->
+          <!-- Distinct pages. Plugin-owned views (Todo / Calendar /
+               Automations / Wiki / Skills) call `useRuntime()` from
+               `gui-chat-protocol/vue` inside their composables — that
+               throws unless mounted under `<PluginScopedRoot>`. The
+               plugin registry's `wrapWithScope` wraps the chat-mounted
+               variants; standalone routes are wrapped here against the
+               same `pkg-name + endpoints` pair so the `useRuntime()`
+               call resolves. -->
           <FilesView v-else-if="currentPage === 'files'" :refresh-token="filesRefreshToken" @load-session="handleSessionSelect" />
-          <TodoExplorer v-else-if="currentPage === 'todos'" />
-          <CalendarView v-else-if="currentPage === 'calendar'" />
-          <AutomationsView v-else-if="currentPage === 'automations'" />
-          <WikiView v-else-if="currentPage === 'wiki'" />
-          <SkillsView v-else-if="currentPage === 'skills'" />
+          <PluginScopedRoot v-else-if="currentPage === 'todos'" pkg-name="@mulmoclaude/todo-plugin">
+            <TodoExplorer />
+          </PluginScopedRoot>
+          <PluginScopedRoot v-else-if="currentPage === 'calendar'" pkg-name="scheduler" :endpoints="API_ROUTES.scheduler">
+            <CalendarView />
+          </PluginScopedRoot>
+          <PluginScopedRoot v-else-if="currentPage === 'automations'" pkg-name="scheduler" :endpoints="API_ROUTES.scheduler">
+            <AutomationsView />
+          </PluginScopedRoot>
+          <PluginScopedRoot v-else-if="currentPage === 'wiki'" pkg-name="wiki" :endpoints="API_ROUTES.wiki">
+            <WikiView />
+          </PluginScopedRoot>
+          <PluginScopedRoot v-else-if="currentPage === 'skills'" pkg-name="skills" :endpoints="API_ROUTES.skills">
+            <SkillsView />
+          </PluginScopedRoot>
           <RolesView v-else-if="currentPage === 'roles'" />
           <SourcesView v-else-if="currentPage === 'sources'" />
           <NewsView v-else-if="currentPage === 'news'" />
+          <!-- Debug page (encore plan PR 1 follow-up). The View ships
+               inside the @mulmoclaude/debug-plugin runtime package; we
+               look it up by tool name and render the registered
+               viewComponent — already wrapped in PluginScopedRoot by
+               the runtime loader, so no extra scope wrapper here.
+
+               Literal English fallback below is intentional: the debug
+               surface is dev-only chrome behind `VITE_DEV_MODE=1`, so
+               we keep its strings out of the 8-locale i18n bundle.
+               Same policy applies to the launcher button (see
+               PluginLauncher.vue's `literalLabel`/`literalTitle`) and
+               to the page itself (debug-plugin/src/View.vue). -->
+          <component :is="debugViewComponent" v-else-if="currentPage === 'debug' && debugViewComponent" />
+          <!-- eslint-disable @intlify/vue-i18n/no-raw-text -- debug page is dev-only chrome behind VITE_DEV_MODE=1; we deliberately keep its strings out of the 8-locale i18n bundle (see policy comment above). -->
+          <div v-else-if="currentPage === 'debug'" class="h-full flex items-center justify-center text-sm text-gray-500">
+            Debug plugin is not loaded. Make sure @mulmoclaude/debug-plugin is built and registered as a preset.
+          </div>
+          <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
         </div>
 
         <!-- Bottom bar (Stack chat only — plugin views have no
              session context, so no chat input is shown) -->
         <div v-if="isChatPage && layoutMode === 'stack'" class="border-t border-gray-200 bg-white shrink-0">
-          <SuggestionsPanel ref="suggestionsPanelRef" :queries="sessionRole.queries ?? []" @send="(q) => sendMessage(q)" @edit="onQueryEdit" />
           <ThinkingIndicator
             v-if="activeSessionRunning"
             :status-message="statusMessage || t('app.thinking')"
@@ -193,8 +227,9 @@
             v-model="userInput"
             v-model:pasted-file="pastedFile"
             :is-running="activeSessionRunning"
+            :queries="sessionRoleQueries"
             @send="sendMessage()"
-            @cancel="cancelActiveRun"
+            @suggestion-send="(q) => sendMessage(q)"
           />
         </div>
       </div>
@@ -229,15 +264,12 @@
 import { ref, computed, watch, nextTick, onMounted, reactive } from "vue";
 import { useI18n } from "vue-i18n";
 import { v4 as uuidv4 } from "uuid";
-
-const { t } = useI18n();
 import { getPlugin } from "./tools";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import RightSidebar from "./components/RightSidebar.vue";
 import SidebarHeader from "./components/SidebarHeader.vue";
 import SessionHeaderControls from "./components/SessionHeaderControls.vue";
 import SessionTabBar from "./components/SessionTabBar.vue";
-import SuggestionsPanel from "./components/SuggestionsPanel.vue";
 import ChatInput, { type PastedFile } from "./components/ChatInput.vue";
 import SessionHistoryExpandButton from "./components/SessionHistoryExpandButton.vue";
 import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
@@ -252,21 +284,21 @@ import AutomationsView from "./plugins/scheduler/AutomationsView.vue";
 import WikiView from "./plugins/wiki/View.vue";
 import { buildWikiRouteParams } from "./plugins/wiki/route";
 import SkillsView from "./plugins/manageSkills/View.vue";
-import RolesView from "./plugins/manageRoles/View.vue";
+import RolesView from "./components/RolesView.vue";
 import SourcesView from "./components/SourcesView.vue";
 import NewsView from "./components/NewsView.vue";
+import PluginScopedRoot from "./components/PluginScopedRoot.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import NotificationToast from "./components/NotificationToast.vue";
 import type { NotificationAction } from "./types/notification";
 import { PAGE_ROUTES, type PageRouteName } from "./router";
 import type { SseEvent } from "./types/sse";
-import { type SessionEntry, type ActiveSession } from "./types/session";
+import type { SessionEntry, ActiveSession } from "./types/session";
 import { EVENT_TYPES } from "./types/events";
-import { extractImageData } from "./utils/tools/result";
 import { buildAgentRequestBody, postAgentRun } from "./utils/agent/request";
+import { resolvePastedAttachment } from "./utils/agent/pastedAttachment";
 import { applyAgentEvent, type AgentEventContext } from "./utils/agent/eventDispatch";
 import { pushErrorMessage, beginUserTurn, updateResult } from "./utils/session/sessionHelpers";
-import { maybeSeedRoleDefault } from "./utils/session/seedRoleDefault";
 import { roleName, roleIcon } from "./utils/role/icon";
 import { createEmptySession } from "./utils/session/sessionFactory";
 import { buildLoadedSession, parseSessionEntries } from "./utils/session/sessionEntries";
@@ -280,6 +312,7 @@ import { useViewLayout } from "./composables/useViewLayout";
 import { useSessionSync } from "./composables/useSessionSync";
 import { useSessionDerived } from "./composables/useSessionDerived";
 import { useFaviconState } from "./composables/useFaviconState";
+import { useGlobalImageErrorRepair } from "./composables/useImageErrorRepair";
 import { useMergedSessions } from "./composables/useMergedSessions";
 import { useLayoutMode } from "./composables/useLayoutMode";
 import { useSidePanelVisible } from "./composables/useSidePanelVisible";
@@ -287,6 +320,7 @@ import { useSelectedResult } from "./composables/useSelectedResult";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
 import { useCurrentRole } from "./composables/useCurrentRole";
+import { useTranslatedQueries } from "./composables/useTranslatedQueries";
 import { BUILTIN_ROLE_IDS, type Role } from "./config/roles";
 import { usePubSub } from "./composables/usePubSub";
 import { sessionChannel } from "./config/pubsubChannels";
@@ -295,11 +329,14 @@ import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
 import { useEventListeners } from "./composables/useEventListeners";
 import { provideAppApi } from "./composables/useAppApi";
+import { usePluginDiagnostics } from "./composables/usePluginDiagnostics";
 import { provideActiveSession } from "./composables/useActiveSession";
 import { useRoute, useRouter } from "vue-router";
-import { apiGet, apiPost } from "./utils/api";
+import { apiGet } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
+
+const { t, locale } = useI18n();
 
 // --- Per-session state ---
 // Declared early so that pub/sub callbacks and function declarations
@@ -388,11 +425,17 @@ const userInput = ref("");
 const pastedFile = ref<PastedFile | null>(null);
 const activePane = ref<"sidebar" | "main">("sidebar");
 
-const { sessions, historyError, fetchSessions } = useSessionHistory();
+const { sessions, historyError, fetchSessions, setBookmark, deleteSession: deleteSessionFromHistory } = useSessionHistory();
 const { markSessionRead } = useSessionSync({
   sessionMap,
   currentSessionId,
   fetchSessions,
+  // Another tab hard-deleted the chat we're currently viewing. The
+  // sessionMap eviction has already cleared the in-memory state; the
+  // URL still points at the dead id. Mirror the URL→404 fallback on
+  // line ~366 by spinning up a fresh session so the user lands on a
+  // working /chat instead of a blank pane.
+  onCurrentSessionDeleted: () => createNewSession(),
 });
 const { geminiAvailable, sandboxEnabled, cpuLoadRatio, fetchHealth } = useHealth();
 
@@ -433,6 +476,12 @@ const sessionRole = computed<Role>(() => {
   return roles.value[0];
 });
 
+// Translated suggested-query strings for the active session's role.
+// Falls back to the role's English source until /api/translation
+// returns; subsequent role swaps hit the in-memory cache.
+const currentLocale = computed(() => String(locale.value));
+const { queries: sessionRoleQueries } = useTranslatedQueries(sessionRole, currentLocale);
+
 const { mergedSessions, tabSessions } = useMergedSessions({
   sessionMap,
   sessions,
@@ -450,10 +499,14 @@ const { mergedSessions, tabSessions } = useMergedSessions({
 // very same tick as `isRunning` flips, without waiting for the next
 // /api/sessions refetch.
 useFaviconState({ isRunning, sessions: mergedSessions, sessionsUnreadCount: unreadCount, cpuLoadRatio });
+useGlobalImageErrorRepair();
+// Boot-time plugin META aggregator collisions surfaced via the
+// notifications bell + toast. Empty when the registry is clean.
+usePluginDiagnostics();
 
 const sessionSidebarRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
-const chatInputRef = ref<{ focus: () => void } | null>(null);
+const chatInputRef = ref<{ focus: () => void; collapseSuggestions: () => void } | null>(null);
 const { focusChatInput } = useChatScroll({
   sessionSidebarRef,
   toolResults,
@@ -480,7 +533,7 @@ function setSidePanelVisibleAndCollapse(value: boolean): void {
 // full-width views.
 const isChatPage = computed(() => route.name === PAGE_ROUTES.chat);
 const currentPage = computed<PageRouteName | null>(() => {
-  const name = route.name;
+  const { name } = route;
   return typeof name === "string" && isPageRouteName(name) ? name : null;
 });
 
@@ -565,6 +618,12 @@ const { elapsedMs: runElapsedMs, teardown: teardownRunElapsed } = useRunElapsed(
 
 const selectedResult = computed(() => toolResults.value.find((result) => result.uuid === selectedResultUuid.value) ?? null);
 
+// Debug-plugin View component, looked up by tool name. The plugin
+// loader populates this asynchronously at boot — `runtimeRegistry` is
+// reactive, so this computed re-evaluates when the load completes and
+// the /debug branch in the template lights up without a refresh.
+const debugViewComponent = computed(() => getPlugin("manageDebug")?.viewComponent ?? null);
+
 // Centralised session-switch handler: subscribe to the current session's
 // pub/sub channel so we receive real-time events even if the session is
 // idle (another tab may start a run). Unsubscribe from idle sessions
@@ -583,9 +642,11 @@ watch(currentSessionId, (sessionId) => {
   // event, leaving the session's busy indicator stuck on.
   if (previousSessionId && previousSessionId !== sessionId) {
     const prevSession = sessionMap.get(previousSessionId);
-    const prevBusy = !!prevSession && (prevSession.isRunning || Object.keys(prevSession.pendingGenerations ?? {}).length > 0);
-    if (prevSession && !prevBusy) {
-      unsubscribeSession(previousSessionId);
+    if (prevSession !== undefined) {
+      const prevBusy = prevSession.isRunning || Object.keys(prevSession.pendingGenerations ?? {}).length > 0;
+      if (!prevBusy) {
+        unsubscribeSession(previousSessionId);
+      }
     }
   }
   previousSessionId = sessionId;
@@ -607,13 +668,6 @@ const { handleCanvasKeydown, handleKeyNavigation } = useKeyNavigation({
   sidebarResults,
   selectedResultUuid,
 });
-
-const suggestionsPanelRef = ref<{ collapse: () => void } | null>(null);
-
-function onQueryEdit(query: string): void {
-  userInput.value = query;
-  nextTick(() => focusChatInput());
-}
 
 function handleUpdateResult(updatedResult: ToolResultComplete) {
   if (activeSession.value) updateResult(activeSession.value, updatedResult);
@@ -656,9 +710,9 @@ function createNewSession(roleId?: string): ActiveSession {
   const session = createEmptySession(uuidv4(), rId);
   sessionMap.set(session.id, session);
   navigateToSession(session.id, replace);
-  suggestionsPanelRef.value?.collapse();
+  chatInputRef.value?.collapseSuggestions();
   nextTick(() => focusChatInput());
-  return sessionMap.get(session.id)!;
+  return session;
 }
 
 function onRoleChange(roleId: string) {
@@ -668,8 +722,7 @@ function onRoleChange(roleId: string) {
   // is preserved inside SessionHeaderControls (useCurrentRole) and
   // future "+" clicks will read it from there.
   if (!isChatPage.value) return;
-  const session = createNewSession(roleId);
-  maybeSeedRoleDefault(session);
+  createNewSession(roleId);
 }
 
 // Land on /chat with no specific session in mind (initial load or
@@ -787,7 +840,8 @@ function buildAgentEventContext(session: ActiveSession): AgentEventContext {
 
 function hasPendingGenerations(sessionId: string): boolean {
   const live = sessionMap.get(sessionId);
-  return !!live && Object.keys(live.pendingGenerations).length > 0;
+  if (live === undefined) return false;
+  return Object.keys(live.pendingGenerations).length > 0;
 }
 
 function handleSessionFinished(sessionId: string): void {
@@ -831,28 +885,6 @@ function unsubscribeSession(chatSessionId: string): void {
   }
 }
 
-// Stop the in-flight agent run for the currently displayed session.
-// Backend (POST /api/agent/cancel) flips the run's AbortController,
-// which closes the SSE stream and resets `isRunning`. We don't
-// optimistically flip local state — the SSE close handler does that
-// uniformly whether the cancel came from us or anywhere else (#731).
-async function cancelActiveRun(): Promise<void> {
-  const sessionId = currentSessionId.value;
-  if (!sessionId) return;
-  console.info("[agent] cancel requested", { chatSessionId: sessionId });
-  const result = await apiPost<{ ok: boolean }>(API_ROUTES.agent.cancel, { chatSessionId: sessionId });
-  if (!result.ok) {
-    console.warn("[agent] cancel POST failed", { chatSessionId: sessionId, error: result.error });
-    return;
-  }
-  // Backend's `ok: false` means the session wasn't in-flight (already
-  // finished, or duplicate Stop click). Benign, but distinct from a
-  // network failure — surface separately in the console.
-  if (!result.data?.ok) {
-    console.info("[agent] cancel was a no-op (no run in flight)", { chatSessionId: sessionId });
-  }
-}
-
 async function sendMessage(text?: string) {
   const message = typeof text === "string" ? text : userInput.value.trim();
   if (!message || activeSessionRunning.value) return;
@@ -860,11 +892,35 @@ async function sendMessage(text?: string) {
   const fileSnapshot = pastedFile.value;
   pastedFile.value = null;
 
+  // Pasted / dropped files are pre-uploaded to a workspace file so
+  // the server (and the LLM downstream) sees a relative path — never
+  // a data: URI. The path then rides on `attachments[]` as a path-only
+  // entry. On upload failure, restore both userInput and pastedFile so
+  // the user can retry without retyping.
+  let attachmentForRequest: string | undefined;
+  if (fileSnapshot) {
+    const resolved = await resolvePastedAttachment(fileSnapshot);
+    if (!resolved.ok) {
+      userInput.value = message;
+      pastedFile.value = fileSnapshot;
+      const recoverySession = sessionMap.get(currentSessionId.value);
+      if (recoverySession) pushErrorMessage(recoverySession, t("chatInput.attachImageFailed", { error: resolved.error }));
+      return;
+    }
+    attachmentForRequest = resolved.value;
+  }
+
   const session = sessionMap.get(currentSessionId.value);
   if (!session) return;
 
-  beginUserTurn(session, message);
-  const selectedRes = session.toolResults.find((result) => result.uuid === session.selectedResultUuid) ?? undefined;
+  // Only files the user explicitly attached this turn (paste / drop /
+  // file-picker) ride on the message. Do NOT auto-attach whatever
+  // image happens to be selected in the sidebar — selection moves to
+  // the latest generated image automatically, which would silently
+  // glue the previous picture onto every follow-up comment.
+  const attachmentPaths = attachmentForRequest ? [attachmentForRequest] : undefined;
+
+  beginUserTurn(session, message, attachmentPaths);
 
   ensureSessionSubscription(session);
 
@@ -873,7 +929,7 @@ async function sendMessage(text?: string) {
       message,
       role: sessionRole.value,
       chatSessionId: session.id,
-      selectedImageData: fileSnapshot?.dataUrl ?? extractImageData(selectedRes),
+      attachmentPaths,
     }),
   );
   if (!result.ok) {

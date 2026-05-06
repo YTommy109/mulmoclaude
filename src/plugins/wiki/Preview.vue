@@ -15,11 +15,13 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
+import type { WikiData, WikiPageEntry, WikiEndpoints } from "./index";
+import { useFreshPluginData } from "../../composables/useFreshPluginData";
+import { pluginEndpoints } from "../api";
+
+const wikiEndpoints = pluginEndpoints<WikiEndpoints>("wiki");
 
 const { t } = useI18n();
-import type { WikiData, WikiPageEntry } from "./index";
-import { useFreshPluginData } from "../../composables/useFreshPluginData";
-import { API_ROUTES } from "../../config/apiRoutes";
 
 const props = defineProps<{ result: ToolResultComplete<WikiData> }>();
 
@@ -28,7 +30,7 @@ const title = ref(props.result.data?.title ?? "Wiki");
 const pageEntries = ref<WikiPageEntry[]>(props.result.data?.pageEntries ?? []);
 
 const { refresh } = useFreshPluginData<WikiData>({
-  endpoint: () => API_ROUTES.wiki.base,
+  endpoint: () => wikiEndpoints.base,
   extract: (json) => (json as { data?: WikiData }).data ?? null,
   apply: (data) => {
     // Bug fix (CodeRabbit V1 #6): /api/wiki (no slug) always

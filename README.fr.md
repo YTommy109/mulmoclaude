@@ -8,11 +8,17 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Português (BR)](README.pt-BR.md) · **Français** · [Deutsch](README.de.md)
 
-Chat graphique avec Claude Code — avec mémoire à long terme, outils visuels et accès aux applications de messagerie.
+Chat graphique avec Claude Code — mémoire à long terme, sortie visuelle riche, exécution en sandbox et accès distant depuis n'importe où.
 
-Discutez avec Claude Code et recevez non seulement du texte, mais aussi une **sortie visuelle interactive** : documents, feuilles de calcul, cartes mentales, graphiques, images, formulaires, scènes 3D et plus encore. Un wiki personnel intégré donne à Claude des **connaissances persistantes** qui s'enrichissent à chaque conversation.
+**Mémoire à long terme** : un wiki personnel intégré — inspiré de l'idée d'Andrej Karpathy de donner à un LLM un carnet qui s'étoffe avec le temps — apporte à Claude des **connaissances persistantes** qui s'enrichissent à chaque conversation.
+
+Discutez avec Claude Code et recevez non seulement du texte, mais aussi une **sortie visuelle interactive** : documents, feuilles de calcul, cartes mentales, graphiques, images, formulaires, scènes 3D et plus encore.
+
+**Exécution en sandbox** : Claude Code s'exécute dans un sandbox, ce qui protège votre système contre les attaques par injection de prompt.
 
 **Accédez depuis n'importe où** : connectez Telegram, Slack, LINE, Discord ou [10 autres applications de messagerie](#messaging-bridges) pour dialoguer avec votre agent IA depuis votre téléphone.
+
+**Tâches planifiées** : déléguez les tâches récurrentes — résumés quotidiens, vérifications périodiques, rappels programmés — au planificateur intégré, qui exécute votre agent via cron.
 
 ## Démarrage rapide
 
@@ -45,6 +51,10 @@ Ouvrez [http://localhost:5173](http://localhost:5173). C'est tout — commencez 
 | « Ingère cet article : URL »                         | Page de wiki avec des `[[links]]` pour la mémoire à long terme |
 | « Planifie une revue de presse quotidienne »         | Tâche récurrente exécutée automatiquement                      |
 | « Génère une image d'un coucher de soleil »          | Image générée par IA (Gemini)                                  |
+| « Abonne-toi à ce flux RSS »                         | Source enregistrée dans `/sources`, récupérée à intervalles    |
+| « Quoi de neuf dans mes flux ? »                     | Boîte des non-lus à `/news` avec chat par article              |
+
+> **Pages accessibles directement** : `/wiki` (parcourir + Lint), `/news` (boîte des non-lus), `/sources` (gestion des flux), `/automations` (tâches récurrentes), `/calendar`, `/files`, `/skills`, `/roles`. Chaque page possède son propre composeur de chat qui démarre une nouvelle conversation déjà contextualisée par la page.
 
 > **Vous bidouillez MulmoClaude ?** Consultez [`docs/developer.md`](docs/developer.md) pour les variables d'environnement, les scripts et l'architecture.
 
@@ -147,6 +157,8 @@ Lorsque le bac à sable Docker est actif sur macOS, les identifiants sont géré
 Si Docker n'est pas installé, l'application affiche un bandeau d'avertissement et continue de fonctionner sans isolation.
 
 > **Mode débogage** : pour exécuter sans le bac à sable même si Docker est installé, définissez `DISABLE_SANDBOX=1` avant de démarrer le serveur.
+>
+> **Historique des appels d'outils** : définissez `PERSIST_TOOL_CALLS=1` pour enregistrer aussi les événements `tool_call` (avec leurs `args`) dans le jsonl de session aux côtés de `tool_result`. Désactivé par défaut car les `args` peuvent être volumineux et contenir des octets de charge utile (images en base64, JSON MulmoScript) que vous ne souhaitez pas écrire sur disque ; utile pour déboguer après un rafraîchissement de page ou un redémarrage du serveur. Voir [issue #1096](https://github.com/receptron/mulmoclaude/issues/1096).
 
 ## Journalisation
 

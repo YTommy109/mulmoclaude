@@ -55,6 +55,20 @@ function iconName(notification: NotificationPayload): string {
   return notification.icon ?? NOTIFICATION_ICONS[notification.kind] ?? "notifications";
 }
 
+// Notifications carrying an `i18n` field (e.g. plugin META
+// diagnostics, #1125) have their title/body localized client-side
+// from the active vue-i18n locale; everything else falls through to
+// the server-rendered `title` / `body` strings unchanged.
+function localizeTitle(notification: NotificationPayload): string {
+  if (notification.i18n) return t(notification.i18n.titleKey);
+  return notification.title;
+}
+
+function localizeBody(notification: NotificationPayload): string | undefined {
+  if (notification.i18n?.bodyKey) return t(notification.i18n.bodyKey, notification.i18n.bodyParams ?? {});
+  return notification.body;
+}
+
 function formatTime(iso: string): string {
   return formatRelativeTime(iso);
 }
@@ -127,7 +141,7 @@ function handleDismiss(event: Event, notificationId: string): void {
           :class="isRead(n.id) ? 'bg-white' : 'bg-blue-50/40'"
           :data-testid="`notification-item-${n.id}`"
           :data-unread="isRead(n.id) ? 'false' : 'true'"
-          :aria-label="n.title"
+          :aria-label="localizeTitle(n)"
           @click="handleClick(n)"
           @keydown.enter.prevent.self="(e) => !e.repeat && handleClick(n)"
           @keydown.space.prevent.self="(e) => !e.repeat && handleClick(n)"
@@ -139,9 +153,9 @@ function handleDismiss(event: Event, notificationId: string): void {
             {{ iconName(n) }}
           </span>
           <div class="flex-1 min-w-0">
-            <p class="text-sm truncate" :class="isRead(n.id) ? 'text-gray-600 font-normal' : 'text-gray-900 font-semibold'">{{ n.title }}</p>
-            <p v-if="n.body" class="text-xs text-gray-500 truncate mt-0.5">
-              {{ n.body }}
+            <p class="text-sm truncate" :class="isRead(n.id) ? 'text-gray-600 font-normal' : 'text-gray-900 font-semibold'">{{ localizeTitle(n) }}</p>
+            <p v-if="localizeBody(n)" class="text-xs text-gray-500 truncate mt-0.5">
+              {{ localizeBody(n) }}
             </p>
             <p class="text-xs text-gray-400 mt-0.5">
               {{ formatTime(n.firedAt) }}

@@ -1,6 +1,7 @@
 import { marked } from "marked";
 import type { Token, Tokens } from "marked";
 import { resolveImageSrc } from "./resolve";
+import { transformResolvableUrlsInHtml } from "./htmlSrcAttrs";
 
 // Pre-`marked` pass that rewrites workspace-relative image references
 // in markdown source so they render through the backend file server.
@@ -102,8 +103,43 @@ function rewriteImageToken(token: Tokens.Image, basePath: string): string | null
   return `![${alt}](${newHref})`;
 }
 
+// Rewrite URL-bearing attributes of every recognised tag inside an
+// HTML fragment, applying the same basePath / shouldSkip /
+// resolveImageSrc pipeline used for `![alt](url)` markdown images.
+// Other attributes (alt, class, style, id, …) are preserved verbatim.
+//
+// Tags + attributes covered (single source of truth at
+// `htmlSrcAttrs.ts:RESOLVABLE_TAG_ATTRS`): `<img src>`, `<source src>`,
+// `<video poster|src>`, `<audio src>`. Add a row there to extend
+// coverage; both this rewriter and the server-side PDF rewriter pick
+// it up automatically (#1011 Stage B).
+//
+// Output URLs come from `resolveImageSrc`, which either returns a
+// mount-rooted path (`/artifacts/images/<file>`) or runs the input
+// through `encodeURIComponent`. `"` becomes `%22`, `'` becomes `%27`,
+// `<` / `>` are encoded — the rewritten attribute can't break out of
+// its own quotes or close the tag.
+//
+// Limitations:
+//   - `srcset` (comma-separated descriptor list) is deferred —
+//     tracked under #1011 Stage B follow-up.
+//   - SVG `<image href>` and CSS `url()` are deferred per plan
+//     §修正提案 P3-A.
+//   - A regex can't perfectly distinguish a real tag from one
+//     embedded in another attribute's value; embedded matches get
+//     rewritten too. Harmless because the rewritten URL is encoded
+//     safely.
+export function rewriteImgSrcAttrsInHtml(html: string, basePath: string): string {
+  return transformResolvableUrlsInHtml(html, (url) => {
+    if (shouldSkip(url)) return null;
+    const resolved = resolveWorkspacePath(basePath, url);
+    if (resolved === null) return null;
+    return resolveImageSrc(resolved);
+  });
+}
+
 function isSkippable(token: Token): boolean {
-  return token.type === "code" || token.type === "codespan" || token.type === "html";
+  return token.type === "code" || token.type === "codespan";
 }
 
 function getContainerChildren(token: Token): Token[] | null {
@@ -135,11 +171,14 @@ function renderContainerChildren(raw: string, children: Token[], basePath: strin
 }
 
 // Recursively render a token back to markdown, rewriting image refs
-// in-place. Code / codespan / html tokens are emitted verbatim so
-// image-ref syntax inside them stays literal. Token-tree recursion
-// uses the lexer's structural knowledge and never crosses a skip
-// boundary — unlike the earlier `indexOf` splice which could rewrite
-// a code-block literal when the same ref appeared in real markdown.
+// in-place. Code / codespan tokens are emitted verbatim so image-ref
+// syntax inside them stays literal. HTML tokens get a separate pass
+// (`rewriteImgSrcAttrsInHtml`) so raw `<img>` tags route through the
+// same basePath + shouldSkip pipeline as the markdown image syntax.
+// Token-tree recursion uses the lexer's structural knowledge and never
+// crosses a skip boundary — unlike the earlier `indexOf` splice which
+// could rewrite a code-block literal when the same ref appeared in
+// real markdown.
 function renderToken(token: Token, basePath: string, out: string[]): void {
   if (isSkippable(token)) {
     out.push(token.raw);
@@ -148,6 +187,16 @@ function renderToken(token: Token, basePath: string, out: string[]): void {
   if (token.type === "image") {
     const replacement = rewriteImageToken(token as Tokens.Image, basePath);
     out.push(replacement ?? token.raw);
+    return;
+  }
+  if (token.type === "html") {
+    // Block / inline HTML — rewrite raw <img> tags inside before
+    // emitting. Markdown image syntax (![alt](url)) is handled by the
+    // image-token branch above; this branch covers the HTML-fallback
+    // path (#1011 Stage A). Fall back to verbatim raw if `raw` is
+    // unexpectedly missing — defensive against future marked changes.
+    const raw = (token as { raw?: string }).raw ?? "";
+    out.push(rewriteImgSrcAttrsInHtml(raw, basePath));
     return;
   }
   const raw = (token as { raw?: string }).raw ?? "";
@@ -167,14 +216,18 @@ function renderToken(token: Token, basePath: string, out: string[]): void {
  *   file (e.g. `"wiki/pages"` for `wiki/pages/foo.md`). Omit or pass
  *   `""` when resolving refs against the workspace root.
  *
+ * Also rewrites the `src` attribute of raw `<img>` tags inside HTML
+ * blocks / inline HTML so a page mixing both syntaxes resolves the
+ * same way. Markdown image syntax inside code blocks / inline code
+ * spans is left alone.
+ *
  * Absolute URLs, data URIs, and existing API paths pass through
  * untouched. Refs that would escape the workspace root (more `..`
  * than `basePath` depth) also pass through untouched — they would
  * 404 regardless, and passing through lets the user see the broken
- * ref instead of silently re-pointing it. Image-ref syntax inside
- * code blocks / inline code spans is left alone.
+ * ref instead of silently re-pointing it.
  */
-export function rewriteMarkdownImageRefs(markdown: string, basePath: string = ""): string {
+export function rewriteMarkdownImageRefs(markdown: string, basePath = ""): string {
   const tokens = marked.lexer(markdown);
   const parts: string[] = [];
   for (const token of tokens) renderToken(token, basePath, parts);

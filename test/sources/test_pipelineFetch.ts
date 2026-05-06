@@ -191,6 +191,7 @@ describe("runFetchPhase — failure isolation (Q8)", () => {
 
   it("converts non-Error throws to string error messages", async () => {
     const fetcher = fakeFetcher("rss", async () => {
+      // eslint-disable-next-line no-throw-literal -- intentional non-Error throw, asserting runFetchPhase converts unknown rejections to string messages
       throw "string error";
     });
     const result = await runFetchPhase({
@@ -294,7 +295,8 @@ describe("computeNextState — on failure", () => {
       error: "boom",
     };
     const next = computeNextState(prev, outcome, now);
-    const gap = Date.parse(next.nextAttemptAt!) - now;
+    assert.ok(next.nextAttemptAt);
+    const gap = Date.parse(next.nextAttemptAt) - now;
     assert.equal(gap, BACKOFF_MAX_MS);
   });
 
@@ -343,7 +345,7 @@ describe("computeNextState — empty-success adaptive backoff", () => {
     const next = computeNextState(prev, outcome, now);
     assert.equal(next.consecutiveEmptyFetches, EMPTY_FETCH_THRESHOLD);
     assert.ok(next.emptyBackoffUntil, "emptyBackoffUntil should be set at threshold");
-    const gap = Date.parse(next.emptyBackoffUntil!) - now;
+    const gap = Date.parse(next.emptyBackoffUntil) - now;
     assert.equal(gap, 3_600_000); // 1h
   });
 

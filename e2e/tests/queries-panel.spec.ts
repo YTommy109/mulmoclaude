@@ -6,6 +6,7 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
 
 import { ONE_SECOND_MS } from "../../server/utils/time.ts";
+
 function urlEndsWith(suffix: string): (url: URL) => boolean {
   return (url) => url.pathname === suffix;
 }
@@ -36,7 +37,7 @@ test.describe("queries panel (useQueriesPanel)", () => {
     await page.goto("/chat");
     await expect(page.getByText("MulmoClaude")).toBeVisible();
 
-    const toggle = page.getByRole("button", { name: /Suggestions/ });
+    const toggle = page.getByTestId("suggestions-btn");
     await expect(toggle).toBeVisible();
 
     // Pick a known query from the default role (see src/config/roles.ts).
@@ -57,7 +58,7 @@ test.describe("queries panel (useQueriesPanel)", () => {
     await page.goto("/chat");
     await expect(page.getByText("MulmoClaude")).toBeVisible();
 
-    await page.getByRole("button", { name: /Suggestions/ }).click();
+    await page.getByTestId("suggestions-btn").click();
     const query = page.getByRole("button", {
       name: "Tell me about this app, MulmoClaude.",
     });
@@ -78,7 +79,7 @@ test.describe("queries panel (useQueriesPanel)", () => {
     await page.goto("/chat");
     await expect(page.getByText("MulmoClaude")).toBeVisible();
 
-    await page.getByRole("button", { name: /Suggestions/ }).click();
+    await page.getByTestId("suggestions-btn").click();
     const query = page.getByRole("button", {
       name: "Tell me about this app, MulmoClaude.",
     });

@@ -36,12 +36,25 @@
         :is-jsonl="isJsonl"
         :md-raw-mode="mdRawMode"
         :sandboxed-html="sandboxedHtml"
+        :html-preview-url="htmlPreviewUrl"
         :json-tokens="jsonTokens"
         :jsonl-lines="jsonlLines"
         :md-frontmatter="mdFrontmatter"
         :raw-save-error="rawSaveError"
         @markdown-link-click="handleMarkdownLinkClick"
         @update-source="saveRawMarkdown"
+      />
+      <!-- Per-file chat composer: spawns a fresh chat with a
+           "take a look at this file first" instruction prepended.
+           Mirrors the wiki per-page composer (see plugins/wiki/View.vue).
+           No roleId is passed, so the new chat inherits the user's
+           current role. -->
+      <PageChatComposer
+        v-if="selectedPath && !contentLoading && !contentError"
+        :key="selectedPath"
+        :placeholder="t('filesView.chatPlaceholder')"
+        :prepend-text="`Before answering, take a look at the file at ${selectedPath}.`"
+        test-id-prefix="files-page-chat"
       />
     </div>
   </div>
@@ -50,9 +63,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useRoute } from "vue-router";
+import { useI18n } from "vue-i18n";
 import FileTreePane from "./FileTreePane.vue";
 import FileContentHeader from "./FileContentHeader.vue";
 import FileContentRenderer from "./FileContentRenderer.vue";
+import PageChatComposer from "./PageChatComposer.vue";
 import { useFileTree } from "../composables/useFileTree";
 import { useFileSelection, isValidFilePath, readPathMatch } from "../composables/useFileSelection";
 import { useMarkdownMode } from "../composables/useMarkdownMode";
@@ -67,6 +82,7 @@ import { toTodoExplorerResult } from "../utils/filesPreview/todoPreview";
 const RECENT_THRESHOLD_MS = 60 * 1000;
 
 const route = useRoute();
+const { t } = useI18n();
 
 const props = defineProps<{
   refreshToken?: number;
@@ -87,7 +103,7 @@ const { mdRawMode, toggleMdRaw } = useMarkdownMode();
 
 const { sortMode, setSortMode } = useFileSortMode();
 
-const { isMarkdown, isHtml, isJson, isJsonl, sandboxedHtml, jsonTokens, jsonlLines, mdFrontmatter } = useContentDisplay(selectedPath, content);
+const { isMarkdown, isHtml, isJson, isJsonl, sandboxedHtml, htmlPreviewUrl, jsonTokens, jsonlLines, mdFrontmatter } = useContentDisplay(selectedPath, content);
 
 // Save-error banner shown above the Rendered-mode markdown editor.
 // Cleared on every new file load and on the next successful save.

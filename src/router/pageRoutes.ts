@@ -18,6 +18,7 @@ export const PAGE_ROUTES = {
   roles: "roles",
   sources: "sources",
   news: "news",
+  debug: "debug",
 } as const;
 
 export type PageRouteName = (typeof PAGE_ROUTES)[keyof typeof PAGE_ROUTES];

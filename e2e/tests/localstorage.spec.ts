@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
 
 import { ONE_SECOND_MS } from "../../server/utils/time.ts";
+
 test.beforeEach(async ({ page }) => {
   await mockAllApis(page);
 });
@@ -91,6 +92,6 @@ test.describe("localStorage state restoration", () => {
     await page.reload();
     await expect(page.getByText("MulmoClaude")).toBeVisible();
     const stored = await page.evaluate(() => localStorage.getItem("files_expanded_dirs"));
-    expect(JSON.parse(stored!)).toContain("wiki");
+    expect(JSON.parse(stored ?? "[]")).toContain("wiki");
   });
 });

@@ -12,7 +12,7 @@ async function setupSourceSession(page: Page) {
       {
         id: "src-session",
         title: "Sources",
-        roleId: "sourceManager",
+        roleId: "general",
         startedAt: "2026-04-14T10:00:00Z",
         updatedAt: "2026-04-14T10:05:00Z",
       },
@@ -26,7 +26,7 @@ async function setupSourceSession(page: Page) {
         json: [
           {
             type: "session_meta",
-            roleId: "sourceManager",
+            roleId: "general",
             sessionId: "src-session",
           },
           { type: "text", source: "user", message: "show my sources" },

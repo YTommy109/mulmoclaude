@@ -2,40 +2,62 @@ import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import agentRoutes from "./api/routes/agent.js";
-import todosRoutes from "./api/routes/todos.js";
+import agentRoutes, { startChat } from "./api/routes/agent.js";
+import accountingRoutes from "./api/routes/accounting.js";
 import schedulerRoutes from "./api/routes/scheduler.js";
-import sessionsRoutes from "./api/routes/sessions.js";
+import sessionsRoutes, { loadAllSessions } from "./api/routes/sessions.js";
 import chatIndexRoutes from "./api/routes/chat-index.js";
 import sourcesRoutes from "./api/routes/sources.js";
 import newsRoutes from "./api/routes/news.js";
 import pluginsRoutes from "./api/routes/plugins.js";
 import imageRoutes from "./api/routes/image.js";
+import attachmentRoutes from "./api/routes/attachment.js";
 import presentHtmlRoutes from "./api/routes/presentHtml.js";
 import chartRoutes from "./api/routes/chart.js";
 import rolesRoutes from "./api/routes/roles.js";
 import { DEFAULT_ROLE_ID } from "../src/config/roles.js";
 import mulmoScriptRoutes from "./api/routes/mulmo-script.js";
 import wikiRoutes from "./api/routes/wiki.js";
+import wikiHistoryRoutes from "./api/routes/wiki/history.js";
+import { provisionWikiHistoryHook } from "./workspace/wiki-history/provision.js";
 import pdfRoutes from "./api/routes/pdf.js";
 import filesRoutes from "./api/routes/files.js";
 import configRoutes from "./api/routes/config.js";
 import skillsRoutes from "./api/routes/skills.js";
+import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
+import { loadRuntimePlugins } from "./plugins/runtime-loader.js";
+import { evaluateDevPluginGate, loadDevPlugins, parseDevPluginsEnv } from "./plugins/dev-loader.js";
+import { watchDevPlugins } from "./plugins/dev-watcher.js";
+import { loadPresetPlugins } from "./plugins/preset-loader.js";
+import { registerRuntimePlugins } from "./plugins/runtime-registry.js";
+import { makePluginRuntime } from "./plugins/runtime.js";
+import { MCP_PLUGIN_NAMES } from "./agent/plugin-names.js";
 import { createNotificationsRouter } from "./api/routes/notifications.js";
+import notifierRoutes from "./api/routes/notifier.js";
+import { initNotifier } from "./notifier/engine.js";
+import { createJournalRouter } from "./api/routes/journal.js";
+import { createTranslationRouter } from "./api/routes/translation.js";
 import { type NotificationDeps, initNotifications } from "./events/notifications.js";
+import { announcePluginMetaDiagnostics } from "./plugins/diagnostics.js";
 import { createChatService } from "@mulmobridge/chat-service";
-import { loadAllSessions } from "./api/routes/sessions.js";
 import { readSessionJsonl } from "./utils/files/session-io.js";
-import { onSessionEvent } from "./events/session-store/index.js";
+import { onSessionEvent, initSessionStore } from "./events/session-store/index.js";
+import { initFileChangePublisher } from "./events/file-change.js";
+import { initAccountingEventPublisher } from "./accounting/eventPublisher.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";
+import { discoverSkills } from "./workspace/skills/index.js";
 import { WORKSPACE_PATHS } from "./workspace/paths.js";
 import { serverError } from "./utils/httpError.js";
 import { makeUuid } from "./utils/id.js";
 import { mcpToolsRouter, mcpTools, isMcpToolEnabled } from "./agent/mcp-tools/index.js";
 import { initWorkspace, workspacePath } from "./workspace/workspace.js";
+import { runMemoryMigrationOnce } from "./workspace/memory/run.js";
+import { runTopicMigrationOnce } from "./workspace/memory/topic-run.js";
 import { env, isGeminiAvailable } from "./system/env.js";
 import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import { existsSync, readFileSync } from "fs";
+import { realpath as fsRealpath } from "fs/promises";
+import { containsDotfileSegment, resolveWithinRoot } from "./utils/files/safe.js";
 import { cpus, homedir, loadavg } from "os";
 import { isDockerAvailable, ensureSandboxImage } from "./system/docker.js";
 import { maybeRunJournal } from "./workspace/journal/index.js";
@@ -48,19 +70,19 @@ import { initScheduler, type SystemTaskDef } from "./events/scheduler-adapter.js
 import schedulerTasksRoutes from "./api/routes/schedulerTasks.js";
 import { loadSchedulerOverrides, UTC_HH_MM_RE } from "./utils/files/scheduler-overrides-io.js";
 import type { IPubSub } from "./events/pub-sub/index.js";
-import { initSessionStore } from "./events/session-store/index.js";
 import { connectRelay } from "./events/relay-client.js";
 import { requireSameOrigin } from "./api/csrfGuard.js";
 import { bearerAuth } from "./api/auth/bearerAuth.js";
 import { deleteTokenFile, generateAndWriteToken, getCurrentToken } from "./api/auth/token.js";
 import { log } from "./system/logger/index.js";
 import { logBackgroundError } from "./utils/logBackgroundError.js";
-import { startChat } from "./api/routes/agent.js";
 import { registerScheduledSkills } from "./workspace/skills/scheduler.js";
 import { registerUserTasks } from "./workspace/skills/user-tasks.js";
 import { API_ROUTES } from "../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../src/types/events.js";
 import { SESSION_ORIGINS } from "../src/types/session.js";
+import { buildHtmlPreviewCsp } from "../src/utils/html/previewCsp.js";
+import { readAndInjectHtmlArtifact } from "./utils/html/htmlArtifactSplicer.js";
 import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS } from "./utils/time.js";
 import { isPortFree, findAvailablePort, MAX_PORT_PROBES } from "./utils/port.mjs";
 import { SCHEDULE_TYPES, MISSED_RUN_POLICIES } from "@receptron/task-scheduler";
@@ -73,6 +95,37 @@ const __dirname = path.dirname(__filename);
 const debugMode = process.argv.includes("--debug");
 
 initWorkspace();
+
+// Fire-and-forget memory migrations: legacy `memory.md` → atomic
+// (#1029), then atomic → topic-format staging (#1070). Chained so
+// that a fresh `memory.md` workspace lands in the topic format on
+// a SINGLE server start instead of needing two restarts (the topic
+// runner used to defer on the first start because legacy was still
+// in flight; now it picks up right after legacy completes).
+//
+// Both runners are idempotent: legacy no-ops when the source file
+// is gone, topic no-ops when the workspace already uses the topic
+// format or staging is already pending review. The agent can serve
+// traffic while the chain runs.
+//
+// `.then(noop, noop)` keeps the floating-promises rule happy
+// without smuggling in a `void` (banned by sonarjs/void-use). Each
+// runner logs its own failures; the chain's outer rejection
+// handler is therefore a hard backstop only.
+//
+// CLEANUP 2026-07-01: this whole chain is one-shot migration code
+// for #1029 + #1070. After every active workspace has flipped to
+// the topic format, delete the chain plus the runners under
+// `server/workspace/memory/` (run.ts / migrate.ts /
+// llm-classifier.ts / topic-run.ts / topic-migrate.ts /
+// topic-cluster.ts / topic-swap.ts) and the
+// `scripts/memory-swap-topic-staging.ts` helper. Topic-format
+// reading / writing (`topic-types.ts`, `topic-io.ts`,
+// `topic-detect.ts`) plus the topic branch in `prompt.ts` stays.
+const noop = (): void => {};
+runMemoryMigrationOnce(workspacePath)
+  .then(() => runTopicMigrationOnce(workspacePath))
+  .then(noop, noop);
 
 let sandboxEnabled = false;
 
@@ -107,11 +160,244 @@ app.use(requireSameOrigin);
 //
 // /api/files/* is exempt because <img src="/api/files/raw?path=...">
 // tags in rendered markdown can't attach Authorization headers.
+// /api/plugins/runtime/<pkg>/<version>/<file> (#1043 C-2) is exempt
+// for the same reason: the frontend dynamic-imports plugin assets
+// (`import("/api/plugins/runtime/<pkg>/<ver>/dist/vue.js")`) and the
+// browser cannot attach Authorization headers to those module
+// requests. The pattern "4+ segments past /plugins/runtime/" only
+// matches asset GETs — `/plugins/runtime/list` (3 segments) and
+// `/plugins/runtime/<pkg>/dispatch` (3 segments) still require auth.
+// Path traversal is hardened separately by `resolveWithinRoot` in
+// the asset route handler.
 // The CSRF origin check + loopback-only binding still apply.
+const RUNTIME_PLUGIN_ASSET_PATH_RE = /^\/plugins\/runtime\/[^/]+\/[^/]+\//;
+// Generic OAuth callback receiver for runtime plugins (#1162). Same
+// browser-redirect-can't-carry-Authorization-header reason as the
+// asset path above. Trust model: registry-membership (the host's
+// route handler 404s an unknown :alias) plus the plugin's single-use
+// `state` for CSRF.
+const RUNTIME_PLUGIN_OAUTH_CALLBACK_RE = /^\/plugins\/runtime\/oauth-callback\/[^/]+$/;
 app.use("/api", (req, res, next) => {
-  if (req.path.startsWith("/files/")) return next();
+  if (req.path.startsWith("/files/")) {
+    next();
+    return;
+  }
+  if (req.method === "GET" && RUNTIME_PLUGIN_ASSET_PATH_RE.test(req.path)) {
+    next();
+    return;
+  }
+  if (req.method === "GET" && RUNTIME_PLUGIN_OAUTH_CALLBACK_RE.test(req.path)) {
+    next();
+    return;
+  }
   bearerAuth(req, res, next);
 });
+
+// Static mount for the canonical image storage path. Every image
+// generated by `saveImage()` (Gemini, canvas, image edit) lives under
+// `artifacts/images/YYYY/MM/<id>.png` (#764, see
+// server/utils/files/image-store.ts), so an `<img>` referring to that
+// shape resolves directly without going through /api/files/raw.
+//
+// Bearer auth is intentionally skipped (same reason as /api/files/*:
+// browser <img> tags can't carry an Authorization header). The
+// requireSameOrigin guard above still applies; the listener also
+// stays loopback-only.
+//
+// Three-layer guard:
+//  1. Extension allowlist — reject anything that isn't an image,
+//     video, or audio extension. `saveImage` currently writes `.png`
+//     only, but Stage B (#1011) extends the markdown / wiki rewriter
+//     to `<source>` / `<video poster|src>` / `<audio src>`; an LLM
+//     placing a `.mp4` poster's source video alongside its image at
+//     `artifacts/images/<id>.mp4` (or any user-dropped media file
+//     under that dir) needs to round-trip through this mount the
+//     same way image refs do — otherwise the rewritten URL hits this
+//     mount and 404s before `express.static` gets a chance.
+//  2. realpath-based traversal check via `resolveWithinRoot` — same
+//     guard `/api/files/raw` uses. Catches symlinks pointing outside
+//     the images dir, which `express.static` would otherwise follow.
+//  3. `dotfiles: deny` + `fallthrough: false` on `express.static`
+//     itself, plus its built-in `..` normalize for path traversal.
+const IMAGE_EXT_RE = /\.(png|jpe?g|webp|gif|svg|mp4|webm|mov|m4v|ogv|mp3|ogg|oga|wav|m4a|aac)$/i;
+let imagesDirReal: string | null = null;
+async function getImagesDirReal(): Promise<string | null> {
+  if (imagesDirReal) return imagesDirReal;
+  try {
+    imagesDirReal = await fsRealpath(WORKSPACE_PATHS.images);
+    return imagesDirReal;
+  } catch {
+    // Dir not yet materialised (fresh workspace, no image saved).
+    return null;
+  }
+}
+app.use(
+  "/artifacts/images",
+  async (req, res, next) => {
+    if (!IMAGE_EXT_RE.test(req.path)) {
+      res.status(404).end();
+      return;
+    }
+    const root = await getImagesDirReal();
+    if (!root) {
+      res.status(404).end();
+      return;
+    }
+    let relPath: string;
+    try {
+      // decodeURIComponent throws URIError on malformed escapes
+      // (`%ZZ`, stray `%`). Fail closed so a junk URL returns 404
+      // instead of bubbling a 500 out of the express error chain.
+      relPath = decodeURIComponent(req.path.replace(/^\//, ""));
+    } catch {
+      res.status(404).end();
+      return;
+    }
+    if (!resolveWithinRoot(root, relPath)) {
+      res.status(404).end();
+      return;
+    }
+    next();
+  },
+  express.static(WORKSPACE_PATHS.images, { dotfiles: "deny", fallthrough: false }),
+);
+
+// Static mount for HTML artifacts. The Files-view preview iframe
+// switched from `srcdoc` to `src=/artifacts/html/<name>.html` so the
+// browser can resolve relative `<img src="../images/...">` paths
+// against the file's actual URL — `srcdoc` documents have
+// `about:srcdoc` as their base URL, which breaks every relative ref.
+// See plans/done/feat-files-html-preview-relative-paths.md.
+//
+// Allowlist covers `.html` / `.htm` plus common image extensions so
+// HTML files that reference sibling images (e.g. a shared logo placed
+// alongside a batch of LLM-generated pages) can resolve those refs
+// against the file's URL — same browser-equivalent behavior the user
+// gets when opening the file directly from disk. Non-image / non-html
+// requests are still rejected. CSS / JS are intentionally NOT in the
+// list: `'self'` is absent from `script-src` / `style-src` in the CSP
+// (`previewCsp.ts`) so allowing those extensions would only delivery-
+// vector for blocked resources.
+//
+// Same three-layer guard as `/artifacts/images`:
+//  1. extension allowlist (`.html` / `.htm` plus image types).
+//  2. `resolveWithinRoot` symlink-aware traversal check.
+//  3. `dotfiles: deny` + `fallthrough: false` on `express.static`.
+//
+// Bearer auth skipped for the same reason as /artifacts/images and
+// /api/files/*: an iframe `src` request can't carry an Authorization
+// header. `requireSameOrigin` and the loopback-only listener still
+// guard against cross-origin abuse.
+//
+// CSP delivered via HTTP header instead of injecting a `<meta>` tag —
+// keeps the served file pristine. The explicit request origin is
+// passed into `buildHtmlPreviewCsp` instead of relying on `'self'`:
+// the iframe is `sandbox="allow-scripts"` only, so its document has an
+// opaque origin and Safari/WebKit interprets `'self'` against that
+// (null) origin, blocking every same-origin `<img src="../images/...">`
+// reference. Substituting the absolute origin restores cross-browser
+// parity. Sandbox stays `allow-scripts` only, so the iframe document
+// still cannot read the parent's cookies / localStorage / DOM.
+//
+// `HTML_PREVIEW_EXT_RE` widens the allowlist to images, video and
+// audio so inline `<img src="...png">` / `<source>` / `<video src>` /
+// `<audio src>` references resolve through this same mount (no
+// separate /artifacts/images round-trip). The CSP header is only set
+// for HTML responses (`HTML_DOCUMENT_EXT_RE`); CSP doesn't apply to
+// image / media subresources.
+//
+// eslint-disable-next-line sonarjs/regex-complexity -- flat extension allowlist with no nested quantifiers, ReDoS-safe; complexity is just the disjunction count
+const HTML_PREVIEW_EXT_RE = /\.(html?|png|jpe?g|webp|gif|svg|ico|mp4|webm|mov|m4v|ogv|mp3|ogg|oga|wav|m4a|aac)$/i;
+const HTML_DOCUMENT_EXT_RE = /\.html?$/i;
+let htmlsDirReal: string | null = null;
+async function getHtmlsDirReal(): Promise<string | null> {
+  if (htmlsDirReal) return htmlsDirReal;
+  try {
+    htmlsDirReal = await fsRealpath(WORKSPACE_PATHS.htmls);
+    return htmlsDirReal;
+  } catch {
+    return null;
+  }
+}
+
+// Honour `X-Forwarded-*` so dev (Vite proxies `/artifacts/html` →
+// `localhost:3001` with `changeOrigin: true`) emits the browser-
+// visible origin (`localhost:5173`) rather than the upstream socket.
+// In prod (no proxy) the headers are absent and we fall back to the
+// raw `Host` / `req.protocol`.
+//
+// `X-Forwarded-*` values can be a comma-separated proxy chain (each
+// hop appends its own value). The CSP origin only needs the
+// outermost hop — the value the browser actually sees — so we take
+// the first entry and trim. Without this, a multi-hop deployment
+// would emit `https://a.example.com, b.example.com://x` and break
+// preview resource loading at the browser (#1056 review).
+function browserVisibleOrigin(req: Request): string {
+  const fwdHost = firstForwardedValue(req.get("x-forwarded-host"));
+  const fwdProto = firstForwardedValue(req.get("x-forwarded-proto"));
+  const host = fwdHost ?? req.get("host");
+  const proto = fwdProto ?? req.protocol;
+  return `${proto}://${host}`;
+}
+
+function firstForwardedValue(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const first = raw.split(",")[0]?.trim();
+  return first && first.length > 0 ? first : undefined;
+}
+app.use(
+  "/artifacts/html",
+  async (req, res, next) => {
+    if (!HTML_PREVIEW_EXT_RE.test(req.path)) {
+      res.status(404).end();
+      return;
+    }
+    const root = await getHtmlsDirReal();
+    if (!root) {
+      res.status(404).end();
+      return;
+    }
+    let relPath: string;
+    try {
+      relPath = decodeURIComponent(req.path.replace(/^\//, ""));
+    } catch {
+      res.status(404).end();
+      return;
+    }
+    if (!resolveWithinRoot(root, relPath)) {
+      res.status(404).end();
+      return;
+    }
+    // Dotfile deny — `express.static` below enforces this for the
+    // non-HTML branch via `dotfiles: "deny"`, but the HTML short-
+    // circuit added in #1056 was bypassing the guard and would
+    // happily serve `/artifacts/html/.hidden.html` (Codex review on
+    // #1056). Apply the same policy uniformly so both branches
+    // refuse any path component starting with `.`. The helper
+    // splits on both `/` and `\` so an encoded backslash (`%5C`)
+    // can't sneak a `dir\.hidden.html` past the check on Windows.
+    if (containsDotfileSegment(relPath)) {
+      res.status(404).end();
+      return;
+    }
+    if (HTML_DOCUMENT_EXT_RE.test(req.path)) {
+      const origin = browserVisibleOrigin(req);
+      res.setHeader("Content-Security-Policy", buildHtmlPreviewCsp(origin));
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      const spliced = await readAndInjectHtmlArtifact(root, relPath);
+      if (spliced === null) {
+        res.status(404).end();
+        return;
+      }
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(spliced);
+      return;
+    }
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    next();
+  },
+  express.static(WORKSPACE_PATHS.htmls, { dotfiles: "deny", fallthrough: false }),
+);
 
 app.get(API_ROUTES.health, (_req: Request, res: Response) => {
   // `os.loadavg()[0]` is the kernel 1-minute load average. On Linux /
@@ -150,7 +436,10 @@ app.get(API_ROUTES.sandbox, (_req: Request, res: Response) => {
 // `app.use("/api", ...)` prefix was dropped when #289 part 1 moved
 // the `/api` literal into each `router.post(API_ROUTES.…)` call.
 app.use(agentRoutes);
-app.use(todosRoutes);
+app.use(accountingRoutes);
+// todosRoutes removed (#1145) — todo is now a runtime plugin
+// (`@mulmoclaude/todo-plugin`); the dispatch route is generated by
+// `runtime-plugin.ts` at `/api/plugins/runtime/<pkg>/dispatch`.
 app.use(schedulerRoutes);
 app.use(sessionsRoutes);
 app.use(chatIndexRoutes);
@@ -158,15 +447,21 @@ app.use(sourcesRoutes);
 app.use(newsRoutes);
 app.use(pluginsRoutes);
 app.use(imageRoutes);
+app.use(attachmentRoutes);
 app.use(presentHtmlRoutes);
 app.use(chartRoutes);
 app.use(rolesRoutes);
 app.use(mulmoScriptRoutes);
 app.use(wikiRoutes);
+// Mounted under /api/wiki so the inner router's relative paths
+// (`/pages/:slug/history`, `/internal/snapshot`) line up with the
+// API_ROUTES.wiki.* constants.
+app.use("/api/wiki", wikiHistoryRoutes);
 app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
 app.use(skillsRoutes);
+app.use(runtimePluginRoutes);
 async function listSessionsForBridge(opts: { limit: number; offset: number }) {
   const rows = await loadAllSessions();
   const sorted = rows.sort((leftSession, rightSession) => rightSession.changeMs - leftSession.changeMs);
@@ -182,7 +477,7 @@ async function listSessionsForBridge(opts: { limit: number; offset: number }) {
 async function getSessionHistoryForBridge(sessionId: string, opts: { limit: number; offset: number }) {
   const content = await readSessionJsonl(sessionId);
   if (!content) return { messages: [], total: 0 };
-  const allMessages: Array<{ source: string; text: string }> = [];
+  const allMessages: { source: string; text: string }[] = [];
   const lines = content.split("\n").filter(Boolean);
   // Collect all text events newest-first
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -202,6 +497,21 @@ async function getSessionHistoryForBridge(sessionId: string, opts: { limit: numb
   const messages = allMessages.slice(opts.offset, opts.offset + opts.limit);
   return { messages, total };
 }
+// Allowlist used by the bridge command handler: a slash command
+// from a bridge (e.g. `/release-app` from Telegram) is forwarded to
+// the agent only if it names a discoverable skill under
+// ~/.claude/skills/ or <workspace>/.claude/skills/. The same list
+// drives the "Skills:" section in the bridge `/help` reply, so the
+// command handler calls this once per turn (membership check + help
+// rendering share the result). fs is hit on every help/unknown
+// bridge slash, which is fine because bridge slashes are infrequent
+// and the workspace skill directory is small. Stays fresh against
+// skill add/remove without any cache invalidation.
+async function listRegisteredSkills(): Promise<{ name: string; description: string }[]> {
+  const skills = await discoverSkills({ workspaceRoot: workspacePath });
+  return skills.map((skill) => ({ name: skill.name, description: skill.description }));
+}
+
 const chatService = createChatService({
   startChat,
   onSessionEvent,
@@ -215,6 +525,7 @@ const chatService = createChatService({
   tokenProvider: getCurrentToken,
   listSessions: listSessionsForBridge,
   getSessionHistory: getSessionHistoryForBridge,
+  listRegisteredSkills,
 });
 app.use(chatService.router);
 
@@ -233,6 +544,9 @@ const notificationDeps: NotificationDeps = {
   pushToBridge: chatService.pushToBridge,
 };
 app.use(createNotificationsRouter(notificationDeps));
+app.use(notifierRoutes);
+app.use(createJournalRouter());
+app.use(createTranslationRouter());
 app.use(mcpToolsRouter);
 app.use(schedulerTasksRoutes);
 
@@ -341,7 +655,7 @@ function logMcpStatus(): void {
     });
   }
   if (disabledMcpTools.length > 0) {
-    const names = disabledMcpTools.map((toolDef) => toolDef.definition.name + " (" + (toolDef.requiredEnv ?? []).join(", ") + ")").join(", ");
+    const names = disabledMcpTools.map((toolDef) => `${toolDef.definition.name} (${(toolDef.requiredEnv ?? []).join(", ")})`).join(", ");
     log.info("mcp", "Unavailable (missing env)", { tools: names });
   }
 }
@@ -389,6 +703,20 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
     pushToBridge: chatService.pushToBridge,
   });
 
+  // --- Notifier engine (separate from `events/notifications.ts`).
+  // Routes mounted at module-load above; engine emit is wired here
+  // once pubsub exists. Mutating APIs called between mount and this
+  // call would persist state but log a warning instead of emitting.
+  initNotifier({
+    publish: (channel, payload) => pubsub.publish(channel, payload),
+  });
+
+  // --- Plugin META aggregator diagnostics ---
+  // After initNotifications so publishNotification has a publish
+  // sink. Surfaces any host/plugin or plugin/plugin key collision
+  // detected at module load via log.warn + a system notification.
+  announcePluginMetaDiagnostics();
+
   // --- Chat socket transport (Phase A of #268) ---
   chatService.attachSocket(httpServer);
 
@@ -404,6 +732,96 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
 
   // --- Session Store ---
   initSessionStore(pubsub);
+
+  // --- Runtime plugins (#1043 C-2 + #1110) ---
+  // Two sources of plugins, same RuntimePlugin shape:
+  //   1. Presets — server/plugins/preset-list.ts (loaded from node_modules)
+  //   2. User-installed — ~/mulmoclaude/plugins/plugins.json ledger
+  //
+  // Presets are merged FIRST so they win runtime-vs-runtime collision
+  // (first-loaded wins; static MCP built-ins still win over both via
+  // MCP_PLUGIN_NAMES).
+  //
+  // Factory-shape plugins (`export default definePlugin(...)`) receive a
+  // runtime constructed by `makePluginRuntime(...)` which closes over the
+  // live pubsub. Legacy `(context, args)` plugins are loaded unchanged.
+  //
+  // Failures don't abort boot — bad plugins are skipped, healthy ones
+  // still load.
+  void (async () => {
+    try {
+      const runtimeFactory = (pkgName: string) =>
+        makePluginRuntime({
+          pkgName,
+          pubsub,
+          // v1: server-side locale is a static snapshot. The frontend
+          // BrowserPluginRuntime carries the reactive ref. Future
+          // enhancement: per-request locale from Accept-Language.
+          locale: process.env.LANG?.split(/[._]/)[0] || "en",
+        });
+      const [presets, userInstalled, devLoad] = await Promise.all([
+        loadPresetPlugins({ runtimeFactory }),
+        loadRuntimePlugins({ runtimeFactory }),
+        loadDevPlugins(parseDevPluginsEnv(process.env.MULMOCLAUDE_DEV_PLUGINS, process.cwd()), { runtimeFactory }),
+      ]);
+      // Dev plugin failures (missing dist/index.js, broken package.json,
+      // …) are a setup error the dev needs to see and fix. Hard-exit
+      // so the developer can't accidentally trial-and-error against a
+      // server that silently dropped their plugin. Same policy for
+      // collisions per #1159 PR2 spec.
+      const devGate = evaluateDevPluginGate(devLoad, [...presets, ...userInstalled]);
+      if (!devGate.ok) {
+        for (const message of devGate.fatalMessages) log.error("plugins/dev", message);
+        process.exit(1);
+      }
+      // Auto-reload (#1159 PR3): watch each dev plugin's dist/ and
+      // publish on debounced change so the browser refreshes without
+      // ⌘R. Server-side `dist/index.js` cannot be hot-replaced (Node
+      // ESM cache), so the watcher logs an explicit hint when that
+      // file is in the changed set.
+      if (devLoad.plugins.length > 0) {
+        const handle = watchDevPlugins(devLoad.plugins, {
+          publish: (name, payload) =>
+            pubsub.publish(PUBSUB_CHANNELS.devPluginChanged, {
+              name,
+              changedFiles: payload.changedFiles,
+              serverSideChange: payload.serverSideChange,
+            }),
+          warnServerSideChange: (name) => log.warn("plugins/dev", `${name}: dist/index.js changed — restart mulmoclaude to pick up server-side changes`),
+          onWatcherError: (name, error) =>
+            log.warn("plugins/dev", `${name}: watcher error — auto-reload disabled for this plugin until restart`, { error: String(error) }),
+        });
+        registerShutdownHook(() => handle.close());
+      }
+      // Pass the full static-tool set (MCP plugins + ENABLED MCP tools
+      // like readXPost / searchX) as the collision policy so the floor
+      // matches the standalone mcp-server's STATIC_TOOL_NAMES exactly
+      // (#1077 / #1116 review). Filter via `isMcpToolEnabled` so the
+      // child process's `mcpToolDefs` (only enabled tools) and the
+      // parent's reservation set agree — otherwise a runtime plugin
+      // colliding with a disabled tool would be rejected here but
+      // accepted by the child, and the child's `/dispatch` would 404
+      // because the parent never registered a route for it.
+      const staticToolNames = new Set([...MCP_PLUGIN_NAMES, ...mcpTools.filter(isMcpToolEnabled).map((tool) => tool.definition.name)]);
+      const result = registerRuntimePlugins(staticToolNames, [...presets, ...userInstalled, ...devLoad.plugins]);
+      log.info("plugins/runtime", "registered runtime plugins", {
+        presets: presets.length,
+        userInstalled: userInstalled.length,
+        dev: devLoad.plugins.length,
+        registered: result.registered.length,
+        collisions: result.collisions.length,
+        oauthAliasCollisions: result.oauthAliasCollisions.length,
+      });
+    } catch (err) {
+      log.error("plugins/runtime", "registry init failed; runtime plugins disabled this session", { error: String(err) });
+    }
+  })();
+
+  // --- File-change publisher ---
+  // Wired here (not at first publish) so the very first save after
+  // boot already sees a live publisher.
+  initFileChangePublisher(pubsub);
+  initAccountingEventPublisher(pubsub);
 
   // --- Task Manager ---
   const taskManager = createTaskManager({
@@ -504,11 +922,22 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
 // dead token. Crashes that skip this are harmless — see
 // plans/done/feat-bearer-token-auth.md; the next startup overwrites and
 // the stale file's token no longer matches the live in-memory one.
+const shutdownHooks: (() => void)[] = [];
+function registerShutdownHook(hook: () => void): void {
+  shutdownHooks.push(hook);
+}
 let isShuttingDown = false;
 async function gracefulShutdown(signal: string): Promise<void> {
   if (isShuttingDown) return;
   isShuttingDown = true;
   log.info("server", "shutting down", { signal });
+  for (const hook of shutdownHooks) {
+    try {
+      hook();
+    } catch (err) {
+      log.warn("server", "shutdown hook threw", { error: String(err) });
+    }
+  }
   await deleteTokenFile();
   process.exit(0);
 }
@@ -536,12 +965,42 @@ process.on("SIGTERM", () => {
   sandboxEnabled = await setupSandbox();
   logMcpStatus();
 
+  // Provision the LLM-write hook in the workspace's
+  // `.claude/settings.json` (#763 PR 2). Idempotent — safe on every
+  // startup. Done BEFORE the agent ever spawns a claude CLI subprocess
+  // so the hook is in place from the first turn.
+  await provisionWikiHistoryHook().catch((err) => {
+    log.warn("wiki-history", "hook provisioning failed; LLM wiki edits will not be snapshotted this session", {
+      error: String(err),
+    });
+  });
+
+  // Runtime plugin loading moved into `startRuntimeServices` (#1110)
+  // so factory-shape plugins (`export default definePlugin(...)`) can
+  // receive a runtime that closes over the live pubsub instance.
+  // Legacy `(context, args)` shape unaffected. The collision-set fix
+  // from #1116 (use enabled-MCP-tools + plugin names, not just MCP
+  // plugin names) is applied at the new location, line ~735 above.
+
   // Bind to localhost-only. Using `0.0.0.0` would expose the dev
   // server to the entire LAN (anyone on the same Wi-Fi could reach
   // `http://<laptop-ip>:3001/api/*`), which combined with the
   // workspace file API is a credential-theft risk. Personal dev
   // tool — localhost is the right default.
-  const httpServer = app.listen(port, "127.0.0.1", () => {
+  const httpServer = app.listen(port, "127.0.0.1", async () => {
+    // Publish the actually-bound port so the hook script can
+    // address us — the requested PORT may have walked forward
+    // off a busy default. Use writeFile (not writeFileAtomic)
+    // because the file is tiny + ephemeral and the .tmp dance
+    // serves no purpose for a single-process write at boot.
+    try {
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(WORKSPACE_PATHS.serverPort, `${port}\n`, { mode: 0o600 });
+    } catch (err) {
+      log.warn("server", "failed to write .server-port; LLM wiki-write hook will be unable to reach the server", {
+        error: String(err),
+      });
+    }
     startRuntimeServices(httpServer, port);
   });
 })();

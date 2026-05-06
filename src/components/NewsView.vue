@@ -117,6 +117,7 @@
                 <div v-if="bodyLoading" class="text-sm text-gray-400">{{ t("common.loading") }}</div>
                 <div v-else-if="bodyError" class="text-sm text-red-600">{{ t("pluginNews.bodyError", { error: bodyError }) }}</div>
                 <div v-else-if="!body" class="text-sm text-gray-400 italic">{{ t("pluginNews.noBody") }}</div>
+                <!-- eslint-disable-next-line vue/no-v-html -- marked.parse output of app-owned news body; trusted in-process render -->
                 <div v-else class="markdown-content prose prose-slate max-w-none" v-html="renderedBody"></div>
               </div>
             </div>
@@ -125,7 +126,7 @@
             :key="selected.id"
             :placeholder="t('pluginNews.chatPlaceholder')"
             :prepend-text="`Read this article. ${selected.url}`"
-            :allow-empty="true"
+            allow-empty
             test-id-prefix="news-page-chat"
           />
         </template>
@@ -144,6 +145,7 @@ import { apiGet } from "../utils/api";
 import { formatSmartTime } from "../utils/format/date";
 import { useNewsItems } from "../composables/useNewsItems";
 import { useNewsReadState } from "../composables/useNewsReadState";
+import { parseFrontmatter } from "../utils/markdown/frontmatter";
 import FilterChip from "./FilterChip.vue";
 import PageChatComposer from "./PageChatComposer.vue";
 
@@ -191,7 +193,18 @@ const unreadCount = computed(() => items.value.filter((item) => !isRead(item.id)
 
 const selected = computed(() => items.value.find((item) => item.id === selectedId.value) ?? null);
 
-const renderedBody = computed(() => (body.value ? marked(body.value, { breaks: true, gfm: true }) : ""));
+// Strip frontmatter before marked() renders the body. RSS-derived
+// content typically has no `---\n...\n---` envelope, but a feed
+// that mirrors a markdown blog could carry one — and we don't
+// want it to surface as a stray `<hr>` plus key:value plain text.
+// `parseFrontmatter` is a no-op for header-less inputs, so this
+// is safe for the common case (#895 PR D — closes the issue's
+// "Vue 側 ... news ... frontmatter が body に出ない" requirement).
+const renderedBody = computed(() => {
+  if (!body.value) return "";
+  const { body: bodyOnly } = parseFrontmatter(body.value);
+  return marked(bodyOnly, { breaks: true, gfm: true });
+});
 
 function selectItem(itemId: string): void {
   selectedId.value = itemId;
@@ -220,6 +233,7 @@ watch(
     const token = ++bodyToken;
     const url = API_ROUTES.news.itemBody.replace(":id", encodeURIComponent(itemId));
     const result = await apiGet<{ body: string | null }>(url);
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- in-memory race-token guard, not an auth compare
     if (token !== bodyToken) return;
     bodyLoading.value = false;
     if (!result.ok) {

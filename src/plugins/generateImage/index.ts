@@ -1,11 +1,13 @@
 import type { ToolResult } from "gui-chat-protocol";
-import type { ToolPlugin } from "../../tools/types";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import toolDefinition, { TOOL_NAME } from "./definition";
 import type { ImageToolData } from "./definition";
+import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
+import type { ImageEndpoints } from "../editImages/definition";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
 import { makeUuid } from "../../utils/id";
 
 function createUploadedImageResult(imageData: string, fileName: string, prompt: string): ToolResult<ImageToolData, never> {
@@ -21,7 +23,8 @@ const generateImagePlugin: ToolPlugin<ImageToolData> = {
   toolDefinition,
 
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<ImageToolData>>(API_ROUTES.image.generate, args);
+    const endpoints = pluginEndpoints<ImageEndpoints>("image");
+    const result = await apiPost<ToolResult<ImageToolData>>(endpoints.generate, args);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,
@@ -49,9 +52,14 @@ const generateImagePlugin: ToolPlugin<ImageToolData> = {
       handleInput: (imageData: string) => createUploadedImageResult(imageData, "clipboard-image.png", ""),
     },
   ],
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("image", View),
+  previewComponent: wrapWithScope("image", Preview),
 };
 
 export default generateImagePlugin;
 export { TOOL_NAME };
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: TOOL_NAME,
+  entry: generateImagePlugin,
+};

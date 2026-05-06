@@ -8,6 +8,7 @@ import { log } from "../../system/logger/index.js";
 import { previewSnippet } from "../../utils/logPreview.js";
 import { isRecord } from "../../utils/types.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { bindRoute } from "../../utils/router.js";
 
 const router = Router();
 
@@ -68,7 +69,7 @@ function isValidChartEntry(value: unknown): value is ChartEntry {
   return true;
 }
 
-router.post(API_ROUTES.chart.present, async (req: Request<object, unknown, PresentChartBody>, res: Response<PresentChartResponse>) => {
+bindRoute(router, API_ROUTES.chart.create, async (req: Request<object, unknown, PresentChartBody>, res: Response<PresentChartResponse>) => {
   const { document, title } = req.body;
   log.info("chart", "present: start", {
     titlePreview: typeof title === "string" ? previewSnippet(title) : undefined,

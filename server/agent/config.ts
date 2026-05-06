@@ -1,8 +1,9 @@
-import { join } from "path";
+import { dirname, join } from "path";
 import { homedir, tmpdir } from "os";
+import { createRequire } from "node:module";
 import type { Role } from "../../src/config/roles.js";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
-import { MCP_PLUGIN_NAMES } from "./plugin-names.js";
+import { getActiveToolDescriptors } from "./activeTools.js";
 import type { McpServerSpec } from "../system/config.js";
 import { getCurrentToken } from "../api/auth/token.js";
 import type { Attachment } from "@mulmobridge/protocol";
@@ -14,10 +15,13 @@ export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
 const BASE_ALLOWED_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch"];
 
-const MCP_PLUGINS = new Set([...MCP_PLUGIN_NAMES, ...mcpTools.filter(isMcpToolEnabled).map((toolDef) => toolDef.definition.name)]);
-
+/** Tool names the agent is allowed to call this session. Drives
+ *  `PLUGIN_NAMES` env (the MCP child's filter) and the CLI's
+ *  `--allowedTools` arg. Static GUI / MCP plugins are gated by
+ *  `role.availablePlugins`; runtime plugins (#1043 C-2) are always
+ *  active. See `activeTools.ts` for the unified list. */
 export function getActivePlugins(role: Role): string[] {
-  return role.availablePlugins.filter((pluginName) => MCP_PLUGINS.has(pluginName));
+  return getActiveToolDescriptors(role).map((descriptor) => descriptor.name);
 }
 
 export interface McpConfigParams {
@@ -27,7 +31,6 @@ export interface McpConfigParams {
   chatSessionId: string;
   port: number;
   activePlugins: string[];
-  roleIds: string[];
   useDocker?: boolean;
   // User-defined MCP servers from <workspace>/config/mcp.json.
   // Keys become the server id in the generated --mcp-config file;
@@ -96,9 +99,29 @@ function collectMcpToolSentinelEnv(): Record<string, string> {
   return env;
 }
 
-function buildMulmoclaudeServer(params: { chatSessionId: string; port: number; activePlugins: string[]; roleIds: string[]; useDocker: boolean }): object {
-  const { chatSessionId, port, activePlugins, roleIds, useDocker } = params;
-  const projectRoot = process.cwd();
+// `process.cwd()` is unreliable: when launched via the package bin
+// (`npx mulmoclaude` / `node packages/mulmoclaude/bin/mulmoclaude.js`),
+// cwd is the package directory. Under yarn workspaces that dir's
+// `node_modules/` is empty (deps hoisted to repo root), so mounting it
+// into the sandbox at `/app/node_modules` causes the MCP child to
+// crash on startup with `Cannot find module 'express'` — silently,
+// because the failure happens before the MCP `initialize` handshake.
+// Resolving through a known npm dep lands on the populated
+// `node_modules/` in both dev (yarn workspace, repo root) and prod
+// (npx, package root with installed deps).
+function resolveProjectRoot(): string {
+  try {
+    const req = createRequire(import.meta.url);
+    const expressPkgJson = req.resolve("express/package.json");
+    return dirname(dirname(dirname(expressPkgJson)));
+  } catch {
+    return process.cwd();
+  }
+}
+
+function buildMulmoclaudeServer(params: { chatSessionId: string; port: number; activePlugins: string[]; useDocker: boolean }): object {
+  const { chatSessionId, port, activePlugins, useDocker } = params;
+  const projectRoot = resolveProjectRoot();
   const command = useDocker ? "tsx" : join(projectRoot, "node_modules/.bin/tsx");
   const mcpServerPath = useDocker ? "/app/server/agent/mcp-server.ts" : join(projectRoot, "server/agent/mcp-server.ts");
 
@@ -118,13 +141,19 @@ function buildMulmoclaudeServer(params: { chatSessionId: string; port: number; a
   const authEnv = token ? { MULMOCLAUDE_AUTH_TOKEN: token } : {};
 
   return {
+    // Claude Code 2.1.x requires the explicit `type: "stdio"` field
+    // for MCP servers it should spawn locally; without it the entry
+    // is silently skipped (no error, no log) and tools never reach
+    // the agent's tool registry. Older versions defaulted the type
+    // when absent, which is why this worked through Apr 2026 and
+    // started silently failing some time after the CLI update.
+    type: "stdio",
     command,
     args: [mcpServerPath],
     env: {
       SESSION_ID: chatSessionId,
       PORT: String(port),
       PLUGIN_NAMES: activePlugins.join(","),
-      ROLE_IDS: roleIds.join(","),
       ...authEnv,
       ...dockerEnv,
     },
@@ -144,15 +173,14 @@ function excludeReservedKeys(servers: Record<string, McpServerSpec>): Record<str
   return out;
 }
 
-export function buildMcpConfig(params: McpConfigParams): object {
-  const { chatSessionId, port, activePlugins, roleIds, useDocker = false, userServers = {} } = params;
+export function buildMcpConfig(params: McpConfigParams): { mcpServers: Record<string, unknown> } {
+  const { chatSessionId, port, activePlugins, useDocker = false, userServers = {} } = params;
   return {
     mcpServers: {
       mulmoclaude: buildMulmoclaudeServer({
         chatSessionId,
         port,
         activePlugins,
-        roleIds,
         useDocker,
       }),
       ...excludeReservedKeys(userServers),
@@ -189,7 +217,13 @@ export function buildCliArgs(params: CliArgsParams): string[] {
   const { systemPrompt, activePlugins, claudeSessionId, mcpConfigPath, extraAllowedTools = [] } = params;
 
   const mcpToolNames = activePlugins.map((pluginName) => `mcp__mulmoclaude__${pluginName}`);
-  const allowedTools = [...BASE_ALLOWED_TOOLS, ...extraAllowedTools, ...mcpToolNames];
+  // DEBUG: also pass the wildcard form `mcp__mulmoclaude` so Claude
+  // CLI auto-discovers all tools the mulmoclaude MCP server publishes
+  // (matches the convention used for user-defined MCP servers).
+  // Claude's tool registry seems to require wildcard for runtime
+  // discovery; specific names alone register permissions but not
+  // the tool's existence.
+  const allowedTools = [...BASE_ALLOWED_TOOLS, ...extraAllowedTools, "mcp__mulmoclaude", ...mcpToolNames];
 
   // stream-json input mode: the user message is streamed through
   // stdin (see `writeUserMessage` in server/agent.ts) rather than
@@ -218,6 +252,16 @@ export function buildCliArgs(params: CliArgsParams): string[] {
 
   if (mcpConfigPath) {
     args.push("--mcp-config", mcpConfigPath);
+    // Without `--strict-mcp-config`, Claude Code 2.1.x merges in
+    // claude.ai account-level integrations (Canva / Gmail / Drive
+    // / Calendar) AND our local `--mcp-config` — and observed in
+    // practice (#1043 C-2 follow-up debug session) the merge silently
+    // drops the local mulmoclaude server entirely, so its tools
+    // never reach the agent's registry. With `--strict`, the local
+    // file is the only source — exactly what the parent server
+    // intends, since mulmoclaude itself is the broker for all the
+    // GUI plugin tools.
+    args.push("--strict-mcp-config");
   }
 
   return args;
@@ -240,18 +284,23 @@ export function buildCliArgs(params: CliArgsParams): string[] {
 export async function buildUserMessageLine(message: string, attachments?: Attachment[]): Promise<string> {
   const all = attachments ?? [];
   if (all.length === 0) {
-    return (
-      JSON.stringify({
-        type: "user",
-        message: { role: "user", content: message },
-      }) + "\n"
-    );
+    return `${JSON.stringify({
+      type: "user",
+      message: { role: "user", content: message },
+    })}\n`;
   }
 
-  const blocks: Array<Record<string, unknown>> = [];
+  const blocks: Record<string, unknown>[] = [];
   const skippedReasons: string[] = [];
 
   for (const att of all) {
+    // Defensive: prepareRequestExtras normalises path-only entries to
+    // bytes before we get here, so `data` + `mimeType` should always
+    // be set. Skip with a reason if a malformed entry slipped through.
+    if (!att.data || !att.mimeType) {
+      skippedReasons.push(att.path ? `attachment "${att.path}" missing bytes/mimeType after normalisation` : "attachment missing bytes/mimeType");
+      continue;
+    }
     // Native types: image and PDF go directly as content blocks
     if (isNativeAttachmentMime(att.mimeType)) {
       blocks.push(buildNativeBlock(att));
@@ -274,22 +323,22 @@ export async function buildUserMessageLine(message: string, attachments?: Attach
   }
 
   blocks.push({ type: "text", text: message });
-  return (
-    JSON.stringify({
-      type: "user",
-      message: { role: "user", content: blocks },
-    }) + "\n"
-  );
+  return `${JSON.stringify({
+    type: "user",
+    message: { role: "user", content: blocks },
+  })}\n`;
 }
 
 function buildNativeBlock(att: Attachment): Record<string, unknown> {
-  const blockType = isImageMime(att.mimeType) ? "image" : "document";
+  const mimeType = att.mimeType ?? "application/octet-stream";
+  const data = att.data ?? "";
+  const blockType = isImageMime(mimeType) ? "image" : "document";
   return {
     type: blockType,
     source: {
       type: "base64",
-      media_type: att.mimeType,
-      data: att.data,
+      media_type: mimeType,
+      data,
     },
   };
 }
@@ -323,6 +372,13 @@ export interface DockerSpawnArgsParams {
   uid: number;
   gid: number;
   platform: Platform;
+  /** Our app's chat session id. Forwarded into the container as
+   *  `MULMOCLAUDE_CHAT_SESSION_ID` so the wiki-history PostToolUse
+   *  hook can publish a `page-edit` toolResult to the right chat
+   *  session — Claude CLI's own `session_id` (in the hook payload)
+   *  is the *CLI* session, not our chat session, so the session
+   *  store would never find a match (#963). */
+  chatSessionId: string;
   projectRoot?: string;
   homeDir?: string;
   /** Extra `-v` / `-e` tokens for opt-in host credentials (#259).
@@ -346,7 +402,7 @@ export function buildDockerSpawnArgs(params: DockerSpawnArgsParams): string[] {
     uid,
     gid,
     platform,
-    projectRoot = process.cwd(),
+    projectRoot = resolveProjectRoot(),
     homeDir = homedir(),
     sandboxAuthArgs = [],
     sshAgentForward = false,
@@ -391,6 +447,20 @@ export function buildDockerSpawnArgs(params: DockerSpawnArgsParams): string[] {
       : ["--user", `${uid}:${gid}`]),
     "-e",
     "HOME=/home/node",
+    // Wiki-history hook (#763 PR 2) runs inside this container after
+    // every Write/Edit and POSTs back to the parent server. Plain
+    // loopback fails — `127.0.0.1` is the container itself. Same
+    // resolution as MCP_HOST above; on Linux the corresponding
+    // `--add-host host.docker.internal:host-gateway` is appended via
+    // `extraHosts`.
+    "-e",
+    "MULMOCLAUDE_HOST=host.docker.internal",
+    // Chat session id for the wiki-history hook (#963). The hook
+    // POSTs `{slug, sessionId}` to the parent server; the server
+    // looks up the chat session by this id to publish a `page-edit`
+    // toolResult into its timeline.
+    "-e",
+    `MULMOCLAUDE_CHAT_SESSION_ID=${params.chatSessionId}`,
     "-v",
     `${toDockerPath(projectRoot)}/node_modules:/app/node_modules:ro`,
     "-v",
