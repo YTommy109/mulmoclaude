@@ -7,15 +7,24 @@
 // payload the wrapper produces server-side). The bell is expected to:
 //
 //   - render a row with the right testid;
-//   - on body click, navigate to `entry.navigateTarget` AND remove
-//     the entry (legacy entries publish with `lifecycle: "fyi"`, so
-//     the bell calls `clear()` after the navigation);
-//   - on `×` click, remove the entry without navigating.
+//   - on body click for fyi rows, navigate to `entry.navigateTarget`
+//     AND remove the entry (legacy entries publish with
+//     `lifecycle: "fyi"`, so the bell calls `clear()` after the
+//     navigation);
+//   - on `×` click for action rows, remove the entry without
+//     navigating (the × is fyi-less by design — fyi rows clear on
+//     body click, the debug popup's two-tier UX).
 //
 // The previous spec asserted on a `data-unread` attribute and a
 // "Mark all read" affordance — both removed in PR 4. The new bell
-// has no read/unread distinction (entries are either active or
-// in history), so those assertions are dropped.
+// has no read/unread distinction (entries are either active or in
+// history), so those assertions are dropped.
+//
+// The bell appends `?notificationId=<id>` to every navigation so
+// `action`-lifecycle landing pages can identify which entry to
+// clear. The URL assertion strips that query param before comparing
+// — its presence is an implementation detail of the bell, not a
+// scenario guarantee.
 
 import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
@@ -24,7 +33,7 @@ interface NotifierEntryFixture {
   id: string;
   pluginPkg: string;
   severity: "info" | "nudge" | "urgent";
-  lifecycle: "fyi";
+  lifecycle: "fyi" | "action";
   title: string;
   body?: string;
   navigateTarget?: string;
@@ -134,6 +143,18 @@ function parseAction(body: string | null): string | undefined {
   }
 }
 
+/** Reconstruct `pathname + search + hash` minus the bell's
+ *  `notificationId` parameter. Lets the navigation scenarios assert
+ *  on the user-meaningful URL without coupling to the bell's
+ *  implementation detail of identifying which entry triggered the
+ *  navigation. */
+function stripNotificationId(url: URL): string {
+  const params = new URLSearchParams(url.search);
+  params.delete("notificationId");
+  const search = params.toString();
+  return url.pathname + (search ? `?${search}` : "") + url.hash;
+}
+
 test.describe("notification bell — navigation", () => {
   for (const scenario of SCENARIOS) {
     test(scenario.description, async ({ page }) => {
@@ -168,14 +189,22 @@ test.describe("notification bell — navigation", () => {
 
       await page.getByTestId(`notification-item-${scenario.entry.id}`).click();
 
-      await expect(page).toHaveURL((url) => url.pathname + url.search + url.hash === scenario.expectedUrl);
+      await expect(page).toHaveURL((url) => stripNotificationId(url) === scenario.expectedUrl);
     });
   }
 });
 
 test.describe("notification bell — dismiss", () => {
-  test("× button removes the row from Active", async ({ page }) => {
-    const entry = buildEntry("notif-dismiss-1", "Will be dismissed", "/calendar");
+  test("× button on an action row cancels the entry", async ({ page }) => {
+    // The × button is a property of action rows only — fyi rows
+    // clear on body click and don't render a dismiss button (matches
+    // the debug popup's two-tier UX). Build an action entry directly
+    // since `buildEntry` defaults to fyi.
+    const entry: NotifierEntryFixture = {
+      ...buildEntry("notif-dismiss-1", "Will be cancelled", "/calendar"),
+      lifecycle: "action",
+      severity: "nudge",
+    };
     await mockAllApis(page, { sessions: [] });
     await primeNotifierList(page, [entry]);
 
@@ -183,12 +212,28 @@ test.describe("notification bell — dismiss", () => {
     await expect(page.getByTestId("notification-badge")).toBeVisible({ timeout: 5000 });
 
     await page.getByTestId("notification-bell").click();
-    // Click the × inside the row — the row exposes a single
-    // `notification-dismiss` testid for it.
     await page.getByTestId(`notification-item-${entry.id}`).getByTestId("notification-dismiss").click();
 
     // Row is gone (the optimistic local update + the engine's
-    // `cleared` event both remove it). The badge clears too.
+    // `cancelled` event both remove it). The badge clears too.
+    await expect(page.getByTestId(`notification-item-${entry.id}`)).toHaveCount(0);
+    await expect(page.getByTestId("notification-badge")).toHaveCount(0);
+  });
+
+  test("body click on a fyi row clears the entry", async ({ page }) => {
+    // No navigateTarget so the click is a pure clear (no router push
+    // racing with the assertion).
+    const entry = buildEntry("notif-fyi-clear-1", "Will be cleared", "");
+    entry.navigateTarget = undefined;
+    await mockAllApis(page, { sessions: [] });
+    await primeNotifierList(page, [entry]);
+
+    await page.goto("/todos");
+    await expect(page.getByTestId("notification-badge")).toBeVisible({ timeout: 5000 });
+
+    await page.getByTestId("notification-bell").click();
+    await page.getByTestId(`notification-item-${entry.id}`).click();
+
     await expect(page.getByTestId(`notification-item-${entry.id}`)).toHaveCount(0);
     await expect(page.getByTestId("notification-badge")).toHaveCount(0);
   });

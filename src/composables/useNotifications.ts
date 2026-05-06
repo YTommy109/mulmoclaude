@@ -135,18 +135,42 @@ export function useNotifications(): {
     return "bg-gray-400";
   });
 
+  /** Remove an entry from the active list and prepend a synthetic
+   *  history record. Used optimistically by `clear` / `cancel` so the
+   *  bell reacts before the server round-trip completes; `applyEvent`
+   *  is idempotent on the eventual pubsub echo (the entry is already
+   *  gone from `entries`, so its `cleared`/`cancelled` branch finds
+   *  nothing to remove and skips the history append).
+   *
+   *  No-op if the entry was already taken out (e.g. another tab raced
+   *  us via the pubsub event); preserves single-history-entry-per-id
+   *  semantics. */
+  function moveToHistoryLocally(entryId: string, terminalType: "cleared" | "cancelled"): void {
+    const removed = entries.value.find((entry) => entry.id === entryId);
+    if (!removed) return;
+    entries.value = entries.value.filter((entry) => entry.id !== entryId);
+    const historyEntry: NotifierHistoryEntry = {
+      ...removed,
+      terminalType,
+      terminalAt: new Date().toISOString(),
+    };
+    history.value = [historyEntry, ...history.value].slice(0, HISTORY_CAP);
+  }
+
   async function clear(entryId: string): Promise<void> {
+    moveToHistoryLocally(entryId, "cleared");
     const result = await apiPost<{ ok: true }>(API_ROUTES.notifier.dispatch, { action: "clear", id: entryId });
     if (!result.ok) {
       // Rendering this in console rather than the panel itself —
       // the panel is small and we don't want a transient API error
-      // shouting at the user. The pubsub `cleared` event will
-      // arrive shortly anyway and reconcile the state.
+      // shouting at the user. A future prime() would resync state
+      // if the server is genuinely out of sync.
       console.error("[useNotifications] clear failed", result.error);
     }
   }
 
   async function cancel(entryId: string): Promise<void> {
+    moveToHistoryLocally(entryId, "cancelled");
     const result = await apiPost<{ ok: true }>(API_ROUTES.notifier.dispatch, { action: "cancel", id: entryId });
     if (!result.ok) console.error("[useNotifications] cancel failed", result.error);
   }
