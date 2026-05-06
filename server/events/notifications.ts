@@ -136,11 +136,25 @@ type NavigateTarget = Extract<NotificationAction, { type: "navigate" }>["target"
 // `/`, `%`, `&`, ` ` don't change the URL's structure when interpolated.
 // `PAGE_ROUTES.*` and the literal `pages` segment are static literals
 // — encoding them is unnecessary noise.
+//
+// Dot segments (`.` and `..`) survive `encodeURIComponent` (the dots
+// aren't reserved characters) and would let a slug or path component
+// jump out of its view's namespace once the browser / router applies
+// path normalization. `/files/../chat/sess` collapses to `/chat/sess`,
+// for example. `isSafePathComponent` rejects those segments; consumers
+// either fall back to the view's index (single-component fields like
+// `slug` / `itemId`) or drop the navigate target entirely (chat,
+// where `sessionId` is required, has no usable index).
+
+function isSafePathComponent(segment: string): boolean {
+  return segment !== "." && segment !== "..";
+}
 
 function buildChatTarget(target: Extract<NavigateTarget, { view: typeof NOTIFICATION_VIEWS.chat }>): string | undefined {
   // No sessionId → drop the action; bouncing off the catch-all
-  // redirect is worse UX than a non-clickable entry.
-  if (!target.sessionId) return undefined;
+  // redirect is worse UX than a non-clickable entry. Dot-segment
+  // sessionId would normalize off /chat, so drop too.
+  if (!target.sessionId || !isSafePathComponent(target.sessionId)) return undefined;
   const sessionPath = `/${PAGE_ROUTES.chat}/${encodeURIComponent(target.sessionId)}`;
   if (target.resultUuid) return `${sessionPath}?result=${encodeURIComponent(target.resultUuid)}`;
   return sessionPath;
@@ -149,16 +163,31 @@ function buildChatTarget(target: Extract<NavigateTarget, { view: typeof NOTIFICA
 function buildFilesTarget(target: Extract<NavigateTarget, { view: typeof NOTIFICATION_VIEWS.files }>): string {
   // Files uses a catch-all (`/files/:pathMatch(.*)`); empty path
   // lands on the index. Each segment is encoded so spaces / special
-  // characters don't break the URL.
+  // characters don't break the URL. A path containing `.` or `..`
+  // segments would normalize out of /files, so refuse to build a
+  // path target for it — the index is the safest fallback.
   if (!target.path) return `/${PAGE_ROUTES.files}`;
-  const segments = target.path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
-  return `/${PAGE_ROUTES.files}/${segments}`;
+  const segments = target.path.split("/").filter(Boolean);
+  if (segments.some((segment) => !isSafePathComponent(segment))) return `/${PAGE_ROUTES.files}`;
+  return `/${PAGE_ROUTES.files}/${segments.map(encodeURIComponent).join("/")}`;
 }
 
 function buildWikiTarget(target: Extract<NavigateTarget, { view: typeof NOTIFICATION_VIEWS.wiki }>): string {
-  const slug = target.slug ? `/pages/${encodeURIComponent(target.slug)}` : "";
+  // Slug rides as a path component → dot-segment-check it. The
+  // anchor lives in the URL fragment, which doesn't participate in
+  // path normalization, so it doesn't need the same guard.
+  const slug = target.slug && isSafePathComponent(target.slug) ? `/pages/${encodeURIComponent(target.slug)}` : "";
   const hash = target.anchor ? `#${encodeURIComponent(target.anchor)}` : "";
   return `/${PAGE_ROUTES.wiki}${slug}${hash}`;
+}
+
+function buildSingleSegmentTarget(view: string, segment: string | undefined): string {
+  // Helper for views with a single optional path component: todos
+  // (itemId), automations (taskId), sources (slug). Unsafe values
+  // fall back to the view's index — a soft-fail since these views
+  // all have a usable index page.
+  if (segment && isSafePathComponent(segment)) return `/${view}/${encodeURIComponent(segment)}`;
+  return `/${view}`;
 }
 
 function buildNavigateTarget(target: NavigateTarget): string | undefined {
@@ -166,13 +195,13 @@ function buildNavigateTarget(target: NavigateTarget): string | undefined {
     case NOTIFICATION_VIEWS.chat:
       return buildChatTarget(target);
     case NOTIFICATION_VIEWS.todos:
-      return target.itemId ? `/${PAGE_ROUTES.todos}/${encodeURIComponent(target.itemId)}` : `/${PAGE_ROUTES.todos}`;
+      return buildSingleSegmentTarget(PAGE_ROUTES.todos, target.itemId);
     case NOTIFICATION_VIEWS.calendar:
       return `/${PAGE_ROUTES.calendar}`;
     case NOTIFICATION_VIEWS.automations:
-      return target.taskId ? `/${PAGE_ROUTES.automations}/${encodeURIComponent(target.taskId)}` : `/${PAGE_ROUTES.automations}`;
+      return buildSingleSegmentTarget(PAGE_ROUTES.automations, target.taskId);
     case NOTIFICATION_VIEWS.sources:
-      return target.slug ? `/${PAGE_ROUTES.sources}/${encodeURIComponent(target.slug)}` : `/${PAGE_ROUTES.sources}`;
+      return buildSingleSegmentTarget(PAGE_ROUTES.sources, target.slug);
     case NOTIFICATION_VIEWS.files:
       return buildFilesTarget(target);
     case NOTIFICATION_VIEWS.wiki:

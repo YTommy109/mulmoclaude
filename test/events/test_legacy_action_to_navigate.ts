@@ -196,6 +196,101 @@ describe("legacyActionToNavigateTarget — reserved characters", () => {
   });
 });
 
+describe("legacyActionToNavigateTarget — dot-segment safety", () => {
+  // `encodeURIComponent` doesn't touch '.' / '..', so without an
+  // explicit guard those segments survive into the path and the
+  // browser's URL normalization can collapse them, jumping out of
+  // the intended view's namespace (e.g. /files/../chat/sess →
+  // /chat/sess). The guards below pin the safe behaviour:
+  //   - files: any unsafe segment ⇒ fall back to /files index
+  //   - single-segment fields (todos, automations, sources, wiki
+  //     slug): unsafe value ⇒ fall back to that view's index
+  //   - chat: unsafe sessionId ⇒ drop the action (chat has no usable
+  //     index without sessionId)
+  it("files: rejects '..' as a path segment and falls back to /files", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.files, path: "../chat/sess" },
+    });
+    assert.equal(result, "/files");
+  });
+
+  it("files: rejects '.' as a path segment and falls back to /files", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.files, path: "./foo" },
+    });
+    assert.equal(result, "/files");
+  });
+
+  it("files: rejects '..' anywhere in a multi-segment path", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.files, path: "a/b/../c" },
+    });
+    assert.equal(result, "/files");
+  });
+
+  it("files: '..foo' (substring, not whole component) is allowed and encoded normally", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.files, path: "a/..foo/b" },
+    });
+    assert.equal(result, "/files/a/..foo/b");
+  });
+
+  it("chat: dot-segment sessionId drops the action (no usable index)", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.chat, sessionId: ".." },
+    });
+    assert.equal(result, undefined);
+  });
+
+  it("todos: dot-segment itemId falls back to /todos", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.todos, itemId: ".." },
+    });
+    assert.equal(result, "/todos");
+  });
+
+  it("automations: dot-segment taskId falls back to /automations", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.automations, taskId: "." },
+    });
+    assert.equal(result, "/automations");
+  });
+
+  it("sources: dot-segment slug falls back to /sources", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.sources, slug: ".." },
+    });
+    assert.equal(result, "/sources");
+  });
+
+  it("wiki: dot-segment slug omits the /pages/<slug> portion (anchor still rendered)", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.wiki, slug: "..", anchor: "intro" },
+    });
+    assert.equal(result, "/wiki#intro");
+  });
+
+  it("wiki: dot-segment anchor is allowed (fragment, not path)", () => {
+    // The fragment doesn't participate in path normalization so
+    // there's no traversal risk; allow whatever the user passes
+    // (encoded for safety against query/path delimiters).
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.wiki, slug: "page", anchor: ".." },
+    });
+    assert.equal(result, "/wiki/pages/page#..");
+  });
+});
+
 describe("legacyActionToNavigateTarget — engine constraints", () => {
   it("every emitted target starts with a single '/' (no scheme, no '//')", () => {
     const targets: { view: string; expected: string }[] = [
