@@ -26,6 +26,12 @@ export const TOOL_DEFINITION = {
         description: "String to echo back. Required for `echo`.",
       },
     },
-    required: ["kind"],
+    // `message` is required because the only supported `kind` (`echo`)
+    // needs it. If a future action lands that doesn't, switch to a
+    // conditional / oneOf schema rather than relaxing this list — the
+    // Zod parser in index.ts is the source of truth and we want
+    // schema-level rejection, not opaque ZodError surfacing through
+    // dispatch.
+    required: ["kind", "message"],
   },
 };
