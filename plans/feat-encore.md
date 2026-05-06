@@ -66,19 +66,18 @@ The current model is sufficient for "your scheduled task just finished" but cann
 
 ### Three notification types — three lifecycle shapes
 
-Plugins fire notifications that fall into one of three shapes. The Notifier carries `lifecycle` on every payload so the panel UI and the close-event branch correctly. The field is named `lifecycle` (not `kind`) because the existing `NotificationKind` already means "source category" — `todo | scheduler | agent | …` — and the two are orthogonal: source category (collapsed into `pluginPkg`, see below) and lifecycle shape are independent.
+Plugins fire notifications that fall into one of two shapes. The Notifier carries `lifecycle` on every payload as a UI hint — the engine itself never reads it. The field is named `lifecycle` (not `kind`) because the existing `NotificationKind` already means "source category" — `todo | scheduler | agent | …` — and the two are orthogonal: source category (collapsed into `pluginPkg`, see below) and lifecycle shape are independent.
 
 ```ts
-type NotifierLifecycle = "fyi" | "read" | "action";
+type NotifierLifecycle = "fyi" | "action";
 ```
 
-| Lifecycle | Example | Has body content? | Closes when… |
+| Lifecycle | Example | Has body content? | Who calls `clear`? |
 |---|---|---|---|
-| `fyi` | "Backup completed" | No | User acknowledges (button or bulk-checkbox in panel) |
-| `read` | "Daily news digest is ready" | Yes — content lives at a deep-link target | User clicks the row → navigated to target → close fires automatically |
-| `action` | "Pay H2 property tax" | Yes — plugin-owned page with custom UX | Plugin calls `notifier.clear(id)` when the underlying state change happens |
+| `fyi` | "Backup completed" | No | The bell panel — user acknowledges (button or bulk-checkbox) |
+| `action` | "Pay H2 property tax" / "Daily news digest is ready" | Yes — plugin-owned target | The plugin — either on view mount ("show this once" semantics) or after the domain action completes |
 
-Key implication for `action`: the close call belongs in the **plugin's domain logic, not the panel click handler**. If the user submits the journal entry via chat without ever opening the bell, the reminder must still clear. The deep-link click is just convenience routing; it does not by itself satisfy the notification.
+`action` collapses what an earlier draft split into `read` and `action`: from the engine's perspective both are "the plugin owns the close call", so the distinction was bookkeeping with no runtime effect. The plugin chooses *when* to call `clear` based on its own UX — on mount for read-once notifications, after an explicit action for things like "Pay property tax." If the user never visits the plugin's view (e.g. submits the journal entry via chat instead), the plugin can still detect the underlying state change and call `clear` from there; the panel click is convenience routing, not the close trigger.
 
 ### Target shape — `Notifier`
 
@@ -152,8 +151,7 @@ pending → delivered → seen ─→ snoozed ─→ (re-evaluates at untilTime 
 
 - `seen` is "rendered to the user" (panel opened, or toast shown). Re-surface fires off `delivered` without `acted`, **not** off `seen` without `acted` — otherwise an open bell panel would suppress every escalation.
 - For `fyi`: acknowledge transitions directly to `closed` without going through `acted` (no domain action exists to be acted on; acknowledge IS the close).
-- For `read`: navigation triggers `clear` automatically — the panel emits the close on the same tick it routes the user.
-- For `action`: only the plugin can transition to `acted` / `closed`. The panel cannot.
+- For `action`: only the plugin can transition to `acted` / `closed`. The panel routes the user to the plugin's view but does not by itself close the notification.
 
 #### Pending count + bell badge semantics
 
@@ -166,13 +164,12 @@ The toolbar bell shows the count of notifications in `delivered` or `seen` state
 
 #### Panel UX per lifecycle
 
-The bell panel stays the surface for all three lifecycles. Each row's affordance differs by `lifecycle`:
+The bell panel stays the surface for both lifecycles. Each row's affordance differs by `lifecycle`:
 
 - **`fyi`** — leading checkbox + "Acknowledge selected" button at the panel footer. Click anywhere on the row toggles the checkbox; explicit close-button on the row also acknowledges that single item. Bulk acknowledge is the headline ergonomic — for catch-up sessions where 12 "build finished" rows pile up.
-- **`read`** — row is a hyperlink. Click → close panel → route to the deep-link target → close transition fires. Same as today's `NotificationAction.navigate`, just with the auto-close hooked up.
-- **`action`** — row is a hyperlink routing to the plugin's standalone page (derived from `pluginPkg` + the plugin's META — no per-call deep-link wiring); *but* the close is driven by the plugin (`notifier.clear(id)`), not by the click. The URL carries `?notificationId=<uuid>` so the page can call `notifier.get(uuid)` to recover `pluginData`, highlight the relevant item, and know which id to clear when the user completes the action. If the user navigates away without acting, the notification stays pending and re-surfaces on schedule.
+- **`action`** — row is a hyperlink routing to the plugin's view (the plugin reads `pluginData` to decide where exactly — a standalone route, an in-chat preview, etc.). The close is always driven by the plugin (`notifier.clear(id)`), never by the click. The URL carries `?notificationId=<uuid>` so the landing page can call `notifier.get(uuid)` to recover `pluginData`, highlight the relevant item, and know which id to clear. The plugin chooses *when* to clear: on view mount for read-once notifications, after a domain action for things like "Pay property tax." If the user navigates away without engaging, the notification stays pending and re-surfaces on schedule.
 
-`NotificationBell.vue` and `NotificationToast.vue` gain `lifecycle`-aware rendering. New testids: `[notification-row-fyi]`, `[notification-row-read]`, `[notification-row-action]`, `[notification-acknowledge-bulk]`.
+`NotificationBell.vue` and `NotificationToast.vue` gain `lifecycle`-aware rendering. New testids: `[notification-row-fyi]`, `[notification-row-action]`, `[notification-acknowledge-bulk]`.
 
 #### Severity → channel mapping
 
@@ -443,9 +440,9 @@ The standalone route follows the existing pattern: route registered in `src/rout
 
 ## Phasing
 
-**Order of operations**: A tiny client-only dev-mode gate ships first (PR 1) so the Notifier engine (PR 2) can ship with a real test plugin behind a Debug role rather than an HTTP-only harness or a test plugin that pollutes production roles. Encore (PRs 3 + 4) follows once the engine is proven.
+**Order of operations**: A tiny client-only dev-mode gate ships first (PR 1, ✅ merged), then a stripped-down Notifier prototype (PR 2) validates the data model + API shape behind the existing `@mulmoclaude/debug-plugin` `/debug` page. The full Notifier engine with timers, escalation, snooze, channel routing, and legacy `publishNotification()` migration follows in PR 3. Encore (PRs 4 + 5) lands once the engine is proven.
 
-### PR 1 — Dev mode + Debug role (client-only, ~25-line diff)
+### PR 1 — Dev mode + Debug role (client-only, ~25-line diff) ✅ merged
 
 A minimal client-only dropdown gate. PR 2's `_notifierTest` plugin will sit on the same `VITE_DEV_MODE` flag, but the gating mechanism for *roles* lives entirely in the role schema + the dropdown component.
 
@@ -479,38 +476,76 @@ Existing chat sessions tied to a debug role still render normally (icon, history
 
 **Acceptance bar**: with `VITE_DEV_MODE=1`, Debug appears at the bottom of the role dropdown with General's plugin set; without it, Debug is absent. Total diff: ~25 lines across 3 files (`roles.ts`, `RoleSelector.vue`, `vite-env.d.ts`).
 
-### PR 2 — Notifier engine + `_notifierTest` plugin (host only, no Encore)
+### PR 2 — Notifier prototype (no timers, JSON persistence, debug-plugin harness)
 
-The engine in `server/notifier/`:
+A minimal first cut to validate the data model + API shape before adding the time-based machinery. **`server/events/notifications.ts` is left completely untouched** — the prototype is a parallel service with its own pub/sub channel, exercised only via the existing `@mulmoclaude/debug-plugin` `/debug` page.
 
-- Three notification lifecycles (`fyi` / `read` / `action`) with lifecycle-aware UI.
-- Engine-assigned UUID; plugin-owned `pluginPkg` + `pluginData<T>` typed slot.
-- `schedule` / `clear` / `cancel` / `snooze` / `signal` / `listFor` / `get` API.
-- State machine + persistence (`scheduled.jsonl` + `state.jsonl`, both keyed by UUID).
-- Severity-based channel routing.
-- Snooze-until-time **and** snooze-until-signal (both — needed for the action-lifecycle end-to-end test). Signals scoped structurally as `{ pluginPkg, key }`.
-- Bell badge with pending-count semantics, color-encoded severity, `99+` cap.
-- Panel UX per lifecycle: bulk-acknowledge for `fyi`, click-to-clear for `read`, plugin-owned pages with `?notificationId=<uuid>` deep-link param for `action` (target derived from `pluginPkg` + plugin META).
-- Legacy migration: existing `publishNotification()` becomes a thin wrapper over `notifier.schedule({ lifecycle: "fyi", firesAt: now })`, mapping the old `NotificationKind` source category to a synthetic `pluginPkg` (`todo` / `scheduler` / `agent` / `journal` keep their names; `push` / `bridge` / `system` collapse under `"host"`). All current callers keep working unchanged.
+The engine in `server/notifier/` exposes:
 
-The exercise harness is `_notifierTest` — a dev-only plugin under `src/plugins/_notifierTest/`, surfaced via the Debug role from PR 1. It's the realistic integration bed: a View with buttons to fire each lifecycle at chosen severity, advance through the state machine (mark seen, `clear`, `snooze`, emit `signal`), and inspect persisted state. Because it's a real plugin going through the real registration and dispatch paths, it exercises everything Encore will hit in PR 4.
+- `publish({ pluginPkg, severity, title, body?, lifecycle?, pluginData? })` → `{ id }` — UUID generated synchronously at enqueue time and returned to the caller.
+- `clear(id)` — covers all "user dealt with it" paths. The lifecycle-specific call sites (`fyi` bulk-ack from the bell panel, `action` from the plugin's own view — either on mount for "show this once" semantics or after a domain action completes) are convention only; the engine doesn't read `lifecycle`.
+- `cancel(id)` — "this notification became irrelevant" (kept distinct from `clear` for future audit purposes; behaviorally identical for now).
+- `get(id)` / `listFor(pluginPkg)` / `listAll()`.
+- No `firesAt`, no scheduling, no `markSeen` / `acknowledge`, no snooze, no signal, no re-surface, no severity → channel routing — those all land in PR 3.
+
+State model collapses to `active → cleared | cancelled`. Both terminal states drop the entry from the active store; the difference is recorded only in the emitted pub/sub event type.
+
+Persistence:
+
+- Single `~/mulmoclaude/data/notifier/active.json` file holding only active entries (`{ entries: { [id]: NotifierEntry } }`). No append-only log.
+- Written via `writeFileAtomic` on every mutation.
+- **In-memory write coordinator**: a `writing` flag plus a queue of pending waiters. The first caller to find the flag clear runs `drain()`, which loops until the waiter queue is empty — each round takes the current batch, snapshots the in-memory map, writes once, resolves the batch. Subsequent callers during a write push their resolver and return. This coalesces N rapid mutations into ≤2 disk writes, prevents the rename-race two concurrent `writeFileAtomic` calls would otherwise create, and lets the engine serve mutating APIs as plain `await persist()` calls.
+- All mutating APIs roll back the in-memory change if `persist()` rejects, so memory and disk never diverge.
+- Pub/sub events (`{ type: "published" | "cleared" | "cancelled", ... }`) emit **after** persistence succeeds, on a **single global `notifier` channel** carrying every event regardless of `pluginPkg`. Subscribers filter client-side. Per-`pluginPkg` channels (`notifier:<pluginPkg>`) were considered and rejected for v1: the only consumer is the debug page (which wants global view anyway), and a future bell badge will also want global view; per-plugin filtering is cheap on the client and avoids the dynamic-subscription bookkeeping that per-pluginPkg channels would require.
+
+Wiring:
+
+- `server/api/routes/notifier.ts` — single `POST /api/notifier` dispatch endpoint with `{ action: "publish" | "clear" | "cancel" | "list" }` body, matching the `manage*` tool pattern.
+- `src/config/pubsubChannels.ts` — new `notifier` channel.
+- `src/config/apiRoutes.ts` — `/api/notifier`.
+- `server/workspace/paths.ts` — `data/notifier/` and `active.json`.
+
+A new top-bar **debug popup** (host-side, not a plugin) is the manual test surface:
+
+- Lives next to `NotificationBell` in `SidebarHeader`, gated by `VITE_DEV_MODE === "1"` so it never appears outside dev. Icon-only button (32×32, `material-icons` "bug_report"), opens a popup panel on click — same UX shape as the lock and bell popups, separate component (`NotifierDebugPopup.vue`).
+- Subscribes to the `notifier` pub/sub channel via `usePubSub` and renders the live active list (severity color, lifecycle hint, title/body, `pluginPkg`). Initial state is fetched once on open via `POST /api/notifier {action: "list"}`.
+- Single `[Run scripted test]` button drives a ~4.8s sequence across **multiple `pluginPkg` values** (e.g. `debug__system`, `debug__news`, `debug__encore`) so namespace separation and `listFor` filtering are visually obvious. Steps interleave `publish` / `clear` / `cancel` with ~500ms gaps so a human can watch entries appear and disappear; the script ends with the active list empty.
+- Before each run, the script clears any leftover `debug__*` entries in case a previous run aborted mid-way.
+- No manual publish/clear forms — those aren't needed now or later.
+
+Why the host top-bar instead of `@mulmoclaude/debug-plugin`'s `/debug` page: runtime plugins receive a `BrowserPluginRuntime.pubsub` that's hard-scoped to `plugin:<pkg>:<channel>`, so a runtime plugin cannot subscribe to the host's global `notifier` channel without bundling a second socket.io connection. The debug popup, being host code, uses `usePubSub` directly with no scope rewrite. The `@mulmoclaude/debug-plugin` `/debug` page stays as it is — a placeholder for future plugin-scoped experiments.
 
 Test coverage:
 
-- **Unit**: state machine transitions, persistence round-trip, severity → channel mapping, snooze re-evaluation, re-surface timing, `listFor` / `get` recovery semantics.
-- **Integration / E2E (Playwright)**: with `VITE_DEV_MODE=1`, switch to Debug role, drive each lifecycle from `_notifierTest`'s View and assert against the bell badge + panel. Verify badge count + color updates per lifecycle, panel rendering per lifecycle (`[notification-row-fyi]` checkbox bulk-acknowledge, `[notification-row-read]` click-and-close, `[notification-row-action]` deep-link with `notificationId` param), restart-survives-pending verified by killing and restarting the dev server mid-test.
+- **Unit** (`test/server/notifier/`): `publish` returns a usable id; `clear` / `cancel` remove entries idempotently; unknown id is a no-op (no throw); `listFor("a")` doesn't return entries with `pluginPkg: "b"`; `pluginData<T>` round-trips unchanged; persistence round-trip via tmp dir (publish, restart engine on the same path, entries restored); concurrent mutation under load (10 simultaneous publishes resolve to a final file matching the in-memory snapshot, with ≤2 actual disk writes); rollback on simulated persist failure.
+- **Manual** (debug page): visual confirmation that pub/sub events drive the view, the scripted sequence runs cleanly to empty, and nothing leaks into the existing bell.
 
-Acceptance bar: every state transition reachable from `_notifierTest`, no Encore code in the diff.
+Acceptance bar: scripted test runs to completion in ~5s with the active list correctly populating and emptying; all unit tests pass; zero diff in `server/events/notifications.ts`.
 
-Risk: regression in current notification UX. Mitigated by the migration path keeping `publishNotification()` semantics identical.
+### PR 3 — Notifier full engine (timers, snooze, escalation, channel routing, legacy migration)
 
-### PR 3 — Encore plugin (CRUD only, no reminders)
+Builds on the prototype to deliver the engine specced in Part 1 above. New scope on top of PR 2:
+
+- `firesAt` + scheduling, persisted across restart. Persistence shape upgrades from `active.json` to `scheduled.jsonl` (queued fires) + `state.jsonl` (audit log of state-machine transitions), both keyed by UUID and written via `writeFileAtomic`.
+- Two lifecycles get the full state machine (`pending → delivered → seen → acted/dismissed → closed`) with `markSeen`-style transitions and re-surface on `delivered without acted` after `escalateAt[i]`.
+- `snooze` (until-time **and** until-signal), `signal({ pluginPkg, key })`.
+- `resurface` policy capped at `escalateAt.length` (no auto-multiplication).
+- Severity → channel routing (`info` → bell only, `nudge` → bell + toast, `urgent` → + macOS push + bridge); user-editable mapping in `~/mulmoclaude/config/notifier.json`.
+- Bell badge gets pending-count semantics, severity color encoding, `99+` cap.
+- Lifecycle-aware panel UX: `[notification-row-fyi]` checkbox bulk-acknowledge, `[notification-row-action]` plugin-page deep-link with `?notificationId=<uuid>` (plugin-driven clear).
+- **Legacy migration**: `publishNotification()` becomes a thin wrapper over `notifier.schedule({ lifecycle: "fyi", firesAt: now })`, mapping the old `NotificationKind` source category to a synthetic `pluginPkg` (`todo` / `scheduler` / `agent` / `journal` keep their names; `push` / `bridge` / `system` collapse under `"host"`). All current callers keep working unchanged.
+
+Test coverage extends PR 2's: state machine transitions, severity → channel mapping, snooze re-evaluation, re-surface timing, `listFor` / `get` recovery semantics, restart-survives-pending under timer load, full Playwright E2E driving the debug page through every reachable state. Risk of regression in current notification UX is mitigated by the wrapper preserving `publishNotification()` semantics exactly.
+
+Acceptance bar: every state transition reachable from the debug page; existing bell + toast UX is byte-for-byte identical for legacy callers.
+
+### PR 4 — Encore plugin (CRUD only, no reminders)
 
 Plugin scaffold: `meta.ts`, `definition.ts`, `index.ts`, `View.vue`, `Preview.vue`. Server: `server/encore/` with file IO + `manageEncore` actions for obligation CRUD, `openInstance`, `addItem` / `updateItem` / `removeItem`, `diffFromLast`. Standalone `/encore` route. **No notifier integration yet** — proves the data model (including multi-item instances) works in isolation.
 
-### PR 4 — Encore × Notifier integration
+### PR 5 — Encore × Notifier integration
 
-Encore translates obligation + item state into `notifier.schedule()` calls. All three kinds get exercised: `fyi` for "instance opened" confirmations, `read` for "diff-from-last is ready," `action` for "pay H2 property tax." Wire `notifier.clear()` on `closeInstance` / `updateItem(status: done)`. Wire `notifier.signal()` for domain conditions (`"encore:taxes:w2-received"`). Progress-aware suppression based on item-completion percentage. The "magnetic feature" demo: open an instance, see last year's data pre-populated, see the next-action reminder already scheduled.
+Encore translates obligation + item state into `notifier.schedule()` calls. Both lifecycles get exercised: `fyi` for "instance opened" confirmations and post-completion summaries, `action` for "pay H2 property tax" / "diff-from-last is ready" — anything where the user needs to land on Encore's view to act. Wire `notifier.clear()` on `closeInstance` / `updateItem(status: done)` / Encore's view mount (for read-once notifications). Wire `notifier.signal()` for domain conditions (`"encore:taxes:w2-received"`). Progress-aware suppression based on item-completion percentage. The "magnetic feature" demo: open an instance, see last year's data pre-populated, see the next-action reminder already scheduled.
 
 ---
 
@@ -518,7 +553,17 @@ Encore translates obligation + item state into `notifier.schedule()` calls. All 
 
 PR 1 resolved: client-only `VITE_DEV_MODE` flag, no server-side mirror, no runtime endpoint.
 
-To resolve before PR 2 (Notifier):
+PR 2 (Notifier prototype) resolved during design discussion:
+
+- API surface stripped to `publish` / `clear` / `cancel` / `get` / `listFor` / `listAll` (no `markSeen` / `acknowledge` — `clear` is the single "user dealt with it" verb).
+- Persistence is a single `active.json` holding only active entries (not append-only) — bounded size, simple to read.
+- Write serialization uses an in-memory `writing` flag + waiter queue that drains until empty, coalescing N rapid mutations into ≤2 disk writes.
+- Multiple `pluginPkg` values (`debug__system`, `debug__news`, `debug__encore`, …) drive the scripted test so namespace separation is visible.
+- HTTP shape is dispatch (`POST /api/notifier` with `action` field), matching `manage*` tools.
+- Debug page subscribes to the new `notifier` pub/sub channel for live updates; no manual publish/clear forms.
+- Pub/sub granularity: single global `notifier` channel (option A). Per-`pluginPkg` channels and dual-emit (global + per-pluginPkg) considered and rejected for v1 — debug page and the future bell badge both want global view; per-plugin client-side filtering is cheap.
+
+To resolve before PR 3 (Notifier full engine):
 
 1. **Declarative vs imperative scheduling.** Plan above is *imperative* — plugin computes each fire time and re-registers. A declarative spec ("every Sunday until acked, escalate after 2 weeks") is more powerful but a bigger surface. Imperative matches how `task-scheduler` already works; declarative may be worth it once we see 3+ plugins repeating the same pattern. **Default: imperative for v1.**
 2. **Type-1 panel affordance: button or checkbox?** Per-row close-button is simplest; leading checkbox + bulk "Acknowledge selected" wins for catch-up sessions where many `fyi` rows pile up. **Default: leading checkbox (covers both — single-row click still works via the row's own close-`×`).**
@@ -527,7 +572,7 @@ To resolve before PR 2 (Notifier):
 5. ~~**Signal namespace.**~~ Resolved by the identity model: signals are structurally scoped as `{ pluginPkg, key }`, so collisions across plugins are impossible by construction. No string-prefix convention to enforce.
 6. **Conflict with `task-scheduler`.** The existing scheduler also fires things on a schedule. Notifier is *user-facing reminders*; scheduler is *task execution*. They may share scheduling primitives internally; they should not share API surfaces. **Default: keep them separate; revisit if duplication becomes painful.**
 
-To resolve before PR 3 (Encore CRUD):
+To resolve before PR 4 (Encore CRUD):
 
 7. **i18n surface for Encore.** All 8 locales need the obligation-type vocabulary ("taxes", "registration", "annual physical"). Are these built-in templates the user picks from, or free-form titles the user types? **Default: free-form for v1, suggested templates as a chat-side affordance.**
 

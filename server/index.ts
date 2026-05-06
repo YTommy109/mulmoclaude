@@ -33,6 +33,8 @@ import { registerRuntimePlugins } from "./plugins/runtime-registry.js";
 import { makePluginRuntime } from "./plugins/runtime.js";
 import { MCP_PLUGIN_NAMES } from "./agent/plugin-names.js";
 import { createNotificationsRouter } from "./api/routes/notifications.js";
+import notifierRoutes from "./api/routes/notifier.js";
+import { initNotifier } from "./notifier/engine.js";
 import { createJournalRouter } from "./api/routes/journal.js";
 import { createTranslationRouter } from "./api/routes/translation.js";
 import { type NotificationDeps, initNotifications } from "./events/notifications.js";
@@ -542,6 +544,7 @@ const notificationDeps: NotificationDeps = {
   pushToBridge: chatService.pushToBridge,
 };
 app.use(createNotificationsRouter(notificationDeps));
+app.use(notifierRoutes);
 app.use(createJournalRouter());
 app.use(createTranslationRouter());
 app.use(mcpToolsRouter);
@@ -698,6 +701,14 @@ function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: n
   initNotifications({
     publish: (channel, payload) => pubsub.publish(channel, payload),
     pushToBridge: chatService.pushToBridge,
+  });
+
+  // --- Notifier engine (separate from `events/notifications.ts`).
+  // Routes mounted at module-load above; engine emit is wired here
+  // once pubsub exists. Mutating APIs called between mount and this
+  // call would persist state but log a warning instead of emitting.
+  initNotifier({
+    publish: (channel, payload) => pubsub.publish(channel, payload),
   });
 
   // --- Plugin META aggregator diagnostics ---

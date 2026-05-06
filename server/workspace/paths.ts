@@ -156,6 +156,7 @@ const HOST_WORKSPACE_DIRS = {
   // backup target; config holds per-machine UI state / defaults.
   pluginsData: "data/plugins",
   pluginsConfig: "config/plugins",
+  notifier: "data/notifier",
 } as const;
 
 // First-write-wins host+plugin aggregate (see `defineHostAggregate`):
