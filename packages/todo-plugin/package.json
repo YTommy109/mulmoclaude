@@ -18,7 +18,8 @@
       "import": "./dist/shared.js"
     },
     "./composables": {
-      "types": "./dist/composables.d.ts",
+      "_comment": "Vite bundles `src/composables/index.ts` to `dist/composables.js` (single file), but `vite-plugin-dts` mirrors source structure for declaration emit, so the d.ts lives at `dist/composables/index.d.ts`. The two paths intentionally diverge.",
+      "types": "./dist/composables/index.d.ts",
       "import": "./dist/composables.js"
     }
   },
