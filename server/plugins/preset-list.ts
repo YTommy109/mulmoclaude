@@ -44,4 +44,9 @@ export const PRESET_PLUGINS: readonly PresetPlugin[] = [
   // per recipe under the plugin's `files.data` scope; demonstrates
   // markdown-per-record storage on the v0.3 runtime API.
   { packageName: "@mulmoclaude/recipe-book-plugin" },
+  // Encore plan PR 1 follow-up — dev-only debug playground plugin.
+  // Owns the standalone `/debug` page; the toolbar entry is gated on
+  // `VITE_DEV_MODE=1` so production builds hide the launcher button
+  // (the page itself is still reachable by typing the URL).
+  { packageName: "@mulmoclaude/debug-plugin" },
 ];

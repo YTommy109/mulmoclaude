@@ -192,6 +192,24 @@
           <RolesView v-else-if="currentPage === 'roles'" />
           <SourcesView v-else-if="currentPage === 'sources'" />
           <NewsView v-else-if="currentPage === 'news'" />
+          <!-- Debug page (encore plan PR 1 follow-up). The View ships
+               inside the @mulmoclaude/debug-plugin runtime package; we
+               look it up by tool name and render the registered
+               viewComponent — already wrapped in PluginScopedRoot by
+               the runtime loader, so no extra scope wrapper here.
+
+               Literal English fallback below is intentional: the debug
+               surface is dev-only chrome behind `VITE_DEV_MODE=1`, so
+               we keep its strings out of the 8-locale i18n bundle.
+               Same policy applies to the launcher button (see
+               PluginLauncher.vue's `literalLabel`/`literalTitle`) and
+               to the page itself (debug-plugin/src/View.vue). -->
+          <component :is="debugViewComponent" v-else-if="currentPage === 'debug' && debugViewComponent" />
+          <!-- eslint-disable @intlify/vue-i18n/no-raw-text -- debug page is dev-only chrome behind VITE_DEV_MODE=1; we deliberately keep its strings out of the 8-locale i18n bundle (see policy comment above). -->
+          <div v-else-if="currentPage === 'debug'" class="h-full flex items-center justify-center text-sm text-gray-500">
+            Debug plugin is not loaded. Make sure @mulmoclaude/debug-plugin is built and registered as a preset.
+          </div>
+          <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
         </div>
 
         <!-- Bottom bar (Stack chat only — plugin views have no
@@ -599,6 +617,12 @@ const { elapsedMs: runElapsedMs, teardown: teardownRunElapsed } = useRunElapsed(
 });
 
 const selectedResult = computed(() => toolResults.value.find((result) => result.uuid === selectedResultUuid.value) ?? null);
+
+// Debug-plugin View component, looked up by tool name. The plugin
+// loader populates this asynchronously at boot — `runtimeRegistry` is
+// reactive, so this computed re-evaluates when the load completes and
+// the /debug branch in the template lights up without a refresh.
+const debugViewComponent = computed(() => getPlugin("manageDebug")?.viewComponent ?? null);
 
 // Centralised session-switch handler: subscribe to the current session's
 // pub/sub channel so we receive real-time events even if the session is
