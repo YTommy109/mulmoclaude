@@ -5,6 +5,7 @@ import { type Page, expect, test } from "@playwright/test";
 
 import { TOOL_NAME as PRESENT_MULMO_SCRIPT_TOOL } from "../../src/plugins/presentMulmoScript/definition.ts";
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
+import { WORKSPACE_DIRS } from "../../server/workspace/paths.ts";
 import {
   deleteSession,
   getCurrentSessionId,
@@ -39,6 +40,19 @@ const L03_GENERATION_TIMEOUT_MS = 8 * ONE_MINUTE_MS;
 // browser launches.
 const L04_TIMEOUT_MS = 8 * ONE_MINUTE_MS;
 const L04_GENERATION_TIMEOUT_MS = 6 * ONE_MINUTE_MS;
+// Disk path constant + matching wire-form prefix for mulmoScript
+// fixtures. WORKSPACE_DIRS.stories is the canonical disk location
+// ("artifacts/stories" on host, exposed by server/workspace/paths.ts),
+// and the wire form passed to the LLM keeps the leading "stories/"
+// prefix that the server's resolveStoryPath strips before resolving
+// against artifacts/stories/. The wire prefix is server-internal
+// (server/api/routes/mulmo-script.ts:42-50, no exported constant
+// today), so it's pinned here against the disk constant via the
+// `^artifacts/` strip — if WORKSPACE_DIRS.stories ever moves out of
+// `artifacts/`, this derivation breaks loud, instead of silently
+// drifting with a stale literal.
+const STORIES_DISK_DIR = WORKSPACE_DIRS.stories;
+const STORIES_WIRE_DIR = STORIES_DISK_DIR.replace(/^artifacts\//, "");
 // L-05 has to absorb the LLM picking the generateImage tool plus the
 // Gemini image-gen round trip. Cold Gemini calls land in 30–60s in
 // practice; 4 minutes leaves slack for slow networks without inviting
@@ -144,8 +158,8 @@ test.describe("media (real LLM)", () => {
     // contending on the same fixture path during parallel runs.
     const slug = testInfo.project.name;
     const fixtureBasename = `e2e-live-l04-${slug}.json`;
-    const workspaceScriptRel = path.posix.join("artifacts/stories", fixtureBasename);
-    const wireFilePath = path.posix.join("stories", fixtureBasename);
+    const workspaceScriptRel = path.posix.join(STORIES_DISK_DIR, fixtureBasename);
+    const wireFilePath = path.posix.join(STORIES_WIRE_DIR, fixtureBasename);
     await placeFixtureInWorkspace("mulmo/l04-animation.json", workspaceScriptRel);
     try {
       await startNewSession(page);
@@ -191,8 +205,8 @@ test.describe("media (real LLM)", () => {
     // path.posix.join keeps the separator forward-slash on every
     // host so the wire form matches the server's POSIX-shaped
     // resolveStoryPath input regardless of the runner OS.
-    const workspaceScriptRel = path.posix.join("artifacts/stories", fixtureBasename);
-    const wireFilePath = path.posix.join("stories", fixtureBasename);
+    const workspaceScriptRel = path.posix.join(STORIES_DISK_DIR, fixtureBasename);
+    const wireFilePath = path.posix.join(STORIES_WIRE_DIR, fixtureBasename);
     await placeFixtureInWorkspace("mulmo/l03-two-beat.json", workspaceScriptRel);
     try {
       await startNewSession(page);
@@ -302,9 +316,9 @@ async function downloadAndAssertPdf(page: Page): Promise<void> {
  * and passed one argument" — both of which are reliable. The
  * fixture itself controls beats / TTS / image type.
  */
-async function sendMulmoFilePathPrompt(page: Page, workspaceScriptRel: string): Promise<void> {
+async function sendMulmoFilePathPrompt(page: Page, wireFilePath: string): Promise<void> {
   const message = [
-    `\`${PRESENT_MULMO_SCRIPT_TOOL}\` ツールに \`filePath: "${workspaceScriptRel}"\` を渡して、 既存スクリプトをそのまま表示してください。`,
+    `\`${PRESENT_MULMO_SCRIPT_TOOL}\` ツールに \`filePath: "${wireFilePath}"\` を渡して、 既存スクリプトをそのまま表示してください。`,
     "",
     "- ツールには filePath だけを渡し、 script は省略してください",
     "- 動画生成 (Generate Movie / generateMovie ツール) は呼ばないでください — テスト側でボタンを押します",

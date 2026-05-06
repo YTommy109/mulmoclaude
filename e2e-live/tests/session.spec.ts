@@ -92,43 +92,26 @@ test.describe("session (real LLM)", () => {
       // would point at the wrong root cause.
       expect(getCurrentSessionId(page), "session id must survive a reload before we can probe context").toBe(sessionIdBeforeReload);
 
-      // Scope BOTH the hydration witness and the count probe to
-      // the per-session results list (`tool-results-scroll` —
-      // SessionSidebar.vue:26). Without this scope `getByText`
-      // also matches `session-item-<id>` rows in the global
-      // sidebar history, which hydrate independently of (and
-      // typically faster than) the transcript itself. That class
-      // of race — sidebar present, transcript still in flight —
-      // is exactly what codex iter-3 flagged: baseline sampled
-      // pre-transcript, transcript bubble for turn-1 lands AFTER
-      // the baseline, count goes up by 1 even if the agent never
-      // recalls. Anchoring to a scope that ONLY contains the
-      // active session's transcript closes that path.
-      const transcript = page.locator('[data-testid="tool-results-scroll"]');
-      // Pin the baseline AFTER the turn-1 transcript has fully
-      // hydrated. Waiting on the user prompt is locale-agnostic
-      // (the app never localises user input — same justification
-      // L-11 uses) and proves the in-scope transcript carries
-      // the code from turn-1 before we measure.
-      await expect(
-        transcript.getByText(rememberPrompt).first(),
-        "turn-1 transcript must rehydrate inside [tool-results-scroll] before sampling the magic-code baseline",
-      ).toBeVisible();
-      const preRecallCodeCount = await transcript.getByText(L12_MAGIC_CODE).count();
-
       await sendChatMessage(page, recallPrompt);
       await waitForAssistantResponseComplete(page);
 
-      // The recall prompt itself doesn't contain the code, so the
-      // only way for the in-transcript count to increase is for
-      // the assistant to have echoed it back from turn-1 context.
-      // `expect.toPass` gives the transcript a moment to flush
-      // the streamed reply into the DOM after `thinking-indicator`
-      // goes hidden.
-      await expect(async () => {
-        const postRecallCodeCount = await transcript.getByText(L12_MAGIC_CODE).count();
-        expect(postRecallCodeCount, "the agent must echo the magic code from turn-1 — B-16 canary").toBeGreaterThan(preRecallCodeCount);
-      }).toPass({ timeout: ONE_MINUTE_MS });
+      // Anchor the recall assertion to the assistant reply DOM
+      // surface only — `[data-testid="text-response-assistant-body"]`
+      // is set on the markdown-content div in textResponse/View.vue
+      // exclusively when `isAssistant=true`, so user-prompt bubbles,
+      // sidebar history previews (`session-item-<id>`), and any
+      // other DOM region that happens to render the magic code
+      // text are excluded by construction. Replaces the earlier
+      // count-delta + `tool-results-scroll` scope dance (codex
+      // iter 1-3) with a single positive DOM check on the most
+      // recent assistant body. `.last()` keeps the locator
+      // strict-mode-safe in stack layout where multiple
+      // assistant bodies coexist; in the default single layout
+      // there is exactly one rendered.
+      await expect(
+        page.getByTestId("text-response-assistant-body").last(),
+        "B-16 canary: turn-2 assistant reply must echo the magic code from turn-1 context",
+      ).toContainText(L12_MAGIC_CODE, { timeout: ONE_MINUTE_MS });
     } finally {
       if (sessionIdForCleanup !== null) await deleteSession(page, sessionIdForCleanup);
     }

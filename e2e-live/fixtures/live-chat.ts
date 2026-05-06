@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { type Download, type FrameLocator, type Page, expect } from "@playwright/test";
 
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
+import { API_ROUTES } from "../../src/config/apiRoutes.ts";
 
 const FIXTURES_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -225,24 +226,36 @@ const SESSION_IDLE_TIMEOUT_MS = 30_000;
 type SessionIdleProbe = { ok: true; stillRunning: boolean } | { ok: false; reason: string };
 
 async function waitForSessionIdle(page: Page, sessionId: string, timeoutMs: number = SESSION_IDLE_TIMEOUT_MS): Promise<void> {
+  // Resolve the sessions-list URL once on the test process side via
+  // the canonical `API_ROUTES.sessions.list` constant
+  // (src/config/apiRoutes.ts) so this helper stays coupled to the
+  // app's route registry — if the path is renamed, the build
+  // catches the consumer here instead of letting the poll silently
+  // 404 itself into a swallowed best-effort warn. Pass the resolved
+  // URL string into page.evaluate's argument map so the in-page
+  // closure has nothing to import from a Node-only module.
+  const sessionsListUrl = API_ROUTES.sessions.list;
   await expect(async () => {
-    const probe: SessionIdleProbe = await page.evaluate(async (sid) => {
-      const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
-      const token = meta?.getAttribute("content") ?? "";
-      try {
-        const res = await fetch("/api/sessions", { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) return { ok: false as const, reason: `GET /api/sessions returned HTTP ${res.status} ${res.statusText}` };
-        const data = (await res.json()) as { sessions?: { id: string; isRunning?: boolean }[] };
-        const session = data.sessions?.find((row) => row.id === sid);
-        return { ok: true as const, stillRunning: session?.isRunning === true };
-      } catch (err) {
-        // Network drop / abort / JSON parse throw — anything that
-        // would otherwise surface as an opaque page.evaluate failure
-        // outside `toPass`'s retry semantics. Funnel it back as a
-        // structured failure so the assertion message names the cause.
-        return { ok: false as const, reason: `GET /api/sessions threw: ${err instanceof Error ? err.message : String(err)}` };
-      }
-    }, sessionId);
+    const probe: SessionIdleProbe = await page.evaluate(
+      async ({ sid, listUrl }) => {
+        const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
+        const token = meta?.getAttribute("content") ?? "";
+        try {
+          const res = await fetch(listUrl, { headers: { Authorization: `Bearer ${token}` } });
+          if (!res.ok) return { ok: false as const, reason: `GET ${listUrl} returned HTTP ${res.status} ${res.statusText}` };
+          const data = (await res.json()) as { sessions?: { id: string; isRunning?: boolean }[] };
+          const session = data.sessions?.find((row) => row.id === sid);
+          return { ok: true as const, stillRunning: session?.isRunning === true };
+        } catch (err) {
+          // Network drop / abort / JSON parse throw — anything that
+          // would otherwise surface as an opaque page.evaluate failure
+          // outside `toPass`'s retry semantics. Funnel it back as a
+          // structured failure so the assertion message names the cause.
+          return { ok: false as const, reason: `GET ${listUrl} threw: ${err instanceof Error ? err.message : String(err)}` };
+        }
+      },
+      { sid: sessionId, listUrl: sessionsListUrl },
+    );
     expect(probe.ok, probe.ok ? "session probe ok" : `session probe failed for ${sessionId}: ${probe.reason}`).toBe(true);
     if (probe.ok) {
       expect(probe.stillRunning, `session ${sessionId} should report isRunning=false before delete`).toBe(false);
