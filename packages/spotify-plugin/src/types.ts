@@ -39,6 +39,7 @@ export type SpotifyError =
   | { kind: "client_id_missing"; instructions: string; setupGuide: string }
   | { kind: "not_connected"; instructions: string }
   | { kind: "auth_expired"; detail: string; instructions: string }
+  | { kind: "transient_error"; detail: string; instructions: string }
   | { kind: "unknown_state"; instructions: string }
   | { kind: "redirect_uri_mismatch"; instructions: string }
   | { kind: "rate_limited"; retryAfterSec: number; instructions: string }

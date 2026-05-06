@@ -114,6 +114,8 @@ function errorMessage(error: SpotifyClientError): string {
   switch (error.kind) {
     case "auth_expired":
       return error.detail;
+    case "transient_error":
+      return error.detail;
     case "rate_limited":
       return `rate limited (retry ${error.retryAfterSec}s)`;
     case "spotify_api_error":
