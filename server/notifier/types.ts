@@ -4,15 +4,28 @@
 // importing the engine just for its types would pull in fs / pubsub
 // dependencies the route doesn't need.
 
-/** UI hint only. The engine never reads `lifecycle` — it's stored
- *  on the entry and forwarded to subscribers so the UI can render
- *  rows differently:
+/** Two notification shapes, distinguished by who fires the close call:
  *
- *    `fyi`    — bell panel renders a checkbox + "Acknowledge selected"
- *               button; the host calls `clear` when the user acks.
- *    `action` — row is a hyperlink routing to the plugin's view; the
- *               plugin calls `clear` (on view mount for read-once
- *               notifications, or after a domain action completes).
+ *    `fyi`    — informational. The host (bell panel) clears it when the
+ *               user dismisses the row. No deep-link target.
+ *    `action` — pending obligation. The plugin clears it when the
+ *               underlying domain state changes (the user paid the tax,
+ *               viewed the digest, etc.). The bell row navigates to
+ *               `navigateTarget` on click.
+ *
+ *  The engine reads `lifecycle` only to enforce two publish-time rules
+ *  (everything downstream — pubsub fan-out, persistence, history — is
+ *  lifecycle-blind):
+ *
+ *    1. `action` requires a non-empty `navigateTarget`. Without one,
+ *       clicking the row does nothing and the entry is a degraded fyi.
+ *    2. `action` cannot use `info` severity. A low-priority obligation
+ *       is incoherent — fyi if it's a ping, `nudge`/`urgent` if it's a
+ *       real obligation worth a landing page.
+ *
+ *  Both rules are mirrored in the HTTP layer so plugin-runtime callers
+ *  and HTTP callers hit the same wall. See `feat-notifier-ux.md` for
+ *  the user-facing rationale.
  *
  *  An earlier draft split `action` into `read` and `action` based on
  *  who fires the close — but from the engine's perspective both are
@@ -21,8 +34,11 @@
 export const NOTIFIER_LIFECYCLES = ["fyi", "action"] as const;
 export type NotifierLifecycle = (typeof NOTIFIER_LIFECYCLES)[number];
 
-/** Severity drives badge color and (in a future iteration) channel
- *  routing. The engine itself only stores it on the entry. */
+/** Severity drives badge color (gray / amber / red, worst-wins) and
+ *  in a future iteration channel routing. Mostly stored verbatim by
+ *  the engine; the one engine-visible interaction is the rule that
+ *  `action` lifecycle cannot pair with `info` severity (see
+ *  `NotifierLifecycle` above). */
 export const NOTIFIER_SEVERITIES = ["info", "nudge", "urgent"] as const;
 export type NotifierSeverity = (typeof NOTIFIER_SEVERITIES)[number];
 
@@ -59,7 +75,18 @@ export interface NotifierHistoryEntry<TPluginData = unknown> extends NotifierEnt
 }
 
 /** Caller-supplied input for `publish()`. The engine fills in `id`
- *  and `createdAt`; everything else flows through verbatim. */
+ *  and `createdAt`; everything else flows through verbatim.
+ *
+ *  Two publish-time rules apply to `action` lifecycle (see
+ *  `NotifierLifecycle`):
+ *
+ *    - `navigateTarget` MUST be a non-empty string.
+ *    - `severity` MUST NOT be `"info"`.
+ *
+ *  Violations cause `publish()` to throw. Currently expressed as
+ *  runtime validation rather than a discriminated-union type, so the
+ *  fields below are all individually optional / loose at the
+ *  type-level. */
 export interface PublishInput<TPluginData = unknown> {
   pluginPkg: string;
   severity: NotifierSeverity;

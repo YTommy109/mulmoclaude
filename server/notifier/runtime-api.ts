@@ -21,7 +21,17 @@ import type { NotifierLifecycle, NotifierSeverity } from "./types.js";
 
 /** Caller-supplied input for the plugin-facing `publish`. Same shape
  *  as `PublishInput` minus `pluginPkg`, which the host fills in
- *  automatically from the calling plugin's pkg name. */
+ *  automatically from the calling plugin's pkg name.
+ *
+ *  Two publish-time rules apply to `action` lifecycle, enforced by the
+ *  engine (and also by the HTTP layer for parity):
+ *
+ *    - `navigateTarget` MUST be a non-empty string.
+ *    - `severity` MUST NOT be `"info"`.
+ *
+ *  Violations cause `publish()` to throw. The runtime check exists in
+ *  addition to (not instead of) any future type-level discriminated
+ *  union; for now it's plain runtime validation. */
 export interface PluginPublishInput<TPluginData = unknown> {
   severity: NotifierSeverity;
   title: string;
@@ -33,9 +43,18 @@ export interface PluginPublishInput<TPluginData = unknown> {
 
 export interface NotifierRuntimeApi {
   /** Publish a notification scoped to this plugin. The engine assigns
-   *  a UUID synchronously and returns it. */
+   *  a UUID synchronously and returns it. **Throws** if the input
+   *  violates the `action` lifecycle rules (see `PluginPublishInput`):
+   *  `action` requires a non-empty `navigateTarget` and cannot pair
+   *  with `info` severity. */
   publish: <TPluginData = unknown>(input: PluginPublishInput<TPluginData>) => Promise<{ id: string }>;
-  /** Clear an entry by id. No-op (no throw) if the id is unknown. */
+  /** Clear an entry by id. No-op (no throw) when:
+   *   - the id is unknown, OR
+   *   - the entry exists but belongs to a different plugin.
+   *
+   *  The latter keeps per-plugin isolation: a plugin holding another
+   *  plugin's id (e.g. via a future leak) silently can't dismiss it.
+   *  Internally backed by `engine.clearForPlugin(pluginPkg, id)`. */
   clear: (id: string) => Promise<void>;
 }
 
