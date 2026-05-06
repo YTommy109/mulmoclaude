@@ -6,6 +6,16 @@
 // Each entry: relative path under the new plugin directory + raw
 // content (with placeholders). The CLI substitutes placeholders and
 // writes the file verbatim — no parsing, no other transformations.
+//
+// ─────────────────────────────────────────────────────────────────
+// MAINTENANCE — keep `PACKAGE_JSON` (devDeps) and `VITE_CONFIG`
+// in sync with the in-tree reference plugin (`packages/bookmarks-
+// plugin/`). When that one bumps `vite` / `typescript` / `vite-
+// plugin-dts` / `@vitejs/plugin-vue`, copy the same caret ranges
+// here. The same goes for build-config tweaks (e.g. dropping
+// `rollupTypes: true` for TS-major bumps). See CLAUDE.md →
+// "Plugin scaffold sync" for the exact procedure.
+// ─────────────────────────────────────────────────────────────────
 
 export interface TemplateFile {
   /** POSIX-style path relative to the new plugin's root. */
@@ -52,13 +62,13 @@ const PACKAGE_JSON = `{
     "zod": "^3.0.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.0.0",
+    "@vitejs/plugin-vue": "^6.0.0",
     "eslint": "^9.0.0",
     "gui-chat-protocol": "^0.3.0",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.0",
     "typescript-eslint": "^8.0.0",
-    "vite": "^7.0.0",
-    "vite-plugin-dts": "^4.5.0",
+    "vite": "^8.0.0",
+    "vite-plugin-dts": "^5.0.0",
     "vue": "^3.5.0",
     "vue-eslint-parser": "^10.0.0",
     "zod": "^3.23.0"
@@ -104,8 +114,21 @@ import dts from "vite-plugin-dts";
 //   external; the host provides Vue via the importmap and the
 //   useRuntime() composable resolves to the host's instance through
 //   gui-chat-protocol/vue (also via importmap).
+// No \`rollupTypes: true\`: that would route declaration emit through
+// @microsoft/api-extractor, whose bundled tsc lags behind real
+// TypeScript releases and silently emits empty d.ts when the
+// workspace is on a newer major. \`compilerOptions.rootDir: "src"\`
+// keeps the per-file emit at \`dist/<file>.d.ts\` (matching the
+// package.json exports map).
 export default defineConfig({
-  plugins: [vue(), dts({ include: ["src/**/*.{ts,vue}"], rollupTypes: true })],
+  plugins: [
+    vue(),
+    dts({
+      include: ["src/**/*.{ts,vue}"],
+      outDir: "dist",
+      compilerOptions: { rootDir: "src" },
+    }),
+  ],
   build: {
     lib: {
       entry: { index: "src/index.ts", vue: "src/vue.ts" },
