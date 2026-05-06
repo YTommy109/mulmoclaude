@@ -14,6 +14,7 @@ import {
   listHistory,
   initNotifier,
   _setFilePathsForTesting,
+  NOTIFIER_LIMITS,
 } from "../../../server/notifier/engine.js";
 import type { NotifierEvent } from "../../../server/notifier/types.js";
 
@@ -435,6 +436,130 @@ describe("history", () => {
     assert.ok(parsed && typeof parsed === "object");
     assert.ok(Array.isArray(parsed.entries));
     assert.equal(parsed.entries.length, 1);
+  });
+});
+
+describe("input validation (size caps + URL shape)", () => {
+  it("rejects empty title", async () => {
+    await assert.rejects(publish({ pluginPkg: "x", severity: "info", title: "" }), /title/);
+  });
+
+  it(`rejects title longer than ${NOTIFIER_LIMITS.titleMax} chars`, async () => {
+    const tooLong = "a".repeat(NOTIFIER_LIMITS.titleMax + 1);
+    await assert.rejects(publish({ pluginPkg: "x", severity: "info", title: tooLong }), /title.*max length/);
+  });
+
+  it(`accepts title at exactly ${NOTIFIER_LIMITS.titleMax} chars (boundary)`, async () => {
+    const justRight = "a".repeat(NOTIFIER_LIMITS.titleMax);
+    const { id } = await publish({ pluginPkg: "x", severity: "info", title: justRight });
+    assert.ok(await get(id));
+  });
+
+  it(`rejects body longer than ${NOTIFIER_LIMITS.bodyMax} chars`, async () => {
+    const tooLong = "a".repeat(NOTIFIER_LIMITS.bodyMax + 1);
+    await assert.rejects(publish({ pluginPkg: "x", severity: "info", title: "ok", body: tooLong }), /body.*max length/);
+  });
+
+  it(`rejects navigateTarget longer than ${NOTIFIER_LIMITS.navigateTargetMax} chars`, async () => {
+    const tooLong = `/${"a".repeat(NOTIFIER_LIMITS.navigateTargetMax)}`;
+    await assert.rejects(
+      publish({ pluginPkg: "x", severity: "nudge", lifecycle: "action", title: "t", navigateTarget: tooLong }),
+      /navigateTarget.*max length/,
+    );
+  });
+
+  it("rejects navigateTarget with an absolute URL scheme (open-redirect guard)", async () => {
+    await assert.rejects(
+      publish({
+        pluginPkg: "x",
+        severity: "nudge",
+        lifecycle: "action",
+        title: "t",
+        navigateTarget: "https://attacker.example/path",
+      }),
+      /navigateTarget.*relative path/,
+    );
+  });
+
+  it("rejects navigateTarget with a `javascript:` scheme (XSS guard)", async () => {
+    await assert.rejects(
+      publish({
+        pluginPkg: "x",
+        severity: "nudge",
+        lifecycle: "action",
+        title: "t",
+        // eslint-disable-next-line no-script-url -- intentional: this is the attack input we're rejecting
+        navigateTarget: "javascript:alert(1)",
+      }),
+      /navigateTarget.*relative path/,
+    );
+  });
+
+  it("rejects scheme-relative navigateTarget (`//evil.com/...`)", async () => {
+    await assert.rejects(
+      publish({
+        pluginPkg: "x",
+        severity: "nudge",
+        lifecycle: "action",
+        title: "t",
+        navigateTarget: "//evil.example/path",
+      }),
+      /navigateTarget.*relative path/,
+    );
+  });
+
+  it("accepts a normal in-app navigateTarget (`/encore/taxes`)", async () => {
+    const { id } = await publish({
+      pluginPkg: "x",
+      severity: "nudge",
+      lifecycle: "action",
+      title: "t",
+      navigateTarget: "/encore/taxes",
+    });
+    const entry = await get(id);
+    assert.equal(entry?.navigateTarget, "/encore/taxes");
+  });
+
+  it("rejects pluginData whose JSON exceeds the cap", async () => {
+    const huge = "x".repeat(NOTIFIER_LIMITS.pluginDataMaxBytes + 1);
+    await assert.rejects(publish({ pluginPkg: "x", severity: "info", title: "t", pluginData: { huge } }), /pluginData.*exceeds/);
+  });
+
+  it("rejects pluginData containing a circular reference", async () => {
+    const cyc: Record<string, unknown> = {};
+    cyc.self = cyc;
+    await assert.rejects(publish({ pluginPkg: "x", severity: "info", title: "t", pluginData: cyc }), /pluginData.*not JSON-serialisable/);
+  });
+});
+
+describe("emit safety (pubsub fan-out failure isolation)", () => {
+  it("a throwing pubsub.publish does not strand the awaited publish() call", async () => {
+    // Re-init with a publisher that throws for every event. The
+    // engine must still resolve the publish() promise — fan-out is
+    // best-effort, the write already committed.
+    initNotifier({
+      publish: () => {
+        throw new Error("subscriber blew up");
+      },
+    });
+    const { id } = await publish({ pluginPkg: "x", severity: "info", title: "still resolves" });
+    // The write committed and is visible on subsequent reads.
+    const entry = await get(id);
+    assert.equal(entry?.id, id);
+  });
+
+  it("subsequent operations remain unblocked after a throwing emit", async () => {
+    initNotifier({
+      publish: () => {
+        throw new Error("nope");
+      },
+    });
+    const { id: idA } = await publish({ pluginPkg: "x", severity: "info", title: "a" });
+    const { id: idB } = await publish({ pluginPkg: "x", severity: "info", title: "b" });
+    await clear(idA);
+    const entries = await listAll();
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].id, idB);
   });
 });
 

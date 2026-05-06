@@ -39,7 +39,105 @@ function emit(event: NotifierEvent): void {
     log.warn("notifier", "emit before init", { type: event.type });
     return;
   }
-  deps.publish(PUBSUB_CHANNELS.notifier, event);
+  // Defensive: a throwing pubsub.publish would otherwise propagate
+  // out of `processBatch` and strand the still-unsettled waiters
+  // (their resolve/reject is called *after* this emit loop in
+  // `processBatch`). Fan-out is best-effort by contract — losing one
+  // subscriber must not lose the write that already committed.
+  try {
+    deps.publish(PUBSUB_CHANNELS.notifier, event);
+  } catch (err) {
+    log.error("notifier", "emit failed", { type: event.type, error: String(err) });
+  }
+}
+
+// ── Input validation ──────────────────────────────────────────────
+//
+// Shared by `engine.publish` (throws on error) and the HTTP route
+// (returns 400 on error). Single source of truth so plugin-runtime
+// callers and HTTP callers can't drift.
+
+/** Hard caps on publish-input fields. The engine reads each entry on
+ *  every list/get call (no in-memory cache), so unbounded fields hurt
+ *  every reader. Caps chosen to be generous for legitimate UX copy
+ *  while bounding active.json growth: a notification fundamentally is
+ *  a short blurb, not a document. */
+export const NOTIFIER_LIMITS = {
+  titleMax: 200,
+  bodyMax: 4000,
+  navigateTargetMax: 1000,
+  pluginDataMaxBytes: 16 * 1024,
+} as const;
+
+function validateTitle(title: string): string | null {
+  if (typeof title !== "string" || title.length === 0) return "title must be a non-empty string";
+  if (title.length > NOTIFIER_LIMITS.titleMax) return `title exceeds max length of ${NOTIFIER_LIMITS.titleMax} chars`;
+  return null;
+}
+
+function validateBody(body: string | undefined): string | null {
+  if (body === undefined) return null;
+  if (body.length > NOTIFIER_LIMITS.bodyMax) return `body exceeds max length of ${NOTIFIER_LIMITS.bodyMax} chars`;
+  return null;
+}
+
+function validateNavigateTarget(target: string | undefined): string | null {
+  if (target === undefined) return null;
+  if (target.length === 0) return "navigateTarget must be a non-empty relative path when set";
+  if (target.length > NOTIFIER_LIMITS.navigateTargetMax) {
+    return `navigateTarget exceeds max length of ${NOTIFIER_LIMITS.navigateTargetMax} chars`;
+  }
+  // Must be a same-origin relative path. Reject schemes
+  // (`javascript:`, `https://...`) and scheme-relative URLs
+  // (`//evil.com/...`, which an `<a href>` would resolve to the
+  // attacker's origin). One leading "/" only.
+  if (!target.startsWith("/") || target.startsWith("//")) {
+    return "navigateTarget must be a relative path beginning with a single '/' (no scheme, no '//')";
+  }
+  return null;
+}
+
+function validatePluginData(pluginData: unknown): string | null {
+  if (pluginData === undefined) return null;
+  let serialized: string | undefined;
+  try {
+    serialized = JSON.stringify(pluginData);
+  } catch (err) {
+    return `pluginData is not JSON-serialisable: ${String(err)}`;
+  }
+  // `JSON.stringify` returns `undefined` for non-serialisable roots
+  // (e.g. a bare function or symbol). Treat that as a serialisation
+  // failure so it doesn't slip through as an empty-string size.
+  if (typeof serialized !== "string") return "pluginData is not JSON-serialisable";
+  if (serialized.length > NOTIFIER_LIMITS.pluginDataMaxBytes) {
+    return `pluginData JSON exceeds ${NOTIFIER_LIMITS.pluginDataMaxBytes} bytes`;
+  }
+  return null;
+}
+
+function validateActionCoherence(input: PublishInput): string | null {
+  if (input.lifecycle !== "action") return null;
+  if (input.severity === "info") {
+    return "action lifecycle is incompatible with info severity (use fyi for low-priority pings)";
+  }
+  if (typeof input.navigateTarget !== "string" || input.navigateTarget.length === 0) {
+    return "action lifecycle requires a non-empty navigateTarget";
+  }
+  return null;
+}
+
+/** Validate a `PublishInput`. Returns `null` if OK, or a
+ *  human-readable error string. Order matters — shape/size errors are
+ *  reported before lifecycle/severity coherence errors so the message
+ *  the caller sees points at the most fundamental problem first. */
+export function validatePublishInput(input: PublishInput): string | null {
+  return (
+    validateTitle(input.title) ??
+    validateBody(input.body) ??
+    validateNavigateTarget(input.navigateTarget) ??
+    validatePluginData(input.pluginData) ??
+    validateActionCoherence(input)
+  );
 }
 
 // ── Write coordinator ─────────────────────────────────────────────
@@ -201,25 +299,12 @@ function buildHistoryEntry(entry: NotifierEntry, terminalType: "cleared" | "canc
 // ── Public API ────────────────────────────────────────────────────
 
 export async function publish<TPluginData = unknown>(input: PublishInput<TPluginData>): Promise<{ id: string }> {
-  // `action` lifecycle constraints. Enforced at the engine boundary
-  // so both HTTP callers and plugin-runtime callers hit the same
-  // wall. See `feat-notifier-ux.md` for the rationale.
-  //
-  //   1. `action` requires a non-empty `navigateTarget`. Without
-  //      one, the bell click does nothing and the entry is a
-  //      degraded fyi.
-  //   2. `action` cannot use `info` severity. The two together mean
-  //      "low-priority obligation," which is incoherent — if it's
-  //      low-priority enough to be info, it's an fyi (just an
-  //      informational ping); if it's a real obligation worth a
-  //      domain landing page, it's at least `nudge`.
-  if (input.lifecycle === "action") {
-    if (input.severity === "info") {
-      throw new Error("notifier.publish: action lifecycle is incompatible with info severity (use fyi for low-priority pings)");
-    }
-    if (typeof input.navigateTarget !== "string" || input.navigateTarget.length === 0) {
-      throw new Error("notifier.publish: action lifecycle requires a non-empty navigateTarget");
-    }
+  // Validate at the engine boundary so plugin-runtime callers and
+  // HTTP callers hit the same wall. See `validatePublishInput` above
+  // and `feat-notifier-ux.md` for the lifecycle-rule rationale.
+  const validationError = validatePublishInput(input as PublishInput);
+  if (validationError) {
+    throw new Error(`notifier.publish: ${validationError}`);
   }
   const entryId = randomUUID();
   const entry: NotifierEntry<TPluginData> = {
