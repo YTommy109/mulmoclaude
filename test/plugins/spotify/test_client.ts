@@ -138,7 +138,7 @@ describe("spotifyApi — 401 → refresh → retry once", () => {
     assert.equal(handle.calls.length, 3);
   });
 
-  it("gives up (auth_expired) when the refresh itself fails", async () => {
+  it("surfaces auth_expired when refresh returns 4xx (token rejected)", async () => {
     const handle = makeFakeRuntime({ responses: [new Response("", { status: 401 }), new Response("invalid_grant", { status: 400 })] });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await spotifyApi(handle.runtime as any, "cid", validTokens, "GET", "/v1/me", {}, NOW);
@@ -146,6 +146,68 @@ describe("spotifyApi — 401 → refresh → retry once", () => {
     if (result.ok) throw new Error("unreachable");
     assert.equal(result.error.kind, "auth_expired");
     assert.equal(handle.written.length, 0);
+  });
+});
+
+// CodeRabbit review on PR #1166 caught that pre-PR-#1188-or-similar,
+// every refresh-path failure (network blip, Spotify 5xx, JSON parse)
+// was reported as `auth_expired`, prompting the user to reconnect even
+// when their credential was fine. The split below pins which
+// classifications go to `transient_error` (retry later) vs
+// `auth_expired` (reconnect required).
+describe("spotifyApi — refresh-path classification (auth_expired vs transient_error)", () => {
+  it("classifies a network/timeout failure during refresh as transient_error", async () => {
+    // Two responses queued, but the SECOND queued slot is a thrown
+    // error: the fake runtime's `fetch` throws when the queue's next
+    // entry is missing, so we leave only one response and let the
+    // refresh fetch trip the throw branch.
+    const handle = makeFakeRuntime({ responses: [new Response("", { status: 401 })] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await spotifyApi(handle.runtime as any, "cid", validTokens, "GET", "/v1/me", {}, NOW);
+    assert.equal(result.ok, false);
+    if (result.ok) throw new Error("unreachable");
+    assert.equal(result.error.kind, "transient_error");
+  });
+
+  it("classifies a 5xx from Spotify's token endpoint as transient_error", async () => {
+    const handle = makeFakeRuntime({ responses: [new Response("", { status: 401 }), new Response("upstream", { status: 503 })] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await spotifyApi(handle.runtime as any, "cid", validTokens, "GET", "/v1/me", {}, NOW);
+    assert.equal(result.ok, false);
+    if (result.ok) throw new Error("unreachable");
+    assert.equal(result.error.kind, "transient_error");
+    assert.match(result.error.detail, /503/);
+  });
+
+  it("classifies a non-JSON 2xx body from token endpoint as transient_error", async () => {
+    // Some proxies / middlewares return HTML on their own 2xx page.
+    const htmlResponse = new Response("<html>maintenance</html>", { status: 200, headers: { "content-type": "text/html" } });
+    const handle = makeFakeRuntime({ responses: [new Response("", { status: 401 }), htmlResponse] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await spotifyApi(handle.runtime as any, "cid", validTokens, "GET", "/v1/me", {}, NOW);
+    assert.equal(result.ok, false);
+    if (result.ok) throw new Error("unreachable");
+    assert.equal(result.error.kind, "transient_error");
+  });
+
+  it("keeps auth_expired when refresh response is JSON but missing access_token / expires_in", async () => {
+    const handle = makeFakeRuntime({ responses: [new Response("", { status: 401 }), jsonResponse({ error: "invalid_grant" })] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await spotifyApi(handle.runtime as any, "cid", validTokens, "GET", "/v1/me", {}, NOW);
+    assert.equal(result.ok, false);
+    if (result.ok) throw new Error("unreachable");
+    assert.equal(result.error.kind, "auth_expired");
+  });
+
+  it("classifies a 5xx hit during PROACTIVE refresh (pre-call) as transient_error", async () => {
+    // Token is within the 30s expiry leeway, so the FIRST fetch is
+    // the refresh attempt — no preceding 401 round-trip.
+    const handle = makeFakeRuntime({ responses: [new Response("", { status: 502 })] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await spotifyApi(handle.runtime as any, "cid", { ...validTokens, expiresAt: ALMOST_NOW }, "GET", "/v1/me", {}, NOW);
+    assert.equal(result.ok, false);
+    if (result.ok) throw new Error("unreachable");
+    assert.equal(result.error.kind, "transient_error");
   });
 });
 

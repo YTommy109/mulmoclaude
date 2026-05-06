@@ -5,6 +5,12 @@
 // refresh token is revoked / rotated, and looping would just
 // hammer Spotify's token endpoint. Surface `auth_expired` and let
 // the user reconnect.
+//
+// Refresh-path failures are split into two classes (CodeRabbit
+// review on PR #1166): `auth_expired` only when Spotify actually
+// rejected the refresh token (4xx, or protocol-malformed response),
+// and `transient_error` for network / 5xx / parse failures so the
+// user isn't told to reconnect during a Spotify outage.
 
 import type { PluginRuntime } from "gui-chat-protocol";
 
@@ -28,10 +34,21 @@ const RETRY_AFTER_FALLBACK_SEC = 60;
 
 /** Reasons the client returns instead of throwing. The dispatch
  *  layer (`index.ts`) maps these to the user-facing `instructions`
- *  field of the SpotifyError union. */
+ *  field of the SpotifyError union.
+ *
+ *  `auth_expired` means the credential is unusable — refresh token
+ *  was rejected by Spotify, or the protocol response was malformed
+ *  in a way that's indistinguishable from rejection. The user has to
+ *  reconnect.
+ *
+ *  `transient_error` means the refresh path failed in a way that
+ *  doesn't imply the credential is bad — network timeout, 5xx from
+ *  Spotify, JSON parse failure (likely proxy / middleware). Caller
+ *  should retry later, NOT prompt the user to reconnect. */
 export type SpotifyClientError =
   | { kind: "not_connected" }
   | { kind: "auth_expired"; detail: string }
+  | { kind: "transient_error"; detail: string }
   | { kind: "rate_limited"; retryAfterSec: number }
   | { kind: "spotify_api_error"; status: number; body: string };
 
@@ -141,21 +158,30 @@ async function refreshTokens(
       allowedHosts: [SPOTIFY_TOKEN_HOST],
     });
   } catch (err) {
-    return { ok: false, error: { kind: "auth_expired", detail: `refresh fetch failed: ${errorMessage(err)}` } };
+    return { ok: false, error: { kind: "transient_error", detail: `refresh fetch failed: ${errorMessage(err)}` } };
   }
   if (!response.ok) {
     const body = await response.text().catch(() => "");
     runtime.log.warn("refresh failed", { status: response.status, body: body.slice(0, 200) });
-    return { ok: false, error: { kind: "auth_expired", detail: `refresh returned ${response.status}` } };
+    // 4xx ⇒ Spotify rejected the refresh token (revoked, malformed,
+    // client_id mismatch). 5xx ⇒ Spotify is having an outage; the
+    // credential may still be valid. Don't conflate the two.
+    const kind = response.status >= 500 ? "transient_error" : "auth_expired";
+    return { ok: false, error: { kind, detail: `refresh returned ${response.status}` } };
   }
   let parsed: RawTokenResponse;
   try {
     parsed = (await response.json()) as RawTokenResponse;
   } catch (err) {
-    return { ok: false, error: { kind: "auth_expired", detail: `refresh response parse failed: ${errorMessage(err)}` } };
+    // Non-JSON response on a 2xx is almost certainly a proxy /
+    // middleware error page — transient, not credential-related.
+    return { ok: false, error: { kind: "transient_error", detail: `refresh response parse failed: ${errorMessage(err)}` } };
   }
   const refreshFields = parseRefreshResponse(parsed);
   if (!refreshFields) {
+    // Spotify returned 2xx JSON without access_token / expires_in.
+    // Indistinguishable from a refresh-token rejection at the protocol
+    // level — surface as auth_expired so the user reconnects.
     return { ok: false, error: { kind: "auth_expired", detail: "refresh response missing access_token / expires_in" } };
   }
   const merged = mergeRefreshResponse(tokens, refreshFields, now());

@@ -583,6 +583,13 @@ function mapClientError(error: SpotifyClientError) {
         message: "認可が無効化されました。「Connect」をやり直してください。",
         detail: error.detail,
       };
+    case "transient_error":
+      return {
+        ok: false as const,
+        error: "transient_error",
+        message: "Spotify に一時的に接続できませんでした。しばらくしてから再試行してください。",
+        detail: error.detail,
+      };
     case "rate_limited":
       return {
         ok: false as const,
