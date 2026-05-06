@@ -59,19 +59,19 @@ const PACKAGE_JSON = `{
   "peerDependencies": {
     "gui-chat-protocol": "^0.3.0",
     "vue": "^3.5.0",
-    "zod": "^3.0.0"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^6.0.0",
+    "@vitejs/plugin-vue": "^6.0.6",
     "eslint": "^9.0.0",
     "gui-chat-protocol": "^0.3.0",
-    "typescript": "^6.0.0",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.0.0",
-    "vite": "^8.0.0",
+    "vite": "^8.0.10",
     "vite-plugin-dts": "^5.0.0",
-    "vue": "^3.5.0",
+    "vue": "^3.5.34",
     "vue-eslint-parser": "^10.0.0",
-    "zod": "^3.23.0"
+    "zod": "^4.4.3"
   },
   "license": "MIT"
 }
