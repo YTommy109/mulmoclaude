@@ -38,11 +38,24 @@ export interface NotifierEntry<TPluginData = unknown> {
   lifecycle?: NotifierLifecycle;
   title: string;
   body?: string;
+  /** Optional in-app deep-link target (relative URL). The bell popup
+   *  routes here on row click, with `&notificationId=<id>` appended
+   *  so the landing page can identify which entry to clear. The
+   *  engine doesn't read this — it's a UI hint stored on the entry. */
+  navigateTarget?: string;
   /** Opaque to the engine. Round-trips through JSON unchanged; only
    *  the originating plugin's UI knows the shape. */
   pluginData?: TPluginData;
   /** ISO-8601 timestamp set at `publish()` time. */
   createdAt: string;
+}
+
+/** A history entry — a `NotifierEntry` after it has been cleared or
+ *  cancelled, with the terminal type and timestamp recorded. The
+ *  bell popup's "History" section renders these read-only. */
+export interface NotifierHistoryEntry<TPluginData = unknown> extends NotifierEntry<TPluginData> {
+  terminalType: "cleared" | "cancelled";
+  terminalAt: string;
 }
 
 /** Caller-supplied input for `publish()`. The engine fills in `id`
@@ -53,6 +66,7 @@ export interface PublishInput<TPluginData = unknown> {
   title: string;
   body?: string;
   lifecycle?: NotifierLifecycle;
+  navigateTarget?: string;
   pluginData?: TPluginData;
 }
 
@@ -62,6 +76,17 @@ export interface PublishInput<TPluginData = unknown> {
 export interface NotifierFile {
   entries: Record<string, NotifierEntry>;
 }
+
+/** On-disk shape of `~/mulmoclaude/data/notifier/history.json`. Array
+ *  of terminated entries newest-first, capped at `HISTORY_CAP` with
+ *  FIFO eviction (push at index 0, slice from the tail). */
+export interface NotifierHistoryFile {
+  entries: NotifierHistoryEntry[];
+}
+
+/** History size cap. The bell popup's History section renders this
+ *  many entries; older ones fall off when new terminations land. */
+export const HISTORY_CAP = 50;
 
 /** Pub-sub event published on `PUBSUB_CHANNELS.notifier` after every
  *  successful state change. Discriminated union — subscribers switch

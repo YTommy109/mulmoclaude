@@ -3,17 +3,30 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "fs";
 import path from "path";
 import { tmpdir } from "os";
-import { publish, clear, cancel, get, listFor, listAll, initNotifier, _setActiveFilePathForTesting } from "../../../server/notifier/engine.js";
+import {
+  publish,
+  clear,
+  cancel,
+  clearForPlugin,
+  get,
+  listFor,
+  listAll,
+  listHistory,
+  initNotifier,
+  _setFilePathsForTesting,
+} from "../../../server/notifier/engine.js";
 import type { NotifierEvent } from "../../../server/notifier/types.js";
 
 let tmpDir = "";
 let activeFile = "";
+let historyFile = "";
 let emittedEvents: NotifierEvent[] = [];
 
 beforeEach(() => {
   tmpDir = mkdtempSync(path.join(tmpdir(), "mulmo-notifier-test-"));
   activeFile = path.join(tmpDir, "active.json");
-  _setActiveFilePathForTesting(activeFile);
+  historyFile = path.join(tmpDir, "history.json");
+  _setFilePathsForTesting({ active: activeFile, history: historyFile });
   emittedEvents = [];
   initNotifier({
     publish: (_channel, payload) => {
@@ -64,10 +77,73 @@ describe("publish", () => {
       severity: "urgent",
       lifecycle: "action",
       title: "File taxes",
+      navigateTarget: "/encore/taxes",
       pluginData,
     });
     const entry = await get(id);
     assert.deepEqual(entry?.pluginData, pluginData);
+  });
+
+  it("rejects action lifecycle without a navigateTarget", async () => {
+    await assert.rejects(
+      publish({
+        pluginPkg: "x",
+        severity: "nudge",
+        lifecycle: "action",
+        title: "no link",
+      }),
+      /navigateTarget/,
+    );
+  });
+
+  it("rejects action lifecycle with an empty-string navigateTarget", async () => {
+    await assert.rejects(
+      publish({
+        pluginPkg: "x",
+        severity: "nudge",
+        lifecycle: "action",
+        title: "empty link",
+        navigateTarget: "",
+      }),
+      /navigateTarget/,
+    );
+  });
+
+  it("rejects action lifecycle with info severity (incoherent combination)", async () => {
+    await assert.rejects(
+      publish({
+        pluginPkg: "x",
+        severity: "info",
+        lifecycle: "action",
+        title: "low-priority obligation",
+        navigateTarget: "/somewhere",
+      }),
+      /info severity/,
+    );
+  });
+
+  it("accepts action lifecycle with nudge or urgent severity (paired with navigateTarget)", async () => {
+    const { id: nudgeId } = await publish({
+      pluginPkg: "x",
+      severity: "nudge",
+      lifecycle: "action",
+      title: "nudge action",
+      navigateTarget: "/x",
+    });
+    const { id: urgentId } = await publish({
+      pluginPkg: "x",
+      severity: "urgent",
+      lifecycle: "action",
+      title: "urgent action",
+      navigateTarget: "/y",
+    });
+    assert.ok(await get(nudgeId));
+    assert.ok(await get(urgentId));
+  });
+
+  it("accepts fyi lifecycle without a navigateTarget (no link required)", async () => {
+    const { id } = await publish({ pluginPkg: "x", severity: "info", lifecycle: "fyi", title: "no link needed" });
+    assert.ok(await get(id));
   });
 
   it("persists across engine 'restart' (re-reading from disk)", async () => {
@@ -79,7 +155,7 @@ describe("publish", () => {
     // Simulating a restart: drop the engine's path binding, then
     // re-set it. The engine has no in-memory cache, so a fresh
     // listAll() must read from disk and find the entry.
-    _setActiveFilePathForTesting(activeFile);
+    _setFilePathsForTesting({ active: activeFile, history: historyFile });
     const entries = await listAll();
     const found = entries.find((entry) => entry.id === id);
     assert.ok(found, "entry should survive a path rebind");
@@ -240,5 +316,158 @@ describe("on-disk format", () => {
     assert.equal(existsSync(activeFile), false, "precondition: no file");
     await publish({ pluginPkg: "x", severity: "info", title: "y" });
     assert.equal(existsSync(activeFile), true);
+  });
+});
+
+describe("navigateTarget", () => {
+  it("round-trips through publish / get / listAll", async () => {
+    const { id } = await publish({
+      pluginPkg: "debug__encore",
+      severity: "urgent",
+      lifecycle: "action",
+      title: "Pay property tax",
+      navigateTarget: "/encore/property-tax",
+    });
+    const fetched = await get(id);
+    assert.equal(fetched?.navigateTarget, "/encore/property-tax");
+    const all = await listAll();
+    const found = all.find((entry) => entry.id === id);
+    assert.equal(found?.navigateTarget, "/encore/property-tax");
+  });
+
+  it("is undefined when not provided", async () => {
+    const { id } = await publish({ pluginPkg: "x", severity: "info", title: "no target" });
+    const entry = await get(id);
+    assert.equal(entry?.navigateTarget, undefined);
+  });
+});
+
+describe("history", () => {
+  it("starts empty", async () => {
+    assert.deepEqual(await listHistory(), []);
+  });
+
+  it("captures cleared entries with terminal type and timestamp", async () => {
+    const { id } = await publish({ pluginPkg: "x", severity: "info", title: "to clear" });
+    await clear(id);
+    const history = await listHistory();
+    assert.equal(history.length, 1);
+    assert.equal(history[0].id, id);
+    assert.equal(history[0].terminalType, "cleared");
+    assert.match(history[0].terminalAt, /\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("captures cancelled entries with `cancelled` terminal type", async () => {
+    const { id } = await publish({ pluginPkg: "x", severity: "info", title: "to cancel" });
+    await cancel(id);
+    const [head] = await listHistory();
+    assert.equal(head.terminalType, "cancelled");
+  });
+
+  it("preserves the original entry fields (title, severity, navigateTarget, pluginData)", async () => {
+    const { id } = await publish({
+      pluginPkg: "x",
+      severity: "urgent",
+      lifecycle: "action",
+      title: "preserve me",
+      body: "with body",
+      navigateTarget: "/somewhere",
+      pluginData: { extra: "stuff" },
+    });
+    await clear(id);
+    const [head] = await listHistory();
+    assert.equal(head.title, "preserve me");
+    assert.equal(head.severity, "urgent");
+    assert.equal(head.lifecycle, "action");
+    assert.equal(head.body, "with body");
+    assert.equal(head.navigateTarget, "/somewhere");
+    assert.deepEqual(head.pluginData, { extra: "stuff" });
+  });
+
+  it("orders newest first", async () => {
+    const { id: idA } = await publish({ pluginPkg: "x", severity: "info", title: "a" });
+    const { id: idB } = await publish({ pluginPkg: "x", severity: "info", title: "b" });
+    const { id: idC } = await publish({ pluginPkg: "x", severity: "info", title: "c" });
+    await clear(idA);
+    await clear(idB);
+    await clear(idC);
+    const history = await listHistory();
+    assert.deepEqual(
+      history.map((entry) => entry.title),
+      ["c", "b", "a"],
+    );
+  });
+
+  it("caps at 50 entries (FIFO eviction)", async () => {
+    const total = 55;
+    const ids: string[] = [];
+    for (let index = 0; index < total; index += 1) {
+      const result = await publish({ pluginPkg: "x", severity: "info", title: `t-${index}` });
+      ids.push(result.id);
+    }
+    for (const entryId of ids) await clear(entryId);
+    const history = await listHistory();
+    assert.equal(history.length, 50);
+    // Newest at index 0; oldest 5 (titles t-0..t-4) should be evicted.
+    assert.equal(history[0].title, "t-54");
+    assert.equal(history[49].title, "t-5");
+  });
+
+  it("survives a path rebind (persists to disk)", async () => {
+    const { id } = await publish({ pluginPkg: "x", severity: "info", title: "persist me" });
+    await clear(id);
+    _setFilePathsForTesting({ active: activeFile, history: historyFile });
+    const history = await listHistory();
+    assert.equal(history.length, 1);
+    assert.equal(history[0].id, id);
+  });
+
+  it("does not record no-op clears (unknown id)", async () => {
+    await clear("00000000-0000-0000-0000-000000000000");
+    assert.deepEqual(await listHistory(), []);
+  });
+
+  it("writes the history file at the configured path with an `entries` array", async () => {
+    const { id } = await publish({ pluginPkg: "x", severity: "info", title: "y" });
+    await clear(id);
+    const raw = readFileSync(historyFile, "utf-8");
+    const parsed = JSON.parse(raw);
+    assert.ok(parsed && typeof parsed === "object");
+    assert.ok(Array.isArray(parsed.entries));
+    assert.equal(parsed.entries.length, 1);
+  });
+});
+
+describe("clearForPlugin (per-plugin isolation)", () => {
+  it("clears an entry the caller owns", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "mine" });
+    await clearForPlugin("@scope/owner", id);
+    assert.equal(await get(id), undefined);
+    const [terminal] = await listHistory();
+    assert.equal(terminal.id, id);
+    assert.equal(terminal.terminalType, "cleared");
+  });
+
+  it("silently no-ops when the entry belongs to another plugin", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "owned" });
+    emittedEvents.length = 0;
+    await clearForPlugin("@scope/intruder", id);
+    // Entry survives, no event was emitted, history stays empty.
+    assert.ok(await get(id), "entry must remain when caller is not the owner");
+    assert.equal(emittedEvents.length, 0, "no event emitted on owner mismatch");
+    assert.deepEqual(await listHistory(), []);
+  });
+
+  it("silently no-ops on an unknown id (matches existing clear semantics)", async () => {
+    emittedEvents.length = 0;
+    await clearForPlugin("@scope/anyone", "00000000-0000-0000-0000-000000000000");
+    assert.equal(emittedEvents.length, 0);
+  });
+
+  it("does not record cross-plugin attempts in history (audit cleanliness)", async () => {
+    await publish({ pluginPkg: "@scope/a", severity: "info", title: "ours" });
+    const { id: stranger } = await publish({ pluginPkg: "@scope/b", severity: "info", title: "theirs" });
+    await clearForPlugin("@scope/a", stranger); // attempt
+    assert.deepEqual(await listHistory(), []);
   });
 });
