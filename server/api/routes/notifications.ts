@@ -47,7 +47,6 @@ interface TestRequestBody {
   body?: unknown;
   delaySeconds?: unknown;
   transportId?: unknown;
-  chatId?: unknown;
   kind?: unknown;
   action?: unknown;
 }
@@ -97,9 +96,6 @@ function parseBody(body: TestRequestBody): ScheduleNotificationOptions {
   if (typeof body.transportId === "string" && body.transportId.length > 0) {
     opts.transportId = body.transportId;
   }
-  if (typeof body.chatId === "string" && body.chatId.length > 0) {
-    opts.chatId = body.chatId;
-  }
   const kind = parseKind(body.kind);
   if (kind) opts.kind = kind;
   const action = parseAction(body.action);
@@ -116,7 +112,6 @@ export function createNotificationsRouter(): Router {
       delaySeconds: scheduled.delaySeconds,
       firesAt: scheduled.firesAt,
       transportId: opts.transportId,
-      chatId: opts.chatId,
     });
     res.status(202).json({
       firesAt: scheduled.firesAt,

@@ -238,14 +238,12 @@ export function publishNotification(opts: PublishNotificationOpts): void {
 
 export const DEFAULT_NOTIFICATION_MESSAGE = "Test notification";
 export const DEFAULT_NOTIFICATION_TRANSPORT_ID = "cli";
-export const DEFAULT_NOTIFICATION_CHAT_ID = "notifications";
 
 export interface ScheduleNotificationOptions {
   message?: string;
   body?: string;
   delaySeconds?: number;
   transportId?: string;
-  chatId?: string;
   // Optional deep-link action — lets dev-side callers fire a
   // notification that navigates to a specific permalink when
   // clicked. Without this the fired notification has no click

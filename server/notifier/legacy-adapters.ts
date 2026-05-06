@@ -60,6 +60,11 @@ export function startLegacyAdapters(deps: LegacyAdapterDeps): () => void {
     const legacy = isLegacyNotifierPluginData(entry.pluginData) ? entry.pluginData : null;
     if (legacy?.transportId) {
       try {
+        // chatId is hardcoded — the legacy `chatId` knob on the PoC
+        // endpoint was a one-caller artifact (only `scheduleTestNotification`
+        // ever set it) and was removed alongside the migration. If a
+        // real production caller later needs per-conversation routing,
+        // it deserves a designed surface, not a recreated PoC field.
         deps.pushToBridge(legacy.transportId, "notifications", formatBridgeMessage(entry));
       } catch (err) {
         // Keep the legacy contract: a failing bridge sink must never
