@@ -21,6 +21,8 @@ import { log as hostLog, type Logger } from "../system/logger/index.js";
 import { ensureInsideBase } from "./runtime-loader.js";
 import { ONE_SECOND_MS } from "../utils/time.js";
 import type { IPubSub } from "../events/pub-sub/index.js";
+import * as notifierEngine from "../notifier/engine.js";
+import type { MulmoclaudeRuntime, NotifierRuntimeApi } from "../notifier/runtime-api.js";
 
 const DEFAULT_FETCH_TIMEOUT_MS = 10 * ONE_SECOND_MS;
 
@@ -242,6 +244,17 @@ function makeScopedPubSub(pkgName: string, hostPubSub: IPubSub): PluginRuntime["
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Scoped notifier (host extension over gui-chat-protocol's PluginRuntime)
+// ─────────────────────────────────────────────────────────────────────
+
+function makeScopedNotifier(pkgName: string): NotifierRuntimeApi {
+  return {
+    publish: (input) => notifierEngine.publish({ ...input, pluginPkg: pkgName }),
+    clear: (entryId) => notifierEngine.clear(entryId),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Public entry — wire everything into one PluginRuntime
 // ─────────────────────────────────────────────────────────────────────
 
@@ -255,7 +268,7 @@ export interface MakePluginRuntimeDeps {
   locale: string;
 }
 
-export function makePluginRuntime(deps: MakePluginRuntimeDeps): PluginRuntime {
+export function makePluginRuntime(deps: MakePluginRuntimeDeps): MulmoclaudeRuntime {
   const { pkgName, pubsub, locale } = deps;
   const seg = sanitisePackageNameForFs(pkgName);
   const dataRoot = path.join(WORKSPACE_PATHS.pluginsData, seg);
@@ -272,6 +285,9 @@ export function makePluginRuntime(deps: MakePluginRuntimeDeps): PluginRuntime {
     log: makeScopedLogger(pkgName),
     fetch: scopedFetch,
     fetchJson: makeScopedFetchJson(pkgName, scopedFetch),
+    // Host extension over gui-chat-protocol's PluginRuntime. Plugin
+    // authors access via `runtime as MulmoclaudeRuntime` for now.
+    notifier: makeScopedNotifier(pkgName),
   };
 }
 

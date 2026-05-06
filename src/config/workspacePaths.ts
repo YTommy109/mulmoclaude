@@ -43,4 +43,7 @@ export const WORKSPACE_FILES = {
    *  every mutation, loaded fresh on every read. No in-memory cache;
    *  the file is the only source of truth. */
   notifierActive: "data/notifier/active.json",
+  /** Terminated notifier entries (cleared / cancelled), newest-first,
+   *  FIFO-capped. Source for the bell popup's History section. */
+  notifierHistory: "data/notifier/history.json",
 } as const;
