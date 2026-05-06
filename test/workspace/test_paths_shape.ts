@@ -34,6 +34,7 @@ describe("WORKSPACE_DIRS expected keys", () => {
     "memoryDir",
     "memoryStaging",
     "news",
+    "notifier",
     "pluginCache",
     "plugins",
     "pluginsConfig",
