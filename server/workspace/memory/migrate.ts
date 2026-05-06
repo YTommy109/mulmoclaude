@@ -4,6 +4,10 @@
 // path so the conversion happens once on first start after the new
 // layout ships.
 //
+// CLEANUP 2026-07-01: see `run.ts` — this file is part of the
+// one-shot `memory.md` → atomic migration chain and goes when the
+// chain goes.
+//
 // Steps:
 //   1. Read existing `conversations/memory.md`. Absent → no-op.
 //   2. Split by `## ` (H2). Each H2 block becomes a candidate entry
@@ -21,6 +25,8 @@ import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { readTextSafe } from "../../utils/files/safe.js";
 import { log } from "../../system/logger/index.js";
 import { errorMessage } from "../../utils/errors.js";
+import { ClaudeCliNotFoundError } from "../journal/archivist-cli.js";
+import { WORKSPACE_FILES } from "../paths.js";
 import { regenerateIndex, writeMemoryEntry } from "./io.js";
 import { isMemoryType, slugifyMemoryName, type MemoryEntry, type MemoryType } from "./types.js";
 
@@ -67,7 +73,7 @@ const CLASSIFY_CONCURRENCY = 4;
 const PROGRESS_LOG_INTERVAL = 5;
 
 export async function migrateLegacyMemory(workspaceRoot: string, classify: MemoryClassifier): Promise<MigrationResult> {
-  const sourcePath = path.join(workspaceRoot, "conversations", "memory.md");
+  const sourcePath = path.join(workspaceRoot, WORKSPACE_FILES.memory);
   const raw = await readTextSafe(sourcePath);
   if (raw === null) {
     return emptyResult(true);
@@ -195,6 +201,12 @@ async function safeClassify(classify: MemoryClassifier, candidate: MemoryCandida
     if (verdict && isMemoryType(verdict.type)) return verdict;
     return null;
   } catch (err) {
+    // Startup-wide failures (CLI missing) MUST escape so
+    // `runMemoryMigrationOnce` can log once + leave the legacy file
+    // for retry. Without this, every candidate would silently degrade
+    // to `null` and look like normal classifier disagreement
+    // (#1061 review).
+    if (err instanceof ClaudeCliNotFoundError) throw err;
     log.warn("memory", "migration: classifier threw", {
       preview: candidate.body.slice(0, 80),
       error: errorMessage(err),
@@ -245,7 +257,7 @@ async function renameToBackup(sourcePath: string): Promise<void> {
 // callers don't need this — `memory.md` is created by user activity
 // or by an older mulmoclaude version.
 export async function writeLegacyMemoryForTest(workspaceRoot: string, content: string): Promise<void> {
-  const sourcePath = path.join(workspaceRoot, "conversations", "memory.md");
+  const sourcePath = path.join(workspaceRoot, WORKSPACE_FILES.memory);
   await mkdir(path.dirname(sourcePath), { recursive: true });
   await writeFileAtomic(sourcePath, content);
 }

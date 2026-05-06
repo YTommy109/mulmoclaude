@@ -32,6 +32,7 @@ import { getOptionalStringQuery, getSessionQuery } from "../../utils/request.js"
 import { log } from "../../system/logger/index.js";
 import { validateUpdateBeatBody, validateUpdateScriptBody } from "./mulmoScriptValidate.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { bindRoute } from "../../utils/router.js";
 import { publishGeneration } from "../../events/session-store/index.js";
 import { GENERATION_KINDS } from "../../../src/types/events.js";
 
@@ -118,7 +119,7 @@ interface ScriptOutcome {
 // either side needing to know which mode the user picked. The MCP layer
 // in `server/agent/plugin-names.ts` routes the tool name straight here,
 // so any per-mode logic on the client would be invisible to it.
-router.post(API_ROUTES.mulmoScript.save, async (req: Request<object, object, SaveMulmoScriptBody>, res: Response) => {
+bindRoute(router, API_ROUTES.mulmoScript.save, async (req: Request<object, object, SaveMulmoScriptBody>, res: Response) => {
   const { script, filename, filePath, autoGenerateMovie } = req.body ?? {};
 
   const hasScript = script !== undefined && script !== null;
@@ -247,7 +248,7 @@ function triggerAutoBackgroundMovie(absoluteFilePath: string, wireFilePath: stri
   void runBackgroundMovieGeneration(absoluteFilePath, wireFilePath, chatSessionId);
 }
 
-router.post(API_ROUTES.mulmoScript.updateBeat, async (req: Request<object, object, unknown>, res: Response) => {
+bindRoute(router, API_ROUTES.mulmoScript.updateBeat, async (req: Request<object, object, unknown>, res: Response) => {
   const validation = validateUpdateBeatBody(req.body);
   if (!validation.ok) {
     badRequest(res, validation.error);
@@ -271,7 +272,7 @@ router.post(API_ROUTES.mulmoScript.updateBeat, async (req: Request<object, objec
   res.json({ ok: true });
 });
 
-router.post(API_ROUTES.mulmoScript.updateScript, async (req: Request<object, object, unknown>, res: Response) => {
+bindRoute(router, API_ROUTES.mulmoScript.updateScript, async (req: Request<object, object, unknown>, res: Response) => {
   const validation = validateUpdateScriptBody(req.body);
   if (!validation.ok) {
     badRequest(res, validation.error);
@@ -286,7 +287,7 @@ router.post(API_ROUTES.mulmoScript.updateScript, async (req: Request<object, obj
   res.json({ ok: true });
 });
 
-router.get(API_ROUTES.mulmoScript.beatImage, async (req: Request<object, BeatImageResponse, object, BeatQuery>, res: Response<BeatImageResponse>) => {
+bindRoute(router, API_ROUTES.mulmoScript.beatImage, async (req: Request<object, BeatImageResponse, object, BeatQuery>, res: Response<BeatImageResponse>) => {
   const { filePath, beatIndex: beatIndexStr } = req.query;
   const beatIndex = beatIndexStr !== undefined ? parseInt(beatIndexStr, 10) : undefined;
 
@@ -305,42 +306,46 @@ router.get(API_ROUTES.mulmoScript.beatImage, async (req: Request<object, BeatIma
   });
 });
 
-router.get(API_ROUTES.mulmoScript.movieStatus, async (req: Request<object, MovieStatusResponse, object, FilePathQuery>, res: Response<MovieStatusResponse>) => {
-  const { filePath } = req.query;
+bindRoute(
+  router,
+  API_ROUTES.mulmoScript.movieStatus,
+  async (req: Request<object, MovieStatusResponse, object, FilePathQuery>, res: Response<MovieStatusResponse>) => {
+    const { filePath } = req.query;
 
-  if (!filePath) {
-    badRequest(res, "filePath is required");
-    return;
-  }
-
-  const absoluteFilePath = resolveStoryPath(filePath, res);
-  if (!absoluteFilePath) return;
-
-  try {
-    const context = await buildContext(absoluteFilePath);
-    if (!context) {
-      res.json({ moviePath: null });
+    if (!filePath) {
+      badRequest(res, "filePath is required");
       return;
     }
 
-    const outputPath = movieFilePath(context);
-    if (!existsSync(outputPath)) {
-      res.json({ moviePath: null });
-      return;
-    }
+    const absoluteFilePath = resolveStoryPath(filePath, res);
+    if (!absoluteFilePath) return;
 
-    const movieMtime = statSync(outputPath).mtimeMs;
-    const sourceMtime = statSync(absoluteFilePath).mtimeMs;
-    if (movieMtime < sourceMtime) {
-      res.json({ moviePath: null });
-      return;
-    }
+    try {
+      const context = await buildContext(absoluteFilePath);
+      if (!context) {
+        res.json({ moviePath: null });
+        return;
+      }
 
-    res.json({ moviePath: toStoryRef(outputPath) });
-  } catch (err) {
-    serverError(res, errorMessage(err));
-  }
-});
+      const outputPath = movieFilePath(context);
+      if (!existsSync(outputPath)) {
+        res.json({ moviePath: null });
+        return;
+      }
+
+      const movieMtime = statSync(outputPath).mtimeMs;
+      const sourceMtime = statSync(absoluteFilePath).mtimeMs;
+      if (movieMtime < sourceMtime) {
+        res.json({ moviePath: null });
+        return;
+      }
+
+      res.json({ moviePath: toStoryRef(outputPath) });
+    } catch (err) {
+      serverError(res, errorMessage(err));
+    }
+  },
+);
 
 function fileToDataUri(filePath: string, mimeType: string): string {
   const data = readFileSync(filePath);
@@ -482,7 +487,7 @@ export async function withStoryContext(
   }
 }
 
-router.get(API_ROUTES.mulmoScript.beatAudio, async (req: Request<object, BeatAudioResponse, object, BeatQuery>, res: Response<BeatAudioResponse>) => {
+bindRoute(router, API_ROUTES.mulmoScript.beatAudio, async (req: Request<object, BeatAudioResponse, object, BeatQuery>, res: Response<BeatAudioResponse>) => {
   const { filePath, beatIndex: beatIndexStr } = req.query;
   const beatIndex = beatIndexStr !== undefined ? parseInt(beatIndexStr, 10) : undefined;
 
@@ -514,7 +519,8 @@ router.get(API_ROUTES.mulmoScript.beatAudio, async (req: Request<object, BeatAud
   );
 });
 
-router.post(
+bindRoute(
+  router,
   API_ROUTES.mulmoScript.generateBeatAudio,
   async (
     req: Request<
@@ -578,7 +584,7 @@ router.post(
   },
 );
 
-router.post(API_ROUTES.mulmoScript.renderBeat, async (req: Request<object, object, RenderBeatBody>, res: Response) => {
+bindRoute(router, API_ROUTES.mulmoScript.renderBeat, async (req: Request<object, object, RenderBeatBody>, res: Response) => {
   const { filePath, beatIndex, force, chatSessionId } = req.body;
 
   if (!filePath || beatIndex === undefined) {
@@ -679,7 +685,7 @@ async function runMovieGeneration(absoluteFilePath: string, onProgressEvent: (ev
   }
 }
 
-router.post(API_ROUTES.mulmoScript.generateMovie, async (req: Request<object, object, { filePath: string; chatSessionId?: string }>, res: Response) => {
+bindRoute(router, API_ROUTES.mulmoScript.generateMovie, async (req: Request<object, object, { filePath: string; chatSessionId?: string }>, res: Response) => {
   const { filePath, chatSessionId } = req.body;
 
   if (!filePath) {
@@ -811,7 +817,8 @@ interface UploadCharacterImageBody {
 
 type CharacterImageResponse = { image: string | null } | ErrorResponse;
 
-router.get(
+bindRoute(
+  router,
   API_ROUTES.mulmoScript.characterImage,
   async (req: Request<object, CharacterImageResponse, object, CharacterImageQuery>, res: Response<CharacterImageResponse>) => {
     const { filePath, key } = req.query;
@@ -832,26 +839,31 @@ router.get(
   },
 );
 
-router.post(API_ROUTES.mulmoScript.uploadBeatImage, async (req: Request<object, BeatImageResponse, UploadBeatImageBody>, res: Response<BeatImageResponse>) => {
-  const { filePath, beatIndex, imageData } = req.body;
+bindRoute(
+  router,
+  API_ROUTES.mulmoScript.uploadBeatImage,
+  async (req: Request<object, BeatImageResponse, UploadBeatImageBody>, res: Response<BeatImageResponse>) => {
+    const { filePath, beatIndex, imageData } = req.body;
 
-  if (!filePath || beatIndex === undefined || !imageData) {
-    badRequest(res, "filePath, beatIndex, and imageData are required");
-    return;
-  }
+    if (!filePath || beatIndex === undefined || !imageData) {
+      badRequest(res, "filePath, beatIndex, and imageData are required");
+      return;
+    }
 
-  await withStoryContext(res, filePath, {}, async ({ context }) => {
-    const { imagePath } = getBeatPngImagePath(context, beatIndex);
-    // writeFileAtomic creates parent dirs and prevents a half-
-    // written PNG from surviving a crash mid-write (#881 v2).
-    const base64 = stripDataUri(imageData);
-    await writeFileAtomic(imagePath, Buffer.from(base64, "base64"));
+    await withStoryContext(res, filePath, {}, async ({ context }) => {
+      const { imagePath } = getBeatPngImagePath(context, beatIndex);
+      // writeFileAtomic creates parent dirs and prevents a half-
+      // written PNG from surviving a crash mid-write (#881 v2).
+      const base64 = stripDataUri(imageData);
+      await writeFileAtomic(imagePath, Buffer.from(base64, "base64"));
 
-    res.json({ image: fileToDataUri(imagePath, "image/png") });
-  });
-});
+      res.json({ image: fileToDataUri(imagePath, "image/png") });
+    });
+  },
+);
 
-router.post(
+bindRoute(
+  router,
   API_ROUTES.mulmoScript.renderCharacter,
   async (req: Request<object, CharacterImageResponse, RenderCharacterBody>, res: Response<CharacterImageResponse>) => {
     const { filePath, key, force, chatSessionId } = req.body;
@@ -902,7 +914,8 @@ router.post(
   },
 );
 
-router.post(
+bindRoute(
+  router,
   API_ROUTES.mulmoScript.uploadCharacterImage,
   async (req: Request<object, CharacterImageResponse, UploadCharacterImageBody>, res: Response<CharacterImageResponse>) => {
     const { filePath, key, imageData } = req.body;
@@ -924,7 +937,7 @@ router.post(
   },
 );
 
-router.get(API_ROUTES.mulmoScript.downloadMovie, (req: Request, res: Response) => {
+bindRoute(router, API_ROUTES.mulmoScript.downloadMovie, (req: Request, res: Response) => {
   const moviePath = getOptionalStringQuery(req, "moviePath");
 
   if (!moviePath) {

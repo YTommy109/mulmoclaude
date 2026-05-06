@@ -308,24 +308,69 @@ function parseMessagePayload(payload: MessagePayload): ParsedMessage {
   return { ok: true, externalChatId, text, attachments };
 }
 
-function parseAttachments(raw: unknown): Attachment[] | undefined {
+// Hard limits to prevent oversized payloads from bridges (DoS /
+// accidental misconfiguration). Express's JSON body limit (50 MB)
+// is the outer gate; these are tighter, attachment-specific caps.
+const MAX_ATTACHMENT_COUNT = 10;
+const MAX_ATTACHMENT_TOTAL_BYTES = 20 * 1024 * 1024; // 20 MB base64
+
+export function parseAttachments(raw: unknown): Attachment[] | undefined {
   if (!Array.isArray(raw) || raw.length === 0) return undefined;
   const valid: Attachment[] = [];
+  let totalBytes = 0;
   for (const item of raw) {
-    if (
-      item &&
-      typeof item === "object" &&
-      typeof (item as Record<string, unknown>).mimeType === "string" &&
-      typeof (item as Record<string, unknown>).data === "string"
-    ) {
-      const entry: Attachment = {
-        mimeType: (item as Record<string, unknown>).mimeType as string,
-        data: (item as Record<string, unknown>).data as string,
-      };
-      const fn = (item as Record<string, unknown>).filename;
-      if (typeof fn === "string" && fn.length > 0) entry.filename = fn;
-      valid.push(entry);
+    if (valid.length >= MAX_ATTACHMENT_COUNT) break;
+    const entry = parseOneAttachment(item);
+    if (!entry) continue;
+    if (entry.data) {
+      totalBytes += entry.data.length;
+      if (totalBytes > MAX_ATTACHMENT_TOTAL_BYTES) break;
     }
+    valid.push(entry);
   }
   return valid.length > 0 ? valid : undefined;
+}
+
+// Accept either the inline `{ data, mimeType }` shape (bridges
+// shipping raw bytes) or the path-only `{ path }` shape (Vue UI and
+// any bridge that uploads to `data/attachments/` first). Either is
+// valid per the exported `Attachment` type. The earlier parser only
+// recognised the first shape, so a typed `{ path }` payload from a
+// socket client passed type-check but got silently dropped at the
+// wire boundary (#1050 review).
+//
+// Wire-boundary path guard: a malicious bridge can ship arbitrary
+// strings as `path`. The downstream `isAttachmentPath` enforcement
+// in the server is the authoritative gate, but defence-in-depth at
+// each layer is required for external code (#1099 review). Reject
+// absolute paths and any traversal segment up front so a payload
+// like `path: "../../etc/passwd"` never reaches the relay.
+// Windows-style drive-letter absolute path (`C:\…` or `C:/…`).
+// `isSafeAttachmentPath` rejects these too — a malicious bridge
+// can't ship a host-absolute path under any platform convention
+// (#1099 review iter-2).
+const WINDOWS_DRIVE_PATH_RE = /^[A-Za-z]:[\\/]/;
+
+function isSafeAttachmentPath(value: string): boolean {
+  if (value.length === 0) return false;
+  if (value.startsWith("/") || value.startsWith("\\")) return false;
+  if (WINDOWS_DRIVE_PATH_RE.test(value)) return false;
+  for (const segment of value.split(/[/\\]/)) {
+    if (segment === "..") return false;
+  }
+  return true;
+}
+
+export function parseOneAttachment(item: unknown): Attachment | null {
+  if (!item || typeof item !== "object") return null;
+  const record = item as Record<string, unknown>;
+  const filename = typeof record.filename === "string" && record.filename.length > 0 ? record.filename : undefined;
+  if (typeof record.mimeType === "string" && typeof record.data === "string") {
+    return { mimeType: record.mimeType, data: record.data, ...(filename ? { filename } : {}) };
+  }
+  if (typeof record.path === "string" && isSafeAttachmentPath(record.path)) {
+    const mimeType = typeof record.mimeType === "string" ? record.mimeType : undefined;
+    return { path: record.path, ...(mimeType ? { mimeType } : {}), ...(filename ? { filename } : {}) };
+  }
+  return null;
 }

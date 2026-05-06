@@ -49,7 +49,58 @@ export interface RunTarballSmokeOptions {
   packTimeoutMs?: number;
   installTimeoutMs?: number;
   port?: number;
+  /** When true, generate a minimal dev-plugin fixture in workDir and
+   *  boot the launcher with `--dev-plugin <fixture>`. The plugin
+   *  probe then asserts the fixture appears in the runtime list with
+   *  version `"dev"` (regression test for #1159 PR2). */
+  devPlugin?: boolean;
 }
+
+/** Outcome of the runtime-plugin list probe. */
+export interface RuntimePluginProbeResult {
+  ok: boolean;
+  status: number | null;
+  plugins: number;
+  lastError: string | null;
+}
+
+export interface ProbeRuntimePluginsOptions {
+  port: number;
+  token: string | null;
+  fetchImpl?: typeof globalThis.fetch;
+  /** When set, the probe additionally asserts that a plugin matching
+   *  this name appears in the list with version `"dev"`. Used by the
+   *  smoke variant that boots with `--dev-plugin <fixture>`. */
+  expectedDevPlugin?: string | null;
+}
+
+export function probeRuntimePlugins(options: ProbeRuntimePluginsOptions): Promise<RuntimePluginProbeResult>;
+
+export interface DevPluginFixture {
+  absPath: string;
+  name: string;
+}
+
+export interface MakeDevPluginFixtureOptions {
+  workDir: string;
+  /** package.json `name`. Default `@smoke/dev-fixture`. */
+  name?: string;
+  /** Subdirectory of `workDir` to lay out the fixture in. Default
+   *  `dev-plugin-fixture`. */
+  subdir?: string;
+}
+
+/** Lay out a minimal dev-plugin directory (package.json + dist/index.js)
+ *  under `workDir`. Used by `runTarballSmoke({ devPlugin: true })` and
+ *  exercised in tests independently. */
+export function makeDevPluginFixture(options: MakeDevPluginFixtureOptions): Promise<DevPluginFixture>;
+
+export interface ReadTokenFromLauncherLogOptions {
+  logFile: string;
+  readFileImpl?: (filePath: string, encoding: "utf8") => Promise<string>;
+}
+
+export function readTokenFromLauncherLog(options: ReadTokenFromLauncherLogOptions): Promise<string | null>;
 
 /** Result of a full tarball smoke run — always resolves, never throws. */
 export interface TarballSmokeResult {
@@ -61,6 +112,7 @@ export interface TarballSmokeResult {
   tarballPath: string | null;
   workDir: string;
   logFile: string;
+  pluginProbe: RuntimePluginProbeResult | null;
 }
 
 export function runTarballSmoke(options?: RunTarballSmokeOptions): Promise<TarballSmokeResult>;

@@ -104,9 +104,11 @@ import VueDrawingCanvas from "vue-drawing-canvas";
 import type { ToolResult } from "gui-chat-protocol/vue";
 import type { ImageToolData } from "./definition";
 import { apiPut } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
 import { resolveImageSrc } from "../../utils/image/resolve";
 import { bumpImage } from "../../utils/image/cacheBust";
+
+const imageStoreEndpoints = pluginEndpoints<{ update: string }>("imageStore");
 
 const { t } = useI18n();
 
@@ -197,7 +199,7 @@ async function saveDrawing(): Promise<void> {
   uploadInFlight = true;
   try {
     const imageDataUri: string = await canvasRef.value.save();
-    const result = await apiPut<{ path: string }>(API_ROUTES.image.update, {
+    const result = await apiPut<{ path: string }>(imageStoreEndpoints.update, {
       relativePath: imagePath.value,
       imageData: imageDataUri,
     });

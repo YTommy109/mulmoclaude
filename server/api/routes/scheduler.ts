@@ -3,12 +3,13 @@ import { loadSchedulerItems, saveSchedulerItems } from "../../utils/files/schedu
 import { dispatchScheduler, type SchedulerActionInput } from "./schedulerHandlers.js";
 import { respondWithDispatchResult, type DispatchSuccessResponse, type DispatchErrorResponse } from "./dispatchResponse.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { bindRoute } from "../../utils/router.js";
 import { SESSION_ORIGINS } from "../../../src/types/session.js";
 import { loadUserTasks, validateAndCreate, refreshUserTasks } from "../../workspace/skills/user-tasks.js";
 import { saveUserTasks } from "../../utils/files/user-tasks-io.js";
 import { startChat } from "./agent.js";
 import { log } from "../../system/logger/index.js";
-import { SCHEDULER_ACTIONS, TASK_ACTIONS } from "../../../src/config/schedulerActions.js";
+import { SCHEDULER_ACTIONS, TASK_ACTIONS } from "../../../src/plugins/scheduler/actions.js";
 import { badRequest, notFound, serverError } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
 import { makeUuid } from "../../utils/id.js";
@@ -30,7 +31,7 @@ function saveItems(items: ScheduledItem[]): void {
   saveSchedulerItems(items);
 }
 
-router.get(API_ROUTES.scheduler.base, (_req: Request, res: Response<{ data: { items: ScheduledItem[] } }>) => {
+bindRoute(router, API_ROUTES.scheduler.list, (_req: Request, res: Response<{ data: { items: ScheduledItem[] } }>) => {
   res.json({ data: { items: loadItems() } });
 });
 
@@ -43,8 +44,9 @@ interface SchedulerBody extends SchedulerActionInput {
   roleId?: string;
 }
 
-router.post(
-  API_ROUTES.scheduler.base,
+bindRoute(
+  router,
+  API_ROUTES.scheduler.dispatch,
   async (req: Request<object, unknown, SchedulerBody>, res: Response<DispatchSuccessResponse<ScheduledItem> | DispatchErrorResponse | unknown>) => {
     const { action, ...input } = req.body;
 

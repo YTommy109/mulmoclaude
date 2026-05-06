@@ -47,6 +47,7 @@
           v-if="moviePath && !movieGenerating"
           class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           :disabled="movieDownloading"
+          data-testid="mulmo-script-download-movie-button"
           @click="downloadMovie"
         >
           <span class="material-icons text-base">download</span>
@@ -60,6 +61,7 @@
           class="h-8 w-8 flex items-center justify-center rounded border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
           :title="t('pluginMulmoScript.regenerateMovie')"
           :aria-label="t('pluginMulmoScript.regenerateMovie')"
+          data-testid="mulmo-script-regenerate-movie-button"
           @click="generateMovie"
         >
           <span class="material-icons text-base">refresh</span>
@@ -71,6 +73,7 @@
           v-else
           class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           :disabled="movieGenerating"
+          data-testid="mulmo-script-generate-movie-button"
           @click="generateMovie"
         >
           <svg v-if="movieGenerating" class="animate-spin w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none">
@@ -277,7 +280,12 @@
                   {{ t("pluginMulmoScript.generateAudio") }}
                 </button>
               </div>
-              <button class="text-gray-400 hover:text-gray-600" :title="sourceOpen[index] ? 'Hide source' : 'Show source'" @click="toggleSource(index)">
+              <button
+                class="text-gray-400 hover:text-gray-600"
+                :title="sourceOpen[index] ? 'Hide source' : 'Show source'"
+                :data-testid="`mulmo-script-beat-source-toggle-${index}`"
+                @click="toggleSource(index)"
+              >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   class="w-3.5 h-3.5"
@@ -304,6 +312,7 @@
             :class="isValidBeat(index) ? 'outline-none' : 'outline outline-2 outline-red-400'"
             rows="8"
             spellcheck="false"
+            :data-testid="`mulmo-script-beat-source-textarea-${index}`"
           />
           <div class="flex items-center justify-end gap-2 px-2 pb-2">
             <span v-if="beatSaveErrors[index]" class="text-xs text-red-600" role="alert">{{
@@ -319,6 +328,7 @@
                   : 'border-gray-200 text-gray-300 cursor-not-allowed'
               "
               :disabled="!isValidBeat(index) || !!beatSaving[index]"
+              :data-testid="`mulmo-script-beat-update-button-${index}`"
               @click="updateBeat(index)"
             >
               {{ beatSaving[index] ? t("pluginMulmoScript.saving") : t("pluginMulmoScript.update") }}
@@ -432,11 +442,15 @@ import type { MulmoScriptData } from "./index";
 import { mulmoBeatSchema, mulmoScriptSchema } from "@mulmocast/types";
 import { extractErrorMessage, getMissingCharacterKeys, shouldAutoRenderBeat, streamMovieEvents, validateBeatJSON } from "./helpers";
 import { apiGet, apiPost, apiFetchRaw } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
+import type { MulmoScriptEndpoints } from "./definition";
 import { errorMessage } from "../../utils/errors";
 import { useClipboardCopy } from "../../composables/useClipboardCopy";
 import { useActiveSession } from "../../composables/useActiveSession";
 import { GENERATION_KINDS, type PendingGeneration } from "../../types/events";
+
+const endpoints = pluginEndpoints<MulmoScriptEndpoints>("mulmoScript");
+const filesEndpoints = pluginEndpoints<{ content: string }>("files");
 
 const { t } = useI18n();
 
@@ -689,7 +703,7 @@ async function onSourceToggle(open: boolean) {
     let text = scriptSourceText.value;
     // Read the current file from disk so beat-level edits are reflected
     if (filePath.value) {
-      const response = await apiGet<{ content?: string }>(API_ROUTES.files.content, { path: filePath.value });
+      const response = await apiGet<{ content?: string }>(filesEndpoints.content, { path: filePath.value });
       if (response.ok && response.data.content) {
         text = response.data.content;
       }
@@ -712,7 +726,7 @@ async function applySource() {
     alert(extractErrorMessage(err));
     return;
   }
-  const response = await apiPost<unknown>(API_ROUTES.mulmoScript.updateScript, {
+  const response = await apiPost<unknown>(endpoints.updateScript.url, {
     filePath: filePath.value,
     script: parsed,
   });
@@ -767,7 +781,7 @@ async function updateBeat(index: number) {
 
   Reflect.deleteProperty(beatSaveErrors, index);
   beatSaving[index] = true;
-  const response = await apiPost<unknown>(API_ROUTES.mulmoScript.updateBeat, {
+  const response = await apiPost<unknown>(endpoints.updateBeat.url, {
     filePath: filePath.value,
     beatIndex: index,
     beat,
@@ -789,7 +803,7 @@ async function updateBeat(index: number) {
 
 async function renderBeat(index: number) {
   renderState[index] = "rendering";
-  const response = await apiPost<{ image?: string; error?: string }>(API_ROUTES.mulmoScript.renderBeat, {
+  const response = await apiPost<{ image?: string; error?: string }>(endpoints.renderBeat.url, {
     filePath: filePath.value,
     beatIndex: index,
     chatSessionId: chatSessionId.value,
@@ -812,7 +826,7 @@ async function renderBeat(index: number) {
 async function regenerateBeat(index: number) {
   Reflect.deleteProperty(renderedImages, index);
   renderState[index] = "rendering";
-  const response = await apiPost<{ image?: string; error?: string }>(API_ROUTES.mulmoScript.renderBeat, {
+  const response = await apiPost<{ image?: string; error?: string }>(endpoints.renderBeat.url, {
     filePath: filePath.value,
     beatIndex: index,
     force: true,
@@ -833,7 +847,7 @@ async function regenerateBeat(index: number) {
 }
 
 async function loadExistingBeatImage(index: number) {
-  const response = await apiGet<{ image?: string }>(API_ROUTES.mulmoScript.beatImage, { filePath: filePath.value, beatIndex: String(index) });
+  const response = await apiGet<{ image?: string }>(endpoints.beatImage.url, { filePath: filePath.value, beatIndex: String(index) });
   // silently ignore errors — image simply hasn't been generated yet
   if (response.ok && response.data.image) {
     renderedImages[index] = response.data.image;
@@ -842,7 +856,7 @@ async function loadExistingBeatImage(index: number) {
 }
 
 async function loadExistingBeatAudio(index: number) {
-  const response = await apiGet<{ audio?: string }>(API_ROUTES.mulmoScript.beatAudio, { filePath: filePath.value, beatIndex: String(index) });
+  const response = await apiGet<{ audio?: string }>(endpoints.beatAudio.url, { filePath: filePath.value, beatIndex: String(index) });
   // silently ignore errors
   if (response.ok && response.data.audio) {
     beatAudios[index] = response.data.audio;
@@ -853,7 +867,7 @@ async function loadExistingBeatAudio(index: number) {
 async function generateAudio(index: number) {
   audioState[index] = "generating";
   Reflect.deleteProperty(audioErrors, index);
-  const response = await apiPost<{ audio?: string; error?: string }>(API_ROUTES.mulmoScript.generateBeatAudio, {
+  const response = await apiPost<{ audio?: string; error?: string }>(endpoints.generateBeatAudio.url, {
     filePath: filePath.value,
     beatIndex: index,
     chatSessionId: chatSessionId.value,
@@ -934,7 +948,7 @@ async function onBeatDrop(event: DragEvent, index: number) {
     renderState[index] = "error";
     return;
   }
-  const response = await apiPost<{ image?: string; error?: string }>(API_ROUTES.mulmoScript.uploadBeatImage, {
+  const response = await apiPost<{ image?: string; error?: string }>(endpoints.uploadBeatImage.url, {
     filePath: filePath.value,
     beatIndex: index,
     imageData,
@@ -984,7 +998,7 @@ async function onCharDrop(event: DragEvent, key: string) {
     charRenderState[key] = "error";
     return;
   }
-  const response = await apiPost<{ image?: string; error?: string }>(API_ROUTES.mulmoScript.uploadCharacterImage, { filePath: filePath.value, key, imageData });
+  const response = await apiPost<{ image?: string; error?: string }>(endpoints.uploadCharacterImage.url, { filePath: filePath.value, key, imageData });
   if (!response.ok) {
     charErrors[key] = response.error || "Upload failed";
     charRenderState[key] = "error";
@@ -1013,7 +1027,7 @@ function openCharacterLightbox(key: string) {
 }
 
 async function loadExistingCharacterImage(key: string) {
-  const response = await apiGet<{ image?: string }>(API_ROUTES.mulmoScript.characterImage, { filePath: filePath.value, key });
+  const response = await apiGet<{ image?: string }>(endpoints.characterImage.url, { filePath: filePath.value, key });
   // silently ignore errors
   if (response.ok && response.data.image) {
     charImages[key] = response.data.image;
@@ -1028,7 +1042,7 @@ function refreshMissingCharacterImages() {
 async function renderCharacter(key: string, force: boolean) {
   charRenderState[key] = "rendering";
   Reflect.deleteProperty(charErrors, key);
-  const response = await apiPost<{ image?: string; error?: string }>(API_ROUTES.mulmoScript.renderCharacter, {
+  const response = await apiPost<{ image?: string; error?: string }>(endpoints.renderCharacter.url, {
     filePath: filePath.value,
     key,
     force,
@@ -1110,7 +1124,7 @@ async function initializeScript() {
   characterKeys.value.forEach((key) => loadExistingCharacterImage(key));
 
   if (filePath.value) {
-    const response = await apiGet<{ moviePath?: string }>(API_ROUTES.mulmoScript.movieStatus, { filePath: filePath.value });
+    const response = await apiGet<{ moviePath?: string }>(endpoints.movieStatus.url, { filePath: filePath.value });
     if (response.ok && response.data.moviePath) {
       moviePath.value = response.data.moviePath;
     }
@@ -1184,7 +1198,7 @@ async function reflectGenerationFinish(entry: PendingGeneration): Promise<void> 
 
 async function refreshMoviePath(): Promise<void> {
   if (!filePath.value) return;
-  const response = await apiGet<{ moviePath?: string }>(API_ROUTES.mulmoScript.movieStatus, { filePath: filePath.value });
+  const response = await apiGet<{ moviePath?: string }>(endpoints.movieStatus.url, { filePath: filePath.value });
   if (response.ok && response.data.moviePath) {
     moviePath.value = response.data.moviePath;
   }
@@ -1193,7 +1207,7 @@ async function refreshMoviePath(): Promise<void> {
 async function generateMovie() {
   movieGenerating.value = true;
   try {
-    const res = await apiFetchRaw(API_ROUTES.mulmoScript.generateMovie, {
+    const res = await apiFetchRaw(endpoints.generateMovie.url, {
       method: "POST",
       body: JSON.stringify({
         filePath: filePath.value,
@@ -1229,7 +1243,7 @@ async function downloadMovie() {
   movieDownloading.value = true;
   let objectUrl: string | null = null;
   try {
-    const res = await apiFetchRaw(API_ROUTES.mulmoScript.downloadMovie, {
+    const res = await apiFetchRaw(endpoints.downloadMovie.url, {
       method: "GET",
       query: { moviePath: moviePath.value },
     });

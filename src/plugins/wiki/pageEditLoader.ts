@@ -5,7 +5,8 @@
 // neither survives.
 
 import { apiGet } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
+import type { WikiEndpoints } from "./index";
 import { serializeWithFrontmatter } from "../../utils/markdown/frontmatter";
 
 export type PageEditLoadResult = { kind: "snapshot"; content: string; ts: string } | { kind: "current"; content: string } | { kind: "deleted" };
@@ -30,7 +31,8 @@ interface CurrentPageResponse {
  *  by convention, but the slug already encodes that — pagePath is
  *  carried along as audit metadata). */
 export async function loadPageEdit(slug: string, stamp: string): Promise<PageEditLoadResult> {
-  const snap = await apiGet<SnapshotResponse>(`${API_ROUTES.wiki.base}/pages/${encodeURIComponent(slug)}/history/${encodeURIComponent(stamp)}`);
+  const wikiEndpoints = pluginEndpoints<WikiEndpoints>("wiki");
+  const snap = await apiGet<SnapshotResponse>(`${wikiEndpoints.base}/pages/${encodeURIComponent(slug)}/history/${encodeURIComponent(stamp)}`);
   if (snap.ok) {
     const { body, meta, ts } = snap.data.snapshot;
     return { kind: "snapshot", content: serializeWithFrontmatter(meta, body), ts };
@@ -43,7 +45,7 @@ export async function loadPageEdit(slug: string, stamp: string): Promise<PageEdi
     return { kind: "deleted" };
   }
 
-  const current = await apiGet<CurrentPageResponse>(`${API_ROUTES.wiki.base}?slug=${encodeURIComponent(slug)}`);
+  const current = await apiGet<CurrentPageResponse>(`${wikiEndpoints.base}?slug=${encodeURIComponent(slug)}`);
   if (current.ok && current.data.data.pageExists && typeof current.data.data.content === "string") {
     return { kind: "current", content: current.data.data.content };
   }

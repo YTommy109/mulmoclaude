@@ -11,6 +11,9 @@ export function useSessionDerived(opts: { sessionMap: Map<string, ActiveSession>
 
   const toolResults = computed<ToolResultComplete[]>(() => activeSession.value?.toolResults ?? []);
 
+  // `sidebarResults` is the canonical "what the user sees and can
+  // navigate through" list — keyboard nav (useKeyNavigation), the
+  // sidebar render, and StackView all consume it.
   const sidebarResults = computed(() => deduplicateResults(toolResults.value));
 
   const currentSummary = computed(() => sessions.value.find((summary) => summary.id === currentSessionId.value));

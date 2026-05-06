@@ -1,10 +1,13 @@
 import type { ToolDefinition } from "gui-chat-protocol";
+import { META } from "./meta";
+import type { ResolvedRoute } from "../meta-types";
 
-export const TOOL_NAME = "presentForm";
+export const TOOL_NAME = META.toolName;
+export type PresentFormEndpoints = { readonly [K in keyof typeof META.apiRoutes]: ResolvedRoute };
 
 export const TOOL_DEFINITION: ToolDefinition = {
   type: "function",
-  name: TOOL_NAME,
+  name: META.toolName,
   description:
     "Create a structured form to collect information from the user. Supports various field types including text input, textarea, multiple choice (radio), dropdown menus, checkboxes, date/time pickers, and number inputs. Each field can have validation rules and help text.",
   parameters: {
@@ -121,3 +124,5 @@ export const TOOL_DEFINITION: ToolDefinition = {
     required: ["fields"],
   },
 };
+
+export default TOOL_DEFINITION;

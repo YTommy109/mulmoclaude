@@ -43,7 +43,8 @@ The `w-80` left column inside the chat page (and any other view that mounts it).
 ```
 ┌─<SessionSidebar>──────────────────────────────┐
 │ ┌─[sidebar-role-header]─────────────────────┐ │
-│ │ ⭐ General                       🔧  ▦/▥  │ │  ← role icon + name
+│ │ ⭐ General              [copy-chat-md] 🔧 ▦/▥│ │  ← role icon + name
+│ │                                            │ │     copy session as Markdown (content_copy)
 │ │                                            │ │     toggle right sidebar (build icon)
 │ │                                            │ │     <CanvasViewToggle> single/stack
 │ └────────────────────────────────────────────┘ │
@@ -64,7 +65,7 @@ The `w-80` left column inside the chat page (and any other view that mounts it).
 └────────────────────────────────────────────────┘
 ```
 
-In **Stack layout** this sidebar isn't rendered; the same data flows through `<StackView>` which inlines result bodies into the main column. Only single layout shows the preview list.
+In **Stack layout** this sidebar isn't rendered; the same data flows through `<StackView>` which inlines result bodies into the main column. Only single layout shows the preview list. `<StackView>`'s own header (`[stack-role-header]`) carries the same control cluster — `[copy-chat-md]` (content_copy → check on success), tool-call-history toggle, and `<CanvasViewToggle>` — so the affordance lives in the same visual slot regardless of layout.
 
 ## NotificationBell expanded
 
@@ -124,6 +125,7 @@ Stable hooks for tests / chat references when a tool result is selected on the r
 | Plugin | testid | What it points at |
 |---|---|---|
 | `presentHtml` | `[present-html-iframe]` | The `<iframe :src="/artifacts/html/...">` rendering the saved HTML page |
+| `generateImage` | `[generate-image-view]` | The wrapper around `<ImageView>` showing a generated image (`<img src="/artifacts/images/...">`) |
 | `textResponse` | `[text-response-pdf-button]` | The "PDF" button on an assistant text response (`usePdfDownload` → `/api/pdf/markdown`) |
 | `textResponse` | `[text-response-edit]` / `[text-response-edit-summary]` / `[text-response-edit-textarea]` / `[text-response-apply-btn]` | The collapsible source editor on an assistant text response |
 
@@ -392,6 +394,68 @@ The preview pane reuses plugin views — clicking a `config/scheduler/items.json
 │ └────────────────────────────────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────┘
 ```
+
+## `<AccountingApp>` — opt-in plugin (no route)
+
+Mounted via the tool-result envelope `{ kind: "accounting-app" }`
+returned by `manageAccounting({action:"openBook", bookId})`. **No `/accounting`
+route exists.** The default (General) role cannot reach this
+surface; the built-in **Accounting** role and any custom role whose
+`availablePlugins` includes `manageAccounting` can trigger the
+mount.
+
+```text
+┌─[<AccountingApp>] data-testid="accounting-app"───────────────────────┐
+│ ┌─Header───────────────────────────────────────────────────────────┐ │
+│ │  account_balance Accounting          [<BookSwitcher>]            │ │
+│ └──────────────────────────────────────────────────────────────────┘ │
+│ ┌─Tabs [accounting-tabs]───────────────────────────────────────────┐ │
+│ │ [accounting-tab-journal] [accounting-tab-newEntry]               │ │
+│ │ [accounting-tab-opening] [accounting-tab-ledger]                 │ │
+│ │ [accounting-tab-balanceSheet] [accounting-tab-profitLoss]        │ │
+│ │ [accounting-tab-settings]                                        │ │
+│ └──────────────────────────────────────────────────────────────────┘ │
+│ ┌─Body (one of)────────────────────────────────────────────────────┐ │
+│ │  • [accounting-no-book]    ← empty workspace                     │ │
+│ │  • <JournalList>           ← entries table; voided rows strike   │ │
+│ │  • <JournalEntryForm>                                            │ │
+│ │  • <OpeningBalancesForm>   ← save disabled until Σdr = Σcr       │ │
+│ │  • <Ledger>                                                      │ │
+│ │  • <BalanceSheet>                                                │ │
+│ │  • <ProfitLoss>                                                  │ │
+│ │  • <BookSettings>          ← rebuild snapshots / delete book     │ │
+│ └──────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+Key testids and what they target:
+
+| testid | element | notes |
+|---|---|---|
+| `accounting-app` | root `<div>` of the View | mount probe |
+| `accounting-no-book` | empty-state branch | shows when `activeBookId` is null |
+| `accounting-tabs` | tab strip wrapper | |
+| `accounting-tab-{key}` | one per tab (journal / newEntry / …) | click target |
+| `accounting-book-select` | `<BookSwitcher>` `<select>` | book picker |
+| `accounting-journal-table` | `<JournalList>` `<table>` | entries grid |
+| `accounting-journal-row-{id}` / `accounting-journal-row-voided-{id}` | per-entry `<tr>` | voided rows use the `-voided-` variant **and** carry the strikeout class — bind to `voidedEntryIds` (server-side `voidedIdSet`), **not** to `kind === 'void'` |
+| `accounting-void-{id}` | per-row void button | only on `kind === 'normal'` rows |
+| `accounting-entry-line-account-{idx}` / `-debit-{idx}` / `-credit-{idx}` | per-line inputs in `<JournalEntryForm>` | one set per row |
+| `accounting-entry-line-tax-registration-id-{idx}` | per-line counterparty tax-registration ID input | optional; covers JP T-number, EU VAT ID, GSTIN, ABN, … (max 32 chars; canonical home = `JournalLine.taxRegistrationId`) |
+| `accounting-settings` | `<BookSettings>` root | settings tab body |
+| `accounting-settings-rebuild` | rebuild snapshots button | |
+| `accounting-settings-delete` | confirm-then-delete button | enabled once the typed name matches |
+
+Persistence: data lives at `~/mulmoclaude/data/accounting/books/<bookId>/`.
+Book ids are server-generated (`book-XXXXXXXX`); there is no magic
+`default` id. Empty workspace ⇒ `config.json#activeBookId === null`
+and the View renders `accounting-no-book`.
+
+Async snapshot rebuild: writes call `scheduleRebuild(bookId, fromPeriod)`
+after invalidating snapshot files. The View can subscribe to
+`accountingBookChannel(bookId)` and observe `snapshots-rebuilding` /
+`snapshots-ready` events; the lazy fallback in `getOrBuildSnapshot`
+guarantees correctness even if a report is requested mid-rebuild.
 
 ## How to use this doc in chat
 

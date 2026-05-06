@@ -2,6 +2,12 @@ import type { ToolDefinition } from "gui-chat-protocol";
 
 export const TOOL_NAME = "manageRoles";
 
+export interface RolesEndpoints {
+  [key: string]: string;
+  list: string;
+  manage: string;
+}
+
 const toolDefinition: ToolDefinition = {
   type: "function",
   name: TOOL_NAME,

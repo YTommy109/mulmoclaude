@@ -66,6 +66,10 @@ const routes: RouteRecordRaw[] = [
   // News viewer (#761). Optional `?source=<slug>` query for the
   // Sources-page deep link.
   { path: "/news", name: PAGE_ROUTES.news, component: Stub },
+  // Debug page (#feat-encore PR 1 follow-up). Standalone playground for
+  // experimental plugin features (notifier engine, etc.). Rendered by
+  // the @mulmoclaude/debug-plugin runtime plugin.
+  { path: "/debug", name: PAGE_ROUTES.debug, component: Stub },
   { path: "/:pathMatch(.*)*", redirect: "/chat" },
 ];
 

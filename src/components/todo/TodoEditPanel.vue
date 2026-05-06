@@ -64,9 +64,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { StatusColumn, TodoItem, TodoPriority } from "../../plugins/todo/index";
-import { PRIORITIES, PRIORITY_LABELS } from "../../plugins/todo/priority";
-import type { PatchItemInput } from "../../plugins/todo/composables/useTodos";
+import type { StatusColumn, TodoItem, TodoPriority, PatchItemInput } from "@mulmoclaude/todo-plugin/shared";
+import { PRIORITIES, PRIORITY_LABELS } from "@mulmoclaude/todo-plugin/shared";
 
 const { t } = useI18n();
 

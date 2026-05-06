@@ -31,18 +31,20 @@ export function parseSessionEntries(entries: readonly SessionEntry[]): ToolResul
 // Pick the `selectedResultUuid` the session should restore to.
 // Rules:
 //   1. If the URL carries `?result=<uuid>` AND that uuid actually
-//      exists in the loaded list, honour it verbatim. This lets
-//      bookmarks restore the exact result the user was viewing.
-//   2. Otherwise fall back to the heuristic: the most recent
-//      non-text tool result (images, wiki pages, etc. carry more
-//      visual information than bare text).
-//   3. If there are no non-text results, use the last result of
-//      any kind.
+//      exists in the loaded list, honour it verbatim — bookmarks
+//      restore the exact result the user was viewing.
+//   2. Otherwise pick the most recent non-text tool result —
+//      images, wiki pages, etc. carry more visual information
+//      than a bare text response.
+//   3. If every result is `text-response`, fall back to the last
+//      one.
 //   4. If the list is empty, return null.
+//
 export function resolveSelectedUuid(toolResults: readonly ToolResultComplete[], urlResult: string | null): string | null {
   if (urlResult && toolResults.some((result) => result.uuid === urlResult)) {
     return urlResult;
   }
+  if (toolResults.length === 0) return null;
   // Iterate backwards for the "last non-text" lookup so callers
   // don't pay for an intermediate reverse copy.
   for (let i = toolResults.length - 1; i >= 0; i--) {
@@ -50,8 +52,7 @@ export function resolveSelectedUuid(toolResults: readonly ToolResultComplete[], 
       return toolResults[i].uuid;
     }
   }
-  const last = toolResults[toolResults.length - 1];
-  return last?.uuid ?? null;
+  return toolResults[toolResults.length - 1].uuid;
 }
 
 // Decide the `startedAt` / `updatedAt` to seed the in-memory

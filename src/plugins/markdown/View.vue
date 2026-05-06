@@ -82,12 +82,12 @@ import { useI18n } from "vue-i18n";
 import { marked } from "marked";
 import { formatScalarField, useMarkdownDoc } from "../../composables/useMarkdownDoc";
 import type { ToolResult } from "gui-chat-protocol";
-import { isFilePath, type MarkdownToolData } from "./definition";
+import { isFilePath, type MarkdownToolData, type DocumentEndpoints } from "./definition";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { findTaskLines, makeTasksInteractive, toggleTaskAt } from "../../utils/markdown/taskList";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { apiGet, apiPut } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { pluginEndpoints } from "../api";
 import { useClipboardCopy } from "../../composables/useClipboardCopy";
 import { buildPdfFilename } from "../../utils/files/filename";
 import { useAppApi } from "../../composables/useAppApi";
@@ -118,6 +118,9 @@ const loadError = ref<string | null>(null);
 const markdownContent = ref("");
 const editableMarkdown = ref("");
 
+const endpoints = pluginEndpoints<DocumentEndpoints>("markdown");
+const filesEndpoints = pluginEndpoints<{ content: string }>("files");
+
 async function fetchMarkdownContent(): Promise<void> {
   loadError.value = null;
   const raw = props.selectedResult.data?.markdown;
@@ -128,7 +131,7 @@ async function fetchMarkdownContent(): Promise<void> {
   }
   if (isFilePath(raw)) {
     loading.value = true;
-    const result = await apiGet<{ content?: string }>(API_ROUTES.files.content, {
+    const result = await apiGet<{ content?: string }>(filesEndpoints.content, {
       path: raw,
     });
     if (!result.ok) {
@@ -174,7 +177,7 @@ const sourceDetails = ref<HTMLDetailsElement>();
 // would strand the view on stale content until the next write
 // (#1001 P1). Discarding in-progress edits is rare enough to be
 // acceptable; a "remote changed" banner is queued for a follow-up —
-// see plans/feat-file-change-pubsub.md.
+// see plans/done/feat-file-change-pubsub.md.
 watch(fileVersion, (current, previous) => {
   if (current === 0 || current === previous) return;
   if (sourceDetails.value?.open) {
@@ -272,7 +275,7 @@ async function applyMarkdown() {
   // (e.g. the YYYY/MM partitions added in #764).
   if (isFilePath(raw)) {
     saving.value = true;
-    const result = await apiPut<unknown>(API_ROUTES.plugins.updateMarkdown, {
+    const result = await apiPut<unknown>(endpoints.update.url, {
       relativePath: raw,
       markdown: editableMarkdown.value,
     });
@@ -324,7 +327,7 @@ async function persistTaskMarkdown(relativePath: string, markdown: string): Prom
   // on screen, and persisting it would clobber unrelated state.
   if (props.selectedResult.data?.markdown !== relativePath) return;
 
-  const result = await apiPut<unknown>(API_ROUTES.plugins.updateMarkdown, {
+  const result = await apiPut<unknown>(endpoints.update.url, {
     relativePath,
     markdown,
   });
