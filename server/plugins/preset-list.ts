@@ -39,4 +39,9 @@ export const PRESET_PLUGINS: readonly PresetPlugin[] = [
   // todo-plugin via the workspace symlink at
   // `node_modules/@mulmoclaude/spotify-plugin/`.
   { packageName: "@mulmoclaude/spotify-plugin" },
+  // #1175 / #1169 PR-A — recipe-book runtime plugin. First slice of
+  // the Cooking Coach plugin set. Stores recipes as one markdown file
+  // per recipe under the plugin's `files.data` scope; demonstrates
+  // markdown-per-record storage on the v0.3 runtime API.
+  { packageName: "@mulmoclaude/recipe-book-plugin" },
 ];
