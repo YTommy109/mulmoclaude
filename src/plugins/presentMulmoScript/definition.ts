@@ -1,10 +1,13 @@
 import type { ToolDefinition } from "gui-chat-protocol";
+import { META } from "./meta";
+import type { ResolvedRoute } from "../meta-types";
 
-export const TOOL_NAME = "presentMulmoScript";
+export const TOOL_NAME = META.toolName;
+export type MulmoScriptEndpoints = { readonly [K in keyof typeof META.apiRoutes]: ResolvedRoute };
 
 const toolDefinition: ToolDefinition = {
   type: "function",
-  name: TOOL_NAME,
+  name: META.toolName,
   description: `Save and present a MulmoScript story or presentation as a visual storyboard in the canvas.
 
 Two modes — provide EXACTLY ONE of \`script\` or \`filePath\`:

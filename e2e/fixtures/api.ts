@@ -97,9 +97,20 @@ export async function mockAllApis(page: Page, opts: MockApiOptions = {}): Promis
     },
   );
 
-  await page.route(urlEndsWith("/api/todos"), (route) => route.fulfill({ json: DEFAULT_TODOS }));
+  // Todo plugin moved to the runtime-plugin shape (#1145) — the
+  // single dispatch endpoint replaces the old REST `/api/todos*`
+  // routes. Default mock echoes DEFAULT_TODOS for every kind so
+  // read-only specs keep working without per-test scaffolding.
+  await page.route(
+    (url) => url.pathname === "/api/plugins/runtime/%40mulmoclaude%2Ftodo-plugin/dispatch",
+    (route) => route.fulfill({ json: DEFAULT_TODOS }),
+  );
 
-  await page.route(urlStartsWith("/api/todos/"), (route) => route.fulfill({ json: DEFAULT_TODOS }));
+  // Defensive defaults for the broader runtime-plugin surface — the
+  // boot path queries these on every page load. Empty responses are
+  // safe for tests that don't exercise plugin install / diagnostics.
+  await page.route(urlEndsWith("/api/plugins/runtime/list"), (route) => route.fulfill({ json: [] }));
+  await page.route(urlEndsWith("/api/plugins/diagnostics"), (route) => route.fulfill({ json: [] }));
 
   // Server returns a plain array of { name, enabled, requiredEnv, prompt }
   // (see server/mcp-tools/index.ts). The old object-wrapped shape used

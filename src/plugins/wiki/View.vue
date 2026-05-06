@@ -347,24 +347,25 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter, isNavigationFailure } from "vue-router";
 import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-import type { WikiData, WikiPageEntry } from "./index";
+import type { WikiData, WikiPageEntry, WikiEndpoints } from "./index";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { useAppApi } from "../../composables/useAppApi";
 import { buildPdfFilename } from "../../utils/files/filename";
 import PageChatComposer from "../../components/PageChatComposer.vue";
-import { BUILTIN_ROLE_IDS } from "../../config/roles";
+import { pluginBuiltinRoleIds, pluginEndpoints, pluginPageRoute } from "../api";
 import { parseFrontmatter } from "../../utils/markdown/frontmatter";
 import { useMarkdownDoc } from "../../composables/useMarkdownDoc";
 import { findTaskLines, toggleTaskAt } from "../../utils/markdown/taskList";
 import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
-import { PAGE_ROUTES } from "../../router";
 import { WIKI_ACTION, WIKI_ROUTE_SECTION, buildWikiRouteParams, isSafeWikiSlug, readWikiRouteTarget, wikiActionFor, type WikiTarget } from "./route";
 import FilterChip from "../../components/FilterChip.vue";
 import HistoryTab from "./history/HistoryTab.vue";
 import WikiPageBody from "./components/WikiPageBody.vue";
 import { loadPageEdit } from "./pageEditLoader";
+
+const wikiEndpoints = pluginEndpoints<WikiEndpoints>("wiki");
+const PAGE_WIKI = pluginPageRoute("wiki");
 
 type WikiTabView = typeof WIKI_ACTION.log | typeof WIKI_ACTION.lintReport;
 
@@ -439,7 +440,7 @@ let restoreToastTimer: ReturnType<typeof setTimeout> | null = null;
 // underlying state.
 const currentSlugReactive = computed<string | null>(() => {
   const raw =
-    route.name === PAGE_ROUTES.wiki && route.params.section === WIKI_ROUTE_SECTION.pages && typeof route.params.slug === "string"
+    route.name === PAGE_WIKI && route.params.section === WIKI_ROUTE_SECTION.pages && typeof route.params.slug === "string"
       ? route.params.slug
       : (props.selectedResult?.data?.pageName ?? null);
   return isSafeWikiSlug(raw) ? raw : null;
@@ -467,7 +468,7 @@ const { refresh, abort: abortFreshFetch } = useFreshPluginData<WikiData>({
   // and clobber the user's view (#775 / codex iter 2).
   endpoint: () => {
     const slug = action.value === "page" ? currentSlug() : null;
-    return slug ? `${API_ROUTES.wiki.base}?slug=${encodeURIComponent(slug)}` : API_ROUTES.wiki.base;
+    return slug ? `${wikiEndpoints.base}?slug=${encodeURIComponent(slug)}` : wikiEndpoints.base;
   },
   extract: (json) => (json as { data?: WikiData }).data ?? null,
   apply: (data) => {
@@ -497,7 +498,7 @@ onMounted(() => {
   // useFreshPluginData's mount fetch is GET-only and always returns
   // the index payload — if it resolves last, it clobbers log / lint /
   // page state. Cancel it here so the two can't race.
-  if (route.name === PAGE_ROUTES.wiki) abortFreshFetch();
+  if (route.name === PAGE_WIKI) abortFreshFetch();
   // page-edit toolResults source their content from the snapshot
   // endpoint via loadPageEditData. Cancel the mount fetch (which
   // targets /api/wiki) so it can't clobber state, and kick the
@@ -570,7 +571,7 @@ async function loadPageEditData(slug: string, stamp: string): Promise<void> {
 // params are known-safe. `readWikiRouteTarget` returning `null` here
 // therefore means an unexpected shape — fall back to the index view.
 watch(
-  () => (route.name === PAGE_ROUTES.wiki ? [route.params.section, route.params.slug] : null),
+  () => (route.name === PAGE_WIKI ? [route.params.section, route.params.slug] : null),
   (params) => {
     if (!params) return;
     const target = readWikiRouteTarget({ section: params[0], slug: params[1] }) ?? { kind: "index" };
@@ -653,7 +654,7 @@ function setTagFilterAndNavigate(tag: string) {
 // not a tool call — the agent decides how to run the lint and
 // report back.
 function startLintChat() {
-  appApi.startNewChat("lint my wiki", BUILTIN_ROLE_IDS.general);
+  appApi.startNewChat("lint my wiki", pluginBuiltinRoleIds().general);
 }
 
 // Clear the filter whenever we leave the index view — otherwise
@@ -773,7 +774,7 @@ async function callApi(body: Record<string, unknown>) {
       pageEntries?: WikiPageEntry[];
       pageExists?: boolean;
     };
-  }>(API_ROUTES.wiki.base, body);
+  }>(wikiEndpoints.base, body);
   if (!response.ok) {
     navError.value = response.status === 0 ? response.error : `Wiki API error ${response.status}: ${response.error}`;
     return;
@@ -795,7 +796,7 @@ async function callApi(body: Record<string, unknown>) {
 }
 
 function pushWiki(target: WikiTarget) {
-  router.push({ name: PAGE_ROUTES.wiki, params: buildWikiRouteParams(target) }).catch((err: unknown) => {
+  router.push({ name: PAGE_WIKI, params: buildWikiRouteParams(target) }).catch((err: unknown) => {
     if (!isNavigationFailure(err)) {
       console.error("[wiki] navigation failed:", err);
     }
@@ -815,9 +816,9 @@ function navigatePage(pageName: string) {
 // route/router/t so the lint-by-line analysis is happy with earlier
 // uses in `startLintChat` etc.)
 
-const isStandaloneWikiRoute = computed(() => route.name === PAGE_ROUTES.wiki);
+const isStandaloneWikiRoute = computed(() => route.name === PAGE_WIKI);
 
-// Always route wiki create/update CTAs through BUILTIN_ROLE_IDS.general
+// Always route wiki create/update CTAs through pluginBuiltinRoleIds().general
 // (the wiki-capable role) so the new chat has the tools needed to
 // actually write the page. Omitting the role would fall through to
 // `currentRoleId`, which could be anything — including roles without
@@ -825,14 +826,14 @@ const isStandaloneWikiRoute = computed(() => route.name === PAGE_ROUTES.wiki);
 function requestCreatePage() {
   appApi.startNewChat(
     `Create a wiki page about ${JSON.stringify(title.value)}. Research the topic and write a comprehensive article in ${WIKI_PAGES_DIR}/.`,
-    BUILTIN_ROLE_IDS.general,
+    pluginBuiltinRoleIds().general,
   );
 }
 
 function requestUpdatePage() {
   appApi.startNewChat(
     `Update the existing wiki page about ${JSON.stringify(title.value)}. The page file exists but has no content. Research the topic and write a comprehensive article in ${WIKI_PAGES_DIR}/.`,
-    BUILTIN_ROLE_IDS.general,
+    pluginBuiltinRoleIds().general,
   );
 }
 
@@ -844,7 +845,7 @@ function currentSlug(): string | null {
   // standalone /wiki URLs, but the tool-result payload arrives from
   // the server/agent and can't assume that upstream filter.
   const raw =
-    route.name === PAGE_ROUTES.wiki && route.params.section === WIKI_ROUTE_SECTION.pages && typeof route.params.slug === "string"
+    route.name === PAGE_WIKI && route.params.section === WIKI_ROUTE_SECTION.pages && typeof route.params.slug === "string"
       ? route.params.slug
       : (props.selectedResult?.data?.pageName ?? null);
   return isSafeWikiSlug(raw) ? raw : null;
@@ -876,7 +877,7 @@ async function persistWikiPage(pageName: string, newContent: string, generation:
   // params) and the tool-result-embedded view (selectedResult).
   if (currentSlug() !== pageName) return;
 
-  const response = await apiPost<{ data?: { content?: string } }>(API_ROUTES.wiki.base, {
+  const response = await apiPost<{ data?: { content?: string } }>(wikiEndpoints.base, {
     action: WIKI_ACTION.save,
     pageName,
     content: newContent,

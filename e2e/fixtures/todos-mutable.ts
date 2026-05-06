@@ -47,10 +47,56 @@ export type ColumnDispatcher = (method: string, id: string | null, body: Record<
 export interface MutableTodoOptions {
   items?: TodoFixture[];
   columns?: StatusColumnFixture[];
-  /** Called for every `/api/todos/items*` request. */
+  /** Called for every item-related plugin dispatch (kind starts with
+   *  `item`). The old REST `(method, path, body)` shape is preserved
+   *  so callers written against the pre-#1145 mock keep working. */
   dispatchItem?: ItemDispatcher;
-  /** Called for every `/api/todos/columns*` request. */
+  /** Called for every column-related plugin dispatch (kind starts
+   *  with `column`). Same translation layer as `dispatchItem`. */
   dispatchColumn?: ColumnDispatcher;
+}
+
+const TODO_DISPATCH_PATH = "/api/plugins/runtime/%40mulmoclaude%2Ftodo-plugin/dispatch";
+
+interface DispatchBody {
+  kind?: string;
+  id?: string;
+  ids?: string[];
+  [key: string]: unknown;
+}
+
+interface TranslatedRequest {
+  scope: "item" | "column";
+  method: string;
+  /** Path tail for items, column id for columns. */
+  pathOrId: string;
+}
+
+// Map a runtime dispatch `{ kind, ... }` body to the legacy
+// `(method, pathOrId, body)` shape the per-spec dispatchers were
+// written against. Returns null for kinds that have no mutating
+// effect (`listAll`) or that don't have a legacy equivalent.
+function translateKind(body: DispatchBody): TranslatedRequest | null {
+  switch (body.kind) {
+    case "itemCreate":
+      return { scope: "item", method: "POST", pathOrId: "" };
+    case "itemPatch":
+      return { scope: "item", method: "PATCH", pathOrId: body.id ?? "" };
+    case "itemMove":
+      return { scope: "item", method: "POST", pathOrId: `${body.id ?? ""}/move` };
+    case "itemDelete":
+      return { scope: "item", method: "DELETE", pathOrId: body.id ?? "" };
+    case "columnsAdd":
+      return { scope: "column", method: "POST", pathOrId: "" };
+    case "columnPatch":
+      return { scope: "column", method: "PATCH", pathOrId: body.id ?? "" };
+    case "columnDelete":
+      return { scope: "column", method: "DELETE", pathOrId: body.id ?? "" };
+    case "columnsOrder":
+      return { scope: "column", method: "POST", pathOrId: "reorder" };
+    default:
+      return null;
+  }
 }
 
 // Derive a column id from a human label using the canonical slug
@@ -82,38 +128,28 @@ export async function setupMutableTodoMocks(page: Page, options: MutableTodoOpti
     ...extra,
   });
 
-  // /api/todos — plain GET hydrate
+  // Single runtime-dispatch endpoint replaces the pre-#1145 REST
+  // routes. Body shape: `{ kind, ...args }`. We translate each kind
+  // back to the legacy `(method, pathOrId, body)` shape so existing
+  // per-spec dispatchers (`dispatchItem` / `dispatchColumn`) keep
+  // working unchanged.
   await page.route(
-    (url) => url.pathname === "/api/todos",
-    (route: Route) => route.fulfill({ json: buildResponse() }),
-  );
-
-  // /api/todos/items/* — delegate to the item dispatcher, fall back
-  // to echoing current state
-  await page.route(
-    (url) => url.pathname.startsWith("/api/todos/items"),
+    (url) => url.pathname === TODO_DISPATCH_PATH,
     (route: Route) => {
-      const method = route.request().method();
-      const url = new URL(route.request().url());
-      const path = url.pathname.replace(/^\/api\/todos\/items\/?/, "");
-      const body = (route.request().postDataJSON() ?? {}) as Record<string, unknown>;
-      const outcome = options.dispatchItem?.(method, path, body, state) ?? undefined;
-      if (outcome?.items) state.items = outcome.items;
-      if (outcome?.columns) state.columns = outcome.columns;
-      return route.fulfill({ json: buildResponse(outcome?.extra) });
-    },
-  );
+      const body = (route.request().postDataJSON() ?? {}) as DispatchBody;
 
-  // /api/todos/columns/* — delegate to the column dispatcher, fall
-  // back to echoing current state
-  await page.route(
-    (url) => url.pathname.startsWith("/api/todos/columns"),
-    (route: Route) => {
-      const method = route.request().method();
-      const url = new URL(route.request().url());
-      const columnId = url.pathname.replace(/^\/api\/todos\/columns\/?/, "") || null;
-      const body = (route.request().postDataJSON() ?? {}) as Record<string, unknown>;
-      const outcome = options.dispatchColumn?.(method, columnId, body, state) ?? undefined;
+      // listAll (and any unknown kind) is read-only — echo state.
+      if (body.kind === "listAll" || body.kind === undefined) {
+        return route.fulfill({ json: buildResponse() });
+      }
+      const translated = translateKind(body);
+      if (!translated) return route.fulfill({ json: buildResponse() });
+
+      const bodyRec = body as Record<string, unknown>;
+      const outcome =
+        translated.scope === "item"
+          ? options.dispatchItem?.(translated.method, translated.pathOrId, bodyRec, state)
+          : options.dispatchColumn?.(translated.method, translated.pathOrId || null, bodyRec, state);
       if (outcome?.items) state.items = outcome.items;
       if (outcome?.columns) state.columns = outcome.columns;
       return route.fulfill({ json: buildResponse(outcome?.extra) });
@@ -121,12 +157,24 @@ export async function setupMutableTodoMocks(page: Page, options: MutableTodoOpti
   );
 
   // File-explorer wiring so the TodoExplorer view can actually mount
-  // when navigated via deep-link `?path=data/todos/todos.json`.
-  // Only /api/files/content and /api/files/tree are mocked here —
-  // /api/files/dir (lazy-expand) is intentionally not mocked because
-  // todo tests deep-link straight into the content view.
+  // when navigated via deep-link to the encoded plugin scope path
+  // (`data/plugins/%40mulmoclaude%2Ftodo-plugin/todos.json` after
+  // #1145). Vue Router decodes the `%40` / `%2F` once on URL-bar
+  // navigation, so the path the frontend forwards to
+  // `/api/files/content` is the **decoded** form
+  // (`data/plugins/@mulmoclaude/todo-plugin/todos.json`). Match
+  // against both spellings so the mock works whether the test
+  // round-tripped through Vue Router or set selectedPath directly.
+  // Only /api/files/content and /api/files/tree are mocked —
+  // /api/files/dir (lazy-expand) is not, because the todo specs
+  // deep-link straight into the content view.
+  const todosPathCandidates: ReadonlySet<string> = new Set([WORKSPACE_FILES.todosItems, decodeURIComponent(WORKSPACE_FILES.todosItems)]);
   await page.route(
-    (url) => url.pathname === "/api/files/content" && url.searchParams.get("path") === WORKSPACE_FILES.todosItems,
+    (url) => {
+      if (url.pathname !== "/api/files/content") return false;
+      const queryPath = url.searchParams.get("path");
+      return queryPath !== null && todosPathCandidates.has(queryPath);
+    },
     (route: Route) =>
       route.fulfill({
         json: {
@@ -153,15 +201,22 @@ export async function setupMutableTodoMocks(page: Page, options: MutableTodoOpti
               type: "dir",
               children: [
                 {
-                  name: "todos",
-                  path: "data/todos",
+                  name: "plugins",
+                  path: "data/plugins",
                   type: "dir",
                   children: [
                     {
-                      name: "todos.json",
-                      path: WORKSPACE_FILES.todosItems,
-                      type: "file",
-                      size: 500,
+                      name: "@mulmoclaude/todo-plugin",
+                      path: "data/plugins/%40mulmoclaude%2Ftodo-plugin",
+                      type: "dir",
+                      children: [
+                        {
+                          name: "todos.json",
+                          path: WORKSPACE_FILES.todosItems,
+                          type: "file",
+                          size: 500,
+                        },
+                      ],
                     },
                   ],
                 },

@@ -45,3 +45,26 @@ export interface PluginEntry {
   viewComponent?: Component;
   previewComponent?: Component;
 }
+
+/**
+ * Self-registration record a built-in plugin emits so the central
+ * tool registry (`src/tools/index.ts`) can be assembled generically.
+ *
+ * Co-locates the canonical tool name (read from `TOOL_NAMES`) with
+ * the plugin's `PluginEntry`, so a plugin is "self-aware" of which
+ * MCP tool name it implements. Renames in `TOOL_NAMES.x` ripple
+ * through the registration automatically — no central map to keep
+ * in sync.
+ *
+ * Plugins serving multiple tool names (today: scheduler exports
+ * both `manageCalendar` and `manageAutomations`) export
+ * `REGISTRATIONS: PluginRegistration[]` instead of the singular
+ * `REGISTRATION`; the barrel splats the array.
+ */
+export interface PluginRegistration {
+  /** Tool name string the LLM and JSONL files use. Read from
+   *  `TOOL_NAMES.<key>` so this is a single source of truth with
+   *  the central name list. */
+  toolName: string;
+  entry: PluginEntry;
+}

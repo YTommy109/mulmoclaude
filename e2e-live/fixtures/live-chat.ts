@@ -10,7 +10,6 @@ import { fileURLToPath } from "node:url";
 
 import { type Download, type FrameLocator, type Page, expect } from "@playwright/test";
 
-import { API_ROUTES } from "../../src/config/apiRoutes";
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
 
 const FIXTURES_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -146,49 +145,76 @@ export function getCurrentSessionId(page: Page): string | null {
 }
 
 /**
- * Best-effort hard-delete a chat session through the server's
- * DELETE /api/sessions/:id endpoint — same path the kebab → 削除
- * button hits in the UI. Used as cleanup so the test does not
- * leave debug sessions piling up in the user's history.
+ * Best-effort hard-delete a chat session via the same UI gesture a
+ * human user performs — open the session row's kebab menu in the
+ * sidebar history, click the red 削除 item, and accept the
+ * `window.confirm` "このセッションを削除しますか？" prompt that the SPA
+ * raises. Used as cleanup so the test does not leave debug sessions
+ * piling up in the user's history.
  *
- * Never throws. Cleanup failures (page already closed, server
- * restarting, session already gone) must not turn a passing test
- * red.
+ * Without the `page.once("dialog", ...)` accept the prompt would
+ * stay pending and the SPA would never call DELETE — that was the
+ * silent-skip mode behind the leftover-history symptom we saw
+ * before this change.
+ *
+ * Never throws. Cleanup failures (page already closed, sidebar
+ * collapsed, session already gone) must not turn a passing test red.
  */
-/** Build the workspace-relative DELETE URL from the shared API_ROUTES table. */
-function buildSessionDeleteUrl(sessionId: string): string {
-  return API_ROUTES.sessions.detail.replace(":id", encodeURIComponent(sessionId));
-}
+const DELETE_BUTTON_TIMEOUT_MS = 10_000;
 
-/**
- * Issue the DELETE call from inside the page so the SPA's
- * bearer-auth meta tag is reachable. Logs HTTP / network failures
- * via console.warn to keep the suite running.
- */
-async function performInPageSessionDelete(page: Page, url: string): Promise<void> {
-  await page.evaluate(async (target) => {
-    const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
-    const token = meta?.getAttribute("content") ?? "";
-    try {
-      const response = await fetch(target, {
-        method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!response.ok) {
-        console.warn(`deleteSession: ${target} returned HTTP ${response.status}`);
-      }
-    } catch (err) {
-      console.warn(`deleteSession: network error for ${target}`, err);
-    }
-  }, url);
+// Opt-in QA hold-mode. When the runner sets E2E_LIVE_KEEP_SESSIONS=1
+// every spec leaves its session intact in history so a human can
+// inspect the residue (chat transcript, generated artifacts, plugin
+// state) after the test finishes — pair with HEADED=1 for the
+// "watch it drive, then poke at the result" flow. Cleanup falls to
+// the user (sidebar kebab → 削除) once they're done.
+//
+// We gate inside deleteSession itself so every existing spec
+// (L-01..L-14 and onwards) inherits the behaviour without any
+// per-spec retrofit — every cleanup site already routes through
+// here in a `finally { ... }` block.
+const KEEP_SESSIONS_ENV = "E2E_LIVE_KEEP_SESSIONS";
+
+function shouldKeepSessions(): boolean {
+  return process.env[KEEP_SESSIONS_ENV] === "1";
 }
 
 export async function deleteSession(page: Page, sessionId: string): Promise<void> {
   if (page.isClosed()) return;
+  if (shouldKeepSessions()) {
+    // QA-mode breadcrumb so the runner can confirm the gate fired.
+    console.log(`[${KEEP_SESSIONS_ENV}=1] keeping session ${sessionId} for inspection`);
+    return;
+  }
   try {
-    await performInPageSessionDelete(page, buildSessionDeleteUrl(sessionId));
-  } catch {
-    // best-effort: page already closed, server restarting, etc.
+    // Step away from /chat/<id> first — the server's isRunning
+    // guard rejects DELETE on whichever session the page is
+    // currently sitting on (it's still in the active store right
+    // after the assistant turn). Routing to "/" detaches the
+    // SPA's hold so the cleanup flow lands on a quiescent record.
+    if (page.url().includes(`/chat/${sessionId}`)) {
+      await page.goto("/");
+    }
+    // The session-row kebab menu lives inside the session-history
+    // side panel, which is collapsed by default. Open it via the
+    // toggle button (testid switches between -off and -on) before
+    // looking up the row.
+    const toggleOff = page.getByTestId("session-history-toggle-off");
+    if ((await toggleOff.count()) > 0 && (await toggleOff.isVisible())) {
+      await toggleOff.click();
+    }
+    const menuButton = page.getByTestId(`session-row-menu-${sessionId}`);
+    await menuButton.click({ timeout: DELETE_BUTTON_TIMEOUT_MS });
+    // Auto-accept the SPA's `window.confirm("このセッションを削除しますか？")`
+    // prompt that fires from the delete button's @click handler.
+    page.once("dialog", (dialog) => {
+      dialog.accept().catch(() => undefined);
+    });
+    const deleteButton = page.getByTestId(`session-row-delete-${sessionId}`);
+    await deleteButton.click({ timeout: DELETE_BUTTON_TIMEOUT_MS });
+  } catch (err) {
+    // best-effort: page closing, sidebar collapsed, session already gone, etc.
+    console.warn(`deleteSession: UI cleanup skipped for session ${sessionId}`, err);
   }
 }
 
@@ -204,6 +230,18 @@ export async function startNewSession(page: Page): Promise<void> {
 export async function sendChatMessage(page: Page, text: string): Promise<void> {
   await page.getByTestId("user-input").fill(text);
   await page.getByTestId("send-btn").click();
+}
+
+/**
+ * Switch the active role via the dropdown. App.vue's `onRoleChange`
+ * spins up a fresh session in the new role on chat pages, so callers
+ * are expected to capture the new session id (after the next user
+ * turn) for cleanup. Idempotent: calling with the already-active role
+ * still works because the dropdown emits `change` on every selection.
+ */
+export async function selectRole(page: Page, roleId: string): Promise<void> {
+  await page.getByTestId("role-selector-btn").click();
+  await page.getByTestId(`role-option-${roleId}`).click();
 }
 
 /**
@@ -294,6 +332,48 @@ export async function readImgRepairAttempted(page: Page, imgSelector: string): P
   return marker !== null;
 }
 
+const GENERATE_IMAGE_VIEW_SELECTOR = '[data-testid="generate-image-view"]';
+
+/**
+ * Wait for the generateImage canvas view to render an `<img>` — i.e.
+ * the LLM called the tool, the server returned an `imageData` path,
+ * and the SPA mounted ImageView with a non-empty `resolvedSrc`. Use
+ * before reading src / naturalWidth so the spec does not race the
+ * ImageView placeholder ("No image yet").
+ */
+export async function waitForGeneratedImage(page: Page, timeoutMs: number = ONE_MINUTE_MS): Promise<void> {
+  const view = page.locator(GENERATE_IMAGE_VIEW_SELECTOR);
+  await expect(view.locator("img").first()).toBeVisible({ timeout: timeoutMs });
+}
+
+/**
+ * Read the unresolved `src` attribute of the generated image. After
+ * PR #969 / #972 introduced the `/artifacts/images/` static mount,
+ * `resolveImageSrcFresh` produces `/artifacts/images/<path>?v=<bump>`,
+ * so the caller can assert the prefix to catch regressions in the
+ * image storage / resolve chain.
+ */
+export async function readGeneratedImageSrc(page: Page): Promise<string | null> {
+  const img = page.locator(GENERATE_IMAGE_VIEW_SELECTOR).locator("img").first();
+  if ((await img.count()) === 0) return null;
+  return await img.getAttribute("src");
+}
+
+/**
+ * Read `naturalWidth` / `naturalHeight` of the generated image. Both
+ * 0 means the static mount returned a non-decodable response (404,
+ * empty file, wrong MIME) — that is the failure mode we want to
+ * detect end-to-end, paralleling the iframe-side `readImgNaturalSize`.
+ */
+export async function readGeneratedImageNaturalSize(page: Page): Promise<{ width: number; height: number } | null> {
+  const img = page.locator(GENERATE_IMAGE_VIEW_SELECTOR).locator("img").first();
+  if ((await img.count()) === 0) return null;
+  return await img.evaluate((node) => {
+    if (!(node instanceof HTMLImageElement)) return { width: 0, height: 0 };
+    return { width: node.naturalWidth, height: node.naturalHeight };
+  });
+}
+
 const PDF_MAGIC = Buffer.from("%PDF-", "ascii");
 const PDF_EOF = Buffer.from("%%EOF", "ascii");
 // PDF spec writes %%EOF in the last few hundred bytes; widen to
@@ -322,6 +402,38 @@ export async function readPdfDownload(download: Download): Promise<Buffer> {
   const tail = buf.subarray(Math.max(0, buf.length - PDF_EOF_TAIL_BYTES));
   if (tail.indexOf(PDF_EOF) === -1) {
     throw new Error(`Downloaded PDF appears truncated (missing %%EOF marker, length ${buf.length})`);
+  }
+  return buf;
+}
+
+// presentMulmoScript downloads always land as `<id>.mp4` (see
+// downloadMovie in plugins/presentMulmoScript/View.vue), and the
+// MP4 container always tags bytes 4..7 with the `ftyp` box marker
+// regardless of brand (isom / mp42 / etc.). Checking that marker
+// rejects HTML error pages, empty stubs, and any other format that
+// might slip through if the route accidentally returned a different
+// payload.
+const MP4_FTYP = Buffer.from("ftyp", "ascii");
+
+/**
+ * Read a Playwright `Download` for a mulmoScript movie and check
+ * that it is a real MP4. Validates the `ftyp` box at offset 4, so an
+ * HTML error response or a near-empty stub fails fast. Returns the
+ * buffer so the caller can layer additional assertions (size floor,
+ * stream parsing, etc.).
+ */
+export async function readMovieDownload(download: Download): Promise<Buffer> {
+  const downloadPath = await download.path();
+  if (!downloadPath) {
+    throw new Error("Download has no on-disk path; was failOnStatusCode triggered?");
+  }
+  const buf = await readFile(downloadPath);
+  if (buf.length < 8) {
+    throw new Error(`Downloaded movie too small to inspect (${buf.length} bytes)`);
+  }
+  if (!buf.subarray(4, 8).equals(MP4_FTYP)) {
+    const head = buf.subarray(0, 16).toString("hex");
+    throw new Error(`Downloaded file is not an MP4 (expected 'ftyp' at offset 4, got hex: ${head})`);
   }
   return buf;
 }

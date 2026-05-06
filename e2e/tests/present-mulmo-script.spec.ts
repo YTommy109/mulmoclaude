@@ -77,7 +77,7 @@ async function setupScriptSession(page: Page) {
   // with `// silently ignore`), so a 200 with an empty payload is
   // enough to keep the UI stable.
   await page.route(
-    (url) => url.pathname.startsWith("/api/mulmo-script/"),
+    (url) => url.pathname.startsWith("/api/mulmoScript/"),
     (route) => route.fulfill({ json: {} }),
   );
 }
@@ -135,7 +135,7 @@ test.describe("presentMulmoScript plugin", () => {
 
     const renderBeatCalls: unknown[] = [];
     await page.route(
-      (url) => url.pathname === "/api/mulmo-script/render-beat",
+      (url) => url.pathname === "/api/mulmoScript/render-beat",
       async (route) => {
         renderBeatCalls.push(route.request().postDataJSON());
         return route.fulfill({ json: { image: PNG_1X1 } });
@@ -148,7 +148,7 @@ test.describe("presentMulmoScript plugin", () => {
     await expect(page.getByRole("heading", { name: SCRIPT_TITLE, level: 2 })).toBeVisible();
 
     // Beat 0 is a textSlide → auto-rendered on mount via renderBeat,
-    // which hits /api/mulmo-script/render-beat. Wait for the mocked
+    // which hits /api/mulmoScript/render-beat. Wait for the mocked
     // image to surface in the DOM — proves the server→frontend
     // contract (`{ image: <data-uri> }` on 200) still holds through
     // the withStoryContext refactor.
@@ -167,7 +167,7 @@ test.describe("presentMulmoScript plugin", () => {
 
   test("render-beat error: mocked { error } surfaces to the UI", async ({ page }) => {
     await page.route(
-      (url) => url.pathname === "/api/mulmo-script/render-beat",
+      (url) => url.pathname === "/api/mulmoScript/render-beat",
       (route) =>
         route.fulfill({
           status: 500,

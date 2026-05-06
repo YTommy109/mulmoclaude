@@ -125,7 +125,7 @@
           v-model="userInput"
           v-model:pasted-file="pastedFile"
           :is-running="activeSessionRunning"
-          :queries="sessionRole.queries ?? []"
+          :queries="sessionRoleQueries"
           @send="sendMessage()"
           @suggestion-send="(q) => sendMessage(q)"
         />
@@ -165,16 +165,51 @@
             @update:layout-mode="setLayoutMode"
             @toggle-right-sidebar="toggleRightSidebar"
           />
-          <!-- Distinct pages -->
+          <!-- Distinct pages. Plugin-owned views (Todo / Calendar /
+               Automations / Wiki / Skills) call `useRuntime()` from
+               `gui-chat-protocol/vue` inside their composables — that
+               throws unless mounted under `<PluginScopedRoot>`. The
+               plugin registry's `wrapWithScope` wraps the chat-mounted
+               variants; standalone routes are wrapped here against the
+               same `pkg-name + endpoints` pair so the `useRuntime()`
+               call resolves. -->
           <FilesView v-else-if="currentPage === 'files'" :refresh-token="filesRefreshToken" @load-session="handleSessionSelect" />
-          <TodoExplorer v-else-if="currentPage === 'todos'" />
-          <CalendarView v-else-if="currentPage === 'calendar'" />
-          <AutomationsView v-else-if="currentPage === 'automations'" />
-          <WikiView v-else-if="currentPage === 'wiki'" />
-          <SkillsView v-else-if="currentPage === 'skills'" />
+          <PluginScopedRoot v-else-if="currentPage === 'todos'" pkg-name="@mulmoclaude/todo-plugin">
+            <TodoExplorer />
+          </PluginScopedRoot>
+          <PluginScopedRoot v-else-if="currentPage === 'calendar'" pkg-name="scheduler" :endpoints="API_ROUTES.scheduler">
+            <CalendarView />
+          </PluginScopedRoot>
+          <PluginScopedRoot v-else-if="currentPage === 'automations'" pkg-name="scheduler" :endpoints="API_ROUTES.scheduler">
+            <AutomationsView />
+          </PluginScopedRoot>
+          <PluginScopedRoot v-else-if="currentPage === 'wiki'" pkg-name="wiki" :endpoints="API_ROUTES.wiki">
+            <WikiView />
+          </PluginScopedRoot>
+          <PluginScopedRoot v-else-if="currentPage === 'skills'" pkg-name="skills" :endpoints="API_ROUTES.skills">
+            <SkillsView />
+          </PluginScopedRoot>
           <RolesView v-else-if="currentPage === 'roles'" />
           <SourcesView v-else-if="currentPage === 'sources'" />
           <NewsView v-else-if="currentPage === 'news'" />
+          <!-- Debug page (encore plan PR 1 follow-up). The View ships
+               inside the @mulmoclaude/debug-plugin runtime package; we
+               look it up by tool name and render the registered
+               viewComponent — already wrapped in PluginScopedRoot by
+               the runtime loader, so no extra scope wrapper here.
+
+               Literal English fallback below is intentional: the debug
+               surface is dev-only chrome behind `VITE_DEV_MODE=1`, so
+               we keep its strings out of the 8-locale i18n bundle.
+               Same policy applies to the launcher button (see
+               PluginLauncher.vue's `literalLabel`/`literalTitle`) and
+               to the page itself (debug-plugin/src/View.vue). -->
+          <component :is="debugViewComponent" v-else-if="currentPage === 'debug' && debugViewComponent" />
+          <!-- eslint-disable @intlify/vue-i18n/no-raw-text -- debug page is dev-only chrome behind VITE_DEV_MODE=1; we deliberately keep its strings out of the 8-locale i18n bundle (see policy comment above). -->
+          <div v-else-if="currentPage === 'debug'" class="h-full flex items-center justify-center text-sm text-gray-500">
+            Debug plugin is not loaded. Make sure @mulmoclaude/debug-plugin is built and registered as a preset.
+          </div>
+          <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
         </div>
 
         <!-- Bottom bar (Stack chat only — plugin views have no
@@ -192,7 +227,7 @@
             v-model="userInput"
             v-model:pasted-file="pastedFile"
             :is-running="activeSessionRunning"
-            :queries="sessionRole.queries ?? []"
+            :queries="sessionRoleQueries"
             @send="sendMessage()"
             @suggestion-send="(q) => sendMessage(q)"
           />
@@ -252,6 +287,7 @@ import SkillsView from "./plugins/manageSkills/View.vue";
 import RolesView from "./components/RolesView.vue";
 import SourcesView from "./components/SourcesView.vue";
 import NewsView from "./components/NewsView.vue";
+import PluginScopedRoot from "./components/PluginScopedRoot.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import NotificationToast from "./components/NotificationToast.vue";
 import type { NotificationAction } from "./types/notification";
@@ -259,7 +295,6 @@ import { PAGE_ROUTES, type PageRouteName } from "./router";
 import type { SseEvent } from "./types/sse";
 import type { SessionEntry, ActiveSession } from "./types/session";
 import { EVENT_TYPES } from "./types/events";
-import { extractImageData } from "./utils/tools/result";
 import { buildAgentRequestBody, postAgentRun } from "./utils/agent/request";
 import { resolvePastedAttachment } from "./utils/agent/pastedAttachment";
 import { applyAgentEvent, type AgentEventContext } from "./utils/agent/eventDispatch";
@@ -285,6 +320,7 @@ import { useSelectedResult } from "./composables/useSelectedResult";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
 import { useCurrentRole } from "./composables/useCurrentRole";
+import { useTranslatedQueries } from "./composables/useTranslatedQueries";
 import { BUILTIN_ROLE_IDS, type Role } from "./config/roles";
 import { usePubSub } from "./composables/usePubSub";
 import { sessionChannel } from "./config/pubsubChannels";
@@ -293,13 +329,14 @@ import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
 import { useEventListeners } from "./composables/useEventListeners";
 import { provideAppApi } from "./composables/useAppApi";
+import { usePluginDiagnostics } from "./composables/usePluginDiagnostics";
 import { provideActiveSession } from "./composables/useActiveSession";
 import { useRoute, useRouter } from "vue-router";
 import { apiGet } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 // --- Per-session state ---
 // Declared early so that pub/sub callbacks and function declarations
@@ -439,6 +476,12 @@ const sessionRole = computed<Role>(() => {
   return roles.value[0];
 });
 
+// Translated suggested-query strings for the active session's role.
+// Falls back to the role's English source until /api/translation
+// returns; subsequent role swaps hit the in-memory cache.
+const currentLocale = computed(() => String(locale.value));
+const { queries: sessionRoleQueries } = useTranslatedQueries(sessionRole, currentLocale);
+
 const { mergedSessions, tabSessions } = useMergedSessions({
   sessionMap,
   sessions,
@@ -457,6 +500,9 @@ const { mergedSessions, tabSessions } = useMergedSessions({
 // /api/sessions refetch.
 useFaviconState({ isRunning, sessions: mergedSessions, sessionsUnreadCount: unreadCount, cpuLoadRatio });
 useGlobalImageErrorRepair();
+// Boot-time plugin META aggregator collisions surfaced via the
+// notifications bell + toast. Empty when the registry is clean.
+usePluginDiagnostics();
 
 const sessionSidebarRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
@@ -571,6 +617,12 @@ const { elapsedMs: runElapsedMs, teardown: teardownRunElapsed } = useRunElapsed(
 });
 
 const selectedResult = computed(() => toolResults.value.find((result) => result.uuid === selectedResultUuid.value) ?? null);
+
+// Debug-plugin View component, looked up by tool name. The plugin
+// loader populates this asynchronously at boot — `runtimeRegistry` is
+// reactive, so this computed re-evaluates when the load completes and
+// the /debug branch in the template lights up without a refresh.
+const debugViewComponent = computed(() => getPlugin("manageDebug")?.viewComponent ?? null);
 
 // Centralised session-switch handler: subscribe to the current session's
 // pub/sub channel so we receive real-time events even if the session is
@@ -842,10 +894,9 @@ async function sendMessage(text?: string) {
 
   // Pasted / dropped files are pre-uploaded to a workspace file so
   // the server (and the LLM downstream) sees a relative path — never
-  // a data: URI. The path then rides on `attachments[]` (path-only
-  // entries) alongside any sidebar-picked image. On upload failure,
-  // restore both userInput and pastedFile so the user can retry
-  // without retyping.
+  // a data: URI. The path then rides on `attachments[]` as a path-only
+  // entry. On upload failure, restore both userInput and pastedFile so
+  // the user can retry without retyping.
   let attachmentForRequest: string | undefined;
   if (fileSnapshot) {
     const resolved = await resolvePastedAttachment(fileSnapshot);
@@ -853,7 +904,7 @@ async function sendMessage(text?: string) {
       userInput.value = message;
       pastedFile.value = fileSnapshot;
       const recoverySession = sessionMap.get(currentSessionId.value);
-      if (recoverySession) pushErrorMessage(recoverySession, `Failed to attach image: ${resolved.error}`);
+      if (recoverySession) pushErrorMessage(recoverySession, t("chatInput.attachImageFailed", { error: resolved.error }));
       return;
     }
     attachmentForRequest = resolved.value;
@@ -862,15 +913,14 @@ async function sendMessage(text?: string) {
   const session = sessionMap.get(currentSessionId.value);
   if (!session) return;
 
-  // Compute attachment paths up-front so they can be persisted on
-  // the user message AND sent to the agent. The sidebar-picked image
-  // lives on the currently-selected result and is read off `session`
-  // before beginUserTurn appends the new user turn.
-  const selectedRes = session.toolResults.find((result) => result.uuid === session.selectedResultUuid) ?? undefined;
-  const sidebarPickedPath = extractImageData(selectedRes);
-  const attachmentPaths = [attachmentForRequest, sidebarPickedPath].filter((value): value is string => typeof value === "string" && value.length > 0);
+  // Only files the user explicitly attached this turn (paste / drop /
+  // file-picker) ride on the message. Do NOT auto-attach whatever
+  // image happens to be selected in the sidebar — selection moves to
+  // the latest generated image automatically, which would silently
+  // glue the previous picture onto every follow-up comment.
+  const attachmentPaths = attachmentForRequest ? [attachmentForRequest] : undefined;
 
-  beginUserTurn(session, message, attachmentPaths.length > 0 ? attachmentPaths : undefined);
+  beginUserTurn(session, message, attachmentPaths);
 
   ensureSessionSubscription(session);
 
@@ -879,7 +929,7 @@ async function sendMessage(text?: string) {
       message,
       role: sessionRole.value,
       chatSessionId: session.id,
-      attachmentPaths: attachmentPaths.length > 0 ? attachmentPaths : undefined,
+      attachmentPaths,
     }),
   );
   if (!result.ok) {

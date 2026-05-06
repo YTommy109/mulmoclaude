@@ -6,6 +6,7 @@ import { overwriteHtml, isHtmlPath } from "../../utils/files/html-store.js";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, serverError } from "../../utils/httpError.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { bindRoute } from "../../utils/router.js";
 import { log } from "../../system/logger/index.js";
 import { previewSnippet } from "../../utils/logPreview.js";
 import { publishFileChange } from "../../events/file-change.js";
@@ -29,7 +30,7 @@ interface PresentHtmlErrorResponse {
 
 type PresentHtmlResponse = PresentHtmlSuccessResponse | PresentHtmlErrorResponse;
 
-router.post(API_ROUTES.html.present, async (req: Request<object, unknown, PresentHtmlBody>, res: Response<PresentHtmlResponse>) => {
+bindRoute(router, API_ROUTES.html.create, async (req: Request<object, unknown, PresentHtmlBody>, res: Response<PresentHtmlResponse>) => {
   const { html, title } = req.body;
   log.info("html", "present: start", {
     titlePreview: typeof title === "string" ? previewSnippet(title) : undefined,
@@ -61,7 +62,7 @@ router.post(API_ROUTES.html.present, async (req: Request<object, unknown, Presen
 // Update html file on disk (user edits in View). Body carries the
 // workspace-relative path verbatim (e.g.
 // `artifacts/html/2026/04/page-abc.html`) so the route doesn't have to
-// reconstruct one from a basename — same shape as plugins.updateMarkdown.
+// reconstruct one from a basename — same shape as presentDocument.updateMarkdown.
 interface UpdateHtmlBody {
   relativePath: string;
   html: string;
@@ -75,7 +76,8 @@ interface UpdateHtmlErrorResponse {
   error: string;
 }
 
-router.put(
+bindRoute(
+  router,
   API_ROUTES.html.update,
   async (req: Request<object, unknown, UpdateHtmlBody>, res: Response<UpdateHtmlSuccessResponse | UpdateHtmlErrorResponse>) => {
     const { relativePath, html } = req.body;

@@ -71,7 +71,7 @@ describe("loadCustomDirs", () => {
     const root = tmpRoot();
     writeConfig(root, [
       { path: "data/wiki", description: "hijack wiki", structure: "flat" },
-      { path: "data/todos", description: "hijack todos", structure: "flat" },
+      { path: "data/scheduler", description: "hijack scheduler", structure: "flat" },
       {
         path: "artifacts/charts",
         description: "hijack charts",

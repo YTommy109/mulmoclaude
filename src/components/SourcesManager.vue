@@ -281,6 +281,7 @@ import DOMPurify from "dompurify";
 import type { ManageSourceData, RebuildSummary, Source } from "../plugins/manageSource/index";
 import { apiGet, apiPost, apiDelete } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
+import { buildRouteUrl } from "../plugins/meta-types";
 import { SOURCE_FILTER_KEYS, countByFilter, matchesSourceFilter, type SourceFilterKey } from "../utils/sources/filter";
 import FilterChip from "./FilterChip.vue";
 import PageChatComposer from "./PageChatComposer.vue";
@@ -480,7 +481,7 @@ async function commitAdd(): Promise<void> {
   }
   draftError.value = "";
   busy.value = "add";
-  const response = await apiPost<unknown>(API_ROUTES.sources.create, payload);
+  const response = await apiPost<unknown>(API_ROUTES.sources.create.url, payload);
   if (!response.ok) {
     draftError.value = response.error || t("pluginManageSource.flashRegisterFailed");
     busy.value = null;
@@ -580,7 +581,7 @@ async function installPreset(preset: Preset): Promise<void> {
   }
   const failures: string[] = [];
   for (const entry of toRegister) {
-    const response = await apiPost<unknown>(API_ROUTES.sources.create, {
+    const response = await apiPost<unknown>(API_ROUTES.sources.create.url, {
       slug: entry.slug,
       title: entry.title,
       url: entry.url,
@@ -621,7 +622,7 @@ async function installPreset(preset: Preset): Promise<void> {
 // Rebuild step extracted so commitAdd can chain it without recursing
 // into rebuild()'s own busy-state machine.
 async function rebuildInline(): Promise<void> {
-  const response = await apiPost<RebuildSummary>(API_ROUTES.sources.rebuild);
+  const response = await apiPost<RebuildSummary>(API_ROUTES.sources.rebuild.url);
   if (!response.ok) {
     flash(t("pluginManageSource.flashRegisterSucceededRebuildFailed", { error: response.error }), true);
     return;
@@ -745,7 +746,7 @@ function flash(message: string, isError = false): void {
 // initial page-mode load) can keep that error visible in the UI
 // rather than rely on the transient flash toast.
 async function refreshList(): Promise<string | null> {
-  const response = await apiGet<{ sources: Source[] }>(API_ROUTES.sources.list);
+  const response = await apiGet<{ sources: Source[] }>(API_ROUTES.sources.list.url);
   if (!response.ok) {
     flash(t("pluginManageSource.flashRefreshListFailed", { error: response.error }), true);
     return response.error || t("pluginManageSource.initialLoadFailed");
@@ -757,7 +758,7 @@ async function refreshList(): Promise<string | null> {
 async function remove(slug: string): Promise<void> {
   if (!confirm(t("pluginManageSource.confirmRemove", { slug }))) return;
   busy.value = slug;
-  const response = await apiDelete<unknown>(API_ROUTES.sources.remove.replace(":slug", encodeURIComponent(slug)));
+  const response = await apiDelete<unknown>(buildRouteUrl(API_ROUTES.sources.remove, { slug }));
   busy.value = null;
   if (!response.ok) {
     flash(t("pluginManageSource.flashRemoveFailed", { error: response.error }), true);
@@ -769,7 +770,7 @@ async function remove(slug: string): Promise<void> {
 
 async function rebuild(): Promise<void> {
   busy.value = "rebuild";
-  const response = await apiPost<RebuildSummary>(API_ROUTES.sources.rebuild);
+  const response = await apiPost<RebuildSummary>(API_ROUTES.sources.rebuild.url);
   if (!response.ok) {
     flash(t("pluginManageSource.flashRebuildFailed", { error: response.error }), true);
     busy.value = null;

@@ -13,7 +13,7 @@
 // "install the whole launcher and boot it" costs more than it saves.
 
 import { spawn } from "node:child_process";
-import { mkdtemp, mkdir, rm, writeFile, readdir, appendFile, stat } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile, readFile, readdir, appendFile, stat } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import net from "node:net";
@@ -175,6 +175,108 @@ async function packTarball({ root, packTimeoutMs }) {
   return path.join(pkgDir, tarball);
 }
 
+// Read the bearer token the launcher writes at boot. The token path
+// is logged on stdout/stderr (`bearer token written path=<absolute>
+// source=...`) and tee'd into `logFile` by `bootAndProbe`. We grep it
+// from there instead of guessing the workspace location, so this
+// works regardless of `$HOME` overrides or future workspace-path
+// changes. Returns the trimmed token string, or null when the line
+// or the file is unavailable.
+export async function readTokenFromLauncherLog({ logFile, readFileImpl = readFile } = {}) {
+  let logContents;
+  try {
+    logContents = await readFileImpl(logFile, "utf8");
+  } catch {
+    return null;
+  }
+  const match = logContents.match(/bearer token written path=(\S+)/);
+  if (!match) return null;
+  try {
+    const tokenContents = await readFileImpl(match[1], "utf8");
+    return tokenContents.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+// Hit `/api/plugins/runtime/list` with the launcher's bearer token to
+// confirm the runtime-plugin pipeline reaches the wire. We assert
+// status 200 + a JSON body shaped `{ plugins: [...] }` — that already
+// proves bearer auth is wired, the route is mounted, and Express is
+// serializing JSON correctly. A non-zero `plugins.length` means user-
+// installed plugins were resolved through the workspace ledger, but
+// is NOT required for ok=true: a fresh install (no presets, no user
+// ledger) legitimately reports zero. Plugin count is informational.
+//
+// `expectedDevPlugin` (optional) extends the assertion: when set, the
+// list MUST contain a plugin matching that name with version `"dev"`.
+// This is what proves the `--dev-plugin` CLI flag → env-var → server
+// loader → registry → /list pipeline made it end-to-end (#1159 PR2).
+export async function probeRuntimePlugins({ port, token, fetchImpl = globalThis.fetch, expectedDevPlugin = null } = {}) {
+  if (!token) {
+    return { ok: false, status: null, plugins: 0, lastError: "no bearer token (could not extract from launcher log)" };
+  }
+  let response;
+  try {
+    response = await fetchImpl(`http://127.0.0.1:${port}/api/plugins/runtime/list`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch (err) {
+    return { ok: false, status: null, plugins: 0, lastError: `fetch failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  if (response.status !== 200) {
+    return { ok: false, status: response.status, plugins: 0, lastError: `status ${response.status}` };
+  }
+  let body;
+  try {
+    body = await response.json();
+  } catch (err) {
+    return { ok: false, status: 200, plugins: 0, lastError: `json parse failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  if (!Array.isArray(body?.plugins)) {
+    return { ok: false, status: 200, plugins: 0, lastError: "response body is not { plugins: [...] }" };
+  }
+  if (expectedDevPlugin) {
+    const match = body.plugins.find((entry) => entry.name === expectedDevPlugin && entry.version === "dev");
+    if (!match) {
+      const seen = body.plugins.map((entry) => `${entry.name}@${entry.version}`).join(", ");
+      return { ok: false, status: 200, plugins: body.plugins.length, lastError: `dev plugin "${expectedDevPlugin}@dev" not in list — saw: ${seen}` };
+    }
+  }
+  return { ok: true, status: 200, plugins: body.plugins.length, lastError: null };
+}
+
+// Lay out a minimal dev-plugin fixture: a directory with package.json
+// (name + ESM exports pointing at dist/index.js) and an index.js
+// exporting a TOOL_DEFINITION the runtime loader will accept. Pure
+// enough to test without spawning the launcher — see
+// `test_tarball.ts`. Returns `{ absPath, name }` for piping into
+// `--dev-plugin <absPath>` and the corresponding probe assertion.
+export async function makeDevPluginFixture({ workDir, name = "@smoke/dev-fixture", subdir = "dev-plugin-fixture" } = {}) {
+  const absPath = path.join(workDir, subdir);
+  await mkdir(path.join(absPath, "dist"), { recursive: true });
+  const pkg = {
+    name,
+    version: "0.1.0",
+    type: "module",
+    exports: { ".": { import: "./dist/index.js" } },
+  };
+  await writeFile(path.join(absPath, "package.json"), JSON.stringify(pkg, null, 2), "utf8");
+  await writeFile(
+    path.join(absPath, "dist", "index.js"),
+    `export const TOOL_DEFINITION = {
+  type: "function",
+  name: "smokeDevTool",
+  description: "smoke fixture for the --dev-plugin pipeline",
+  parameters: { type: "object", properties: {}, required: [] }
+};
+export const smokeDevTool = async () => ({ ok: true });
+`,
+    "utf8",
+  );
+  return { absPath, name };
+}
+
 // Verify the sandbox build context made it through `npm pack` / `npm
 // install`. Keeps the assertion out of `bootAndProbe` so a missing
 // file fails loudly with a precise reason instead of silently letting
@@ -216,9 +318,9 @@ async function installTarball({ workDir, tarballAbsolutePath, installTimeoutMs }
 // full boot timeout waiting for a child that never started, and
 // the smoke would look like a boot-too-slow failure instead of
 // the actual install/permission bug.
-async function bootAndProbe({ workDir, port, bootTimeoutMs, logFile }) {
+async function bootAndProbe({ workDir, port, bootTimeoutMs, logFile, extraArgs = [] }) {
   const bin = path.join(workDir, "node_modules", ".bin", "mulmoclaude");
-  const child = spawn(bin, ["--no-open", "--port", String(port)], {
+  const child = spawn(bin, ["--no-open", "--port", String(port), ...extraArgs], {
     cwd: workDir,
     env: { ...process.env, NODE_ENV: "production" },
     stdio: ["ignore", "pipe", "pipe"],
@@ -285,7 +387,22 @@ async function killGracefully(child) {
 //     tarballs don't pile up across runs.
 //   - `*.tgz` is gitignored, so local leftovers never reach a
 //     commit.
-export async function runTarballSmoke({ root = process.cwd(), workDir, logFile, bootTimeoutMs, packTimeoutMs, installTimeoutMs, port } = {}) {
+export async function runTarballSmoke({
+  root = process.cwd(),
+  workDir,
+  logFile,
+  bootTimeoutMs,
+  packTimeoutMs,
+  installTimeoutMs,
+  port,
+  // When set, the smoke creates a minimal dev-plugin fixture and
+  // boots the launcher with `--dev-plugin <absPath>`. The plugin
+  // probe then asserts the fixture appears in
+  // `/api/plugins/runtime/list` with version `"dev"`. This exercises
+  // the full PR2 pipeline (CLI flag → env var → server loader →
+  // registry → API list) on every CI run.
+  devPlugin = false,
+} = {}) {
   const weAllocatedWorkDir = !workDir;
   const runDir = workDir ?? (await mkdtemp(path.join(os.tmpdir(), "mc-smoke-")));
   const resolvedLog = logFile ?? path.join(runDir, "launcher.log");
@@ -303,19 +420,33 @@ export async function runTarballSmoke({ root = process.cwd(), workDir, logFile, 
     if (!sandboxCheck.ok) {
       throw new Error(`sandbox build context missing from tarball: ${sandboxCheck.missing.join(", ")} (under ${sandboxCheck.checkedDir})`);
     }
+    let devPluginExpected = null;
+    let extraArgs = [];
+    if (devPlugin) {
+      const fixture = await makeDevPluginFixture({ workDir: runDir });
+      devPluginExpected = fixture.name;
+      extraArgs = ["--dev-plugin", fixture.absPath];
+    }
     const resolvedPort = port ?? (await allocateRandomPort());
-    const booted = await bootAndProbe({ workDir: runDir, port: resolvedPort, bootTimeoutMs, logFile: resolvedLog });
+    const booted = await bootAndProbe({ workDir: runDir, port: resolvedPort, bootTimeoutMs, logFile: resolvedLog, extraArgs });
     child = booted.child;
-    succeeded = booted.probe.ok;
+    let pluginProbe = null;
+    if (booted.probe.ok) {
+      const token = await readTokenFromLauncherLog({ logFile: resolvedLog });
+      pluginProbe = await probeRuntimePlugins({ port: resolvedPort, token, expectedDevPlugin: devPluginExpected });
+    }
+    const overallOk = booted.probe.ok && (pluginProbe?.ok ?? false);
+    succeeded = overallOk;
     return {
-      ok: booted.probe.ok,
+      ok: overallOk,
       port: resolvedPort,
       attempts: booted.probe.attempts,
       elapsedMs: booted.probe.elapsedMs,
-      lastError: booted.probe.ok ? null : booted.probe.lastError,
+      lastError: overallOk ? null : (pluginProbe && !pluginProbe.ok ? `runtime plugin probe failed: ${pluginProbe.lastError}` : booted.probe.lastError),
       tarballPath,
       workDir: runDir,
       logFile: resolvedLog,
+      pluginProbe,
     };
   } catch (err) {
     return {
@@ -327,6 +458,7 @@ export async function runTarballSmoke({ root = process.cwd(), workDir, logFile, 
       tarballPath,
       workDir: runDir,
       logFile: resolvedLog,
+      pluginProbe: null,
     };
   } finally {
     if (child) await killGracefully(child);
@@ -339,7 +471,7 @@ export async function runTarballSmoke({ root = process.cwd(), workDir, logFile, 
 export async function main() {
   const result = await runTarballSmoke();
   if (result.ok) {
-    console.log(`[mulmoclaude:tarball] OK — HTTP 200 on port ${result.port} after ${result.attempts} attempt(s) (${result.elapsedMs}ms)`);
+    console.log(`[mulmoclaude:tarball] OK — HTTP 200 on port ${result.port} after ${result.attempts} attempt(s) (${result.elapsedMs}ms); runtime plugins=${result.pluginProbe?.plugins ?? 0}`);
     return 0;
   }
   console.error(`[mulmoclaude:tarball] FAIL — ${result.lastError}`);

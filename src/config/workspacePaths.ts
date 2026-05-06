@@ -22,10 +22,21 @@ export const WORKSPACE_FILES = {
   wikiSchema: "data/wiki/SCHEMA.md",
   wikiSummary: "data/wiki/summary.md",
   summariesIndex: "conversations/summaries/_index.md",
-  todosItems: "data/todos/todos.json",
-  todosColumns: "data/todos/columns.json",
+  // todos lives under the plugin's `files.data` scope after the
+  // #1145 migration. The encoded segment matches `encodeURIComponent`
+  // of the plugin name `@mulmoclaude/todo-plugin` (see
+  // `server/plugins/runtime.ts:sanitisePackageNameForFs`). These
+  // entries stay so the file-explorer preview at
+  // `src/utils/filesPreview/todoPreview.ts` still renders the kanban
+  // when the user clicks the JSON file.
+  todosItems: "data/plugins/%40mulmoclaude%2Ftodo-plugin/todos.json",
+  todosColumns: "data/plugins/%40mulmoclaude%2Ftodo-plugin/columns.json",
   schedulerItems: "data/scheduler/items.json",
   schedulerUserTasks: "config/scheduler/tasks.json",
   schedulerOverrides: "config/scheduler/overrides.json",
   newsReadState: "config/news-read-state.json",
+  /** Install ledger for runtime-loaded plugins (#1043 C-2). One row
+   *  per installed plugin; the tgz files sit alongside in `plugins/`,
+   *  extracted to `plugins/.cache/<name>/<version>/` on first boot. */
+  pluginsLedger: "plugins/plugins.json",
 } as const;

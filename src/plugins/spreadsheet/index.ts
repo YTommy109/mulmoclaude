@@ -1,18 +1,20 @@
-import type { ToolPlugin } from "../../tools/types";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
-import toolDefinition, { TOOL_NAME } from "./definition";
-import type { SpreadsheetToolData } from "./definition";
+import toolDefinition, { TOOL_NAME, type SpreadsheetEndpoints, type SpreadsheetToolData } from "./definition";
+import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
-import { apiPost } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
+import { apiCall } from "../../utils/api";
 import { makeUuid } from "../../utils/id";
 
 const spreadsheetPlugin: ToolPlugin<SpreadsheetToolData> = {
   toolDefinition,
 
   async execute(_context, args) {
-    const result = await apiPost<ToolResult<SpreadsheetToolData>>(API_ROUTES.plugins.presentSpreadsheet, args);
+    const endpoints = pluginEndpoints<SpreadsheetEndpoints>("spreadsheet");
+    const { method, url } = endpoints.create;
+    const result = await apiCall<ToolResult<SpreadsheetToolData>>(url, { method, body: args });
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,
@@ -29,9 +31,14 @@ const spreadsheetPlugin: ToolPlugin<SpreadsheetToolData> = {
 
   isEnabled: () => true,
   generatingMessage: "Creating spreadsheet...",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("spreadsheet", View),
+  previewComponent: wrapWithScope("spreadsheet", Preview),
 };
 
 export default spreadsheetPlugin;
 export { TOOL_NAME };
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: TOOL_NAME,
+  entry: spreadsheetPlugin,
+};

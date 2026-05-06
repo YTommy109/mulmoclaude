@@ -336,7 +336,16 @@ e2e-live/
 |---|---|---|
 | **L-01** presentHtml 画像描画 | ✅ 実装済 | media.spec.ts、fixture 画像を workspace に配置 → naturalWidth > 0、self-repair guard (readImgRepairAttempted) 追加済 |
 | **L-02** PDF DL | ✅ 実装済 | media.spec.ts、textResponse の PDF ボタン経由 |
-| L-03〜L-30 | 未実装 | カテゴリごとの後続 PR で順次 |
+| **L-03** mulmoScript 動画 DL | ✅ 実装済 | media.spec.ts、 fixture json (`e2e-live/fixtures/mulmo/l03-two-beat.json`) を `artifacts/stories/e2e-live-l03-<project>.json` に seed → LLM に filePath 指示 → Generate Movie ボタン → Download Movie ボタン → MP4 `ftyp` magic bytes 検証 (B-21)。 全 beat `text: ""` + textSlide で TTS / image API 呼ばず、 ffmpeg 不在時は `which ffmpeg` で `test.skip`。 worker 衝突回避のため fixture 名に project slug を埋める |
+| **L-05** generateImage 実画像描画 | ✅ 実装済 | media.spec.ts、 「猫の絵」 prompt + `generateImage ツールを使ってください` 指示で tool 呼出 → `[generate-image-view]` testid を `src/plugins/generateImage/View.vue` に追加 → `<img>` の src が `/artifacts/images/...` で始まること + `naturalWidth > 0` を assert (decode を待つため `expect.toPass`)。 `GEMINI_API_KEY` は server 側に必要 (test process 側では skip 判定しない、 dotenv が test runner で動かないため) |
+| **L-06** General role 1 ターン | ✅ 実装済 | roles.spec.ts、 `Reply with the single word: hello` で 1 ターン → role-selector が "General" + user-input enabled (B-15) + session id が払い出される (B-41) を検証 |
+| **L-07** Office role 1 ターン | ✅ 実装済 | roles.spec.ts、 `selectRole(page, "office")` で role 切替 → `data-role="office"` 確認 → 同じ single-word prompt で 1 ターン (B-41 canary)。 `runRoleSampleTurn` ヘルパ経由で L-08/L-09 と共有 |
+| **L-08** Tutor role 1 ターン | ✅ 実装済 | roles.spec.ts、 `runRoleSampleTurn(page, "tutor")` (B-41 canary、 L-07 と同型) |
+| **L-09** Storyteller role 1 ターン | ✅ 実装済 | roles.spec.ts、 `runRoleSampleTurn(page, "storyteller")` (B-41 canary、 L-07 と同型) |
+| **L-11** session reload 復元 | ✅ 実装済 | session.spec.ts、 `Reply with the single word: pong` 後に reload → 2 段階の locale-agnostic assertion (B-14): (1) `getCurrentSessionId(page)` で URL `/chat/<id>` から session id を抽出して reload 前後の equality を比較、 (2) `page.getByText("Reply with ...")` で **ユーザーが送ったプロンプト文字列** (locale 非依存) が DOM に visible なことを assert して transcript hydration を検証。 visible 系の chrome-side 文字列 (e.g. 「Start a conversation」) は 8 locale lockstep の都合で使わない |
+| **L-14** wiki 内部リンク | ✅ 実装済 | wiki-nav.spec.ts、 fixture wiki page 2 件 seed → wikilink `[[slug]]` を click → `/wiki/pages/<target>` に遷移 (B-23/B-24/B-25)、 catch-all で `/chat` に飛ばないこと |
+| **L-EDIT** beat 編集永続化 | 🟡 skip 中 | mulmo-script-edit.spec.ts、 #1074 で報告された「`Saving…` から戻らない」 症状を再現する spec として on disk。 **unskip trigger**: issue #1074 が close + その fix を merge した状態で `yarn test:e2e:live:mulmo-script-edit --project=chromium` を 1 回手動実行 (任意で `HEADED=1` を付けて UI で挙動を観察すると false-negative を避けやすい) し、 pass が確認できたら `test.skip(true, ...)` を削除する。 dormant 化を防ぐオーナーは #1074 を close する人 |
+| L-04, L-10, L-12〜L-30 | 未実装 | 後続 PR で順次。 横串で 「未登録系」 (リソース不在時の UI、 #1073 系) を機能別 spec として追加予定 |
 
 ## 実装の詳細
 
@@ -348,11 +357,16 @@ e2e-live/
 |---|---|
 | `startNewSession(page)` | `/` に goto → `new-session-btn` クリック |
 | `sendChatMessage(page, text)` | `user-input` fill → `send-btn` click |
+| `selectRole(page, roleId)` | `role-selector-btn` click → `role-option-<roleId>` click (chat page では新セッション払い出し) |
 | `waitForAssistantResponseComplete(page, timeoutMs?)` | `thinking-indicator` testid が hidden になるまで待つ |
 | `waitForImgInPresentHtml(page, imgSelector, timeoutMs?)` | presentHtml iframe 内の `<img>` が visible になるまで待つ |
 | `readImgSrcInPresentHtml(page, imgSelector)` | iframe 内の `<img>` の `src` 属性を取得（リライト後の URL 検証用） |
 | `readImgNaturalSize(page, imgSelector)` | iframe 内の `<img>` の `naturalWidth/Height` を取得（実描画確認） |
+| `waitForGeneratedImage(page, timeoutMs?)` | generateImage View 内 (`[generate-image-view]`) の `<img>` が visible になるまで待つ |
+| `readGeneratedImageSrc(page)` | generateImage View 内の `<img>` の `src` 属性を取得（`/artifacts/images/...` 検証用） |
+| `readGeneratedImageNaturalSize(page)` | generateImage View 内の `<img>` の `naturalWidth/Height` を取得（実描画確認） |
 | `readPdfDownload(download)` | `Download` を読み込み `%PDF-` magic bytes を検証、Buffer 返す |
+| `readMovieDownload(download)` | `Download` を読み込み MP4 の `ftyp` magic bytes を検証、Buffer 返す（L-03 用） |
 | `placeFixtureInWorkspace(fixtureRel, workspaceRel)` | `e2e-live/fixtures/<fixtureRel>` を `~/mulmoclaude/<workspaceRel>` にコピー |
 | `removeFromWorkspace(workspaceRel)` | best-effort delete（finally で呼ぶ） |
 | `getCurrentSessionId(page)` | URL から `/chat/<id>` を抽出 |
@@ -360,7 +374,7 @@ e2e-live/
 
 ### testid 必要時の追加方針
 
-実装済の追加: `present-html-iframe`（`src/plugins/presentHtml/View.vue` の iframe）、`text-response-pdf-button`（`src/plugins/textResponse/View.vue` の PDF ボタン）。
+実装済の追加: `present-html-iframe`（`src/plugins/presentHtml/View.vue` の iframe）、`text-response-pdf-button`（`src/plugins/textResponse/View.vue` の PDF ボタン）、`mulmo-script-generate-movie-button` / `mulmo-script-download-movie-button` / `mulmo-script-regenerate-movie-button`（`src/plugins/presentMulmoScript/View.vue` の動画操作 3 ボタン、 L-03 用）、 `generate-image-view`（`src/plugins/generateImage/View.vue` の wrapper、 L-05 用）。
 
 新規 testid を追加する時は:
 - `data-testid="<plugin>-<role>"` の kebab-case で命名（既存規則）
@@ -379,6 +393,66 @@ e2e-live/
 - **fixture 再利用**（L-01〜L-04, L-06）: `e2e-live/fixtures/images/sample.png`（`src/assets/mulmo_bw.png` のコピー）を spec ごとに **ユニークな workspace path** へコピー → LLM にそのパスを示して `<img>` / `![]()` で参照させる
 - **実生成 1 枚**（L-05）: generateImage 経路自体を検証するため、実際に画像生成
 - workspace の path は spec 名を含める（例: `artifacts/images/e2e-live-l01.png`）。複数 worker が並列実行されてもファイル名衝突しない
+
+### mulmoScript fixture + filePath パターン（L-03 で確立）
+
+L-03 を実装するなかで、 mulmoScript シナリオで再利用可能なパターンが固まった。 動画系 / mulmoScript 系の後続シナリオ（L-04 animation:true, mulmocast 関連の bridge / pre-release matrix など）で同じ枠を踏襲する。
+
+#### 1. fixture json を repo に持つ（LLM に script を作らせない）
+
+LLM に mulmoScript JSON を生成させると揺れが大きい（image / imagePrompt / textSlide / markdown / animation の選択、 speakers / model 設定、 description フィールドの省略など）。 spec の本旨が「DL 経路」 「動画 compose」 等であれば script の中身は決定論的で良いので、 `e2e-live/fixtures/mulmo/<scenario>.json` を repo に置き、 LLM には **`presentMulmoScript({ filePath: "stories/<...>" })` を呼んでくれ** と一文だけ指示する。 1 ツール 1 引数の単純呼出なので LLM はほぼ確実に従う。
+
+#### 2. disk path と LLM wire form の **二重化** に注意
+
+mulmoclaude では `WORKSPACE_DIRS.stories = "artifacts/stories"`（`server/workspace/paths.ts`）なので:
+
+- **disk 上**: `~/mulmoclaude/artifacts/stories/<file>.json`（fixture seed 先）
+- **LLM wire form**: `stories/<file>.json`（presentMulmoScript の filePath 引数に渡す形式、 server の `resolveStoryPath` が `STORIES_PREFIX` を strip して `artifacts/stories/` 配下を resolve する）
+
+spec 内では別変数で持つ（`workspaceScriptRel` と `wireFilePath`）。 同一に書くと server が 404 を返してテストが「mulmoScript view 未表示で 1 分 timeout」 する罠（L-03 開発初期に踏んだ）。
+
+#### 3. TTS / 画像生成 API を呼ばない fixture の作り方
+
+mulmocast schema より:
+
+- `text: z.string().optional().default("").describe("If empty, the audio is not generated.")`
+- `duration: z.number().optional().describe("Used only when the text is empty")`
+
+→ **全 beat で `text: ""` + `duration: <秒数>`** にすれば TTS API は呼ばれない。 image は **local-render type のみ** で揃える:
+
+| image type | API 呼ぶ |
+|---|---|
+| `textSlide` / `markdown` / `chart` / `mermaid` / `html_tailwind` | ❌ ローカル合成 |
+| `imagePrompt` / `moviePrompt`（top-level field） | ✅ image / video gen API |
+
+L-03 fixture (`e2e-live/fixtures/mulmo/l03-two-beat.json`) は textSlide 2 beat + text 空 + duration 1 で TTS / image API ともに 0 呼出 → cost 数円以下、 `GEMINI_API_KEY` 不要。
+
+#### 4. 並列 worker の衝突回避（project slug suffix）
+
+server `mulmo-script.ts` の `runMovieGeneration` は `inFlightMovies` set で `absoluteFilePath` 単位で動画生成の重複起動を防ぐ。 chromium / webkit が同じ fixture path を共有すると **片方の worker がガードに弾かれて Download Movie button が visible にならず 8 分 timeout** する。
+
+回避: spec 内で fixture filename に `testInfo.project.name` を埋める。
+
+```ts
+test("...", async ({ page }, testInfo) => {
+  const slug = testInfo.project.name; // "chromium" or "webkit"
+  const workspaceScriptRel = `artifacts/stories/<scenario>-${slug}.json`;
+  const wireFilePath = `stories/<scenario>-${slug}.json`;
+  // ...
+});
+```
+
+L-03 で「chromium pass / webkit 8 分 timeout」 という mixed result を見たら同じ症状を疑う。
+
+#### 5. ffmpeg system 依存（test.skip で逃がす）
+
+mulmocast は `fluent-ffmpeg` で **system ffmpeg を spawn** する（npm pkg に bundle されていない）。 ffmpeg のない端末では動画 compose が無音失敗する。 spec 冒頭で `which ffmpeg` を `execSync` してチェックし、 missing なら `test.skip(true, "...")` で逃がす。 PATH に ffmpeg が無いだけで赤くなるのを防ぐ + 何が足りないかを skip メッセージで明示。
+
+一般ユーザー側 (`npx mulmoclaude` で動画生成を試す導線) で ffmpeg 要件が docs に未記載な件は別件 issue #1049 で起票済み。
+
+#### 6. 検証は magic bytes + サイズ floor（中身の正しさは別 spec）
+
+DL 経路 (B-21) の sanity 確認は `readMovieDownload` helper の **MP4 `ftyp` box at offset 4** + 1 KiB floor で十分。 「動画が本当に再生できるか」 「想定 beat 数か」 「audio track があるか」 は L-04 / 別 spec の責任分担にする（spec ごとにスコープを 1 つに絞る）。
 
 ### 画像 URL / presentHtml の現仕様（PR #969 / #972 / #982 以降）
 
@@ -597,6 +671,56 @@ HEADED=1 yarn test:e2e:live:media   # Chromium ウィンドウが開き、slowMo
 - 新規シナリオ実装中・既存シナリオ修正時に使用
 - 通常の定期実行は headless で OK
 
+#### QA hold-mode（C: テスト後にセッションを残して目視）
+
+`E2E_LIVE_KEEP_SESSIONS=1` を立てて走らせると、 各 spec が `finally` で呼ぶ `deleteSession` が **early-return に切り替わり session が history に残る**。 spec 側は 1 行も触らない。 全既存 spec (L-01 以降すべて) と今後追加する spec が retrofit ゼロでこのモードに対応する。
+
+```bash
+# QA 目視: HEADED で動作を見つつ、 終了後も session が残る
+E2E_LIVE_KEEP_SESSIONS=1 HEADED=1 yarn test:e2e:live:media -g "L-05" --project=chromium
+
+# テスト終了後:
+#   - http://localhost:5173 を開く
+#   - SPA 右側の session 履歴サイドパネルから残った session をクリック
+#   - chat 内容 / 生成 artifact / plugin view の状態を目視確認
+#   - OK なら sidebar の kebab → 削除 で手動 cleanup
+```
+
+意図と非意図:
+- **意図**: 「spec を編集して cleanup を一旦消す → 確認 → spec を戻す → もう一度走らせる」 という二度手間 (旧フロー) を消すこと。 QA 目視のたびに spec を書き換える運用は時間ロスが大きい
+- **非意図**: 自動回帰 / CI 用途。 history が膨らむので routine 実行では立てない
+- **scope**: 残すのは session のみ。 `placeFixtureInWorkspace` で seed したファイル (画像 / mulmo json) は別経路 (`removeFromWorkspace`) で消える。 fixture も残したい場合は別フラグの導入を検討 (下記)
+
+実装は `e2e-live/fixtures/live-chat.ts` の `deleteSession` 冒頭の env gate 1 ブロックのみ。
+
+#### 派生: `E2E_LIVE_KEEP_FIXTURES` (将来導入候補、 未実装)
+
+`KEEP_SESSIONS` は session 状態だけを残す。 一方で fixture (テスト用ダミーファイル: `e2e-live/fixtures/images/sample.png` を `~/mulmoclaude/artifacts/images/e2e-live-l01.png` に seed する等) は spec 終了時に `removeFromWorkspace` で消える。
+
+QA 目視で「fixture が server 側でどう serve / 配置されたか」 まで実機で見たい場合 (例: 「L-01 の画像が `artifacts/images/e2e-live-l01.png` に居て、 mtime が想定通りか」 「L-03 の mulmoScript json が `artifacts/stories/...` に居るか」 を確認したい) は session だけ残しても足りない。
+
+その時点で導入する想定の追加フラグ:
+
+```bash
+# fixture も残す (workspace に置きっぱなし)
+E2E_LIVE_KEEP_FIXTURES=1 yarn test:e2e:live:media
+
+# session + fixture の両方を残す (フル QA 目視)
+E2E_LIVE_KEEP_SESSIONS=1 E2E_LIVE_KEEP_FIXTURES=1 HEADED=1 yarn test:e2e:live:media -g "L-01"
+```
+
+実装方針 (実装時用メモ):
+- `removeFromWorkspace` (`e2e-live/fixtures/live-chat.ts`) の冒頭に `process.env.E2E_LIVE_KEEP_FIXTURES === "1"` early-return を 1 ブロック
+- `KEEP_SESSIONS` と同じパターンで spec 側はノータッチ、 全既存 spec が retroactive に対応
+- fixture path 前提のテスト (placeFixtureInWorkspace で seed → 読み取り → 削除) で「seed が確かに行われたか」 「server がそのパスを正しく serve したか」 をユーザーが直接見られる
+- 削除は手動 (`rm ~/mulmoclaude/artifacts/images/e2e-live-*.png` など)、 もしくは次回テスト走行時の seed 上書きで自然解決
+
+導入トリガー:
+- L-01 系 / L-03 系で fixture 配置自体を疑うバグが出たとき
+- QA 目視で「session 残っても workspace の中身は分からない」 という不満が出たとき
+
+それまでは導入しない (デフォルト挙動が増えるほど混乱するため、 必要になったタイミングで初めて入れる)。
+
 #### Claude / skill 側の実行
 
 | 観点 | やり方 | 理由 |
@@ -775,6 +899,12 @@ artifact name: `mulmoclaude-tarball`（10 MB 程度、`.tgz`）。
   - 通知二重表示 (B-50)
   - Files view `?path=` クリーンアップ (B-30)
 - 関連 PR: #961（B-18 path-traversal 副作用 hotfix、進行中）
+- L-03 実装中に発見した周辺 issue:
+  - **#1049** mulmoclaude README に ffmpeg system 依存の明記がない（一般ユーザー向け docs gap、 動画生成は npx でも system ffmpeg 必要）
+  - **#1073** presentMulmoScript の Play ボタン: text 空 beat で次に自動送りされない（schema は `duration` 用意済、 frontend が audio end のみを cue にしている疑い）
+  - **#1074** presentMulmoScript: beat 編集後「更新」 した内容が別セッションに戻ると消えている疑い（要調査） / L-EDIT spec が `Saving…` 状態から戻らない症状を再現
+- L-06 / L-11 / L-14 (cross-category batch) 実装中に発見した周辺 issue:
+  - **#1102** wiki page で broken-prefix `<img>` の self-repair が発火しない (PR #974 / e2e-live L-W-S-04 chromium fail) — wiki カテゴリの既存 spec が chromium で fail する pre-existing 問題
 
 ## 直近 main の動向 (#950〜#1000) と本テスト計画への反映
 
@@ -812,7 +942,7 @@ artifact name: `mulmoclaude-tarball`（10 MB 程度、`.tgz`）。
 - [x] ~~**#974 self-repair で L-01 の `naturalWidth > 0` が甘くなる件の緩和策決定**~~ → `data-image-repair-tried` マーカ参照 guard を採用（上記 「要対応」 セクション参照）
 - [x] ~~**Safari (webkit) project の追加**~~ → 反映済（`e2e-live/playwright.config.ts` に `webkit` project + `testMatch: "media.spec.ts"`）
 - [x] ~~**webkit で L-01 が `naturalWidth=0` で fail する件の調査と修正**~~ → #1015 close 済（real bug ではなく dev server stale だっただけ。 上の 「真の原因」 セクション参照。 dev 再起動後に webkit L-01 + L-02 pass 確認）
-- [ ] **L-05 (generateImage)** 実装時に #983 の path-in-message を活用（path のキャプチャが容易になる）
+- [x] ~~**L-05 (generateImage)** 実装時に #983 の path-in-message を活用~~ → 実装済（path 文字列キャプチャは不要だった: `[generate-image-view]` testid 経由で `<img>.src` を読めば `/artifacts/images/...` の prefix が取れるので tool message を parse する必要がない。 #983 で server message に path が乗るのは agent 側の hint として有用、 spec 側は DOM-only assertion で十分）
 
 ---
 

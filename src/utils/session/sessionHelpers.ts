@@ -91,8 +91,11 @@ export function updateResult(session: ActiveSession, updatedResult: ToolResultCo
 }
 
 /** Handle an incoming tool_result event: upsert into the session's
- *  result list. Selects the result only on insert; in-place updates
- *  preserve the user's current selection. */
+ *  result list. Selects the result on insert; in-place updates
+ *  preserve the user's current selection. The MCP bridge skips the
+ *  toolResult POST for narrate-only actions (handlers that omit
+ *  `data`), so every result that reaches this function is intended
+ *  to surface a card. */
 export function applyToolResultToSession(session: ActiveSession, result: ToolResultComplete): void {
   const idx = session.toolResults.findIndex((existing) => existing.uuid === result.uuid);
   if (idx >= 0) {

@@ -1,0 +1,33 @@
+{
+  "name": "create-mulmoclaude-plugin",
+  "version": "0.1.0",
+  "description": "Scaffold a new MulmoClaude runtime plugin: `npx create-mulmoclaude-plugin <name>`.",
+  "type": "module",
+  "bin": {
+    "create-mulmoclaude-plugin": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test ./test/*.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/receptron/mulmoclaude/tree/main/packages/create-mulmoclaude-plugin",
+  "keywords": [
+    "mulmoclaude",
+    "plugin",
+    "scaffold",
+    "create"
+  ]
+}

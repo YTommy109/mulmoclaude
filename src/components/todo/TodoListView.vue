@@ -33,7 +33,7 @@
           </div>
           <button
             class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 text-xs px-1 shrink-0"
-            :title="t('pluginTodo.deleteItem')"
+            :title="t('todoTableList.deleteItem')"
             @click.stop="emit('delete', item.id)"
           >
             ✕
@@ -48,10 +48,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { StatusColumn, TodoItem } from "../../plugins/todo/index";
-import { colorForLabel } from "../../plugins/todo/labels";
-import { PRIORITY_CLASSES, PRIORITY_LABELS, dueDateClasses, formatDueLabel } from "../../plugins/todo/priority";
-import type { PatchItemInput } from "../../plugins/todo/composables/useTodos";
+import type { StatusColumn, TodoItem, PatchItemInput } from "@mulmoclaude/todo-plugin/shared";
+import { colorForLabel, PRIORITY_CLASSES, PRIORITY_LABELS, dueDateClasses, formatDueLabel } from "@mulmoclaude/todo-plugin/shared";
 import TodoEditPanel from "./TodoEditPanel.vue";
 
 const { t } = useI18n();

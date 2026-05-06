@@ -34,6 +34,20 @@ function dismiss(): void {
 function iconName(notif: NotificationPayload): string {
   return notif.icon ?? NOTIFICATION_ICONS[notif.kind] ?? "notifications";
 }
+
+// Notifications carrying an `i18n` field (e.g. plugin META
+// diagnostics, #1125) have their title/body localized client-side
+// from the active vue-i18n locale; others fall through to the
+// server-rendered strings.
+function localizeTitle(notif: NotificationPayload): string {
+  if (notif.i18n) return t(notif.i18n.titleKey);
+  return notif.title;
+}
+
+function localizeBody(notif: NotificationPayload): string | undefined {
+  if (notif.i18n?.bodyKey) return t(notif.i18n.bodyKey, notif.i18n.bodyParams ?? {});
+  return notif.body;
+}
 </script>
 
 <template>
@@ -47,9 +61,9 @@ function iconName(notif: NotificationPayload): string {
         {{ iconName(visible) }}
       </span>
       <div class="flex-1 min-w-0">
-        <p class="text-sm font-medium break-words">{{ visible.title }}</p>
-        <p v-if="visible.body" class="mt-0.5 text-xs text-slate-300 break-words">
-          {{ visible.body }}
+        <p class="text-sm font-medium break-words">{{ localizeTitle(visible) }}</p>
+        <p v-if="localizeBody(visible)" class="mt-0.5 text-xs text-slate-300 break-words">
+          {{ localizeBody(visible) }}
         </p>
         <p class="mt-1 text-xs text-slate-400">
           {{ formatSmartTime(visible.firedAt) }}

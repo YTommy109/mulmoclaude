@@ -1,9 +1,10 @@
-import type { ToolPlugin } from "../../tools/types";
-import toolDefinition, { TOOL_NAME } from "./definition";
+import type { PluginRegistration, ToolPlugin } from "../../tools/types";
+import toolDefinition, { TOOL_NAME, type SkillsEndpoints } from "./definition";
+import { pluginEndpoints } from "../api";
+import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
 import { apiGet } from "../../utils/api";
-import { API_ROUTES } from "../../config/apiRoutes";
 import { makeUuid } from "../../utils/id";
 
 export interface SkillSummary {
@@ -22,7 +23,8 @@ const manageSkillsPlugin: ToolPlugin<ManageSkillsData> = {
     // Claude invokes this tool to show the user their skills list.
     // The server exposes GET /api/skills (discovery + merge); we just
     // shape it for the View component.
-    const result = await apiGet<{ skills: SkillSummary[] }>(API_ROUTES.skills.list);
+    const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
+    const result = await apiGet<{ skills: SkillSummary[] }>(endpoints.list.url);
     if (!result.ok) {
       return {
         toolName: TOOL_NAME,
@@ -42,9 +44,14 @@ const manageSkillsPlugin: ToolPlugin<ManageSkillsData> = {
   },
   isEnabled: () => true,
   generatingMessage: "Loading skills…",
-  viewComponent: View,
-  previewComponent: Preview,
+  viewComponent: wrapWithScope("skills", View),
+  previewComponent: wrapWithScope("skills", Preview),
 };
 
 export default manageSkillsPlugin;
 export { TOOL_NAME };
+
+export const REGISTRATION: PluginRegistration = {
+  toolName: TOOL_NAME,
+  entry: manageSkillsPlugin,
+};
