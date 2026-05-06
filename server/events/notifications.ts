@@ -1,54 +1,48 @@
-// Notification system (#144).
+// Legacy host-side `publishNotification()` entry point — now a thin
+// wrapper over the new notifier engine (PR 4 of feat-encore).
 //
-// Publishes NotificationPayload to:
-//   1. Web pub-sub → bell badge + panel
-//   2. Chat-service bridge → Telegram / CLI
+// The signature is preserved so the existing host call sites
+// (`server/agent/mcp-tools/notify.ts`, `server/api/routes/notifications.ts`,
+// `server/workspace/sources/pipeline/notify.ts`,
+// `server/plugins/diagnostics.ts`) keep working without source changes.
+// Internally it now:
+//   1. Maps the legacy `NotificationKind` source category to a
+//      `pluginPkg` ("todo"/"scheduler"/"agent"/"journal" keep their
+//      names; "push"/"bridge"/"system" collapse under "host").
+//   2. Maps `priority` to engine `severity` ("normal" → "nudge",
+//      "high" → "urgent").
+//   3. Flattens the typed `NotificationAction` to a relative URL
+//      string for `navigateTarget` (forwarded only as metadata —
+//      legacy entries publish with `lifecycle: "fyi"`, so the
+//      `action`-lifecycle rules don't apply and clicking still routes).
+//   4. Stashes the legacy fields (`kind`, `priority`, `action`,
+//      `i18n`, `transportId`, `sessionId`, the caller-supplied dedup
+//      `id`) on `pluginData` so the bell can preserve icon, i18n
+//      localization, and transport routing.
 //
-// Callers (trigger sources) use `publishNotification()` to fire.
-// In-memory store keeps the last N notifications for the bell panel.
-// publishNotification() is wrapped in try-catch so failures never
-// propagate to callers (e.g. endRun in session-store).
+// Bridge push (`chat-service.pushToBridge`) and macOS Reminder push
+// no longer happen inline here — they're owned by adapters that
+// subscribe to the `notifier` pubsub channel. See
+// `server/notifier/legacy-adapters.ts`.
 
-import { PUBSUB_CHANNELS } from "../../src/config/pubsubChannels.js";
+import { PAGE_ROUTES } from "../../src/router/pageRoutes.js";
 import {
-  NOTIFICATION_KINDS,
-  NOTIFICATION_ICONS,
   NOTIFICATION_ACTION_TYPES,
+  NOTIFICATION_KINDS,
   NOTIFICATION_PRIORITIES,
-  type NotificationPayload,
-  type NotificationKind,
+  NOTIFICATION_VIEWS,
   type NotificationAction,
-  type NotificationPriority,
   type NotificationI18n,
+  type NotificationKind,
+  type NotificationPriority,
 } from "../../src/types/notification.js";
+import { publish as notifierPublish } from "../notifier/engine.js";
+import type { NotifierSeverity } from "../notifier/types.js";
 import { ONE_SECOND_MS, MAX_NOTIFICATION_DELAY_SEC } from "../utils/time.js";
 import { log } from "../system/logger/index.js";
 import { makeUuid } from "../utils/id.js";
-import { pushToMacosReminder } from "../system/macosNotify.js";
 
-// ── Dependencies (injected at startup) ──────────────────────────
-
-export interface NotificationDeps {
-  publish: (channel: string, payload: unknown) => void;
-  pushToBridge: (transportId: string, chatId: string, message: string) => void;
-}
-
-let deps: NotificationDeps | null = null;
-
-export function initNotifications(injected: NotificationDeps): void {
-  deps = injected;
-}
-
-// ── In-memory store ─────────────────────────────────────────────
-
-const MAX_STORED = 50;
-const store: NotificationPayload[] = [];
-
-export function getRecentNotifications(): readonly NotificationPayload[] {
-  return store;
-}
-
-// ── Publish ─────────────────────────────────────────────────────
+// ── Public types ────────────────────────────────────────────────
 
 export interface PublishNotificationOpts {
   kind: NotificationKind;
@@ -60,82 +54,232 @@ export interface PublishNotificationOpts {
   transportId?: string;
   /** Override the auto-generated UUID with a caller-supplied stable
    *  id. Used by the plugin-meta diagnostics: the same diagnostic
-   *  id is also returned from `/api/plugins/diagnostics`, so the
-   *  bell's id-based dedup collapses the boot-time live publish and
-   *  the late-mount fetch into one entry instead of double-counting
-   *  (Codex review iter-4 #1125). */
+   *  id is returned from `/api/plugins/diagnostics`, and `pluginData`
+   *  carries it so `announcePluginMetaDiagnostics` can dedupe across
+   *  reboots without piling identical entries into `active.json`. */
   id?: string;
   /** vue-i18n keys + params for clients to localize the title/body.
    *  Server-side `title` / `body` stay set as English fallbacks for
-   *  logs and macOS / bridge push paths. */
+   *  logs, macOS Reminder push, and bridge push paths. */
   i18n?: NotificationI18n;
 }
 
-export function publishNotification(opts: PublishNotificationOpts): void {
-  try {
-    const payload: NotificationPayload = {
-      id: opts.id ?? makeUuid(),
-      kind: opts.kind,
-      title: opts.title,
-      body: opts.body,
-      icon: NOTIFICATION_ICONS[opts.kind],
-      action: opts.action ?? { type: NOTIFICATION_ACTION_TYPES.none },
-      firedAt: new Date().toISOString(),
-      priority: opts.priority ?? NOTIFICATION_PRIORITIES.normal,
-      sessionId: opts.sessionId,
-      transportId: opts.transportId,
-      i18n: opts.i18n,
-    };
+/** Discriminated marker on `NotifierEntry.pluginData` for entries
+ *  produced by the legacy `publishNotification()` wrapper. The bell
+ *  reads this to preserve the legacy icon, i18n localization, and
+ *  transport routing. New direct callers of `notifier.publish()`
+ *  publish without this shape. */
+export interface LegacyNotifierPluginData {
+  legacy: true;
+  /** Caller-supplied stable id (e.g. plugin-meta diagnostic id), or
+   *  the auto-generated UUID otherwise. Distinct from
+   *  `NotifierEntry.id`, which the engine assigns. */
+  legacyId: string;
+  kind: NotificationKind;
+  priority: NotificationPriority;
+  action: NotificationAction;
+  i18n?: NotificationI18n;
+  transportId?: string;
+  sessionId?: string;
+}
 
-    // Store for bell panel
-    store.unshift(payload);
-    if (store.length > MAX_STORED) store.length = MAX_STORED;
+export function isLegacyNotifierPluginData(value: unknown): value is LegacyNotifierPluginData {
+  if (value === null || typeof value !== "object") return false;
+  const rec = value as Record<string, unknown>;
+  return rec.legacy === true && typeof rec.legacyId === "string" && typeof rec.kind === "string";
+}
 
-    // Push to Web UI via pub-sub
-    if (deps) {
-      deps.publish(PUBSUB_CHANNELS.notifications, payload);
-    }
+// ── Mapping helpers ─────────────────────────────────────────────
 
-    // Push to bridge (Telegram/CLI)
-    if (deps && opts.transportId) {
-      deps.pushToBridge(opts.transportId, "notifications", formatBridgeMessage(payload));
-    }
-
-    // Push to macOS Reminders (#789). No-op unless
-    // MACOS_REMINDER_NOTIFICATIONS=1 + darwin. Fire-and-forget so a
-    // slow / failing osascript can't block the bell update.
-    void pushToMacosReminder(payload.title, payload.body);
-
-    log.info("notifications", "published", {
-      kind: payload.kind,
-      title: payload.title,
-      id: payload.id,
-    });
-  } catch (err) {
-    // Never let notification failures break the caller (e.g. endRun).
-    log.warn("notifications", "publish failed", { error: String(err) });
+/** Map legacy `NotificationKind` → `pluginPkg`. Source categories
+ *  that come from a domain feature (todo / scheduler / agent /
+ *  journal) keep their names so a future runtime plugin can adopt the
+ *  pluginPkg unchanged; the host-internal categories (push, bridge,
+ *  system) collapse to "host". */
+export function legacyKindToPluginPkg(kind: NotificationKind): string {
+  switch (kind) {
+    case NOTIFICATION_KINDS.todo:
+    case NOTIFICATION_KINDS.scheduler:
+    case NOTIFICATION_KINDS.agent:
+    case NOTIFICATION_KINDS.journal:
+      return kind;
+    case NOTIFICATION_KINDS.push:
+    case NOTIFICATION_KINDS.bridge:
+    case NOTIFICATION_KINDS.system:
+    default:
+      return "host";
   }
 }
 
-function formatBridgeMessage(payload: NotificationPayload): string {
-  const icon = payload.kind === NOTIFICATION_KINDS.agent ? "\u2705" : "\u{1F514}";
-  const parts = [icon, payload.title];
-  if (payload.body) parts.push(payload.body);
-  return parts.join(" ");
+/** Map legacy `priority` → engine `severity`. The legacy badge was
+ *  red unconditionally; mapping `normal` → `nudge` keeps the bell
+ *  visibly amber so users still see "you have notifications," while
+ *  `high` → `urgent` preserves the red escalation for diagnostics
+ *  and similar attention-grabbing items. `info` is reserved for
+ *  future non-bell-coloring callers. */
+export function legacyPriorityToSeverity(priority: NotificationPriority | undefined): NotifierSeverity {
+  return priority === NOTIFICATION_PRIORITIES.high ? "urgent" : "nudge";
+}
+
+// ── Per-view URL builders ───────────────────────────────────────
+//
+// Split out from `legacyActionToNavigateTarget` so the dispatcher
+// stays under the cognitive-complexity threshold. Each builder takes
+// the typed target slice it cares about and returns either a relative
+// URL or `undefined` (the latter only when a required field is
+// missing — chat without sessionId).
+
+type NavigateTarget = Extract<NotificationAction, { type: "navigate" }>["target"];
+
+// User/content-derived path segments (slugs, anchors, item ids) ride
+// through `encodeURIComponent` so reserved characters like `?`, `#`,
+// `/`, `%`, `&`, ` ` don't change the URL's structure when interpolated.
+// `PAGE_ROUTES.*` and the literal `pages` segment are static literals
+// — encoding them is unnecessary noise.
+//
+// Dot segments (`.` and `..`) survive `encodeURIComponent` (the dots
+// aren't reserved characters) and would let a slug or path component
+// jump out of its view's namespace once the browser / router applies
+// path normalization. `/files/../chat/sess` collapses to `/chat/sess`,
+// for example. `isSafePathComponent` rejects those segments; consumers
+// either fall back to the view's index (single-component fields like
+// `slug` / `itemId`) or drop the navigate target entirely (chat,
+// where `sessionId` is required, has no usable index).
+
+function isSafePathComponent(segment: string): boolean {
+  return segment !== "." && segment !== "..";
+}
+
+function buildChatTarget(target: Extract<NavigateTarget, { view: typeof NOTIFICATION_VIEWS.chat }>): string | undefined {
+  // No sessionId → drop the action; bouncing off the catch-all
+  // redirect is worse UX than a non-clickable entry. Dot-segment
+  // sessionId would normalize off /chat, so drop too.
+  if (!target.sessionId || !isSafePathComponent(target.sessionId)) return undefined;
+  const sessionPath = `/${PAGE_ROUTES.chat}/${encodeURIComponent(target.sessionId)}`;
+  if (target.resultUuid) return `${sessionPath}?result=${encodeURIComponent(target.resultUuid)}`;
+  return sessionPath;
+}
+
+function buildFilesTarget(target: Extract<NavigateTarget, { view: typeof NOTIFICATION_VIEWS.files }>): string {
+  // Files uses a catch-all (`/files/:pathMatch(.*)`); empty path
+  // lands on the index. Each segment is encoded so spaces / special
+  // characters don't break the URL. A path containing `.` or `..`
+  // segments would normalize out of /files, so refuse to build a
+  // path target for it — the index is the safest fallback.
+  if (!target.path) return `/${PAGE_ROUTES.files}`;
+  const segments = target.path.split("/").filter(Boolean);
+  if (segments.some((segment) => !isSafePathComponent(segment))) return `/${PAGE_ROUTES.files}`;
+  return `/${PAGE_ROUTES.files}/${segments.map(encodeURIComponent).join("/")}`;
+}
+
+function buildWikiTarget(target: Extract<NavigateTarget, { view: typeof NOTIFICATION_VIEWS.wiki }>): string {
+  // Slug rides as a path component → dot-segment-check it. The
+  // anchor lives in the URL fragment, which doesn't participate in
+  // path normalization, so it doesn't need the same guard.
+  const slug = target.slug && isSafePathComponent(target.slug) ? `/pages/${encodeURIComponent(target.slug)}` : "";
+  const hash = target.anchor ? `#${encodeURIComponent(target.anchor)}` : "";
+  return `/${PAGE_ROUTES.wiki}${slug}${hash}`;
+}
+
+function buildSingleSegmentTarget(view: string, segment: string | undefined): string {
+  // Helper for views with a single optional path component: todos
+  // (itemId), automations (taskId), sources (slug). Unsafe values
+  // fall back to the view's index — a soft-fail since these views
+  // all have a usable index page.
+  if (segment && isSafePathComponent(segment)) return `/${view}/${encodeURIComponent(segment)}`;
+  return `/${view}`;
+}
+
+function buildNavigateTarget(target: NavigateTarget): string | undefined {
+  switch (target.view) {
+    case NOTIFICATION_VIEWS.chat:
+      return buildChatTarget(target);
+    case NOTIFICATION_VIEWS.todos:
+      return buildSingleSegmentTarget(PAGE_ROUTES.todos, target.itemId);
+    case NOTIFICATION_VIEWS.calendar:
+      return `/${PAGE_ROUTES.calendar}`;
+    case NOTIFICATION_VIEWS.automations:
+      return buildSingleSegmentTarget(PAGE_ROUTES.automations, target.taskId);
+    case NOTIFICATION_VIEWS.sources:
+      return buildSingleSegmentTarget(PAGE_ROUTES.sources, target.slug);
+    case NOTIFICATION_VIEWS.files:
+      return buildFilesTarget(target);
+    case NOTIFICATION_VIEWS.wiki:
+      return buildWikiTarget(target);
+    default:
+      return undefined;
+  }
+}
+
+/** Flatten a typed `NotificationAction` to a relative URL string the
+ *  bell can hand straight to `router.push`. Returns `undefined` for
+ *  `action: { type: "none" }`, missing required fields (e.g. a chat
+ *  navigate without `sessionId`), or unknown views. The engine's
+ *  `navigateTarget` validation requires same-origin paths starting
+ *  with a single "/", which every branch below satisfies. */
+export function legacyActionToNavigateTarget(action: NotificationAction | undefined): string | undefined {
+  if (!action || action.type !== NOTIFICATION_ACTION_TYPES.navigate) return undefined;
+  return buildNavigateTarget(action.target);
+}
+
+// ── Publish ─────────────────────────────────────────────────────
+
+/**
+ * Host-only entry point for firing notifications.
+ *
+ * **Plugins MUST NOT call this directly.** Plugin code (anything under
+ * `packages/*-plugin/`) MUST publish through `runtime.notifier.publish`
+ * (see `server/notifier/runtime-api.ts`), which auto-binds `pluginPkg`
+ * to the calling plugin so plugins cannot impersonate each other.
+ *
+ * This wrapper exists for host-side callers (`server/agent/`,
+ * `server/api/routes/`, `server/workspace/`, `server/plugins/diagnostics.ts`)
+ * that don't have a `PluginRuntime` to hand. It forwards into
+ * `notifier.publish` with `lifecycle: "fyi"` and stashes legacy fields
+ * on `pluginData` so the bell can preserve icon / i18n / transport
+ * semantics. Bridge + macOS push are owned by separate adapters
+ * subscribed to the `notifier` pubsub channel, not by this function.
+ */
+export function publishNotification(opts: PublishNotificationOpts): void {
+  const legacyId = opts.id ?? makeUuid();
+  const action: NotificationAction = opts.action ?? { type: NOTIFICATION_ACTION_TYPES.none };
+  const pluginData: LegacyNotifierPluginData = {
+    legacy: true,
+    legacyId,
+    kind: opts.kind,
+    priority: opts.priority ?? NOTIFICATION_PRIORITIES.normal,
+    action,
+    i18n: opts.i18n,
+    transportId: opts.transportId,
+    sessionId: opts.sessionId,
+  };
+  // Fire-and-forget — the engine queues writes through its own
+  // coordinator. A persistence failure logs but never throws to the
+  // caller (matches the legacy try/catch contract that protected
+  // call sites like endRun).
+  notifierPublish({
+    pluginPkg: legacyKindToPluginPkg(opts.kind),
+    severity: legacyPriorityToSeverity(opts.priority),
+    lifecycle: "fyi",
+    title: opts.title,
+    body: opts.body,
+    navigateTarget: legacyActionToNavigateTarget(action),
+    pluginData,
+  }).catch((err) => {
+    log.warn("notifications", "publish failed", { error: String(err), legacyId, kind: opts.kind });
+  });
 }
 
 // ── Legacy test notification (kept for PoC endpoint) ────────────
 
 export const DEFAULT_NOTIFICATION_MESSAGE = "Test notification";
 export const DEFAULT_NOTIFICATION_TRANSPORT_ID = "cli";
-export const DEFAULT_NOTIFICATION_CHAT_ID = "notifications";
 
 export interface ScheduleNotificationOptions {
   message?: string;
   body?: string;
   delaySeconds?: number;
   transportId?: string;
-  chatId?: string;
   // Optional deep-link action — lets dev-side callers fire a
   // notification that navigates to a specific permalink when
   // clicked. Without this the fired notification has no click
@@ -153,10 +297,13 @@ export interface ScheduledNotification {
   cancel: () => void;
 }
 
-export function scheduleTestNotification(opts: ScheduleNotificationOptions, legacyDeps: NotificationDeps): ScheduledNotification {
+/** PoC: schedules one `publishNotification` after a delay. Bridge
+ *  push is no longer sent inline here — the bridge adapter (subscribed
+ *  to the notifier channel) fans out to bridges based on the entry's
+ *  `pluginData.transportId`. */
+export function scheduleTestNotification(opts: ScheduleNotificationOptions): ScheduledNotification {
   const message = opts.message ?? DEFAULT_NOTIFICATION_MESSAGE;
   const transportId = opts.transportId ?? DEFAULT_NOTIFICATION_TRANSPORT_ID;
-  const chatId = opts.chatId ?? DEFAULT_NOTIFICATION_CHAT_ID;
   const delaySeconds = clampDelay(opts.delaySeconds);
   const delayMs = delaySeconds * ONE_SECOND_MS;
   const kind = opts.kind ?? NOTIFICATION_KINDS.push;
@@ -169,13 +316,9 @@ export function scheduleTestNotification(opts: ScheduleNotificationOptions, lega
       title: message,
       body: opts.body,
       priority: NOTIFICATION_PRIORITIES.normal,
-      // When the caller supplied an action, pass it through so the
-      // bell clicks into the requested permalink. Otherwise leave
-      // it undefined so publishNotification falls back to the
-      // "navigate: none" default.
       action: opts.action,
+      transportId,
     });
-    legacyDeps.pushToBridge(transportId, chatId, message);
   }, delayMs);
 
   return {

@@ -65,9 +65,13 @@ const zhMessages = {
   },
   notificationBell: {
     notifications: "通知",
-    markAllRead: "全部标为已读",
-    noNotifications: "暂无通知",
+    activeSection: "进行中",
+    historySection: "历史",
+    noActive: "暂无活跃通知",
+    noHistory: "暂无近期记录",
+    clearAll: "全部清除",
     dismiss: "关闭",
+    cancel: "取消",
   },
   pluginDiagnostics: {
     title: "插件配置问题",

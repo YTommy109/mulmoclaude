@@ -67,9 +67,13 @@ const koMessages = {
   },
   notificationBell: {
     notifications: "알림",
-    markAllRead: "모두 읽음 처리",
-    noNotifications: "알림이 없습니다",
+    activeSection: "진행 중",
+    historySection: "기록",
+    noActive: "활성 알림이 없습니다",
+    noHistory: "최근 활동이 없습니다",
+    clearAll: "모두 지우기",
     dismiss: "닫기",
+    cancel: "취소",
   },
   pluginDiagnostics: {
     title: "플러그인 구성 문제",

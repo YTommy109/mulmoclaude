@@ -16,6 +16,19 @@ function urlStartsWith(prefix: string): (url: URL) => boolean {
   return (url) => url.pathname.startsWith(prefix);
 }
 
+/** Pull the `action` field out of a `/api/notifier` POST body. The
+ *  prime() flow sends `{action: "list"}` then `{action: "listHistory"}`;
+ *  the bell's user actions send `{action: "clear" | "cancel", id}`. */
+function parseDispatchAction(body: string | null): string | undefined {
+  if (!body) return undefined;
+  try {
+    const parsed = JSON.parse(body) as { action?: unknown };
+    return typeof parsed.action === "string" ? parsed.action : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const DEFAULT_ROLES: unknown[] = [];
 
 const DEFAULT_TODOS = {
@@ -111,6 +124,17 @@ export async function mockAllApis(page: Page, opts: MockApiOptions = {}): Promis
   // safe for tests that don't exercise plugin install / diagnostics.
   await page.route(urlEndsWith("/api/plugins/runtime/list"), (route) => route.fulfill({ json: [] }));
   await page.route(urlEndsWith("/api/plugins/diagnostics"), (route) => route.fulfill({ json: [] }));
+
+  // Notifier engine — every page load primes via list + listHistory.
+  // Empty defaults keep specs that don't care about notifications
+  // quiet (no 501s, no [mock] unhandled warnings); specs that do care
+  // override with a more specific page.route() before mockAllApis.
+  await page.route(urlEndsWith("/api/notifier"), (route) => {
+    const action = parseDispatchAction(route.request().postData());
+    if (action === "listHistory") return route.fulfill({ json: { history: [] } });
+    if (action === "clear" || action === "cancel") return route.fulfill({ json: { ok: true } });
+    return route.fulfill({ json: { entries: [] } });
+  });
 
   // Server returns a plain array of { name, enabled, requiredEnv, prompt }
   // (see server/mcp-tools/index.ts). The old object-wrapped shape used

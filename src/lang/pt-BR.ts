@@ -60,9 +60,13 @@ const ptBRMessages = {
   },
   notificationBell: {
     notifications: "Notificações",
-    markAllRead: "Marcar tudo como lido",
-    noNotifications: "Nenhuma notificação",
+    activeSection: "Ativas",
+    historySection: "Histórico",
+    noActive: "Sem notificações ativas",
+    noHistory: "Sem atividade recente",
+    clearAll: "Limpar",
     dismiss: "Dispensar",
+    cancel: "Cancelar",
   },
   pluginDiagnostics: {
     title: "Problema de configuração do plugin",

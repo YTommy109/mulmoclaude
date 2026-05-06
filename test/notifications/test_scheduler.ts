@@ -1,155 +1,132 @@
+// Coverage for `scheduleTestNotification` after PR 4 of feat-encore.
+//
+// `scheduleTestNotification` no longer takes injected deps — it just
+// queues a `setTimeout` that fires `publishNotification`, which in
+// turn forwards to the notifier engine. The test runs the engine
+// against tmp files and asserts the entry shows up in `listAll()`
+// after the timer ticks. Bridge / macOS push are tested via
+// `legacy-adapters` separately.
+
 import { describe, it, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import { tmpdir } from "node:os";
+import { mkdtemp, rm } from "node:fs/promises";
 import {
   DEFAULT_NOTIFICATION_MESSAGE,
-  DEFAULT_NOTIFICATION_CHAT_ID,
   DEFAULT_NOTIFICATION_TRANSPORT_ID,
+  isLegacyNotifierPluginData,
   scheduleTestNotification,
-  initNotifications,
-  type NotificationDeps,
 } from "../../server/events/notifications.ts";
-import type { NotificationPayload } from "../../src/types/notification.ts";
-import { PUBSUB_CHANNELS } from "../../src/config/pubsubChannels.ts";
+import { _setFilePathsForTesting, initNotifier, listAll } from "../../server/notifier/engine.ts";
 
-function isNotificationPayload(value: unknown): value is NotificationPayload {
-  if (value === null || typeof value !== "object") return false;
-  const rec = value as Record<string, unknown>;
-  return typeof rec.id === "string" && typeof rec.title === "string";
+let tmpDir: string;
+
+async function flushAsync(): Promise<void> {
+  // Two awaits: first lets the wrapper's `notifier.publish().catch()`
+  // microtask schedule, second gives the engine drain (loadActive →
+  // saveActive → emit → settle) a tick to complete. The fs ops are
+  // real, so this isn't deterministic across all platforms — use a
+  // bounded retry on the assertion in the test bodies.
+  await Promise.resolve();
+  await Promise.resolve();
 }
 
-interface SpyDeps extends NotificationDeps {
-  publishCalls: { channel: string; payload: unknown }[];
-  pushCalls: { transportId: string; chatId: string; message: string }[];
+async function waitForActiveCount(expected: number, attempts = 20): Promise<void> {
+  for (let i = 0; i < attempts; i += 1) {
+    const entries = await listAll();
+    if (entries.length === expected) return;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  const final = await listAll();
+  assert.equal(final.length, expected, `expected ${expected} active entries, got ${final.length}`);
 }
 
-function createSpyDeps(): SpyDeps {
-  const publishCalls: SpyDeps["publishCalls"] = [];
-  const pushCalls: SpyDeps["pushCalls"] = [];
-  return {
-    publishCalls,
-    pushCalls,
-    publish: (channel, payload) => {
-      publishCalls.push({ channel, payload });
-    },
-    pushToBridge: (transportId, chatId, message) => {
-      pushCalls.push({ transportId, chatId, message });
-    },
-  };
-}
-
-beforeEach(() => {
+beforeEach(async () => {
+  tmpDir = await mkdtemp(path.join(tmpdir(), "notifier-scheduler-test-"));
+  _setFilePathsForTesting({
+    active: path.join(tmpDir, "active.json"),
+    history: path.join(tmpDir, "history.json"),
+  });
+  initNotifier({ publish: () => undefined });
   mock.timers.enable({ apis: ["setTimeout", "Date"] });
 });
 
-afterEach(() => {
+afterEach(async () => {
   mock.timers.reset();
+  await rm(tmpDir, { recursive: true, force: true });
 });
 
 describe("scheduleTestNotification — fires once after the delay", () => {
-  it("fires publish + push once when the timer elapses", () => {
-    const deps = createSpyDeps();
-    // Init notification system so publishNotification has deps
-    initNotifications(deps);
-    const scheduled = scheduleTestNotification({ message: "hello", delaySeconds: 5 }, deps);
-    assert.equal(deps.publishCalls.length, 0);
-    assert.equal(deps.pushCalls.length, 0);
+  it("publishes a notifier entry when the timer elapses", async () => {
+    const scheduled = scheduleTestNotification({ message: "hello", delaySeconds: 5 });
+    assert.equal((await listAll()).length, 0);
+
     mock.timers.tick(4_999);
-    assert.equal(deps.publishCalls.length, 0);
+    await flushAsync();
+    assert.equal((await listAll()).length, 0);
+
     mock.timers.tick(1);
-    // publishNotification publishes to the notification channel
-    assert.equal(deps.publishCalls.length, 1);
-    // Legacy bridge push + no transportId in opts → only bridge push from legacy
-    assert.equal(deps.pushCalls.length, 1);
+    await waitForActiveCount(1);
+    const entries = await listAll();
+    const [entry] = entries;
+    assert.equal(entry.title, "hello");
+    assert.equal(entry.lifecycle, "fyi");
+    const legacy = isLegacyNotifierPluginData(entry.pluginData) ? entry.pluginData : null;
+    assert.ok(legacy, "expected legacy pluginData marker");
+    assert.equal(legacy.transportId, DEFAULT_NOTIFICATION_TRANSPORT_ID);
     assert.equal(scheduled.delaySeconds, 5);
     assert.match(scheduled.firesAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   });
 
-  it("passes the message + channel + bridge identifiers through verbatim", () => {
-    const deps = createSpyDeps();
-    initNotifications(deps);
-    scheduleTestNotification(
-      {
-        message: "my-msg",
-        delaySeconds: 1,
-        transportId: "telegram",
-        chatId: "chat-42",
-      },
-      deps,
-    );
-    mock.timers.tick(1_000);
-
-    assert.equal(deps.publishCalls.length, 1);
-    const [firstPublish] = deps.publishCalls;
-    assert.equal(firstPublish.channel, PUBSUB_CHANNELS.notifications);
-    const { payload } = firstPublish;
-    assert.ok(isNotificationPayload(payload));
-    assert.equal(payload.title, "my-msg");
-    // Legacy bridge push uses custom transport/chat
-    assert.deepEqual(deps.pushCalls, [{ transportId: "telegram", chatId: "chat-42", message: "my-msg" }]);
-  });
-
-  it("does not fire twice — single setTimeout only", () => {
-    const deps = createSpyDeps();
-    initNotifications(deps);
-    scheduleTestNotification({ delaySeconds: 1 }, deps);
+  it("does not fire twice — single setTimeout only", async () => {
+    scheduleTestNotification({ delaySeconds: 1 });
     mock.timers.tick(5_000);
-    assert.equal(deps.publishCalls.length, 1);
-    assert.equal(deps.pushCalls.length, 1);
+    await waitForActiveCount(1);
   });
 });
 
 describe("scheduleTestNotification — defaults", () => {
-  it("uses default message / delay / transport / chat when omitted", () => {
-    const deps = createSpyDeps();
-    initNotifications(deps);
-    const scheduled = scheduleTestNotification({}, deps);
+  it("uses default message / delay / transport when omitted", async () => {
+    const scheduled = scheduleTestNotification({});
     assert.equal(scheduled.delaySeconds, 60);
     mock.timers.tick(60_000);
-    assert.equal(deps.publishCalls.length, 1);
-    const [{ payload }] = deps.publishCalls;
-    assert.ok(isNotificationPayload(payload));
-    assert.equal(payload.title, DEFAULT_NOTIFICATION_MESSAGE);
-    assert.deepEqual(deps.pushCalls, [
-      {
-        transportId: DEFAULT_NOTIFICATION_TRANSPORT_ID,
-        chatId: DEFAULT_NOTIFICATION_CHAT_ID,
-        message: DEFAULT_NOTIFICATION_MESSAGE,
-      },
-    ]);
+    await waitForActiveCount(1);
+    const [entry] = await listAll();
+    assert.equal(entry.title, DEFAULT_NOTIFICATION_MESSAGE);
+    const legacy = isLegacyNotifierPluginData(entry.pluginData) ? entry.pluginData : null;
+    assert.equal(legacy?.transportId, DEFAULT_NOTIFICATION_TRANSPORT_ID);
   });
 });
 
 describe("scheduleTestNotification — delay clamping", () => {
   it("caps delays above the 1-hour ceiling at 3600s", () => {
-    const deps = createSpyDeps();
-    initNotifications(deps);
-    const scheduled = scheduleTestNotification({ delaySeconds: 99999 }, deps);
+    const scheduled = scheduleTestNotification({ delaySeconds: 99999 });
     assert.equal(scheduled.delaySeconds, 3600);
   });
 
-  it("clamps negative delays to 0 and fires on the next tick", () => {
-    const deps = createSpyDeps();
-    initNotifications(deps);
-    const scheduled = scheduleTestNotification({ delaySeconds: -10 }, deps);
+  it("clamps non-finite delays (Infinity) to the default", () => {
+    const scheduled = scheduleTestNotification({ delaySeconds: Infinity });
+    assert.equal(scheduled.delaySeconds, 60);
+  });
+
+  it("clamps negative delays to 0 and fires on the next tick", async () => {
+    const scheduled = scheduleTestNotification({ delaySeconds: -10 });
     assert.equal(scheduled.delaySeconds, 0);
     mock.timers.tick(0);
-    assert.equal(deps.publishCalls.length, 1);
+    await waitForActiveCount(1);
   });
 
   it("floors fractional delays (1.9 → 1)", () => {
-    const deps = createSpyDeps();
-    initNotifications(deps);
-    const scheduled = scheduleTestNotification({ delaySeconds: 1.9 }, deps);
+    const scheduled = scheduleTestNotification({ delaySeconds: 1.9 });
     assert.equal(scheduled.delaySeconds, 1);
   });
 
-  it("cancel() prevents the push from firing", () => {
-    const deps = createSpyDeps();
-    initNotifications(deps);
-    const scheduled = scheduleTestNotification({ delaySeconds: 10 }, deps);
+  it("cancel() prevents the entry from being published", async () => {
+    const scheduled = scheduleTestNotification({ delaySeconds: 10 });
     scheduled.cancel();
     mock.timers.tick(20_000);
-    assert.equal(deps.publishCalls.length, 0);
-    assert.equal(deps.pushCalls.length, 0);
+    await flushAsync();
+    assert.equal((await listAll()).length, 0);
   });
 });
