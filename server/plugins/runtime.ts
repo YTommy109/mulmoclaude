@@ -248,9 +248,15 @@ function makeScopedPubSub(pkgName: string, hostPubSub: IPubSub): PluginRuntime["
 // ─────────────────────────────────────────────────────────────────────
 
 function makeScopedNotifier(pkgName: string): NotifierRuntimeApi {
+  // Both `publish` and `clear` are plugin-scoped:
+  //   - publish forces `pluginPkg` to the caller's pkg name (the
+  //     plugin literally cannot publish under another's namespace).
+  //   - clear routes through `clearForPlugin` so a plugin holding
+  //     another plugin's id (e.g. via a future leak) silently no-ops
+  //     instead of dismissing it. CodeRabbit review on PR #1198.
   return {
     publish: (input) => notifierEngine.publish({ ...input, pluginPkg: pkgName }),
-    clear: (entryId) => notifierEngine.clear(entryId),
+    clear: (entryId) => notifierEngine.clearForPlugin(pkgName, entryId),
   };
 }
 

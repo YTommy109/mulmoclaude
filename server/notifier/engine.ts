@@ -244,6 +244,27 @@ export async function cancel(entryId: string): Promise<void> {
   });
 }
 
+/** Plugin-scoped clear. Same as `clear` but no-ops if the entry's
+ *  `pluginPkg` doesn't match the caller's. Used by the per-plugin
+ *  `runtime.notifier.clear` so a plugin can't dismiss another
+ *  plugin's notification by guessing or scraping its id. The
+ *  silent no-op (rather than a throw) matches `clear(unknown id)`
+ *  semantics — the plugin can't distinguish "id never existed"
+ *  from "id belongs to another plugin", which is the intended
+ *  isolation property. */
+export async function clearForPlugin(pluginPkg: string, entryId: string): Promise<void> {
+  await enqueue((state) => {
+    const entry = state.entries[entryId];
+    if (!entry) return null;
+    if (entry.pluginPkg !== pluginPkg) return null;
+    state.entries = removeEntry(state, entryId);
+    return {
+      event: { type: "cleared", id: entryId },
+      historyEntry: buildHistoryEntry(entry, "cleared"),
+    };
+  });
+}
+
 export async function get(entryId: string): Promise<NotifierEntry | undefined> {
   const state = await loadActive(activeFilePath);
   return state.entries[entryId];

@@ -3,7 +3,18 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "fs";
 import path from "path";
 import { tmpdir } from "os";
-import { publish, clear, cancel, get, listFor, listAll, listHistory, initNotifier, _setFilePathsForTesting } from "../../../server/notifier/engine.js";
+import {
+  publish,
+  clear,
+  cancel,
+  clearForPlugin,
+  get,
+  listFor,
+  listAll,
+  listHistory,
+  initNotifier,
+  _setFilePathsForTesting,
+} from "../../../server/notifier/engine.js";
 import type { NotifierEvent } from "../../../server/notifier/types.js";
 
 let tmpDir = "";
@@ -361,5 +372,39 @@ describe("history", () => {
     assert.ok(parsed && typeof parsed === "object");
     assert.ok(Array.isArray(parsed.entries));
     assert.equal(parsed.entries.length, 1);
+  });
+});
+
+describe("clearForPlugin (per-plugin isolation)", () => {
+  it("clears an entry the caller owns", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "mine" });
+    await clearForPlugin("@scope/owner", id);
+    assert.equal(await get(id), undefined);
+    const [terminal] = await listHistory();
+    assert.equal(terminal.id, id);
+    assert.equal(terminal.terminalType, "cleared");
+  });
+
+  it("silently no-ops when the entry belongs to another plugin", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "owned" });
+    emittedEvents.length = 0;
+    await clearForPlugin("@scope/intruder", id);
+    // Entry survives, no event was emitted, history stays empty.
+    assert.ok(await get(id), "entry must remain when caller is not the owner");
+    assert.equal(emittedEvents.length, 0, "no event emitted on owner mismatch");
+    assert.deepEqual(await listHistory(), []);
+  });
+
+  it("silently no-ops on an unknown id (matches existing clear semantics)", async () => {
+    emittedEvents.length = 0;
+    await clearForPlugin("@scope/anyone", "00000000-0000-0000-0000-000000000000");
+    assert.equal(emittedEvents.length, 0);
+  });
+
+  it("does not record cross-plugin attempts in history (audit cleanliness)", async () => {
+    await publish({ pluginPkg: "@scope/a", severity: "info", title: "ours" });
+    const { id: stranger } = await publish({ pluginPkg: "@scope/b", severity: "info", title: "theirs" });
+    await clearForPlugin("@scope/a", stranger); // attempt
+    assert.deepEqual(await listHistory(), []);
   });
 });
