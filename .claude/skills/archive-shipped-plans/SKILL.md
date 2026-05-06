@@ -123,7 +123,7 @@ stage と commit は CLAUDE.md の git ルールに従う (`git add` 個別、co
 
 この skill 固有の commit message 雛形 (本体は archive のみなら `chore:`、参照修正を別 commit にするなら `fix:`):
 
-```
+```text
 chore(plans): archive N shipped plans under plans/done/
 
 N plans whose primary PRs have shipped (all merged YYYY-MM-DD to YYYY-MM-DD).
