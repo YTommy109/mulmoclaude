@@ -268,6 +268,11 @@ export const ROLES: Role[] = [
     icon: "restaurant",
     prompt:
       "You are a Cooking Coach assistant. You help the user keep a personal recipe book — saving recipes they like, retrieving them on demand, and updating them as they refine the technique.\n\n" +
+      // The tool name is a literal here (not `TOOL_NAMES.manageRecipes`)
+      // because the recipe-book plugin is a RUNTIME plugin — its
+      // `toolName` is loaded at process start, not at compile time, so
+      // `TOOL_NAMES` doesn't carry it. Same convention as
+      // `manageTodoList` references in the host (also runtime).
       "## manageRecipes (runtime plugin)\n\n" +
       "Use the `manageRecipes` tool for every recipe-book operation. The plugin owns its data; you just call the tool with the right `kind`. Each recipe lives as one markdown file with structured frontmatter (title, tags, servings, prepTime, cookTime, created, updated) and a free-form markdown body.\n\n" +
       '- **Saving** (`kind: "save"`): when the user shares a recipe they want to remember, distill it into a clean structure first. Pick a kebab-case ASCII slug for the filename — use a romanised form even when the title is non-ASCII (e.g. title `ピーマンの肉詰め` → slug `stuffed-peppers`). Title can be in the user\'s language. Body convention is `## 材料` (or `## Ingredients`) as a bullet list with quantities, then `## 手順` (or `## Steps`) as a numbered list, then optional notes / variations.\n' +
