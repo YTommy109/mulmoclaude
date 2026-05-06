@@ -350,7 +350,7 @@ function parseGenerationPayload(event: Record<string, unknown>): GenerationPaylo
 // the `tool_result` shape that `pushToolResult` already writes, so
 // downstream parsers (and humans grepping the file for debugging)
 // see a familiar event row. Opt-in via `PERSIST_TOOL_CALLS=1` —
-// see plans/feat-persist-tool-calls.md for the rationale.
+// see plans/done/feat-persist-tool-calls.md for the rationale.
 //
 // Exported for unit tests; the run-time hot path stays inside
 // `applyEventToSession` and goes through the per-session

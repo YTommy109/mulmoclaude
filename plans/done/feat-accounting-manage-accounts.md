@@ -4,7 +4,7 @@ The accounting plugin ships a `getAccounts` / `upsertAccount` REST + MCP surface
 
 This plan adds an inline **Manage accounts** modal triggered from both forms, reusing the existing server endpoints.
 
-GA itself (route registration, launcher button, role inclusion) remains gated by `plans/feat-accounting-followups.md` — this PR only changes the in-canvas UI.
+GA itself (route registration, launcher button, role inclusion) remains gated by `plans/done/feat-accounting-followups.md` — this PR only changes the in-canvas UI.
 
 ## Scope
 

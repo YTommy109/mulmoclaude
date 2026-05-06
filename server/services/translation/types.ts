@@ -1,5 +1,5 @@
 // Public types for the translation service. The on-disk dictionary
-// shape is the authoritative cache format — see plans/feat-translation-service.md.
+// shape is the authoritative cache format — see plans/done/feat-translation-service.md.
 
 export interface TranslateRequest {
   /** Dictionary namespace; also the cache filename. */

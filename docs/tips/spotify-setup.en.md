@@ -99,7 +99,7 @@ PR 3 added two OAuth scopes (`user-read-playback-state`, `user-modify-playback-s
 
 ## Related docs
 
-- Plan: `plans/feat-spotify-plugin.md`
+- Plan: `plans/done/feat-spotify-plugin.md`
 - Plugin implementation: `packages/spotify-plugin/`
 - Implementation issue: [#1162](https://github.com/receptron/mulmoclaude/issues/1162)
 - Runtime plugin docs: [`docs/plugin-runtime.md`](../plugin-runtime.md)
