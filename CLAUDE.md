@@ -106,6 +106,28 @@ See `/release-app` skill for app releases. See `/publish` skill for npm packages
 - MUST update `docs/CHANGELOG.md` before tagging
 - Package releases: `--latest=false` on `gh release create`
 
+## Build orchestration (`yarn build:packages`)
+
+The script runs **four tiers in order**:
+
+1. `@mulmobridge/protocol` + `@receptron/task-scheduler` — no internal deps, run in parallel
+2. `@mulmobridge/{client, chat-service, mock-server}` — depend on tier 1
+3. **All bridges** under `packages/bridges/*` whose name starts with `@mulmobridge/` and has a `build` script
+4. **All runtime plugins** under `packages/*` whose name starts with `@mulmoclaude/` AND ends with `-plugin` and has a `build` script
+
+Tiers 3 and 4 are auto-discovered by `scripts/build-workspaces.mjs`. Tiers 1 and 2 stay explicit in `package.json` because their dep-graph order can't be globbed.
+
+**Adding a new bridge or runtime plugin: just create the workspace directory — no `package.json` edit needed.** Selection rules are strict:
+
+- **Bridge**: lives at `packages/bridges/<name>/`, name `@mulmobridge/<name>`, has `scripts.build`
+- **Runtime plugin**: lives at `packages/<name>-plugin/`, name `@mulmoclaude/<name>-plugin`, has `scripts.build`
+
+If a workspace doesn't fit either pattern — e.g. a `@receptron/*` package, or a non-bridge `@mulmobridge/*` like `mock-server` — **MUST add it to the explicit tier-1 / tier-2 enumeration in `package.json`**; auto-discovery won't pick it up. Same goes for any new top-level core package that other workspaces depend on.
+
+NEVER name a non-runtime-plugin package `@mulmoclaude/foo-plugin` (e.g. a helper library); the build driver will try to run its `build` script in tier 4, after every consumer has already been built. Pick a different name (`@mulmoclaude/foo`, `@mulmoclaude/foo-helpers`, …) or move it to tier 2.
+
+The yarn 4 smoke workflow (`yarn4_smoke`) verifies the chain still works under yarn 4. Both tiers' driver only spawns `yarn workspace <name> run build` — identical syntax in yarn 1 and 4 — so portability is preserved.
+
 ## Architecture (summary)
 
 Full reference: [`docs/developer.md`](docs/developer.md)
