@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import { type Download, type FrameLocator, type Page, expect } from "@playwright/test";
 
-import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
+import { ONE_MINUTE_MS, ONE_SECOND_MS } from "../../server/utils/time.ts";
 import { API_ROUTES } from "../../src/config/apiRoutes.ts";
 
 const FIXTURES_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -212,7 +212,18 @@ function shouldKeepSessions(): boolean {
  * header (read from `<meta name="mulmoclaude-auth">`) is reused
  * verbatim — no need to plumb the token into the test process.
  */
-const SESSION_IDLE_TIMEOUT_MS = 30_000;
+const SESSION_IDLE_TIMEOUT_MS = 30 * ONE_SECOND_MS;
+// Per-attempt fetch deadline — short enough that a stuck request fails
+// fast and the next interval in `toPass` can retry, instead of one
+// hung attempt eating the whole `SESSION_IDLE_TIMEOUT_MS`. 5s is the
+// same magnitude the server uses for subprocess probes
+// (SUBPROCESS_PROBE_TIMEOUT_MS) so the choice stays consistent.
+const SESSION_IDLE_PER_ATTEMPT_TIMEOUT_MS = 5 * ONE_SECOND_MS;
+// Polling cadence for `toPass`. Mirrors a typical exponential-ish
+// backoff (200 / 500 / 1000 ms) but expressed via ONE_SECOND_MS so
+// no raw time literal lives in the helper (CLAUDE.md `Time: NEVER
+// use raw numbers` rule).
+const SESSION_IDLE_RETRY_INTERVALS_MS = [ONE_SECOND_MS / 5, ONE_SECOND_MS / 2, ONE_SECOND_MS];
 
 // Probe shape returned by the in-page evaluate. We carry both the
 // HTTP outcome and the session-running flag so the polling site can
@@ -225,6 +236,48 @@ const SESSION_IDLE_TIMEOUT_MS = 30_000;
 // — exactly the silent failure the original wait was added to fix.
 type SessionIdleProbe = { ok: true; stillRunning: boolean } | { ok: false; reason: string };
 
+// In-page probe body — runs inside `page.evaluate`, so this function
+// must be self-contained (no closure imports). Reads the bearer
+// from `<meta name="mulmoclaude-auth">`, hits the sessions list with
+// a per-attempt AbortSignal so a stuck request can't eat the whole
+// `toPass` budget, and returns the discriminated `SessionIdleProbe`.
+// Extracted out of `waitForSessionIdle` to keep that helper under
+// the 20-line cap and make this body unit-testable in isolation
+// (codex iter-3 nit).
+async function probeSessionIdle(args: { sid: string; listUrl: string; perAttemptTimeoutMs: number }): Promise<SessionIdleProbe> {
+  const { sid, listUrl, perAttemptTimeoutMs } = args;
+  const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
+  const token = meta?.getAttribute("content") ?? "";
+  try {
+    const res = await fetch(listUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(perAttemptTimeoutMs),
+    });
+    if (!res.ok) return { ok: false as const, reason: `GET ${listUrl} returned HTTP ${res.status} ${res.statusText}` };
+    const data = (await res.json()) as { sessions?: { id: string; isRunning?: boolean }[] };
+    const session = data.sessions?.find((row) => row.id === sid);
+    return { ok: true as const, stillRunning: session?.isRunning === true };
+  } catch (err) {
+    // Network drop / AbortSignal timeout / JSON parse throw — anything
+    // that would otherwise surface as an opaque page.evaluate failure
+    // outside `toPass`'s retry semantics. Funnel it back as a
+    // structured failure so the assertion message names the cause.
+    return { ok: false as const, reason: `GET ${listUrl} threw: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+// Translate a single probe result into Playwright assertions inside
+// `toPass`. Throws on probe failure (so `toPass` retries on the next
+// interval) and on `stillRunning=true` (so we keep waiting for the
+// server to release the session). Pure post-evaluate function — no
+// page interaction — so the assertion shape stays trivially testable.
+function assertSessionProbeIdle(probe: SessionIdleProbe, sessionId: string): void {
+  expect(probe.ok, probe.ok ? "session probe ok" : `session probe failed for ${sessionId}: ${probe.reason}`).toBe(true);
+  if (probe.ok) {
+    expect(probe.stillRunning, `session ${sessionId} should report isRunning=false before delete`).toBe(false);
+  }
+}
+
 async function waitForSessionIdle(page: Page, sessionId: string, timeoutMs: number = SESSION_IDLE_TIMEOUT_MS): Promise<void> {
   // Resolve the sessions-list URL once on the test process side via
   // the canonical `API_ROUTES.sessions.list` constant
@@ -235,32 +288,11 @@ async function waitForSessionIdle(page: Page, sessionId: string, timeoutMs: numb
   // URL string into page.evaluate's argument map so the in-page
   // closure has nothing to import from a Node-only module.
   const sessionsListUrl = API_ROUTES.sessions.list;
+  const probeArgs = { sid: sessionId, listUrl: sessionsListUrl, perAttemptTimeoutMs: SESSION_IDLE_PER_ATTEMPT_TIMEOUT_MS };
   await expect(async () => {
-    const probe: SessionIdleProbe = await page.evaluate(
-      async ({ sid, listUrl }) => {
-        const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
-        const token = meta?.getAttribute("content") ?? "";
-        try {
-          const res = await fetch(listUrl, { headers: { Authorization: `Bearer ${token}` } });
-          if (!res.ok) return { ok: false as const, reason: `GET ${listUrl} returned HTTP ${res.status} ${res.statusText}` };
-          const data = (await res.json()) as { sessions?: { id: string; isRunning?: boolean }[] };
-          const session = data.sessions?.find((row) => row.id === sid);
-          return { ok: true as const, stillRunning: session?.isRunning === true };
-        } catch (err) {
-          // Network drop / abort / JSON parse throw — anything that
-          // would otherwise surface as an opaque page.evaluate failure
-          // outside `toPass`'s retry semantics. Funnel it back as a
-          // structured failure so the assertion message names the cause.
-          return { ok: false as const, reason: `GET ${listUrl} threw: ${err instanceof Error ? err.message : String(err)}` };
-        }
-      },
-      { sid: sessionId, listUrl: sessionsListUrl },
-    );
-    expect(probe.ok, probe.ok ? "session probe ok" : `session probe failed for ${sessionId}: ${probe.reason}`).toBe(true);
-    if (probe.ok) {
-      expect(probe.stillRunning, `session ${sessionId} should report isRunning=false before delete`).toBe(false);
-    }
-  }).toPass({ timeout: timeoutMs, intervals: [200, 500, 1000] });
+    const probe: SessionIdleProbe = await page.evaluate(probeSessionIdle, probeArgs);
+    assertSessionProbeIdle(probe, sessionId);
+  }).toPass({ timeout: timeoutMs, intervals: SESSION_IDLE_RETRY_INTERVALS_MS });
 }
 
 export async function deleteSession(page: Page, sessionId: string): Promise<void> {

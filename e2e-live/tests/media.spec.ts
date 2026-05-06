@@ -47,12 +47,19 @@ const L04_GENERATION_TIMEOUT_MS = 6 * ONE_MINUTE_MS;
 // prefix that the server's resolveStoryPath strips before resolving
 // against artifacts/stories/. The wire prefix is server-internal
 // (server/api/routes/mulmo-script.ts:42-50, no exported constant
-// today), so it's pinned here against the disk constant via the
-// `^artifacts/` strip — if WORKSPACE_DIRS.stories ever moves out of
-// `artifacts/`, this derivation breaks loud, instead of silently
-// drifting with a stale literal.
+// today), so it's pinned here against the disk constant by stripping
+// the `artifacts/` prefix — if `WORKSPACE_DIRS.stories` ever stops
+// starting with `artifacts/`, the throw below trips at module load
+// and the suite fails fast instead of silently shipping the wrong
+// wire prefix to the LLM (codex iter-3: a regex `replace` would
+// otherwise no-op on miss and pass `artifacts/data/foo.json` etc.
+// straight through).
+const STORIES_DISK_PREFIX = "artifacts/";
 const STORIES_DISK_DIR = WORKSPACE_DIRS.stories;
-const STORIES_WIRE_DIR = STORIES_DISK_DIR.replace(/^artifacts\//, "");
+if (!STORIES_DISK_DIR.startsWith(STORIES_DISK_PREFIX)) {
+  throw new Error(`WORKSPACE_DIRS.stories must start with "${STORIES_DISK_PREFIX}" to derive the wire-form prefix; got ${JSON.stringify(STORIES_DISK_DIR)}`);
+}
+const STORIES_WIRE_DIR = STORIES_DISK_DIR.slice(STORIES_DISK_PREFIX.length);
 // L-05 has to absorb the LLM picking the generateImage tool plus the
 // Gemini image-gen round trip. Cold Gemini calls land in 30–60s in
 // practice; 4 minutes leaves slack for slow networks without inviting
