@@ -131,12 +131,19 @@ export function legacyPriorityToSeverity(priority: NotificationPriority | undefi
 
 type NavigateTarget = Extract<NotificationAction, { type: "navigate" }>["target"];
 
+// User/content-derived path segments (slugs, anchors, item ids) ride
+// through `encodeURIComponent` so reserved characters like `?`, `#`,
+// `/`, `%`, `&`, ` ` don't change the URL's structure when interpolated.
+// `PAGE_ROUTES.*` and the literal `pages` segment are static literals
+// — encoding them is unnecessary noise.
+
 function buildChatTarget(target: Extract<NavigateTarget, { view: typeof NOTIFICATION_VIEWS.chat }>): string | undefined {
   // No sessionId → drop the action; bouncing off the catch-all
   // redirect is worse UX than a non-clickable entry.
   if (!target.sessionId) return undefined;
-  if (target.resultUuid) return `/${PAGE_ROUTES.chat}/${target.sessionId}?result=${encodeURIComponent(target.resultUuid)}`;
-  return `/${PAGE_ROUTES.chat}/${target.sessionId}`;
+  const sessionPath = `/${PAGE_ROUTES.chat}/${encodeURIComponent(target.sessionId)}`;
+  if (target.resultUuid) return `${sessionPath}?result=${encodeURIComponent(target.resultUuid)}`;
+  return sessionPath;
 }
 
 function buildFilesTarget(target: Extract<NavigateTarget, { view: typeof NOTIFICATION_VIEWS.files }>): string {
@@ -149,8 +156,8 @@ function buildFilesTarget(target: Extract<NavigateTarget, { view: typeof NOTIFIC
 }
 
 function buildWikiTarget(target: Extract<NavigateTarget, { view: typeof NOTIFICATION_VIEWS.wiki }>): string {
-  const slug = target.slug ? `/pages/${target.slug}` : "";
-  const hash = target.anchor ? `#${target.anchor}` : "";
+  const slug = target.slug ? `/pages/${encodeURIComponent(target.slug)}` : "";
+  const hash = target.anchor ? `#${encodeURIComponent(target.anchor)}` : "";
   return `/${PAGE_ROUTES.wiki}${slug}${hash}`;
 }
 
@@ -159,13 +166,13 @@ function buildNavigateTarget(target: NavigateTarget): string | undefined {
     case NOTIFICATION_VIEWS.chat:
       return buildChatTarget(target);
     case NOTIFICATION_VIEWS.todos:
-      return target.itemId ? `/${PAGE_ROUTES.todos}/${target.itemId}` : `/${PAGE_ROUTES.todos}`;
+      return target.itemId ? `/${PAGE_ROUTES.todos}/${encodeURIComponent(target.itemId)}` : `/${PAGE_ROUTES.todos}`;
     case NOTIFICATION_VIEWS.calendar:
       return `/${PAGE_ROUTES.calendar}`;
     case NOTIFICATION_VIEWS.automations:
-      return target.taskId ? `/${PAGE_ROUTES.automations}/${target.taskId}` : `/${PAGE_ROUTES.automations}`;
+      return target.taskId ? `/${PAGE_ROUTES.automations}/${encodeURIComponent(target.taskId)}` : `/${PAGE_ROUTES.automations}`;
     case NOTIFICATION_VIEWS.sources:
-      return target.slug ? `/${PAGE_ROUTES.sources}/${target.slug}` : `/${PAGE_ROUTES.sources}`;
+      return target.slug ? `/${PAGE_ROUTES.sources}/${encodeURIComponent(target.slug)}` : `/${PAGE_ROUTES.sources}`;
     case NOTIFICATION_VIEWS.files:
       return buildFilesTarget(target);
     case NOTIFICATION_VIEWS.wiki:

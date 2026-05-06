@@ -135,6 +135,67 @@ describe("legacyActionToNavigateTarget — wiki", () => {
   });
 });
 
+describe("legacyActionToNavigateTarget — reserved characters", () => {
+  // Each user/content-derived segment (sessionId, itemId, taskId,
+  // slug, anchor) must ride through encodeURIComponent so reserved
+  // chars don't change the URL's structure when interpolated.
+  it("encodes a slug containing '?' so it doesn't become a query string", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.sources, slug: "weird?slug" },
+    });
+    assert.equal(result, "/sources/weird%3Fslug");
+  });
+
+  it("encodes an anchor containing '#' so the fragment isn't doubled", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.wiki, slug: "page", anchor: "#mid" },
+    });
+    assert.equal(result, "/wiki/pages/page#%23mid");
+  });
+
+  it("encodes a slug containing '/' so route matching stays single-segment", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.sources, slug: "a/b" },
+    });
+    assert.equal(result, "/sources/a%2Fb");
+  });
+
+  it("encodes an itemId containing '%' so it isn't seen as a stray escape", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.todos, itemId: "x%y" },
+    });
+    assert.equal(result, "/todos/x%25y");
+  });
+
+  it("encodes a sessionId with whitespace", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.chat, sessionId: "id with space" },
+    });
+    assert.equal(result, "/chat/id%20with%20space");
+  });
+
+  it("encodes a taskId containing '&' so it doesn't merge with following query params", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.automations, taskId: "task&id" },
+    });
+    assert.equal(result, "/automations/task%26id");
+  });
+
+  it("preserves URL-safe slugs unchanged (kebab-case, digits, dots)", () => {
+    const result = legacyActionToNavigateTarget({
+      type: NOTIFICATION_ACTION_TYPES.navigate,
+      target: { view: NOTIFICATION_VIEWS.wiki, slug: "daily-briefing-2026-04-25", anchor: "front-page" },
+    });
+    assert.equal(result, "/wiki/pages/daily-briefing-2026-04-25#front-page");
+  });
+});
+
 describe("legacyActionToNavigateTarget — engine constraints", () => {
   it("every emitted target starts with a single '/' (no scheme, no '//')", () => {
     const targets: { view: string; expected: string }[] = [
