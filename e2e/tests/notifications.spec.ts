@@ -155,14 +155,23 @@ function stripNotificationId(url: URL): string {
   return url.pathname + (search ? `?${search}` : "") + url.hash;
 }
 
+/** Pull the chat sessionId out of a navigateTarget URL (`/chat/<id>…`)
+ *  so the test can pre-populate the session mock and App.vue's
+ *  loadSession-then-create-on-miss fallback doesn't race the
+ *  toHaveURL assertion. Returns undefined for non-chat targets. */
+function extractChatSessionId(navigateTarget: string | undefined): string | undefined {
+  if (!navigateTarget) return undefined;
+  const match = navigateTarget.match(/^\/chat\/([^/?#]+)/);
+  return match ? decodeURIComponent(match[1]) : undefined;
+}
+
 test.describe("notification bell — navigation", () => {
   for (const scenario of SCENARIOS) {
     test(scenario.description, async ({ page }) => {
-      // Some chat-target scenarios reference a specific sessionId;
-      // pre-populate the session mock so loadSession succeeds and
-      // App.vue's auto-create fallback doesn't clobber the URL.
-      const target = scenario.entry.pluginData.action;
-      const targetSessionId = target.type === "navigate" && typeof target.target.sessionId === "string" ? target.target.sessionId : undefined;
+      // Pre-populate the session mock for chat-target scenarios so
+      // loadSession succeeds and App.vue's auto-create fallback
+      // doesn't clobber the URL with a fresh sessionId.
+      const targetSessionId = extractChatSessionId(scenario.entry.navigateTarget);
       const sessions = targetSessionId
         ? [
             {
