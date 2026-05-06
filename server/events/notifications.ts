@@ -71,6 +71,20 @@ export interface PublishNotificationOpts {
   i18n?: NotificationI18n;
 }
 
+/**
+ * Host-only entry point for firing notifications.
+ *
+ * **Plugins MUST NOT call this directly.** Plugin code (anything under
+ * `packages/*-plugin/`) MUST publish through `runtime.notifier.publish`
+ * (see `server/notifier/runtime-api.ts`), which auto-binds `pluginPkg`
+ * to the calling plugin so plugins cannot impersonate each other.
+ *
+ * This function exists for host-side callers (`server/agent/`,
+ * `server/api/routes/`, `server/workspace/`, `server/plugins/diagnostics.ts`)
+ * that don't have a `PluginRuntime` to hand. PR 4 of feat-encore will
+ * migrate it to a thin wrapper over `notifier.publish`; until then it
+ * keeps the legacy in-memory store + pubsub + bridge + macOS path.
+ */
 export function publishNotification(opts: PublishNotificationOpts): void {
   try {
     const payload: NotificationPayload = {

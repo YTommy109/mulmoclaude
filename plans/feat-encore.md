@@ -46,6 +46,8 @@ This matches the plugin-vs-host boundary in `CLAUDE.md`: host owns generic infra
 
 ## Part 1 — Notifier upgrade (host)
 
+> **Scope note.** The full spec below is the design north star, not the v1 ship list. PRs 2 + 3 shipped a minimal subset (UUID identity, `pluginPkg` / `pluginData`, `publish` / `clear` / `cancel`, two-section bell UX, history ring). PR 4 migrates legacy callers onto that subset and stops. The remaining features — timers / `firesAt`, full state machine, snooze, `signal()`, re-surface, severity → channel routing config — are deliberately deferred. Encore (PRs 5 + 6) pulls in whichever it actually needs once the domain demands them, so we can see real requirements before building infrastructure for them.
+
 ### Today
 
 `server/events/notifications.ts` exposes `publishNotification()` — a single fire-and-forget call that:
@@ -451,7 +453,7 @@ The standalone route follows the existing pattern: route registered in `src/rout
 
 ## Phasing
 
-**Order of operations**: A tiny client-only dev-mode gate ships first (PR 1, ✅ merged), then a stripped-down Notifier prototype (PR 2, ✅ merged) validates the data model + API shape via the dev-mode debug popup. PR 3 builds the full new bell UX on the debug surface (running parallel to the legacy bell) so the layout and behaviours can be exercised before any migration. PR 4 ships the full engine (timers, escalation, snooze, channel routing) and migrates `publishNotification()` onto it, replacing the legacy bell. Encore (PRs 5 + 6) lands once the engine is proven.
+**Order of operations**: A tiny client-only dev-mode gate ships first (PR 1, ✅ merged), then a stripped-down Notifier prototype (PR 2, ✅ merged) validates the data model + API shape via the dev-mode debug popup. PR 3 builds the full new bell UX on the debug surface (running parallel to the legacy bell) so the layout and behaviours can be exercised before any migration. PR 4 migrates `publishNotification()` onto the prototype engine and replaces the legacy bell — **no new engine features**. Encore (PRs 5 + 6) pulls in whichever engine features it actually needs (timers, snooze, signals, channel routing, …); the discovery happens there, driven by real domain requirements, not pre-spec'd at the system level.
 
 ### PR 1 — Dev mode + Debug role (client-only, ~25-line diff) ✅ merged
 
@@ -577,38 +579,23 @@ Builds the new bell UX on the dev-mode debug surface (next to the bell, gated by
 
 **Out of scope** — all of these stay for PR 4: legacy `publishNotification()` migration, timers / snooze / escalation, bridge / macOS adapters, bell replacement.
 
-### PR 4 — Notifier full engine + legacy migration
+### PR 4 — Legacy migration onto the prototype engine
 
-Builds on the prototype to deliver the engine specced in Part 1 above and the user experience specced in [`feat-notifier-ux.md`](feat-notifier-ux.md). New scope on top of PR 2 has two strands — engine internals and user-facing migration — landing together because the wrapper that connects them needs both ends to be ready.
+Migrate the existing `publishNotification()` callers and the bell UI to run on the engine shipped in PRs 2 + 3. **No new engine features** — `firesAt` / timers, full state machine (`delivered` / `seen` / `acted` separations), snooze, `signal()`, re-surface, and the severity → channel routing config are all deferred. Encore (PRs 5 + 6) will pull in whichever it needs; the discovery happens there, driven by real domain requirements.
 
-**Engine internals**
+**Wrapper.** `publishNotification()` becomes a thin wrapper over `notifier.publish({ lifecycle: "fyi", ... })`, mapping the old `NotificationKind` source category to a synthetic `pluginPkg` (`todo` / `scheduler` / `agent` / `journal` keep their names; `push` / `bridge` / `system` collapse under `"host"`). The optional caller-supplied `id` and `i18n` payload pass through unchanged. All current callers (`server/agent/mcp-tools/notify.ts`, `server/api/routes/notifications.ts`, `server/workspace/sources/pipeline/notify.ts`, `server/plugins/diagnostics.ts`, plus the route file's PoC endpoint) keep working with no source changes.
 
-- `firesAt` + scheduling, persisted across restart. Persistence shape grows from PR 2's `active.json` to also include `scheduled.jsonl` (queued fires) and `state.jsonl` (audit log of state-machine transitions), both keyed by UUID and written via `writeFileAtomic`.
-- Two lifecycles get the full state machine (`pending → delivered → seen → acted/dismissed → closed`) with `markSeen`-style transitions and re-surface on `delivered without acted` after `escalateAt[i]`.
-- `snooze` (until-time **and** until-signal), `signal({ pluginPkg, key })`.
-- `resurface` policy capped at `escalateAt.length` (no auto-multiplication).
-- Severity → channel routing (`info` → bell only, `nudge` → bell only, `urgent` → bell + macOS push + bridge); user-editable mapping in `~/mulmoclaude/config/notifier.json`. Toast is intentionally not a channel (see Part 1).
-- `history.jsonl` — append-only ring capped at 50 entries, FIFO eviction. `clear` and `cancel` append to it. New API: `listHistory(limit?)`. The history file is the migration's substitute for the legacy in-memory "last 50" store.
-- Optional caller-supplied `id` on `publish` so the legacy wrapper can preserve the diagnostics dedup contract (see "Legacy migration" below).
+**`publishNotification` is host-only by convention.** All plugin code (anything under `packages/*-plugin/`) MUST use `runtime.notifier.publish` (per-plugin `pluginPkg` auto-binding, no impersonation). The wrapper exists strictly for host-side callers that don't have a `PluginRuntime`. Comment to that effect already lives on the function in `server/events/notifications.ts`.
 
-**User-facing migration (per `feat-notifier-ux.md`)**
+**Bell.** `NotificationBell.vue` re-renders from the new engine, replacing — not running parallel to — the legacy bell. Layout copies the debug popup from PR 3: Active section on top, History below, single scroll, no tabs. Badge: pending count, worst-severity color (gray / amber / red), `99+` cap. fyi rows: trailing `×` calls `clear`. The `[notification-badge]` testid stays so existing E2E selectors keep resolving.
 
-- Bell badge: pending-count semantics, worst-severity color (gray / amber / red), `99+` cap. Replaces today's "unread" count.
-- Bell panel layout: Active section on top, History section below, single scroll, no tabs. Empty states: "No active notifications" / "No recent activity."
-- fyi rows: trailing `×` button calls `clear` (fyi has no `cancel` notion).
-- action rows: click-to-navigate (panel closes, `?notificationId=<uuid>` appended), trailing × → cancel. Plugin owns the clear.
-- History rows: read-only display, but rows with a `navigateTarget` stay clickable and re-route. Visual `✓` / `✗` for cleared / cancelled.
-- `NotificationToast.vue` is removed; toast as a delivery surface goes away in v1. Worst-severity badge color is the at-a-distance signal.
+**Adapters.** Bridge push (`chat-service.pushToBridge`) and macOS Reminder push relocate from inline calls inside `publishNotification()` to small adapters that subscribe to the new `notifier` pub/sub channel. **No severity-based routing** — adapters keep the gating they had before (env-flag for macOS, etc.) and ignore the `severity` field for now. The field is on the entry waiting to be read once a real use case demands routing.
 
-**Legacy migration**
+**Removed.** `NotificationToast.vue`, the legacy in-memory "last 50" store, and the legacy `notifications` pub/sub channel are all deleted.
 
-`publishNotification()` becomes a thin wrapper over `notifier.publish({ lifecycle: "fyi", ... })`, mapping the old `NotificationKind` source category to a synthetic `pluginPkg` (`todo` / `scheduler` / `agent` / `journal` keep their names; `push` / `bridge` / `system` collapse under `"host"`). The optional caller-supplied `id` and `i18n` payload pass through unchanged. All current callers (`server/agent/mcp-tools/notify.ts`, `server/api/routes/notifications.ts`, `server/workspace/sources/pipeline/notify.ts`, `server/plugins/diagnostics.ts`, plus the route file's PoC endpoint) keep working without source changes; the user-visible behaviour matches the new UX (entries land in Active until acked, then move to History).
+**Test coverage.** Equivalence tests for each legacy caller (an entry through the wrapper appears in Active with the right `pluginPkg` / `lifecycle` / `i18n` and lands in History on ack). Playwright E2E driving the production bell panel through the Active + History flows.
 
-Bridge push (`chat-service.pushToBridge`) and macOS Reminder push relocate from inline calls inside `publishNotification()` to small adapters that subscribe to the `notifier` pub/sub channel and route by severity. The wrapper itself stays free of channel concerns.
-
-**Test coverage** extends PR 2's: state machine transitions, severity → channel mapping, snooze re-evaluation, re-surface timing, `listFor` / `get` recovery semantics, restart-survives-pending under timer load, history ring eviction, `publishNotification()` legacy callers' output equivalence (an entry published through the wrapper appears in Active with the right `pluginPkg` / `severity` / `lifecycle` and lands in History on ack). Full Playwright E2E driving the bell panel through Active + History flows.
-
-**Acceptance bar:** every state transition reachable from the debug popup; every existing `publishNotification()` call site continues to fire and the user can ack the entry from the Active section; the History section shows the last 50 acked / cancelled entries; the existing toast popup no longer appears.
+**Acceptance bar.** Every existing `publishNotification()` call site fires; the user acks from the Active section; cleared entries appear in History capped at 50; the legacy toast no longer appears; bridge and macOS adapters continue to fire as they did before.
 
 ### PR 5 — Encore plugin (CRUD only, no reminders)
 
@@ -616,7 +603,9 @@ Plugin scaffold: `meta.ts`, `definition.ts`, `index.ts`, `View.vue`, `Preview.vu
 
 ### PR 6 — Encore × Notifier integration
 
-Encore translates obligation + item state into `notifier.schedule()` calls. Both lifecycles get exercised: `fyi` for "instance opened" confirmations and post-completion summaries, `action` for "pay H2 property tax" / "diff-from-last is ready" — anything where the user needs to land on Encore's view to act. Wire `notifier.clear()` on `closeInstance` / `updateItem(status: done)` / Encore's view mount (for read-once notifications). Wire `notifier.signal()` for domain conditions (`"encore:taxes:w2-received"`). Progress-aware suppression based on item-completion percentage. The "magnetic feature" demo: open an instance, see last year's data pre-populated, see the next-action reminder already scheduled.
+Encore translates obligation + item state into Notifier calls. Both lifecycles get exercised: `fyi` for "instance opened" confirmations and post-completion summaries, `action` for "pay H2 property tax" / "diff-from-last is ready" — anything where the user needs to land on Encore's view to act. Wire `notifier.clear()` on `closeInstance` / `updateItem(status: done)` / Encore's view mount (for read-once notifications). The "magnetic feature" demo: open an instance, see last year's data pre-populated, see the next-action reminder already scheduled.
+
+**This PR is also where the engine grows the features Encore actually needs**, scoped concretely by what falls out of the implementation rather than pre-spec'd at the system level. Likely candidates from the Part 1 spec — `firesAt` / scheduling, snooze, `signal()` for "remind me when W-2 arrives," progress-aware re-surface, severity → channel routing — but each one only lands if Encore can't be coherent without it. Expect this PR to split if the surface ends up large; the split point is whichever feature can ship independently (e.g. `firesAt` first, `signal()` later when an obligation type actually needs it).
 
 ---
 
@@ -643,14 +632,14 @@ UX decisions for the migration are recorded in [`feat-notifier-ux.md`](feat-noti
 - No toast in v1 — the badge color is the at-a-distance signal.
 - Pub/sub granularity: single global `notifier` channel; per-`pluginPkg` rejected.
 
-To resolve before PR 3 (Notifier full engine):
+Deferred to PR 6 (engine features, only if Encore demands them):
 
-1. **Declarative vs imperative scheduling.** Plan above is *imperative* — plugin computes each fire time and re-registers. A declarative spec ("every Sunday until acked, escalate after 2 weeks") is more powerful but a bigger surface. Imperative matches how `task-scheduler` already works; declarative may be worth it once we see 3+ plugins repeating the same pattern. **Default: imperative for v1.**
-2. **Severity → channel mapping config UI.** Hidden file (`config/notifier.json`) for v1, settings page later? Or settings page from day one? **Default: hidden file for v1, settings UI in a follow-up.**
-3. **Re-surface cap.** A reminder ignored for a week should not fire 50 times. Cap at `escalateAt.length` re-surfaces? Hard ceiling of N per 24h? **Default: re-surface only at the explicit `escalateAt` points; no auto-multiplication.**
+1. **Declarative vs imperative scheduling.** Earlier draft was *imperative* — plugin computes each fire time and re-registers. A declarative spec ("every Sunday until acked, escalate after 2 weeks") is more powerful but a bigger surface. Imperative matches how `task-scheduler` already works; declarative may be worth it once we see 3+ plugins repeating the same pattern. **Default if/when timers land: imperative.**
+2. **Severity → channel mapping config UI.** Hidden file (`config/notifier.json`) first, settings page later? **Default if/when routing lands: hidden file, settings UI as a follow-up.**
+3. **Re-surface cap.** A reminder ignored for a week should not fire 50 times. **Default if/when re-surface lands: re-surface only at the explicit `escalateAt` points; no auto-multiplication.**
 4. ~~**Signal namespace.**~~ Resolved by the identity model: signals are structurally scoped as `{ pluginPkg, key }`, so collisions across plugins are impossible by construction. No string-prefix convention to enforce.
-5. **Pending UX details** from `feat-notifier-ux.md`: empty-History text, undo for accidental ack, badge flash on new urgent. Each is small enough to land with a default and revise by feel.
-6. **Conflict with `task-scheduler`.** The existing scheduler also fires things on a schedule. Notifier is *user-facing reminders*; scheduler is *task execution*. They may share scheduling primitives internally; they should not share API surfaces. **Default: keep them separate; revisit if duplication becomes painful.**
+5. **Pending UX details** from `feat-notifier-ux.md`: empty-History text, undo for accidental ack, badge flash on new urgent. Each is small enough to land with a default and revise by feel — fold into PR 4 as they come up.
+6. **Conflict with `task-scheduler`.** The existing scheduler also fires things on a schedule. Notifier is *user-facing reminders*; scheduler is *task execution*. They may share scheduling primitives internally; they should not share API surfaces. **Default if/when timers land: keep them separate; revisit if duplication becomes painful.**
 
 To resolve before PR 5 (Encore CRUD):
 
