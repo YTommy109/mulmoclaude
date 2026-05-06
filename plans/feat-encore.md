@@ -66,13 +66,13 @@ The current model is sufficient for "your scheduled task just finished" but cann
 
 ### Three notification types — three lifecycle shapes
 
-Plugins fire notifications that fall into one of three shapes. The Notifier carries `kind` on every payload so the panel UI and the lifecycle close-event branch correctly.
+Plugins fire notifications that fall into one of three shapes. The Notifier carries `lifecycle` on every payload so the panel UI and the close-event branch correctly. The field is named `lifecycle` (not `kind`) because the existing `NotificationKind` already means "source category" — `todo | scheduler | agent | …` — and the two are orthogonal: source category (collapsed into `pluginPkg`, see below) and lifecycle shape are independent.
 
 ```ts
-type NotifierKind = "fyi" | "read" | "action";
+type NotifierLifecycle = "fyi" | "read" | "action";
 ```
 
-| Kind | Example | Has body content? | Closes when… |
+| Lifecycle | Example | Has body content? | Closes when… |
 |---|---|---|---|
 | `fyi` | "Backup completed" | No | User acknowledges (button or bulk-checkbox in panel) |
 | `read` | "Daily news digest is ready" | Yes — content lives at a deep-link target | User clicks the row → navigated to target → close fires automatically |
@@ -84,25 +84,37 @@ Key implication for `action`: the close call belongs in the **plugin's domain lo
 
 A generic engine in `server/notifier/` that any plugin can consume.
 
+#### Identity model
+
+The engine owns the notification `id` (UUID, assigned at `schedule()` time and returned to the caller). The plugin owns:
+
+- `pluginPkg` — structural namespace. Routes the notification, picks the icon (from the plugin's META), derives the deep-link target for `action` lifecycle. Replaces the old `NotificationKind` source-category enum.
+- `pluginData<T>` — typed, plugin-specific structured payload. Opaque to the engine; read by the plugin's View / standalone page when rendering. The natural place for domain identifiers (obligation slug, year, item id, step name) — *not* `id`.
+
+The plugin stores returned UUIDs alongside the state they belong to (typically in its own data files — e.g., `data/encore/taxes/2026/instance.md` frontmatter: `reminders: [uuid1, uuid2]`). "Re-derive on state change" becomes *cancel-then-schedule*: cancel the prior UUIDs, schedule fresh ones, write the new list back. Honest ownership: the plugin's data file is the source of truth for "which reminders does this state own"; the engine is a pure delivery + lifecycle service.
+
 #### Core API (server-side, called by plugins)
 
 ```ts
-// Schedule a notification identified by a plugin-owned ID.
-// Re-calling with the same id replaces the existing entry
-// (idempotent — plugins can re-derive on every state change).
-notifier.schedule({
-  id: "encore:taxes:2026:lead-6w",
+// Schedule a notification. The engine assigns a UUID at generation
+// time and returns it. The plugin stores it alongside the state it
+// belongs to and uses it for later operations.
+const { id } = notifier.schedule({
   pluginPkg: "encore",
-  kind: "fyi" | "read" | "action",
+  lifecycle: "fyi" | "read" | "action",
   severity: "info" | "nudge" | "urgent",
   firesAt: ISO8601,
-  payload: { titleKey, bodyKey, action },
-  // Re-surface policy: if not acted by `firesAt + N`,
-  // bump severity and fire again. `null` disables.
-  // Only meaningful for `read` and `action`; `fyi` ignores.
+  title: string,
+  body?: string,
+  i18n?: { titleKey, bodyKey?, bodyParams? },
+  pluginData?: T,                            // typed per plugin; engine never inspects
+  // Re-surface policy: if not acted by `firesAt + N`, bump severity
+  // and fire again. `null` disables. Only meaningful for `read` and
+  // `action`; `fyi` ignores.
   resurface: { afterMs, escalateTo: "nudge" } | null,
-  // Snooze-condition handle: when the plugin emits a signal
-  // matching this key, the reminder un-snoozes.
+  // Snooze-condition handle: when the plugin emits a matching signal,
+  // the reminder un-snoozes. Scoped under pluginPkg structurally —
+  // collisions across plugins are impossible by construction.
   snoozeUntilSignal: string | null,
 });
 
@@ -111,7 +123,20 @@ notifier.clear(id);     // "the user did the thing" → records `acted`, drops f
 notifier.cancel(id);    // "this reminder became irrelevant" → records `cancelled`, no action implied
 
 notifier.snooze(id, { untilTime } | { untilSignal });
-notifier.signal(key);   // plugin-emitted; un-snoozes / fires reminders waiting on `key`
+
+// Signals are structurally scoped, not string-prefixed:
+notifier.signal({ pluginPkg, key });   // un-snoozes reminders in pluginPkg waiting on `key`
+
+// Recovery + discovery — plugin re-derives its UUID list if it lost
+// its bookkeeping (data corruption, version mismatch, manual edit).
+// Engine returns id + pluginData; the plugin filters on its
+// pluginData shape.
+notifier.listFor(pluginPkg): Array<{ id, pluginData?, ... }>;
+
+// Lookup by id — for deep-link landing pages that receive
+// `?notificationId=<uuid>` and need to recover the original
+// pluginData to highlight the right thing and call clear(id).
+notifier.get(id);
 ```
 
 `clear` vs `cancel` is semantically meaningful for the audit trail and for any future "completion-rate" telemetry. UX-wise both reduce the badge count.
@@ -139,15 +164,15 @@ The toolbar bell shows the count of notifications in `delivered` or `seen` state
 - **Snoozed items don't count.** They were explicitly deferred. They re-enter the count when their snooze expires or their signal fires.
 - **Aggregate, not per-plugin.** One badge on one bell. Per-plugin badges splinter the chrome without saving the user a click.
 
-#### Panel UX per kind
+#### Panel UX per lifecycle
 
-The bell panel stays the surface for all three kinds. Each row's affordance differs by `kind`:
+The bell panel stays the surface for all three lifecycles. Each row's affordance differs by `lifecycle`:
 
 - **`fyi`** — leading checkbox + "Acknowledge selected" button at the panel footer. Click anywhere on the row toggles the checkbox; explicit close-button on the row also acknowledges that single item. Bulk acknowledge is the headline ergonomic — for catch-up sessions where 12 "build finished" rows pile up.
-- **`read`** — row is a hyperlink. Click → close panel → route to `payload.action.target` → close transition fires. Same as today's `NotificationAction.navigate`, just with the auto-close hooked up.
-- **`action`** — row is also a hyperlink and routes to a plugin-owned page; *but* the close is driven by the plugin (`notifier.clear(id)`), not by the click. The deep-link target carries `notificationId` so the plugin page can highlight the relevant item and know which ID to clear when the user completes the action. If the user navigates away without acting, the notification stays pending and re-surfaces on schedule.
+- **`read`** — row is a hyperlink. Click → close panel → route to the deep-link target → close transition fires. Same as today's `NotificationAction.navigate`, just with the auto-close hooked up.
+- **`action`** — row is a hyperlink routing to the plugin's standalone page (derived from `pluginPkg` + the plugin's META — no per-call deep-link wiring); *but* the close is driven by the plugin (`notifier.clear(id)`), not by the click. The URL carries `?notificationId=<uuid>` so the page can call `notifier.get(uuid)` to recover `pluginData`, highlight the relevant item, and know which id to clear when the user completes the action. If the user navigates away without acting, the notification stays pending and re-surfaces on schedule.
 
-`NotificationBell.vue` and `NotificationToast.vue` gain `kind`-aware rendering. New testids: `[notification-row-fyi]`, `[notification-row-read]`, `[notification-row-action]`, `[notification-acknowledge-bulk]`.
+`NotificationBell.vue` and `NotificationToast.vue` gain `lifecycle`-aware rendering. New testids: `[notification-row-fyi]`, `[notification-row-read]`, `[notification-row-action]`, `[notification-acknowledge-bulk]`.
 
 #### Severity → channel mapping
 
@@ -176,9 +201,16 @@ New channels in `src/config/pubsubChannels.ts`:
 
 The bell panel becomes a thin client over the new state — same surface, but each row renders per its `kind` (above) and exposes its full lifecycle (snooze button, "remind me again in 1h" picker, link to the originating item). `NotificationBell.vue` and `NotificationToast.vue` need lifecycle + kind awareness; the existing `[notification-badge]` testid stays.
 
-### What stays
+### What stays — and the legacy migration
 
-The existing `publishNotification()` call site — nothing immediate, no schedule, no re-surface — remains as the simplest entry point for "fire one toast right now." It becomes a thin wrapper over `notifier.schedule({ firesAt: now, resurface: null })`. All current callers keep working unchanged.
+The existing `publishNotification()` call site — nothing immediate, no schedule, no re-surface — remains as the simplest entry point for "fire one toast right now." It becomes a thin wrapper over `notifier.schedule({ firesAt: now, resurface: null, lifecycle: "fyi" })`.
+
+The wrapper maps the legacy `NotificationKind` source category to a synthetic `pluginPkg` so the routing + icon contract doesn't break:
+
+- `todo` / `scheduler` / `agent` / `journal` → `pluginPkg: "<same-name>"` (synthetic plugins for now; future PRs may promote them to real plugin METAs).
+- `push` / `bridge` / `system` → `pluginPkg: "host"`.
+
+Default `lifecycle: "fyi"` matches today's behaviour (fire-and-forget, user clicks bell, marks read). All current callers keep working unchanged; new callers can opt into `read` / `action` lifecycles by calling `notifier.schedule()` directly.
 
 ### Out of scope for Notifier v1
 
@@ -377,24 +409,26 @@ manageEncore({ action: "snoozeReminder", slug, year, itemId?, until })  // proxi
 
 ### Reminder integration
 
-Encore translates obligation state into `notifier.schedule()` calls:
+Encore translates obligation + item state into `notifier.schedule()` calls. Because the engine assigns UUIDs, "re-derive on state change" is *cancel-then-schedule*: Encore stores its UUIDs in the instance frontmatter (`reminders: [uuid1, uuid2, …]`), cancels them, schedules fresh ones, writes the new list back.
 
-- On `createObligation` — schedule reminders for the upcoming instance based on `leadTime.escalateAt` and `severity`.
-- On `openInstance` — re-derive schedule from the actual progress state (suppress the "start prep" reminder if the user already opened the instance early).
-- On `updateInstance` — progress-aware suppression. If the user has marked 60% of milestones done, suppress the generic nudge; if no progress for `escalateAt[i]` days, escalate.
-- On `closeInstance` — cancel all pending reminders for this year, schedule the *next* year.
+- On `createObligation` — schedule reminders for the upcoming instance based on `leadTime.escalateAt` and `severity`. Persist the returned UUIDs in the obligation file.
+- On `openInstance` — cancel the prior schedule's UUIDs, re-derive from the actual progress state (suppress the "start prep" reminder if the user already opened the instance early), persist the new UUID list on the instance.
+- On `updateInstance` — same cancel-then-schedule with progress-aware suppression. If the user has marked 60% of milestones done, suppress the generic nudge; if no progress for `escalateAt[i]` days, escalate.
+- On `closeInstance` — cancel all UUIDs in the instance's reminder list, schedule the *next* year, replace the list.
+- Recovery — on plugin boot or after a manual edit, Encore can call `notifier.listFor("encore")` and reconcile the engine's pending set against its own per-instance lists.
 
 Snooze-until-signal is how Encore expresses domain conditions:
 
 ```ts
-// "Remind me after my W-2 arrives" — Encore registers the reminder
-// with snoozeUntilSignal: "encore:taxes:w2-received".
+// "Remind me after my W-2 arrives" — Encore schedules the reminder
+// with snoozeUntilSignal: "taxes:w2-received" (scoped under pluginPkg
+// "encore" structurally, no string-prefix encoding).
 // When the user marks "W-2 received" in the instance UI, Encore
-// calls notifier.signal("encore:taxes:w2-received") and the
-// reminder un-snoozes.
+// calls notifier.signal({ pluginPkg: "encore", key: "taxes:w2-received" })
+// and the reminder un-snoozes.
 ```
 
-The host does not need to understand "W-2"; it just routes signals.
+The host does not need to understand "W-2"; it just routes signals scoped by `pluginPkg`.
 
 ### View
 
@@ -449,21 +483,22 @@ Existing chat sessions tied to a debug role still render normally (icon, history
 
 The engine in `server/notifier/`:
 
-- Three notification kinds (`fyi` / `read` / `action`) with kind-aware lifecycle.
-- `schedule` / `clear` / `cancel` / `snooze` / `signal` API.
-- State machine + persistence (`scheduled.jsonl` + `state.jsonl`).
+- Three notification lifecycles (`fyi` / `read` / `action`) with lifecycle-aware UI.
+- Engine-assigned UUID; plugin-owned `pluginPkg` + `pluginData<T>` typed slot.
+- `schedule` / `clear` / `cancel` / `snooze` / `signal` / `listFor` / `get` API.
+- State machine + persistence (`scheduled.jsonl` + `state.jsonl`, both keyed by UUID).
 - Severity-based channel routing.
-- Snooze-until-time **and** snooze-until-signal (both — needed for the action-kind end-to-end test).
+- Snooze-until-time **and** snooze-until-signal (both — needed for the action-lifecycle end-to-end test). Signals scoped structurally as `{ pluginPkg, key }`.
 - Bell badge with pending-count semantics, color-encoded severity, `99+` cap.
-- Panel UX per kind: bulk-acknowledge for `fyi`, click-to-clear for `read`, plugin-owned pages with `notificationId` deep-link param for `action`.
-- Migration: existing `publishNotification()` becomes a thin wrapper over `notifier.schedule({ kind: "fyi", firesAt: now })`. All current callers keep working unchanged.
+- Panel UX per lifecycle: bulk-acknowledge for `fyi`, click-to-clear for `read`, plugin-owned pages with `?notificationId=<uuid>` deep-link param for `action` (target derived from `pluginPkg` + plugin META).
+- Legacy migration: existing `publishNotification()` becomes a thin wrapper over `notifier.schedule({ lifecycle: "fyi", firesAt: now })`, mapping the old `NotificationKind` source category to a synthetic `pluginPkg` (`todo` / `scheduler` / `agent` / `journal` keep their names; `push` / `bridge` / `system` collapse under `"host"`). All current callers keep working unchanged.
 
-The exercise harness is `_notifierTest` — a dev-only plugin under `src/plugins/_notifierTest/`, surfaced via the Debug role from PR 1. It's the realistic integration bed: a View with buttons to fire each kind at chosen severity, advance through the lifecycle (mark seen, `clear`, `snooze`, emit `signal`), and inspect persisted state. Because it's a real plugin going through the real registration and dispatch paths, it exercises everything Encore will hit in PR 4.
+The exercise harness is `_notifierTest` — a dev-only plugin under `src/plugins/_notifierTest/`, surfaced via the Debug role from PR 1. It's the realistic integration bed: a View with buttons to fire each lifecycle at chosen severity, advance through the state machine (mark seen, `clear`, `snooze`, emit `signal`), and inspect persisted state. Because it's a real plugin going through the real registration and dispatch paths, it exercises everything Encore will hit in PR 4.
 
 Test coverage:
 
-- **Unit**: state machine transitions, persistence round-trip, severity → channel mapping, snooze re-evaluation, re-surface timing.
-- **Integration / E2E (Playwright)**: with `DEV_MODE=1`, switch to Debug role, drive each lifecycle from `_notifierTest`'s View and assert against the bell badge + panel. Verify badge count + color updates per kind, panel rendering per kind (`[notification-row-fyi]` checkbox bulk-acknowledge, `[notification-row-read]` click-and-close, `[notification-row-action]` deep-link with notificationId param), restart-survives-pending verified by killing and restarting the dev server mid-test.
+- **Unit**: state machine transitions, persistence round-trip, severity → channel mapping, snooze re-evaluation, re-surface timing, `listFor` / `get` recovery semantics.
+- **Integration / E2E (Playwright)**: with `VITE_DEV_MODE=1`, switch to Debug role, drive each lifecycle from `_notifierTest`'s View and assert against the bell badge + panel. Verify badge count + color updates per lifecycle, panel rendering per lifecycle (`[notification-row-fyi]` checkbox bulk-acknowledge, `[notification-row-read]` click-and-close, `[notification-row-action]` deep-link with `notificationId` param), restart-survives-pending verified by killing and restarting the dev server mid-test.
 
 Acceptance bar: every state transition reachable from `_notifierTest`, no Encore code in the diff.
 
@@ -489,7 +524,7 @@ To resolve before PR 2 (Notifier):
 2. **Type-1 panel affordance: button or checkbox?** Per-row close-button is simplest; leading checkbox + bulk "Acknowledge selected" wins for catch-up sessions where many `fyi` rows pile up. **Default: leading checkbox (covers both — single-row click still works via the row's own close-`×`).**
 3. **Severity → channel mapping config UI.** Hidden file (`config/notifier.json`) for v1, settings page later? Or settings page from day one? **Default: hidden file for v1, settings UI in a follow-up.**
 4. **Re-surface cap.** A reminder ignored for a week should not fire 50 times. Cap at `escalateAt.length` re-surfaces? Hard ceiling of N per 24h? **Default: re-surface only at the explicit `escalateAt` points; no auto-multiplication.**
-5. **Signal namespace.** `"encore:taxes:w2-received"` is the obvious shape, but signals are global. Risk of name collision across plugins. **Default: enforce `<pluginPkg>:` prefix at the Notifier API boundary.**
+5. ~~**Signal namespace.**~~ Resolved by the identity model: signals are structurally scoped as `{ pluginPkg, key }`, so collisions across plugins are impossible by construction. No string-prefix convention to enforce.
 6. **Conflict with `task-scheduler`.** The existing scheduler also fires things on a schedule. Notifier is *user-facing reminders*; scheduler is *task execution*. They may share scheduling primitives internally; they should not share API surfaces. **Default: keep them separate; revisit if duplication becomes painful.**
 
 To resolve before PR 3 (Encore CRUD):
