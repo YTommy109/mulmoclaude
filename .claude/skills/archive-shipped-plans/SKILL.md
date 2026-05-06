@@ -45,9 +45,12 @@ gh pr list --repo receptron/mulmoclaude --search "<slug> in:title" --state all -
 「PR がマージされた = plan の全範囲が完了」とは**限らない**。本文を Read して以下を確認:
 
 - **ステータス節**: `**Status**: ... not yet implemented` などが冒頭にあれば即 active
-- **Phase 構造**: `Phase 1/2/3` がある plan は、各 phase の実装状況を個別確認
+- **Phase 構造**: `Phase 1/2/3` がある plan は、各 phase の実装状況を**ファイル/コード単位の証拠で**個別確認:
+  - **acceptance criteria のチェックリスト** (例: 各 phase 末尾の `- [ ] ...` 節) を本文から抽出
+  - 各項目に対応する実体 (実装ファイル / docs / package / CHANGELOG エントリ等) が repo に存在するか `ls` / `grep` で確認
+  - 例: `feat-plugin-sdk-rollout.md` は Phase 2 acceptance に `docs/plugin-development.md exists` があるので `ls docs/plugin-development.md` で実体確認 → 不在なら active
   - 例: `feat-scheduler-phase3.md` はタイトル通り Phase 3 限定 plan で OK
-  - 例: `feat-intelligent-frequency-465.md` は Phase 1/2 完了 + Phase 3 (future) → 関連 issue が closed なら done 扱い、ただし PR description に scope drift を明記
+  - 関連 issue が closed でも、acceptance 項目が repo 上で確認できないものは active 維持。**「umbrella issue closed = 全 phase done」と機械的に判定するのは禁止** — issue は administrative に閉じることが多い
 - **Non-goals 節**: `feat-agent-cancel-button.md` の "(#731, partial)" は plan のスコープ限定の意味であって、plan 自体は完了
 - **`docs:` PR は plan のみ merge の可能性**: `gh pr view <num> --json title` でタイトルが "docs: plan for ..." なら plan を入れただけ。実装ファイルが存在するか追加チェックすること
   - 例: `test-top-page-regression-e2e.md` (PR #672) → e2e/ に該当 spec が無く、active のまま
