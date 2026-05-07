@@ -197,6 +197,28 @@ describe("syncPresetSkills — slug guard", () => {
 });
 
 describe("syncPresetSkills — destination resilience", () => {
+  it("aborts the sync cleanly when the root dest itself is a regular file (regression: corruption-tolerant boot)", () => {
+    // Codex review iter-2: prior fix only protected per-slug
+    // mkdirSync; the root mkdirSync would still EEXIST-crash if
+    // `<workspace>/.claude/skills` itself was somehow a regular
+    // file. Now it logs warn + skips the whole sync.
+    writePresetSource("mc-foo");
+    writeFileSync(destDir, "stray file blocking the root skills dir");
+
+    const warnings: string[] = [];
+    const result = syncPresetSkills({
+      sourceDir,
+      destDir,
+      onWarn: (message, data) => warnings.push(`${message} ${JSON.stringify(data)}`),
+    });
+    assert.deepEqual(result.copied, []);
+    assert.deepEqual(result.removed, []);
+    assert.equal(result.skipped.length, 1);
+    assert.match(result.skipped[0], /non-directory/);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /preset sync aborted/);
+  });
+
   it("skips a slug whose dest slot is occupied by a regular file (regression: corruption-tolerant boot)", () => {
     // Codex review iter-1: mkdirSync recursive: true throws EEXIST
     // when the path is a regular file. One bad slot must not crash

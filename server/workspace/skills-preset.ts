@@ -153,7 +153,17 @@ export function syncPresetSkills(opts: SyncPresetSkillsOptions): SyncPresetSkill
     // This is the legitimate "no presets shipped yet" state.
     return result;
   }
-  mkdirSync(opts.destDir, { recursive: true });
+  // The root dest itself can be corrupted into a regular file by a
+  // user / external tool; mkdirSync would throw EEXIST and crash
+  // boot. Treat it as a recoverable "skip the entire sync" state
+  // — log a clear warning so the user sees what to fix.
+  // (Codex review iter-2.)
+  if (!ensureDestSlugDir(opts.destDir)) {
+    const reason = "root dest exists as a non-directory; preset sync skipped";
+    result.skipped.push(`${opts.destDir}: ${reason}`);
+    opts.onWarn?.("preset sync aborted", { destDir: opts.destDir, reason });
+    return result;
+  }
   const synced = copySourcesIntoDest(opts.sourceDir, opts.destDir, opts, result);
   removeRetiredPresets(opts.destDir, synced, opts, result);
   if (result.copied.length > 0 || result.removed.length > 0) {
