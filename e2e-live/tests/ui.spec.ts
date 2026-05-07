@@ -42,6 +42,18 @@ test.describe("ui (real LLM / static)", () => {
     try {
       await startNewSession(page);
       await sendChatMessage(page, userPrompt);
+      // Capture the session id BEFORE the form-mount assertion
+      // (codex iter-1 leak fix): if presentForm never mounts the
+      // assertion below times out, but the chat session was
+      // already created the moment sendChatMessage's POST landed.
+      // Waiting on the URL pattern is the same shape roles.spec.ts
+      // uses for early capture and is bounded by the default nav
+      // timeout (60s), so a stuck session creation surfaces as a
+      // distinct waitForURL failure rather than leaking the
+      // session into history.
+      await page.waitForURL(/\/chat\/[0-9a-f-]+/);
+      sessionIdForCleanup = getCurrentSessionId(page);
+
       // The form view is the tool-result render; mount-time is
       // bounded by a single LLM round-trip, so ONE_MINUTE_MS is
       // ample. We wait for it before the assistant turn fully
@@ -60,7 +72,6 @@ test.describe("ui (real LLM / static)", () => {
       // tool round-trip rather than cutting off mid-stream once
       // the assertion above lands.
       await waitForAssistantResponseComplete(page);
-      sessionIdForCleanup = getCurrentSessionId(page);
     } finally {
       if (sessionIdForCleanup !== null) await deleteSession(page, sessionIdForCleanup);
     }

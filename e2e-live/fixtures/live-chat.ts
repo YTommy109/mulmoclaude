@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { type Download, type FrameLocator, type Page, expect } from "@playwright/test";
 
 import { ONE_MINUTE_MS, ONE_SECOND_MS } from "../../server/utils/time.ts";
+import { isValidSlug } from "../../server/utils/slug.ts";
 import { API_ROUTES } from "../../src/config/apiRoutes.ts";
 
 const FIXTURES_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -88,24 +89,28 @@ const WIKI_INDEX_REL = "data/wiki/index.md";
 /**
  * Replace `data/wiki/index.md` with the given content for the
  * duration of a test, returning the original content so the caller
- * can restore it in `finally`. Returns "" when the file did not
- * exist (the helper still creates it for the test); the caller can
- * pass the empty string back to `restoreWikiIndex` to delete the
- * synthetic file rather than keeping a blank user-visible index.
+ * can restore it in `finally`. Returns `null` when the file did
+ * not exist (so `restoreWikiIndex(null)` deletes the synthetic
+ * file we are about to create); returns the empty string when the
+ * file existed but was legitimately empty (so the empty file is
+ * preserved, not deleted, on cleanup). Codex review iter-1 caught
+ * the prior overload of "" as the missing-file sentinel — using
+ * `string | null` keeps "existed-but-empty" and "did not exist"
+ * distinguishable.
  *
  * The wiki index is a single shared workspace file, so any spec
  * that mutates it must run serially with respect to other index
  * writers — keep L-16 the only test that touches this file or
  * fence newcomers behind `test.describe.configure({ mode: "serial" })`.
  */
-export async function replaceWikiIndex(newContent: string): Promise<string> {
+export async function replaceWikiIndex(newContent: string): Promise<string | null> {
   const target = resolveWorkspacePath(WIKI_INDEX_REL);
-  let original = "";
+  let original: string | null = null;
   try {
     original = await readFile(target, "utf8");
   } catch {
-    // index.md did not exist — leave original as "" so restoreWikiIndex
-    // deletes the file we are about to create.
+    // index.md did not exist — leave original as null so
+    // restoreWikiIndex deletes the file we are about to create.
   }
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, newContent, "utf8");
@@ -113,15 +118,16 @@ export async function replaceWikiIndex(newContent: string): Promise<string> {
 }
 
 /**
- * Restore (or delete) `data/wiki/index.md`. Pass the string returned
- * by `replaceWikiIndex` — empty string means "delete the file we
- * created", non-empty means "write this back". Best-effort: never
- * throws so a passing test does not turn red on a flaky cleanup.
+ * Restore (or delete) `data/wiki/index.md`. Pass the value returned
+ * by `replaceWikiIndex` — `null` means "delete the file we created
+ * (it did not exist before)", any string (including "") means
+ * "write this back verbatim". Best-effort: never throws so a passing
+ * test does not turn red on a flaky cleanup.
  */
-export async function restoreWikiIndex(originalContent: string): Promise<void> {
+export async function restoreWikiIndex(originalContent: string | null): Promise<void> {
   const target = resolveWorkspacePath(WIKI_INDEX_REL);
   try {
-    if (originalContent === "") {
+    if (originalContent === null) {
       await rm(target, { force: true });
       return;
     }
@@ -137,16 +143,35 @@ export async function navigateToWikiIndex(page: Page): Promise<void> {
 }
 
 /**
+ * Validate a project-skill slug before letting it near the
+ * filesystem. Reuses the same `isValidSlug` rule the server uses
+ * for skills / sources / wiki — lowercase ASCII, digits, hyphens,
+ * 1..120 chars, no leading/trailing or consecutive hyphens. This
+ * is the entry guard the helpers below rely on; without it a
+ * caller could pass `foo/../bar` and `removeProjectSkill` would
+ * resolve to `.claude/skills/bar` and recursively delete that
+ * different directory (codex review iter-1 over-delete risk).
+ * Throws so the calling test fails loudly rather than silently
+ * targeting the wrong path.
+ */
+function assertValidSkillSlug(slug: string): void {
+  if (!isValidSlug(slug)) {
+    throw new Error(`placeProjectSkill / removeProjectSkill: invalid slug ${JSON.stringify(slug)} — must satisfy server/utils/slug.ts isValidSlug`);
+  }
+}
+
+/**
  * Seed a project-scope skill at `<workspace>/.claude/skills/<slug>/SKILL.md`.
  * The mulmoclaude server's skill discovery does fresh readdir/stat
  * on every list call (no cache), so the seeded file is visible to
  * the next `GET /api/skills` without a server restart.
  *
- * Slug rules: lowercase, hyphen, digit, underscore only — see
- * `server/utils/slug.ts`. Spec-unique slugs only; never stomp a
- * real user-authored skill.
+ * Slug must satisfy `isValidSlug` (no path separators, no traversal
+ * tokens). Spec-unique slugs only; never stomp a real
+ * user-authored skill.
  */
 export async function placeProjectSkill(slug: string, description: string, body: string): Promise<void> {
+  assertValidSkillSlug(slug);
   const target = resolveWorkspacePath(`.claude/skills/${slug}/SKILL.md`);
   await mkdir(path.dirname(target), { recursive: true });
   const content = ["---", `description: ${description}`, "---", "", body, ""].join("\n");
@@ -155,6 +180,7 @@ export async function placeProjectSkill(slug: string, description: string, body:
 
 /** Best-effort delete the seeded skill directory. */
 export async function removeProjectSkill(slug: string): Promise<void> {
+  assertValidSkillSlug(slug);
   const dir = resolveWorkspacePath(`.claude/skills/${slug}`);
   await rm(dir, { recursive: true, force: true });
 }
