@@ -23,16 +23,47 @@ beyond what the user volunteers — only capture what they actually say.
 "save Y for later".
 
 **Action**:
-1. `Write data/library/books/<slug>.md`. Slug is kebab-case ASCII letters,
-   digits, and hyphens. Romanise non-ASCII titles (e.g. title
-   `しろいうさぎとくろいうさぎ` → slug `little-white-and-little-black`).
-2. Frontmatter: `title`, `author`, `status: want`, `created` (now in ISO 8601),
-   `updated` (same value). If the user did not name the author, ask just one
-   short question to fill it in ("who's the author?") — do not chase any other
-   field.
-3. Body stays empty.
-4. Reply with one short line — "Added, I'll remember it." Do not ask follow-up
-   questions about the book; their thoughts come later.
+1. Determine the slug. Kebab-case ASCII letters, digits, and hyphens. Romanise
+   non-ASCII titles (e.g. title `しろいうさぎとくろいうさぎ` → slug
+   `little-white-and-little-black`).
+2. **Enrich from Google Books before writing.** `WebFetch` this URL,
+   substituting the URL-encoded title and author:
+
+   ```
+   https://www.googleapis.com/books/v1/volumes?q=intitle:<title>+inauthor:<author>&maxResults=1
+   ```
+
+   No API key needed. From the response's `items[0].volumeInfo`, harvest:
+   - the first `industryIdentifiers[]` entry of type `ISBN_13` (fall back to
+     `ISBN_10`) → goes into the `isbn` frontmatter field
+   - `imageLinks.thumbnail` → goes into a `![cover](url)` line at the top of
+     the body
+   - `authors[0]` → if the user did not name the author, use this; if the
+     user did name an author and Google Books disagrees, trust the user
+   - `description` → goes into the body under a `## Synopsis` section
+     (verbatim from the API; no AI summarising on top)
+
+   If WebFetch fails, returns no items, or 4xx/5xx, **proceed silently
+   without enrichment** — never let a slow / down API block the save.
+3. **Pick up identifiers the user provided directly.** Before the WebFetch
+   step, scan the user's message for:
+   - An Amazon URL like `https://www.amazon.co.jp/dp/<ASIN>` or `/gp/product/<ASIN>`
+     — extract the ASIN (10 alphanumeric chars typically starting with `B0`
+     for Kindle, or 10 digits matching ISBN-10 for print) → goes into `asin`
+   - A bare 10-digit or 13-digit ISBN → goes into `isbn`
+
+   User-provided values **win over** Google Books results — when both exist
+   for the same field, keep the user's.
+4. `Write data/library/books/<slug>.md` with:
+   - Frontmatter: `title`, `author`, `status: want`, `isbn` (if any),
+     `asin` (if any), `created` (now in ISO 8601), `updated` (same value).
+   - Body: `![cover](thumbnail-url)` at the top (if a thumbnail came back),
+     followed by `## Synopsis` + verbatim description (if any).
+5. If the user did NOT name an author and Google Books returned nothing,
+   ask just one short question to fill it in ("who's the author?"). Do not
+   chase any other field.
+6. Reply with one short line — "Added, I'll remember it." Do not ask
+   follow-up questions about the book; their thoughts come later.
 
 ## Workflow 2: Recording impressions after a book
 
@@ -41,8 +72,9 @@ beyond what the user volunteers — only capture what they actually say.
 **Action**:
 1. `Read` the existing `data/library/books/<slug>.md` if present. If the book
    was never added before, follow Workflow 1's flow first to create the file
-   — that includes asking one short question for the author when not given,
-   so the `author` required field is never blank.
+   — that includes the Google Books enrichment, the user-identifier capture,
+   and the author fallback question, so `author` and the cover / ISBN are
+   filled in when possible before moving on.
 2. `Edit` to update. Set `status: read`. Set `finishedAt` to today (or
    whatever date the user mentioned). Advance `updated`. Never modify
    `created`.
@@ -89,10 +121,18 @@ beyond what the user volunteers — only capture what they actually say.
 title: Sapiens
 author: Yuval Noah Harari
 status: read              # one of: want | reading | read | abandoned
+isbn: "9780062316097"     # from Google Books or user-provided
+asin: B00ICN066A          # only when user provided an Amazon URL or ASIN
 finishedAt: 2025-03-20
 created: 2025-01-15T08:00:00.000Z
 updated: 2025-03-20T20:00:00.000Z
 ---
+
+![cover](https://books.google.com/...thumbnail.jpg)
+
+## Synopsis
+
+(verbatim from Google Books description — no AI summarising on top)
 
 ## Impressions
 
@@ -104,8 +144,10 @@ updated: 2025-03-20T20:00:00.000Z
 ```
 
 **Required**: `title`, `author`, `status`, `created`, `updated`.
+**Auto-populated when available**: `isbn`, `asin`, the `![cover]` line, the
+`## Synopsis` section.
 **Optional, only when the user volunteers**: `finishedAt`, `startedAt`,
-`rating` (1–5), `tags`, `isbn`.
+`rating` (1–5), `tags`.
 
 ## Deletion
 
