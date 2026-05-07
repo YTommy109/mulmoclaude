@@ -43,6 +43,14 @@ export function findPendingToolCall(history: readonly ToolCallHistoryItem[], too
   return undefined;
 }
 
+// Result tool-names that count as "assistant text" for selection
+// purposes. `text-response` is the original case; `skill` was added
+// in #1218 because the skill envelope is a collapsed card in the
+// same conversational lane as plain assistant prose, not a richer
+// tool output that should keep its own selection. Codex iter-3
+// review on PR #1220.
+const TEXT_LIKE_RESULT_TOOL_NAMES: ReadonlySet<string> = new Set(["text-response", "skill"]);
+
 // Decide whether a newly-arrived assistant text message should
 // become the selected canvas result. Rule: yes, iff no plugin
 // tool result has landed during this run. A plugin result — e.g.
@@ -56,7 +64,7 @@ export function findPendingToolCall(history: readonly ToolCallHistoryItem[], too
 // Pure — returns a boolean for the caller to act on.
 export function shouldSelectAssistantText(toolResults: readonly ToolResultComplete[], runStartIndex: number): boolean {
   for (let i = runStartIndex; i < toolResults.length; i++) {
-    if (toolResults[i].toolName !== "text-response") return false;
+    if (!TEXT_LIKE_RESULT_TOOL_NAMES.has(toolResults[i].toolName)) return false;
   }
   return true;
 }

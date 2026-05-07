@@ -99,4 +99,19 @@ describe("applySkillEvent (#1218) — replace streamed assistant text in place",
     assert.equal(data.skillDescription, "Personal book journal");
     assert.equal(data.body, skillPayload.message);
   });
+
+  // Codex iter-3 review on PR #1220 — when applySkillEvent falls
+  // through to the push branch (no streamed assistant text-response
+  // to replace), the new skill card MUST become the selected canvas
+  // result. Without selection it would sit invisible in the canvas
+  // and the user would have to manually click the chat-history
+  // sidebar entry to view it.
+  it("auto-selects the new skill card on the fallback push path", () => {
+    const userText = makeTextResult("hi", "user");
+    session.toolResults.push(userText);
+    session.runStartIndex = 1;
+    applySkillEvent(session, skillPayload);
+    assert.equal(session.toolResults.length, 2);
+    assert.equal(session.selectedResultUuid, session.toolResults[1].uuid);
+  });
 });
