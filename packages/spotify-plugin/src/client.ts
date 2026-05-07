@@ -165,9 +165,14 @@ async function refreshTokens(
     runtime.log.warn("refresh failed", { status: response.status, body: body.slice(0, 200) });
     // 4xx ⇒ Spotify rejected the refresh token (revoked, malformed,
     // client_id mismatch). 5xx ⇒ Spotify is having an outage; the
-    // credential may still be valid. Don't conflate the two.
-    const kind = response.status >= 500 ? "transient_error" : "auth_expired";
-    return { ok: false, error: { kind, detail: `refresh returned ${response.status}` } };
+    // credential may still be valid. Don't conflate the two — but
+    // 408 (Request Timeout) and 429 (Too Many Requests) are also
+    // transient: the credential wasn't actually checked, so forcing
+    // a re-auth would be wrong.
+    const status = response.status;
+    const isTransient = status >= 500 || status === 408 || status === 429;
+    const kind = isTransient ? "transient_error" : "auth_expired";
+    return { ok: false, error: { kind, detail: `refresh returned ${status}` } };
   }
   let parsed: RawTokenResponse;
   try {

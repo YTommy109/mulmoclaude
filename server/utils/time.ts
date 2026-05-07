@@ -29,6 +29,13 @@ export const SUBPROCESS_PROBE_TIMEOUT_MS = 5 * ONE_SECOND_MS;
  *  the burst into one publish. */
 export const DEV_PLUGIN_WATCH_DEBOUNCE_MS = 300;
 
+/** Hard cap on how long the startup-failure path waits for
+ *  `httpServer.close()` to drain in-flight connections before
+ *  forcing `process.exit(1)`. SSE streams + WebSocket upgrades hold
+ *  connections open indefinitely, so the graceful close alone isn't
+ *  a fail-fast guarantee. */
+export const STARTUP_FAILURE_FORCE_EXIT_MS = 5 * ONE_SECOND_MS;
+
 /** Heavy subprocess work (libreoffice conversion, etc.) */
 export const SUBPROCESS_WORK_TIMEOUT_MS = ONE_MINUTE_MS;
 

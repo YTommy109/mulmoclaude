@@ -83,7 +83,7 @@ import { EVENT_TYPES } from "../src/types/events.js";
 import { SESSION_ORIGINS } from "../src/types/session.js";
 import { buildHtmlPreviewCsp } from "../src/utils/html/previewCsp.js";
 import { readAndInjectHtmlArtifact } from "./utils/html/htmlArtifactSplicer.js";
-import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS } from "./utils/time.js";
+import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS, STARTUP_FAILURE_FORCE_EXIT_MS } from "./utils/time.js";
 import { isPortFree, findAvailablePort, MAX_PORT_PROBES } from "./utils/port.mjs";
 import { SCHEDULE_TYPES, MISSED_RUN_POLICIES } from "@receptron/task-scheduler";
 
@@ -682,19 +682,14 @@ function maybeForceChatIndexBackfill(): void {
     .catch(logBackgroundError("chat-index", "forced startup backfill failed"));
 }
 
-async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: number): Promise<void> {
+async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: number, pubsub: IPubSub): Promise<void> {
   log.info("server", "listening", { port });
 
-  // --- Pub/Sub ---
-  const pubsub = createPubSub(httpServer);
-
-  // --- Notifier engine ---
-  // Routes mounted at module-load above; engine emit is wired here
-  // once pubsub exists. Mutating APIs called between mount and this
-  // call would persist state but log a warning instead of emitting.
-  initNotifier({
-    publish: (channel, payload) => pubsub.publish(channel, payload),
-  });
+  // The notifier engine + its pubsub are now wired in the listen
+  // callback (see PR-#1196 follow-up) so requests arriving before
+  // this function runs hit a fully-initialized engine. The pubsub
+  // is forwarded in here so the rest of `startRuntimeServices` can
+  // share the same instance.
 
   // --- Legacy adapters (bridge + macOS Reminder push) ---
   // Subscribe in-process to the engine so any `notifier.publish` —
@@ -980,6 +975,20 @@ process.on("SIGTERM", () => {
   // workspace file API is a credential-theft risk. Personal dev
   // tool — localhost is the right default.
   const httpServer = app.listen(port, "127.0.0.1", async () => {
+    // Initialize the notifier engine synchronously, before any await
+    // in this callback. The HTTP listener is already accepting
+    // connections by the time this callback fires, so any awaited
+    // I/O below (e.g. the `.server-port` write) opens a window where
+    // `/api/notifier` requests would race against the engine's
+    // `deps`-still-null state and silently drop the pub/sub event
+    // (CodeRabbit review on PR #1196). Both `createPubSub` and
+    // `initNotifier` are sync, so wiring them up here costs nothing
+    // and closes the window.
+    const earlyPubsub = createPubSub(httpServer);
+    initNotifier({
+      publish: (channel, payload) => earlyPubsub.publish(channel, payload),
+    });
+
     // Publish the actually-bound port so the hook script can
     // address us — the requested PORT may have walked forward
     // off a busy default. Use writeFile (not writeFileAtomic)
@@ -993,8 +1002,26 @@ process.on("SIGTERM", () => {
         error: String(err),
       });
     }
-    startRuntimeServices(httpServer, port).catch((err: unknown) => {
-      log.error("server", "startRuntimeServices failed", { error: String(err) });
+    startRuntimeServices(httpServer, port, earlyPubsub).catch((err: unknown) => {
+      // Fail fast — a half-initialized runtime is worse than a
+      // crashed one. Routes mounted at module load already accept
+      // requests, so without this exit the app would respond with a
+      // confusing mix of 200s (from already-mounted routes) and
+      // 500s (from the agent / scheduler / plugins that never came
+      // up). Exit so the supervisor (Electron / launcher) can show
+      // a real error instead of the user staring at a half-broken
+      // UI. (CodeRabbit review on PR #1201.)
+      //
+      // `httpServer.close(cb)` only fires `cb` once every existing
+      // connection has drained. SSE streams + WebSocket upgrades
+      // can hold connections open indefinitely, so the graceful
+      // path alone isn't a fail-fast guarantee. Schedule a hard
+      // exit on a short timer as the floor; whichever fires first
+      // wins. `.unref()` keeps the timer from blocking the event
+      // loop on its own. (Codex review on PR #1226.)
+      log.error("server", "startRuntimeServices failed — exiting", { error: String(err) });
+      httpServer.close(() => process.exit(1));
+      setTimeout(() => process.exit(1), STARTUP_FAILURE_FORCE_EXIT_MS).unref();
     });
   });
 })();

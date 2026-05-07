@@ -8,6 +8,11 @@
 import type { ToolCallHistoryItem } from "../../types/toolCallHistory";
 import type { SseToolCall } from "../../types/sse";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
+// `TEXT_LIKE_RESULT_TOOL_NAMES` resolves to `TOOL_NAMES.textResponse`
+// + `TOOL_NAMES.skill` (the centralised constants main switched to),
+// so this single import covers the Codex iter-3 "skill is text-like"
+// fix AND main's "stop using string literals for tool names" cleanup
+// in the merge of #1220 ↔ origin/main.
 import { TEXT_LIKE_RESULT_TOOL_NAMES } from "../tools/result";
 
 // Convert an SSE tool_call event into a ToolCallHistoryItem ready
