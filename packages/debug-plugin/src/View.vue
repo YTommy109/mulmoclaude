@@ -24,6 +24,13 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRuntime } from "gui-chat-protocol/vue";
 
+// Contract pinned to the host's `HOST_EVENTS.routeChange` in
+// `src/config/hostEvents.ts`. Runtime plugins can't import host
+// internals, so the literal is duplicated here — but only once per
+// package, behind a name that's greppable from both sides. If the
+// host renames the event, this constant has to move in lockstep.
+const HOST_ROUTE_CHANGE_EVENT = "mulmoclaude:routechange";
+
 interface PublishArgs {
   kind: "publish";
   severity: "info" | "nudge" | "urgent";
@@ -110,13 +117,13 @@ function onRouteChange(): void {
 
 onMounted(() => {
   readUrl();
-  window.addEventListener("mulmoclaude:routechange", onRouteChange);
+  window.addEventListener(HOST_ROUTE_CHANGE_EVENT, onRouteChange);
   window.addEventListener("popstate", onRouteChange);
   void maybeAutoClear();
 });
 
 onUnmounted(() => {
-  window.removeEventListener("mulmoclaude:routechange", onRouteChange);
+  window.removeEventListener(HOST_ROUTE_CHANGE_EVENT, onRouteChange);
   window.removeEventListener("popstate", onRouteChange);
 });
 

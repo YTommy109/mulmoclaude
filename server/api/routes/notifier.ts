@@ -81,11 +81,17 @@ notifierRouter.post(API_ROUTES.notifier.dispatch, async (req: Request<object, Di
         res.status(400).json({ error: `unknown action: ${typeof action === "string" ? action : "<missing>"}` });
     }
   } catch (err) {
+    // Detailed error stays in the server log for triage; the HTTP
+    // response gets an opaque message so a parser-thrown filesystem
+    // path / internal stack frame can't leak to the client. Echoing
+    // `String(err)` would have given e.g. `Error: ENOENT, open
+    // '/Users/<...>/active.json'` to anyone holding the bearer token
+    // (CodeRabbit review on PR #1196).
     log.error("notifier-route", "dispatch failed", {
       action: typeof action === "string" ? action : "<unknown>",
       error: String(err),
     });
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: "internal error" });
   }
 });
 

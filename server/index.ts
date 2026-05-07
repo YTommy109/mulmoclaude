@@ -682,19 +682,14 @@ function maybeForceChatIndexBackfill(): void {
     .catch(logBackgroundError("chat-index", "forced startup backfill failed"));
 }
 
-async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: number): Promise<void> {
+async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: number, pubsub: IPubSub): Promise<void> {
   log.info("server", "listening", { port });
 
-  // --- Pub/Sub ---
-  const pubsub = createPubSub(httpServer);
-
-  // --- Notifier engine ---
-  // Routes mounted at module-load above; engine emit is wired here
-  // once pubsub exists. Mutating APIs called between mount and this
-  // call would persist state but log a warning instead of emitting.
-  initNotifier({
-    publish: (channel, payload) => pubsub.publish(channel, payload),
-  });
+  // The notifier engine + its pubsub are now wired in the listen
+  // callback (see PR-#1196 follow-up) so requests arriving before
+  // this function runs hit a fully-initialized engine. The pubsub
+  // is forwarded in here so the rest of `startRuntimeServices` can
+  // share the same instance.
 
   // --- Legacy adapters (bridge + macOS Reminder push) ---
   // Subscribe in-process to the engine so any `notifier.publish` —
@@ -980,6 +975,20 @@ process.on("SIGTERM", () => {
   // workspace file API is a credential-theft risk. Personal dev
   // tool — localhost is the right default.
   const httpServer = app.listen(port, "127.0.0.1", async () => {
+    // Initialize the notifier engine synchronously, before any await
+    // in this callback. The HTTP listener is already accepting
+    // connections by the time this callback fires, so any awaited
+    // I/O below (e.g. the `.server-port` write) opens a window where
+    // `/api/notifier` requests would race against the engine's
+    // `deps`-still-null state and silently drop the pub/sub event
+    // (CodeRabbit review on PR #1196). Both `createPubSub` and
+    // `initNotifier` are sync, so wiring them up here costs nothing
+    // and closes the window.
+    const earlyPubsub = createPubSub(httpServer);
+    initNotifier({
+      publish: (channel, payload) => earlyPubsub.publish(channel, payload),
+    });
+
     // Publish the actually-bound port so the hook script can
     // address us — the requested PORT may have walked forward
     // off a busy default. Use writeFile (not writeFileAtomic)
@@ -993,7 +1002,7 @@ process.on("SIGTERM", () => {
         error: String(err),
       });
     }
-    startRuntimeServices(httpServer, port).catch((err: unknown) => {
+    startRuntimeServices(httpServer, port, earlyPubsub).catch((err: unknown) => {
       log.error("server", "startRuntimeServices failed", { error: String(err) });
     });
   });

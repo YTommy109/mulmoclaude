@@ -15,6 +15,7 @@
 import { defineComponent, h } from "vue";
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 import { PAGE_ROUTES, type PageRouteName } from "./pageRoutes";
+import { HOST_EVENTS } from "../config/hostEvents";
 
 // Re-export the constants so existing `import { PAGE_ROUTES } from
 // "./router"` call sites keep working. The actual definitions live
@@ -85,9 +86,11 @@ const router = createRouter({
 //
 // Subscriber: `@mulmoclaude/debug-plugin` View, which uses it to
 // re-evaluate `?mode=` and `?notificationId=` params after the host
-// notifier popup pushes a new URL.
+// notifier popup pushes a new URL. The event name lives in
+// `src/config/hostEvents.ts` so the contract isn't a magic string
+// duplicated between host and plugin.
 router.afterEach((toRoute) => {
-  window.dispatchEvent(new CustomEvent("mulmoclaude:routechange", { detail: { fullPath: toRoute.fullPath } }));
+  window.dispatchEvent(new CustomEvent(HOST_EVENTS.routeChange, { detail: { fullPath: toRoute.fullPath } }));
 });
 
 export default router;

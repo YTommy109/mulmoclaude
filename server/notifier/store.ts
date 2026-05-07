@@ -24,7 +24,17 @@ export async function loadActive(filePath: string): Promise<NotifierFile> {
     throw err;
   }
   const parsed: unknown = JSON.parse(text);
-  if (typeof parsed !== "object" || parsed === null || !("entries" in parsed) || typeof (parsed as { entries: unknown }).entries !== "object") {
+  // `typeof null === "object"` and `Array.isArray([])` is also true,
+  // so the previous check `typeof entries !== "object"` let
+  // `{ entries: null }` and `{ entries: [] }` through, which then
+  // crashed downstream `engine.get` / `list*` mutations. Reject both
+  // shapes here at load time so the failure surfaces as a clear
+  // "malformed file" error (CodeRabbit review on PR #1196).
+  if (typeof parsed !== "object" || parsed === null || !("entries" in parsed)) {
+    throw new Error(`notifier: malformed active.json at ${filePath}`);
+  }
+  const { entries } = parsed as { entries: unknown };
+  if (typeof entries !== "object" || entries === null || Array.isArray(entries)) {
     throw new Error(`notifier: malformed active.json at ${filePath}`);
   }
   return parsed as NotifierFile;
