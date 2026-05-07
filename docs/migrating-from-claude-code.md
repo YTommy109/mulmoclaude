@@ -339,7 +339,7 @@ cp -r ~/projects/my-project/docs/*.md ~/mulmoclaude/data/wiki/pages/
 
 | 内容 | MulmoClaude での移植先 |
 |---|---|
-| 言語設定 / 口調 / 一般的な指示 | UI 言語は `VITE_LOCALE` (ビルド時に固定) ; 口調 / 一般的な指示は role の `prompt` に書く (manageRoles) |
+| 言語設定 / 口調 / 一般的な指示 | UI 言語は `VITE_LOCALE` で明示固定可、未設定時は `navigator.languages` / `navigator.language` (= ブラウザ / OS) から自動判定 (`src/lib/vue-i18n.ts` `detectLocale`)、最終フォールバック `en` ; 口調 / 一般的な指示は role の `prompt` に書く (manageRoles) |
 | プロジェクト固有の文脈 / コーディング規約 | **新しい role** を作る (`manageRoles`) — その role の `prompt` に書く |
 | 「特定のファイルを参照」「特定ディレクトリを read」 | **reference dirs** (§4.3) で物理的にマウント |
 | 「このコマンドを使え」「このツールは使うな」 | role の `availablePlugins` でプラグインを絞る |
