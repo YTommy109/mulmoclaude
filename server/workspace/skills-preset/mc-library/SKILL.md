@@ -39,10 +39,13 @@ beyond what the user volunteers — only capture what they actually say.
 **Triggers**: "I just finished X", "I read X last month", "my thoughts on X".
 
 **Action**:
-1. `Read` the existing `data/library/books/<slug>.md` if present, or `Write` a
-   new one if the book wasn't on the list. Then `Edit` to update.
-2. Set `status: read`. Set `finishedAt` to today (or whatever date the user
-   mentioned). Advance `updated`. Never modify `created`.
+1. `Read` the existing `data/library/books/<slug>.md` if present. If the book
+   was never added before, follow Workflow 1's flow first to create the file
+   — that includes asking one short question for the author when not given,
+   so the `author` required field is never blank.
+2. `Edit` to update. Set `status: read`. Set `finishedAt` to today (or
+   whatever date the user mentioned). Advance `updated`. Never modify
+   `created`.
 3. Ask **one or two** open-ended questions to draw out the reaction. Pick the
    ones that fit the conversation:
    - "What stuck with you?"
@@ -107,7 +110,16 @@ updated: 2025-03-20T20:00:00.000Z
 ## Deletion
 
 Only when the user explicitly asks ("drop X from my reading list"). Confirm
-once, then `Bash rm data/library/books/<slug>.md`.
+once, then delete the file — but **first validate the slug**:
+
+- The slug MUST match `^[a-z0-9]+(-[a-z0-9]+)*$` (the same kebab-case rule
+  every save uses). Reject anything else and ask the user to clarify.
+- The path MUST be exactly `data/library/books/<slug>.md` — never accept a
+  user-typed path or anything containing `/` or `..`.
+
+Once both checks pass, `Bash rm data/library/books/<validated-slug>.md`. If
+either check fails, do not run `rm` — explain to the user that the book name
+didn't resolve cleanly and suggest they retry with the title.
 
 ## Tone reminders
 
