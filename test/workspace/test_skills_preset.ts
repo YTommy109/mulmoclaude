@@ -196,6 +196,30 @@ describe("syncPresetSkills — slug guard", () => {
   });
 });
 
+describe("syncPresetSkills — source resilience", () => {
+  it("aborts cleanly when sourceDir exists as a regular file (packaging mistake)", () => {
+    // Codex review iter-3: existsSync(sourceDir) accepts a regular
+    // file standing in for the preset directory; readdirSync would
+    // then ENOTDIR-crash boot. The function must tolerate that
+    // packaging bug as a recoverable "skip the sync" state.
+    rmSync(sourceDir, { recursive: true, force: true });
+    writeFileSync(sourceDir, "stray file at the source path");
+
+    const warnings: string[] = [];
+    const result = syncPresetSkills({
+      sourceDir,
+      destDir,
+      onWarn: (message, data) => warnings.push(`${message} ${JSON.stringify(data)}`),
+    });
+    assert.deepEqual(result.copied, []);
+    assert.deepEqual(result.removed, []);
+    assert.equal(result.skipped.length, 1);
+    assert.match(result.skipped[0], /non-directory/);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /preset sync aborted/);
+  });
+});
+
 describe("syncPresetSkills — destination resilience", () => {
   it("aborts the sync cleanly when the root dest itself is a regular file (regression: corruption-tolerant boot)", () => {
     // Codex review iter-2: prior fix only protected per-slug

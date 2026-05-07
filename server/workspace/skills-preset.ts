@@ -153,6 +153,25 @@ export function syncPresetSkills(opts: SyncPresetSkillsOptions): SyncPresetSkill
     // This is the legitimate "no presets shipped yet" state.
     return result;
   }
+  // Source-side validation: the launcher's preset path COULD exist
+  // as a regular file (a packaging bug, a corrupted install). Without
+  // this guard, `readdirSync(sourceDir)` would throw ENOTDIR and
+  // crash boot. Codex review iter-3.
+  let sourceInfo;
+  try {
+    sourceInfo = statSync(opts.sourceDir);
+  } catch (err) {
+    const reason = `source path stat failed: ${err instanceof Error ? err.message : String(err)}`;
+    result.skipped.push(`${opts.sourceDir}: ${reason}`);
+    opts.onWarn?.("preset sync aborted", { sourceDir: opts.sourceDir, reason });
+    return result;
+  }
+  if (!sourceInfo.isDirectory()) {
+    const reason = "source path exists as a non-directory; preset sync skipped";
+    result.skipped.push(`${opts.sourceDir}: ${reason}`);
+    opts.onWarn?.("preset sync aborted", { sourceDir: opts.sourceDir, reason });
+    return result;
+  }
   // The root dest itself can be corrupted into a regular file by a
   // user / external tool; mkdirSync would throw EEXIST and crash
   // boot. Treat it as a recoverable "skip the entire sync" state
