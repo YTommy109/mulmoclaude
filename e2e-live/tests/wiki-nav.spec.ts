@@ -169,11 +169,20 @@ test.describe("wiki navigation (real workspace)", () => {
     // the rendered list contains exactly the entries we expect to
     // click. The original content is restored in `finally`.
     const newIndex = ["# Wiki Index", "", `- [${titleA}](pages/${slugA}.md) — alpha`, `- [${titleB}](pages/${slugB}.md) — beta`, ""].join("\n");
+    // Two-state cleanup gate (codex iter-2 fix): `replaceWikiIndex`
+    // returns `string | null`, where `null` is a meaningful "the
+    // file did not exist before — `restoreWikiIndex(null)` should
+    // delete it" signal. A previous gate of `if (originalIndex !==
+    // null)` would skip cleanup in exactly that case and leave the
+    // synthetic index on disk. Track replacement separately so the
+    // null payload is forwarded verbatim.
     let originalIndex: string | null = null;
+    let replacedIndex = false;
     try {
       await placeWikiPage(slugA, [`# ${titleA}`, ``, markerA, ``].join("\n"));
       await placeWikiPage(slugB, [`# ${titleB}`, ``, markerB, ``].join("\n"));
       originalIndex = await replaceWikiIndex(newIndex);
+      replacedIndex = true;
       await navigateToWikiIndex(page);
 
       // Both entries must render in the index list as testid'd rows.
@@ -203,7 +212,7 @@ test.describe("wiki navigation (real workspace)", () => {
       await expect(page.getByTestId("wiki-page-body"), "beta page body must hydrate after clicking the index entry").toContainText(markerB);
       await expect(page).not.toHaveURL(/\/chat/);
     } finally {
-      if (originalIndex !== null) await restoreWikiIndex(originalIndex);
+      if (replacedIndex) await restoreWikiIndex(originalIndex);
       await removeWikiPage(slugA);
       await removeWikiPage(slugB);
     }
