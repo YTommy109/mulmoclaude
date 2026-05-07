@@ -950,7 +950,7 @@ artifact name: `mulmoclaude-tarball`（10 MB 程度、`.tgz`）。
   - 画像 fixture 戦略により、生成系のばらつきはかなり吸収できる見込み
 - [ ] 実行時間実測 → 30 シナリオ × 2 モードで何分か
 - [ ] CI 化のタイミング（手動運用が安定したら GitHub Actions 検討）
-- [x] ~~L-22 で使う skill の選定（dry-run 可能なものに絞る）~~ → 実装済 (`audit-unclosed-issues` を選定したが、 dangling 退行は detail-load で先に死ぬので run button は押さず list/detail だけ叩く設計に着地。 run 経路まで踏む本格 canary は docker PR で別途)
+- [x] ~~L-22 で使う skill の選定（dry-run 可能なものに絞る）~~ → 実装済 (開発者依存の既存 skill ではなく `placeProjectSkill` で synthetic な SKILL.md を `<workspace>/.claude/skills/<unique-slug>/` に seed する方針に変更。 body に 「`/<slug>` で `L22-OK-<nonce>` を返答せよ」 と書いておき Run まで踏んで marker 出現を assert する end-to-end 設計に着地。 PR レビュー反映で list/detail のみの初版から書き換え)
 - [ ] **L-17 用 bridge メッセージ inject 経路の追加**: `00f4a740 fix(notifier): drop HTTP publish` で外部から bridge message を notifier engine に注入する HTTP route が廃止された。 e2e-live spec から二重通知 (B-50) を再現するには (a) test 専用の inject endpoint を `server/api/routes/notifier.ts` に env-gate で復活させる、 (b) socket.io 直接 emit して bridge メッセージを擬装、 (c) 実 bridge を WebSocket で接続して走らせる、 のいずれか。 採用案を決めてから L-17 spec を書く
 - [x] ~~**#974 self-repair で L-01 の `naturalWidth > 0` が甘くなる件の緩和策決定**~~ → `data-image-repair-tried` マーカ参照 guard を採用（上記 「要対応」 セクション参照）
 - [x] ~~**Safari (webkit) project の追加**~~ → 反映済（`e2e-live/playwright.config.ts` に `webkit` project + `testMatch: "media.spec.ts"`）

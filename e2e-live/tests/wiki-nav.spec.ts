@@ -192,8 +192,11 @@ test.describe("wiki navigation (real workspace)", () => {
       await expect(page.getByTestId(`wiki-page-entry-${slugB}`), "beta entry must appear in the index list").toBeVisible();
 
       // Click entry A — expect /wiki/pages/<slugA> + body marker.
+      // encodeURIComponent matches the L-14 / L-15 assertion shape
+      // (a no-op for ASCII slugs, but explicit about intent and
+      // silences static analysis flags on raw template-string regex).
       await page.getByTestId(`wiki-page-entry-${slugA}`).click();
-      await expect(page).toHaveURL(new RegExp(`/wiki/pages/${slugA}$`));
+      await expect(page).toHaveURL(new RegExp(`/wiki/pages/${encodeURIComponent(slugA)}$`));
       await expect(page.getByTestId("wiki-page-body"), "alpha page body must hydrate after clicking the index entry").toContainText(markerA);
       // Negative guard mirroring L-14: if the catch-all router ever
       // swallows wiki page navigations again (B-24 regression), the
@@ -208,7 +211,7 @@ test.describe("wiki navigation (real workspace)", () => {
       // false-pass.
       await navigateToWikiIndex(page);
       await page.getByTestId(`wiki-page-entry-${slugB}`).click();
-      await expect(page).toHaveURL(new RegExp(`/wiki/pages/${slugB}$`));
+      await expect(page).toHaveURL(new RegExp(`/wiki/pages/${encodeURIComponent(slugB)}$`));
       await expect(page.getByTestId("wiki-page-body"), "beta page body must hydrate after clicking the index entry").toContainText(markerB);
       await expect(page).not.toHaveURL(/\/chat/);
     } finally {
