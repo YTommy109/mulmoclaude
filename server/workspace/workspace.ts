@@ -6,9 +6,11 @@ import { log } from "../system/logger/index.js";
 import { EAGER_WORKSPACE_DIRS, WORKSPACE_PATHS, workspacePath } from "./paths.js";
 import { readWorkspaceTextSync, writeWorkspaceTextSync } from "../utils/files/workspace-io.js";
 import { loadCustomDirs, ensureCustomDirs } from "./custom-dirs.js";
+import { syncPresetSkills } from "./skills-preset.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(__dirname, "helps");
+const SKILLS_PRESET_SOURCE_DIR = path.join(__dirname, "skills-preset");
 
 // Re-exported so existing callers (`import { workspacePath } from
 // "./workspace.js"`) keep working. See workspace-paths.ts for the
@@ -38,6 +40,17 @@ export function initWorkspace(): string {
   for (const file of readdirSync(TEMPLATES_DIR)) {
     copyFileSync(path.join(TEMPLATES_DIR, file), path.join(WORKSPACE_PATHS.helps, file));
   }
+
+  // Sync preset skills (#1210) from server/workspace/skills-preset/
+  // into <workspaceRoot>/.claude/skills/. Only `mc-*` slugs are
+  // touched — user-authored skills coexist untouched. Retired
+  // presets (no longer in source) are removed from the workspace.
+  syncPresetSkills({
+    sourceDir: SKILLS_PRESET_SOURCE_DIR,
+    destDir: WORKSPACE_PATHS.claudeSkills,
+    onInfo: (message, data) => log.info("skills-preset", message, data),
+    onWarn: (message, data) => log.warn("skills-preset", message, data),
+  });
 
   // Create .gitignore if missing. The workspace is a git repo for
   // version-tracking user data, but cloned dev repos under github/
