@@ -604,9 +604,17 @@ async function handleAgentEvent(event: Awaited<ReturnType<typeof runAgent>> exte
     // `type: "skill"`. The signal is structural (`toolName === "Skill"`
     // + `args.skill` slug), not a body-text prefix, so it survives
     // any rewording Claude CLI might do to the synthesised body.
+    //
+    // Any non-Skill tool_call resets the pending state. Without this,
+    // a Skill call followed by another tool (Bash, etc.) without a
+    // body flush in between would leak `pendingSkill` and miscategorise
+    // a later unrelated assistant text as a skill body. Codex iter 1
+    // review on PR #1220.
     if (event.toolName === "Skill") {
       const skillSlug = isRecord(event.args) && typeof event.args.skill === "string" ? event.args.skill : null;
-      if (skillSlug) ctx.pendingSkill = { skillName: skillSlug };
+      ctx.pendingSkill = skillSlug ? { skillName: skillSlug } : null;
+    } else {
+      ctx.pendingSkill = null;
     }
     log.info("agent-tool", "call", {
       chatSessionId: ctx.chatSessionId,
@@ -678,6 +686,14 @@ async function flushTextAccumulator(ctx: EventContext): Promise<void> {
 // `type: "skill"` event is also broadcast so observing tabs can
 // replace the streamed text bubble with a collapsed skill card
 // without waiting for a session reload.
+//
+// Claude CLI sometimes concatenates the LLM's actual reply to the
+// synthesised SKILL.md body in the same text block (no `tool_call`
+// or `content_block_stop` boundary between them — see PR #1220
+// comment for the shiritori reproducer). We split that here using
+// the SKILL.md body on disk as a structural delimiter; the reply
+// portion gets persisted as a SECOND entry of `type: "text"` so it
+// stays visible after the user collapses the skill card.
 async function writeSkillEntry(ctx: EventContext, skillName: string, body: string): Promise<void> {
   const resolved = await resolveSkillMetadata(skillName);
   // Canary: skill detection is sequence-based (not body-prefix based),
@@ -691,17 +707,36 @@ async function writeSkillEntry(ctx: EventContext, skillName: string, body: strin
       actualPreview: body.slice(0, 80),
     });
   }
-  const payload = {
+  // A second canary: the SKILL.md body should appear verbatim inside
+  // the synthesised text. Failure means either discovery missed the
+  // skill (already logged by `resolveSkillMetadata`) or Claude CLI
+  // changed how it inlines the body (worth investigating).
+  if (resolved.body && !body.includes(resolved.body.trim())) {
+    log.warn("agent", "Claude CLI text does not contain the SKILL.md body verbatim — body split may be incorrect", {
+      skillName,
+      bodyBytes: body.length,
+      skillFileBytes: resolved.body.length,
+    });
+  }
+  const { skillPart, replyPart } = splitSkillAndReply(body, resolved.body);
+
+  const skillPayload = {
     source: "assistant",
     type: EVENT_TYPES.skill,
     skillName,
     skillScope: resolved.scope,
     skillPath: resolved.path,
     skillDescription: resolved.description,
-    message: body,
+    message: skillPart,
   };
-  pushSessionEvent(ctx.chatSessionId, payload as Record<string, unknown>);
-  await appendSessionLine(ctx.chatSessionId, JSON.stringify(payload));
+  pushSessionEvent(ctx.chatSessionId, skillPayload as Record<string, unknown>);
+  await appendSessionLine(ctx.chatSessionId, JSON.stringify(skillPayload));
+
+  if (replyPart) {
+    const textPayload = { source: "assistant", type: EVENT_TYPES.text, message: replyPart };
+    pushSessionEvent(ctx.chatSessionId, textPayload as Record<string, unknown>);
+    await appendSessionLine(ctx.chatSessionId, JSON.stringify(textPayload));
+  }
 }
 
 interface SkillMetadata {
@@ -712,24 +747,64 @@ interface SkillMetadata {
    *  the synthesised body, so the renderer can't re-extract this from
    *  `message`. Resolved here from `discoverSkills()` instead. */
   description: string | null;
+  /** SKILL.md body (frontmatter already stripped by `discoverSkills`).
+   *  Used as a structural delimiter to split the text Claude CLI
+   *  emits — the body Claude CLI inlines is character-for-character
+   *  this same string, with the LLM's actual reply concatenated
+   *  after. */
+  body: string | null;
 }
 
 async function resolveSkillMetadata(skillName: string): Promise<SkillMetadata> {
   try {
     const skills: Skill[] = await discoverSkills({ workspaceRoot: workspacePath });
     const found = skills.find((skill) => skill.name === skillName);
-    if (!found) return { scope: "unknown", path: null, description: null };
-    return { scope: found.source, path: found.path, description: found.description };
+    if (!found) return { scope: "unknown", path: null, description: null, body: null };
+    return { scope: found.source, path: found.path, description: found.description, body: found.body };
   } catch (err) {
     // Discovery failure is benign — keep tagging the entry so the UI
     // can still collapse it; just leave metadata empty.
-    log.warn("agent", "skill metadata lookup failed — emitting entry without scope/path/description", {
+    log.warn("agent", "skill metadata lookup failed — emitting entry without scope/path/description/body", {
       skillName,
       error: err instanceof Error ? err.message : String(err),
     });
-    return { scope: "unknown", path: null, description: null };
+    return { scope: "unknown", path: null, description: null, body: null };
   }
 }
+
+/** Split the consolidated text Claude CLI emits after a `Skill`
+ *  tool_call into the SKILL.md body half (synthesised by Claude CLI)
+ *  and the LLM's actual reply half. Without this, the entire blob
+ *  gets tagged `type: "skill"`, so when the user collapses the
+ *  card their actual reply disappears (#1218 reproducer: shiritori
+ *  skill, where the body ends with a "respond now" instruction and
+ *  the LLM's first move is concatenated to the same text block).
+ *
+ *  Structural split: the SKILL.md body is on disk, available via
+ *  `discoverSkills()`. We find that exact substring inside the
+ *  message and slice. Optional `ARGUMENTS: <user_input>` line that
+ *  Claude CLI appends when the SKILL.md uses `{{ARGUMENTS}}` is
+ *  consumed too. Returns the whole message as `skillPart` with
+ *  empty `replyPart` when `skillBody` is empty (discovery missed)
+ *  or not found verbatim (Claude CLI changed the inlining format —
+ *  the canary log warn fires in that case). */
+function splitSkillAndReply(message: string, skillBody: string | null): { skillPart: string; replyPart: string } {
+  if (!skillBody) return { skillPart: message, replyPart: "" };
+  const trimmedBody = skillBody.trim();
+  if (!trimmedBody) return { skillPart: message, replyPart: "" };
+  const idx = message.indexOf(trimmedBody);
+  if (idx < 0) return { skillPart: message, replyPart: "" };
+  let cursor = idx + trimmedBody.length;
+  // Skip the optional ARGUMENTS line + trailing whitespace.
+  const argMatch = /^\s*ARGUMENTS:[^\n]*\n?/.exec(message.slice(cursor));
+  if (argMatch) cursor += argMatch[0].length;
+  const skillPart = message.slice(0, cursor).trimEnd();
+  const replyPart = message.slice(cursor).replace(/^\s+/, "");
+  return { skillPart, replyPart };
+}
+
+// Exported for the unit test in test/agent/test_skillBodySplit.ts.
+export const _splitSkillAndReplyForTest = splitSkillAndReply;
 
 // Helper kept commented (instead of deleted) alongside the
 // publishNotification call below — see the duplicate-notification

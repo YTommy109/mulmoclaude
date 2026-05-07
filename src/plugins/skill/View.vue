@@ -1,5 +1,10 @@
 <template>
-  <div class="h-full flex flex-col p-6 overflow-y-auto">
+  <!-- Sizes to the card's natural height so a collapsed skill doesn't
+       leave a wall of empty canvas below it. `max-h-full` +
+       `overflow-y-auto` keeps the expanded markdown body scrollable
+       within the parent's height when it does need a scroll. (#1218
+       follow-up — issue 2 cosmetic fix.) -->
+  <div class="max-h-full overflow-y-auto p-6">
     <div class="max-w-3xl mx-auto w-full">
       <div class="rounded-lg border border-purple-200 bg-purple-50 shadow-sm">
         <!-- Collapsed header — clickable. The whole card collapses by
