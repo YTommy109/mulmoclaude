@@ -125,6 +125,13 @@ const HOST_API_ROUTES = {
     test: "/api/notifications/test",
   },
 
+  /** Notifier dispatch — single endpoint, body carries `{ action,
+   *  ... }`. Matches the `manage*` tool pattern used elsewhere
+   *  (manageEncore / manageAccounting / manageSkills). */
+  notifier: {
+    dispatch: "/api/notifier",
+  },
+
   journal: {
     // Most recent existing daily summary (today, falling back to
     // prior days). Backs the top-bar "today's journal" shortcut

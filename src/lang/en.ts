@@ -82,9 +82,13 @@ const enMessages = {
   },
   notificationBell: {
     notifications: "Notifications",
-    markAllRead: "Mark all read",
-    noNotifications: "No notifications",
+    activeSection: "Active",
+    historySection: "History",
+    noActive: "No active notifications",
+    noHistory: "No recent activity",
+    clearAll: "Clear",
     dismiss: "Dismiss",
+    cancel: "Cancel",
   },
   pluginDiagnostics: {
     title: "Plugin configuration issue",

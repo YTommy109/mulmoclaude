@@ -117,7 +117,7 @@ What stays: `topic-types.ts`, `topic-io.ts`, `topic-detect.ts` (minus the atomic
 
 ## Where to read more
 
-- [`plans/feat-memory-topic-restructure.md`](../plans/feat-memory-topic-restructure.md) — design notes for the topic format (#1070 PR-A)
-- [`plans/feat-memory-topic-wire.md`](../plans/feat-memory-topic-wire.md) — wire-through plan (#1070 PR-B)
+- [`plans/done/feat-memory-topic-restructure.md`](../plans/done/feat-memory-topic-restructure.md) — design notes for the topic format (#1070 PR-A)
+- [`plans/done/feat-memory-topic-wire.md`](../plans/done/feat-memory-topic-wire.md) — wire-through plan (#1070 PR-B)
 - [`plans/done/feat-memory-storage-utilities.md`](../plans/done/feat-memory-storage-utilities.md) — atomic-format storage layer (#1029 PR-A, legacy)
 - [`plans/done/feat-memory-storage-wire.md`](../plans/done/feat-memory-storage-wire.md) — atomic-format wire-through (#1029 PR-B, legacy)

@@ -131,6 +131,13 @@ const HOST_WORKSPACE_DIRS = {
   configs: "config",
   roles: "config/roles",
   helps: "config/helps",
+  // Project-scope Claude Code skills root — both user-authored and
+  // launcher-managed presets live here. Path is hardcoded by Claude
+  // Code's slash-command resolver (it scans `<cwd>/.claude/skills/`
+  // alongside `~/.claude/skills/`); we centralise the literal here
+  // so server code references it through `WORKSPACE_PATHS.claudeSkills`
+  // instead of inlining the string.
+  claudeSkills: ".claude/skills",
   // Nested subdirs inside a top-level grouping. Kept here (rather
   // than module-local constants) when multiple modules need to
   // reference the same nested path — e.g. wiki/pages/ is used by
@@ -156,6 +163,7 @@ const HOST_WORKSPACE_DIRS = {
   // backup target; config holds per-machine UI state / defaults.
   pluginsData: "data/plugins",
   pluginsConfig: "config/plugins",
+  notifier: "data/notifier",
 } as const;
 
 // First-write-wins host+plugin aggregate (see `defineHostAggregate`):

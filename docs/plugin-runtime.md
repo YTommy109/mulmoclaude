@@ -297,7 +297,7 @@ For Spotify, the answer is: **one route entry** on the runtime-plugin router (th
 
 #### Reference
 
-[`packages/spotify-plugin/`](../packages/spotify-plugin/) is the reference implementation. PR 1 ships the OAuth surface only (`connect` / `oauthCallback` / `status` / `diagnose`); PR 2 adds the listening-data kinds + the View. Plan: [`plans/feat-spotify-plugin.md`](../plans/feat-spotify-plugin.md), tracking issue: #1162.
+[`packages/spotify-plugin/`](../packages/spotify-plugin/) is the reference implementation. PR 1 ships the OAuth surface only (`connect` / `oauthCallback` / `status` / `diagnose`); PR 2 adds the listening-data kinds + the View. Plan: [`plans/done/feat-spotify-plugin.md`](../plans/done/feat-spotify-plugin.md), tracking issue: #1162.
 
 ## API reference (factory shape)
 
@@ -411,7 +411,7 @@ The `default: never` line is the safety net — if you add a new `kind` to `Args
 ## Related
 
 - [`docs/manual-testing.md`](manual-testing.md) — broader manual test scenarios for the app
-- [`plans/feat-plugin-c2-impl.md`](../plans/feat-plugin-c2-impl.md) — the original C-2 rollout plan
-- [`plans/feat-plugin-runtime-extensions-1110.md`](../plans/feat-plugin-runtime-extensions-1110.md) — this PR's plan
+- [`plans/done/feat-plugin-c2-impl.md`](../plans/done/feat-plugin-c2-impl.md) — the original C-2 rollout plan
+- [`plans/done/feat-plugin-runtime-extensions-1110.md`](../plans/done/feat-plugin-runtime-extensions-1110.md) — this PR's plan
 - Issue [#1043](https://github.com/receptron/mulmoclaude/issues/1043) — plugin SDK / dynamic install / marketplace umbrella
 - Issue [#1110](https://github.com/receptron/mulmoclaude/issues/1110) — runtime extensions spec (factory pattern, scoped pubsub, files split, ESLint preset)

@@ -65,9 +65,9 @@ export function useFaviconState(opts: {
     return resolveFaviconColor(context).color;
   });
 
-  const { unreadCount: notificationUnreadCount } = useNotifications();
-  // The dot doesn't distinguish source: pub-sub notifications OR any session with unread chat both trigger it.
-  const hasNotificationBadge = computed(() => notificationUnreadCount.value > 0 || sessionsUnreadCount.value > 0);
+  const { badgeCount: notificationBadgeCount } = useNotifications();
+  // The dot doesn't distinguish source: notifier entries OR any session with unread chat both trigger it.
+  const hasNotificationBadge = computed(() => notificationBadgeCount.value > 0 || sessionsUnreadCount.value > 0);
 
   useDynamicFavicon({
     color,

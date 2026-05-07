@@ -9,7 +9,6 @@
           :gemini-available="geminiAvailable"
           :title-style="debugTitleStyle"
           @test-query="(q) => sendMessage(q)"
-          @notification-navigate="handleNotificationNavigate"
           @open-settings="showSettings = true"
           @home="handleHomeClick"
         />
@@ -256,7 +255,6 @@
       @update:open="showSettings = $event"
       @ask-gemini="handleAskGemini"
     />
-    <NotificationToast />
   </div>
 </template>
 
@@ -289,8 +287,6 @@ import SourcesView from "./components/SourcesView.vue";
 import NewsView from "./components/NewsView.vue";
 import PluginScopedRoot from "./components/PluginScopedRoot.vue";
 import SettingsModal from "./components/SettingsModal.vue";
-import NotificationToast from "./components/NotificationToast.vue";
-import type { NotificationAction } from "./types/notification";
 import { PAGE_ROUTES, type PageRouteName } from "./router";
 import type { SseEvent } from "./types/sse";
 import type { SessionEntry, ActiveSession } from "./types/session";
@@ -302,7 +298,6 @@ import { pushErrorMessage, beginUserTurn, updateResult } from "./utils/session/s
 import { roleName, roleIcon } from "./utils/role/icon";
 import { createEmptySession } from "./utils/session/sessionFactory";
 import { buildLoadedSession, parseSessionEntries } from "./utils/session/sessionEntries";
-import { resolveNotificationTarget } from "./utils/notification/dispatch";
 import { usePendingCalls } from "./composables/usePendingCalls";
 import { useRunElapsed } from "./composables/useRunElapsed";
 import { useKeyNavigation } from "./composables/useKeyNavigation";
@@ -329,7 +324,6 @@ import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
 import { useEventListeners } from "./composables/useEventListeners";
 import { provideAppApi } from "./composables/useAppApi";
-import { usePluginDiagnostics } from "./composables/usePluginDiagnostics";
 import { provideActiveSession } from "./composables/useActiveSession";
 import { useRoute, useRouter } from "vue-router";
 import { apiGet } from "./utils/api";
@@ -379,17 +373,6 @@ function navigateToSession(sessionId: string, replace = false): void {
       console.error("[navigateToSession] push failed:", err);
     }
   });
-}
-
-function handleNotificationNavigate(action: NotificationAction): void {
-  const target = resolveNotificationTarget(action);
-  if (!target) return;
-  // No special-casing for chat targets: PR #774 moved the role
-  // selector's state into the `useCurrentRole` singleton, so the
-  // role no longer needs to be pinned via `?role=` on every
-  // session-navigate. router.push(target) keeps the user's
-  // current role choice across the navigation automatically.
-  router.push(target).catch(() => {});
 }
 
 // External URL changes (back/forward button, typed URL) → update ref.
@@ -500,9 +483,10 @@ const { mergedSessions, tabSessions } = useMergedSessions({
 // /api/sessions refetch.
 useFaviconState({ isRunning, sessions: mergedSessions, sessionsUnreadCount: unreadCount, cpuLoadRatio });
 useGlobalImageErrorRepair();
-// Boot-time plugin META aggregator collisions surfaced via the
-// notifications bell + toast. Empty when the registry is clean.
-usePluginDiagnostics();
+// Boot-time plugin META aggregator collisions surface as notifier
+// entries from the server side; the notifier engine's persistent
+// `active.json` covers the late-mount case (PR 4 of feat-encore),
+// so no client-side catch-up fetch is required here.
 
 const sessionSidebarRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);

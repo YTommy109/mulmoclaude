@@ -5,6 +5,7 @@ import { type Page, expect, test } from "@playwright/test";
 
 import { TOOL_NAME as PRESENT_MULMO_SCRIPT_TOOL } from "../../src/plugins/presentMulmoScript/definition.ts";
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
+import { WORKSPACE_DIRS } from "../../server/workspace/paths.ts";
 import {
   deleteSession,
   getCurrentSessionId,
@@ -32,6 +33,33 @@ const L02_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 // headroom for the slowest TTS provider on a cold cache.
 const L03_TIMEOUT_MS = 10 * ONE_MINUTE_MS;
 const L03_GENERATION_TIMEOUT_MS = 8 * ONE_MINUTE_MS;
+// L-04 (animation:true) compose is per-frame Puppeteer screenshot
+// + ffmpeg encode. A 1-beat / 2-second / 30fps fixture is ~60
+// frames; in practice it lands in 30–90s, so the ceilings here are
+// the same order as L-03 with a little extra slack for cold-cache
+// browser launches.
+const L04_TIMEOUT_MS = 8 * ONE_MINUTE_MS;
+const L04_GENERATION_TIMEOUT_MS = 6 * ONE_MINUTE_MS;
+// Disk path constant + matching wire-form prefix for mulmoScript
+// fixtures. WORKSPACE_DIRS.stories is the canonical disk location
+// ("artifacts/stories" on host, exposed by server/workspace/paths.ts),
+// and the wire form passed to the LLM keeps the leading "stories/"
+// prefix that the server's resolveStoryPath strips before resolving
+// against artifacts/stories/. The wire prefix is server-internal
+// (server/api/routes/mulmo-script.ts:42-50, no exported constant
+// today), so it's pinned here against the disk constant by stripping
+// the `artifacts/` prefix — if `WORKSPACE_DIRS.stories` ever stops
+// starting with `artifacts/`, the throw below trips at module load
+// and the suite fails fast instead of silently shipping the wrong
+// wire prefix to the LLM (codex iter-3: a regex `replace` would
+// otherwise no-op on miss and pass `artifacts/data/foo.json` etc.
+// straight through).
+const STORIES_DISK_PREFIX = "artifacts/";
+const STORIES_DISK_DIR = WORKSPACE_DIRS.stories;
+if (!STORIES_DISK_DIR.startsWith(STORIES_DISK_PREFIX)) {
+  throw new Error(`WORKSPACE_DIRS.stories must start with "${STORIES_DISK_PREFIX}" to derive the wire-form prefix; got ${JSON.stringify(STORIES_DISK_DIR)}`);
+}
+const STORIES_WIRE_DIR = STORIES_DISK_DIR.slice(STORIES_DISK_PREFIX.length);
 // L-05 has to absorb the LLM picking the generateImage tool plus the
 // Gemini image-gen round trip. Cold Gemini calls land in 30–60s in
 // practice; 4 minutes leaves slack for slow networks without inviting
@@ -118,6 +146,41 @@ test.describe("media (real LLM)", () => {
     }
   });
 
+  test("L-04: animation:true の mulmoScript → 動画生成がエラーなく完走する", async ({ page }, testInfo) => {
+    test.setTimeout(L04_TIMEOUT_MS);
+    // Same ffmpeg precondition as L-03 — mulmocast shells out to
+    // system ffmpeg via fluent-ffmpeg for the per-frame compose
+    // step, so without ffmpeg on PATH the test would silently hang
+    // on the 6-minute generation timeout instead of skipping cleanly.
+    test.skip(!isFFmpegAvailable(), "ffmpeg not in PATH; required for the mulmoScript animation compose pipeline (see issue #1049)");
+    // L-04 covers B-46 — `animation: true` on an html_tailwind beat
+    // used to break the movie compose path. We seed a fixture with
+    // exactly one short animated beat (text="" so TTS stays out of
+    // the picture, no GEMINI_API_KEY required) and drive the same
+    // Generate → Download UI flow as L-03; B-46 manifests as the
+    // Download Movie button never appearing.
+    //
+    // Project-name suffix mirrors L-03's race guard against the
+    // server's `inFlightMovies` set — keeps chromium / webkit from
+    // contending on the same fixture path during parallel runs.
+    const slug = testInfo.project.name;
+    const fixtureBasename = `e2e-live-l04-${slug}.json`;
+    const workspaceScriptRel = path.posix.join(STORIES_DISK_DIR, fixtureBasename);
+    const wireFilePath = path.posix.join(STORIES_WIRE_DIR, fixtureBasename);
+    await placeFixtureInWorkspace("mulmo/l04-animation.json", workspaceScriptRel);
+    try {
+      await startNewSession(page);
+      await sendMulmoFilePathPrompt(page, wireFilePath);
+      await waitForMulmoScriptViewReady(page);
+      await waitForAssistantResponseComplete(page);
+      await generateAndDownloadMovieWithTimeout(page, L04_GENERATION_TIMEOUT_MS);
+    } finally {
+      const sessionId = getCurrentSessionId(page);
+      if (sessionId) await deleteSession(page, sessionId);
+      await removeFromWorkspace(workspaceScriptRel);
+    }
+  });
+
   test("L-03: 既存 mulmoScript → 動画生成 → 動画 DL が成功する", async ({ page }, testInfo) => {
     test.setTimeout(L03_TIMEOUT_MS);
     // mulmocast spawns system ffmpeg via fluent-ffmpeg (not bundled).
@@ -149,15 +212,15 @@ test.describe("media (real LLM)", () => {
     // path.posix.join keeps the separator forward-slash on every
     // host so the wire form matches the server's POSIX-shaped
     // resolveStoryPath input regardless of the runner OS.
-    const workspaceScriptRel = path.posix.join("artifacts/stories", fixtureBasename);
-    const wireFilePath = path.posix.join("stories", fixtureBasename);
+    const workspaceScriptRel = path.posix.join(STORIES_DISK_DIR, fixtureBasename);
+    const wireFilePath = path.posix.join(STORIES_WIRE_DIR, fixtureBasename);
     await placeFixtureInWorkspace("mulmo/l03-two-beat.json", workspaceScriptRel);
     try {
       await startNewSession(page);
-      await sendL03FilePathPrompt(page, wireFilePath);
+      await sendMulmoFilePathPrompt(page, wireFilePath);
       await waitForMulmoScriptViewReady(page);
       await waitForAssistantResponseComplete(page);
-      await generateAndDownloadMovie(page);
+      await generateAndDownloadMovieWithTimeout(page, L03_GENERATION_TIMEOUT_MS);
     } finally {
       const sessionId = getCurrentSessionId(page);
       if (sessionId) await deleteSession(page, sessionId);
@@ -260,9 +323,9 @@ async function downloadAndAssertPdf(page: Page): Promise<void> {
  * and passed one argument" — both of which are reliable. The
  * fixture itself controls beats / TTS / image type.
  */
-async function sendL03FilePathPrompt(page: Page, workspaceScriptRel: string): Promise<void> {
+async function sendMulmoFilePathPrompt(page: Page, wireFilePath: string): Promise<void> {
   const message = [
-    `\`${PRESENT_MULMO_SCRIPT_TOOL}\` ツールに \`filePath: "${workspaceScriptRel}"\` を渡して、 既存スクリプトをそのまま表示してください。`,
+    `\`${PRESENT_MULMO_SCRIPT_TOOL}\` ツールに \`filePath: "${wireFilePath}"\` を渡して、 既存スクリプトをそのまま表示してください。`,
     "",
     "- ツールには filePath だけを渡し、 script は省略してください",
     "- 動画生成 (Generate Movie / generateMovie ツール) は呼ばないでください — テスト側でボタンを押します",
@@ -298,12 +361,15 @@ async function waitForMulmoScriptViewReady(page: Page): Promise<void> {
 /**
  * Drive the Generate → Download flow end-to-end. The Download pill
  * only appears once the server has finished compose, so its
- * visibility doubles as a "generation complete" signal.
+ * visibility doubles as a "generation complete" signal. Caller
+ * supplies the generation timeout because L-03 (TTS + textSlide
+ * compose) and L-04 (per-frame animation compose) have different
+ * cost profiles.
  */
-async function generateAndDownloadMovie(page: Page): Promise<void> {
+async function generateAndDownloadMovieWithTimeout(page: Page, generationTimeoutMs: number): Promise<void> {
   await page.getByTestId("mulmo-script-generate-movie-button").first().click();
   const downloadBtn = page.getByTestId("mulmo-script-download-movie-button").first();
-  await expect(downloadBtn).toBeVisible({ timeout: L03_GENERATION_TIMEOUT_MS });
+  await expect(downloadBtn).toBeVisible({ timeout: generationTimeoutMs });
   const downloadPromise = page.waitForEvent("download");
   await downloadBtn.click();
   const movie = await readMovieDownload(await downloadPromise);

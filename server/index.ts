@@ -33,9 +33,11 @@ import { registerRuntimePlugins } from "./plugins/runtime-registry.js";
 import { makePluginRuntime } from "./plugins/runtime.js";
 import { MCP_PLUGIN_NAMES } from "./agent/plugin-names.js";
 import { createNotificationsRouter } from "./api/routes/notifications.js";
+import { startLegacyAdapters } from "./notifier/legacy-adapters.js";
+import notifierRoutes from "./api/routes/notifier.js";
+import { initNotifier } from "./notifier/engine.js";
 import { createJournalRouter } from "./api/routes/journal.js";
 import { createTranslationRouter } from "./api/routes/translation.js";
-import { type NotificationDeps, initNotifications } from "./events/notifications.js";
 import { announcePluginMetaDiagnostics } from "./plugins/diagnostics.js";
 import { createChatService } from "@mulmobridge/chat-service";
 import { readSessionJsonl } from "./utils/files/session-io.js";
@@ -535,13 +537,8 @@ app.use(chatService.router);
 // `startRuntimeServices` has it. Calls that arrive before fill-in
 // (impossible in practice — the HTTP server isn't listening yet)
 // would no-op on publish but still queue the bridge push.
-const notificationDeps: NotificationDeps = {
-  publish: () => {
-    /* replaced by startRuntimeServices */
-  },
-  pushToBridge: chatService.pushToBridge,
-};
-app.use(createNotificationsRouter(notificationDeps));
+app.use(createNotificationsRouter());
+app.use(notifierRoutes);
 app.use(createJournalRouter());
 app.use(createTranslationRouter());
 app.use(mcpToolsRouter);
@@ -685,26 +682,32 @@ function maybeForceChatIndexBackfill(): void {
     .catch(logBackgroundError("chat-index", "forced startup backfill failed"));
 }
 
-function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: number): void {
+async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: number): Promise<void> {
   log.info("server", "listening", { port });
 
   // --- Pub/Sub ---
   const pubsub = createPubSub(httpServer);
-  // Back-fill the notifications router with the live publisher (see
-  // module-scope placeholder above).
-  notificationDeps.publish = (channel, payload) => pubsub.publish(channel, payload);
 
-  // --- Notification system (#144) ---
-  initNotifications({
+  // --- Notifier engine ---
+  // Routes mounted at module-load above; engine emit is wired here
+  // once pubsub exists. Mutating APIs called between mount and this
+  // call would persist state but log a warning instead of emitting.
+  initNotifier({
     publish: (channel, payload) => pubsub.publish(channel, payload),
-    pushToBridge: chatService.pushToBridge,
   });
 
+  // --- Legacy adapters (bridge + macOS Reminder push) ---
+  // Subscribe in-process to the engine so any `notifier.publish` —
+  // legacy wrapper or plugin-runtime — triggers the same fan-out the
+  // legacy `publishNotification()` did inline before PR 4.
+  startLegacyAdapters({ pushToBridge: chatService.pushToBridge });
+
   // --- Plugin META aggregator diagnostics ---
-  // After initNotifications so publishNotification has a publish
-  // sink. Surfaces any host/plugin or plugin/plugin key collision
-  // detected at module load via log.warn + a system notification.
-  announcePluginMetaDiagnostics();
+  // After the notifier engine is initialized so the wrapper has a
+  // working sink. Surfaces any host/plugin or plugin/plugin key
+  // collision detected at module load via log.warn + a system
+  // notification.
+  await announcePluginMetaDiagnostics();
 
   // --- Chat socket transport (Phase A of #268) ---
   chatService.attachSocket(httpServer);
@@ -990,7 +993,9 @@ process.on("SIGTERM", () => {
         error: String(err),
       });
     }
-    startRuntimeServices(httpServer, port);
+    startRuntimeServices(httpServer, port).catch((err: unknown) => {
+      log.error("server", "startRuntimeServices failed", { error: String(err) });
+    });
   });
 
   // When Docker sandbox is active, the MCP server subprocess runs

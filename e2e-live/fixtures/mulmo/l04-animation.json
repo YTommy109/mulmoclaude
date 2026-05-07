@@ -1,0 +1,36 @@
+{
+  "$mulmocast": { "version": "1.1" },
+  "title": "L-04 fixture",
+  "description": "Pre-built mulmoScript for L-04 animation:true regression. One short html_tailwind beat with animation:true exercises the per-frame Puppeteer screenshot + ffmpeg compose path that B-46 broke. Empty `text` skips TTS so the test stays self-contained (no GEMINI_API_KEY needed). One beat keeps the wall time well below the L-03 ceiling.",
+  "lang": "en",
+  "speechParams": {
+    "speakers": {
+      "Presenter": {
+        "provider": "gemini",
+        "voiceId": "Kore",
+        "displayName": { "en": "Presenter" }
+      }
+    }
+  },
+  "imageParams": { "provider": "google", "model": "gemini-3.1-flash-image-preview" },
+  "movieParams": { "provider": "google", "model": "veo-3.1-generate" },
+  "beats": [
+    {
+      "text": "",
+      "duration": 2,
+      "image": {
+        "type": "html_tailwind",
+        "html": [
+          "<div class='h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600'>",
+          "  <h1 id='title' class='text-6xl font-bold text-white' style='opacity:0'>L-04 Animation</h1>",
+          "</div>"
+        ],
+        "script": [
+          "const animation = new MulmoAnimation();",
+          "animation.animate('#title', { opacity: [0, 1], scale: [0.8, 1] }, { start: 0, end: 1, easing: 'easeOut' });"
+        ],
+        "animation": true
+      }
+    }
+  ]
+}
