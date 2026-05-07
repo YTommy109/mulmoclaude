@@ -13,9 +13,13 @@ import { computed } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { SkillData } from "./types";
 
+// Sidebar previews are rendered with `:result="result"` (see
+// SessionSidebar.vue), not `:selected-result`. Codex iter-2 review
+// on PR #1220 — the previous prop name left `props.result`
+// undefined and broke skill rendering in the chat-history sidebar.
 const props = defineProps<{
-  selectedResult: ToolResultComplete<SkillData>;
+  result: ToolResultComplete<SkillData>;
 }>();
 
-const skillName = computed(() => props.selectedResult.data?.skillName ?? "skill");
+const skillName = computed(() => props.result.data?.skillName ?? "skill");
 </script>

@@ -563,15 +563,71 @@ interface BackgroundRunParams {
 // arrives. The next non-empty text flush IS the SKILL.md body that
 // Claude CLI synthesises — gets tagged as `type: "skill"` instead of
 // `type: "text"` and consumes the flag. (#1218)
+//
+// `toolUseId` is tracked alongside the slug so we can recognise the
+// matching `tool_call_result` (which Claude CLI emits between the
+// Skill tool_call and the body) and let it pass without clearing.
+// Any OTHER non-text event between the Skill tool_call and the body
+// flush is treated as a sequence break and clears the flag — covers
+// the leak path Codex iter-2 flagged where a tool_call_result with
+// a different `toolUseId` (or a `claudeSessionId`, or a flush at
+// run-end) would otherwise leave `pendingSkill` set so a much-later
+// unrelated assistant text gets mis-tagged as `type: "skill"`.
 interface EventContext {
   chatSessionId: string;
   resultsFilePath: string;
   toolArgsCache: ReturnType<typeof createArgsCache>;
   textAccumulator: string[];
-  pendingSkill: { skillName: string } | null;
+  pendingSkill: { skillName: string; toolUseId: string } | null;
 }
 
 const CLAUDE_CLI_SKILL_BODY_PREFIX = "Base directory for this skill: ";
+
+// #1218 — state-machine helpers for `pendingSkill`. Extracted so
+// `handleAgentEvent` stays under the cognitive-complexity cap and so
+// the leak-fix logic (Codex iter-2: clear on mismatched
+// tool_call_result + claudeSessionId, in addition to the iter-1
+// "non-Skill tool_call" clear) lives in one named place.
+//
+// When the model invokes a skill, Claude CLI emits the SKILL.md
+// body as the next assistant text. We track that expectation here:
+// the structural signal is `toolName === "Skill"` + `args.skill`
+// slug, not a body-text prefix, so it survives any rewording Claude
+// CLI might do to the synthesised body.
+
+// Narrow the helpers to only the slot they read/mutate so the
+// state-machine unit test in test/agent/ doesn't have to construct
+// the full `EventContext` (chatSessionId, resultsFilePath, etc).
+type PendingSkillSlot = Pick<EventContext, "pendingSkill">;
+
+function updatePendingSkillOnToolCall(ctx: PendingSkillSlot, event: { toolName: string; toolUseId: string; args: unknown }): void {
+  // Any non-Skill tool_call resets the pending state. Without this,
+  // a Skill call followed by another tool (Bash, etc.) without a
+  // body flush in between would leak `pendingSkill` and miscategorise
+  // a later unrelated assistant text as a skill body.
+  if (event.toolName !== "Skill") {
+    ctx.pendingSkill = null;
+    return;
+  }
+  const skillSlug = isRecord(event.args) && typeof event.args.skill === "string" ? event.args.skill : null;
+  ctx.pendingSkill = skillSlug ? { skillName: skillSlug, toolUseId: event.toolUseId } : null;
+}
+
+// The Skill's own tool_call_result (matching toolUseId) carries
+// "Launching skill: X" content; the body follows in the next text
+// event so we leave `pendingSkill` set. A tool_call_result with any
+// OTHER id means a different tool's result interleaved before the
+// body — sequence broken, clear the flag so a later unrelated
+// assistant text isn't mis-tagged as `type: "skill"`.
+function updatePendingSkillOnToolCallResult(ctx: PendingSkillSlot, toolUseId: string): void {
+  if (ctx.pendingSkill && toolUseId !== ctx.pendingSkill.toolUseId) {
+    ctx.pendingSkill = null;
+  }
+}
+
+// Exported for the unit test in test/agent/test_pendingSkillStateMachine.ts.
+export const _updatePendingSkillOnToolCallForTest = updatePendingSkillOnToolCall;
+export const _updatePendingSkillOnToolCallResultForTest = updatePendingSkillOnToolCallResult;
 
 // Returns true if the event was handled "out of band" (no pub-sub
 // broadcast, no jsonl append). Right now only `claudeSessionId`
@@ -581,6 +637,10 @@ const CLAUDE_CLI_SKILL_BODY_PREFIX = "Base directory for this skill: ";
 async function handleAgentEvent(event: Awaited<ReturnType<typeof runAgent>> extends AsyncGenerator<infer E> ? E : never, ctx: EventContext): Promise<void> {
   if (event.type === EVENT_TYPES.claudeSessionId) {
     await flushTextAccumulator(ctx);
+    // claudeSessionId is a meta event — never part of a Skill→body
+    // sequence. Clear pendingSkill so a flag set earlier in the run
+    // can't leak into a later unrelated assistant text.
+    ctx.pendingSkill = null;
     await setClaudeId(ctx.chatSessionId, event.id);
     return;
   }
@@ -598,24 +658,7 @@ async function handleAgentEvent(event: Awaited<ReturnType<typeof runAgent>> exte
   // lose already-streamed text.
   await flushTextAccumulator(ctx);
   if (event.type === EVENT_TYPES.toolCall) {
-    // #1218 — when the model invokes a skill, Claude CLI emits the
-    // SKILL.md body as the next assistant text. Track that here so
-    // the next non-empty `flushTextAccumulator` can tag it as
-    // `type: "skill"`. The signal is structural (`toolName === "Skill"`
-    // + `args.skill` slug), not a body-text prefix, so it survives
-    // any rewording Claude CLI might do to the synthesised body.
-    //
-    // Any non-Skill tool_call resets the pending state. Without this,
-    // a Skill call followed by another tool (Bash, etc.) without a
-    // body flush in between would leak `pendingSkill` and miscategorise
-    // a later unrelated assistant text as a skill body. Codex iter 1
-    // review on PR #1220.
-    if (event.toolName === "Skill") {
-      const skillSlug = isRecord(event.args) && typeof event.args.skill === "string" ? event.args.skill : null;
-      ctx.pendingSkill = skillSlug ? { skillName: skillSlug } : null;
-    } else {
-      ctx.pendingSkill = null;
-    }
+    updatePendingSkillOnToolCall(ctx, event);
     log.info("agent-tool", "call", {
       chatSessionId: ctx.chatSessionId,
       toolName: event.toolName,
@@ -623,6 +666,7 @@ async function handleAgentEvent(event: Awaited<ReturnType<typeof runAgent>> exte
       argsPreview: previewJson(event.args),
     });
   } else if (event.type === EVENT_TYPES.toolCallResult) {
+    updatePendingSkillOnToolCallResult(ctx, event.toolUseId);
     // Look up the toolName from the cache *before* recordToolEvent
     // runs (it deletes the cache entry on result).
     const cached = ctx.toolArgsCache.get(event.toolUseId);
