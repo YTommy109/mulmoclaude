@@ -131,6 +131,14 @@ const STACK_NATURAL_TOOLS = new Set<string>([
   // clipping forces an inner scrollbar per result. Letting them flow
   // keeps everything visible in one scroll.
   "presentChart",
+  // Skill (#1218) — collapsed card is ~80px tall, expanded body
+  // flows at natural height. The default `min(60vh, 560px)` frame
+  // would leave a 480px void below the collapsed card; letting it
+  // flow puts the card flush against its stack header with no
+  // empty pane. Auto-scrolling the OUTER stack handles overflow
+  // when the user expands the body, same as the document-like
+  // plugins above.
+  "skill",
 ]);
 
 function isStackNatural(toolName: string): boolean {
