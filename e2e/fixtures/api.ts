@@ -130,6 +130,11 @@ export async function mockAllApis(page: Page, opts: MockApiOptions = {}): Promis
   // quiet (no 501s, no [mock] unhandled warnings); specs that do care
   // override with a more specific page.route() before mockAllApis.
   await page.route(urlEndsWith("/api/notifier"), (route) => {
+    // Server only accepts POST. A non-POST request reaching this
+    // mock means a caller is using the wrong verb — let the request
+    // fall through so the real failure surfaces in the test instead
+    // of being papered over by the mock returning 200.
+    if (route.request().method() !== "POST") return route.fallback();
     const action = parseDispatchAction(route.request().postData());
     if (action === "listHistory") return route.fulfill({ json: { history: [] } });
     if (action === "clear" || action === "cancel") return route.fulfill({ json: { ok: true } });
