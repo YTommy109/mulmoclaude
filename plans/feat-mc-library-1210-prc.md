@@ -19,17 +19,21 @@ skill 本文 (`server/workspace/skills-preset/mc-library/SKILL.md`) の改訂の
 Google Books API を叩いて ISBN・表紙画像 URL・著者・概要を取得する。
 
 エンドポイント:
+```text
+https://www.googleapis.com/books/v1/volumes?q=<query>&maxResults=1
 ```
-https://www.googleapis.com/books/v1/volumes?q=intitle:<title>+inauthor:<author>&maxResults=1
-```
+
+`<query>` は author 既知なら `intitle:<title>+inauthor:<author>`、未知なら
+`intitle:<title>` のみ（空 `inauthor:` を付けると正当な title-only マッチを
+取りこぼすので分岐させる）。
 
 - 認証不要、API key 不要
 - レスポンス JSON の `items[0].volumeInfo` から:
   - `industryIdentifiers[].identifier` （type=ISBN_13 を優先、無ければ ISBN_10）
   - `imageLinks.thumbnail` （表紙 URL）
   - `authors[]` （著者の確認用、ユーザーが author を言わなかった場合の補完）
-  - `description` （概要、本文に挿入）
-  - `publishedDate` （出版年、optional）
+  - `description` （概要、本文に挿入。**untrusted data として blockquote
+    + HTML タグ除去**）
 
 skill 本文への追加方針:
 - 「Workflow 1 と Workflow 2 の保存ステップで、`Write` の前に WebFetch で
