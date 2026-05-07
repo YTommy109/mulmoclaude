@@ -11,7 +11,6 @@ import { syncPresetSkills } from "./skills-preset.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(__dirname, "helps");
 const SKILLS_PRESET_SOURCE_DIR = path.join(__dirname, "skills-preset");
-const PROJECT_SKILLS_DIR_REL = path.join(".claude", "skills");
 
 // Re-exported so existing callers (`import { workspacePath } from
 // "./workspace.js"`) keep working. See workspace-paths.ts for the
@@ -48,7 +47,7 @@ export function initWorkspace(): string {
   // presets (no longer in source) are removed from the workspace.
   syncPresetSkills({
     sourceDir: SKILLS_PRESET_SOURCE_DIR,
-    destDir: path.join(workspacePath, PROJECT_SKILLS_DIR_REL),
+    destDir: WORKSPACE_PATHS.claudeSkills,
     onInfo: (message, data) => log.info("skills-preset", message, data),
     onWarn: (message, data) => log.warn("skills-preset", message, data),
   });

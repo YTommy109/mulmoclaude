@@ -155,5 +155,3 @@ Tmpdir-based fixtures, no real workspace touched. Pattern mirrors
 6. Manual smoke: `yarn dev`, confirm `~/mulmoclaude/.claude/skills/mc-example/SKILL.md`
    appears, then delete it and reboot — appears again
 7. Open PR linked to #1210 as PR-A
-EOF
-)

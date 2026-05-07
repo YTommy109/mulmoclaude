@@ -51,27 +51,53 @@ export function isPresetSlug(slug: string): boolean {
   return slug.startsWith(PRESET_SLUG_PREFIX) && slug.length > PRESET_SLUG_PREFIX.length;
 }
 
-type Verdict = { ok: true } | { ok: false; reason: string };
+// Classification of one source entry. `silent` distinguishes
+// structural skips (hidden files, non-directory entries — not the
+// dev's fault) from misconfigurations (bad slug, missing or
+// non-regular SKILL.md — the dev WANTS to know). The boolean lives
+// on the verdict so the caller never has to string-match `reason`,
+// which would silently drop warnings if reason wording changed
+// (CodeRabbit review).
+type Verdict = { ok: true } | { ok: false; reason: string; silent: boolean };
 
 function classifySourceEntry(sourceDir: string, entry: string): Verdict {
-  if (entry.startsWith(".")) return { ok: false, reason: "hidden" };
+  if (entry.startsWith(".")) return { ok: false, reason: "hidden", silent: true };
   const slugDir = path.join(sourceDir, entry);
-  let info;
+  let dirInfo;
   try {
-    info = statSync(slugDir);
+    dirInfo = statSync(slugDir);
   } catch {
-    return { ok: false, reason: "stat failed" };
+    return { ok: false, reason: "stat failed", silent: true };
   }
-  if (!info.isDirectory()) return { ok: false, reason: "not a directory" };
-  if (!isPresetSlug(entry)) return { ok: false, reason: `slug must start with "${PRESET_SLUG_PREFIX}"` };
-  if (!existsSync(path.join(slugDir, SKILL_FILENAME))) return { ok: false, reason: `missing ${SKILL_FILENAME}` };
+  if (!dirInfo.isDirectory()) return { ok: false, reason: "not a directory", silent: true };
+  if (!isPresetSlug(entry)) return { ok: false, reason: `slug must start with "${PRESET_SLUG_PREFIX}"`, silent: false };
+  // Validate SKILL.md is a regular file — `existsSync` alone
+  // accepts a directory at that path, which would then crash
+  // copyFileSync. Codex review caught this edge case.
+  const skillPath = path.join(slugDir, SKILL_FILENAME);
+  let skillInfo;
+  try {
+    skillInfo = statSync(skillPath);
+  } catch {
+    return { ok: false, reason: `missing ${SKILL_FILENAME}`, silent: false };
+  }
+  if (!skillInfo.isFile()) return { ok: false, reason: `${SKILL_FILENAME} must be a regular file`, silent: false };
   return { ok: true };
 }
 
-function copyOneSource(sourceDir: string, destDir: string, entry: string): void {
-  const destSlugDir = path.join(destDir, entry);
-  mkdirSync(destSlugDir, { recursive: true });
-  copyFileSync(path.join(sourceDir, entry, SKILL_FILENAME), path.join(destSlugDir, SKILL_FILENAME));
+/** Prepare the destination slug dir. Returns false if the slot is
+ *  occupied by a regular file (local corruption / hand edits) — the
+ *  caller logs + skips so one bad entry can't crash the whole boot
+ *  (Codex review iter-1). */
+function ensureDestSlugDir(destSlugDir: string): boolean {
+  let info;
+  try {
+    info = statSync(destSlugDir);
+  } catch {
+    mkdirSync(destSlugDir, { recursive: true });
+    return true;
+  }
+  return info.isDirectory();
 }
 
 function copySourcesIntoDest(sourceDir: string, destDir: string, opts: SyncPresetSkillsOptions, result: SyncPresetSkillsResult): Set<string> {
@@ -79,17 +105,20 @@ function copySourcesIntoDest(sourceDir: string, destDir: string, opts: SyncPrese
   for (const entry of readdirSync(sourceDir)) {
     const verdict = classifySourceEntry(sourceDir, entry);
     if (!verdict.ok) {
-      // "hidden" / "not a directory" / "stat failed" are silent
-      // structural skips. Slug-rule violations and missing SKILL.md
-      // are real misconfigurations that the dev needs to see.
-      const isMisconfiguration = verdict.reason.startsWith("slug") || verdict.reason.startsWith("missing");
-      if (isMisconfiguration) {
+      if (!verdict.silent) {
         result.skipped.push(`${entry}: ${verdict.reason}`);
         opts.onWarn?.("preset entry skipped", { slug: entry, reason: verdict.reason });
       }
       continue;
     }
-    copyOneSource(sourceDir, destDir, entry);
+    const destSlugDir = path.join(destDir, entry);
+    if (!ensureDestSlugDir(destSlugDir)) {
+      const reason = "destination slot occupied by a non-directory; skipping";
+      result.skipped.push(`${entry}: ${reason}`);
+      opts.onWarn?.("preset entry skipped", { slug: entry, reason, destSlugDir });
+      continue;
+    }
+    copyFileSync(path.join(sourceDir, entry, SKILL_FILENAME), path.join(destSlugDir, SKILL_FILENAME));
     synced.add(entry);
     result.copied.push(entry);
   }

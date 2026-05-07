@@ -175,6 +175,52 @@ describe("syncPresetSkills — slug guard", () => {
     assert.deepEqual(result.copied, ["mc-foo"]);
     assert.deepEqual(result.skipped, []);
   });
+
+  it("skips when SKILL.md is a directory (regression: not a regular file)", () => {
+    // Codex review iter-1: existsSync alone passes a directory
+    // standing in for SKILL.md; copyFileSync would then crash boot.
+    // The classifier must check `isFile()`.
+    const slugDir = path.join(sourceDir, "mc-bad-shape");
+    mkdirSync(path.join(slugDir, "SKILL.md"), { recursive: true });
+    const warnings: string[] = [];
+    const result = syncPresetSkills({
+      sourceDir,
+      destDir,
+      onWarn: (message, data) => warnings.push(`${message} ${JSON.stringify(data)}`),
+    });
+    assert.deepEqual(result.copied, []);
+    assert.equal(result.skipped.length, 1);
+    assert.match(result.skipped[0], /mc-bad-shape/);
+    assert.match(result.skipped[0], /regular file/);
+    assert.equal(warnings.length, 1);
+  });
+});
+
+describe("syncPresetSkills — destination resilience", () => {
+  it("skips a slug whose dest slot is occupied by a regular file (regression: corruption-tolerant boot)", () => {
+    // Codex review iter-1: mkdirSync recursive: true throws EEXIST
+    // when the path is a regular file. One bad slot must not crash
+    // boot — log warn and skip just that slug, keep others moving.
+    writePresetSource("mc-foo");
+    writePresetSource("mc-bar");
+    mkdirSync(destDir, { recursive: true });
+    writeFileSync(path.join(destDir, "mc-foo"), "stray file blocking the slug dir");
+
+    const warnings: string[] = [];
+    const result = syncPresetSkills({
+      sourceDir,
+      destDir,
+      onWarn: (message, data) => warnings.push(`${message} ${JSON.stringify(data)}`),
+    });
+    // mc-foo is skipped (slot occupied), mc-bar still copies.
+    assert.deepEqual(result.copied, ["mc-bar"]);
+    assert.equal(result.skipped.length, 1);
+    assert.match(result.skipped[0], /mc-foo/);
+    assert.match(result.skipped[0], /non-directory/);
+    assert.equal(warnings.length, 1);
+    // mc-bar landed normally despite mc-foo's failure.
+    assert.ok(existsSync(path.join(destDir, "mc-bar", "SKILL.md")));
+  });
 });
 
 describe("syncPresetSkills — cleanup of retired presets", () => {
