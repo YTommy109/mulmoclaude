@@ -362,9 +362,10 @@ MulmoClaude の system prompt は `server/agent/prompt.ts:683` の `buildSystemP
 **MulmoClaude 自身の設定**は Claude Code とは別ファイルに置く:
 
 - Claude Code: `~/.claude/settings.json` (theme, model, hooks 等) — **MulmoClaude 起動時もそのまま Claude CLI が読む**
-- MulmoClaude: `~/mulmoclaude/config/settings.json` (`AppSettings` 型 — `server/system/config.ts`) — 現状フィールドは **`extraAllowedTools` のみ** (Allowed Tools の追記分)。UI 言語 / Gemini API key / MCP servers / 参照ディレクトリといった残りのアプリ設定は `~/mulmoclaude/config/` 配下の別ファイル群 (`mcp.json`、`workspace-dirs.json` など) や OS / ブラウザ側に分かれている。
+- MulmoClaude: `~/mulmoclaude/config/settings.json` (`AppSettings` 型 — `server/system/config.ts`) — 現状フィールドは **`extraAllowedTools` のみ** (Allowed Tools の追記分)。MCP servers / 参照ディレクトリといった残りのアプリ設定は `~/mulmoclaude/config/` 配下の別ファイル群 (`mcp.json`、`workspace-dirs.json` など) に分かれている。
 
-両方が並列で効く。MulmoClaude の Settings 画面 (`/settings`) からは Allowed Tools / Gemini API key / MCP servers / 参照ディレクトリを編集できる (それぞれ別の保存先)。
+両方が並列で効く。MulmoClaude の Settings 画面 (`/settings`) からは Allowed Tools / MCP servers / 参照ディレクトリを編集できる (それぞれ別の保存先)。
+**Gemini API key は `.env` で管理** — Settings 画面の Gemini タブは「`.env` に `GEMINI_API_KEY` を追加して再起動」という案内 + Ask ボタンのみで、UI 上での入力・保存はできない。
 Claude Code 側 (model 選択、`apiKeyHelper` 等) は `~/.claude/settings.json` を直接編集する従来通りのフロー。
 
 ### 6.2 Hooks
