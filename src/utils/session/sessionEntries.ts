@@ -5,8 +5,8 @@
 //
 // Tracks #175.
 
-import { makeTextResult } from "../tools/result";
-import { isTextEntry, isToolResultEntry, type ActiveSession, type SessionEntry, type SessionSummary } from "../../types/session";
+import { makeSkillResult, makeTextResult } from "../tools/result";
+import { isSkillEntry, isTextEntry, isToolResultEntry, type ActiveSession, type SessionEntry, type SessionSummary } from "../../types/session";
 import { EVENT_TYPES } from "../../types/events";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 
@@ -19,7 +19,12 @@ export function parseSessionEntries(entries: readonly SessionEntry[]): ToolResul
   const out: ToolResultComplete[] = [];
   for (const entry of entries) {
     if (entry.type === EVENT_TYPES.sessionMeta) continue;
-    if (isTextEntry(entry)) {
+    if (isSkillEntry(entry)) {
+      // Skill bodies are routed through the dedicated skill plugin
+      // View (collapsed by default) so they don't dump a wall of
+      // markdown into the canvas. #1218.
+      out.push(makeSkillResult(entry));
+    } else if (isTextEntry(entry)) {
       out.push(makeTextResult(entry.message, entry.source, entry.attachments));
     } else if (isToolResultEntry(entry)) {
       out.push(entry.result);

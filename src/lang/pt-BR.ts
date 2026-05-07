@@ -1098,6 +1098,9 @@ const ptBRMessages = {
     copiedLabel: "Copiado!",
     cancel: "Cancelar",
   },
+  pluginSkill: {
+    noDescription: "(sem descrição)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "Planilha",
     previewSheets: "{count} aba | {count} abas",

@@ -1103,6 +1103,9 @@ const frMessages = {
     copiedLabel: "Copié !",
     cancel: "Annuler",
   },
+  pluginSkill: {
+    noDescription: "(aucune description)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "Tableur",
     previewSheets: "{count} feuille | {count} feuilles",

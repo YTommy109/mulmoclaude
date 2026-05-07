@@ -4,6 +4,7 @@
 
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { EVENT_TYPES, type GenerationKind } from "./events";
+import type { SkillScope } from "./session";
 
 export interface SseToolCall {
   type: typeof EVENT_TYPES.toolCall;
@@ -37,6 +38,20 @@ export interface SseText {
 export interface SseToolResult {
   type: typeof EVENT_TYPES.toolResult;
   result: ToolResultComplete;
+}
+
+/** Broadcast when the server's text-accumulator flushes a body that
+ *  followed a `Skill` tool_call. Lets observing tabs replace the
+ *  streamed assistant-text bubble with a collapsed skill card live,
+ *  without waiting for a session reload. (#1218) */
+export interface SseSkill {
+  type: typeof EVENT_TYPES.skill;
+  source: "assistant";
+  skillName: string;
+  skillScope: SkillScope;
+  skillPath: string | null;
+  skillDescription: string | null;
+  message: string;
 }
 
 export interface SseRolesUpdated {
@@ -81,6 +96,7 @@ export type SseEvent =
   | SseToolCallResult
   | SseStatus
   | SseText
+  | SseSkill
   | SseToolResult
   | SseRolesUpdated
   | SseError

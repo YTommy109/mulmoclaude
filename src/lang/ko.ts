@@ -1099,6 +1099,9 @@ const koMessages = {
     copiedLabel: "복사됨!",
     cancel: "취소",
   },
+  pluginSkill: {
+    noDescription: "(설명 없음)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "스프레드시트",
     previewSheets: "{count}개 시트",

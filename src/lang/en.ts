@@ -1097,6 +1097,9 @@ const enMessages = {
     copiedLabel: "Copied!",
     cancel: "Cancel",
   },
+  pluginSkill: {
+    noDescription: "(no description)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "Spreadsheet",
     previewSheets: "{count} sheet | {count} sheets",
