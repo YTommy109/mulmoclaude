@@ -8,6 +8,7 @@
 import type { ToolCallHistoryItem } from "../../types/toolCallHistory";
 import type { SseToolCall } from "../../types/sse";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
+import { TOOL_NAMES } from "../../config/toolNames";
 
 // Convert an SSE tool_call event into a ToolCallHistoryItem ready
 // to push onto a session's toolCallHistory. Pure.
@@ -56,7 +57,7 @@ export function findPendingToolCall(history: readonly ToolCallHistoryItem[], too
 // Pure — returns a boolean for the caller to act on.
 export function shouldSelectAssistantText(toolResults: readonly ToolResultComplete[], runStartIndex: number): boolean {
   for (let i = runStartIndex; i < toolResults.length; i++) {
-    if (toolResults[i].toolName !== "text-response") return false;
+    if (toolResults[i].toolName !== TOOL_NAMES.textResponse) return false;
   }
   return true;
 }

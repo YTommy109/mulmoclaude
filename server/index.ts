@@ -1003,7 +1003,16 @@ process.on("SIGTERM", () => {
       });
     }
     startRuntimeServices(httpServer, port, earlyPubsub).catch((err: unknown) => {
-      log.error("server", "startRuntimeServices failed", { error: String(err) });
+      // Fail fast — a half-initialized runtime is worse than a
+      // crashed one. Routes mounted at module load already accept
+      // requests, so without this exit the app would respond with a
+      // confusing mix of 200s (from already-mounted routes) and
+      // 500s (from the agent / scheduler / plugins that never came
+      // up). Exit so the supervisor (Electron / launcher) can show
+      // a real error instead of the user staring at a half-broken
+      // UI. (CodeRabbit review on PR #1201.)
+      log.error("server", "startRuntimeServices failed — exiting", { error: String(err) });
+      httpServer.close(() => process.exit(1));
     });
   });
 })();
