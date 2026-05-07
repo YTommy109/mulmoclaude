@@ -5,7 +5,7 @@
 //
 // Tracks #175.
 
-import { makeSkillResult, makeTextResult } from "../tools/result";
+import { makeSkillResult, makeTextResult, TEXT_LIKE_RESULT_TOOL_NAMES } from "../tools/result";
 import { isSkillEntry, isTextEntry, isToolResultEntry, type ActiveSession, type SessionEntry, type SessionSummary } from "../../types/session";
 import { EVENT_TYPES } from "../../types/events";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
@@ -38,11 +38,16 @@ export function parseSessionEntries(entries: readonly SessionEntry[]): ToolResul
 //   1. If the URL carries `?result=<uuid>` AND that uuid actually
 //      exists in the loaded list, honour it verbatim — bookmarks
 //      restore the exact result the user was viewing.
-//   2. Otherwise pick the most recent non-text tool result —
+//   2. Otherwise pick the most recent non-text-like tool result —
 //      images, wiki pages, etc. carry more visual information
-//      than a bare text response.
-//   3. If every result is `text-response`, fall back to the last
-//      one.
+//      than a bare text response or a collapsed skill card.
+//   3. If every result is text-like (`text-response` or `skill`,
+//      see `TEXT_LIKE_RESULT_TOOL_NAMES`), fall back to the last
+//      one — typically the most recent assistant reply, NOT the
+//      skill card that preceded it. Codex iter-4 review on PR
+//      #1220 surfaced the inconsistency between this reload-time
+//      selector and the live-run `shouldSelectAssistantText`
+//      before they were unified on the same allowlist.
 //   4. If the list is empty, return null.
 //
 export function resolveSelectedUuid(toolResults: readonly ToolResultComplete[], urlResult: string | null): string | null {
@@ -50,10 +55,10 @@ export function resolveSelectedUuid(toolResults: readonly ToolResultComplete[], 
     return urlResult;
   }
   if (toolResults.length === 0) return null;
-  // Iterate backwards for the "last non-text" lookup so callers
-  // don't pay for an intermediate reverse copy.
+  // Iterate backwards for the "last non-text-like" lookup so
+  // callers don't pay for an intermediate reverse copy.
   for (let i = toolResults.length - 1; i >= 0; i--) {
-    if (toolResults[i].toolName !== "text-response") {
+    if (!TEXT_LIKE_RESULT_TOOL_NAMES.has(toolResults[i].toolName)) {
       return toolResults[i].uuid;
     }
   }

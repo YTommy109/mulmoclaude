@@ -8,6 +8,7 @@
 import type { ToolCallHistoryItem } from "../../types/toolCallHistory";
 import type { SseToolCall } from "../../types/sse";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
+import { TEXT_LIKE_RESULT_TOOL_NAMES } from "../tools/result";
 
 // Convert an SSE tool_call event into a ToolCallHistoryItem ready
 // to push onto a session's toolCallHistory. Pure.
@@ -42,14 +43,6 @@ export function findPendingToolCall(history: readonly ToolCallHistoryItem[], too
   }
   return undefined;
 }
-
-// Result tool-names that count as "assistant text" for selection
-// purposes. `text-response` is the original case; `skill` was added
-// in #1218 because the skill envelope is a collapsed card in the
-// same conversational lane as plain assistant prose, not a richer
-// tool output that should keep its own selection. Codex iter-3
-// review on PR #1220.
-const TEXT_LIKE_RESULT_TOOL_NAMES: ReadonlySet<string> = new Set(["text-response", "skill"]);
 
 // Decide whether a newly-arrived assistant text message should
 // become the selected canvas result. Rule: yes, iff no plugin

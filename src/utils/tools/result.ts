@@ -14,6 +14,20 @@ import type { SkillScope } from "../../types/session";
  *  of the default `text-response` view (#1218). */
 export const SKILL_TOOL_NAME = "skill";
 
+/** Result tool-names that count as "assistant text" for selection
+ *  purposes. `text-response` is the original case; `skill` was
+ *  added in #1218 because the skill envelope is a collapsed card
+ *  in the same conversational lane as plain assistant prose, not a
+ *  richer plugin output (image / wiki / chart) that should hold
+ *  its own selection.
+ *
+ *  Single source of truth for the live-run selector
+ *  (`shouldSelectAssistantText`) and the reload-time selector
+ *  (`resolveSelectedUuid`) — Codex iter-3 / iter-4 review on PR
+ *  #1220 surfaced the inconsistency between the two before this
+ *  was unified. */
+export const TEXT_LIKE_RESULT_TOOL_NAMES: ReadonlySet<string> = new Set(["text-response", SKILL_TOOL_NAME]);
+
 // Type guard: a text-response entry whose `data.role` is `"user"`.
 // Used by App.vue to find the first user message in a live session
 // when building the merged history list.
