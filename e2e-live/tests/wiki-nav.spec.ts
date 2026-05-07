@@ -3,13 +3,18 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
-import { navigateToWikiPage, placeWikiPage, removeWikiPage } from "../fixtures/live-chat.ts";
+import { navigateToWikiIndex, navigateToWikiPage, placeWikiPage, removeWikiPage, replaceWikiIndex, restoreWikiIndex } from "../fixtures/live-chat.ts";
 
 const L14_TIMEOUT_MS = ONE_MINUTE_MS;
 const L15_TIMEOUT_MS = ONE_MINUTE_MS;
+const L16_TIMEOUT_MS = ONE_MINUTE_MS;
 
-// Each scenario seeds its own pair of wiki pages, so they do not
-// share state. Run them in parallel to cut wall time.
+// L-14 / L-15 each seed their own pair of wiki pages and never
+// touch the shared `data/wiki/index.md`, so they parallelise
+// freely. L-16 mutates the shared index file — keep it the only
+// index-writing test in this suite, and serialise alongside any
+// future index-mutating spec via `test.describe.serial` or by
+// putting them in a separate spec file.
 test.describe.configure({ mode: "parallel" });
 
 test.describe("wiki navigation (real workspace)", () => {
@@ -130,6 +135,77 @@ test.describe("wiki navigation (real workspace)", () => {
     } finally {
       await removeWikiPage(sourceSlug);
       await removeWikiPage(targetSlug);
+    }
+  });
+
+  test("L-16: /wiki index に並んだ entry をクリックすると各ページが 404 にならず開ける", async ({ page }, testInfo) => {
+    test.setTimeout(L16_TIMEOUT_MS);
+    // Covers B-23: the wiki index used to drop or mis-link entries
+    // because the parser disagreed with the page resolver about how
+    // to map index rows → on-disk slugs. Bullet links are the
+    // canonical index format, so we seed two entries that point at
+    // pages whose actual slugs match the href segment, then click
+    // each entry from /wiki and assert the page body actually
+    // hydrates (proves both the parser AND the resolver are happy).
+    //
+    // This is the only test in this spec that mutates the shared
+    // `data/wiki/index.md`. The describe block is parallel, so any
+    // future test that writes the index must move into its own
+    // serial block (or live in a separate file) — see the comment
+    // on `describe.configure({ mode: "parallel" })` above.
+    const projectSlug = testInfo.project.name;
+    const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
+    const slugA = `e2e-live-l16-alpha-${projectSlug}-${nonce}`;
+    const slugB = `e2e-live-l16-beta-${projectSlug}-${nonce}`;
+    const titleA = `L-16 alpha ${nonce}`;
+    const titleB = `L-16 beta ${nonce}`;
+    const markerA = `L-16 alpha body marker ${nonce}`;
+    const markerB = `L-16 beta body marker ${nonce}`;
+    // Bullet-link rows (`- [Title](pages/<slug>.md) — description`)
+    // are the format `parseBulletLinkRow` resolves slug-from-href —
+    // important so non-ASCII or unusually shaped titles do not
+    // collapse via `wikiSlugify`. Keep the index minimal: just the
+    // two test entries, replacing whatever the user has on disk so
+    // the rendered list contains exactly the entries we expect to
+    // click. The original content is restored in `finally`.
+    const newIndex = ["# Wiki Index", "", `- [${titleA}](pages/${slugA}.md) — alpha`, `- [${titleB}](pages/${slugB}.md) — beta`, ""].join("\n");
+    let originalIndex: string | null = null;
+    try {
+      await placeWikiPage(slugA, [`# ${titleA}`, ``, markerA, ``].join("\n"));
+      await placeWikiPage(slugB, [`# ${titleB}`, ``, markerB, ``].join("\n"));
+      originalIndex = await replaceWikiIndex(newIndex);
+      await navigateToWikiIndex(page);
+
+      // Both entries must render in the index list as testid'd rows.
+      // Visibility is the strong signal the parser found the bullet
+      // and the View hydrated `pageEntries` from the API response.
+      await expect(page.getByTestId(`wiki-page-entry-${slugA}`), "alpha entry must appear in the index list").toBeVisible();
+      await expect(page.getByTestId(`wiki-page-entry-${slugB}`), "beta entry must appear in the index list").toBeVisible();
+
+      // Click entry A — expect /wiki/pages/<slugA> + body marker.
+      await page.getByTestId(`wiki-page-entry-${slugA}`).click();
+      await expect(page).toHaveURL(new RegExp(`/wiki/pages/${slugA}$`));
+      await expect(page.getByTestId("wiki-page-body"), "alpha page body must hydrate after clicking the index entry").toContainText(markerA);
+      // Negative guard mirroring L-14: if the catch-all router ever
+      // swallows wiki page navigations again (B-24 regression), the
+      // URL would land on /chat — fail loud here so the diagnostic
+      // points at the right bug.
+      await expect(page).not.toHaveURL(/\/chat/);
+
+      // Back to the index, click entry B — same shape, different
+      // page. Two clicks, not one, because B-23 historically
+      // affected only some bullet rows, not all (e.g. when the
+      // index had mixed link styles), so a single click could
+      // false-pass.
+      await navigateToWikiIndex(page);
+      await page.getByTestId(`wiki-page-entry-${slugB}`).click();
+      await expect(page).toHaveURL(new RegExp(`/wiki/pages/${slugB}$`));
+      await expect(page.getByTestId("wiki-page-body"), "beta page body must hydrate after clicking the index entry").toContainText(markerB);
+      await expect(page).not.toHaveURL(/\/chat/);
+    } finally {
+      if (originalIndex !== null) await restoreWikiIndex(originalIndex);
+      await removeWikiPage(slugA);
+      await removeWikiPage(slugB);
     }
   });
 });

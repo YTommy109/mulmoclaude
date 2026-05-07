@@ -83,6 +83,82 @@ export async function removeWikiPage(slug: string): Promise<void> {
   await removeFromWorkspace(`data/wiki/pages/${slug}.md`);
 }
 
+const WIKI_INDEX_REL = "data/wiki/index.md";
+
+/**
+ * Replace `data/wiki/index.md` with the given content for the
+ * duration of a test, returning the original content so the caller
+ * can restore it in `finally`. Returns "" when the file did not
+ * exist (the helper still creates it for the test); the caller can
+ * pass the empty string back to `restoreWikiIndex` to delete the
+ * synthetic file rather than keeping a blank user-visible index.
+ *
+ * The wiki index is a single shared workspace file, so any spec
+ * that mutates it must run serially with respect to other index
+ * writers — keep L-16 the only test that touches this file or
+ * fence newcomers behind `test.describe.configure({ mode: "serial" })`.
+ */
+export async function replaceWikiIndex(newContent: string): Promise<string> {
+  const target = resolveWorkspacePath(WIKI_INDEX_REL);
+  let original = "";
+  try {
+    original = await readFile(target, "utf8");
+  } catch {
+    // index.md did not exist — leave original as "" so restoreWikiIndex
+    // deletes the file we are about to create.
+  }
+  await mkdir(path.dirname(target), { recursive: true });
+  await writeFile(target, newContent, "utf8");
+  return original;
+}
+
+/**
+ * Restore (or delete) `data/wiki/index.md`. Pass the string returned
+ * by `replaceWikiIndex` — empty string means "delete the file we
+ * created", non-empty means "write this back". Best-effort: never
+ * throws so a passing test does not turn red on a flaky cleanup.
+ */
+export async function restoreWikiIndex(originalContent: string): Promise<void> {
+  const target = resolveWorkspacePath(WIKI_INDEX_REL);
+  try {
+    if (originalContent === "") {
+      await rm(target, { force: true });
+      return;
+    }
+    await writeFile(target, originalContent, "utf8");
+  } catch (err) {
+    console.warn(`restoreWikiIndex: failed to restore ${WIKI_INDEX_REL}`, err);
+  }
+}
+
+/** Open the wiki index route directly. */
+export async function navigateToWikiIndex(page: Page): Promise<void> {
+  await page.goto("/wiki");
+}
+
+/**
+ * Seed a project-scope skill at `<workspace>/.claude/skills/<slug>/SKILL.md`.
+ * The mulmoclaude server's skill discovery does fresh readdir/stat
+ * on every list call (no cache), so the seeded file is visible to
+ * the next `GET /api/skills` without a server restart.
+ *
+ * Slug rules: lowercase, hyphen, digit, underscore only — see
+ * `server/utils/slug.ts`. Spec-unique slugs only; never stomp a
+ * real user-authored skill.
+ */
+export async function placeProjectSkill(slug: string, description: string, body: string): Promise<void> {
+  const target = resolveWorkspacePath(`.claude/skills/${slug}/SKILL.md`);
+  await mkdir(path.dirname(target), { recursive: true });
+  const content = ["---", `description: ${description}`, "---", "", body, ""].join("\n");
+  await writeFile(target, content, "utf8");
+}
+
+/** Best-effort delete the seeded skill directory. */
+export async function removeProjectSkill(slug: string): Promise<void> {
+  const dir = resolveWorkspacePath(`.claude/skills/${slug}`);
+  await rm(dir, { recursive: true, force: true });
+}
+
 const WIKI_PAGE_BODY_SELECTOR = '[data-testid="wiki-page-body"]';
 
 /**
