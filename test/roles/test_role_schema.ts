@@ -173,7 +173,7 @@ describe("General role isolation", () => {
   // built-in Accounting role or any user-defined custom role; if a
   // refactor of the General role's plugin list silently picked up
   // the tool name, the original "no built-in default surfaces
-  // accounting" invariant from plans/feat-accounting.md would be
+  // accounting" invariant from plans/done/feat-accounting.md would be
   // gone. This test is the precise gate that the e2e isolation
   // spec's text-search proxy was meant to capture (the e2e check
   // happens to pass for incidental reasons because /roles only

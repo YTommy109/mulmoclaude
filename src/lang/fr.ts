@@ -60,9 +60,13 @@ const frMessages = {
   },
   notificationBell: {
     notifications: "Notifications",
-    markAllRead: "Tout marquer comme lu",
-    noNotifications: "Aucune notification",
+    activeSection: "Actives",
+    historySection: "Historique",
+    noActive: "Aucune notification active",
+    noHistory: "Aucune activité récente",
+    clearAll: "Tout effacer",
     dismiss: "Ignorer",
+    cancel: "Annuler",
   },
   pluginDiagnostics: {
     title: "Problème de configuration du plugin",

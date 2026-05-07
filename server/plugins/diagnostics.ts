@@ -6,10 +6,19 @@
 // them via three channels:
 //
 //   1. `log.warn(...)`            — always, for stderr / journal
-//   2. `publishNotification(...)` — pushed to live bell + toast
+//   2. `publishNotification(...)` — pushed to live bell (entry lives
+//                                    in notifier active.json until
+//                                    cleared, so late-mount tabs
+//                                    still see the warning)
 //   3. module-level cache         — persisted so a UI mounting after
 //                                    boot can still fetch the list
 //                                    via GET /api/plugins/diagnostics
+//
+// PR 4 of feat-encore migrated the bell onto the notifier engine,
+// whose `active.json` survives across restarts. To avoid republishing
+// identical entries on every boot, `announcePluginMetaDiagnostics` is
+// now async and dedupes against the existing active set via the
+// stable `legacyId` carried on each entry's `pluginData`.
 //
 // Throwing was rejected because a single buggy plugin would brick
 // the whole app — especially relevant once user-installed runtime
@@ -24,7 +33,8 @@ import { API_ROUTES_HOST_COLLISIONS, API_ROUTES_INTRA_COLLISIONS } from "../../s
 import { PUBSUB_CHANNELS_HOST_COLLISIONS, PUBSUB_CHANNELS_INTRA_COLLISIONS } from "../../src/config/pubsubChannels.js";
 import { WORKSPACE_DIRS_HOST_COLLISIONS, WORKSPACE_DIRS_INTRA_COLLISIONS } from "../workspace/paths.js";
 import { log } from "../system/logger/index.js";
-import { publishNotification } from "../events/notifications.js";
+import { isLegacyNotifierPluginData, publishNotification } from "../events/notifications.js";
+import { listAll as listActiveNotifications } from "../notifier/engine.js";
 import { NOTIFICATION_ACTION_TYPES, NOTIFICATION_PRIORITIES } from "../../src/types/notification.js";
 
 /** Shape returned by `GET /api/plugins/diagnostics`. */
@@ -119,27 +129,48 @@ export function resetPluginMetaDiagnosticsCacheForTest(): void {
   cachedDiagnostics = null;
 }
 
-/** Run at server boot AFTER `initNotifications` so the publish call
- *  reaches the pubsub. Logs every diagnostic via `log.warn` and
- *  publishes one notification per item so live UIs see a toast +
- *  bell entry. Returns the diagnostics so the caller can choose to
- *  expose them via an HTTP endpoint. */
-export function announcePluginMetaDiagnostics(): readonly PluginMetaDiagnostic[] {
+/** Run at server boot after the notifier engine is initialized.
+ *  Logs every diagnostic via `log.warn` and publishes one notification
+ *  per item so the bell shows them. Dedupes against the engine's
+ *  active set by `legacyId` so a reboot with the same diagnostics
+ *  doesn't pile fresh entries on top of the ones the user already
+ *  saw (the new engine's `active.json` survives across restarts —
+ *  the legacy in-memory store didn't). Returns the diagnostics so
+ *  the caller can choose to expose them via an HTTP endpoint. */
+export async function announcePluginMetaDiagnostics(): Promise<readonly PluginMetaDiagnostic[]> {
   const diagnostics = collectPluginMetaDiagnostics();
   if (diagnostics.length === 0) {
     log.debug("[plugin-meta]", "no aggregator collisions detected");
     return diagnostics;
   }
+  // Snapshot the engine's active entries once and build a set of
+  // `legacyId`s already present. Cheaper than calling listAll() per
+  // diagnostic, and the small race window (entries added between
+  // snapshot and publish) is harmless — a duplicate diag landing
+  // because the snapshot lagged is no worse than the legacy
+  // in-memory dedup behaviour.
+  const existingLegacyIds = new Set<string>();
+  try {
+    const active = await listActiveNotifications();
+    for (const entry of active) {
+      const legacy = isLegacyNotifierPluginData(entry.pluginData) ? entry.pluginData : null;
+      if (legacy) existingLegacyIds.add(legacy.legacyId);
+    }
+  } catch (err) {
+    // Failing to read active.json shouldn't block diagnostics — the
+    // worst case is a duplicate entry the user can dismiss.
+    log.warn("[plugin-meta]", "failed to snapshot active notifier state for dedup", { error: String(err) });
+  }
   for (const diag of diagnostics) {
     log.warn("[plugin-meta]", diag.message, { id: diag.id, scope: diag.scope, key: diag.key, plugins: diag.plugins });
+    if (existingLegacyIds.has(diag.id)) {
+      log.debug("[plugin-meta]", "diagnostic already in active set; skipping republish", { id: diag.id });
+      continue;
+    }
     publishNotification({
-      // Use the deterministic diagnostic id (rather than letting
-      // `publishNotification` auto-generate a fresh UUID). The same
-      // id flows out of `/api/plugins/diagnostics` and into the
-      // late-mount `usePluginDiagnostics` injection — id-based
-      // dedup in `useNotifications` then collapses the live
-      // boot-time push and the catch-up fetch into one bell entry
-      // (Codex review iter-4 #1125).
+      // Use the deterministic diagnostic id so the engine's
+      // `legacyId` carries it across restarts and the dedup check
+      // above can spot existing entries.
       id: diag.id,
       kind: "system",
       // English `title` / `body` are kept as fallbacks for the log

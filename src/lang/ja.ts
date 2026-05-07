@@ -67,9 +67,13 @@ const jaMessages = {
   },
   notificationBell: {
     notifications: "通知",
-    markAllRead: "すべて既読にする",
-    noNotifications: "通知はありません",
+    activeSection: "アクティブ",
+    historySection: "履歴",
+    noActive: "アクティブな通知はありません",
+    noHistory: "最近のアクティビティはありません",
+    clearAll: "すべてクリア",
     dismiss: "閉じる",
+    cancel: "キャンセル",
   },
   pluginDiagnostics: {
     title: "プラグイン設定の問題",

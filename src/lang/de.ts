@@ -60,9 +60,13 @@ const deMessages = {
   },
   notificationBell: {
     notifications: "Benachrichtigungen",
-    markAllRead: "Alle als gelesen markieren",
-    noNotifications: "Keine Benachrichtigungen",
+    activeSection: "Aktiv",
+    historySection: "Verlauf",
+    noActive: "Keine aktiven Benachrichtigungen",
+    noHistory: "Keine kürzlichen Aktivitäten",
+    clearAll: "Alle löschen",
     dismiss: "Verwerfen",
+    cancel: "Abbrechen",
   },
   pluginDiagnostics: {
     title: "Plugin-Konfigurationsproblem",

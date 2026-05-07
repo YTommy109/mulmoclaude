@@ -134,19 +134,18 @@ const HOST_STATIC_CHANNELS = {
    *  demo counter. Useful for sanity-checking that the WS pipe is
    *  alive end-to-end. */
   debugBeat: "debug.beat",
-  /** Broadcast push notifications to every open Web tab (scaffold for
-   *  the in-app notification center #144). The test endpoint
-   *  `POST /api/notifications/test` publishes here; the production
-   *  triggers (scheduler / todo reminders / journal) will follow
-   *  the same channel. Subscriber list starts empty — the UI lands
-   *  in a separate PR. Payload: `{ message: string, firedAt: ISO8601 }`. */
-  notifications: "notifications",
   /** Dev plugin (`--dev-plugin <path>`) `dist/` changed — debounced.
    *  Publisher: `server/plugins/dev-watcher.ts` after fs.watch fires.
    *  Subscriber: `src/composables/useDevPluginReload.ts` triggers
    *  `location.reload()` so the author sees their save without ⌘R.
    *  Payload: `{ name: string, changedFiles: string[], serverSideChange: boolean }`. */
   devPluginChanged: "dev-plugin-changed",
+  /** Notifier state-change events (`published` / `cleared` /
+   *  `cancelled`) as a discriminated union. Single global channel;
+   *  subscribers filter by `pluginPkg` client-side. Publisher:
+   *  `server/notifier/engine.ts` after persistence succeeds.
+   *  Payload: `NotifierEvent`. */
+  notifier: "notifier",
 } as const;
 
 // First-write-wins host+plugin aggregate (see `defineHostAggregate`):

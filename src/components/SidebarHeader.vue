@@ -21,7 +21,7 @@
         @update:open="lockPopupOpen = $event"
         @test-query="(q) => emit('testQuery', q)"
       />
-      <NotificationBell :force-close="lockPopupOpen" @navigate="(action) => emit('notificationNavigate', action)" @update:open="onNotificationOpen" />
+      <NotificationBell :force-close="lockPopupOpen" @update:open="onNotificationOpen" />
       <button
         class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
         data-testid="today-journal-btn"
@@ -58,7 +58,6 @@ import LockStatusPopup from "./LockStatusPopup.vue";
 import NotificationBell from "./NotificationBell.vue";
 import { useClickOutside } from "../composables/useClickOutside";
 import { useLatestDaily } from "../composables/useLatestDaily";
-import type { NotificationPayload } from "../types/notification";
 import logoUrl from "../assets/mulmo_bw.png";
 
 const { t } = useI18n();
@@ -74,7 +73,6 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   testQuery: [query: string];
-  notificationNavigate: [action: NotificationPayload["action"]];
   openSettings: [];
   home: [];
 }>();

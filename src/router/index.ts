@@ -78,4 +78,16 @@ const router = createRouter({
   routes,
 });
 
+// Bridge SPA navigation to a DOM CustomEvent so runtime-loaded plugins
+// (which can't import vue-router without extra plumbing) can react to
+// route changes without polling. Fires on every commit, including
+// query-only changes that don't remount the matched component.
+//
+// Subscriber: `@mulmoclaude/debug-plugin` View, which uses it to
+// re-evaluate `?mode=` and `?notificationId=` params after the host
+// notifier popup pushes a new URL.
+router.afterEach((toRoute) => {
+  window.dispatchEvent(new CustomEvent("mulmoclaude:routechange", { detail: { fullPath: toRoute.fullPath } }));
+});
+
 export default router;

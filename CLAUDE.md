@@ -189,6 +189,19 @@ Adding to a Role's `availablePlugins` (`src/config/roles.ts`) is separate — ro
 
 Standalone routes (`/todos`, `/calendar`, …) and inline file previews (`FileContentRenderer` rendering `data/todos/todos.json`) must wrap the plugin component with `<PluginScopedRoot pkg-name :endpoints>` so descendant `useRuntime()` calls resolve. The plugin registry's `wrapWithScope` already covers chat-mounted variants.
 
+### Plugin scaffold sync (`packages/create-mulmoclaude-plugin`)
+
+The scaffold CLI (`npx create-mulmoclaude-plugin`) embeds `package.json` + `vite.config.ts` + `tsconfig.json` + ESLint config as **string literals** in `packages/create-mulmoclaude-plugin/src/template.ts`. Newly-generated plugins inherit those literals verbatim, so they DO NOT pick up version bumps you make to the in-tree plugins.
+
+When you bump a build-toolchain dep (`vite` / `typescript` / `vite-plugin-dts` / `@vitejs/plugin-vue` / `vue`) or change the build-config shape (e.g. dropping `rollupTypes: true` for a TS-major bump), apply the same change to `packages/create-mulmoclaude-plugin/src/template.ts` in the **same PR**:
+
+1. Update the `PACKAGE_JSON` template's `devDependencies` caret ranges to match `packages/bookmarks-plugin/package.json` (the canonical reference).
+2. If the build-config shape changed, mirror it into `VITE_CONFIG` (the multi-line string just below).
+3. Run `yarn workspace create-mulmoclaude-plugin run build` to regenerate the CLI's own dist.
+4. Optionally bump the CLI's own `version` and re-publish if external users will fetch via `npx`.
+
+If you forget step 1 / 2, generated plugins ship with stale toolchains and may hit the same issue you just fixed in the in-tree plugin (e.g. empty `.d.ts` from api-extractor + TS 6).
+
 ## Centralized Constants
 
 Full table: [`docs/developer.md`](docs/developer.md#centralized-constants)

@@ -22,8 +22,13 @@
                   <span class="font-medium text-gray-700">{{ speakerLabel }}</span>
                   <span v-if="transportKind" class="italic">{{ transportKind }}</span>
                 </div>
-                <!-- eslint-disable-next-line vue/no-v-html -- marked.parse output of app-owned assistant response text; trusted in-process render -->
-                <div class="markdown-content prose prose-slate max-w-none leading-relaxed text-gray-900" v-html="renderedHtml"></div>
+                <!-- eslint-disable vue/no-v-html -- marked.parse output of app-owned assistant response text; trusted in-process render. Multi-line element so disable/enable pair (CLAUDE.md UI rule) instead of -next-line. -->
+                <div
+                  class="markdown-content prose prose-slate max-w-none leading-relaxed text-gray-900"
+                  :data-testid="isAssistant ? 'text-response-assistant-body' : undefined"
+                  v-html="renderedHtml"
+                ></div>
+                <!-- eslint-enable vue/no-v-html -->
                 <div v-if="messageAttachments.length > 0" class="space-y-3 mt-3" data-testid="text-response-attachments">
                   <SentAttachmentChip v-for="path in messageAttachments" :key="path" :path="path" variant="block" />
                 </div>

@@ -504,7 +504,7 @@ export function withAttachedFileMarker(message: string, attachedFilePaths: strin
 // reads bytes from disk and emits the `[Attached file: <path>]`
 // marker. Bridges go through the socket relay (see chat-service)
 // and supply attachments with inline base64 bytes; both shapes
-// share the same `Attachment` type. See plans/refactor-edit-images-array.md.
+// share the same `Attachment` type. See plans/done/refactor-edit-images-array.md.
 interface AgentBody {
   message: string;
   roleId: string;
