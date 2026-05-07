@@ -109,8 +109,7 @@ for (const def of PLUGIN_DEFS) {
 
 **例**: `server/agent/mcp-tools/notify.ts`, `server/agent/mcp-tools/x.ts` (`readXPost` / `searchX`)
 
-**ENV ゲート**: 例えば `notify` は通知システム有効時のみ、`x` は X (Twitter) credentials 設定時のみ。
-`isMcpToolEnabled` (`server/agent/mcp-tools/index.ts`) が ENV を見て出し入れする。
+**ENV ゲート**: 個別 tool 側が `requiredEnv: [...]` を宣言した場合のみ、`isMcpToolEnabled` (`server/agent/mcp-tools/index.ts`) がその ENV var を見て出し入れする。現状 ENV ゲートされているのは `x` (`readXPost` / `searchX` — `X_BEARER_TOKEN` 必須) のみ。`notify` は `requiredEnv` を持たないので常に有効。
 
 **ソース実装**:
 
