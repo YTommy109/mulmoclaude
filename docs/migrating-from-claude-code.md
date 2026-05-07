@@ -339,7 +339,7 @@ cp -r ~/projects/my-project/docs/*.md ~/mulmoclaude/data/wiki/pages/
 
 | 内容 | MulmoClaude での移植先 |
 |---|---|
-| 言語設定 / 口調 / 一般的な指示 | `~/mulmoclaude/config/settings.json` の `language` |
+| 言語設定 / 口調 / 一般的な指示 | UI 言語は `VITE_LOCALE` で明示固定可、未設定時は `navigator.languages` / `navigator.language` (= ブラウザ / OS) から自動判定 (`src/lib/vue-i18n.ts` `detectLocale`)、最終フォールバック `en` ; 口調 / 一般的な指示は role の `prompt` に書く (manageRoles) |
 | プロジェクト固有の文脈 / コーディング規約 | **新しい role** を作る (`manageRoles`) — その role の `prompt` に書く |
 | 「特定のファイルを参照」「特定ディレクトリを read」 | **reference dirs** (§4.3) で物理的にマウント |
 | 「このコマンドを使え」「このツールは使うな」 | role の `availablePlugins` でプラグインを絞る |
@@ -362,9 +362,10 @@ MulmoClaude の system prompt は `server/agent/prompt.ts:683` の `buildSystemP
 **MulmoClaude 自身の設定**は Claude Code とは別ファイルに置く:
 
 - Claude Code: `~/.claude/settings.json` (theme, model, hooks 等) — **MulmoClaude 起動時もそのまま Claude CLI が読む**
-- MulmoClaude: `~/mulmoclaude/config/settings.json` (`AppSettings` 型 — `server/system/config.ts:31`) — UI 言語 / バックエンド選択 / 各種フラグ
+- MulmoClaude: `~/mulmoclaude/config/settings.json` (`AppSettings` 型 — `server/system/config.ts`) — 現状フィールドは **`extraAllowedTools` のみ** (Allowed Tools の追記分)。MCP servers / 参照ディレクトリといった残りのアプリ設定は `~/mulmoclaude/config/` 配下の別ファイル群 (`mcp.json`、`workspace-dirs.json` など) に分かれている。
 
-両方が並列で効く。MulmoClaude の Settings 画面 (`/settings`) から触れるのは後者のみ。
+両方が並列で効く。MulmoClaude の **Settings モーダル** (サイドバー上部の歯車アイコン → `<SettingsModal>` を開く ; URL 直アクセスのルートは無い) からは Allowed Tools / MCP servers / 参照ディレクトリを編集できる (それぞれ別の保存先)。
+**Gemini API key は `.env` で管理** — Settings モーダルの Gemini タブは「`.env` に `GEMINI_API_KEY` を追加して再起動」という案内 + Ask ボタンのみで、UI 上での入力・保存はできない。
 Claude Code 側 (model 選択、`apiKeyHelper` 等) は `~/.claude/settings.json` を直接編集する従来通りのフロー。
 
 ### 6.2 Hooks
