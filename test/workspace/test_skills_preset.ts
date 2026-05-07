@@ -330,7 +330,7 @@ describe("syncPresetSkills — combined scenarios", () => {
 });
 
 describe("syncPresetSkills — repository fixture", () => {
-  it("the in-repo skills-preset/ directory has at least the mc-example stub and ALL slugs are mc-* prefixed", () => {
+  it("the in-repo skills-preset/ directory has at least one preset and ALL slugs are mc-* prefixed", () => {
     // Anchored to a real path so this test catches regressions where
     // someone adds a preset slug missing the mc- prefix at the
     // repository level (boot would warn-and-skip, but a CI fail is
@@ -338,7 +338,7 @@ describe("syncPresetSkills — repository fixture", () => {
     const REPO_PRESET_DIR = path.resolve(import.meta.dirname, "..", "..", "server", "workspace", "skills-preset");
     if (!existsSync(REPO_PRESET_DIR)) return; // dir not created yet — covered by other tests
     const slugs = readdirSync(REPO_PRESET_DIR).filter((entry) => !entry.startsWith("."));
-    assert.ok(slugs.length >= 1, "expected at least the mc-example stub in skills-preset/");
+    assert.ok(slugs.length >= 1, "expected at least one preset under skills-preset/");
     for (const slug of slugs) {
       assert.equal(isPresetSlug(slug), true, `slug "${slug}" must start with "mc-"`);
       assert.ok(existsSync(path.join(REPO_PRESET_DIR, slug, "SKILL.md")), `slug "${slug}" must contain a SKILL.md`);
