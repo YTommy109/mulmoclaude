@@ -29,9 +29,13 @@ describe("buildHtmlPreviewCsp", () => {
     const csp = buildHtmlPreviewCsp();
     assert.ok(
       csp.includes(
-        "img-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob:",
+        "img-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.plot.ly data: blob:",
       ),
     );
+  });
+
+  it("includes cdn.plot.ly in the allowed CDNs (Plotly's first-party CDN — the LLM defaults to it)", () => {
+    assert.ok(HTML_PREVIEW_CSP_ALLOWED_CDNS.includes("https://cdn.plot.ly"), "https://cdn.plot.ly must be allowed");
   });
 
   it("rejects the wildcard img-src policy to prevent image-based exfiltration", () => {
