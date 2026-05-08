@@ -138,6 +138,7 @@
             <component
               :is="getPlugin(selectedResult.toolName)?.viewComponent"
               v-if="selectedResult && getPlugin(selectedResult.toolName)?.viewComponent"
+              :key="`${selectedResult.uuid ?? ''}-${googleMapsApiKey ?? ''}`"
               :selected-result="selectedResult"
               :send-text-message="sendMessage"
               :google-map-key="googleMapsApiKey"
