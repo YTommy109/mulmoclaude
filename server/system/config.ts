@@ -79,31 +79,38 @@ export function isAppSettingsPatch(value: unknown): value is Partial<AppSettings
   return true;
 }
 
+function parseSettingsRaw(raw: string, file: string): unknown | null {
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    log.warn("config", "settings.json is not valid JSON — using defaults", { file, error: String(err) });
+    return null;
+  }
+}
+
+/** Defensive copy — callers shouldn't be able to mutate the file on
+ *  disk by mutating the returned object. New optional fields added
+ *  to `AppSettings` need a line here too (loadSettings is the choke
+ *  point that propagates them). */
+function cloneAppSettings(settings: AppSettings): AppSettings {
+  const copy: AppSettings = { extraAllowedTools: [...settings.extraAllowedTools] };
+  if (settings.googleMapsApiKey !== undefined) {
+    copy.googleMapsApiKey = settings.googleMapsApiKey;
+  }
+  return copy;
+}
+
 export function loadSettings(): AppSettings {
   const file = settingsPath();
   const raw = readTextSafeSync(file);
   if (raw === null) return { ...DEFAULT_SETTINGS };
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    log.warn("config", "settings.json is not valid JSON — using defaults", {
-      file,
-      error: String(err),
-    });
-    return { ...DEFAULT_SETTINGS };
-  }
+  const parsed = parseSettingsRaw(raw, file);
+  if (parsed === null) return { ...DEFAULT_SETTINGS };
   if (!isAppSettings(parsed)) {
     log.warn("config", "settings.json does not match AppSettings schema — using defaults", { file });
     return { ...DEFAULT_SETTINGS };
   }
-  // Defensive copy — callers shouldn't be able to mutate the file on
-  // disk via the returned object.
-  const copy: AppSettings = { extraAllowedTools: [...parsed.extraAllowedTools] };
-  if (parsed.googleMapsApiKey !== undefined) {
-    copy.googleMapsApiKey = parsed.googleMapsApiKey;
-  }
-  return copy;
+  return cloneAppSettings(parsed);
 }
 
 export function saveSettings(settings: AppSettings): void {
