@@ -51,5 +51,6 @@
 - [x] e2e-live spec の wait 条件修正 (`toBeHidden`) + `test.skip` 解除
 - [x] `yarn format / lint / typecheck / build / test`
 - [x] codex-cross-review iteration 1: race condition 指摘を受けて `requestedUuid` / `requestedFilePath` キャプチャ + post-await re-check を追加
-- [ ] 手動で chromium に対し e2e-live を回して PASS することを確認 (skip 解除のトリガー条件)
+- [x] codex-cross-review iteration 2: LGTM
+- [x] 手動で chromium に対し e2e-live を回して PASS することを確認 — `yarn test:e2e:live:mulmo-script-edit --project=chromium` で 18s で PASS (worktree の yarn dev に対して)
 - [ ] PR 作成
