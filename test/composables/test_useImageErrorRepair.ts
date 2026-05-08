@@ -284,11 +284,15 @@ describe("IMAGE_REPAIR_INLINE_SCRIPT — Stage E parity", () => {
     // dispatcher in `useGlobalImageErrorRepair`. If the TS gains a
     // new branch, the inline must too — otherwise iframe surfaces
     // (presentHtml etc) silently regress for that case.
-    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName === "IMG"/);
-    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName === "SOURCE"/);
+    // Operator spacing varies by toolchain: tsc emits `tagName === "IMG"`
+    // (with spaces), tsx/esbuild emits `tagName==="IMG"` (compact). Match
+    // both. Behavior tests in `test/utils/image/test_imageRepairInlineScript.ts`
+    // exercise each branch with real (mock) elements (#1244).
+    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName\s*===\s*"IMG"/);
+    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName\s*===\s*"SOURCE"/);
     // <audio>/<video> propagate child-source errors up to themselves.
-    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName === "AUDIO"/);
-    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName === "VIDEO"/);
+    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName\s*===\s*"AUDIO"/);
+    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName\s*===\s*"VIDEO"/);
     // The picture-sibling walk must also be in lock step.
     assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /closest\("picture"\)/);
     // The audio/video child walk uses `:scope > source` to avoid
