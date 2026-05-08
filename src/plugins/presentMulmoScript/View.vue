@@ -450,7 +450,6 @@ import { useActiveSession } from "../../composables/useActiveSession";
 import { GENERATION_KINDS, type PendingGeneration } from "../../types/events";
 
 const endpoints = pluginEndpoints<MulmoScriptEndpoints>("mulmoScript");
-const filesEndpoints = pluginEndpoints<{ content: string }>("files");
 
 const { t } = useI18n();
 
@@ -701,12 +700,18 @@ async function onSourceToggle(open: boolean) {
   editing.value = open;
   if (open) {
     let text = scriptSourceText.value;
-    // Read the current file from disk so beat-level edits are reflected
+    // Re-read the current file from disk so beat-level edits made
+    // since mount (other tabs, MCP, manual edits) surface in the
+    // editor. Uses the reopen endpoint for the same reason
+    // refreshScriptFromDisk does — `filePath.value` is the wire form
+    // `stories/<rel>` and only `mulmoScript.save` knows how to map
+    // it to the on-disk path under `artifacts/stories/...`. The
+    // generic `/api/files/content` 404s for that wire form (#1074
+    // post-mortem) and silently falls back to in-memory state.
     if (filePath.value) {
-      const response = await apiGet<{ content?: string }>(filesEndpoints.content, { path: filePath.value });
-      if (response.ok && response.data.content) {
-        text = response.data.content;
-      }
+      const response = await apiPost<{ data?: { script?: MulmoScript } }>(endpoints.save.url, { filePath: filePath.value });
+      const diskScript = response.ok ? response.data?.data?.script : undefined;
+      if (diskScript) text = JSON.stringify(diskScript, null, 2);
       // fall through to in-memory script on failure
     }
     editableSource.value = text;
