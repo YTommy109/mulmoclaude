@@ -13,6 +13,19 @@ export { IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED, IMAGE_REPAIR_INLINE
 // (`1x`, `2x`, `100w`, …) survives the repair pass untouched.
 const SRCSET_TOKEN_RE = /[^\s,]+/g;
 
+// Pure srcset transform — runs `findRepairTarget` per URL token and
+// returns the rewritten srcset string. Descriptors (`1x`, `2x`,
+// `100w`, …) survive untouched because the token regex only matches
+// non-whitespace, non-comma runs. Extracted to keep `repairSourceSrc`
+// under the 20-line cap and to make the per-token logic independently
+// unit-testable. (CodeRabbit iter-1 nit.)
+function repairSrcsetTokens(srcset: string): string {
+  return srcset.replace(SRCSET_TOKEN_RE, (token) => {
+    const target = findRepairTarget(token);
+    return target ? `/${target}` : token;
+  });
+}
+
 export function repairImageSrc(img: HTMLImageElement): boolean {
   if (img.dataset.imageRepairTried) return false;
   // Set the one-shot marker only AFTER confirming the URL carries a
@@ -46,12 +59,8 @@ export function repairSourceSrc(source: HTMLSourceElement): boolean {
     }
   }
   if (source.srcset) {
-    const original = source.srcset;
-    const next = original.replace(SRCSET_TOKEN_RE, (token) => {
-      const target = findRepairTarget(token);
-      return target ? `/${target}` : token;
-    });
-    if (next !== original) {
+    const next = repairSrcsetTokens(source.srcset);
+    if (next !== source.srcset) {
       source.srcset = next;
       repaired = true;
     }

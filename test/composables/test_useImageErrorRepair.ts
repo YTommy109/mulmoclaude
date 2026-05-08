@@ -141,6 +141,23 @@ describe("repairImageSrc", () => {
 });
 
 describe("findRepairTarget", () => {
+  it("returns the unencoded tail for a URL that already carries plain slashes", () => {
+    // Direct happy path covering the unencoded branch on its own,
+    // independent of `repairImageSrc` (which exercises this helper
+    // indirectly). Lets future refactors of the helper land without
+    // having to read the indirect path coverage.
+    const target = findRepairTarget("/wrong/prefix/artifacts/images/foo.png");
+    assert.equal(target, "artifacts/images/foo.png");
+  });
+
+  it("decodes a percent-encoded tail that the wiki rewriter produced", () => {
+    // Direct happy path for the encoded branch — same shape the wiki
+    // rewriter emits when it routes a broken-prefix absolute path
+    // through `/api/files/raw?path=...`.
+    const target = findRepairTarget("/api/files/raw?path=wrong%2Fprefix%2Fartifacts%2Fimages%2Ffoo.png");
+    assert.equal(target, "artifacts/images/foo.png");
+  });
+
   it("returns null on a malformed percent-encoded tail (decodeURIComponent throws)", () => {
     // `%E0%A4` is an incomplete UTF-8 sequence — decodeURIComponent
     // throws `URIError`. Repair must treat it as a no-op rather than
