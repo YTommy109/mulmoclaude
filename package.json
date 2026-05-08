@@ -56,7 +56,8 @@
     "test:coverage": "tsx --test --experimental-test-coverage ./test/*/test_*.ts ./test/*/*/test_*.ts && yarn workspaces run test",
     "sandbox:remove": "docker rmi mulmoclaude-sandbox",
     "sandbox:login": "security find-generic-password -s 'Claude Code-credentials' -w > ~/.claude/.credentials.json && echo 'Credentials exported to ~/.claude/.credentials.json'",
-    "sandbox:logout": "rm -f ~/.claude/.credentials.json && echo 'Credentials file removed'"
+    "sandbox:logout": "rm -f ~/.claude/.credentials.json && echo 'Credentials file removed'",
+    "package": "node scripts/package.mjs"
   },
   "resolutions": {
     "tar": "7.5.13"
