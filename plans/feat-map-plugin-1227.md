@@ -69,6 +69,7 @@ interface Favorite {
   lat: number;
   lng: number;
   placeId?: string;      // Google Places place_id (for re-fetching photos / hours)
+  tags?: string[];       // free-form labels — "food", "tokyo", "datespot"; for filter UI in listFavorites
   notes?: string;
   wikiSlug?: string;     // links to data/wiki/pages/<slug>.md
   addedAt: string;       // ISO
@@ -82,6 +83,8 @@ interface FavoritesFile {
 ```
 
 Stored at `~/mulmoclaude/data/places/favorites.json` (new `WORKSPACE_DIRS.places` entry). Reads/writes go through `writeFileAtomic` (per CLAUDE.md "all writes go through `writeFileAtomic`").
+
+**One global list per workspace** — no per-role / per-session scoping. Categorisation is via `tags` (flat free-form strings). Multi-list support (à la Google Maps "Want to go" vs "Favorites" vs "Travel plans") is intentionally out of scope: tags cover the same use case at lower implementation cost, and the migration if we later decide we want multi-list is `tag === listName`. PR-B ships the field; the filter UI follows in the same PR (small chip row on `/map` header).
 
 ### API key storage
 
@@ -123,7 +126,7 @@ mapZoom: 16             # optional, default 16
 
 (Picked frontmatter over body shortcode `{{map:...}}` because: (a) the wiki engine already parses YAML frontmatter; (b) frontmatter is a single canonical place per page rather than 0..N inline tags; (c) reverse-linking from a favorite to a wiki page is straightforward — a favorite's `wikiSlug` resolves to that one page's coords. See Open Questions §2 if we want to soften this.)
 
-**Render**: when `coords` is present, the wiki page renderer embeds a `<MapEmbed :lat :lng :zoom>` widget at the bottom of the page. Same Maps JS SDK as `/map`, scoped to that single point.
+**Render**: when `coords` is present, the wiki page renderer embeds a `<MapEmbed :lat :lng :zoom>` widget at the bottom of the page. Same Maps JS SDK + module-scoped loader as `/map` and the chat Preview — one SDK load shared across all map widgets in the SPA session. The widget is read-only (same `disableDefaultUI: true` config as Preview), with a single "Open in interactive map" button that routes to `/map?focus=<favoriteId>` or `/map?center=<lat>,<lng>` if not yet a favorite.
 
 **Reverse link**: when a favorite has `wikiSlug` set, `/map`'s detail panel shows "Open wiki page →" which routes to `/wiki/pages/<slug>`. From a wiki page with coords, an "Add to favorites" button captures the page title + coords and POSTs `addFavorite` with `wikiSlug` pre-filled.
 
@@ -143,16 +146,18 @@ Each phase is one PR, independently mergeable. Aim is for PR-A to be a no-op for
 
 **Acceptance**: opening `/map` without an API key shows a prompt; setting a key in Settings makes the map render Tokyo (or any sensible default centre).
 
-### PR-B — Favorites CRUD + pins on /map
+### PR-B — Favorites CRUD + pins on /map + Preview.vue + tags
 
 - New kinds: `addFavorite`, `listFavorites`, `removeFavorite`
 - `favorites.ts`: JSON I/O over `runtime.files.data("favorites.json")`
-- Schemas: Zod for `Favorite` + `FavoritesFile`, validate on read AND write
-- View: render pins from `listFavorites`, click → side panel with name / notes / lat / lng / "Remove"
-- Add-favorite UX: right-click on map → "Save this point" prompt for name (basic flow)
-- Tests: favorites.ts unit (happy path, dup-id, empty, malformed file recovery), View E2E (mock listFavorites, assert pins rendered)
+- Schemas: Zod for `Favorite` + `FavoritesFile` (incl. `tags?: string[]`), validate on read AND write
+- View: render pins from `listFavorites`, click → side panel with name / notes / lat / lng / tags / "Remove"
+- Tag filter: chip row in `/map` header — click a tag to filter the visible pin set; multi-select = OR
+- Add-favorite UX: right-click on map → "Save this point" prompt for name + optional tags (comma-separated)
+- **Preview.vue**: lightweight read-only map for `addFavorite` confirmation (1 pin) and `listFavorites` overview (all pins, no panning); shared SDK loader with View
+- Tests: favorites.ts unit (happy path, dup-id, empty, malformed file recovery, tag filter), View E2E (mock listFavorites, assert pins + tag-filter chips), Preview render test
 
-**Acceptance**: can add a pin, refresh, see it persist; can remove; favorites count shown in `/map` header.
+**Acceptance**: can add a pin with tags, refresh, see it persist; can filter by tag; can remove; chat preview after `addFavorite` shows a small map with the pin.
 
 ### PR-C — Places Autocomplete search
 
@@ -177,11 +182,34 @@ Each phase is one PR, independently mergeable. Aim is for PR-A to be a no-op for
 
 ## Implementation notes
 
+### Chat surface vs canvas surface
+
+Plugins render in two places: the chat-row `Preview.vue` (inline with the conversation) and the canvas `View.vue` (full screen when expanded). For Map, we use **the same Google Maps JS SDK on both** — no Static Maps fallback.
+
+| kind | Preview.vue (chat row) | View.vue (canvas) |
+|---|---|---|
+| `searchPlaces` | result list (name + address, max 5) + "Save" button. **No map.** Searching is a list-pick task; a map here adds noise. | full map with all candidate pins; click → save |
+| `addFavorite` | "✓ Saved 寿司屋" + **small read-only map** (1 pin, ~200x120, no controls) | full map zoomed onto the saved spot |
+| `listFavorites` | "5 favorites" + small overview map of all pins | full map + filter chips + detail panel |
+| `removeFavorite` | text only — "✗ Removed 寿司屋" | n/a |
+| `linkWikiPage` | text — "🔗 寿司屋 → wiki/sushi-yumeji" | n/a |
+
+The Preview maps are **read-only**: `disableDefaultUI: true`, `gestureHandling: "none"`, no zoom controls, no drag. A click anywhere on the preview opens the canvas View, which IS interactive.
+
 ### Maps JS SDK loading
 
-- Google Maps JS SDK is **gigantic** (~600 KB gzipped) — must load it lazily, only on `/map` and on wiki pages that have `coords`. Never include in the main bundle.
+- Google Maps JS SDK is **~600 KB gzipped** — must load it lazily, only when the first map widget mounts (any of: `/map` route entered, a chat row with a map preview rendered, a wiki page with `coords` rendered). Never include in the main bundle.
 - Use the official loader pattern (`<script src="https://maps.googleapis.com/maps/api/js?key=...&libraries=places&loading=async">`). Don't roll a custom loader.
-- Cache the Promise: a second view mount inside the same SPA session reuses the already-loaded SDK.
+- **Cache the Promise** in a module-scoped variable so a second mount anywhere in the SPA session reuses the already-loaded SDK. 50 chat-row map previews = 1 SDK load.
+- Each `new google.maps.Map(...)` instance is a billable "Map JS API load" (separate from the SDK script load). For a chat with N map tool results, that's N billable loads. Mitigations:
+  - Vue keep-alive on the chat virtualizer so scrolling past doesn't unmount + remount the same preview repeatedly
+  - `listFavorites` preview shows ONE overview map, not one map per favorite
+
+### Pricing / quotas
+
+- No localhost-only free tier. `http://localhost:*` requests count the same as production. Add `http://localhost:*` to the API key's HTTP referrer restriction during development.
+- **Free quotas (post-March-2025 pricing)**: ~28k Maps JS API loads / month, separate (also generous) per-API quotas for Places API, Geocoding, Static Maps. Personal-scale usage stays well within free tier; small-team usage is single-digit dollars / month.
+- The plugin's `searchPlaces` rate limiter (30/min, see below) is a defence against an LLM-side regression flooding the API; the per-month quota is enforced by Google.
 
 ### Places API session token
 
@@ -212,13 +240,17 @@ Translations done in the same PR that introduces the string; all 8 locales touch
 1. **Plugin-contributed page routes** — does the host's `defineHostAggregate` already support `pageRoutes`, or does plugin meta have to declare a route name and the host hard-codes registration? If the latter, should `pageRoutes` aggregation be its own micro-PR (analogous to `apiRoutes` / `staticChannels`) before PR-A, or should the plugin register `/map` directly in PR-A and the cleanup follow?
    - **Tentative**: micro-PR first if the gap is small, otherwise inline in PR-A and refactor later. Pick after a 30-min code read.
 
-2. **Wiki coordinate format** — frontmatter `coords` only, or also a body inline shortcode? Going frontmatter-only above; reconsider only if a real "multiple points on one wiki page" use case appears in PR-D.
+2. **Tag UX details** — autocomplete from existing tags in the favorites list when adding? Tag rename / merge UI? Going with **plain free-text comma-separated input** for v1 + a simple chip-filter row; tag rename is a future polish (low priority until enough favorites exist that tag drift becomes a problem).
 
-3. **API key delivery to the Vue View** — direct return vs short-lived token-exchange. Going direct in v1; revisit only if there's a clear threat model where the chat history / SSE replay can leak the key. (For a local desktop app this is essentially zero risk.)
+3. **Default map centre** when there are no favorites — Tokyo Station (35.6812, 139.7671)? IP-geolocate? Asking the browser for `navigator.geolocation` adds a permission prompt at first load. Tokyo Station as a literal default keeps the first-run experience friction-free; user can pan.
 
-4. **Do we keep the `mcpCatalog` Google Maps MCP entry alongside this plugin?** They serve different purposes (MCP gives Claude a tool surface; this plugin gives the user a UI). Probably yes — leave MCP entry alone, it's parallel infrastructure.
+### Resolved during planning
 
-5. **Default map centre** when there are no favorites — Tokyo Station (35.6812, 139.7671)? IP-geolocate? Asking the browser for `navigator.geolocation` adds a permission prompt at first load. Tokyo Station as a literal default keeps the first-run experience friction-free; user can pan.
+- **Wiki coordinate format**: frontmatter `coords` only (no body shortcode). Single canonical place per page; aligns with one-favorite-per-page semantics.
+- **API key delivery to View**: direct return in v1. For a local desktop app the threat surface (chat history / SSE replay leaking the key) is essentially zero.
+- **`mcpCatalog` Google Maps entry**: leave alongside this plugin. Different purposes (MCP gives Claude a tool surface; this plugin gives the user a UI).
+- **Static Maps vs JS Maps for previews**: JS Maps everywhere. SDK loaded once per SPA session and cached; preview Maps are read-only. Per-month free quota (post-March-2025 pricing) covers personal-scale use.
+- **Favorites data shape**: one global flat list with `tags?: string[]` for categorisation. No per-role / per-session scoping, no multi-list feature (tags cover the same use case at lower cost).
 
 ## Schedule estimate (rough)
 
