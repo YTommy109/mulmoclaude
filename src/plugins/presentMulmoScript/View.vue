@@ -440,15 +440,7 @@ import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { MulmoScriptData } from "./index";
 import { mulmoBeatSchema, mulmoScriptSchema } from "@mulmocast/types";
-import {
-  extractErrorMessage,
-  getMissingCharacterKeys,
-  isSameScript,
-  parseDiskScript,
-  shouldAutoRenderBeat,
-  streamMovieEvents,
-  validateBeatJSON,
-} from "./helpers";
+import { extractErrorMessage, getMissingCharacterKeys, isSameScript, shouldAutoRenderBeat, streamMovieEvents, validateBeatJSON } from "./helpers";
 import { apiGet, apiPost, apiFetchRaw } from "../../utils/api";
 import { pluginEndpoints } from "../api";
 import type { MulmoScriptEndpoints } from "./definition";
@@ -1095,9 +1087,20 @@ async function hydrateBeatImage(beat: Beat, index: number, hasCharacters: boolea
  * page reload + session-restore would otherwise surface stale
  * pre-edit content.
  *
- * The flow is read-only on success-equal path (no emit), and
- * silently bails on every failure mode so a missing / malformed /
- * deleted script file never blocks the rest of `initializeScript`.
+ * Why the reopen endpoint, not `/api/files/content`: `filePath`
+ * is the wire form `stories/<rel>` which `mulmoScript.save` knows
+ * how to translate back to the real on-disk path under
+ * `artifacts/stories/...` via `resolveStoryPath`. The generic
+ * file-content endpoint resolves against workspace root, so it
+ * 404s for the same wire form (and was silently masking #1074 in
+ * an earlier draft of this fix — see `[files] GET content: gated
+ * by resolve/stat` warnings in the server log). The reopen route
+ * is read-only when `script` is omitted; it does NOT trigger movie
+ * generation unless `autoGenerateMovie: true` is passed.
+ *
+ * The flow silently bails on every failure mode so a missing /
+ * malformed / deleted script file never blocks the rest of
+ * `initializeScript`.
  *
  * Stale-response guard: capture `uuid` + `filePath` before the
  * `await`. If either has changed by the time the response lands
@@ -1111,15 +1114,18 @@ async function refreshScriptFromDisk(): Promise<void> {
   const requestedFilePath = filePath.value;
   if (!requestedFilePath) return;
   const requestedUuid = props.selectedResult.uuid;
-  const response = await apiGet<{ content?: string }>(filesEndpoints.content, { path: requestedFilePath });
+  const response = await apiPost<{ data?: { script?: MulmoScript } }>(endpoints.save.url, { filePath: requestedFilePath });
   if (props.selectedResult.uuid !== requestedUuid || filePath.value !== requestedFilePath) return;
-  if (!response.ok || typeof response.data.content !== "string") return;
-  const result = parseDiskScript(response.data.content, mulmoScriptSchema);
-  if (result.kind !== "ok") return;
-  if (isSameScript(result.script, script.value)) return;
+  if (!response.ok) return;
+  const diskScript = response.data?.data?.script;
+  // Server-side `loadScriptFromDisk` already validated against
+  // `mulmoScriptSchema`, so a non-null `script` is trusted here —
+  // we only need a presence check.
+  if (!diskScript) return;
+  if (isSameScript(diskScript, script.value)) return;
   emit("updateResult", {
     ...props.selectedResult,
-    data: { ...props.selectedResult.data, script: result.script },
+    data: { ...props.selectedResult.data, script: diskScript },
   });
 }
 
@@ -1146,14 +1152,17 @@ async function initializeScript() {
   if (sourceDetails.value) sourceDetails.value.open = false;
 
   // #1074 — re-read the script file from disk before per-beat
-  // hydration. Disk is the source of truth: `update-beat` /
-  // `update-script` write through `writeJsonAtomic`, but the
-  // toolResult cached in `props.selectedResult.data.script` was
-  // captured when the tool first ran and is never updated by the
-  // session-restore path (`/api/sessions/:id` JSONL still holds the
-  // old result entry). Without this refresh, a page reload — or any
-  // navigation that round-trips through the SPA boot — shows
-  // pre-edit content even though the json file on disk is correct.
+  // hydration. The server's `enrichWithMulmoScript`
+  // (server/api/routes/sessions.ts) already re-merges disk content
+  // into toolResult.data.script when the SPA reloads via
+  // `/api/sessions/:id`. But that path only fires on full page
+  // reload — when the user switches between tool results inside
+  // the same SPA mount and switches back, the in-memory ActiveSession
+  // toolResult still carries whatever script was captured when the
+  // SPA first booted, and `localOverrides` (the only thing showing
+  // the user's edit since the last save) is reset by initializeScript
+  // on remount. Re-fetching from disk via the reopen endpoint here
+  // covers that gap. See issue #1074 for the original repro.
   await refreshScriptFromDisk();
 
   // Mount-time policy: prefer the existing PNG on the server. Every

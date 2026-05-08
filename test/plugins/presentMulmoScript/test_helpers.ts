@@ -5,14 +5,12 @@ import {
   extractErrorMessage,
   getMissingCharacterKeys,
   isSameScript,
-  parseDiskScript,
   parseSSEEventLine,
   shouldAutoRenderBeat,
   streamMovieEvents,
   validateBeatJSON,
   type MovieEventHandlers,
   type SafeParseSchema,
-  type SafeParseSchemaWithData,
 } from "../../../src/plugins/presentMulmoScript/helpers.js";
 
 describe("parseSSEEventLine", () => {
@@ -331,48 +329,6 @@ describe("streamMovieEvents", () => {
     const spy = makeSpy();
     await streamMovieEvents(streamFromChunks([]), spy.handlers);
     assert.equal(spy.calls.length, 0);
-  });
-});
-
-// Schema fake that mirrors the (success | failure) shape Zod
-// produces from `safeParse`, so we don't have to drag the real
-// MulmoScript schema into a unit test.
-function makeSchema<T>(predicate: (value: unknown) => value is T): SafeParseSchemaWithData<T> {
-  return {
-    safeParse: (value: unknown) => (predicate(value) ? { success: true, data: value } : { success: false }),
-  };
-}
-
-const isMulmoScriptish = (value: unknown): value is { beats?: unknown[] } =>
-  typeof value === "object" && value !== null && Array.isArray((value as { beats?: unknown }).beats);
-
-const okSchema = makeSchema(isMulmoScriptish);
-
-describe("parseDiskScript (#1074)", () => {
-  it("returns ok with the parsed script for valid JSON + matching schema", () => {
-    const result = parseDiskScript('{"beats":[{"text":"hi"}]}', okSchema);
-    assert.deepEqual(result, { kind: "ok", script: { beats: [{ text: "hi" }] } });
-  });
-
-  it("returns empty for an empty string (the typical 'file not yet on disk' probe)", () => {
-    assert.deepEqual(parseDiskScript("", okSchema), { kind: "empty" });
-  });
-
-  it("returns invalidJson when the disk content cannot be parsed", () => {
-    assert.deepEqual(parseDiskScript("{ not json", okSchema), { kind: "invalidJson" });
-  });
-
-  it("returns schemaMismatch when JSON parses but the shape is not a MulmoScript", () => {
-    assert.deepEqual(parseDiskScript('{"foo":"bar"}', okSchema), { kind: "schemaMismatch" });
-  });
-
-  it("treats null / scalar payloads as schemaMismatch, not invalidJson", () => {
-    // `JSON.parse("null")` succeeds but won't pass any object-shape
-    // schema. The bell on the View needs this distinction so it
-    // doesn't surface "the file is corrupt" when actually it just
-    // hasn't been written with a script body yet.
-    assert.deepEqual(parseDiskScript("null", okSchema), { kind: "schemaMismatch" });
-    assert.deepEqual(parseDiskScript("42", okSchema), { kind: "schemaMismatch" });
   });
 });
 

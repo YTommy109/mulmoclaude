@@ -75,15 +75,6 @@ export interface SafeParseSchema {
 }
 
 /**
- * Same as {@link SafeParseSchema} but returning the parsed value
- * on success. Used by {@link parseDiskScript} where we need the
- * concrete script object, not just a boolean.
- */
-export interface SafeParseSchemaWithData<T> {
-  safeParse: (value: unknown) => { success: true; data: T } | { success: false };
-}
-
-/**
  * Validate a candidate Beat JSON string against a schema.
  * Returns false on any JSON parse error or schema mismatch.
  */
@@ -95,37 +86,6 @@ export function validateBeatJSON(json: string, schema: SafeParseSchema): boolean
     return false;
   }
   return schema.safeParse(parsed).success;
-}
-
-/**
- * Result of parsing a MulmoScript file's raw on-disk content.
- * Discriminated so the caller can distinguish "use this fresher
- * data" from "fall back to in-memory props" without leaking the
- * Zod issue list — {@link refreshScriptFromDisk} only needs to
- * decide whether to emit `updateResult`.
- */
-export type ParseDiskScriptResult<T> = { kind: "ok"; script: T } | { kind: "empty" } | { kind: "invalidJson" } | { kind: "schemaMismatch" };
-
-/**
- * Parse a script file's raw text into a validated MulmoScript.
- * Used by {@link refreshScriptFromDisk} on every view mount to
- * pick up edits made via `update-beat` / `update-script` since
- * the toolResult was first persisted (#1074). Returns a
- * discriminated union so the caller can react to each failure
- * mode (empty file, malformed JSON, schema drift) without
- * pulling in Zod's issue formatting here.
- */
-export function parseDiskScript<T>(raw: string, schema: SafeParseSchemaWithData<T>): ParseDiskScriptResult<T> {
-  if (raw === "") return { kind: "empty" };
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return { kind: "invalidJson" };
-  }
-  const validation = schema.safeParse(parsed);
-  if (!validation.success) return { kind: "schemaMismatch" };
-  return { kind: "ok", script: validation.data };
 }
 
 /**
