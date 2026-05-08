@@ -245,6 +245,20 @@ describe("repairSourceSrc", () => {
     assert.equal(ok, true);
     assert.equal(source.attrs.src, "/artifacts/images/poster.png");
   });
+
+  it("rewrites percent-encoded `srcset` tokens with descriptors preserved (issue #1102 parity for <picture>)", () => {
+    // Picture-shape `<source srcset>`: each comma-list token may carry
+    // the same wiki-rewriter percent-encoding as the `src` shape, plus
+    // a trailing `1x` / `2x` / `100w` descriptor. The repair must
+    // decode the encoded segment per token without disturbing the
+    // descriptor.
+    const source = makeSource({
+      srcset: "/api/files/raw?path=wrong%2Fartifacts%2Fimages%2Ffoo.png 1x, /api/files/raw?path=wrong%2Fartifacts%2Fimages%2Ffoo%402x.png 2x",
+    });
+    const ok = repairSourceSrc(source as unknown as HTMLSourceElement);
+    assert.equal(ok, true);
+    assert.equal(source.srcset, "/artifacts/images/foo.png 1x, /artifacts/images/foo@2x.png 2x");
+  });
 });
 
 describe("IMAGE_REPAIR_INLINE_SCRIPT — Stage E parity", () => {

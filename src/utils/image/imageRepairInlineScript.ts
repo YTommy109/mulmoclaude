@@ -38,6 +38,16 @@ export const IMAGE_REPAIR_PATTERN = /artifacts\/images\/.+/;
 // (`&`), a fragment (`#`) or whitespace, so a trailing `&v=<bump>`
 // from `resolveImageSrcFresh` doesn't get swallowed into the captured
 // path tail.
+//
+// Contract assumption: any in-app producer that may end up downstream
+// of this match uses `&` to start additional query params (the
+// `resolveImageSrc` / `resolveImageSrcFresh` pair is the only one
+// today). The class deliberately does NOT include `?` or `;` because
+// neither appears as a separator after `?path=...` in an in-app URL —
+// `?` only appears once at the start of the query string (already
+// before our match), and `;` is not used. If a future producer
+// switches to a `;`-list or emits a second `?`, this class will
+// over-consume; bound the match here in lockstep with that producer.
 export const IMAGE_REPAIR_PATTERN_ENCODED = /artifacts%2[Ff]images%2[Ff][^&#\s]+/;
 
 /** Pull the `artifacts/images/<rest>` substring out of a rendered
