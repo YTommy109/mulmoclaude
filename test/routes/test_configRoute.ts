@@ -170,6 +170,48 @@ describe("PUT /config/settings", () => {
     assert.equal(state.status, 200);
     assert.deepEqual(configMod.loadSettings().extraAllowedTools, ["new"]);
   });
+
+  // Patch-merge regression coverage. Each tab in the Settings UI
+  // owns a subset of `AppSettings` and PUTs only its own fields.
+  // Without merge support, a Tools-only save would wipe the Map
+  // tab's googleMapsApiKey (and vice versa). Codex review on PR
+  // #1241 surfaced this; these tests pin the contract.
+
+  it("preserves googleMapsApiKey when a tools-only patch is sent", () => {
+    configMod.saveSettings({ extraAllowedTools: ["before"], googleMapsApiKey: "AIza-keep-me" });
+    const { state, res } = mockRes();
+    putSettingsHandler({ body: { extraAllowedTools: ["after"] } } as Request, res);
+    assert.equal(state.status, 200);
+    const persisted = configMod.loadSettings();
+    assert.deepEqual(persisted.extraAllowedTools, ["after"]);
+    assert.equal(persisted.googleMapsApiKey, "AIza-keep-me");
+  });
+
+  it("preserves extraAllowedTools when a map-only patch is sent", () => {
+    configMod.saveSettings({ extraAllowedTools: ["mcp__example"], googleMapsApiKey: "AIza-old" });
+    const { state, res } = mockRes();
+    putSettingsHandler({ body: { googleMapsApiKey: "AIza-new" } } as Request, res);
+    assert.equal(state.status, 200);
+    const persisted = configMod.loadSettings();
+    assert.deepEqual(persisted.extraAllowedTools, ["mcp__example"]);
+    assert.equal(persisted.googleMapsApiKey, "AIza-new");
+  });
+
+  it("clears googleMapsApiKey when an explicit empty string is sent (boundary)", () => {
+    configMod.saveSettings({ extraAllowedTools: ["mcp__keep"], googleMapsApiKey: "AIza-doomed" });
+    const { state, res } = mockRes();
+    putSettingsHandler({ body: { googleMapsApiKey: "" } } as Request, res);
+    assert.equal(state.status, 200);
+    const persisted = configMod.loadSettings();
+    assert.deepEqual(persisted.extraAllowedTools, ["mcp__keep"]);
+    assert.equal(persisted.googleMapsApiKey, "");
+  });
+
+  it("rejects non-string googleMapsApiKey with 400", () => {
+    const { state, res } = mockRes();
+    putSettingsHandler({ body: { googleMapsApiKey: 12345 } } as Request, res);
+    assert.equal(state.status, 400);
+  });
 });
 
 describe("PUT /config (atomic)", () => {
