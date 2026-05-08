@@ -1099,6 +1099,9 @@ const enMessages = {
     seededByPlugin: "from {pkg}",
     seededByPluginTooltip: "This message was seeded by the {pkg} plugin, not sent by you.",
   },
+  pluginSkill: {
+    noDescription: "(no description)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "Spreadsheet",
     previewSheets: "{count} sheet | {count} sheets",

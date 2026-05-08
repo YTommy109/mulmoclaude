@@ -1111,6 +1111,9 @@ const esMessages = {
     seededByPlugin: "desde {pkg}",
     seededByPluginTooltip: "Este mensaje fue generado por el plugin {pkg}, no enviado por ti.",
   },
+  pluginSkill: {
+    noDescription: "(sin descripción)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "Hoja de cálculo",
     previewSheets: "{count} hoja | {count} hojas",

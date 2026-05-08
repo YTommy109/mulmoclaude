@@ -1100,6 +1100,9 @@ const ptBRMessages = {
     seededByPlugin: "de {pkg}",
     seededByPluginTooltip: "Esta mensagem foi gerada pelo plugin {pkg}, não foi enviada por você.",
   },
+  pluginSkill: {
+    noDescription: "(sem descrição)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "Planilha",
     previewSheets: "{count} aba | {count} abas",

@@ -124,6 +124,29 @@ describe("shouldSelectAssistantText — returns false when a plugin result is in
   });
 });
 
+// #1218 — skill envelopes count as text-like for selection: a
+// collapsed skill card is in the same conversational lane as plain
+// assistant prose, not a richer plugin output. Codex iter-3 review
+// on PR #1220 — without this the auto-selection skips the skill
+// card on the fallback push path AND the split reply text that
+// follows it.
+describe("shouldSelectAssistantText — skill envelopes are text-like", () => {
+  it("true when the only result is a skill envelope", () => {
+    const results = [makeToolResult("u1", "skill")];
+    assert.equal(shouldSelectAssistantText(results, 0), true);
+  });
+
+  it("true when a skill envelope is followed by a text-response (the body-split reply path)", () => {
+    const results = [makeToolResult("u1", "skill"), makeToolResult("u2", "text-response")];
+    assert.equal(shouldSelectAssistantText(results, 0), true);
+  });
+
+  it("false when a non-text plugin result is mixed with skill in the run", () => {
+    const results = [makeToolResult("u1", "skill"), makeToolResult("u2", "generateImage")];
+    assert.equal(shouldSelectAssistantText(results, 0), false);
+  });
+});
+
 describe("shouldSelectAssistantText — boundary conditions", () => {
   it("runStartIndex at end of array → true (nothing to inspect)", () => {
     const results = [makeToolResult("prev", "generateImage")];

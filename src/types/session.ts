@@ -88,6 +88,37 @@ export interface TextEntry extends SessionEntry {
   attachments?: string[];
 }
 
+/** Where a skill resolution landed. Mirrors `SkillSource` from
+ *  `server/workspace/skills/types.ts` (preset skills are synced into
+ *  `<workspaceRoot>/.claude/skills/` at boot, so they surface as
+ *  `project` here — discovery doesn't carry a separate `preset` tag).
+ *  `unknown` covers the case where the skill went away between the
+ *  tool call and the body flush. */
+export type SkillScope = "user" | "project" | "unknown";
+
+export interface SkillEntry extends SessionEntry {
+  source: "assistant";
+  type: typeof EVENT_TYPES.skill;
+  /** Slug from `args.skill` of the preceding `Skill` tool_call. */
+  skillName: string;
+  skillScope: SkillScope;
+  /** Absolute filesystem path to the SKILL.md, or null if the lookup
+   *  missed (`skillScope === "unknown"`). */
+  skillPath: string | null;
+  /** SKILL.md frontmatter `description:` field, captured server-side
+   *  from `discoverSkills()` because Claude CLI strips frontmatter
+   *  before synthesising the body that lands in `message`. Null when
+   *  the lookup missed. The host's collapsed-skill card displays this
+   *  as the one-line summary. */
+  skillDescription: string | null;
+  /** Full SKILL.md body as Claude CLI synthesised it (frontmatter
+   *  already stripped by Claude CLI; starts with the leading
+   *  "Base directory for this skill: <path>" prefix and ends with
+   *  the "ARGUMENTS: <user message>" footer). Kept for archival + the
+   *  expand-on-click affordance in the canvas. */
+  message: string;
+}
+
 export interface ToolResultEntry extends SessionEntry {
   source: "tool";
   type: typeof EVENT_TYPES.toolResult;
@@ -96,6 +127,9 @@ export interface ToolResultEntry extends SessionEntry {
 
 export const isTextEntry = (entry: SessionEntry): entry is TextEntry =>
   (entry.source === "user" || entry.source === "assistant") && entry.type === EVENT_TYPES.text && typeof entry.message === "string";
+
+export const isSkillEntry = (entry: SessionEntry): entry is SkillEntry =>
+  entry.source === "assistant" && entry.type === EVENT_TYPES.skill && typeof entry.message === "string" && typeof (entry as SkillEntry).skillName === "string";
 
 export const isToolResultEntry = (entry: SessionEntry): entry is ToolResultEntry =>
   entry.source === "tool" && entry.type === EVENT_TYPES.toolResult && entry.result !== undefined;

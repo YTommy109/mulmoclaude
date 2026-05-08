@@ -1101,6 +1101,9 @@ const koMessages = {
     seededByPlugin: "{pkg}에서",
     seededByPluginTooltip: "이 메시지는 사용자가 보낸 것이 아니라 {pkg} 플러그인에서 작성한 것입니다.",
   },
+  pluginSkill: {
+    noDescription: "(설명 없음)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "스프레드시트",
     previewSheets: "{count}개 시트",

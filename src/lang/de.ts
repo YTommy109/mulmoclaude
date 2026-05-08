@@ -1114,6 +1114,9 @@ const deMessages = {
     seededByPlugin: "von {pkg}",
     seededByPluginTooltip: "Diese Nachricht wurde vom Plugin {pkg} erstellt und nicht von Ihnen gesendet.",
   },
+  pluginSkill: {
+    noDescription: "(keine Beschreibung)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "Tabelle",
     previewSheets: "{count} Blatt | {count} Blätter",

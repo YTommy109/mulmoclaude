@@ -1100,6 +1100,9 @@ const jaMessages = {
     seededByPlugin: "{pkg} から",
     seededByPluginTooltip: "このメッセージは {pkg} プラグインによって作成されたもので、あなたが送信したものではありません。",
   },
+  pluginSkill: {
+    noDescription: "(説明なし)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "スプレッドシート",
     previewSheets: "{count} シート",

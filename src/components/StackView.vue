@@ -131,6 +131,14 @@ const STACK_NATURAL_TOOLS = new Set<string>([
   // clipping forces an inner scrollbar per result. Letting them flow
   // keeps everything visible in one scroll.
   "presentChart",
+  // Skill (#1218) — collapsed card is ~80px tall, expanded body
+  // flows at natural height. The default `min(60vh, 560px)` frame
+  // would leave a 480px void below the collapsed card; letting it
+  // flow puts the card flush against its stack header with no
+  // empty pane. Auto-scrolling the OUTER stack handles overflow
+  // when the user expands the body, same as the document-like
+  // plugins above.
+  "skill",
 ]);
 
 function isStackNatural(toolName: string): boolean {
@@ -192,6 +200,76 @@ function sizeIframesIn(wrapper: HTMLElement): void {
     } catch {
       // cross-origin — leave default height
     }
+  }
+}
+
+// Cap reported iframe heights so a malicious / buggy embedded script
+// can't request a multi-million-pixel iframe and tank the page. 30K is
+// well above any realistic single-document presentHtml content (a 4K
+// monitor's viewport height is ~2160px; a long Sankey or report fits
+// comfortably in a 5-10K range).
+const MAX_REPORTED_IFRAME_HEIGHT_PX = 30_000;
+
+// Cache `contentWindow → iframe` so message-driven sizing is O(1) per
+// message. Without this, every postMessage would force a full DOM walk
+// over `naturalWrapperRefs * querySelectorAll("iframe")` — turning a
+// flood of messages from an untrusted (sandboxed but script-enabled)
+// iframe into parent-thread DoS. WeakMap key keeps the contentWindow
+// reference weak so it doesn't pin removed iframes.
+const iframesByContentWindow = new WeakMap<Window, HTMLIFrameElement>();
+const pendingIframeHeightsPx = new Map<HTMLIFrameElement, number>();
+let pendingHeightFlushRafId: number | null = null;
+
+function findIframeForSourceWindow(source: Window): HTMLIFrameElement | null {
+  const cached = iframesByContentWindow.get(source);
+  if (cached && cached.isConnected) return cached;
+  for (const wrapper of naturalWrapperRefs.values()) {
+    for (const iframe of wrapper.querySelectorAll<HTMLIFrameElement>("iframe")) {
+      const win = iframe.contentWindow;
+      if (!win) continue;
+      iframesByContentWindow.set(win, iframe);
+      if (win === source) return iframe;
+    }
+  }
+  return null;
+}
+
+// !important defeats the stack-natural `:deep(.h-full)` rule which
+// forces `height: auto !important` to make plugin views flow at
+// natural height. For this specific iframe we WANT the explicit pixel
+// height back.
+function flushPendingIframeHeights(): void {
+  pendingHeightFlushRafId = null;
+  for (const [iframe, heightPx] of pendingIframeHeightsPx) {
+    if (!iframe.isConnected) continue;
+    iframe.style.setProperty("height", `${heightPx}px`, "important");
+  }
+  pendingIframeHeightsPx.clear();
+}
+
+// Listen for iframe-height reports posted by the in-iframe reporter
+// script (`src/utils/html/iframeHeightReporterScript.ts` injected by
+// the server's `readAndInjectHtmlArtifact`). Cross-origin sandboxed
+// iframes can't have their `scrollHeight` read from the parent, so the
+// iframe self-reports via postMessage and we set its height here.
+//
+// Coalesces via rAF: a hostile iframe spamming postMessage can store
+// at most one pending height per iframe per frame; we apply the latest
+// one when the next animation frame fires.
+function handleIframeHeightMessage(event: MessageEvent): void {
+  const { data } = event;
+  if (!data || typeof data !== "object") return;
+  if ((data as { type?: unknown }).type !== "mc-iframe-height") return;
+  const reported = (data as { height?: unknown }).height;
+  if (typeof reported !== "number" || !Number.isFinite(reported) || reported <= 0) return;
+  const { source } = event;
+  if (!source || typeof source !== "object" || !("postMessage" in source)) return;
+  const iframe = findIframeForSourceWindow(source as Window);
+  if (!iframe) return;
+  const heightPx = Math.min(reported, MAX_REPORTED_IFRAME_HEIGHT_PX);
+  pendingIframeHeightsPx.set(iframe, heightPx);
+  if (pendingHeightFlushRafId === null) {
+    pendingHeightFlushRafId = requestAnimationFrame(flushPendingIframeHeights);
   }
 }
 
@@ -335,6 +413,7 @@ onMounted(() => {
   containerRef.value?.addEventListener("scroll", onContainerScroll, {
     passive: true,
   });
+  window.addEventListener("message", handleIframeHeightMessage);
   // Align the initial scroll position with the externally selected
   // item so the sidebar and stack start in sync on mount.
   nextTick(() => {
@@ -348,8 +427,11 @@ onMounted(() => {
 
 onUnmounted(() => {
   containerRef.value?.removeEventListener("scroll", onContainerScroll);
+  window.removeEventListener("message", handleIframeHeightMessage);
   if (scrollSpyRafId !== null) cancelAnimationFrame(scrollSpyRafId);
   if (suppressScrollTimeout !== null) clearTimeout(suppressScrollTimeout);
+  if (pendingHeightFlushRafId !== null) cancelAnimationFrame(pendingHeightFlushRafId);
+  pendingIframeHeightsPx.clear();
   naturalWrapperRefs.clear();
 });
 </script>
@@ -372,6 +454,18 @@ onUnmounted(() => {
 }
 .stack-natural :deep(.flex-1) {
   flex: 0 0 auto !important;
+}
+/* presentHtml's View.vue uses CSS-defined (not Tailwind class)
+   `overflow: hidden` + `flex: 1` on its wrapper/container to keep the
+   iframe inside a fixed-height canvas in non-stack mode. In stack mode
+   we need them to flow at the iframe's natural height (the value the
+   postMessage height reporter sets via JS). The class-based
+   `.overflow-hidden` / `.flex-1` overrides above don't catch CSS-named
+   selectors, so spell them out here. */
+.stack-natural :deep(.iframe-wrapper),
+.stack-natural :deep(.html-container) {
+  flex: 0 0 auto !important;
+  overflow: visible !important;
 }
 
 /* Collapse the nested chrome that text-response draws around its

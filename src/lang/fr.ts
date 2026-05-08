@@ -1105,6 +1105,9 @@ const frMessages = {
     seededByPlugin: "depuis {pkg}",
     seededByPluginTooltip: "Ce message a été généré par le plugin {pkg}, et non envoyé par vous.",
   },
+  pluginSkill: {
+    noDescription: "(aucune description)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "Tableur",
     previewSheets: "{count} feuille | {count} feuilles",

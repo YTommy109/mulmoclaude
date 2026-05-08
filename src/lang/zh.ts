@@ -1094,6 +1094,9 @@ const zhMessages = {
     seededByPlugin: "来自 {pkg}",
     seededByPluginTooltip: "此消息由 {pkg} 插件生成，并非您发送。",
   },
+  pluginSkill: {
+    noDescription: "(无描述)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "电子表格",
     previewSheets: "{count} 个工作表",

@@ -83,7 +83,7 @@ import { EVENT_TYPES } from "../src/types/events.js";
 import { SESSION_ORIGINS } from "../src/types/session.js";
 import { buildHtmlPreviewCsp } from "../src/utils/html/previewCsp.js";
 import { readAndInjectHtmlArtifact } from "./utils/html/htmlArtifactSplicer.js";
-import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS } from "./utils/time.js";
+import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS, STARTUP_FAILURE_FORCE_EXIT_MS } from "./utils/time.js";
 import { isPortFree, findAvailablePort, MAX_PORT_PROBES } from "./utils/port.mjs";
 import { SCHEDULE_TYPES, MISSED_RUN_POLICIES } from "@receptron/task-scheduler";
 
@@ -1016,7 +1016,25 @@ process.on("SIGTERM", () => {
       });
     }
     startRuntimeServices(httpServer, port, earlyPubsub).catch((err: unknown) => {
-      log.error("server", "startRuntimeServices failed", { error: String(err) });
+      // Fail fast — a half-initialized runtime is worse than a
+      // crashed one. Routes mounted at module load already accept
+      // requests, so without this exit the app would respond with a
+      // confusing mix of 200s (from already-mounted routes) and
+      // 500s (from the agent / scheduler / plugins that never came
+      // up). Exit so the supervisor (Electron / launcher) can show
+      // a real error instead of the user staring at a half-broken
+      // UI. (CodeRabbit review on PR #1201.)
+      //
+      // `httpServer.close(cb)` only fires `cb` once every existing
+      // connection has drained. SSE streams + WebSocket upgrades
+      // can hold connections open indefinitely, so the graceful
+      // path alone isn't a fail-fast guarantee. Schedule a hard
+      // exit on a short timer as the floor; whichever fires first
+      // wins. `.unref()` keeps the timer from blocking the event
+      // loop on its own. (Codex review on PR #1226.)
+      log.error("server", "startRuntimeServices failed — exiting", { error: String(err) });
+      httpServer.close(() => process.exit(1));
+      setTimeout(() => process.exit(1), STARTUP_FAILURE_FORCE_EXIT_MS).unref();
     });
   });
 })();
