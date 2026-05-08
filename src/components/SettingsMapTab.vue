@@ -13,7 +13,8 @@
         class="w-full px-3 py-2 text-sm font-mono rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
         :placeholder="t('settingsModal.mapTab.apiKeyPlaceholder')"
         data-testid="settings-map-api-key-input"
-        @keydown.enter.prevent="save"
+        @blur="save"
+        @keydown.enter.prevent="onEnterKey"
       />
       <p class="text-xs text-gray-500">
         <i18n-t keypath="settingsModal.mapTab.helperText" tag="span">
@@ -29,22 +30,10 @@
       <p class="text-xs text-gray-500">{{ t("settingsModal.mapTab.requiredApis") }}</p>
     </div>
 
-    <div class="flex items-center gap-3">
-      <button
-        type="button"
-        class="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
-        :disabled="!isDirty || saving"
-        data-testid="settings-map-save-btn"
-        @click="save"
-      >
-        {{ saving ? t("common.saving") : t("common.save") }}
-      </button>
-      <span v-if="loaded" class="text-xs" :class="storedKey ? 'text-green-600' : 'text-gray-500'" data-testid="settings-map-status">
-        {{ storedKey ? t("settingsModal.mapTab.configured") : t("settingsModal.mapTab.notConfigured") }}
+    <div v-if="loaded" class="flex items-center gap-3 text-xs">
+      <span :class="statusColour" data-testid="settings-map-status">
+        {{ statusText }}
       </span>
-      <button v-if="storedKey" type="button" class="text-xs text-red-600 hover:underline" data-testid="settings-map-clear-btn" @click="clear">
-        {{ t("settingsModal.mapTab.clear") }}
-      </button>
     </div>
 
     <p v-if="errorMessage" class="text-sm text-red-700" role="alert" data-testid="settings-map-error">{{ errorMessage }}</p>
@@ -60,9 +49,9 @@ import { API_ROUTES } from "../config/apiRoutes";
 const { t } = useI18n();
 
 const props = defineProps<{
-  /** When the parent modal closes/opens, force a reload so values
-   *  reflect any out-of-band edit (e.g. user edited settings.json
-   *  by hand between sessions). */
+  /** Bumped by the parent each time the modal opens so the input
+   *  reflects any out-of-band edit (settings.json hand-edit, save
+   *  from another window, etc.). */
   reloadToken: number;
 }>();
 
@@ -80,7 +69,22 @@ const loaded = ref(false);
 const saving = ref(false);
 const errorMessage = ref("");
 
-const isDirty = computed(() => apiKeyDraft.value !== storedKey.value);
+// Auto-save fires on blur OR Enter. Pattern matches the other auto-
+// saving tabs (Workspace Dirs / Reference Dirs / MCP) — no Save
+// button, no Cancel button. Clearing the input + losing focus
+// equivalently clears the stored key.
+
+const statusText = computed(() => {
+  if (saving.value) return t("common.saving");
+  if (errorMessage.value) return errorMessage.value;
+  return storedKey.value ? t("settingsModal.mapTab.configured") : t("settingsModal.mapTab.notConfigured");
+});
+
+const statusColour = computed(() => {
+  if (saving.value) return "text-gray-500";
+  if (errorMessage.value) return "text-red-600";
+  return storedKey.value ? "text-green-600" : "text-gray-500";
+});
 
 async function load(): Promise<void> {
   errorMessage.value = "";
@@ -94,11 +98,15 @@ async function load(): Promise<void> {
   loaded.value = true;
 }
 
+// Save handler used by both `@blur` and `@keydown.enter`. No-ops
+// when nothing changed (the user just tabbed in and out without
+// typing) so the network round-trip is skipped.
 async function save(): Promise<void> {
-  if (saving.value || !isDirty.value) return;
+  if (saving.value) return;
+  const trimmed = apiKeyDraft.value.trim();
+  if (trimmed === storedKey.value) return;
   saving.value = true;
   errorMessage.value = "";
-  const trimmed = apiKeyDraft.value.trim();
   // Patch-style PUT: only `googleMapsApiKey` is sent. The server's
   // /api/config/settings handler merges over the on-disk state,
   // so other tabs' fields (extraAllowedTools) survive untouched.
@@ -116,9 +124,10 @@ async function save(): Promise<void> {
   emit("saved");
 }
 
-async function clear(): Promise<void> {
-  apiKeyDraft.value = "";
-  await save();
+// Enter key: commit immediately + drop focus so the visible state
+// transitions to "Configured" without a second tab press.
+function onEnterKey(event: Event): void {
+  (event.target as HTMLInputElement).blur();
 }
 
 watch(
