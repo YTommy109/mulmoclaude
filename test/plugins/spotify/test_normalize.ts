@@ -13,7 +13,7 @@ import {
   normaliseRecentlyPlayed,
   normaliseTrack,
   normaliseTrackList,
-} from "../../../packages/spotify-plugin/src/normalize.js";
+} from "../../../packages/plugins/spotify-plugin/src/normalize.js";
 
 describe("normaliseTrack", () => {
   it("collapses a full Spotify track to the View-friendly shape", () => {

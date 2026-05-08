@@ -1,6 +1,6 @@
 // Vue entry — exports the canvas + preview components the host
 // runtime plugin loader dynamic-imports as `dist/vue.js`. Same shape
-// as `packages/bookmarks-plugin/src/vue.ts` so the host's loader
+// as `packages/plugins/bookmarks-plugin/src/vue.ts` so the host's loader
 // (src/tools/runtimeLoader.ts) registers them without special-casing.
 
 import View from "./View.vue";

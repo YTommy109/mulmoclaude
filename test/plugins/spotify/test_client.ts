@@ -1,12 +1,12 @@
-// Unit tests for `packages/spotify-plugin/src/client.ts` — proactive
+// Unit tests for `packages/plugins/spotify-plugin/src/client.ts` — proactive
 // refresh near expiry, 401 → refresh → retry-once, no-second-refresh
 // on retry's 401, 429 Retry-After parsing, error surfacing.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { parseRetryAfterSec, spotifyApi } from "../../../packages/spotify-plugin/src/client.js";
-import type { SpotifyTokens } from "../../../packages/spotify-plugin/src/types.js";
+import { parseRetryAfterSec, spotifyApi } from "../../../packages/plugins/spotify-plugin/src/client.js";
+import type { SpotifyTokens } from "../../../packages/plugins/spotify-plugin/src/types.js";
 
 interface FakeRuntimeOpts {
   responses: Response[];

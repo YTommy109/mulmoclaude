@@ -4,7 +4,7 @@
 // add → list → remove → list flow against an isolated tmp workspace.
 //
 // Skips automatically when the plugin's dist isn't present (i.e.
-// `yarn build` hasn't been run in `packages/bookmarks-plugin/`). Add
+// `yarn build` hasn't been run in `packages/plugins/bookmarks-plugin/`). Add
 // the build step to the test prereqs to make this hard-required.
 
 import { describe, it, before, beforeEach, afterEach } from "node:test";
@@ -22,7 +22,7 @@ import type { IPubSub } from "../../server/events/pub-sub/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PLUGIN_DIR = path.resolve(__dirname, "../../packages/bookmarks-plugin");
+const PLUGIN_DIR = path.resolve(__dirname, "../../packages/plugins/bookmarks-plugin");
 const PLUGIN_DIST_INDEX = path.join(PLUGIN_DIR, "dist", "index.js");
 
 const PKG_NAME = "@mulmoclaude/bookmarks-plugin";
@@ -50,10 +50,10 @@ interface BookmarkResult {
 describe("Bookmarks plugin — end-to-end through the loader", () => {
   before(() => {
     // The dist must exist for the loader to import. If a developer hasn't
-    // built the plugin yet (`cd packages/bookmarks-plugin && yarn build`),
+    // built the plugin yet (`cd packages/plugins/bookmarks-plugin && yarn build`),
     // skip rather than failing — CI runs the build before tests.
     if (!existsSync(PLUGIN_DIST_INDEX)) {
-      console.warn(`[bookmarks integration] skipping: ${PLUGIN_DIST_INDEX} not built — run \`yarn build\` in packages/bookmarks-plugin/`);
+      console.warn(`[bookmarks integration] skipping: ${PLUGIN_DIST_INDEX} not built — run \`yarn build\` in packages/plugins/bookmarks-plugin/`);
     }
   });
 

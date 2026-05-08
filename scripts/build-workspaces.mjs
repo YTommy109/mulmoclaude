@@ -15,8 +15,8 @@
 //   # All bridges under packages/bridges/* whose name starts with "@mulmobridge/":
 //   node scripts/build-workspaces.mjs packages/bridges @mulmobridge
 //
-//   # All runtime plugins under packages/* whose name is "@mulmoclaude/<x>-plugin":
-//   node scripts/build-workspaces.mjs packages @mulmoclaude --name-suffix=-plugin
+//   # All runtime plugins under packages/plugins/* whose name is "@mulmoclaude/<x>-plugin":
+//   node scripts/build-workspaces.mjs packages/plugins @mulmoclaude --name-suffix=-plugin
 //
 // Selection rule: a directory under <relDir> is included when its
 // `package.json` has BOTH:

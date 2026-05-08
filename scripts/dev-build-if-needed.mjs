@@ -37,20 +37,20 @@ const REPO_ROOT = dirname(__dirname);
 export const DEV_FOUNDATIONAL_DIRS = ["packages/protocol", "packages/scheduler", "packages/client", "packages/chat-service"];
 
 // Plugin tier — discovered to keep parity with
-// `node scripts/build-workspaces.mjs packages @mulmoclaude --name-suffix=-plugin`,
+// `node scripts/build-workspaces.mjs packages/plugins @mulmoclaude --name-suffix=-plugin`,
 // which is what `build:packages:dev` invokes. New `@mulmoclaude/<x>-plugin`
-// directories under `packages/` get picked up automatically.
+// directories under `packages/plugins/` get picked up automatically.
 function discoverPluginDirs(repoRoot) {
   const found = [];
   let entries;
   try {
-    entries = readdirSync(join(repoRoot, "packages"), { withFileTypes: true });
+    entries = readdirSync(join(repoRoot, "packages/plugins"), { withFileTypes: true });
   } catch {
     return found;
   }
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const pkgJson = join(repoRoot, "packages", entry.name, "package.json");
+    const pkgJson = join(repoRoot, "packages/plugins", entry.name, "package.json");
     let parsed;
     try {
       parsed = JSON.parse(readFileSync(pkgJson, "utf-8"));
@@ -61,7 +61,7 @@ function discoverPluginDirs(repoRoot) {
     if (typeof name !== "string") continue;
     if (!name.startsWith("@mulmoclaude/") || !name.endsWith("-plugin")) continue;
     if (!scripts || typeof scripts.build !== "string") continue;
-    found.push(`packages/${entry.name}`);
+    found.push(`packages/plugins/${entry.name}`);
   }
   found.sort();
   return found;

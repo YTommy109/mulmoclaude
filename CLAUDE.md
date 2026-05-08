@@ -113,14 +113,14 @@ The script runs **four tiers in order**:
 1. `@mulmobridge/protocol` + `@receptron/task-scheduler` — no internal deps, run in parallel
 2. `@mulmobridge/{client, chat-service, mock-server}` — depend on tier 1
 3. **All bridges** under `packages/bridges/*` whose name starts with `@mulmobridge/` and has a `build` script
-4. **All runtime plugins** under `packages/*` whose name starts with `@mulmoclaude/` AND ends with `-plugin` and has a `build` script
+4. **All runtime plugins** under `packages/plugins/*` whose name starts with `@mulmoclaude/` AND ends with `-plugin` and has a `build` script
 
 Tiers 3 and 4 are auto-discovered by `scripts/build-workspaces.mjs`. Tiers 1 and 2 stay explicit in `package.json` because their dep-graph order can't be globbed.
 
 **Adding a new bridge or runtime plugin: just create the workspace directory — no `package.json` edit needed.** Selection rules are strict:
 
 - **Bridge**: lives at `packages/bridges/<name>/`, name `@mulmobridge/<name>`, has `scripts.build`
-- **Runtime plugin**: lives at `packages/<name>-plugin/`, name `@mulmoclaude/<name>-plugin`, has `scripts.build`
+- **Runtime plugin**: lives at `packages/plugins/<name>-plugin/`, name `@mulmoclaude/<name>-plugin`, has `scripts.build`
 
 If a workspace doesn't fit either pattern — e.g. a `@receptron/*` package, or a non-bridge `@mulmobridge/*` like `mock-server` — **MUST add it to the explicit tier-1 / tier-2 enumeration in `package.json`**; auto-discovery won't pick it up. Same goes for any new top-level core package that other workspaces depend on.
 
@@ -169,7 +169,7 @@ artifacts/       ← charts/, documents/, html/, images/, spreadsheets/
 
 Full reference: [`docs/developer.md`](docs/developer.md#plugin-development) (built-in) / [`docs/plugin-runtime.md`](docs/plugin-runtime.md) (runtime / npm-package plugins)
 
-**Plugin-vs-host boundary (always apply).** Per-feature integrations (Spotify / GitHub / Apple Music / weather / bookmarks / …) live in `packages/<name>-plugin/` as **runtime plugins**. Host code (`server/`, `src/plugins/`, `src/config/`) only gets **generic infrastructure that benefits multiple plugins** — never provider-specific code. Examples of generic host infra: the `/api/plugins/runtime/:pkg/dispatch` route, the asset-mount route, the `/api/plugins/runtime/:pkg/oauth/callback` route (#1162). A new "Spotify route" or "GitHub route" in `server/api/routes/` is a smell — re-think whether the work belongs in the plugin package and whether the host's infra needs a generic extension instead.
+**Plugin-vs-host boundary (always apply).** Per-feature integrations (Spotify / GitHub / Apple Music / weather / bookmarks / …) live in `packages/plugins/<name>-plugin/` as **runtime plugins**. Host code (`server/`, `src/plugins/`, `src/config/`) only gets **generic infrastructure that benefits multiple plugins** — never provider-specific code. Examples of generic host infra: the `/api/plugins/runtime/:pkg/dispatch` route, the asset-mount route, the `/api/plugins/runtime/:pkg/oauth/callback` route (#1162). A new "Spotify route" or "GitHub route" in `server/api/routes/` is a smell — re-think whether the work belongs in the plugin package and whether the host's infra needs a generic extension instead.
 
 **Plugin owns its identity** (built-in path). Each built-in plugin declares its `toolName`, `apiRoutes`, `workspaceDirs`, and `staticChannels` in its own `src/plugins/<name>/meta.ts`. Host aggregators (`API_ROUTES`, `TOOL_NAMES`, `WORKSPACE_DIRS`, `PUBSUB_CHANNELS`) auto-merge those contributions via `defineHostAggregate` — host code holds zero plugin-specific literals.
 
@@ -195,7 +195,7 @@ The scaffold CLI (`npx create-mulmoclaude-plugin`) embeds `package.json` + `vite
 
 When you bump a build-toolchain dep (`vite` / `typescript` / `vite-plugin-dts` / `@vitejs/plugin-vue` / `vue`) or change the build-config shape (e.g. dropping `rollupTypes: true` for a TS-major bump), apply the same change to `packages/create-mulmoclaude-plugin/src/template.ts` in the **same PR**:
 
-1. Update the `PACKAGE_JSON` template's `devDependencies` caret ranges to match `packages/bookmarks-plugin/package.json` (the canonical reference).
+1. Update the `PACKAGE_JSON` template's `devDependencies` caret ranges to match `packages/plugins/bookmarks-plugin/package.json` (the canonical reference).
 2. If the build-config shape changed, mirror it into `VITE_CONFIG` (the multi-line string just below).
 3. Run `yarn workspace create-mulmoclaude-plugin run build` to regenerate the CLI's own dist.
 4. Optionally bump the CLI's own `version` and re-publish if external users will fetch via `npx`.

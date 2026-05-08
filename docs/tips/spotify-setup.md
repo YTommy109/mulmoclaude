@@ -99,7 +99,7 @@ PR 3 で OAuth scope を 2 個追加 (`user-read-playback-state`, `user-modify-p
 ## 関連ドキュメント
 
 - 設計: `plans/done/feat-spotify-plugin.md`
-- Plugin 実装: `packages/spotify-plugin/`
+- Plugin 実装: `packages/plugins/spotify-plugin/`
 - 実装 issue: [#1162](https://github.com/receptron/mulmoclaude/issues/1162)
 - Plugin runtime ドキュメント: [`docs/plugin-runtime.md`](../plugin-runtime.md)
 - 公式: [Spotify Web API Authorization Guide](https://developer.spotify.com/documentation/web-api/concepts/authorization)
