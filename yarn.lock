@@ -718,6 +718,13 @@
   resolved "https://registry.yarnpkg.com/@gui-chat-plugin/camera/-/camera-0.4.1.tgz#f127547f19bd89d5135f32dcc179fadebe5562e4"
   integrity sha512-JgMeYubDfX2Ez49SoKGHpVgekNViDtUXUxDm9/F2fuzHD6KqxzmkLHYnmbgP4h8LJP8OB3sgELDItBpkRkeDHA==
 
+"@gui-chat-plugin/google-map@^0.4.0":
+  version "0.4.1"
+  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/google-map/-/google-map-0.4.1.tgz#4cfb63b1b979a955e6602b15256ff32664bfd10c"
+  integrity sha512-l2buyf9f07C6zn9Yh1dR6oUJgBjjp8sFK7EcglxoGxUnmrqNn28vDWAS/uSEPsGWHfO2ZHkNjC0WZ/z39OfbbA==
+  dependencies:
+    gui-chat-protocol "^0.3.3"
+
 "@gui-chat-plugin/mindmap@^0.4.1":
   version "0.4.1"
   resolved "https://registry.yarnpkg.com/@gui-chat-plugin/mindmap/-/mindmap-0.4.1.tgz#547ed008e920d9b579f1f15bc8faeefbd0b9b5e4"
@@ -994,15 +1001,6 @@
   resolved "https://registry.yarnpkg.com/@inquirer/type/-/type-4.0.5.tgz#a02d90e5da8a36dce27ac8e7237a50c99a9003a3"
   integrity sha512-aetVUNeKNc/VriqXlw1NRSW0zhMBB0W4bNbWRJgzRl/3d0QNDQFfk0GO5SDdtjMZVg6o8ZKEiadd7SCCzoOn5Q==
 
-"@intlify/core-base@11.4.0":
-  version "11.4.0"
-  resolved "https://registry.yarnpkg.com/@intlify/core-base/-/core-base-11.4.0.tgz#0567e52e7c2f5a129e71cd0e980fe185e9eae1cf"
-  integrity sha512-nlxFOnmjJgVkL1PsuSMagyh3qIHTwc2KlO2R3qQQV1ydrcwh1XpM7opWUGqvGaLlktttopDzbLBpr/k5tvbNmA==
-  dependencies:
-    "@intlify/devtools-types" "11.4.0"
-    "@intlify/message-compiler" "11.4.0"
-    "@intlify/shared" "11.4.0"
-
 "@intlify/core-base@11.4.2", "@intlify/core-base@^11.0.0":
   version "11.4.2"
   resolved "https://registry.yarnpkg.com/@intlify/core-base/-/core-base-11.4.2.tgz#36c23b50406ba9185d98799b4e13ee6ea65fc19e"
@@ -1011,14 +1009,6 @@
     "@intlify/devtools-types" "11.4.2"
     "@intlify/message-compiler" "11.4.2"
     "@intlify/shared" "11.4.2"
-
-"@intlify/devtools-types@11.4.0":
-  version "11.4.0"
-  resolved "https://registry.yarnpkg.com/@intlify/devtools-types/-/devtools-types-11.4.0.tgz#b0fb14c5e8c35ac0af4b50e81317d2de240dad84"
-  integrity sha512-LtQ04kG8/2Nv6AbuINpkjODuhKHdd+MGLlXKW3I0GTCeDsDIBZUot82nnyK7D6+qersF08FqSvoN/eGPcL3c7Q==
-  dependencies:
-    "@intlify/core-base" "11.4.0"
-    "@intlify/shared" "11.4.0"
 
 "@intlify/devtools-types@11.4.2":
   version "11.4.2"
@@ -1050,14 +1040,6 @@
     semver "^7.5.4"
     synckit "^0.11.0"
 
-"@intlify/message-compiler@11.4.0":
-  version "11.4.0"
-  resolved "https://registry.yarnpkg.com/@intlify/message-compiler/-/message-compiler-11.4.0.tgz#0ff074213dd73fee2a7930863ef5f2f9e00a04b1"
-  integrity sha512-v455gVZqMb0er63Wd/akX8DXTnwSubgrgQaRigLB60V3xpnq3B99oPvGXW+N4G/5QFt8Ls84FJ8qHJUVnRCs1A==
-  dependencies:
-    "@intlify/shared" "11.4.0"
-    source-map-js "^1.0.2"
-
 "@intlify/message-compiler@11.4.2", "@intlify/message-compiler@^11.0.0":
   version "11.4.2"
   resolved "https://registry.yarnpkg.com/@intlify/message-compiler/-/message-compiler-11.4.2.tgz#82a1eb96bf6bc51e34e3fc32dccbb468f74552ef"
@@ -1065,11 +1047,6 @@
   dependencies:
     "@intlify/shared" "11.4.2"
     source-map-js "^1.0.2"
-
-"@intlify/shared@11.4.0":
-  version "11.4.0"
-  resolved "https://registry.yarnpkg.com/@intlify/shared/-/shared-11.4.0.tgz#4aeec3e2004404345f3a9b0540fe25376f24798a"
-  integrity sha512-r9qUeLeO0TMZmUZ+mXS6IGQ6xwzZJaVMK6j4CdoA3eQP8xp3JtCfwkZ30gB4+knlN40pmBdDXgx85SWhMCzHng==
 
 "@intlify/shared@11.4.2":
   version "11.4.2"
@@ -1087,6 +1064,13 @@
     strip-ansi-cjs "npm:strip-ansi@^6.0.1"
     wrap-ansi "^8.1.0"
     wrap-ansi-cjs "npm:wrap-ansi@^7.0.0"
+
+"@isaacs/fs-minipass@^4.0.0":
+  version "4.0.1"
+  resolved "https://registry.yarnpkg.com/@isaacs/fs-minipass/-/fs-minipass-4.0.1.tgz#2d59ae3ab4b38fb4270bfa23d30f8e2e86c7fe32"
+  integrity sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==
+  dependencies:
+    minipass "^7.0.4"
 
 "@jridgewell/gen-mapping@^0.3.12", "@jridgewell/gen-mapping@^0.3.5":
   version "0.3.13"
@@ -3088,6 +3072,11 @@ chokidar@^5.0.0:
   integrity sha512-TQMmc3w+5AxjpL8iIiwebF73dRDF4fBIieAqGn9RGCWaEVwQ6Fb2cGe31Yns0RRIzii5goJ1Y7xbMwo1TxMplw==
   dependencies:
     readdirp "^5.0.0"
+
+chownr@^3.0.0:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/chownr/-/chownr-3.0.0.tgz#9855e64ecd240a9cc4267ce8a4aa5d24a1da15e4"
+  integrity sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g==
 
 chromium-bidi@14.0.0:
   version "14.0.0"
@@ -6073,10 +6062,17 @@ minimist@^1.2.0, minimist@^1.2.6:
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.8.tgz#c1a464e7693302e082a075cee0c057741ac4772c"
   integrity sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==
 
-"minipass@^5.0.0 || ^6.0.2 || ^7.0.0", minipass@^7.1.2:
+"minipass@^5.0.0 || ^6.0.2 || ^7.0.0", minipass@^7.0.4, minipass@^7.1.2:
   version "7.1.3"
   resolved "https://registry.yarnpkg.com/minipass/-/minipass-7.1.3.tgz#79389b4eb1bb2d003a9bba87d492f2bd37bdc65b"
   integrity sha512-tEBHqDnIoM/1rXME1zgka9g6Q2lcoCkxHLuc7ODJ5BxbP5d4c2Z5cGgtXAku59200Cx7diuHTOYfSBD8n6mm8A==
+
+minizlib@^3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/minizlib/-/minizlib-3.1.0.tgz#6ad76c3a8f10227c9b51d1c9ac8e30b27f5a251c"
+  integrity sha512-KZxYo1BUkWD2TVFLr0MQoM8vUUigWD3LlD83a/75BqC+4qE0Hb1Vo5v1FgcfaNXvfXzr+5EhQ6ing/CaBijTlw==
+  dependencies:
+    minipass "^7.1.2"
 
 mitt@^3.0.1:
   version "3.0.1"
@@ -7863,6 +7859,17 @@ tar-stream@^3.0.0, tar-stream@^3.1.5:
     fast-fifo "^1.2.0"
     streamx "^2.15.0"
 
+tar@7.5.13:
+  version "7.5.13"
+  resolved "https://registry.yarnpkg.com/tar/-/tar-7.5.13.tgz#0d214ed56781a26edc313581c0e2d929ceeb866d"
+  integrity sha512-tOG/7GyXpFevhXVh8jOPJrmtRpOTsYqUIkVdVooZYJS/z8WhfQUX8RJILmeuJNinGAMSu1veBr4asSHFt5/hng==
+  dependencies:
+    "@isaacs/fs-minipass" "^4.0.0"
+    chownr "^3.0.0"
+    minipass "^7.1.2"
+    minizlib "^3.1.0"
+    yallist "^5.0.0"
+
 teeny-request@^10.0.0:
   version "10.1.2"
   resolved "https://registry.yarnpkg.com/teeny-request/-/teeny-request-10.1.2.tgz#13aa65d98dce099a85bfc6ef77760b536e3cc040"
@@ -8683,6 +8690,11 @@ y18n@^5.0.5:
   version "5.0.8"
   resolved "https://registry.yarnpkg.com/y18n/-/y18n-5.0.8.tgz#7f4934d0f7ca8c56f95314939ddcd2dd91ce1d55"
   integrity sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==
+
+yallist@^5.0.0:
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/yallist/-/yallist-5.0.0.tgz#00e2de443639ed0d78fd87de0d27469fbcffb533"
+  integrity sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==
 
 yaml-eslint-parser@^2.0.0:
   version "2.0.0"

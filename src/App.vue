@@ -140,6 +140,7 @@
               v-if="selectedResult && getPlugin(selectedResult.toolName)?.viewComponent"
               :selected-result="selectedResult"
               :send-text-message="sendMessage"
+              :google-map-key="googleMapsApiKey"
               @update-result="handleUpdateResult"
             />
             <div v-else-if="selectedResult" class="h-full overflow-auto p-6">
@@ -607,6 +608,21 @@ const selectedResult = computed(() => toolResults.value.find((result) => result.
 // reactive, so this computed re-evaluates when the load completes and
 // the /debug branch in the template lights up without a refresh.
 const debugViewComponent = computed(() => getPlugin("manageDebug")?.viewComponent ?? null);
+
+// Google Maps API key from `AppSettings.googleMapsApiKey`. Fetched
+// once on mount and refreshed whenever Settings reports a save. The
+// `mapControl` plugin's View accepts `googleMapKey` as a prop;
+// other plugins ignore the fallthrough attribute. Null when the user
+// has not configured a key — the upstream View shows a "not
+// configured" placeholder and a fallback "Open in Google Maps" link.
+const googleMapsApiKey = ref<string | null>(null);
+async function refreshGoogleMapsApiKey(): Promise<void> {
+  const response = await apiGet<{ settings: { extraAllowedTools: string[]; googleMapsApiKey?: string } }>(API_ROUTES.config.base);
+  if (response.ok) {
+    googleMapsApiKey.value = response.data.settings.googleMapsApiKey ?? null;
+  }
+}
+void refreshGoogleMapsApiKey();
 
 // Centralised session-switch handler: subscribe to the current session's
 // pub/sub channel so we receive real-time events even if the session is

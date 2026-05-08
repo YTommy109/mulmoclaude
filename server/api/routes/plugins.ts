@@ -5,6 +5,7 @@ import { executeQuiz } from "@mulmochat-plugin/quiz";
 import { executeForm } from "../../../src/plugins/presentForm/plugin.js";
 import { executeOpenCanvas } from "../../../src/plugins/canvas/definition.js";
 import { executePresent3D } from "@gui-chat-plugin/present3d";
+import { executeMapControl } from "@gui-chat-plugin/google-map";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, serverError } from "../../utils/httpError.js";
 import { saveImage } from "../../utils/files/image-store.js";
@@ -265,6 +266,16 @@ bindRoute(
 router.post(
   API_ROUTES.plugins.present3d,
   wrapPluginExecute((req) => executePresent3D(null as never, req.body)),
+);
+
+// mapControl — Google Map (showLocation / Places / Directions etc.)
+// from `@gui-chat-plugin/google-map`. The package's `executeMapControl`
+// returns the action descriptor; the rendered View — mounted host-side
+// from `App.vue` — performs the actual Google Maps JS calls and
+// receives the API key as a prop sourced from `AppSettings`.
+router.post(
+  API_ROUTES.plugins.googleMap,
+  wrapPluginExecute((req) => executeMapControl(null as never, req.body)),
 );
 
 // META aggregator diagnostics — boot-time host/plugin or plugin/plugin

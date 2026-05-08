@@ -24,6 +24,12 @@ export interface AppSettings {
   //   "mcp__claude_ai_Gmail"
   //   "mcp__claude_ai_Google_Calendar"
   extraAllowedTools: string[];
+
+  // Google Maps JS API key. Pasted via Settings → Map tab and used
+  // by `@gui-chat-plugin/google-map`'s View — passed through as a
+  // prop from `App.vue`. Stored verbatim (local-desktop threat
+  // model, same as Spotify token persistence).
+  googleMapsApiKey?: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = { extraAllowedTools: [] };
@@ -49,7 +55,9 @@ export function ensureConfigsDir(): void {
 
 export function isAppSettings(value: unknown): value is AppSettings {
   if (!isRecord(value)) return false;
-  return isStringArray(value.extraAllowedTools);
+  if (!isStringArray(value.extraAllowedTools)) return false;
+  if (value.googleMapsApiKey !== undefined && typeof value.googleMapsApiKey !== "string") return false;
+  return true;
 }
 
 export function loadSettings(): AppSettings {
@@ -80,7 +88,11 @@ export function saveSettings(settings: AppSettings): void {
     throw new Error("saveSettings: invalid AppSettings shape");
   }
   ensureConfigsDir();
-  const serialised = JSON.stringify({ extraAllowedTools: [...settings.extraAllowedTools] }, null, 2);
+  const payload: AppSettings = { extraAllowedTools: [...settings.extraAllowedTools] };
+  if (settings.googleMapsApiKey !== undefined) {
+    payload.googleMapsApiKey = settings.googleMapsApiKey;
+  }
+  const serialised = JSON.stringify(payload, null, 2);
   writeFileAtomicSync(settingsPath(), `${serialised}\n`, { mode: 0o600 });
 }
 
