@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import dts from "vite-plugin-dts";
 
-// Mirrors `packages/bookmarks-plugin/vite.config.ts`. See that file
+// Mirrors `packages/plugins/bookmarks-plugin/vite.config.ts`. See that file
 // for the full rationale on per-entry externals — `dist/index.js`
 // (server) is self-contained because the runtime loader extracts the
 // tarball into a cache dir with no node_modules; `dist/vue.js`

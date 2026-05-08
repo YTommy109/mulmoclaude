@@ -6,7 +6,7 @@
 // isolated tmp workspace.
 //
 // Skips automatically when the plugin's dist isn't present (i.e.
-// `yarn build` hasn't been run in `packages/recipe-book-plugin/`).
+// `yarn build` hasn't been run in `packages/plugins/recipe-book-plugin/`).
 // CI runs `yarn build:packages` before tests so this is hard-required
 // in CI.
 
@@ -25,7 +25,7 @@ import type { IPubSub } from "../../server/events/pub-sub/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PLUGIN_DIR = path.resolve(__dirname, "../../packages/recipe-book-plugin");
+const PLUGIN_DIR = path.resolve(__dirname, "../../packages/plugins/recipe-book-plugin");
 const PLUGIN_DIST_INDEX = path.join(PLUGIN_DIR, "dist", "index.js");
 
 const PKG_NAME = "@mulmoclaude/recipe-book-plugin";
@@ -69,7 +69,7 @@ function makeRecordingPubSub(): { pubsub: IPubSub; published: { channel: string;
 describe("Recipe Book plugin — end-to-end through the loader", () => {
   before(() => {
     if (!existsSync(PLUGIN_DIST_INDEX)) {
-      console.warn(`[recipe-book integration] skipping: ${PLUGIN_DIST_INDEX} not built — run \`yarn build\` in packages/recipe-book-plugin/`);
+      console.warn(`[recipe-book integration] skipping: ${PLUGIN_DIST_INDEX} not built — run \`yarn build\` in packages/plugins/recipe-book-plugin/`);
     }
   });
 

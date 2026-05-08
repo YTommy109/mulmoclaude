@@ -7,8 +7,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { fetchLiked, fetchNowPlaying, fetchPlaylistTracks, fetchPlaylists, fetchRecent } from "../../../packages/spotify-plugin/src/listening.js";
-import type { SpotifyTokens } from "../../../packages/spotify-plugin/src/types.js";
+import { fetchLiked, fetchNowPlaying, fetchPlaylistTracks, fetchPlaylists, fetchRecent } from "../../../packages/plugins/spotify-plugin/src/listening.js";
+import type { SpotifyTokens } from "../../../packages/plugins/spotify-plugin/src/types.js";
 
 // Pinned clock + an `expiresAt` well past it so the proactive-refresh
 // path never fires during these tests (which only stage one fetch per

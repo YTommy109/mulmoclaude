@@ -1,4 +1,4 @@
-// Unit tests for `packages/spotify-plugin/src/oauth.ts` — PKCE
+// Unit tests for `packages/plugins/spotify-plugin/src/oauth.ts` — PKCE
 // primitives, in-memory pending-auth store, authorize URL builder.
 //
 // Tests live under the host's `test/plugins/spotify/` (not inside
@@ -18,7 +18,7 @@ import {
   deriveCodeChallenge,
   generateRandomToken,
   registerPendingAuthorization,
-} from "../../../packages/spotify-plugin/src/oauth.js";
+} from "../../../packages/plugins/spotify-plugin/src/oauth.js";
 
 beforeEach(() => {
   _resetPendingAuthorizationsForTests();

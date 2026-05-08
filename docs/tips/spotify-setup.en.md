@@ -100,7 +100,7 @@ PR 3 added two OAuth scopes (`user-read-playback-state`, `user-modify-playback-s
 ## Related docs
 
 - Plan: `plans/done/feat-spotify-plugin.md`
-- Plugin implementation: `packages/spotify-plugin/`
+- Plugin implementation: `packages/plugins/spotify-plugin/`
 - Implementation issue: [#1162](https://github.com/receptron/mulmoclaude/issues/1162)
 - Runtime plugin docs: [`docs/plugin-runtime.md`](../plugin-runtime.md)
 - Official: [Spotify Web API Authorization Guide](https://developer.spotify.com/documentation/web-api/concepts/authorization)

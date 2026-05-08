@@ -8,7 +8,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { DispatchArgsSchema } from "../../../packages/spotify-plugin/src/schemas.js";
+import { DispatchArgsSchema } from "../../../packages/plugins/spotify-plugin/src/schemas.js";
 
 describe("DispatchArgsSchema.search — query validation", () => {
   it("accepts a normal query", () => {

@@ -19,7 +19,7 @@ import type { IPubSub } from "../../server/events/pub-sub/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PLUGIN_DIR = path.resolve(__dirname, "../../packages/todo-plugin");
+const PLUGIN_DIR = path.resolve(__dirname, "../../packages/plugins/todo-plugin");
 const PLUGIN_DIST_INDEX = path.join(PLUGIN_DIR, "dist", "index.js");
 
 const PKG_NAME = "@mulmoclaude/todo-plugin";
@@ -63,7 +63,7 @@ interface TodoResult {
 describe("Todo plugin — end-to-end through the loader", () => {
   before(() => {
     if (!existsSync(PLUGIN_DIST_INDEX)) {
-      console.warn(`[todo integration] skipping: ${PLUGIN_DIST_INDEX} not built — run \`yarn build\` in packages/todo-plugin/`);
+      console.warn(`[todo integration] skipping: ${PLUGIN_DIST_INDEX} not built — run \`yarn build\` in packages/plugins/todo-plugin/`);
     }
   });
 
