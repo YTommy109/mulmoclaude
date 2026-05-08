@@ -19,21 +19,19 @@ const LEDIT_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 test.describe.configure({ mode: "parallel" });
 
 test.describe("mulmoScript edit (real workspace)", () => {
-  // Pending until issue #1074 is fixed: the per-beat "Saving…"
-  // button never flips back to enabled within 30s on chromium. The
-  // observation matches the suspicion raised in #1074 (edits don't
-  // round-trip cleanly), so this spec already encodes the failure
-  // mode — keep it on disk as the regression net, but skip so the
-  // suite stays green until the underlying save path is debugged.
-  //
-  // **Unskip trigger** (so this spec doesn't go permanently dormant):
-  // when issue #1074 is closed AND the merge that fixes it is
-  // available locally, run this spec by hand on chromium first
-  //     yarn test:e2e:live:mulmo-script-edit
-  // and only drop the `test.skip(true, ...)` line below if the run
-  // passes end-to-end. The TODO is owned by whoever closes #1074.
+  // Regression net for #1074. The fix has two halves:
+  //   1. View re-reads the script from disk on mount via
+  //      `refreshScriptFromDisk`, so a session-restore after page
+  //      reload (or `page.goto` round-trip) picks up edits made via
+  //      `update-beat` / `update-script` instead of the stale
+  //      toolResult cached in the JSONL.
+  //   2. The wait condition after clicking the per-beat update
+  //      button watches the textarea closing — successful saves
+  //      flip `sourceOpen[index] = false` which removes the entire
+  //      editor block via `v-if`. Earlier versions waited for the
+  //      button to re-enable, but the button is gone from the DOM
+  //      by then so `toBeEnabled` always timed out at 30s.
   test("L-EDIT: beat 編集 → 更新 → 別セッションへ移動 → 戻ると編集が永続化されている", async ({ page }, testInfo) => {
-    test.skip(true, "Pending issue #1074 — drop this skip after #1074 closes and the spec passes once locally on chromium");
     test.setTimeout(LEDIT_TIMEOUT_MS);
     // Covers issue #1074 — beat edits made via the source-editor
     // textarea were reported to disappear after navigating away and
@@ -101,12 +99,14 @@ async function editBeat0Text(page: import("@playwright/test").Page, marker: stri
   }
   await textarea.fill(originalJson.replace('"text": ""', `"text": "${marker}"`));
   await page.getByTestId("mulmo-script-beat-update-button-0").click();
-  // The button flips to disabled while saving and back when done;
-  // wait for it to settle before navigating away. updateBeat hits
-  // the server, parses the JSON, rewrites the script file, and
-  // refreshes the studio context — give it 30s in case the disk
-  // I/O coincides with another beat's render.
-  await expect(page.getByTestId("mulmo-script-beat-update-button-0")).toBeEnabled({ timeout: 30_000 });
+  // On a successful save the View flips `sourceOpen[index] = false`,
+  // which unmounts the entire editor block (button + textarea) via
+  // `v-if`. Wait for the textarea to detach instead of the button
+  // re-enabling — the button isn't in the DOM after a successful
+  // save, so `toBeEnabled` would retry against a missing locator
+  // until the global timeout. 30s leaves headroom for disk I/O
+  // coinciding with another beat's render.
+  await expect(textarea).toBeHidden({ timeout: 30_000 });
 }
 
 async function assertBeat0EditPersisted(page: import("@playwright/test").Page, marker: string): Promise<void> {

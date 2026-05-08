@@ -440,7 +440,15 @@ import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { MulmoScriptData } from "./index";
 import { mulmoBeatSchema, mulmoScriptSchema } from "@mulmocast/types";
-import { extractErrorMessage, getMissingCharacterKeys, shouldAutoRenderBeat, streamMovieEvents, validateBeatJSON } from "./helpers";
+import {
+  extractErrorMessage,
+  getMissingCharacterKeys,
+  isSameScript,
+  parseDiskScript,
+  shouldAutoRenderBeat,
+  streamMovieEvents,
+  validateBeatJSON,
+} from "./helpers";
 import { apiGet, apiPost, apiFetchRaw } from "../../utils/api";
 import { pluginEndpoints } from "../api";
 import type { MulmoScriptEndpoints } from "./definition";
@@ -1079,6 +1087,31 @@ async function hydrateBeatImage(beat: Beat, index: number, hasCharacters: boolea
   }
 }
 
+/**
+ * #1074 — keep the in-memory toolResult in sync with the on-disk
+ * script file. `update-beat` / `update-script` persist edits to
+ * disk, but the JSONL session entry that backs
+ * `props.selectedResult.data.script` is never rewritten, so a
+ * page reload + session-restore would otherwise surface stale
+ * pre-edit content.
+ *
+ * The flow is read-only on success-equal path (no emit), and
+ * silently bails on every failure mode so a missing / malformed /
+ * deleted script file never blocks the rest of `initializeScript`.
+ */
+async function refreshScriptFromDisk(): Promise<void> {
+  if (!filePath.value) return;
+  const response = await apiGet<{ content?: string }>(filesEndpoints.content, { path: filePath.value });
+  if (!response.ok || typeof response.data.content !== "string") return;
+  const result = parseDiskScript(response.data.content, mulmoScriptSchema);
+  if (result.kind !== "ok") return;
+  if (isSameScript(result.script, script.value)) return;
+  emit("updateResult", {
+    ...props.selectedResult,
+    data: { ...props.selectedResult.data, script: result.script },
+  });
+}
+
 async function initializeScript() {
   // Reset scroll position so new results start at the top
   if (beatListEl.value) beatListEl.value.scrollTop = 0;
@@ -1100,6 +1133,17 @@ async function initializeScript() {
   Object.keys(beatDragOver).forEach((key) => Reflect.deleteProperty(beatDragOver, key));
   moviePath.value = null;
   if (sourceDetails.value) sourceDetails.value.open = false;
+
+  // #1074 — re-read the script file from disk before per-beat
+  // hydration. Disk is the source of truth: `update-beat` /
+  // `update-script` write through `writeJsonAtomic`, but the
+  // toolResult cached in `props.selectedResult.data.script` was
+  // captured when the tool first ran and is never updated by the
+  // session-restore path (`/api/sessions/:id` JSONL still holds the
+  // old result entry). Without this refresh, a page reload — or any
+  // navigation that round-trips through the SPA boot — shows
+  // pre-edit content even though the json file on disk is correct.
+  await refreshScriptFromDisk();
 
   // Mount-time policy: prefer the existing PNG on the server. Every
   // beat — deterministic AND imagePrompt — first probes /beat-image,
