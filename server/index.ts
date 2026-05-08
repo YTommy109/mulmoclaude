@@ -720,6 +720,20 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // --- Session Store ---
   initSessionStore(pubsub);
 
+  // --- Task Manager ---
+  // Created BEFORE the runtime plugins block so plugin runtimes
+  // (which receive `taskManager` via `MakePluginRuntimeDeps`) can
+  // close over it. The `void (async () => ...)()` IIFE below would
+  // also work via async-yield ordering, but the lint rule forbids
+  // closing over a variable declared later in the same scope.
+  const taskManager = createTaskManager({
+    tickMs: debugMode ? ONE_SECOND_MS : ONE_MINUTE_MS,
+  });
+
+  if (debugMode) {
+    registerDebugTasks(taskManager, pubsub);
+  }
+
   // --- Runtime plugins (#1043 C-2 + #1110) ---
   // Two sources of plugins, same RuntimePlugin shape:
   //   1. Presets — server/plugins/preset-list.ts (loaded from node_modules)
@@ -745,6 +759,14 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
           // BrowserPluginRuntime carries the reactive ref. Future
           // enhancement: per-request locale from Accept-Language.
           locale: process.env.LANG?.split(/[._]/)[0] || "en",
+          // `taskManager` is created synchronously below (see "Task
+          // Manager" block) before this async IIFE awaits and yields.
+          // By the time `runtimeFactory(pkgName)` is invoked from
+          // inside `loadPresetPlugins` / `loadRuntimePlugins` /
+          // `loadDevPlugins`, the synchronous initialisation has
+          // completed and `taskManager` is ready. Backs
+          // `runtime.tasks.register()` (Phase 1 of the Encore plan).
+          taskManager,
         });
       const [presets, userInstalled, devLoad] = await Promise.all([
         loadPresetPlugins({ runtimeFactory }),
@@ -809,15 +831,6 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // boot already sees a live publisher.
   initFileChangePublisher(pubsub);
   initAccountingEventPublisher(pubsub);
-
-  // --- Task Manager ---
-  const taskManager = createTaskManager({
-    tickMs: debugMode ? ONE_SECOND_MS : ONE_MINUTE_MS,
-  });
-
-  if (debugMode) {
-    registerDebugTasks(taskManager, pubsub);
-  }
 
   // --- Scheduler (Phase 1 of #357) ---
   // Register system tasks with persistence + catch-up. The journal

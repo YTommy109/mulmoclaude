@@ -1096,6 +1096,8 @@ const enMessages = {
     copyLabel: "Copy",
     copiedLabel: "Copied!",
     cancel: "Cancel",
+    seededByPlugin: "from {pkg}",
+    seededByPluginTooltip: "This message was seeded by the {pkg} plugin, not sent by you.",
   },
   pluginSkill: {
     noDescription: "(no description)",

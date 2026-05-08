@@ -1097,6 +1097,8 @@ const jaMessages = {
     copyLabel: "コピー",
     copiedLabel: "コピーしました！",
     cancel: "キャンセル",
+    seededByPlugin: "{pkg} から",
+    seededByPluginTooltip: "このメッセージは {pkg} プラグインによって作成されたもので、あなたが送信したものではありません。",
   },
   pluginSkill: {
     noDescription: "(説明なし)",

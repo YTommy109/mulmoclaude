@@ -14,12 +14,30 @@ export const SESSION_ORIGINS = {
   bridge: "bridge",
 } as const;
 
-export type SessionOrigin = (typeof SESSION_ORIGINS)[keyof typeof SESSION_ORIGINS];
+/** Prefix for plugin-seeded sessions. `runtime.chat.start()` (Phase 1
+ *  of the Encore plan) tags new sessions with `plugin:<pkg>` so the
+ *  chat history can render the seeded first turn with a chip
+ *  indicating which plugin started it. */
+export const PLUGIN_SESSION_ORIGIN_PREFIX = "plugin:" as const;
 
-const VALID_ORIGINS: ReadonlySet<string> = new Set(Object.values(SESSION_ORIGINS));
+/** Parse the pkg name out of a plugin-origin tag, or null if `origin`
+ *  isn't a plugin tag. Matches `plugin:<pkg>` only — empty pkg names
+ *  are rejected. */
+export function pluginPkgFromOrigin(origin: string | undefined | null): string | null {
+  if (typeof origin !== "string") return null;
+  if (!origin.startsWith(PLUGIN_SESSION_ORIGIN_PREFIX)) return null;
+  const pkg = origin.slice(PLUGIN_SESSION_ORIGIN_PREFIX.length);
+  return pkg.length > 0 ? pkg : null;
+}
+
+export type SessionOrigin = (typeof SESSION_ORIGINS)[keyof typeof SESSION_ORIGINS] | `${typeof PLUGIN_SESSION_ORIGIN_PREFIX}${string}`;
+
+const VALID_FIXED_ORIGINS: ReadonlySet<string> = new Set(Object.values(SESSION_ORIGINS));
 
 export function isSessionOrigin(value: unknown): value is SessionOrigin {
-  return typeof value === "string" && VALID_ORIGINS.has(value);
+  if (typeof value !== "string") return false;
+  if (VALID_FIXED_ORIGINS.has(value)) return true;
+  return pluginPkgFromOrigin(value) !== null;
 }
 
 // Server `/api/sessions` summary. Optional `summary` and `keywords`
