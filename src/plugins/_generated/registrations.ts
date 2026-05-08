@@ -15,6 +15,7 @@ import { REGISTRATION as presentFormRegistration } from "../presentForm";
 import { REGISTRATION as presentHtmlRegistration } from "../presentHtml";
 import { REGISTRATION as presentMulmoScriptRegistration } from "../presentMulmoScript";
 import { REGISTRATIONS as schedulerRegistrations } from "../scheduler";
+import { REGISTRATION as skillRegistration } from "../skill";
 import { REGISTRATION as spreadsheetRegistration } from "../spreadsheet";
 import { REGISTRATION as textResponseRegistration } from "../textResponse";
 import { REGISTRATION as wikiRegistration } from "../wiki";
@@ -36,6 +37,7 @@ export const GENERATED_PLUGIN_REGISTRATIONS: readonly PluginRegistration[] = [
   presentHtmlRegistration,
   presentMulmoScriptRegistration,
   ...schedulerRegistrations,
+  skillRegistration,
   spreadsheetRegistration,
   textResponseRegistration,
   wikiRegistration,

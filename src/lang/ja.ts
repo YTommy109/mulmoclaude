@@ -1098,6 +1098,9 @@ const jaMessages = {
     copiedLabel: "コピーしました！",
     cancel: "キャンセル",
   },
+  pluginSkill: {
+    noDescription: "(説明なし)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "スプレッドシート",
     previewSheets: "{count} シート",

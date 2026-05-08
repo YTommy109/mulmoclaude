@@ -162,6 +162,34 @@ describe("resolveSelectedUuid — heuristic (last non-text)", () => {
   });
 });
 
+// #1218 — skill envelopes are text-like for selection (Codex
+// iter-3 fixed live-run behaviour; iter-4 surfaced the same
+// mismatch on reload). After a `Skill → body-split → assistant
+// reply` turn, reload should land on the reply, NOT re-pick the
+// skill card. Pinning the contract here so regression to the
+// old `toolName !== "text-response"` rule shows up immediately.
+describe("resolveSelectedUuid — skill envelopes count as text-like", () => {
+  it("falls back to the last result when only a skill card is present", () => {
+    const results = [makeResult("skill-1", "skill")];
+    assert.equal(resolveSelectedUuid(results, null), "skill-1");
+  });
+
+  it("picks the trailing reply text-response over a preceding skill card (the body-split case)", () => {
+    const results = [makeResult("user-1", "text-response"), makeResult("skill-1", "skill"), makeResult("reply-1", "text-response")];
+    assert.equal(resolveSelectedUuid(results, null), "reply-1");
+  });
+
+  it("picks a real plugin result over both skill and text-response", () => {
+    const results = [
+      makeResult("text-1", "text-response"),
+      makeResult("skill-1", "skill"),
+      makeResult("img-1", "generateImage"),
+      makeResult("reply-1", "text-response"),
+    ];
+    assert.equal(resolveSelectedUuid(results, null), "img-1");
+  });
+});
+
 // --- resolveSessionTimestamps -------------------------------------
 
 describe("resolveSessionTimestamps", () => {

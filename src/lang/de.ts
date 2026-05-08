@@ -1112,6 +1112,9 @@ const deMessages = {
     copiedLabel: "Kopiert!",
     cancel: "Abbrechen",
   },
+  pluginSkill: {
+    noDescription: "(keine Beschreibung)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "Tabelle",
     previewSheets: "{count} Blatt | {count} Blätter",

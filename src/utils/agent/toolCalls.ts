@@ -8,7 +8,12 @@
 import type { ToolCallHistoryItem } from "../../types/toolCallHistory";
 import type { SseToolCall } from "../../types/sse";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-import { TOOL_NAMES } from "../../config/toolNames";
+// `TEXT_LIKE_RESULT_TOOL_NAMES` resolves to `TOOL_NAMES.textResponse`
+// + `TOOL_NAMES.skill` (the centralised constants main switched to),
+// so this single import covers the Codex iter-3 "skill is text-like"
+// fix AND main's "stop using string literals for tool names" cleanup
+// in the merge of #1220 ↔ origin/main.
+import { TEXT_LIKE_RESULT_TOOL_NAMES } from "../tools/result";
 
 // Convert an SSE tool_call event into a ToolCallHistoryItem ready
 // to push onto a session's toolCallHistory. Pure.
@@ -57,7 +62,7 @@ export function findPendingToolCall(history: readonly ToolCallHistoryItem[], too
 // Pure — returns a boolean for the caller to act on.
 export function shouldSelectAssistantText(toolResults: readonly ToolResultComplete[], runStartIndex: number): boolean {
   for (let i = runStartIndex; i < toolResults.length; i++) {
-    if (toolResults[i].toolName !== TOOL_NAMES.textResponse) return false;
+    if (!TEXT_LIKE_RESULT_TOOL_NAMES.has(toolResults[i].toolName)) return false;
   }
   return true;
 }

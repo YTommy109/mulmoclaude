@@ -1109,6 +1109,9 @@ const esMessages = {
     copiedLabel: "¡Copiado!",
     cancel: "Cancelar",
   },
+  pluginSkill: {
+    noDescription: "(sin descripción)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "Hoja de cálculo",
     previewSheets: "{count} hoja | {count} hojas",

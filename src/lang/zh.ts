@@ -1092,6 +1092,9 @@ const zhMessages = {
     copiedLabel: "已复制!",
     cancel: "取消",
   },
+  pluginSkill: {
+    noDescription: "(无描述)",
+  },
   pluginSpreadsheet: {
     previewUntitled: "电子表格",
     previewSheets: "{count} 个工作表",
