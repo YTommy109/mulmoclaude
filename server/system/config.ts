@@ -99,7 +99,11 @@ export function loadSettings(): AppSettings {
   }
   // Defensive copy — callers shouldn't be able to mutate the file on
   // disk via the returned object.
-  return { extraAllowedTools: [...parsed.extraAllowedTools] };
+  const copy: AppSettings = { extraAllowedTools: [...parsed.extraAllowedTools] };
+  if (parsed.googleMapsApiKey !== undefined) {
+    copy.googleMapsApiKey = parsed.googleMapsApiKey;
+  }
+  return copy;
 }
 
 export function saveSettings(settings: AppSettings): void {
