@@ -24,12 +24,17 @@ export default [
       "packages/*/dist",
       "packages/bridges/*/dist",
       "packages/plugins/*/dist",
-      // Runtime plugins under packages/plugins/* each have their own
-      // eslint.config.mjs that uses gui-chat-protocol/eslint-preset.
-      // The host's much stricter rules (T[] over Array<T>, identifier
-      // length, etc.) would force plugin authors to satisfy
-      // mulmoclaude conventions they have no reason to know.
-      "packages/plugins/*",
+      // Sample runtime plugin (#1110) — has its own eslint.config.mjs
+      // that uses gui-chat-protocol/eslint-preset. The host's much
+      // stricter rules (T[] over Array<T>, identifier length, etc.)
+      // would force plugin authors to satisfy mulmoclaude conventions
+      // they have no reason to know.
+      "packages/plugins/bookmarks-plugin",
+      // todo-plugin migration (#1145). Same exemption rationale as
+      // bookmarks-plugin — has its own eslint config with
+      // gui-chat-protocol/eslint-preset enforcing the platform-bypass
+      // restrictions.
+      "packages/plugins/todo-plugin",
       // mulmoclaude launcher copies server/client/shared src here at
       // publish time. Original sources are linted at their real paths.
       "packages/mulmoclaude/client",
