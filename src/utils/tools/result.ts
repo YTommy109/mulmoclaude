@@ -20,11 +20,17 @@ export function isUserTextResponse(res: ToolResultComplete): boolean {
 // assistant turn. Used by sendMessage and the chat history UI.
 // `attachments` is optional and only meaningful on user turns —
 // they're the workspace paths the user attached for this message
-// and surface as chips next to the bubble.
-export function makeTextResult(text: string, role: "user" | "assistant", attachments?: readonly string[]): ToolResultComplete {
+// and surface as chips next to the bubble. `seededByPlugin` is
+// optional and set by `parseSessionEntries` on the first user turn
+// of a plugin-origin session (Phase 1 of the Encore plan); the
+// textResponse view renders a "from <pkg>" chip when present.
+export function makeTextResult(text: string, role: "user" | "assistant", attachments?: readonly string[], seededByPlugin?: string): ToolResultComplete {
   const data: Record<string, unknown> = { text, role, transportKind: "text-rest" };
   if (attachments && attachments.length > 0) {
     data.attachments = [...attachments];
+  }
+  if (seededByPlugin) {
+    data.seededByPlugin = seededByPlugin;
   }
   return {
     uuid: uuidv4(),

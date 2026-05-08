@@ -1097,6 +1097,8 @@ const ptBRMessages = {
     copyLabel: "Copiar",
     copiedLabel: "Copiado!",
     cancel: "Cancelar",
+    seededByPlugin: "de {pkg}",
+    seededByPluginTooltip: "Esta mensagem foi gerada pelo plugin {pkg}, não foi enviada por você.",
   },
   pluginSpreadsheet: {
     previewUntitled: "Planilha",

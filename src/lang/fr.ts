@@ -1102,6 +1102,8 @@ const frMessages = {
     copyLabel: "Copier",
     copiedLabel: "Copié !",
     cancel: "Annuler",
+    seededByPlugin: "depuis {pkg}",
+    seededByPluginTooltip: "Ce message a été généré par le plugin {pkg}, et non envoyé par vous.",
   },
   pluginSpreadsheet: {
     previewUntitled: "Tableur",

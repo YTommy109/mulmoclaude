@@ -1111,6 +1111,8 @@ const deMessages = {
     copyLabel: "Kopieren",
     copiedLabel: "Kopiert!",
     cancel: "Abbrechen",
+    seededByPlugin: "von {pkg}",
+    seededByPluginTooltip: "Diese Nachricht wurde vom Plugin {pkg} erstellt und nicht von Ihnen gesendet.",
   },
   pluginSpreadsheet: {
     previewUntitled: "Tabelle",

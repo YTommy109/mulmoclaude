@@ -6,7 +6,15 @@
 // Tracks #175.
 
 import { makeTextResult } from "../tools/result";
-import { isTextEntry, isToolResultEntry, type ActiveSession, type SessionEntry, type SessionSummary } from "../../types/session";
+import {
+  isTextEntry,
+  isToolResultEntry,
+  pluginPkgFromOrigin,
+  type ActiveSession,
+  type SessionEntry,
+  type SessionOrigin,
+  type SessionSummary,
+} from "../../types/session";
 import { EVENT_TYPES } from "../../types/events";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 
@@ -15,12 +23,23 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 // `session_meta` rows (they're metadata, not a result), converts
 // text entries into tool-result-shaped envelopes via
 // `makeTextResult`, and passes tool_result entries through verbatim.
-export function parseSessionEntries(entries: readonly SessionEntry[]): ToolResultComplete[] {
+//
+// When `sessionOrigin` is a `plugin:<pkg>` tag (Phase 1 of the Encore
+// plan), the FIRST user text entry is marked with `seededByPlugin` so
+// the textResponse view renders a "from <pkg>" chip + muted
+// background, indicating the seed message came from a plugin's
+// `runtime.chat.start()` call rather than the user themselves.
+export function parseSessionEntries(entries: readonly SessionEntry[], sessionOrigin?: SessionOrigin): ToolResultComplete[] {
+  const seedingPkg = pluginPkgFromOrigin(sessionOrigin);
+  let firstUserSeen = false;
   const out: ToolResultComplete[] = [];
   for (const entry of entries) {
     if (entry.type === EVENT_TYPES.sessionMeta) continue;
     if (isTextEntry(entry)) {
-      out.push(makeTextResult(entry.message, entry.source, entry.attachments));
+      const tagThis = !firstUserSeen && entry.source === "user" && seedingPkg !== null;
+      const seededBy = tagThis ? seedingPkg : undefined;
+      if (entry.source === "user") firstUserSeen = true;
+      out.push(makeTextResult(entry.message, entry.source, entry.attachments, seededBy ?? undefined));
     } else if (isToolResultEntry(entry)) {
       out.push(entry.result);
     }
@@ -99,7 +118,7 @@ export function buildLoadedSession(opts: {
   const { id, entries, defaultRoleId, urlResult, serverSummary, nowIso } = opts;
   const meta = entries.find((entry) => entry.type === EVENT_TYPES.sessionMeta);
   const roleId = meta?.roleId ?? defaultRoleId;
-  const toolResults = parseSessionEntries(entries);
+  const toolResults = parseSessionEntries(entries, serverSummary?.origin);
   const selectedResultUuid = resolveSelectedUuid(toolResults, urlResult);
   const { startedAt, updatedAt } = resolveSessionTimestamps(serverSummary, nowIso);
   const resultTimestamps = interpolateTimestamps(toolResults, startedAt, updatedAt);

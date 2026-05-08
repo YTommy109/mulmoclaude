@@ -797,7 +797,8 @@ async function refreshSessionTranscript(sessionId: string): Promise<void> {
   if (!session) return;
   const response = await apiGet<SessionEntry[]>(API_ROUTES.sessions.detail.replace(":id", encodeURIComponent(sessionId)));
   if (!response.ok) return;
-  const serverResults = parseSessionEntries(response.data);
+  const summary = sessions.value.find((entry) => entry.id === sessionId);
+  const serverResults = parseSessionEntries(response.data, summary?.origin);
   // Only patch if the server knows more than we do — avoids
   // replacing a richer in-flight state with a stale snapshot when
   // session_finished races with the last few events.

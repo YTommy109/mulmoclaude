@@ -1108,6 +1108,8 @@ const esMessages = {
     copyLabel: "Copiar",
     copiedLabel: "¡Copiado!",
     cancel: "Cancelar",
+    seededByPlugin: "desde {pkg}",
+    seededByPluginTooltip: "Este mensaje fue generado por el plugin {pkg}, no enviado por ti.",
   },
   pluginSpreadsheet: {
     previewUntitled: "Hoja de cálculo",

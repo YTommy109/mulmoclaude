@@ -2,6 +2,7 @@ import { appendFile, rm } from "fs/promises";
 import path from "node:path";
 import { WORKSPACE_DIRS, workspacePath } from "../../workspace/paths.js";
 import { readTextUnder, writeTextUnder, resolvePath, ensureWorkspaceDir } from "./workspace-io.js";
+import type { SessionOrigin } from "../../../src/types/session.js";
 
 const CHAT = WORKSPACE_DIRS.chat;
 const root = (rootOverride?: string) => rootOverride ?? workspacePath;
@@ -25,7 +26,7 @@ export interface SessionMeta {
   claudeSessionId?: string;
   hasUnread?: boolean;
   isBookmarked?: boolean;
-  origin?: "human" | "scheduler" | "skill" | "bridge";
+  origin?: SessionOrigin;
   [key: string]: unknown;
 }
 

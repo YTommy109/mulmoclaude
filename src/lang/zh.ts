@@ -1091,6 +1091,8 @@ const zhMessages = {
     copyLabel: "复制",
     copiedLabel: "已复制!",
     cancel: "取消",
+    seededByPlugin: "来自 {pkg}",
+    seededByPluginTooltip: "此消息由 {pkg} 插件生成，并非您发送。",
   },
   pluginSpreadsheet: {
     previewUntitled: "电子表格",

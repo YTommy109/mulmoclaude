@@ -100,6 +100,51 @@ describe("parseSessionEntries", () => {
     const out = parseSessionEntries(entries);
     assert.equal(out.length, 1);
   });
+
+  // --- plugin-seeded chat marker (Phase 1 of Encore plan) ---------
+
+  it("does NOT mark seededByPlugin when sessionOrigin is undefined", () => {
+    const entries: SessionEntry[] = [{ source: "user", type: "text", message: "hi" }];
+    const out = parseSessionEntries(entries, undefined);
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, undefined);
+  });
+
+  it("does NOT mark seededByPlugin for non-plugin origins", () => {
+    const entries: SessionEntry[] = [{ source: "user", type: "text", message: "hi" }];
+    const out = parseSessionEntries(entries, "scheduler");
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, undefined);
+  });
+
+  it("marks the FIRST user turn with seededByPlugin when origin is plugin:<pkg>", () => {
+    const entries: SessionEntry[] = [
+      { source: "user", type: "text", message: "did you get your W-2?" },
+      { source: "assistant", type: "text", message: "Have you received your W-2?" },
+    ];
+    const out = parseSessionEntries(entries, "plugin:@mulmoclaude/encore-plugin");
+    const userData = out[0].data as Record<string, unknown>;
+    const assistantData = out[1].data as Record<string, unknown>;
+    assert.equal(userData.seededByPlugin, "@mulmoclaude/encore-plugin");
+    // Assistant turn must NOT be marked.
+    assert.equal(assistantData.seededByPlugin, undefined);
+  });
+
+  it("does NOT mark a SECOND user turn (only the first user turn is the seed)", () => {
+    const entries: SessionEntry[] = [
+      { source: "user", type: "text", message: "seed" },
+      { source: "assistant", type: "text", message: "ok" },
+      { source: "user", type: "text", message: "second user reply" },
+    ];
+    const out = parseSessionEntries(entries, "plugin:@mulmoclaude/encore-plugin");
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, "@mulmoclaude/encore-plugin");
+    assert.equal((out[2].data as Record<string, unknown>).seededByPlugin, undefined);
+  });
+
+  it("rejects plugin:<empty-pkg> as a non-plugin origin", () => {
+    const entries: SessionEntry[] = [{ source: "user", type: "text", message: "hi" }];
+    // `plugin:` with empty pkg should not match the plugin-tag regex.
+    const out = parseSessionEntries(entries, "plugin:" as never);
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, undefined);
+  });
 });
 
 // --- resolveSelectedUuid ------------------------------------------

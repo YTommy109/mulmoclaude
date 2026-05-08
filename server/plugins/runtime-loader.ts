@@ -211,7 +211,20 @@ export interface LoaderDeps {
  *  even if we only care about extracting `TOOL_DEFINITION`. Methods
  *  throw rather than silently no-op so a plugin that mistakenly does
  *  I/O at setup time fails loudly during boot instead of at first
- *  call. */
+ *  call.
+ *
+ *  Two host extensions (`tasks`, `chat` — Phase 1 of the Encore plan)
+ *  are also stubbed here so plugins that destructure `runtime as
+ *  MulmoclaudeRuntime` and call `tasks.register(...)` at setup time
+ *  don't crash the definition-only load (e.g. the MCP child
+ *  extracting `tools/list`). `tasks.register` is a SILENT no-op
+ *  because tick registration is parent-only by design — the child
+ *  process has no task manager to register against. `chat.start`
+ *  matches the throw pattern of `fetch` / `files`, since starting a
+ *  chat is a parent-only side effect a plugin should never trigger
+ *  at setup time. The stub deliberately doesn't carry the
+ *  `MulmoclaudeRuntime` type — the cast lives at the plugin call
+ *  site (Phase 3 of Encore upstreams these into PluginRuntime). */
 function makeStubRuntime(name: string): PluginRuntime {
   const error = (operation: string) => () => {
     throw new Error(`plugin/${name}: runtime.${operation} unavailable in this process (definition-only load)`);
@@ -225,14 +238,30 @@ function makeStubRuntime(name: string): PluginRuntime {
     exists: error("files.exists"),
     unlink: error("files.unlink"),
   };
-  return {
+  const stub = {
     pubsub: { publish: () => undefined },
     locale: "en",
     files: { data: fileOps, config: fileOps },
     log: { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined },
     fetch: error("fetch") as unknown as PluginRuntime["fetch"],
     fetchJson: error("fetchJson") as unknown as PluginRuntime["fetchJson"],
+    notifier: {
+      publish: error("notifier.publish") as unknown as (...args: unknown[]) => Promise<{ id: string }>,
+      clear: error("notifier.clear") as unknown as (id: string) => Promise<void>,
+    },
+    tasks: {
+      // Silent no-op: definition-only loads (MCP child) shouldn't fail
+      // just because the plugin declared a tick at setup time.
+      register: () => undefined,
+    },
+    chat: {
+      start: error("chat.start") as unknown as (...args: unknown[]) => Promise<{ chatId: string }>,
+    },
   };
+  // Returned typed as `PluginRuntime` — host extensions (notifier /
+  // tasks / chat) are accessed by plugins via the `MulmoclaudeRuntime`
+  // cast and thus aren't part of the stub's nominal type yet.
+  return stub as unknown as PluginRuntime;
 }
 
 /** Two carrier shapes (#1110 backward compatibility):

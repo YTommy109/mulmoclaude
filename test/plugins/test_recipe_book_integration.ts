@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 
 import { loadPluginFromCacheDir } from "../../server/plugins/runtime-loader.js";
 import { makePluginRuntime } from "../../server/plugins/runtime.js";
+import { createTaskManager } from "../../server/events/task-manager/index.js";
 import { WORKSPACE_PATHS } from "../../server/workspace/paths.js";
 import type { IPubSub } from "../../server/events/pub-sub/index.js";
 
@@ -103,7 +104,7 @@ describe("Recipe Book plugin — end-to-end through the loader", () => {
     }
     const { pubsub, published } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin, "plugin should load");
     assert.equal(plugin.definition.name, "manageRecipes");
@@ -181,7 +182,7 @@ describe("Recipe Book plugin — end-to-end through the loader", () => {
     }
     const { pubsub } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin, "plugin should load");
     const { execute } = plugin;
@@ -234,7 +235,7 @@ describe("Recipe Book plugin — end-to-end through the loader", () => {
     }
     const { pubsub } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
     if (!plugin?.execute) return;
@@ -252,7 +253,7 @@ describe("Recipe Book plugin — end-to-end through the loader", () => {
     }
     const { pubsub } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
     if (!plugin?.execute) return;
