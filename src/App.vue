@@ -255,6 +255,7 @@
       :mcp-tools-error="mcpToolsError"
       @update:open="showSettings = $event"
       @ask-gemini="handleAskGemini"
+      @saved="refreshGoogleMapsApiKey"
     />
   </div>
 </template>

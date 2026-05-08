@@ -145,6 +145,19 @@ const ptBRMessages = {
       mcp: "Servidores MCP",
       dirs: "Diretórios",
       refs: "Diretórios de referência",
+      map: "Mapa",
+    },
+    mapTab: {
+      description: "Define a chave da API do Google Maps usada pelo plugin de mapa. A chave fica salva localmente e só é enviada para o Google Maps.",
+      apiKeyLabel: "Chave API do Google Maps",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "Crie ou copie uma chave em {consoleLink}.",
+      requiredApis: "APIs necessárias: Maps JavaScript API, Geocoding API, Places API (New), Directions API.",
+      configured: "Configurada",
+      notConfigured: "Não configurada",
+      clear: "Limpar",
+      loadError: "Falha ao carregar as configurações",
+      saveError: "Falha ao salvar",
     },
     // Slots `<i18n-t>` — os nomes `envKey` / `envFile` renderizam como
     // `<code>` inline no SettingsModal.vue, então os literais de

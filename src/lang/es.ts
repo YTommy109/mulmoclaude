@@ -150,6 +150,19 @@ const esMessages = {
       mcp: "Servidores MCP",
       dirs: "Directorios",
       refs: "Directorios de referencia",
+      map: "Mapa",
+    },
+    mapTab: {
+      description: "Configura la clave de la API de Google Maps que usa el plugin de mapas. La clave se guarda localmente y solo se envía a Google Maps.",
+      apiKeyLabel: "Clave API de Google Maps",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "Crea o copia una clave en {consoleLink}.",
+      requiredApis: "APIs necesarias: Maps JavaScript API, Geocoding API, Places API (New), Directions API.",
+      configured: "Configurada",
+      notConfigured: "Sin configurar",
+      clear: "Borrar",
+      loadError: "Error al cargar los ajustes",
+      saveError: "Error al guardar",
     },
     // Slots `<i18n-t>` — los nombres `envKey` / `envFile` se renderizan
     // como `<code>` en línea en SettingsModal.vue, por lo que los

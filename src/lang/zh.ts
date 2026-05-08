@@ -148,6 +148,19 @@ const zhMessages = {
       mcp: "MCP 服务器",
       dirs: "目录",
       refs: "引用目录",
+      map: "地图",
+    },
+    mapTab: {
+      description: "设置地图插件使用的 Google Maps API 密钥。密钥仅存储在本地,除发送到 Google Maps 外不会传输到任何地方。",
+      apiKeyLabel: "Google Maps API 密钥",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "在 {consoleLink} 创建或复制密钥。",
+      requiredApis: "需要启用:Maps JavaScript API、Geocoding API、Places API (New)、Directions API。",
+      configured: "已配置",
+      notConfigured: "未配置",
+      clear: "清除",
+      loadError: "加载设置失败",
+      saveError: "保存失败",
     },
     // `<i18n-t>` 插槽 — 命名为 `envKey` / `envFile`,在 SettingsModal.vue
     // 中作为行内 `<code>` 渲染,因此字面的变量名和文件名保持不翻译。

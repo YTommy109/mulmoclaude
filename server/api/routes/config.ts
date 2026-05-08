@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import {
   fromMcpEntries,
   isAppSettings,
+  isAppSettingsPatch,
   loadMcpConfig,
   loadSettings,
   saveMcpConfig,
@@ -133,15 +134,22 @@ router.put(API_ROUTES.config.base, (req: Request<unknown, unknown, PutConfigBody
   res.json(buildFullResponse());
 });
 
-router.put(API_ROUTES.config.settings, (req: Request<unknown, unknown, AppSettings>, res: ConfigRes) => {
+router.put(API_ROUTES.config.settings, (req: Request<unknown, unknown, Partial<AppSettings>>, res: ConfigRes) => {
   const { body } = req;
   log.info("config", "PUT settings: start");
-  if (!isAppSettings(body)) {
+  if (!isAppSettingsPatch(body)) {
     log.warn("config", "PUT settings: invalid payload");
     badRequest(res, "Invalid AppSettings payload");
     return;
   }
-  if (!runSaveOrFail(res, () => saveSettings(body), "saveSettings failed")) {
+  // Merge the PUT body (a partial patch — fields the caller doesn't
+  // own can be omitted) onto the existing on-disk settings so a tab
+  // that knows about only some fields (e.g. Tools tab sends only
+  // `extraAllowedTools`, Map tab sends only `googleMapsApiKey`)
+  // doesn't wipe fields owned by other tabs.
+  const existing = loadSettings();
+  const merged: AppSettings = { ...existing, ...body };
+  if (!runSaveOrFail(res, () => saveSettings(merged), "saveSettings failed")) {
     return;
   }
   log.info("config", "PUT settings: ok");

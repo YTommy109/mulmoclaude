@@ -60,6 +60,25 @@ export function isAppSettings(value: unknown): value is AppSettings {
   return true;
 }
 
+/** A PUT-payload validator: every field optional, but if present
+ *  it must match the AppSettings shape. Distinct from
+ *  `isAppSettings` (which insists on the full storage shape) so a
+ *  tab that owns one field can patch it without echoing back fields
+ *  it doesn't manage. The PUT handler merges the patch onto the
+ *  current on-disk settings before saving.
+ *
+ *  Why two validators: the storage-shape invariant
+ *  (`extraAllowedTools` is always an array) is preserved by
+ *  `loadSettings` (DEFAULT_SETTINGS) + `saveSettings` (payload
+ *  ensures the array). Loosening the storage validator would
+ *  weaken that guarantee for code reading from `loadSettings`. */
+export function isAppSettingsPatch(value: unknown): value is Partial<AppSettings> {
+  if (!isRecord(value)) return false;
+  if (value.extraAllowedTools !== undefined && !isStringArray(value.extraAllowedTools)) return false;
+  if (value.googleMapsApiKey !== undefined && typeof value.googleMapsApiKey !== "string") return false;
+  return true;
+}
+
 export function loadSettings(): AppSettings {
   const file = settingsPath();
   const raw = readTextSafeSync(file);
