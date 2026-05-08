@@ -26,36 +26,83 @@
 // static mount will then serve the file directly.
 export const IMAGE_REPAIR_PATTERN = /artifacts\/images\/.+/;
 
+// Same segment in percent-encoded form. The wiki / markdown rewriter
+// routes an unrecognised absolute path like `/wrong/prefix/artifacts/
+// images/foo.png` through `/api/files/raw?path=...` (see
+// `rewriteMarkdownImageRefs.ts` / `resolveImageSrc`), which encodes
+// the slashes — so the rendered `img.src` carries
+// `artifacts%2Fimages%2Ffoo.png`, not the unencoded form. The pattern
+// above can't see through that, so a 404 that's actually salvageable
+// silently misses (issue #1102 / e2e-live L-W-S-04). The
+// `[^&#\s]` class stops the greedy match at a query-string separator
+// (`&`), a fragment (`#`) or whitespace, so a trailing `&v=<bump>`
+// from `resolveImageSrcFresh` doesn't get swallowed into the captured
+// path tail.
+export const IMAGE_REPAIR_PATTERN_ENCODED = /artifacts%2[Ff]images%2[Ff][^&#\s]+/;
+
+/** Pull the `artifacts/images/<rest>` substring out of a rendered
+ *  `<img>` / `<source>` URL, in either unencoded form or the
+ *  percent-encoded form the markdown rewriter produces.
+ *
+ *  Returns the raw (decoded) path tail without a leading `/`, so the
+ *  caller writes `/${target}` to the element. Returns `null` when the
+ *  URL doesn't carry a recognised artifacts/images segment, or when
+ *  the encoded match can't be `decodeURIComponent`-d (malformed input
+ *  is treated as a no-op rather than throwing into the error handler).
+ *
+ *  Unencoded match wins over the encoded one — matches the historical
+ *  Stage 3 behaviour for any URL that already carries plain slashes
+ *  (relative refs, broken-prefix raw absolute, etc.). */
+export function findRepairTarget(src: string): string | null {
+  const direct = src.match(IMAGE_REPAIR_PATTERN);
+  if (direct) return direct[0];
+  const encoded = src.match(IMAGE_REPAIR_PATTERN_ENCODED);
+  if (!encoded) return null;
+  try {
+    return decodeURIComponent(encoded[0]);
+  } catch {
+    return null;
+  }
+}
+
 // Inline script intended for iframe surfaces. Same decision tree as
 // `useGlobalImageErrorRepair`; kept as a string so it can be embedded
-// into the rendered HTML and run inside the iframe. The regex literal
-// is interpolated from `IMAGE_REPAIR_PATTERN` so the two stay in
+// into the rendered HTML and run inside the iframe. The regex literals
+// are interpolated from the exported patterns so the two stay in
 // lockstep automatically.
 export const IMAGE_REPAIR_INLINE_SCRIPT = `
 document.addEventListener("error", function (event) {
   const target = event.target;
   if (!target) return;
   const pattern = ${IMAGE_REPAIR_PATTERN.toString()};
+  const patternEncoded = ${IMAGE_REPAIR_PATTERN_ENCODED.toString()};
+  function findTarget(s) {
+    const direct = s.match(pattern);
+    if (direct) return direct[0];
+    const enc = s.match(patternEncoded);
+    if (!enc) return null;
+    try { return decodeURIComponent(enc[0]); } catch (_e) { return null; }
+  }
   function fixImg(img) {
     if (img.dataset.imageRepairTried) return;
-    const m = String(img.src).match(pattern);
-    if (!m) return;
+    const t = findTarget(String(img.src));
+    if (!t) return;
     img.dataset.imageRepairTried = "1";
-    img.src = "/" + m[0];
+    img.src = "/" + t;
   }
   function fixSource(src) {
     if (src.dataset.imageRepairTried) return;
     let changed = false;
     const srcAttr = src.getAttribute("src");
     if (srcAttr) {
-      const m = srcAttr.match(pattern);
-      if (m) { src.setAttribute("src", "/" + m[0]); changed = true; }
+      const t = findTarget(srcAttr);
+      if (t) { src.setAttribute("src", "/" + t); changed = true; }
     }
     if (src.srcset) {
       const orig = src.srcset;
       const next = orig.replace(/[^\\s,]+/g, function (tok) {
-        const mm = tok.match(pattern);
-        return mm ? "/" + mm[0] : tok;
+        const t = findTarget(tok);
+        return t ? "/" + t : tok;
       });
       if (next !== orig) { src.srcset = next; changed = true; }
     }

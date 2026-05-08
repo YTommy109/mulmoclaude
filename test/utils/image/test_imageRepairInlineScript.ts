@@ -1,10 +1,24 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { IMAGE_REPAIR_INLINE_SCRIPT, IMAGE_REPAIR_PATTERN, injectImageRepairScript } from "../../../src/utils/image/imageRepairInlineScript.js";
+import {
+  IMAGE_REPAIR_INLINE_SCRIPT,
+  IMAGE_REPAIR_PATTERN,
+  IMAGE_REPAIR_PATTERN_ENCODED,
+  injectImageRepairScript,
+} from "../../../src/utils/image/imageRepairInlineScript.js";
 
 describe("IMAGE_REPAIR_INLINE_SCRIPT — pure form", () => {
   it("embeds IMAGE_REPAIR_PATTERN.toString() verbatim so the two stay in lockstep", () => {
     assert.ok(IMAGE_REPAIR_INLINE_SCRIPT.includes(IMAGE_REPAIR_PATTERN.toString()));
+  });
+
+  it("embeds the encoded-form pattern + decodeURIComponent call (issue #1102)", () => {
+    // Iframe surfaces (presentHtml) need the same broken-prefix-via-
+    // rewriter recovery the host shell does. If someone bumps the
+    // encoded regex without touching the inline script, this catches
+    // the drift.
+    assert.ok(IMAGE_REPAIR_INLINE_SCRIPT.includes(IMAGE_REPAIR_PATTERN_ENCODED.toString()));
+    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /decodeURIComponent/);
   });
 
   it("references all four element kinds the document-scope handler covers", () => {
