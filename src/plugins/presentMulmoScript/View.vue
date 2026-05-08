@@ -1098,10 +1098,21 @@ async function hydrateBeatImage(beat: Beat, index: number, hasCharacters: boolea
  * The flow is read-only on success-equal path (no emit), and
  * silently bails on every failure mode so a missing / malformed /
  * deleted script file never blocks the rest of `initializeScript`.
+ *
+ * Stale-response guard: capture `uuid` + `filePath` before the
+ * `await`. If either has changed by the time the response lands
+ * (the user navigated to a different result while the request
+ * was in flight, or `props.selectedResult` was swapped under us
+ * by a parent watcher), drop the response on the floor — the new
+ * `initializeScript` invocation triggered by that change will
+ * issue its own refresh against the correct file.
  */
 async function refreshScriptFromDisk(): Promise<void> {
-  if (!filePath.value) return;
-  const response = await apiGet<{ content?: string }>(filesEndpoints.content, { path: filePath.value });
+  const requestedFilePath = filePath.value;
+  if (!requestedFilePath) return;
+  const requestedUuid = props.selectedResult.uuid;
+  const response = await apiGet<{ content?: string }>(filesEndpoints.content, { path: requestedFilePath });
+  if (props.selectedResult.uuid !== requestedUuid || filePath.value !== requestedFilePath) return;
   if (!response.ok || typeof response.data.content !== "string") return;
   const result = parseDiskScript(response.data.content, mulmoScriptSchema);
   if (result.kind !== "ok") return;

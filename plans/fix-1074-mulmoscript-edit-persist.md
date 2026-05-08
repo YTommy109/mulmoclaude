@@ -45,10 +45,11 @@
 
 - [x] 根本原因の特定
 - [x] plan 作成
-- [ ] `helpers.ts` に `parseDiskScript` 抽出
-- [ ] `View.vue` の `initializeScript` に refresh ロジック追加
-- [ ] unit test (`helpers.test.ts`) 追加
-- [ ] e2e-live spec の wait 条件修正 + `test.skip` 解除
-- [ ] `yarn format / lint / typecheck / build / test`
+- [x] `helpers.ts` に `parseDiskScript` / `isSameScript` 抽出
+- [x] `View.vue` の `initializeScript` に refresh ロジック追加 (stale-response guard 込み)
+- [x] unit test (`test_helpers.ts`) 追加
+- [x] e2e-live spec の wait 条件修正 (`toBeHidden`) + `test.skip` 解除
+- [x] `yarn format / lint / typecheck / build / test`
+- [x] codex-cross-review iteration 1: race condition 指摘を受けて `requestedUuid` / `requestedFilePath` キャプチャ + post-await re-check を追加
 - [ ] 手動で chromium に対し e2e-live を回して PASS することを確認 (skip 解除のトリガー条件)
 - [ ] PR 作成

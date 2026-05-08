@@ -99,13 +99,16 @@ async function editBeat0Text(page: import("@playwright/test").Page, marker: stri
   }
   await textarea.fill(originalJson.replace('"text": ""', `"text": "${marker}"`));
   await page.getByTestId("mulmo-script-beat-update-button-0").click();
-  // On a successful save the View flips `sourceOpen[index] = false`,
-  // which unmounts the entire editor block (button + textarea) via
-  // `v-if`. Wait for the textarea to detach instead of the button
-  // re-enabling — the button isn't in the DOM after a successful
-  // save, so `toBeEnabled` would retry against a missing locator
-  // until the global timeout. 30s leaves headroom for disk I/O
-  // coinciding with another beat's render.
+  // `sourceOpen[index] = false` (which `v-if`-unmounts the editor)
+  // only fires on `response.ok` inside `updateBeat()` — see
+  // src/plugins/presentMulmoScript/View.vue. So waiting for the
+  // textarea to detach IS de-facto waiting for the network call to
+  // settle successfully; a 4xx/5xx leaves the editor open with an
+  // inline error and the test would (correctly) time out here.
+  // We avoid `toBeEnabled` because successful saves remove the
+  // button from the DOM entirely — the locator would retry forever.
+  // 30s leaves headroom for disk I/O coinciding with another beat's
+  // render.
   await expect(textarea).toBeHidden({ timeout: 30_000 });
 }
 
