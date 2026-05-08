@@ -72,8 +72,10 @@
           <component
             :is="getPlugin(result.toolName)?.viewComponent"
             v-if="getPlugin(result.toolName)?.viewComponent"
+            :key="`${result.uuid}-${googleMapKey ?? ''}`"
             :selected-result="result"
             :send-text-message="sendTextMessage"
+            :google-map-key="googleMapKey"
             @update-result="(r: ToolResultComplete) => emit('updateResult', r)"
           />
         </div>
@@ -83,8 +85,10 @@
           <component
             :is="getPlugin(result.toolName)?.viewComponent"
             v-if="getPlugin(result.toolName)?.viewComponent"
+            :key="`${result.uuid}-${googleMapKey ?? ''}`"
             :selected-result="result"
             :send-text-message="sendTextMessage"
+            :google-map-key="googleMapKey"
             @update-result="(r: ToolResultComplete) => emit('updateResult', r)"
           />
           <pre v-else class="h-full overflow-auto p-4 text-xs text-gray-500 whitespace-pre-wrap">{{ JSON.stringify(result, null, 2) }}</pre>
@@ -154,6 +158,12 @@ const props = defineProps<{
   sessionRoleIcon?: string;
   layoutMode: LayoutMode;
   showRightSidebar: boolean;
+  /** Google Maps JS API key forwarded from `App.vue` to plugin Views
+   *  that consume it (today: `@gui-chat-plugin/google-map`'s View).
+   *  Other plugins ignore the fallthrough. The single-layout
+   *  branch in App.vue forwards the same prop on its own
+   *  `<component :is>` mount. */
+  googleMapKey?: string | null;
 }>();
 
 const emit = defineEmits<{

@@ -161,6 +161,7 @@
             :session-role-icon="sessionRoleIcon"
             :layout-mode="layoutMode"
             :show-right-sidebar="showRightSidebar"
+            :google-map-key="googleMapsApiKey"
             @select="(uuid) => (selectedResultUuid = uuid)"
             @update-result="handleUpdateResult"
             @update:layout-mode="setLayoutMode"
