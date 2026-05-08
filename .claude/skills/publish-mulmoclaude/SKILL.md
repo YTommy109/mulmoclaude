@@ -92,8 +92,9 @@ node scripts/mulmoclaude/tarball.mjs
 The one-liner equivalent, if you want to see the launcher boot by hand:
 
 ```bash
-cd packages/mulmoclaude && rm -f mulmoclaude-*.tgz && npm pack
-# → mulmoclaude-<X.Y.Z>.tgz
+yarn package
+# → packages/mulmoclaude/mulmoclaude-<X.Y.Z>.tgz
+# (cleans stale tarballs + runs yarn build + npm pack with prepack hook)
 
 rm -rf /tmp/mc-test && mkdir /tmp/mc-test && cd /tmp/mc-test
 npm init -y >/dev/null
