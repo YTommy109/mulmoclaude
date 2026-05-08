@@ -145,6 +145,46 @@ describe("parseSessionEntries", () => {
     const out = parseSessionEntries(entries, "plugin:" as never);
     assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, undefined);
   });
+
+  // --- meta-row fallback for sessionOrigin (Codex review on PR #1237) -
+
+  it("falls back to session_meta.origin when sessionOrigin is undefined", () => {
+    // Simulates loadSession() racing fetchSessions() — serverSummary is
+    // undefined but the detail payload's meta row carries the origin.
+    const entries: SessionEntry[] = [
+      { type: "session_meta", roleId: "general", origin: "plugin:@mulmoclaude/encore-plugin" } as SessionEntry,
+      { source: "user", type: "text", message: "seed" },
+    ];
+    const out = parseSessionEntries(entries);
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, "@mulmoclaude/encore-plugin");
+  });
+
+  it("explicit sessionOrigin wins over session_meta.origin", () => {
+    // Summary's origin is the canonical source when both are present
+    // (server populates it from the same meta row, so they should agree
+    // — but if a stale summary disagrees with disk, prefer the caller).
+    const entries: SessionEntry[] = [
+      { type: "session_meta", roleId: "general", origin: "plugin:@a/p" } as SessionEntry,
+      { source: "user", type: "text", message: "seed" },
+    ];
+    const out = parseSessionEntries(entries, "plugin:@b/p");
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, "@b/p");
+  });
+
+  it("does NOT fall back when meta.origin is missing", () => {
+    const entries: SessionEntry[] = [{ type: "session_meta", roleId: "general" } as SessionEntry, { source: "user", type: "text", message: "seed" }];
+    const out = parseSessionEntries(entries);
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, undefined);
+  });
+
+  it("ignores malformed meta.origin (not a SessionOrigin)", () => {
+    const entries: SessionEntry[] = [
+      { type: "session_meta", roleId: "general", origin: "not-a-real-origin" } as SessionEntry,
+      { source: "user", type: "text", message: "seed" },
+    ];
+    const out = parseSessionEntries(entries);
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, undefined);
+  });
 });
 
 // --- resolveSelectedUuid ------------------------------------------

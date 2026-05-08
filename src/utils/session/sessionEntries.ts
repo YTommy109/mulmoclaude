@@ -7,6 +7,7 @@
 
 import { makeSkillResult, makeTextResult, TEXT_LIKE_RESULT_TOOL_NAMES } from "../tools/result";
 import {
+  isSessionOrigin,
   isSkillEntry,
   isTextEntry,
   isToolResultEntry,
@@ -19,19 +20,43 @@ import {
 import { EVENT_TYPES } from "../../types/events";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 
+// Pull origin off the `session_meta` row in the entries payload, if
+// present. The on-disk meta is the source of truth; the server fills
+// `SessionSummary.origin` from it but the summary fetch (`/api/sessions`)
+// races with the per-session detail fetch (`/api/sessions/:id`) on
+// first mount of `/chat/<id>`. Codex review on PR #1237 caught this:
+// without an entries-side fallback, plugin-seeded chats opened
+// directly via URL miss the chip until the user navigates away and
+// back. Returns undefined when no meta row exists or its origin is
+// missing / malformed.
+function extractMetaOrigin(entries: readonly SessionEntry[]): SessionOrigin | undefined {
+  for (const entry of entries) {
+    if (entry.type === EVENT_TYPES.sessionMeta) {
+      const candidate = (entry as { origin?: unknown }).origin;
+      return isSessionOrigin(candidate) ? candidate : undefined;
+    }
+  }
+  return undefined;
+}
+
 // Walk the server's session entries and produce the flat
 // `toolResults` array the client keeps in `ActiveSession`. Drops
 // `session_meta` rows (they're metadata, not a result), converts
 // text entries into tool-result-shaped envelopes via
 // `makeTextResult`, and passes tool_result entries through verbatim.
 //
-// When `sessionOrigin` is a `plugin:<pkg>` tag (Phase 1 of the Encore
-// plan), the FIRST user text entry is marked with `seededByPlugin` so
-// the textResponse view renders a "from <pkg>" chip + muted
-// background, indicating the seed message came from a plugin's
-// `runtime.chat.start()` call rather than the user themselves.
+// When the effective origin is a `plugin:<pkg>` tag (Phase 1 of the
+// Encore plan), the FIRST user text entry is marked with
+// `seededByPlugin` so the textResponse view renders a "from <pkg>"
+// chip + muted background, indicating the seed message came from a
+// plugin's `runtime.chat.start()` call rather than the user
+// themselves. The effective origin prefers the explicit
+// `sessionOrigin` argument (from the summary) and falls back to the
+// `session_meta` row in `entries` so URL-loaded chats render the
+// chip even before the summary fetch resolves.
 export function parseSessionEntries(entries: readonly SessionEntry[], sessionOrigin?: SessionOrigin): ToolResultComplete[] {
-  const seedingPkg = pluginPkgFromOrigin(sessionOrigin);
+  const effectiveOrigin = sessionOrigin ?? extractMetaOrigin(entries);
+  const seedingPkg = pluginPkgFromOrigin(effectiveOrigin);
   let firstUserSeen = false;
   const out: ToolResultComplete[] = [];
   for (const entry of entries) {
