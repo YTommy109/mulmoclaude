@@ -15,7 +15,7 @@ Distilled from a survey of Hatena / PukiWiki / DokuWiki / MediaWiki / Hugo / Not
 
 ### Surface (3-tier progressive disclosure)
 
-```
+```text
 [[type:id]]                          # 90% case — minimum
 [[type:id|shorthand]]                # one positional shortcut
 [[type:id?key=val&key=val]]          # full extensibility (URL-query shape)
@@ -70,7 +70,7 @@ Type-specific keys live under each type's schema (`github.kind`, `map.zoom`, `yo
 
 One regex captures every form:
 
-```
+```regex
 \[\[([a-z][a-z0-9-]*):([^\|\?\]]+)(?:\|([^\?\]]+))?(?:\?([^\]]+))?\]\]
 ```
 
@@ -88,13 +88,18 @@ The discriminator is therefore **a closed set of known type prefixes**, not the 
 | anything else, including `[[foo:bar]]` where `foo` is not a registered type | wiki page link (unchanged) |
 | `[[X:Y]]` where the user genuinely wants a page named `X:Y` even if `X` is a registered type | escape with backslash: `[[X\:Y]]` (parser strips the `\` for the page-name lookup; reserved `\` is added to the wiki-link grammar in PR-B together with this rule) |
 
-**Migration & guardrails (PR-B includes):**
+**Precedence: embed always wins at registry hit.** `[[X:Y...]]` where `X ∈ EMBED_TYPES` is **always** treated as an embed at runtime — there is no "migration mode" runtime fallback to wiki resolution. Determinism beats forgiveness here; otherwise parser, server-side renderer, and client-side wiki-link rewriter could each pick a different precedence and silently disagree. Users who genuinely want a wiki page whose name collides with a reserved prefix MUST use the backslash escape `[[X\:Y]]`.
 
-1. **Reserved-prefix scan**: at PR-B merge time the wiki render path emits a one-shot **lint warning** in the wiki log when it sees an existing `[[<reserved>:Y]]` link, pointing the user at the escape. Zero behaviour change for them — the link still resolves as a wiki page until they decide.
-2. **Wiki page rename guard**: `manageWiki` save / rename refuses to create a slug whose first `:`-segment is a reserved type prefix, with an error message pointing at the escape. Prevents new collisions after PR-B.
-3. **`EMBED_TYPES` is closed and host-owned**, not user-extensible. Adding a new embed type is a host code change, gated by review — the same review naturally checks "does this collide with any existing wiki page name?"
+**Pre-merge migration step (one-shot, runs BEFORE PR-B lands, not at runtime):**
 
-This converts the discriminator from a global syntactic rule (every `:` ⇒ embed) into a registry lookup (only registered prefixes ⇒ embed), so the backward-compat surface is only as wide as the closed `EMBED_TYPES` set, not "every wiki page that happens to contain `:`".
+1. **`scripts/scan-reserved-wiki-collisions.ts`** ships in PR-B and runs as part of CI. It walks every `data/wiki/pages/*.md` body for `[[<reserved>:Y]]` patterns and **fails the lint job** if any are found, listing each occurrence with its file path. The list is the user's checklist: rename the page or rewrite the link to use `[[X\:Y]]`. Once the scan reports zero hits, PR-B is mergeable. Production behaviour after merge is the deterministic registry rule above — no fallback ambiguity.
+
+**Post-merge guardrails (runtime, prevent new collisions):**
+
+2. **Wiki page rename / save guard**: `manageWiki` save / rename refuses to create a slug whose first `:`-segment matches a reserved type prefix. Error message points at the escape. Closes the back door so users can't reintroduce collisions after PR-B lands.
+3. **`EMBED_TYPES` is closed and host-owned**, not user-extensible. Adding a new embed type is a host code change, gated by review — the review naturally checks "does this collide with any existing wiki page name?" before merge.
+
+This converts the discriminator from a global syntactic rule (every `:` ⇒ embed) into a closed registry lookup, so the backward-compat surface is only as wide as the host-owned `EMBED_TYPES` set — and the pre-merge scan + rename guard make the migration explicit rather than silent.
 
 ### Choices we explicitly reject
 
