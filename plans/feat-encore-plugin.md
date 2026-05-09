@@ -1,6 +1,6 @@
 # Plan: Encore plugin (Phase 2)
 
-> **Status: design draft.** Phase 1 (`plans/done/feat-plugin-runtime-tasks-chat.md`, merged in PR #1237) shipped the host primitives Encore depends on. This doc extracts what's available, frames the Encore-specific design surface, and flags open decisions for direction before implementation starts.
+> **Status: design draft — discussion ongoing.** Phase 1 (`plans/done/feat-plugin-runtime-tasks-chat.md`, merged in PR #1237) shipped the host primitives Encore depends on. This doc captures the architecture (DSL + compiler + runtime) and the design decisions made so far. **A few items remain open** (see [Design decisions → Still open](#still-open)) and need direction before implementation starts.
 
 Companion to:
 
@@ -124,6 +124,20 @@ Every obligation has `version: <n>`. v1 ships as the initial schema. Future sche
 
 The DSL is the *definition*; cycle files and pending-clear hold the *state*.
 
+#### Ownership: Encore reads, Claude writes
+
+After creation, `index.md` is owned by Claude. Encore reads it on every tick to drive its interpretation; **Encore never authors updates on its own**. All updates to `index.md` flow through MCP actions Claude can invoke:
+
+| Action | What it changes |
+|---|---|
+| `setup` | Initial creation — writes the full DSL + body |
+| `amendDefinition` | Any DSL field — `cadence`, `firingPlan`, `formSchema`, `carryForward`, `status` (active → paused → retired), etc. Validated with Zod, partial-update semantics |
+| `appendNote` (obligation-scope) | Appends free-form text to the body — the place to record "the portal logs you out at 10 minutes" wisdom |
+
+Everything else Encore does — firing notifications, escalating severity, provisioning new cycles — touches **cycle files** and **pending-clear tickets**, not `index.md`. State changes never touch the definition.
+
+**The one exception** is **DSL schema migrations**. When a future Encore release bumps `version: 1` → `version: 2`, Encore deterministically rewrites old obligations into the new shape. This runs once at startup when a version mismatch is detected, not on tick. It's an upgrade path, not a runtime update.
+
 ### Data model
 
 **One folder per obligation, multiple files inside it.** This matches the vision doc's "files in folders" / "memory across instances" framing: the obligation has a long-lived identity, each year is the next page of the story.
@@ -170,7 +184,7 @@ Proposed actions (LLM-visible):
 | `markInstanceState` | Advance an instance ("paid", "skipped", "received", "done"). Optional notes. Calls `notifier.clear()` for the source notification via the LLM-clear pending ticket |
 | `recordResponse` | Generic structured-response handler for conditional-trigger flows (e.g. W-2). Accepts a JSON payload Claude built from the conversation; the plugin merges it into the cycle's frontmatter |
 | `query` | Read-side. Returns the relevant cycle files (last cycle, this cycle, optionally earlier). Claude composes the diff / summary / multi-year trend on every call — no precomputation, no cache |
-| `appendNote` | Append free-form notes (a Claude-written summary the user wants to keep, a closing note) to an instance's body. Args: `{ obligationId, instanceId, body }`. Persistence is a deliberate user act, not automatic |
+| `appendNote` | Append free-form notes to a body — a Claude-written summary, a closing note, obligation-level wisdom. Args: `{ obligationId, instanceId?, body }` — omit `instanceId` to append to the obligation's `index.md` body; include it to append to that cycle's body. Persistence is a deliberate user act, not automatic |
 | `snooze` | Clear the currently-active notification on an instance and set a new `nextFireDate` on its frontmatter. The next tick after that date fires a fresh notification — severity determined by current phase of the firing plan, not by what level it was at when snoozed. Args: `{ obligationId, instanceId, until }` |
 
 Each action takes `pendingId` when it's the resolution of a notification-seeded chat — the handler reads `pending-clear/<pendingId>.json` and calls `notifier.clear()` as a side effect.
