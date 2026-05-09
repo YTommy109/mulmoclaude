@@ -22,6 +22,16 @@ describe("isExifSupportedMime", () => {
     }
   });
 
+  // Codex review on PR #1247: `attachment-store.ts`'s `MIME_EXT` table
+  // accepts BOTH `image/jpeg` and the legacy alias `image/jpg`, so an
+  // upload labelled `image/jpg` saves successfully — but the original
+  // allowlist rejected it, silently skipping EXIF capture for that
+  // alias. Lock the alias parity in place with a test.
+  it("accepts the image/jpg alias (parity with attachment-store MIME_EXT)", () => {
+    assert.equal(isExifSupportedMime("image/jpg"), true);
+    assert.equal(isExifSupportedMime("IMAGE/JPG"), true);
+  });
+
   it("rejects non-image MIMEs", () => {
     for (const mime of ["application/pdf", "video/mp4", "text/plain", "application/octet-stream", "image/gif"]) {
       assert.equal(isExifSupportedMime(mime), false, mime);

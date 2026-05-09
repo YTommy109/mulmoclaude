@@ -171,10 +171,21 @@ export function projectExif(record: Record<string, unknown>): PhotoExif | null {
 
 /** True when the MIME type is one exifr can read. Image-only — video
  *  EXIF (MP4 / MOV) is out of scope for PR-A. HEIC is included
- *  because iOS still emits it as the default camera format. */
+ *  because iOS still emits it as the default camera format.
+ *
+ *  Both `image/jpeg` and the legacy `image/jpg` alias are accepted —
+ *  `attachment-store.ts`'s `MIME_EXT` table maps both to `.jpg`, so
+ *  uploads labelled `image/jpg` save successfully but were previously
+ *  silently skipping EXIF sidecar capture. (Codex review on PR #1247.) */
 export function isExifSupportedMime(mimeType: string): boolean {
   const lower = mimeType.toLowerCase();
   return (
-    lower === "image/jpeg" || lower === "image/png" || lower === "image/heic" || lower === "image/heif" || lower === "image/tiff" || lower === "image/webp"
+    lower === "image/jpeg" ||
+    lower === "image/jpg" ||
+    lower === "image/png" ||
+    lower === "image/heic" ||
+    lower === "image/heif" ||
+    lower === "image/tiff" ||
+    lower === "image/webp"
   );
 }

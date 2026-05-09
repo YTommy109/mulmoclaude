@@ -133,11 +133,19 @@ export function loadSettings(): AppSettings {
   if (raw === null) return { ...DEFAULT_SETTINGS };
   const parsed = parseSettingsRaw(raw, file);
   if (parsed === null) return { ...DEFAULT_SETTINGS };
-  if (!isAppSettings(parsed)) {
+  // Accept the partial-patch shape, not just the full storage shape.
+  // A user who hand-edits `settings.json` to only set the fields they
+  // care about (`{ "photoExif": { "autoCapture": false } }` per the
+  // PR-A docs) shouldn't have their opt-out silently ignored just
+  // because `extraAllowedTools` is omitted. Missing fields fall back
+  // to DEFAULT_SETTINGS; only structurally-invalid payloads (wrong
+  // type on a present field) trigger the schema-warning fallback.
+  // (Codex review on PR #1247.)
+  if (!isAppSettingsPatch(parsed)) {
     log.warn("config", "settings.json does not match AppSettings schema — using defaults", { file });
     return { ...DEFAULT_SETTINGS };
   }
-  return cloneAppSettings(parsed);
+  return cloneAppSettings({ ...DEFAULT_SETTINGS, ...parsed });
 }
 
 export function saveSettings(settings: AppSettings): void {
