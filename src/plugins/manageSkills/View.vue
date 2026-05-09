@@ -129,8 +129,15 @@
             </div>
           </div>
           <!-- View mode -->
-          <!-- eslint-disable-next-line vue/no-v-html -- sanitized via DOMPurify -->
-          <div v-else-if="detail && renderedBody" class="markdown-content text-gray-700" data-testid="skill-body-rendered" v-html="renderedBody"></div>
+          <!-- eslint-disable vue/no-v-html -- sanitized via DOMPurify; multi-line element so disable/enable pair (CLAUDE.md UI rule) instead of -next-line -->
+          <div
+            v-else-if="detail && renderedBody"
+            class="markdown-content text-gray-700"
+            data-testid="skill-body-rendered"
+            @click="handleExternalLinkClick"
+            v-html="renderedBody"
+          ></div>
+          <!-- eslint-enable vue/no-v-html -->
           <p v-else-if="detail" class="text-sm text-gray-400 italic">{{ t("pluginManageSkills.emptyBody") }}</p>
         </div>
       </div>
@@ -147,6 +154,7 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { ManageSkillsData, SkillSummary } from "./index";
 import { useAppApi } from "../../composables/useAppApi";
 import { apiGet, apiPut, apiDelete } from "../../utils/api";
+import { handleExternalLinkClick } from "../../utils/dom/externalLink";
 import { pluginEndpoints } from "../api";
 import { buildRouteUrl } from "../meta-types";
 import type { SkillsEndpoints } from "./definition";
