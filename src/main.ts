@@ -59,6 +59,7 @@ const pluginEndpointRegistry: EndpointRegistry = {
   form: API_ROUTES.form,
   markdown: API_ROUTES.markdown,
   spreadsheet: API_ROUTES.spreadsheet,
+  photoLocations: API_ROUTES.photoLocations,
   // Host-owned groups. `wiki` / `roles` live in `HOST_API_ROUTES`
   // as plain string URLs; `image` is a host-shared image store
   // with both a `generate`/`edit` plugin route and an `update`

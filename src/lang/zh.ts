@@ -990,6 +990,14 @@ const zhMessages = {
       clearFilter: "清除筛选",
     },
   },
+  photoLocations: {
+    title: "照片位置信息",
+    summary: "{total} 张已捕获 · {withGps} 张含 GPS",
+    mapHint: "向 Claude 说「在地图上显示」即可使用 Google Map 插件一并标注。",
+    loading: "加载中…",
+    empty: "尚未捕获任何照片位置。通过聊天或已连接的 bridge 发送带 GPS 标签的照片即可开始累积。",
+    noGps: "无 GPS 数据",
+  },
   pluginManageSkills: {
     deleteProjectSkill: "删除此项目级技能",
     heading: "技能",

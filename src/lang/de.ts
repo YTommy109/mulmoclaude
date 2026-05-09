@@ -1013,6 +1013,14 @@ const deMessages = {
       clearFilter: "Filter zurücksetzen",
     },
   },
+  photoLocations: {
+    title: "Fotostandorte",
+    summary: "{total} erfasst · {withGps} mit GPS",
+    mapHint: 'Bitte Claude um "auf der Karte anzeigen", um sie mit dem Google-Map-Plugin einzuzeichnen.',
+    loading: "Lädt…",
+    empty: "Noch keine Fotostandorte erfasst. Sende ein Foto mit GPS-Tag über den Chat oder eine verbundene Bridge, um zu beginnen.",
+    noGps: "Keine GPS-Daten",
+  },
   pluginManageSkills: {
     deleteProjectSkill: "Diese Projekt-Skill löschen",
     heading: "Skills",

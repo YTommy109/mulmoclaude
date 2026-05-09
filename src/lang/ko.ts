@@ -997,6 +997,14 @@ const koMessages = {
       clearFilter: "필터 해제",
     },
   },
+  photoLocations: {
+    title: "사진 위치 정보",
+    summary: "{total}개 캡처됨 · {withGps}개 GPS 포함",
+    mapHint: 'Claude에게 "지도에 표시해줘"라고 요청하면 Google Map 플러그인으로 일괄 표시됩니다.',
+    loading: "로드 중…",
+    empty: "아직 캡처된 사진 위치가 없습니다. GPS 태그가 있는 사진을 채팅이나 연결된 bridge로 보내면 누적되기 시작합니다.",
+    noGps: "GPS 데이터 없음",
+  },
   pluginManageSkills: {
     deleteProjectSkill: "이 프로젝트 스킬 삭제",
     heading: "스킬",
