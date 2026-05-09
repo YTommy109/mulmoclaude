@@ -1,0 +1,207 @@
+# Rich embed syntax + iframe sandbox fixes (#1221)
+
+## Goal
+
+Make external content render usefully inside MulmoClaude's wiki / files / chat-artifact surfaces:
+
+1. External `<a href="https://...">` links opened from sandboxed iframes are dead-clicks today — fix that.
+2. The LLM (and preset skills like `mc-library`) currently spell out raw URLs for Amazon / GitHub / YouTube / etc. Define a compact wiki record that renders into the right card / link / embed at display time, decoupling the on-disk form from the visual rendering.
+
+Phasing keeps risk low: PR-A is a sandbox-fix ready in hours; PR-B introduces the syntax + the first two renderers; PR-C+ extends one prefix at a time as real usage demands them.
+
+## Design — hybrid embed syntax
+
+Distilled from a survey of Hatena / PukiWiki / DokuWiki / MediaWiki / Hugo / Notion (see issue thread for the full comparison).
+
+### Surface (3-tier progressive disclosure)
+
+```
+[[type:id]]                          # 90% case — minimum
+[[type:id|shorthand]]                # one positional shortcut
+[[type:id?key=val&key=val]]          # full extensibility (URL-query shape)
+```
+
+| Example | Renders as |
+|---|---|
+| `[[amazon:B00ICN066A]]` | Amazon card (default region from config) |
+| `[[amazon:B00ICN066A\|link]]` | inline link only — `style=link` shorthand |
+| `[[amazon:B00ICN066A?region=jp&style=card]]` | full named-param form |
+| `[[isbn:9780062316097]]` | Book card via OpenLibrary (Amazon-independent) |
+| `[[github:receptron/mulmoclaude]]` | repo card |
+| `[[github:receptron/mulmoclaude/issues/1221]]` | issue link with title (id may contain `/`) |
+| `[[youtube:dQw4w9WgXcQ?style=thumbnail]]` | thumbnail instead of full embed |
+| `[[map:35.6586,139.7454?zoom=12]]` | geo pin |
+
+### Internal data model (parser output)
+
+```ts
+interface ParsedEmbed {
+  type: string;                       // "amazon" | "isbn" | "github" | ...
+  id: string;                         // primary id (slash-tolerant)
+  shorthand?: string;                 // |xxx (single positional)
+  params: Record<string, string>;     // ?key=val&... named params
+  raw: string;                        // original [[...]] for round-trip
+}
+```
+
+### Renderer registry (per type, Zod-validated)
+
+```ts
+interface EmbedRenderer<T extends z.ZodSchema> {
+  type: string;
+  schema: T;                                  // params validation + type derivation
+  render(args: z.infer<T> & { id: string }, ctx: RenderCtx): VNode;
+}
+```
+
+`shorthand` is interpreted by the schema (e.g. `|link` → `style: "link"` for `amazon` / `github` / `youtube`).
+
+### Cross-type reserved param names
+
+| name | values | applies to |
+|---|---|---|
+| `style` | `link` / `card` / `inline` / `image` | all types |
+| `region` | country code | amazon, news, ... |
+| `caption` | any string | all (link-text override) |
+
+Type-specific keys live under each type's schema (`github.kind`, `map.zoom`, `youtube.start`).
+
+### Parsing
+
+One regex captures every form:
+
+```
+\[\[([a-z][a-z0-9-]*):([^\|\?\]]+)(?:\|([^\?\]]+))?(?:\?([^\]]+))?\]\]
+```
+
+→ `type`, `id`, `shorthand`, `query` capture groups. `URLSearchParams` over `query` produces the params map. Done.
+
+Disambiguation from existing `[[wiki-link]]`: the presence of `:` inside the brackets makes it an embed. No internal page name has `:`, so the discriminator is unambiguous.
+
+### Choices we explicitly reject
+
+| Rejected | Why |
+|---|---|
+| MediaWiki magic links (bare-text `ISBN ...` auto-link) | Un-localizable, deprecated by Wikipedia itself |
+| Hugo full shortcode (`{{< amazon asin="..." >}}`) | Too verbose for inline prose |
+| Pure positional flags (PukiWiki `(asin, left, image)`) | Reordering breaks; 4th param is a footgun |
+| Notion-style implicit URL unfurl | No way to express author intent (link vs card vs image-only) |
+| Hatena-style `:` separator for modifiers | Collides with `:` inside ids (URLs, repo paths) |
+
+## Phasing
+
+### PR-A — iframe sandbox fix (smallest possible change, closes Issue 1)
+
+**Scope**: external `<a href="https://...">` produced by `marked.parse` should open in a new tab on a normal click.
+
+**Touch points** (all `marked.parse` callers in the host):
+
+- `src/plugins/wiki/View.vue`
+- `src/plugins/markdown/View.vue`
+- `src/plugins/textResponse/View.vue`
+- `src/plugins/news/View.vue` (if it lives in the same renderer)
+- `src/plugins/spreadsheet/View.vue` (XLSX → HTML — already trusted, but check)
+
+**Approach**:
+
+1. Add a shared `src/utils/markdown/externalLinks.ts` helper:
+   - `marked.use({ renderer: { link({href, title, text}) {...} } })` — when `href` is an absolute URL (`/^https?:\/\//.test(href)`), append `target="_blank" rel="noopener noreferrer"` to the emitted `<a>`.
+   - Internal links (`/`, `#`, `[[wiki-link]]` post-processing) untouched.
+2. Iframe `sandbox` attribute (if any view wraps content in an iframe — verify via grep): add `allow-popups allow-popups-to-escape-sandbox`. Audit every `sandbox=` usage; we don't want to widen capability set without intent.
+3. Unit test for the renderer override: external URL → `target="_blank"` injected; relative URL → unchanged.
+
+**Out of scope** for PR-A:
+
+- New embed syntax — that's PR-B.
+- Restyling links — only their open-target changes.
+
+**Acceptance**:
+
+- [ ] Click any `https://...` link in wiki / files / chat artifact → opens in new tab.
+- [ ] Click any internal link (`[[other-page]]`, `/route`) → in-place navigation as before.
+- [ ] No new XSS vector (the `noopener noreferrer` is the standard mitigation).
+- [ ] All existing markdown unit + e2e tests still pass.
+
+### PR-B — embed syntax core + Amazon + ISBN renderers
+
+**Scope**: introduce `[[type:id...]]` parser + a renderer registry + the first two type renderers (`amazon`, `isbn`). Wires into the same `marked.parse` pipeline PR-A touched.
+
+**Files (new)**:
+
+- `src/utils/markdown/embed/parser.ts` — regex + URL-query parsing → `ParsedEmbed`
+- `src/utils/markdown/embed/registry.ts` — type-keyed registry, `register(renderer)`, `get(type)`
+- `src/utils/markdown/embed/renderers/amazon.ts` — Zod schema + render fn
+- `src/utils/markdown/embed/renderers/isbn.ts` — Zod schema + render fn
+- `src/utils/markdown/embed/index.ts` — exported entry: `expandEmbedsInMarkdown(md: string): string`
+- `test/utils/markdown/embed/test_parser.ts` — minimum / shorthand / full-params / collision-with-wiki-link / malformed-input cases
+- `test/utils/markdown/embed/test_amazon.ts`, `test_isbn.ts` — schema validation + render output snapshot
+
+**Files (changed)**:
+
+- `marked.use(...)` config in the shared `markdown/externalLinks.ts` helper from PR-A — extend to also walk the AST (or do a pre-pass on the markdown source) and replace `[[type:id...]]` tokens before `marked.parse`.
+- Each `View.vue` that renders markdown gets `expandEmbedsInMarkdown(md)` in its pipeline. No direct DOM injection from the renderer — just produce HTML strings through the existing `marked` + DOMPurify pipe.
+
+**Renderer responsibilities**:
+
+- `amazon`:
+  - schema: `{ region: enum default "jp" (configurable), style: enum default "card", tag?: string (affiliate, defaults from config) }`
+  - card style: cover image (when fetchable) + title + price line + region badge
+  - link style: `<a href="https://www.amazon.<region>/dp/<asin>?tag=<tag>" target="_blank">…</a>`
+  - cover/title fetch: deferred to a SSR-side cache or client-side fetch via the existing pubsub `bookmarks`/cache pattern. **Do NOT fetch on every render** — needs same caching primitive `mc-library` Google-Books fetcher uses.
+- `isbn`:
+  - schema: `{ style: enum default "card", source: enum["openlibrary", "googlebooks"] default "openlibrary" }`
+  - card style: cover + title + author + year via OpenLibrary `https://openlibrary.org/isbn/<isbn>.json`
+  - link style: `<a href="https://openlibrary.org/isbn/<isbn>">…</a>` (openlibrary search page)
+
+**Affiliate-tag policy**:
+
+- Single global config setting (e.g. `config/settings.json#amazonAffiliateTag`) injected into every `amazon` link unless `?tag=` is set explicitly.
+- Empty default → no tag appended (unmonetised by default).
+
+**Acceptance**:
+
+- [ ] `[[amazon:B00ICN066A]]` renders an Amazon card.
+- [ ] `[[amazon:B00ICN066A|link]]` renders a plain link.
+- [ ] `[[amazon:B00ICN066A?region=jp]]` switches the destination URL.
+- [ ] `[[isbn:9780062316097]]` renders a book card via OpenLibrary.
+- [ ] `[[wiki-page-name]]` (no `:`) still renders as an internal wiki link.
+- [ ] Malformed `[[amazon:]]` (empty id) emits a fallback "?" badge with the `raw` source visible (no crash).
+- [ ] Parser unit tests cover all cases above.
+- [ ] `mc-library` skill (preset) is updated to write `[[amazon:<asin>]]` instead of raw `https://www.amazon.co.jp/dp/...` (separate small commit on the same PR or a follow-up).
+
+**Out of scope** for PR-B:
+
+- youtube / x / map / github renderers — PR-C+.
+- Server-side cover/metadata caching — first cut can fetch on-demand with a basic in-memory cache.
+- Editor UX (suggestion popups, picker UI) — pure markdown for now.
+
+### PR-C+ — additional types
+
+Each future type is one self-contained PR adding `src/utils/markdown/embed/renderers/<type>.ts` + the corresponding schema + tests. No changes to the parser or registry. Suggested order based on `mc-library` and #1169 needs:
+
+1. `youtube` — embed iframe (default thumbnail-link, opt-in to full embed via `?style=embed` since the iframe itself is heavy)
+2. `github` — repo card + issue/PR link (kind detected from id shape: `owner/repo`, `owner/repo/issues/N`, `owner/repo/pull/N`)
+3. `x` (Twitter) — tweet embed via oEmbed API
+4. `map` — geo pin (lat,lng + zoom). Composes with the existing google-map plugin (#1227).
+
+## Out of scope (the whole issue)
+
+- Universal oEmbed fallback (any URL → unfurl). Author intent matters; we want the explicit `[[type:id]]` opt-in.
+- Editing UX — just markdown for now. A picker / autocomplete is a separate UX PR if needed.
+- Magic-link auto-detection (bare ISBN / ASIN in prose) — explicitly rejected per the design.
+
+## Related
+
+- #1210 — preset skills infrastructure (mc-library is the first heavy user; will switch to `[[amazon:...]]` once PR-B lands)
+- #1169 — home-application plugin & role plan (most planned skills will produce content with external references)
+- #1227 — map plugin (PR-C `map:` renderer can compose with this)
+
+## Tracking
+
+- PR-A: iframe sandbox fix
+- PR-B: parser + registry + amazon + isbn
+- PR-C: youtube
+- PR-D: github
+- (later) PR-E: x, PR-F: map
+
+Move this file to `plans/done/` only when the **last** of the planned PRs (PR-A through PR-D at minimum) merges. Later additions (PR-E, PR-F) can be one-shot follow-ups without keeping the plan file open.
