@@ -167,6 +167,7 @@ const enMessages = {
       dirs: "Directories",
       refs: "Reference Dirs",
       map: "Map",
+      photos: "Photos",
     },
     mapTab: {
       description: "Set the Google Maps API key used by the map plugin. The key is stored locally and never transmitted anywhere except to Google Maps.",
@@ -177,6 +178,17 @@ const enMessages = {
       configured: "Configured",
       notConfigured: "Not configured",
       clear: "Clear",
+      loadError: "Failed to load settings",
+      saveError: "Failed to save",
+    },
+    photosTab: {
+      description:
+        "Privacy controls for photos uploaded via chat or a connected bridge. EXIF location data is sensitive — uncheck the box to opt out of automatic capture.",
+      autoCaptureLabel: "Auto-capture photo location data",
+      autoCaptureHint:
+        "When on, every uploaded image with EXIF GPS gets a location sidecar at data/locations/. Off: nothing is captured automatically; the LLM can still extract EXIF on demand.",
+      statusOn: "Auto-capture is ON",
+      statusOff: "Auto-capture is OFF",
       loadError: "Failed to load settings",
       saveError: "Failed to save",
     },

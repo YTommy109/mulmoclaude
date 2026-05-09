@@ -153,6 +153,7 @@ const koMessages = {
       dirs: "디렉터리",
       refs: "참조 디렉터리",
       map: "지도",
+      photos: "사진",
     },
     mapTab: {
       description: "지도 플러그인에서 사용하는 Google Maps API 키를 설정합니다. 키는 로컬에 저장되며 Google Maps 외부로는 전송되지 않습니다.",
@@ -163,6 +164,16 @@ const koMessages = {
       configured: "구성됨",
       notConfigured: "구성되지 않음",
       clear: "지우기",
+      loadError: "설정을 불러오지 못했습니다",
+      saveError: "저장에 실패했습니다",
+    },
+    photosTab: {
+      description: "채팅 또는 연결된 bridge로 받은 사진의 개인정보 설정입니다. EXIF 위치 데이터는 민감하므로, 자동 수집을 원하지 않으면 체크박스를 해제하세요.",
+      autoCaptureLabel: "사진 위치 데이터 자동 수집",
+      autoCaptureHint:
+        "켜진 경우, EXIF GPS가 있는 업로드된 이미지마다 data/locations/에 위치 sidecar가 생성됩니다. 끄면 자동 수집이 중단되지만 필요할 때 LLM이 EXIF를 수동으로 읽을 수 있습니다.",
+      statusOn: "자동 수집 켜짐",
+      statusOff: "자동 수집 꺼짐",
       loadError: "설정을 불러오지 못했습니다",
       saveError: "저장에 실패했습니다",
     },

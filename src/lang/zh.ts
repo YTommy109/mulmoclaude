@@ -149,6 +149,7 @@ const zhMessages = {
       dirs: "目录",
       refs: "引用目录",
       map: "地图",
+      photos: "照片",
     },
     mapTab: {
       description: "设置地图插件使用的 Google Maps API 密钥。密钥仅存储在本地,除发送到 Google Maps 外不会传输到任何地方。",
@@ -159,6 +160,15 @@ const zhMessages = {
       configured: "已配置",
       notConfigured: "未配置",
       clear: "清除",
+      loadError: "加载设置失败",
+      saveError: "保存失败",
+    },
+    photosTab: {
+      description: "通过聊天或已连接的 bridge 收到的照片的隐私设置。EXIF 位置数据敏感 — 取消勾选可关闭自动捕获。",
+      autoCaptureLabel: "自动捕获照片位置数据",
+      autoCaptureHint: "开启时,所有带 EXIF GPS 的上传图片会在 data/locations/ 生成位置 sidecar。关闭后不再自动捕获,但 LLM 仍可在需要时手动读取 EXIF。",
+      statusOn: "自动捕获已开启",
+      statusOff: "自动捕获已关闭",
       loadError: "加载设置失败",
       saveError: "保存失败",
     },

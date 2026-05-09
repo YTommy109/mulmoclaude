@@ -146,6 +146,7 @@ const ptBRMessages = {
       dirs: "Diretórios",
       refs: "Diretórios de referência",
       map: "Mapa",
+      photos: "Fotos",
     },
     mapTab: {
       description: "Define a chave da API do Google Maps usada pelo plugin de mapa. A chave fica salva localmente e só é enviada para o Google Maps.",
@@ -156,6 +157,17 @@ const ptBRMessages = {
       configured: "Configurada",
       notConfigured: "Não configurada",
       clear: "Limpar",
+      loadError: "Falha ao carregar as configurações",
+      saveError: "Falha ao salvar",
+    },
+    photosTab: {
+      description:
+        "Controles de privacidade para fotos recebidas pelo chat ou por um bridge conectado. Os dados de localização EXIF são sensíveis — desmarque para desativar a captura automática.",
+      autoCaptureLabel: "Capturar automaticamente a localização das fotos",
+      autoCaptureHint:
+        "Ativado: cada imagem enviada com GPS no EXIF gera um sidecar de localização em data/locations/. Desativado: nada é capturado automaticamente; o LLM ainda pode extrair EXIF manualmente.",
+      statusOn: "Captura automática ATIVADA",
+      statusOff: "Captura automática DESATIVADA",
       loadError: "Falha ao carregar as configurações",
       saveError: "Falha ao salvar",
     },
