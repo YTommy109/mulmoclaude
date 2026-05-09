@@ -23,22 +23,65 @@ import exifr from "exifr";
  *  rely on `lat` + `lng` being absent together (never one without
  *  the other). */
 export interface PhotoExif {
+  // ── Location ────────────────────────────────────────────────
   /** Latitude in WGS84 decimal degrees. */
   lat?: number;
   /** Longitude in WGS84 decimal degrees. */
   lng?: number;
   /** GPS altitude in metres above sea level. */
   altitude?: number;
+  /** Horizontal positioning error in metres (smaller = more
+   *  accurate). Useful for rendering an accuracy circle on a map
+   *  rather than a point. iPhone fills this in. */
+  hPositioningError?: number;
+  /** Compass heading the camera was pointing, in degrees from true
+   *  north (0 = N, 90 = E, …). Useful for "which way was I looking"
+   *  on a map view. */
+  heading?: number;
+  /** Speed in km/h when the photo was taken. Almost always 0 for a
+   *  stationary shutter, but non-zero on photos snapped from a
+   *  moving train / car / plane. */
+  speed?: number;
+
+  // ── Time ────────────────────────────────────────────────────
   /** ISO 8601 capture timestamp (UTC). exifr normalises any of the
    *  three EXIF date fields (DateTimeOriginal / DateTime /
    *  CreateDate) to a JS Date — we serialise to ISO for storage. */
   takenAt?: string;
+
+  // ── Body + lens ─────────────────────────────────────────────
   /** Camera make (e.g. "Apple"). */
   make?: string;
   /** Camera model (e.g. "iPhone 15 Pro"). */
   model?: string;
   /** Lens model (e.g. "iPhone 15 Pro back triple camera"). */
   lens?: string;
+  /** Editing software ("Photos 5.0", "Adobe Lightroom"). */
+  software?: string;
+
+  // ── Exposure (the photographic basics) ──────────────────────
+  /** Shutter speed in seconds (e.g. 0.008333 = 1/120). */
+  exposureTime?: number;
+  /** Aperture f-number (e.g. 1.78). */
+  fNumber?: number;
+  /** ISO sensitivity (e.g. 64). */
+  iso?: number;
+  /** Focal length in mm (sensor-native, NOT 35mm-equivalent). */
+  focalLength?: number;
+  /** Focal length normalised to 35mm-equivalent — the comparable
+   *  number across sensors of different sizes. */
+  focalLength35mm?: number;
+  /** True when the flash actually fired. The EXIF Flash byte's
+   *  bit 0 ("Flash fired") is what we surface; the rest of the
+   *  byte (return mode, red-eye, etc.) is dropped. */
+  flashFired?: boolean;
+
+  // ── Image ───────────────────────────────────────────────────
+  /** Pixel width — handy for sizing a thumbnail without decoding
+   *  the bytes. */
+  width?: number;
+  /** Pixel height. */
+  height?: number;
   /** Image orientation (1-8 per the EXIF spec) — useful when a
    *  later view renders the photo without going through a tag-aware
    *  decoder. */
@@ -132,31 +175,109 @@ export async function readPhotoExif(absPath: string, parser: ExifParser = defaul
   return projectExif(raw as Record<string, unknown>);
 }
 
-/** Coords + altitude. exifr surfaces `latitude` / `longitude` /
- *  `GPSAltitude` from the GPS group. */
-function pickGps(record: Record<string, unknown>): Pick<PhotoExif, "lat" | "lng" | "altitude"> {
-  const out: Pick<PhotoExif, "lat" | "lng" | "altitude"> = {};
+/** Keep finite numbers in a 0…max range; otherwise undefined. Used
+ *  for fields like ISO / heading / focal length where exifr might
+ *  hand back a sentinel `0` for an unparseable tag. */
+function pickFiniteNumber(value: unknown, opts?: { min?: number; max?: number }): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  if (opts?.min !== undefined && value < opts.min) return undefined;
+  if (opts?.max !== undefined && value > opts.max) return undefined;
+  return value;
+}
+
+/** Coords + altitude + GPS extras. exifr surfaces these from the
+ *  GPS group: `latitude`/`longitude` are derived (lat/lng/Ref/Ref
+ *  → decimal), the rest are 1:1 tag renames. */
+function pickGps(record: Record<string, unknown>): Pick<PhotoExif, "lat" | "lng" | "altitude" | "hPositioningError" | "heading" | "speed"> {
+  const out: Pick<PhotoExif, "lat" | "lng" | "altitude" | "hPositioningError" | "heading" | "speed"> = {};
   if (isValidCoord(record.latitude, record.longitude)) {
     out.lat = record.latitude as number;
     out.lng = record.longitude as number;
   }
-  if (typeof record.GPSAltitude === "number" && Number.isFinite(record.GPSAltitude)) {
-    out.altitude = record.GPSAltitude;
-  }
+  const altitude = pickFiniteNumber(record.GPSAltitude);
+  if (altitude !== undefined) out.altitude = altitude;
+  const hError = pickFiniteNumber(record.GPSHPositioningError, { min: 0 });
+  if (hError !== undefined) out.hPositioningError = hError;
+  const heading = pickFiniteNumber(record.GPSImgDirection, { min: 0, max: 360 });
+  if (heading !== undefined) out.heading = heading;
+  const speed = pickFiniteNumber(record.GPSSpeed, { min: 0 });
+  if (speed !== undefined) out.speed = speed;
   return out;
 }
 
-/** Camera identification — Make / Model / LensModel. Empty strings
- *  drop out (exifr returns `""` for tags present but blank). */
-function pickCamera(record: Record<string, unknown>): Pick<PhotoExif, "make" | "model" | "lens"> {
-  const out: Pick<PhotoExif, "make" | "model" | "lens"> = {};
+/** Camera identification — Make / Model / LensModel / Software.
+ *  Empty strings drop out (exifr returns `""` for tags present but
+ *  blank). */
+function pickCamera(record: Record<string, unknown>): Pick<PhotoExif, "make" | "model" | "lens" | "software"> {
+  const out: Pick<PhotoExif, "make" | "model" | "lens" | "software"> = {};
   const make = pickString(record, "Make");
   if (make) out.make = make;
   const model = pickString(record, "Model");
   if (model) out.model = model;
   const lens = pickString(record, "LensModel");
   if (lens) out.lens = lens;
+  const software = pickString(record, "Software");
+  if (software) out.software = software;
   return out;
+}
+
+/** Exposure-triangle fields + flash + focal length. The four
+ *  "what camera settings did this photo use" basics — useful for
+ *  filtering ("show me my low-light shots") and for an EXIF info
+ *  panel later. */
+function pickExposure(record: Record<string, unknown>): Pick<PhotoExif, "exposureTime" | "fNumber" | "iso" | "focalLength" | "focalLength35mm" | "flashFired"> {
+  const out: Pick<PhotoExif, "exposureTime" | "fNumber" | "iso" | "focalLength" | "focalLength35mm" | "flashFired"> = {};
+  const exposureTime = pickFiniteNumber(record.ExposureTime, { min: 0 });
+  if (exposureTime !== undefined) out.exposureTime = exposureTime;
+  const fNumber = pickFiniteNumber(record.FNumber, { min: 0 });
+  if (fNumber !== undefined) out.fNumber = fNumber;
+  // exifr normalises both `ISO` (newer) and `ISOSpeedRatings`
+  // (older) to a top-level `ISO` field.
+  const iso = pickFiniteNumber(record.ISO, { min: 0 });
+  if (iso !== undefined) out.iso = iso;
+  const focal = pickFiniteNumber(record.FocalLength, { min: 0 });
+  if (focal !== undefined) out.focalLength = focal;
+  const focal35 = pickFiniteNumber(record.FocalLengthIn35mmFormat, { min: 0 });
+  if (focal35 !== undefined) out.focalLength35mm = focal35;
+  // exifr post-processes `Flash` into either an object (default) or
+  // a number depending on options. We accept either: object → read
+  // `.flashfired`/`.flash`, number → bit 0 of the EXIF Flash byte.
+  const fired = readFlashFired(record.Flash);
+  if (fired !== undefined) out.flashFired = fired;
+  return out;
+}
+
+/** Read the "flash actually fired" bit from exifr's Flash output —
+ *  may be a number (raw EXIF Flash byte; bit 0 = fired) or an
+ *  object (post-processed; `.flash` / `.fired` / `.flashfired` in
+ *  various exifr versions). */
+function readFlashFired(value: unknown): boolean | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return (value & 1) === 1;
+  }
+  if (typeof value === "object" && value !== null) {
+    const obj = value as Record<string, unknown>;
+    const candidates = [obj.flashfired, obj.fired, obj.flash];
+    for (const candidate of candidates) {
+      if (typeof candidate === "boolean") return candidate;
+    }
+  }
+  return undefined;
+}
+
+/** Image dimensions. exifr surfaces both `ExifImageWidth` /
+ *  `ExifImageHeight` (from the EXIF block) and `ImageWidth` /
+ *  `ImageHeight` (from the TIFF block) — prefer the EXIF block
+ *  (post-rotation, what a viewer would actually display).
+ *  width / height are stored as a pair: a record with only one
+ *  of the two is meaningless (a width-without-height won't help
+ *  any consumer compute aspect ratio), so both must validate
+ *  cleanly or we drop both. */
+function pickImage(record: Record<string, unknown>): Pick<PhotoExif, "width" | "height"> {
+  const width = pickFiniteNumber(record.ExifImageWidth, { min: 1 }) ?? pickFiniteNumber(record.ImageWidth, { min: 1 });
+  const height = pickFiniteNumber(record.ExifImageHeight, { min: 1 }) ?? pickFiniteNumber(record.ImageHeight, { min: 1 });
+  if (width === undefined || height === undefined) return {};
+  return { width, height };
 }
 
 /** Pure projection: take the raw exifr output and pluck the fields
@@ -168,6 +289,8 @@ export function projectExif(record: Record<string, unknown>): PhotoExif | null {
   const result: PhotoExif = {
     ...pickGps(record),
     ...pickCamera(record),
+    ...pickExposure(record),
+    ...pickImage(record),
     ...(takenAt !== undefined ? { takenAt } : {}),
     ...(orientation !== undefined ? { orientation } : {}),
   };
