@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { registerSaveAttachmentHook, saveAttachment } from "../../server/utils/files/attachment-store.js";
-import { capturePhotoLocation } from "../../server/workspace/photo-locations/index.js";
+import { capturePhotoLocation, sidecarPathForAttachment } from "../../server/workspace/photo-locations/index.js";
 import { WORKSPACE_PATHS } from "../../server/workspace/paths.js";
 import { saveSettings } from "../../server/system/config.js";
 
@@ -58,7 +58,7 @@ describe("photo-locations hook — saveAttachment integration", () => {
     const unregister = registerSaveAttachmentHook(makeHookWithStubParser(() => Promise.resolve(FAKE_EXIF)));
     try {
       const saved = await saveAttachment(ONE_PIXEL_PNG_BASE64, "image/jpeg");
-      const sidecarPath = sidecarPathFromSaved(saved.relativePath, workspaceRoot);
+      const sidecarPath = expectedSidecarPath(saved.relativePath);
       assert.ok(existsSync(sidecarPath), `expected sidecar at ${sidecarPath}`);
 
       const sidecar = JSON.parse(readFileSync(sidecarPath, "utf8")) as {
@@ -84,7 +84,7 @@ describe("photo-locations hook — saveAttachment integration", () => {
     const unregister = registerSaveAttachmentHook(makeHookWithStubParser(() => Promise.resolve(FAKE_EXIF)));
     try {
       const saved = await saveAttachment(ONE_PIXEL_PNG_BASE64, "image/jpeg");
-      const sidecarPath = sidecarPathFromSaved(saved.relativePath, workspaceRoot);
+      const sidecarPath = expectedSidecarPath(saved.relativePath);
       assert.equal(existsSync(sidecarPath), false, "no sidecar should be written under opt-out");
     } finally {
       unregister();
@@ -96,7 +96,7 @@ describe("photo-locations hook — saveAttachment integration", () => {
     const unregister = registerSaveAttachmentHook(makeHookWithStubParser(() => Promise.resolve(FAKE_EXIF)));
     try {
       const saved = await saveAttachment(ONE_PIXEL_PNG_BASE64, "application/pdf");
-      const sidecarPath = sidecarPathFromSaved(saved.relativePath, workspaceRoot);
+      const sidecarPath = expectedSidecarPath(saved.relativePath);
       assert.equal(existsSync(sidecarPath), false, "non-image attachments must not get a sidecar");
     } finally {
       unregister();
@@ -108,7 +108,7 @@ describe("photo-locations hook — saveAttachment integration", () => {
     const unregister = registerSaveAttachmentHook(makeHookWithStubParser(() => Promise.resolve({})));
     try {
       const saved = await saveAttachment(ONE_PIXEL_PNG_BASE64, "image/jpeg");
-      const sidecarPath = sidecarPathFromSaved(saved.relativePath, workspaceRoot);
+      const sidecarPath = expectedSidecarPath(saved.relativePath);
       assert.equal(existsSync(sidecarPath), false);
     } finally {
       unregister();
@@ -121,7 +121,7 @@ describe("photo-locations hook — saveAttachment integration", () => {
     try {
       const saved = await saveAttachment(ONE_PIXEL_PNG_BASE64, "image/jpeg");
       assert.ok(saved.relativePath.startsWith("data/attachments/"));
-      const sidecarPath = sidecarPathFromSaved(saved.relativePath, workspaceRoot);
+      const sidecarPath = expectedSidecarPath(saved.relativePath);
       assert.equal(existsSync(sidecarPath), false);
     } finally {
       unregister();
@@ -133,7 +133,7 @@ describe("photo-locations hook — saveAttachment integration", () => {
     const unregister = registerSaveAttachmentHook(capturePhotoLocation);
     try {
       const saved = await saveAttachment(ONE_PIXEL_PNG_BASE64, "image/png");
-      const sidecarPath = sidecarPathFromSaved(saved.relativePath, workspaceRoot);
+      const sidecarPath = expectedSidecarPath(saved.relativePath);
       // No EXIF in a 1px PNG → no sidecar. This proves the
       // production hook is wired and the no-EXIF path is graceful.
       assert.equal(existsSync(sidecarPath), false);
@@ -143,11 +143,14 @@ describe("photo-locations hook — saveAttachment integration", () => {
   });
 });
 
-function sidecarPathFromSaved(relativePath: string, workspaceRoot: string): string {
-  // [data, attachments, YYYY, MM, <id>.<ext>]
-  const [, , year, month, filename] = relativePath.split("/");
-  const sidecarBase = filename.replace(/\.[^.]+$/, "");
-  return path.join(workspaceRoot, "data/locations", year, month, `${sidecarBase}.json`);
+/** Wrap the production helper so tests fail clearly when the
+ *  partition derivation hits its "skip" branch (ret === null) — the
+ *  test fixtures always produce well-shaped paths, so a null return
+ *  here means an upstream regression, not a runtime concern. */
+function expectedSidecarPath(relativePath: string): string {
+  const sidecarPath = sidecarPathForAttachment(relativePath);
+  assert.ok(sidecarPath, `expected sidecarPathForAttachment to derive a path for ${relativePath}`);
+  return sidecarPath;
 }
 
 /** Build a hook that runs the same shape as `capturePhotoLocation`

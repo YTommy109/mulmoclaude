@@ -82,6 +82,40 @@ export function capturePhotoLocation(absPhotoPath: string, attachmentRelativePat
   return capturePhotoLocationWithParser(absPhotoPath, attachmentRelativePath, mimeType);
 }
 
+/** Gate check: should we even try to read EXIF for this MIME, given
+ *  the user's auto-capture setting? Pure — no I/O. */
+function shouldCapture(mimeType: string): boolean {
+  if (!isExifSupportedMime(mimeType)) return false;
+  return isPhotoExifAutoCaptureEnabled(loadSettings());
+}
+
+/** Read EXIF, swallowing parser errors as `null`. The hook never
+ *  fails the upload — a thrown parser is just "skip the sidecar". */
+async function readExifSafe(absPhotoPath: string, attachmentRelativePath: string, parser: ExifParser | undefined): Promise<PhotoExif | null> {
+  try {
+    return await readPhotoExif(absPhotoPath, parser);
+  } catch (err) {
+    log.warn("photo-locations", "exif parse threw — skipping sidecar", { path: attachmentRelativePath, error: String(err) });
+    return null;
+  }
+}
+
+/** Write the sidecar JSON, creating parent dirs as needed. Failures
+ *  are logged but never thrown — the photo upload already succeeded
+ *  by the time this runs. */
+async function writeSidecarSafe(sidecarPath: string, payload: PhotoLocationSidecar): Promise<void> {
+  try {
+    await mkdir(path.dirname(sidecarPath), { recursive: true });
+    await writeFileAtomic(sidecarPath, `${JSON.stringify(payload, null, 2)}\n`, { mode: SIDECAR_FILE_MODE });
+    log.info("photo-locations", "sidecar written", {
+      attachment: payload.photo.relativePath,
+      hasGps: payload.exif.lat !== undefined && payload.exif.lng !== undefined,
+    });
+  } catch (err) {
+    log.warn("photo-locations", "sidecar write failed", { attachmentRelativePath: payload.photo.relativePath, error: String(err) });
+  }
+}
+
 /** Parser-injectable variant. Production code uses
  *  `capturePhotoLocation`; tests reach for this overload to swap
  *  exifr for a stub so they don't need a JPEG fixture. */
@@ -91,44 +125,21 @@ export async function capturePhotoLocationWithParser(
   mimeType: string,
   parser?: ExifParser,
 ): Promise<void> {
-  if (!isExifSupportedMime(mimeType)) return;
-  if (!isPhotoExifAutoCaptureEnabled(loadSettings())) return;
-
-  let exif: PhotoExif | null;
-  try {
-    exif = await readPhotoExif(absPhotoPath, parser);
-  } catch (err) {
-    log.warn("photo-locations", "exif parse threw — skipping sidecar", { path: attachmentRelativePath, error: String(err) });
-    return;
-  }
+  if (!shouldCapture(mimeType)) return;
+  const exif = await readExifSafe(absPhotoPath, attachmentRelativePath, parser);
   if (!exif) return;
-
   const sidecarPath = sidecarPathForAttachment(attachmentRelativePath);
   if (!sidecarPath) {
     log.warn("photo-locations", "could not derive sidecar path — skipping", { attachmentRelativePath });
     return;
   }
-
   const payload: PhotoLocationSidecar = {
     version: 1,
-    photo: {
-      relativePath: attachmentRelativePath,
-      mimeType,
-    },
+    photo: { relativePath: attachmentRelativePath, mimeType },
     exif,
     capturedAt: new Date().toISOString(),
   };
-
-  try {
-    await mkdir(path.dirname(sidecarPath), { recursive: true });
-    await writeFileAtomic(sidecarPath, `${JSON.stringify(payload, null, 2)}\n`, { mode: SIDECAR_FILE_MODE });
-    log.info("photo-locations", "sidecar written", {
-      attachment: attachmentRelativePath,
-      hasGps: exif.lat !== undefined && exif.lng !== undefined,
-    });
-  } catch (err) {
-    log.warn("photo-locations", "sidecar write failed", { attachmentRelativePath, error: String(err) });
-  }
+  await writeSidecarSafe(sidecarPath, payload);
 }
 
 // `WORKSPACE_DIRS.locations` is referenced for typing-side
