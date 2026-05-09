@@ -131,6 +131,15 @@ runMemoryMigrationOnce(workspacePath)
 
 let sandboxEnabled = false;
 
+// --- Photo-EXIF capture hook (#1222 PR-A) ---
+// Registered at module load (NOT inside `startRuntimeServices`)
+// because uploads can land in the gap between `app.listen` accepting
+// connections and the runtime-services bootstrap finishing. The hook
+// itself short-circuits on non-image MIME / auto-capture opt-out, so
+// registering early is free for non-photo flows. (CodeRabbit review
+// on PR #1247.)
+registerSaveAttachmentHook(capturePhotoLocation);
+
 const app = express();
 
 app.disable("x-powered-by");
@@ -698,12 +707,6 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // legacy wrapper or plugin-runtime — triggers the same fan-out the
   // legacy `publishNotification()` did inline before PR 4.
   startLegacyAdapters({ pushToBridge: chatService.pushToBridge });
-
-  // --- Photo-EXIF capture hook (#1222 PR-A) ---
-  // Runs after every saved attachment. The hook itself decides
-  // whether to act (image MIME + auto-capture enabled) — the
-  // registration is unconditional.
-  registerSaveAttachmentHook(capturePhotoLocation);
 
   // --- Plugin META aggregator diagnostics ---
   // After the notifier engine is initialized so the wrapper has a
