@@ -996,6 +996,14 @@ const jaMessages = {
       clearFilter: "フィルタを解除",
     },
   },
+  photoLocations: {
+    title: "写真の位置情報",
+    summary: "{total} 件取得済 · {withGps} 件 GPS あり",
+    mapHint: "Claude に「地図に表示して」と依頼すると、Google Map プラグインで一括表示できます。",
+    loading: "読み込み中…",
+    empty: "まだ写真の位置情報がありません。GPS タグ付きの写真をチャットまたは接続済 bridge 経由で送ると蓄積が始まります。",
+    noGps: "GPS データなし",
+  },
   pluginManageSkills: {
     deleteProjectSkill: "このプロジェクト限定スキルを削除",
     heading: "スキル",

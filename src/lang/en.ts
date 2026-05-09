@@ -995,6 +995,14 @@ const enMessages = {
       clearFilter: "Clear filter",
     },
   },
+  photoLocations: {
+    title: "Photo locations",
+    summary: "{total} captured · {withGps} with GPS",
+    mapHint: 'Ask Claude "show these on a map" to plot them with the Google Map plugin.',
+    loading: "Loading…",
+    empty: "No photo locations captured yet. Send a geotagged photo via chat or a connected bridge to get started.",
+    noGps: "No GPS data",
+  },
   pluginManageSkills: {
     deleteProjectSkill: "Delete this project-scope skill",
     heading: "Skills",

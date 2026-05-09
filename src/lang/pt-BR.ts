@@ -999,6 +999,14 @@ const ptBRMessages = {
       clearFilter: "Limpar filtro",
     },
   },
+  photoLocations: {
+    title: "Localizações das fotos",
+    summary: "{total} capturadas · {withGps} com GPS",
+    mapHint: 'Peça ao Claude "mostre no mapa" para plotá-las com o plugin do Google Map.',
+    loading: "Carregando…",
+    empty: "Nenhuma localização capturada ainda. Envie uma foto com tag GPS pelo chat ou por um bridge conectado para começar.",
+    noGps: "Sem dados GPS",
+  },
   pluginManageSkills: {
     deleteProjectSkill: "Excluir esta skill de projeto",
     heading: "Skills",

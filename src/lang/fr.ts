@@ -1004,6 +1004,14 @@ const frMessages = {
       clearFilter: "Effacer le filtre",
     },
   },
+  photoLocations: {
+    title: "Emplacements des photos",
+    summary: "{total} capturées · {withGps} avec GPS",
+    mapHint: "Demandez à Claude « affiche-les sur la carte » pour les tracer avec le plugin Google Map.",
+    loading: "Chargement…",
+    empty: "Aucun emplacement capturé pour le moment. Envoyez une photo avec balise GPS via le chat ou un bridge connecté pour commencer.",
+    noGps: "Pas de données GPS",
+  },
   pluginManageSkills: {
     deleteProjectSkill: "Supprimer cette skill de projet",
     heading: "Skills",
