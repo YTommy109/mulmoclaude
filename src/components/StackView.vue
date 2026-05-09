@@ -72,10 +72,10 @@
           <component
             :is="getPlugin(result.toolName)?.viewComponent"
             v-if="getPlugin(result.toolName)?.viewComponent"
-            :key="`${result.uuid}-${googleMapKey ?? ''}`"
+            :key="`${result.uuid}-${googleMapKeyFor(result.toolName) ?? ''}`"
             :selected-result="result"
             :send-text-message="sendTextMessage"
-            :google-map-key="googleMapKey"
+            :google-map-key="googleMapKeyFor(result.toolName)"
             @update-result="(r: ToolResultComplete) => emit('updateResult', r)"
           />
         </div>
@@ -85,10 +85,10 @@
           <component
             :is="getPlugin(result.toolName)?.viewComponent"
             v-if="getPlugin(result.toolName)?.viewComponent"
-            :key="`${result.uuid}-${googleMapKey ?? ''}`"
+            :key="`${result.uuid}-${googleMapKeyFor(result.toolName) ?? ''}`"
             :selected-result="result"
             :send-text-message="sendTextMessage"
-            :google-map-key="googleMapKey"
+            :google-map-key="googleMapKeyFor(result.toolName)"
             @update-result="(r: ToolResultComplete) => emit('updateResult', r)"
           />
           <pre v-else class="h-full overflow-auto p-4 text-xs text-gray-500 whitespace-pre-wrap">{{ JSON.stringify(result, null, 2) }}</pre>
@@ -102,6 +102,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { getPlugin } from "../tools";
+import { TOOL_NAMES } from "../config/toolNames";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { View as TextResponseOriginalView } from "../plugins/textResponse/index";
 import { handleExternalLinkClick } from "../utils/dom/externalLink";
@@ -165,6 +166,15 @@ const props = defineProps<{
    *  `<component :is>` mount. */
   googleMapKey?: string | null;
 }>();
+
+// Scope `googleMapKey` to the `mapControl` plugin only — without
+// this gate, every plugin View in the stack receives the Google
+// Maps API key as a prop and a hostile third-party plugin could
+// declare a matching prop to exfiltrate the key. Codex security
+// review on PR #1241 caught this.
+function googleMapKeyFor(toolName: string): string | null {
+  return toolName === TOOL_NAMES.mapControl ? (props.googleMapKey ?? null) : null;
+}
 
 const emit = defineEmits<{
   select: [uuid: string];

@@ -138,10 +138,10 @@
             <component
               :is="getPlugin(selectedResult.toolName)?.viewComponent"
               v-if="selectedResult && getPlugin(selectedResult.toolName)?.viewComponent"
-              :key="`${selectedResult.uuid ?? ''}-${googleMapsApiKey ?? ''}`"
+              :key="`${selectedResult.uuid ?? ''}-${googleMapKeyFor(selectedResult.toolName) ?? ''}`"
               :selected-result="selectedResult"
               :send-text-message="sendMessage"
-              :google-map-key="googleMapsApiKey"
+              :google-map-key="googleMapKeyFor(selectedResult.toolName)"
               @update-result="handleUpdateResult"
             />
             <div v-else-if="selectedResult" class="h-full overflow-auto p-6">
@@ -332,6 +332,7 @@ import { provideActiveSession } from "./composables/useActiveSession";
 import { useRoute, useRouter } from "vue-router";
 import { apiGet } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
+import { TOOL_NAMES } from "./config/toolNames";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
 
 const { t, locale } = useI18n();
@@ -613,11 +614,14 @@ const selectedResult = computed(() => toolResults.value.find((result) => result.
 const debugViewComponent = computed(() => getPlugin("manageDebug")?.viewComponent ?? null);
 
 // Google Maps API key from `AppSettings.googleMapsApiKey`. Fetched
-// once on mount and refreshed whenever Settings reports a save. The
-// `mapControl` plugin's View accepts `googleMapKey` as a prop;
-// other plugins ignore the fallthrough attribute. Null when the user
-// has not configured a key — the upstream View shows a "not
-// configured" placeholder and a fallback "Open in Google Maps" link.
+// once on mount and refreshed whenever Settings reports a save.
+//
+// **Scoping**: the key is forwarded ONLY to the `mapControl` plugin
+// view (= `@gui-chat-plugin/google-map`). Forwarding it to every
+// plugin's `<component :is>` mount would let any third-party
+// runtime plugin declare a `googleMapKey` prop and read the key.
+// `googleMapKeyFor(toolName)` is the gate every binding goes
+// through.
 const googleMapsApiKey = ref<string | null>(null);
 async function refreshGoogleMapsApiKey(): Promise<void> {
   const response = await apiGet<{ settings: { extraAllowedTools: string[]; googleMapsApiKey?: string } }>(API_ROUTES.config.base);
@@ -626,6 +630,10 @@ async function refreshGoogleMapsApiKey(): Promise<void> {
   }
 }
 void refreshGoogleMapsApiKey();
+
+function googleMapKeyFor(toolName: string | undefined): string | null {
+  return toolName === TOOL_NAMES.mapControl ? googleMapsApiKey.value : null;
+}
 
 // Centralised session-switch handler: subscribe to the current session's
 // pub/sub channel so we receive real-time events even if the session is

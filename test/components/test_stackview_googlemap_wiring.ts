@@ -30,26 +30,40 @@ test("StackView declares googleMapKey as an optional string prop", () => {
   assert.match(src, /googleMapKey\??:\s*string\s*\|\s*null/, "StackView's defineProps must declare `googleMapKey?: string | null`");
 });
 
-test("StackView forwards googleMapKey on every plugin <component :is> mount", () => {
+test("StackView forwards googleMapKey via the gating helper on every plugin <component :is> mount", () => {
   const src = readSource("src/components/StackView.vue");
-  // Count occurrences of the binding. The template has TWO render
-  // branches (stack-natural + fixed-height), each must forward.
-  const matches = src.match(/:google-map-key="googleMapKey"/g) ?? [];
+  // Both render branches must go through `googleMapKeyFor(...)` so
+  // non-mapControl plugins do NOT receive the key (Codex security
+  // review on PR #1241).
+  const matches = src.match(/:google-map-key="googleMapKeyFor\(/g) ?? [];
   assert.ok(
     matches.length >= 2,
-    `Expected :google-map-key forwarded in both render branches (>=2 sites); found ${matches.length}.\n` +
-      "If you removed a render branch, drop the assertion threshold; otherwise restore the binding so map cards aren't broken in stack layout.",
+    `Expected :google-map-key bound via googleMapKeyFor() in both render branches (>=2 sites); found ${matches.length}.\n` +
+      'Direct bindings like :google-map-key="googleMapKey" leak the key to every plugin — must go through the gate.',
   );
+  // And ensure the gate itself only releases the key for mapControl.
+  assert.match(src, /TOOL_NAMES\.mapControl[\s\S]*?googleMapKey/, "googleMapKeyFor() must compare toolName against TOOL_NAMES.mapControl");
 });
 
-test("App.vue forwards googleMapsApiKey to StackView and the single-layout component mount", () => {
+test("App.vue forwards googleMapsApiKey to StackView and gates the single-layout component mount by toolName", () => {
   const src = readSource("src/App.vue");
-  // Single layout: directly on the dynamic <component :is>.
-  assert.match(src, /:google-map-key="googleMapsApiKey"/, "App.vue must bind :google-map-key on the chat tool result <component :is> mount");
-  // Stack layout: as an attribute on the StackView usage.
+  // Single layout: through the gating helper, NOT a raw binding.
+  assert.match(
+    src,
+    /:google-map-key="googleMapKeyFor\(selectedResult\.toolName\)"/,
+    "App.vue must bind :google-map-key via googleMapKeyFor() in the single-layout dynamic <component> mount — direct binding leaks the key to non-map plugins",
+  );
+  // The gating helper itself.
+  assert.match(
+    src,
+    /TOOL_NAMES\.mapControl\s*\?\s*googleMapsApiKey\.value\s*:\s*null/,
+    "App.vue must define googleMapKeyFor() that gates by TOOL_NAMES.mapControl",
+  );
+  // Stack layout: forwards the raw key to <StackView>; StackView
+  // applies the same per-result gate internally.
   assert.match(
     src,
     /<StackView[\s\S]*?:google-map-key="googleMapsApiKey"[\s\S]*?\/>/,
-    "App.vue must forward :google-map-key to <StackView> so stack-layout map cards receive the configured key",
+    "App.vue must forward :google-map-key to <StackView> so stack-layout map cards can receive the configured key (StackView applies the per-result gate)",
   );
 });
