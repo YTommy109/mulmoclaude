@@ -36,6 +36,8 @@ import { createNotificationsRouter } from "./api/routes/notifications.js";
 import { startLegacyAdapters } from "./notifier/legacy-adapters.js";
 import notifierRoutes from "./api/routes/notifier.js";
 import { initNotifier } from "./notifier/engine.js";
+import { registerSaveAttachmentHook } from "./utils/files/attachment-store.js";
+import { capturePhotoLocation } from "./workspace/photo-locations/index.js";
 import { createJournalRouter } from "./api/routes/journal.js";
 import { createTranslationRouter } from "./api/routes/translation.js";
 import { announcePluginMetaDiagnostics } from "./plugins/diagnostics.js";
@@ -128,6 +130,15 @@ runMemoryMigrationOnce(workspacePath)
   .then(noop, noop);
 
 let sandboxEnabled = false;
+
+// --- Photo-EXIF capture hook (#1222 PR-A) ---
+// Registered at module load (NOT inside `startRuntimeServices`)
+// because uploads can land in the gap between `app.listen` accepting
+// connections and the runtime-services bootstrap finishing. The hook
+// itself short-circuits on non-image MIME / auto-capture opt-out, so
+// registering early is free for non-photo flows. (CodeRabbit review
+// on PR #1247.)
+registerSaveAttachmentHook(capturePhotoLocation);
 
 const app = express();
 
