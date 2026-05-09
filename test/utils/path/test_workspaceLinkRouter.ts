@@ -121,6 +121,39 @@ describe("classifyWorkspacePath", () => {
       const result = classifyWorkspacePath(raw);
       assert.deepEqual(result, { kind: "file", path: raw });
     });
+
+    // Decoding before normalization means encoded structural tokens
+    // (`%2F` for `/`, `%2E%2E` for `..`) get reinterpreted as path
+    // structure rather than treated as literal filename bytes. The
+    // tests below pin that behaviour so a future "stop decoding"
+    // regression — or the inverse, decoding twice — is caught
+    // immediately. The same decode also runs through the
+    // normalizePath root-escape gate, so traversal attempts via
+    // encoded `..` still return null instead of broadening reach
+    // past the workspace root.
+
+    it("decoded %2F splits into path segments (not a literal filename byte)", () => {
+      // After decode the href becomes "data/some/foo/bar.md" — the
+      // wiki regex rejects it (multi-segment under wiki/pages would
+      // not match `[^/]+`), but a generic file path is still routed.
+      const result = classifyWorkspacePath("data/some/foo%2Fbar.md");
+      assert.deepEqual(result, { kind: "file", path: "data/some/foo/bar.md" });
+    });
+
+    it("decoded %2E%2E (..) is normalized away within workspace", () => {
+      // "data/wiki/pages/%2E%2E/sources/foo.md" → "data/wiki/pages/../sources/foo.md"
+      //   → normalizePath collapses to "data/wiki/sources/foo.md".
+      const result = classifyWorkspacePath("data/wiki/pages/%2E%2E/sources/foo.md");
+      assert.deepEqual(result, { kind: "file", path: "data/wiki/sources/foo.md" });
+    });
+
+    it("decoded %2E%2E that escapes workspace root still returns null", () => {
+      // "%2E%2E/%2E%2E/etc/passwd" → "../../etc/passwd" → normalizePath
+      // pops past root → null. Decoding does not widen the traversal
+      // surface beyond what a literal `..` href could already reach.
+      const result = classifyWorkspacePath("%2E%2E/%2E%2E/etc/passwd");
+      assert.equal(result, null);
+    });
   });
 
   // ── Null returns (external / invalid) ─────────────────────

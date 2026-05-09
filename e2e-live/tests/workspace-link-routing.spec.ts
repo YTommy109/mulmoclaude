@@ -61,6 +61,16 @@ test.describe("workspace link routing (real workspace)", () => {
     // itself must arrive on the canvas as a clickable <a>; if the
     // LLM prefixes it with "Here is the link:" we still get an <a>
     // because the prompt asks for the markdown form verbatim.
+    //
+    // Brittleness note: this depends on the LLM honouring the echo
+    // instruction. The selector below tolerates leading prose
+    // (matches by encoded href suffix, not visible text) but cannot
+    // recover if the model wraps the link in a code fence or makes
+    // a tool call instead of replying with text. The repo runs
+    // e2e-live with `retries: 0` deliberately — flakes here should
+    // be diagnosed (prompt drift, model regression) rather than
+    // papered over. Bump the inner timeouts before reaching for
+    // retries.
     const userPrompt = [
       "次のテキストを 1 行だけそのまま返答してください。説明・前置き・引用符・コードブロックは付けないでください。",
       `[${filename}](${relativePath})`,
