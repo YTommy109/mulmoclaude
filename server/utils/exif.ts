@@ -125,33 +125,48 @@ export async function readPhotoExif(absPath: string, parser: ExifParser = defaul
   return projectExif(raw as Record<string, unknown>);
 }
 
+/** Coords + altitude. exifr surfaces `latitude` / `longitude` /
+ *  `GPSAltitude` from the GPS group. */
+function pickGps(record: Record<string, unknown>): Pick<PhotoExif, "lat" | "lng" | "altitude"> {
+  const out: Pick<PhotoExif, "lat" | "lng" | "altitude"> = {};
+  if (isValidCoord(record.latitude, record.longitude)) {
+    out.lat = record.latitude as number;
+    out.lng = record.longitude as number;
+  }
+  if (typeof record.GPSAltitude === "number" && Number.isFinite(record.GPSAltitude)) {
+    out.altitude = record.GPSAltitude;
+  }
+  return out;
+}
+
+/** Camera identification — Make / Model / LensModel. Empty strings
+ *  drop out (exifr returns `""` for tags present but blank). */
+function pickCamera(record: Record<string, unknown>): Pick<PhotoExif, "make" | "model" | "lens"> {
+  const out: Pick<PhotoExif, "make" | "model" | "lens"> = {};
+  const make = pickString(record, "Make");
+  if (make) out.make = make;
+  const model = pickString(record, "Model");
+  if (model) out.model = model;
+  const lens = pickString(record, "LensModel");
+  if (lens) out.lens = lens;
+  return out;
+}
+
 /** Pure projection: take the raw exifr output and pluck the fields
  *  we keep. Exported separately so the hook can run a fake parser
  *  result through the same shaping in tests. */
 export function projectExif(record: Record<string, unknown>): PhotoExif | null {
-  const result: PhotoExif = {};
-  if (isValidCoord(record.latitude, record.longitude)) {
-    result.lat = record.latitude as number;
-    result.lng = record.longitude as number;
-  }
-  if (typeof record.GPSAltitude === "number" && Number.isFinite(record.GPSAltitude)) {
-    result.altitude = record.GPSAltitude;
-  }
   const takenAt = pickDate(record);
-  if (takenAt) result.takenAt = takenAt;
-  const make = pickString(record, "Make");
-  if (make) result.make = make;
-  const model = pickString(record, "Model");
-  if (model) result.model = model;
-  const lens = pickString(record, "LensModel");
-  if (lens) result.lens = lens;
   const orientation = pickOrientation(record);
-  if (orientation !== undefined) result.orientation = orientation;
-
+  const result: PhotoExif = {
+    ...pickGps(record),
+    ...pickCamera(record),
+    ...(takenAt !== undefined ? { takenAt } : {}),
+    ...(orientation !== undefined ? { orientation } : {}),
+  };
   // No useful fields — caller treats the same as "no exif" so the
   // sidecar isn't created with an empty object.
-  if (Object.keys(result).length === 0) return null;
-  return result;
+  return Object.keys(result).length === 0 ? null : result;
 }
 
 /** True when the MIME type is one exifr can read. Image-only — video
