@@ -76,7 +76,25 @@ One regex captures every form:
 
 → `type`, `id`, `shorthand`, `query` capture groups. `URLSearchParams` over `query` produces the params map. Done.
 
-Disambiguation from existing `[[wiki-link]]`: the presence of `:` inside the brackets makes it an embed. No internal page name has `:`, so the discriminator is unambiguous.
+### Disambiguation from existing `[[wiki-link]]`
+
+**Important — the original "presence of `:` ⇒ embed" rule is unsafe** (Codex review on PR #1248). Today's `renderWikiLinks` (`src/plugins/wiki/helpers.ts`) accepts any text inside `[[...]]` except `]]`, and `isSafeWikiSlug` (`src/plugins/wiki/route.ts`) only blocks `/`, `\`, `..` — so a page literally named `foo:bar` is a valid wiki link. Reinterpreting `:` globally as embed syntax would silently change every existing `[[foo:bar]]` link's meaning.
+
+The discriminator is therefore **a closed set of known type prefixes**, not the bare presence of `:`:
+
+| Inside brackets | Treatment |
+|---|---|
+| `[[X:Y...]]` where `X` ∈ `EMBED_TYPES` (`amazon`, `isbn`, `github`, `youtube`, `map`, …) | embed |
+| anything else, including `[[foo:bar]]` where `foo` is not a registered type | wiki page link (unchanged) |
+| `[[X:Y]]` where the user genuinely wants a page named `X:Y` even if `X` is a registered type | escape with backslash: `[[X\:Y]]` (parser strips the `\` for the page-name lookup; reserved `\` is added to the wiki-link grammar in PR-B together with this rule) |
+
+**Migration & guardrails (PR-B includes):**
+
+1. **Reserved-prefix scan**: at PR-B merge time the wiki render path emits a one-shot **lint warning** in the wiki log when it sees an existing `[[<reserved>:Y]]` link, pointing the user at the escape. Zero behaviour change for them — the link still resolves as a wiki page until they decide.
+2. **Wiki page rename guard**: `manageWiki` save / rename refuses to create a slug whose first `:`-segment is a reserved type prefix, with an error message pointing at the escape. Prevents new collisions after PR-B.
+3. **`EMBED_TYPES` is closed and host-owned**, not user-extensible. Adding a new embed type is a host code change, gated by review — the same review naturally checks "does this collide with any existing wiki page name?"
+
+This converts the discriminator from a global syntactic rule (every `:` ⇒ embed) into a registry lookup (only registered prefixes ⇒ embed), so the backward-compat surface is only as wide as the closed `EMBED_TYPES` set, not "every wiki page that happens to contain `:`".
 
 ### Choices we explicitly reject
 
