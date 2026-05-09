@@ -718,6 +718,13 @@
   resolved "https://registry.yarnpkg.com/@gui-chat-plugin/camera/-/camera-0.4.1.tgz#f127547f19bd89d5135f32dcc179fadebe5562e4"
   integrity sha512-JgMeYubDfX2Ez49SoKGHpVgekNViDtUXUxDm9/F2fuzHD6KqxzmkLHYnmbgP4h8LJP8OB3sgELDItBpkRkeDHA==
 
+"@gui-chat-plugin/google-map@^0.4.0":
+  version "0.4.1"
+  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/google-map/-/google-map-0.4.1.tgz#4cfb63b1b979a955e6602b15256ff32664bfd10c"
+  integrity sha512-l2buyf9f07C6zn9Yh1dR6oUJgBjjp8sFK7EcglxoGxUnmrqNn28vDWAS/uSEPsGWHfO2ZHkNjC0WZ/z39OfbbA==
+  dependencies:
+    gui-chat-protocol "^0.3.3"
+
 "@gui-chat-plugin/mindmap@^0.4.1":
   version "0.4.1"
   resolved "https://registry.yarnpkg.com/@gui-chat-plugin/mindmap/-/mindmap-0.4.1.tgz#547ed008e920d9b579f1f15bc8faeefbd0b9b5e4"

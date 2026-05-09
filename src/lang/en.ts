@@ -166,6 +166,19 @@ const enMessages = {
       mcp: "MCP Servers",
       dirs: "Directories",
       refs: "Reference Dirs",
+      map: "Map",
+    },
+    mapTab: {
+      description: "Set the Google Maps API key used by the map plugin. The key is stored locally and never transmitted anywhere except to Google Maps.",
+      apiKeyLabel: "Google Maps API key",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "Create or copy a key from {consoleLink}.",
+      requiredApis: "Enable: Maps JavaScript API, Geocoding API, Places API (New), Directions API.",
+      configured: "Configured",
+      notConfigured: "Not configured",
+      clear: "Clear",
+      loadError: "Failed to load settings",
+      saveError: "Failed to save",
     },
     // `<i18n-t>` slots — named `envKey` / `envFile` render as inline
     // `<code>` in SettingsModal.vue, so the literal variable and file

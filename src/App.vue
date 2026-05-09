@@ -138,8 +138,10 @@
             <component
               :is="getPlugin(selectedResult.toolName)?.viewComponent"
               v-if="selectedResult && getPlugin(selectedResult.toolName)?.viewComponent"
+              :key="`${selectedResult.uuid ?? ''}-${googleMapKeyFor(selectedResult.toolName) ?? ''}`"
               :selected-result="selectedResult"
               :send-text-message="sendMessage"
+              :google-map-key="googleMapKeyFor(selectedResult.toolName)"
               @update-result="handleUpdateResult"
             />
             <div v-else-if="selectedResult" class="h-full overflow-auto p-6">
@@ -159,6 +161,7 @@
             :session-role-icon="sessionRoleIcon"
             :layout-mode="layoutMode"
             :show-right-sidebar="showRightSidebar"
+            :google-map-key="googleMapsApiKey"
             @select="(uuid) => (selectedResultUuid = uuid)"
             @update-result="handleUpdateResult"
             @update:layout-mode="setLayoutMode"
@@ -254,6 +257,7 @@
       :mcp-tools-error="mcpToolsError"
       @update:open="showSettings = $event"
       @ask-gemini="handleAskGemini"
+      @saved="refreshGoogleMapsApiKey"
     />
   </div>
 </template>
@@ -328,6 +332,7 @@ import { provideActiveSession } from "./composables/useActiveSession";
 import { useRoute, useRouter } from "vue-router";
 import { apiGet } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
+import { TOOL_NAMES } from "./config/toolNames";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
 
 const { t, locale } = useI18n();
@@ -607,6 +612,28 @@ const selectedResult = computed(() => toolResults.value.find((result) => result.
 // reactive, so this computed re-evaluates when the load completes and
 // the /debug branch in the template lights up without a refresh.
 const debugViewComponent = computed(() => getPlugin("manageDebug")?.viewComponent ?? null);
+
+// Google Maps API key from `AppSettings.googleMapsApiKey`. Fetched
+// once on mount and refreshed whenever Settings reports a save.
+//
+// **Scoping**: the key is forwarded ONLY to the `mapControl` plugin
+// view (= `@gui-chat-plugin/google-map`). Forwarding it to every
+// plugin's `<component :is>` mount would let any third-party
+// runtime plugin declare a `googleMapKey` prop and read the key.
+// `googleMapKeyFor(toolName)` is the gate every binding goes
+// through.
+const googleMapsApiKey = ref<string | null>(null);
+async function refreshGoogleMapsApiKey(): Promise<void> {
+  const response = await apiGet<{ settings: { extraAllowedTools: string[]; googleMapsApiKey?: string } }>(API_ROUTES.config.base);
+  if (response.ok) {
+    googleMapsApiKey.value = response.data.settings.googleMapsApiKey ?? null;
+  }
+}
+void refreshGoogleMapsApiKey();
+
+function googleMapKeyFor(toolName: string | undefined): string | null {
+  return toolName === TOOL_NAMES.mapControl ? googleMapsApiKey.value : null;
+}
 
 // Centralised session-switch handler: subscribe to the current session's
 // pub/sub channel so we receive real-time events even if the session is

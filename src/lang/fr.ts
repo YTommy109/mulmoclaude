@@ -145,6 +145,19 @@ const frMessages = {
       mcp: "Serveurs MCP",
       dirs: "Répertoires",
       refs: "Répertoires de référence",
+      map: "Carte",
+    },
+    mapTab: {
+      description: "Définit la clé API Google Maps utilisée par le plugin de carte. La clé est stockée localement et n'est envoyée qu'à Google Maps.",
+      apiKeyLabel: "Clé API Google Maps",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "Créez ou copiez une clé depuis {consoleLink}.",
+      requiredApis: "APIs requises : Maps JavaScript API, Geocoding API, Places API (New), Directions API.",
+      configured: "Configurée",
+      notConfigured: "Non configurée",
+      clear: "Effacer",
+      loadError: "Échec du chargement des paramètres",
+      saveError: "Échec de l'enregistrement",
     },
     // Slots `<i18n-t>` — les noms `envKey` / `envFile` sont rendus sous
     // forme de `<code>` inline dans SettingsModal.vue ; les littéraux

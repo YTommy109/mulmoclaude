@@ -24,6 +24,12 @@ export interface AppSettings {
   //   "mcp__claude_ai_Gmail"
   //   "mcp__claude_ai_Google_Calendar"
   extraAllowedTools: string[];
+
+  // Google Maps JS API key. Pasted via Settings → Map tab and used
+  // by `@gui-chat-plugin/google-map`'s View — passed through as a
+  // prop from `App.vue`. Stored verbatim (local-desktop threat
+  // model, same as Spotify token persistence).
+  googleMapsApiKey?: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = { extraAllowedTools: [] };
@@ -49,30 +55,62 @@ export function ensureConfigsDir(): void {
 
 export function isAppSettings(value: unknown): value is AppSettings {
   if (!isRecord(value)) return false;
-  return isStringArray(value.extraAllowedTools);
+  if (!isStringArray(value.extraAllowedTools)) return false;
+  if (value.googleMapsApiKey !== undefined && typeof value.googleMapsApiKey !== "string") return false;
+  return true;
+}
+
+/** A PUT-payload validator: every field optional, but if present
+ *  it must match the AppSettings shape. Distinct from
+ *  `isAppSettings` (which insists on the full storage shape) so a
+ *  tab that owns one field can patch it without echoing back fields
+ *  it doesn't manage. The PUT handler merges the patch onto the
+ *  current on-disk settings before saving.
+ *
+ *  Why two validators: the storage-shape invariant
+ *  (`extraAllowedTools` is always an array) is preserved by
+ *  `loadSettings` (DEFAULT_SETTINGS) + `saveSettings` (payload
+ *  ensures the array). Loosening the storage validator would
+ *  weaken that guarantee for code reading from `loadSettings`. */
+export function isAppSettingsPatch(value: unknown): value is Partial<AppSettings> {
+  if (!isRecord(value)) return false;
+  if (value.extraAllowedTools !== undefined && !isStringArray(value.extraAllowedTools)) return false;
+  if (value.googleMapsApiKey !== undefined && typeof value.googleMapsApiKey !== "string") return false;
+  return true;
+}
+
+function parseSettingsRaw(raw: string, file: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    log.warn("config", "settings.json is not valid JSON — using defaults", { file, error: String(err) });
+    return null;
+  }
+}
+
+/** Defensive copy — callers shouldn't be able to mutate the file on
+ *  disk by mutating the returned object. New optional fields added
+ *  to `AppSettings` need a line here too (loadSettings is the choke
+ *  point that propagates them). */
+function cloneAppSettings(settings: AppSettings): AppSettings {
+  const copy: AppSettings = { extraAllowedTools: [...settings.extraAllowedTools] };
+  if (settings.googleMapsApiKey !== undefined) {
+    copy.googleMapsApiKey = settings.googleMapsApiKey;
+  }
+  return copy;
 }
 
 export function loadSettings(): AppSettings {
   const file = settingsPath();
   const raw = readTextSafeSync(file);
   if (raw === null) return { ...DEFAULT_SETTINGS };
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    log.warn("config", "settings.json is not valid JSON — using defaults", {
-      file,
-      error: String(err),
-    });
-    return { ...DEFAULT_SETTINGS };
-  }
+  const parsed = parseSettingsRaw(raw, file);
+  if (parsed === null) return { ...DEFAULT_SETTINGS };
   if (!isAppSettings(parsed)) {
     log.warn("config", "settings.json does not match AppSettings schema — using defaults", { file });
     return { ...DEFAULT_SETTINGS };
   }
-  // Defensive copy — callers shouldn't be able to mutate the file on
-  // disk via the returned object.
-  return { extraAllowedTools: [...parsed.extraAllowedTools] };
+  return cloneAppSettings(parsed);
 }
 
 export function saveSettings(settings: AppSettings): void {
@@ -80,7 +118,11 @@ export function saveSettings(settings: AppSettings): void {
     throw new Error("saveSettings: invalid AppSettings shape");
   }
   ensureConfigsDir();
-  const serialised = JSON.stringify({ extraAllowedTools: [...settings.extraAllowedTools] }, null, 2);
+  const payload: AppSettings = { extraAllowedTools: [...settings.extraAllowedTools] };
+  if (settings.googleMapsApiKey !== undefined) {
+    payload.googleMapsApiKey = settings.googleMapsApiKey;
+  }
+  const serialised = JSON.stringify(payload, null, 2);
   writeFileAtomicSync(settingsPath(), `${serialised}\n`, { mode: 0o600 });
 }
 

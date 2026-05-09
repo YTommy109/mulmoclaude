@@ -152,6 +152,19 @@ const koMessages = {
       mcp: "MCP 서버",
       dirs: "디렉터리",
       refs: "참조 디렉터리",
+      map: "지도",
+    },
+    mapTab: {
+      description: "지도 플러그인에서 사용하는 Google Maps API 키를 설정합니다. 키는 로컬에 저장되며 Google Maps 외부로는 전송되지 않습니다.",
+      apiKeyLabel: "Google Maps API 키",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "{consoleLink}에서 키를 만들거나 복사하세요.",
+      requiredApis: "활성화 필요: Maps JavaScript API, Geocoding API, Places API (New), Directions API.",
+      configured: "구성됨",
+      notConfigured: "구성되지 않음",
+      clear: "지우기",
+      loadError: "설정을 불러오지 못했습니다",
+      saveError: "저장에 실패했습니다",
     },
     // `<i18n-t>` 슬롯 — `envKey` / `envFile` 은 SettingsModal.vue 에서
     // 인라인 `<code>` 로 렌더링되므로 변수명·파일명은 번역하지 않고

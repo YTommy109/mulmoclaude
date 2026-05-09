@@ -150,6 +150,19 @@ const jaMessages = {
       mcp: "MCP サーバ",
       dirs: "ディレクトリ",
       refs: "参照ディレクトリ",
+      map: "地図",
+    },
+    mapTab: {
+      description: "地図プラグインで使う Google Maps API キーを設定します。キーはローカルに保存され、Google Maps への通信以外で送信されることはありません。",
+      apiKeyLabel: "Google Maps API キー",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "{consoleLink} でキーを作成またはコピーしてください。",
+      requiredApis: "有効化が必要な API: Maps JavaScript API / Geocoding API / Places API (New) / Directions API",
+      configured: "設定済み",
+      notConfigured: "未設定",
+      clear: "クリア",
+      loadError: "設定の読み込みに失敗しました",
+      saveError: "保存に失敗しました",
     },
     // `<i18n-t>` スロット — `envKey` / `envFile` は SettingsModal.vue で
     // インラインの `<code>` として描画されるため、変数名とファイル名は

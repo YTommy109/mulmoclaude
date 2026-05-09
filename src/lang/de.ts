@@ -146,6 +146,20 @@ const deMessages = {
       mcp: "MCP-Server",
       dirs: "Verzeichnisse",
       refs: "Referenzverzeichnisse",
+      map: "Karte",
+    },
+    mapTab: {
+      description:
+        "Legt den Google-Maps-API-Schlüssel fest, den das Karten-Plugin verwendet. Der Schlüssel wird lokal gespeichert und nur an Google Maps gesendet.",
+      apiKeyLabel: "Google-Maps-API-Schlüssel",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "Erstelle oder kopiere einen Schlüssel aus {consoleLink}.",
+      requiredApis: "Erforderliche APIs: Maps JavaScript API, Geocoding API, Places API (New), Directions API.",
+      configured: "Konfiguriert",
+      notConfigured: "Nicht konfiguriert",
+      clear: "Löschen",
+      loadError: "Einstellungen konnten nicht geladen werden",
+      saveError: "Speichern fehlgeschlagen",
     },
     // `<i18n-t>`-Slots — die Namen `envKey` / `envFile` werden in
     // SettingsModal.vue als Inline-`<code>` gerendert, sodass die
