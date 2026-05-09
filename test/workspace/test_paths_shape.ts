@@ -31,6 +31,7 @@ describe("WORKSPACE_DIRS expected keys", () => {
     "html",
     "htmls",
     "images",
+    "locations",
     "markdowns",
     "memoryDir",
     "memoryStaging",

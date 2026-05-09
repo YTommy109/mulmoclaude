@@ -36,6 +36,8 @@ import { createNotificationsRouter } from "./api/routes/notifications.js";
 import { startLegacyAdapters } from "./notifier/legacy-adapters.js";
 import notifierRoutes from "./api/routes/notifier.js";
 import { initNotifier } from "./notifier/engine.js";
+import { registerSaveAttachmentHook } from "./utils/files/attachment-store.js";
+import { capturePhotoLocation } from "./workspace/photo-locations/index.js";
 import { createJournalRouter } from "./api/routes/journal.js";
 import { createTranslationRouter } from "./api/routes/translation.js";
 import { announcePluginMetaDiagnostics } from "./plugins/diagnostics.js";
@@ -696,6 +698,12 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // legacy wrapper or plugin-runtime — triggers the same fan-out the
   // legacy `publishNotification()` did inline before PR 4.
   startLegacyAdapters({ pushToBridge: chatService.pushToBridge });
+
+  // --- Photo-EXIF capture hook (#1222 PR-A) ---
+  // Runs after every saved attachment. The hook itself decides
+  // whether to act (image MIME + auto-capture enabled) — the
+  // registration is unconditional.
+  registerSaveAttachmentHook(capturePhotoLocation);
 
   // --- Plugin META aggregator diagnostics ---
   // After the notifier engine is initialized so the wrapper has a
