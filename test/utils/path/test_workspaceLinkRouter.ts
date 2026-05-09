@@ -81,18 +81,22 @@ describe("classifyWorkspacePath", () => {
 
   // ── Percent-encoded hrefs ─────────────────────────────────
   // marked.parse encodes multi-byte chars in <a href>, so we receive
-  // hrefs like "artifacts/.../2026-04-%E4%BD%9C%E6%A5%AD%E5%A0%B1%E5%91%8A%E6%9B%B8.md".
+  // hrefs like "data/notes/%E3%83%86%E3%82%B9%E3%83%88...md".
   // We MUST decode once before handing the path to vue-router, or the
-  // router's own encoding step turns "%E4..." into "%25E4..." (#1110-class
-  // bug — see plans/fix-workspace-link-double-encoding.md).
+  // router's own encoding step turns "%E3..." into "%25E3..." (see
+  // plans/fix-workspace-link-double-encoding.md).
 
   describe("percent-encoded hrefs (from marked.parse output)", () => {
     it("decodes percent-encoded multibyte file path", () => {
-      const encoded = "artifacts/documents/work-reports/2026-04-%E4%BD%9C%E6%A5%AD%E5%A0%B1%E5%91%8A%E6%9B%B8.md";
+      // "テストファイル" (test file) — generic Japanese name picked
+      // so the literal does not look like real user data. The
+      // encoded form is what marked.parse() actually emits for a
+      // markdown link to this filename.
+      const encoded = "data/notes/%E3%83%86%E3%82%B9%E3%83%88%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB.md";
       const result = classifyWorkspacePath(encoded);
       assert.deepEqual(result, {
         kind: "file",
-        path: "artifacts/documents/work-reports/2026-04-作業報告書.md",
+        path: "data/notes/テストファイル.md",
       });
     });
 
@@ -108,16 +112,16 @@ describe("classifyWorkspacePath", () => {
     });
 
     it("falls back to raw href when decode throws on malformed percent sequence", () => {
-      // `%E4%BD` is a truncated UTF-8 sequence; decodeURIComponent throws
+      // `%E3%83` is a truncated UTF-8 sequence; decodeURIComponent throws
       // URIError. We must not crash — use the raw href so the link still
       // routes (Files view will surface its own 404 if the path is truly bad).
-      const malformed = "artifacts/documents/broken-%E4%BD.md";
+      const malformed = "data/notes/broken-%E3%83.md";
       const result = classifyWorkspacePath(malformed);
-      assert.deepEqual(result, { kind: "file", path: "artifacts/documents/broken-%E4%BD.md" });
+      assert.deepEqual(result, { kind: "file", path: "data/notes/broken-%E3%83.md" });
     });
 
     it("is idempotent for already-decoded multibyte paths", () => {
-      const raw = "artifacts/documents/work-reports/2026-04-作業報告書.md";
+      const raw = "data/notes/テストファイル.md";
       const result = classifyWorkspacePath(raw);
       assert.deepEqual(result, { kind: "file", path: raw });
     });

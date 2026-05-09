@@ -4,40 +4,40 @@
 
 Claude が assistant メッセージに markdown リンク記法でワークスペース内ファイルへのリンクを書いたとき、リンク先ファイル名に日本語などのマルチバイト文字が含まれているとクリックしても Files タブで 404 になる。
 
-例:
+例（generic な再現用ファイル名で示す。現実のセッションで実機確認済み）:
 
 ```markdown
-[2026-04-作業報告書.md](artifacts/documents/work-reports/2026-04-作業報告書.md)
+[テストファイル.md](data/notes/テストファイル.md)
 ```
 
-クリック後の URL（実機 + Playwright で確認）:
+クリック後の URL:
 
 ```
-/files/artifacts/documents/work-reports/2026-04-%25E4%25BD%259C%25E6%25A5%25AD%25E5%25A0%25B1%25E5%2591%258A%25E6%259B%25B8.md
+/files/data/notes/%25E3%2583%2586%25E3%2582%25B9%25E3%2583%2588%25E3%2583%2595%25E3%2582%25A1%25E3%2582%25A4%25E3%2583%25AB.md
 ```
 
-`%25E4%25BD%259C` は `%E4%BD%9C`（"作"）の `%` を再エスケープしたもの。
+`%25E3%2583%2586` は `%E3%83%86`（"テ"）の `%` を再エスケープしたもの。
 
 API:
 
 ```
-GET /api/files/content?path=artifacts%2F...%2F2026-04-%25E4%25BD%259C...md
+GET /api/files/content?path=data%2Fnotes%2F%25E3%2583%2586%25E3%2582%25B9...md
 → 404
 ```
 
 ## 原因
 
-1. `marked.parse` が markdown リンク記法を `<a href>` 化する際、URL を percent-encode する（`%E4%BD%9C...`）
+1. `marked.parse` が markdown リンク記法を `<a href>` 化する際、URL を percent-encode する（`%E3%83%86...`）
 2. `src/utils/path/workspaceLinkRouter.ts` の `classifyWorkspacePath` は href をデコードせず素通しで `{ kind: "file", path }` を返す
 3. `src/App.vue` の `navigateToWorkspacePath` が `target.path.split("/")` で配列化して `pathMatch` に渡す
-4. vue-router がそれを **もう一度** percent-encode → `%E4%BD%9C` が `%25E4%25BD%259C` に
+4. vue-router がそれを **もう一度** percent-encode → `%E3%83%86` が `%25E3%2583%2586` に
 
 ## 修正方針
 
 `classifyWorkspacePath` の入口で `decodeURIComponent` を 1 回かける（safe decode）。
 
 - 入力が裸のパス（ASCII / マルチバイトそのまま）→ decode しても変わらない（冪等）
-- 入力が encoded（`%E4%BD%9C...`）→ decode して "作..." になる
+- 入力が encoded（`%E3%83%86...`）→ decode して "テ..." になる
 - 不正な percent シーケンスで `decodeURIComponent` が throw した場合は元の値を使う（フォールバック）
 
 これにより呼び出し元 4 箇所すべてに同じ修正が効く:
@@ -54,14 +54,15 @@ GET /api/files/content?path=artifacts%2F...%2F2026-04-%25E4%25BD%259C...md
 - percent-encoded 日本語ファイルパス → decoded path で `{ kind: "file", path }` を返す
 - percent-encoded wiki page slug → 正しく `{ kind: "wiki", slug }` を返す
 - 不正な percent シーケンス → throw せずフォールバック（元のパスを workspace 相対として扱う）
+- encoded 構造トークン（`%2F` / `%2E%2E`）の挙動を pin（root-escape は依然 null）
 - 既存の裸パスケース（ASCII / マルチバイト）は引き続き通る
 
 ## 動作確認
 
 Playwright で:
 
-1. `/chat/<sessionId>?result=<resultId>` でリンク `[2026-04-作業報告書.md](artifacts/...)` を表示
-2. クリック → URL が `/files/artifacts/.../2026-04-%E4%BD%9C...md`（**1 回エンコード**）になる
+1. `/chat/<sessionId>?result=<resultId>` でリンク `[テストファイル.md](data/notes/テストファイル.md)` を表示
+2. クリック → URL が `/files/data/notes/%E3%83%86%E3%82%B9...md`（**1 回エンコード**）になる
 3. md viewer でファイル内容が表示される（404 にならない）
 
 ## スコープ外

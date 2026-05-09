@@ -51,8 +51,10 @@ test.describe("workspace link routing (real workspace)", () => {
     // remnants never collide.
     const projectSlug = testInfo.project.name;
     const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
-    const filename = `e2e-live-l23-${projectSlug}-${nonce}-作業報告書.md`;
-    const relativePath = `artifacts/documents/work-reports/${filename}`;
+    const filename = `e2e-live-l23-${projectSlug}-${nonce}-テストファイル.md`;
+    // Stage the seed file under a test-only subtree so a stale-run
+    // remnant cannot mix into real user reports if cleanup misses.
+    const relativePath = `artifacts/e2e-live/workspace-link-routing/${filename}`;
     const marker = `L-23 ${projectSlug} ${nonce} body marker`;
     const fileBody = `# ${filename}\n\n${marker}\n`;
 
