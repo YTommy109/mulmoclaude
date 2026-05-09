@@ -57,10 +57,10 @@ Stored in each obligation's `index.md` frontmatter:
 
 ```yaml
 version: 1                      # DSL version, for future migrations
-id: property-tax-second-home
+id: property-tax-second-home    # Encore-generated: slugified from displayName at setup
 displayName: "Property tax — second home"
 status: active                  # active | paused | retired
-createdAt: 2026-05-08T15:32:00Z
+createdAt: 2026-05-08T15:32:00Z # Encore-generated: receipt timestamp at setup
 
 cadence:                        # cycle granularity (resolved #1)
   type: biannual
@@ -88,7 +88,7 @@ firingPlan:                     # notification timing + severity escalation
     severity: urgent
 
 conditionalTrigger:             # optional, for W-2-style obligations
-  when: schedule:Feb 1
+  when: schedule:2026-02-01
   expectedFields: [received, receivedOn]
 
 carryForward:                   # which fields propagate at next-cycle provisioning
@@ -179,8 +179,8 @@ Proposed actions (LLM-visible):
 
 | `kind` | Purpose |
 |---|---|
-| `setup` | Create a new obligation. Claude passes a complete DSL document plus the values the user filled at setup. Args: `{ definition: <DSL>, setupValues }`. Encore validates the DSL with Zod, rejects on failure |
-| `amendDefinition` | Replace any portion of an obligation's DSL mid-life — Claude can adjust the form schema (track new fields), the firing plan (start nudging earlier this year), the carry-forward rules (skip the Watsons until address), etc. Args: `{ obligationId, definition: <partial DSL> }`. Existing per-cycle values for removed fields stay as orphan frontmatter — never destroyed by Encore |
+| `setup` | Create a new obligation. Claude passes a complete DSL document (without `id` / `createdAt` — Encore generates those: `id` is slugified from `displayName`, `createdAt` is the receipt timestamp) plus the values the user filled at setup. Args: `{ definition: <DSL>, setupValues }`. Encore validates the DSL with Zod, rejects on failure |
+| `amendDefinition` | Replace any portion of an obligation's DSL mid-life — Claude can adjust the form schema (track new fields), the firing plan (start nudging earlier this year), the carry-forward rules (skip the Watsons until address), etc. Args: `{ obligationId, definition: <partial DSL> }`. **Merge semantics: shallow at the top level, full-replacement for arrays** — to change one phase of `firingPlan`, Claude sends the entire new `firingPlan` array (no per-element merging by index). Existing per-cycle values for removed fields stay as orphan frontmatter — never destroyed by Encore |
 | `markInstanceState` | Advance an instance ("paid", "skipped", "received", "done"). Optional notes. Calls `notifier.clear()` for the source notification via the LLM-clear pending ticket |
 | `recordResponse` | Generic structured-response handler for conditional-trigger flows (e.g. W-2). Accepts a JSON payload Claude built from the conversation; the plugin merges it into the cycle's frontmatter |
 | `query` | Read-side. Returns the relevant cycle files (last cycle, this cycle, optionally earlier). Claude composes the diff / summary / multi-year trend on every call — no precomputation, no cache |
@@ -199,7 +199,7 @@ Each tick, for every obligation:
 2. Identify the currently-open cycle (provisioning happens synchronously on close, not on tick).
 3. Compute the current phase from the cycle's `deadline` + the DSL's `firingPlan` + current time.
 4. **If `activeNotificationId` is null:**
-   - If we've passed the first phase's `at` → fire at that phase's severity, seed a chat with the relevant subset of the DSL's `formSchema` in the seed prompt + a fresh `pendingId`, write the pending-clear ticket, set `activeNotificationId` and `navigateTarget: /chat/<chatId>`
+   - If we're past the first phase's `at` → fire at **the current phase's severity** (not the first phase's — if the user was offline past `deadline+1d`, the first tick after startup must fire at `urgent` directly, not catch up through `info` → `warning`). Seed a chat with the relevant subset of the DSL's `formSchema` in the seed prompt + a fresh `pendingId`, write the pending-clear ticket, set `activeNotificationId` and `navigateTarget: /chat/<chatId>`
    - Else → wait
 5. **If `activeNotificationId` is set:**
    - If the current phase's severity differs from the active notification's → escalate (`notifier.clear()` + `notifier.publish()` with the new severity, referencing the same `chatId` and same pending-clear ticket — Phase 1 doesn't expose `notifier.update()`)
@@ -214,8 +214,8 @@ The tick is **idempotent and crash-safe**: every state transition is a write to 
 1. User says "I need to pay real estate tax for my second home, twice a year" in any chat
 2. Claude (the agent itself, no Encore code) decides this is an Encore-shaped statement and **composes a complete DSL document for the obligation** — `cadence`, `formSchema`, `firingPlan`, `carryForward`, `conditionalTrigger` if relevant. Claude calls `presentForm` with the just-composed `formSchema` to gather the user's setup values (address, payment portal URL, etc.)
 3. User fills the form
-4. Claude calls `manageEncore({ kind: "setup", definition, setupValues })` — passing the complete DSL plus the values
-5. Encore validates the DSL with Zod (rejects on failure → Claude corrects and retries), then writes `obligations/<slugified-id>/index.md` with the DSL in frontmatter + free-form notes in the body
+4. Claude calls `manageEncore({ kind: "setup", definition, setupValues })` — passing the complete DSL (without `id` / `createdAt` — Encore generates those server-side) plus the values
+5. Encore validates the DSL with Zod (rejects on failure → Claude corrects and retries), generates `id` (slugified from `displayName`) and `createdAt` (receipt timestamp), then writes `obligations/<id>/index.md` with the full DSL in frontmatter + free-form notes in the body
 6. Claude tells the user "set up — first reminder ~3 weeks before March 15"
 
 **Schema replay.** When Encore seeds a chat for a later flow (reminder, conditional check-in), it embeds the stored DSL's `formSchema` — or a state-relevant subset — in the seed prompt. Claude reads the seed and renders the form via `presentForm`. Subset selection is plugin code: "nudge before deadline" → ask about progress; "deadline reached" → ask about completion. The form on March 15 looks like the form at setup because it *is* the same schema.
