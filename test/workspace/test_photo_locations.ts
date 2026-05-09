@@ -141,6 +141,28 @@ describe("photo-locations hook — saveAttachment integration", () => {
       unregister();
     }
   });
+
+  // Regression: the previous commit didn't list HEIC / HEIF / TIFF in
+  // attachment-store's MIME_EXT table, so iPhone HEIC uploads landed
+  // as `<id>.bin` even though the bytes were a valid HEIC. The Files
+  // panel showed an unrecognised extension and downstream tools that
+  // sniff by extension (image preview, the photo plugin's future
+  // rescan kind) couldn't tell what they were looking at. Lock the
+  // ext mapping in place. (#1222 PR-A follow-up.)
+  it("saves HEIC uploads with the .heic extension, not .bin", async () => {
+    saveSettings({ extraAllowedTools: [] });
+    const saved = await saveAttachment(ONE_PIXEL_PNG_BASE64, "image/heic");
+    assert.match(saved.relativePath, /\.heic$/, `expected .heic extension, got ${saved.relativePath}`);
+    assert.doesNotMatch(saved.relativePath, /\.bin$/);
+  });
+
+  it("saves HEIF / TIFF uploads with their proper extensions", async () => {
+    saveSettings({ extraAllowedTools: [] });
+    const heif = await saveAttachment(ONE_PIXEL_PNG_BASE64, "image/heif");
+    assert.match(heif.relativePath, /\.heif$/);
+    const tiff = await saveAttachment(ONE_PIXEL_PNG_BASE64, "image/tiff");
+    assert.match(tiff.relativePath, /\.tif$/);
+  });
 });
 
 /** Wrap the production helper so tests fail clearly when the

@@ -63,9 +63,16 @@ const PARSE_OPTIONS = {
   icc: false,
   jfif: false,
   ihdr: false,
-  // Skip thumbnail extraction — exifr otherwise allocates a Buffer
-  // per parse for the thumbnail bytes, which we never read.
-  pick: ["DateTimeOriginal", "CreateDate", "DateTime", "Make", "Model", "LensModel", "Orientation", "latitude", "longitude", "GPSAltitude"] as string[],
+  // No `pick` here. `pick` filters tags BEFORE exifr's post-
+  // processors run, which means picking the derived names
+  // `latitude` / `longitude` actually drops the raw `GPSLatitude`
+  // / `GPSLatitudeRef` / `GPSLongitude` / `GPSLongitudeRef` tags
+  // the converter needs — so the sidecar would lose lat/lng while
+  // still picking up `GPSAltitude` (a raw tag that exifr renames
+  // 1:1, no derivation). Reproducer: an iPhone HEIC with full GPS
+  // emitted only `altitude` + camera fields, no `lat` / `lng`
+  // (#1222 PR-A follow-up). The size win was small; correctness
+  // wins.
 };
 
 /** Validate a `(lat, lng)` pair. exifr occasionally surfaces 0/0
