@@ -151,6 +151,7 @@ const esMessages = {
       dirs: "Directorios",
       refs: "Directorios de referencia",
       map: "Mapa",
+      photos: "Fotos",
     },
     mapTab: {
       description: "Configura la clave de la API de Google Maps que usa el plugin de mapas. La clave se guarda localmente y solo se envía a Google Maps.",
@@ -161,6 +162,17 @@ const esMessages = {
       configured: "Configurada",
       notConfigured: "Sin configurar",
       clear: "Borrar",
+      loadError: "Error al cargar los ajustes",
+      saveError: "Error al guardar",
+    },
+    photosTab: {
+      description:
+        "Controles de privacidad para las fotos recibidas por chat o por un bridge conectado. Los datos de ubicación EXIF son sensibles — desmarca para desactivar la captura automática.",
+      autoCaptureLabel: "Capturar automáticamente la ubicación de las fotos",
+      autoCaptureHint:
+        "Activado: cada imagen subida con GPS en EXIF genera un sidecar de ubicación en data/locations/. Desactivado: no se captura nada automáticamente; el LLM aún puede extraer EXIF manualmente.",
+      statusOn: "Captura automática ACTIVADA",
+      statusOff: "Captura automática DESACTIVADA",
       loadError: "Error al cargar los ajustes",
       saveError: "Error al guardar",
     },

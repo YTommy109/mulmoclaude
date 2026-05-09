@@ -146,6 +146,7 @@ const frMessages = {
       dirs: "Répertoires",
       refs: "Répertoires de référence",
       map: "Carte",
+      photos: "Photos",
     },
     mapTab: {
       description: "Définit la clé API Google Maps utilisée par le plugin de carte. La clé est stockée localement et n'est envoyée qu'à Google Maps.",
@@ -156,6 +157,17 @@ const frMessages = {
       configured: "Configurée",
       notConfigured: "Non configurée",
       clear: "Effacer",
+      loadError: "Échec du chargement des paramètres",
+      saveError: "Échec de l'enregistrement",
+    },
+    photosTab: {
+      description:
+        "Contrôles de confidentialité pour les photos reçues par le chat ou par un bridge connecté. Les données de localisation EXIF sont sensibles — décochez pour désactiver la capture automatique.",
+      autoCaptureLabel: "Capturer automatiquement la localisation des photos",
+      autoCaptureHint:
+        "Activé : chaque image envoyée avec GPS EXIF génère un sidecar de localisation dans data/locations/. Désactivé : rien n'est capturé automatiquement ; le LLM peut toujours extraire EXIF à la demande.",
+      statusOn: "Capture automatique ACTIVÉE",
+      statusOff: "Capture automatique DÉSACTIVÉE",
       loadError: "Échec du chargement des paramètres",
       saveError: "Échec de l'enregistrement",
     },

@@ -147,6 +147,7 @@ const deMessages = {
       dirs: "Verzeichnisse",
       refs: "Referenzverzeichnisse",
       map: "Karte",
+      photos: "Fotos",
     },
     mapTab: {
       description:
@@ -158,6 +159,17 @@ const deMessages = {
       configured: "Konfiguriert",
       notConfigured: "Nicht konfiguriert",
       clear: "Löschen",
+      loadError: "Einstellungen konnten nicht geladen werden",
+      saveError: "Speichern fehlgeschlagen",
+    },
+    photosTab: {
+      description:
+        "Datenschutzeinstellungen für Fotos, die per Chat oder verbundener Bridge empfangen wurden. EXIF-Standortdaten sind sensibel — Häkchen entfernen, um die automatische Erfassung zu deaktivieren.",
+      autoCaptureLabel: "Fotostandort automatisch erfassen",
+      autoCaptureHint:
+        "Aktiv: Für jedes hochgeladene Bild mit EXIF-GPS wird ein Standort-Sidecar in data/locations/ erzeugt. Aus: Es wird nichts automatisch erfasst; das LLM kann EXIF weiterhin auf Anforderung lesen.",
+      statusOn: "Automatische Erfassung AN",
+      statusOff: "Automatische Erfassung AUS",
       loadError: "Einstellungen konnten nicht geladen werden",
       saveError: "Speichern fehlgeschlagen",
     },

@@ -151,6 +151,7 @@ const jaMessages = {
       dirs: "ディレクトリ",
       refs: "参照ディレクトリ",
       map: "地図",
+      photos: "写真",
     },
     mapTab: {
       description: "地図プラグインで使う Google Maps API キーを設定します。キーはローカルに保存され、Google Maps への通信以外で送信されることはありません。",
@@ -161,6 +162,17 @@ const jaMessages = {
       configured: "設定済み",
       notConfigured: "未設定",
       clear: "クリア",
+      loadError: "設定の読み込みに失敗しました",
+      saveError: "保存に失敗しました",
+    },
+    photosTab: {
+      description:
+        "チャットや bridge 経由で受け取った写真のプライバシー設定。EXIF の位置情報は機微なため、自動取得を停止したい場合はチェックを外してください。",
+      autoCaptureLabel: "写真の位置情報を自動取得",
+      autoCaptureHint:
+        "ON のとき、EXIF に GPS を持つ画像をアップロードすると data/locations/ に sidecar が自動生成されます。OFF にすると自動取得は停止しますが、必要なときに LLM が手動で EXIF を読むことは可能です。",
+      statusOn: "自動取得は ON",
+      statusOff: "自動取得は OFF",
       loadError: "設定の読み込みに失敗しました",
       saveError: "保存に失敗しました",
     },
