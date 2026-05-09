@@ -79,7 +79,7 @@ export function isAppSettingsPatch(value: unknown): value is Partial<AppSettings
   return true;
 }
 
-function parseSettingsRaw(raw: string, file: string): unknown | null {
+function parseSettingsRaw(raw: string, file: string): unknown {
   try {
     return JSON.parse(raw);
   } catch (err) {
