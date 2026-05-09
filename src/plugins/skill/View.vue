@@ -36,7 +36,7 @@
           <div class="border-t border-purple-200 p-4 bg-white rounded-b-lg">
             <div v-if="skillPath" class="text-[11px] font-mono text-gray-400 mb-3 break-all">{{ skillPath }}</div>
             <!-- eslint-disable-next-line vue/no-v-html -- DOMPurify-sanitized markdown of the SKILL.md body Claude CLI synthesised. The body comes from the user's local skill file, surfaced verbatim here. -->
-            <div class="markdown-content prose prose-slate max-w-none" v-html="renderedHtml"></div>
+            <div class="markdown-content prose prose-slate max-w-none" @click="handleExternalLinkClick" v-html="renderedHtml"></div>
           </div>
         </details>
       </div>
@@ -51,6 +51,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { SkillData } from "./types";
+import { handleExternalLinkClick } from "../../utils/dom/externalLink";
 
 const { t } = useI18n();
 
