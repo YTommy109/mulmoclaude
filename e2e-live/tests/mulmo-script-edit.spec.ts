@@ -3,7 +3,7 @@ import path from "node:path";
 import { expect, test } from "@playwright/test";
 
 import { TOOL_NAME as PRESENT_MULMO_SCRIPT_TOOL } from "../../src/plugins/presentMulmoScript/definition.ts";
-import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
+import { ONE_MINUTE_MS, ONE_SECOND_MS } from "../../server/utils/time.ts";
 import {
   deleteSession,
   getCurrentSessionId,
@@ -123,7 +123,7 @@ async function editBeat0Text(page: import("@playwright/test").Page, marker: stri
   // button from the DOM entirely — the locator would retry forever.
   // 30s leaves headroom for disk I/O coinciding with another beat's
   // render.
-  await expect(textarea).toBeHidden({ timeout: 30_000 });
+  await expect(textarea).toBeHidden({ timeout: 30 * ONE_SECOND_MS });
 }
 
 async function assertBeat0EditPersisted(page: import("@playwright/test").Page, marker: string): Promise<void> {
