@@ -45,25 +45,54 @@ describe("isExifSupportedMime", () => {
 });
 
 describe("projectExif — happy paths", () => {
-  it("plucks lat/lng/altitude and takenAt + camera fields", () => {
+  it("plucks the full iPhone-style record", () => {
     const exif = projectExif({
+      // Location
       latitude: 35.6586,
       longitude: 139.7454,
       GPSAltitude: 38.4,
+      GPSHPositioningError: 4.5,
+      GPSImgDirection: 273.5,
+      GPSSpeed: 0,
+      // Time
       DateTimeOriginal: TAKEN_AT_RAW,
+      // Body + lens
       Make: "Apple",
       Model: "iPhone 15 Pro",
       LensModel: "iPhone 15 Pro back triple camera",
+      Software: "Photos 5.0",
+      // Exposure
+      ExposureTime: 0.008333,
+      FNumber: 1.78,
+      ISO: 64,
+      FocalLength: 6.765,
+      FocalLengthIn35mmFormat: 24,
+      Flash: 16, // not fired (bit 0 = 0)
+      // Image
+      ExifImageWidth: 4032,
+      ExifImageHeight: 3024,
       Orientation: 1,
     });
     assert.deepEqual(exif, {
       lat: 35.6586,
       lng: 139.7454,
       altitude: 38.4,
+      hPositioningError: 4.5,
+      heading: 273.5,
+      speed: 0,
       takenAt: TAKEN_AT_ISO,
       make: "Apple",
       model: "iPhone 15 Pro",
       lens: "iPhone 15 Pro back triple camera",
+      software: "Photos 5.0",
+      exposureTime: 0.008333,
+      fNumber: 1.78,
+      iso: 64,
+      focalLength: 6.765,
+      focalLength35mm: 24,
+      flashFired: false,
+      width: 4032,
+      height: 3024,
       orientation: 1,
     });
   });
@@ -76,6 +105,67 @@ describe("projectExif — happy paths", () => {
   it("keeps takenAt without GPS (typical scanned-document case)", () => {
     const exif = projectExif({ DateTimeOriginal: TAKEN_AT_RAW });
     assert.deepEqual(exif, { takenAt: TAKEN_AT_ISO });
+  });
+});
+
+describe("projectExif — GPS extras (heading, speed, accuracy)", () => {
+  it("rejects out-of-range heading", () => {
+    const exif = projectExif({ GPSImgDirection: 720 });
+    assert.equal(exif, null);
+  });
+
+  it("accepts the full 0..360 heading range", () => {
+    assert.equal(projectExif({ GPSImgDirection: 0 })?.heading, 0);
+    assert.equal(projectExif({ GPSImgDirection: 360 })?.heading, 360);
+  });
+
+  it("rejects negative positioning error / speed", () => {
+    assert.equal(projectExif({ GPSHPositioningError: -1 }), null);
+    assert.equal(projectExif({ GPSSpeed: -1 }), null);
+  });
+});
+
+describe("projectExif — exposure fields", () => {
+  it("plucks the four photographic basics + 35mm-equivalent", () => {
+    const exif = projectExif({ ExposureTime: 0.004, FNumber: 2.8, ISO: 200, FocalLength: 50, FocalLengthIn35mmFormat: 75 });
+    assert.deepEqual(exif, { exposureTime: 0.004, fNumber: 2.8, iso: 200, focalLength: 50, focalLength35mm: 75 });
+  });
+
+  it("derives flashFired from the raw EXIF Flash byte", () => {
+    // Bit 0 = 1 → flash fired
+    assert.equal(projectExif({ Flash: 1 })?.flashFired, true);
+    // Bit 0 = 1 with red-eye flag (0x41) → still fired
+    assert.equal(projectExif({ Flash: 0x41 })?.flashFired, true);
+    // Bit 0 = 0 → did not fire
+    assert.equal(projectExif({ Flash: 16 })?.flashFired, false);
+    assert.equal(projectExif({ Flash: 0 })?.flashFired, false);
+  });
+
+  it("derives flashFired from a post-processed Flash object", () => {
+    // exifr v7 with default options returns an object — we accept
+    // both `fired` (older) and `flashfired` (newer) field names.
+    assert.equal(projectExif({ Flash: { fired: true } })?.flashFired, true);
+    assert.equal(projectExif({ Flash: { flashfired: false } })?.flashFired, false);
+    // Object with neither known key falls through to undefined
+    // → result has no `flashFired` field.
+    assert.equal(projectExif({ Flash: { mode: "auto" } })?.flashFired, undefined);
+  });
+});
+
+describe("projectExif — image dimensions", () => {
+  it("prefers ExifImageWidth/Height over ImageWidth/Height", () => {
+    const exif = projectExif({ ExifImageWidth: 4032, ExifImageHeight: 3024, ImageWidth: 1024, ImageHeight: 768 });
+    assert.deepEqual(exif, { width: 4032, height: 3024 });
+  });
+
+  it("falls back to ImageWidth/Height when ExifImage* are missing", () => {
+    const exif = projectExif({ ImageWidth: 1024, ImageHeight: 768 });
+    assert.deepEqual(exif, { width: 1024, height: 768 });
+  });
+
+  it("rejects zero / negative dimensions", () => {
+    assert.equal(projectExif({ ExifImageWidth: 0, ExifImageHeight: 100 }), null);
+    assert.equal(projectExif({ ImageWidth: -1, ImageHeight: 100 }), null);
   });
 });
 
@@ -158,7 +248,10 @@ describe("projectExif — empty / null returns", () => {
   });
 
   it("returns null when only ignored fields are present", () => {
-    assert.equal(projectExif({ ImageWidth: 4032, ImageHeight: 3024 }), null);
+    // ColorSpace / MeteringMode / WhiteBalance are EXIF tags we
+    // deliberately drop — neither in the projected shape nor in any
+    // helper. A record with only these should yield null.
+    assert.equal(projectExif({ ColorSpace: 1, MeteringMode: 2, WhiteBalance: 0 }), null);
   });
 
   it("ignores empty-string camera fields", () => {

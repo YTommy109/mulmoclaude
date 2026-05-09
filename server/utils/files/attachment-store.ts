@@ -56,6 +56,16 @@ const MIME_EXT: Readonly<Record<string, string>> = {
   "image/webp": ".webp",
   "image/gif": ".gif",
   "image/svg+xml": ".svg",
+  // HEIC / HEIF — iOS default capture format. Without these
+  // entries, an iPhone upload was getting saved as `<id>.bin` and
+  // looked broken in the Files panel even though the bytes were
+  // intact (#1222 PR-A follow-up). The EXIF reader treats both
+  // MIMEs as supported, so the upload pipeline must too.
+  "image/heic": ".heic",
+  "image/heif": ".heif",
+  // TIFF — exifr can read it, and the photo plugin enumerates it
+  // as a supported source format. Same rationale as HEIC.
+  "image/tiff": ".tif",
   "application/pdf": ".pdf",
   "application/json": ".json",
   "application/xml": ".xml",
@@ -83,6 +93,10 @@ const EXT_MIME: Readonly<Record<string, string>> = {
   ".webp": "image/webp",
   ".gif": "image/gif",
   ".svg": "image/svg+xml",
+  ".heic": "image/heic",
+  ".heif": "image/heif",
+  ".tif": "image/tiff",
+  ".tiff": "image/tiff",
   ".pdf": "application/pdf",
   ".json": "application/json",
   ".xml": "application/xml",
