@@ -14,7 +14,8 @@ import { ONE_SECOND_MS } from "../utils/time.js";
 
 const LOG_PREFIX = "edgar";
 
-const MIN_INTERVAL_MS = ONE_SECOND_MS / 9; // ~111ms => 9 req/sec
+// ~111ms => 9 req/sec. Exported for the throttle invariant test.
+export const MIN_INTERVAL_MS = ONE_SECOND_MS / 9;
 const FETCH_TIMEOUT_MS = 15 * ONE_SECOND_MS;
 
 const ALLOWED_HOSTS = new Set(["www.sec.gov", "data.sec.gov", "efts.sec.gov"]);
@@ -52,7 +53,11 @@ export interface ResolvedCompany {
 let lastReleaseAt = 0;
 let throttleChain: Promise<unknown> = Promise.resolve();
 
-function throttledSlot<T>(work: () => Promise<T>): Promise<T> {
+// Exported for `test/edgar/test_throttle.ts` so the
+// concurrency-safety contract (sequential ordering + ≥
+// MIN_INTERVAL_MS gap) is pinned by a unit test independent of
+// the live SEC API.
+export function throttledSlot<T>(work: () => Promise<T>): Promise<T> {
   const next = throttleChain
     .catch(() => undefined)
     .then(async () => {

@@ -39,7 +39,18 @@ const PRIMARY_DOCUMENT_RE = /^(?!.*\.\.)[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-const Args = z.discriminatedUnion("kind", [
+// XBRL concept identifiers are PascalCase alphanumeric tokens
+// (e.g. `Revenues`, `NetIncomeLoss`, `EarningsPerShareBasic`).
+// The SEC accepts underscores in some taxonomies. Pin the shape
+// so a value containing `/`, `..`, `?`, or `#` can't rewrite the
+// `data.sec.gov/api/xbrl/companyconcept/...` URL path.
+const CONCEPT_RE = /^[A-Za-z]\w*$/;
+
+// Exported for `test/edgar/test_args_validation.ts` so the regex
+// guards (accession_number, primary_document, concept) and the
+// both-or-neither date refinement are pinned by unit tests, not
+// only end-to-end via HTTP.
+export const Args = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("lookup_cik"),
     ticker: z.string().min(1),
@@ -64,7 +75,7 @@ const Args = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("get_concept"),
     company: z.string().min(1),
-    concept: z.string().min(1),
+    concept: z.string().regex(CONCEPT_RE, "concept must be an XBRL identifier (alphanumeric, starts with a letter)"),
     taxonomy: z.enum(["us-gaap", "ifrs-full", "dei", "srt"]).default("us-gaap"),
   }),
   z
