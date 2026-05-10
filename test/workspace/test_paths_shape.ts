@@ -48,6 +48,7 @@ describe("WORKSPACE_DIRS expected keys", () => {
     "spreadsheets",
     "stories",
     "summaries",
+    "svgs",
     "translation",
     "transports",
     "wiki",
