@@ -42,7 +42,7 @@ const router = Router();
 
 router.get(
   API_ROUTES.news.items,
-  asyncHandler<Request, Response<{ items: NewsItem[] } | { error: string }>>("news", async (req, res) => {
+  asyncHandler<Request, Response<{ items: NewsItem[] } | { error: string }>>("news", "failed to load news items", async (req, res) => {
     const days = parseDays(req.query.days);
     if (days === null) {
       badRequest(res, "invalid `days` query parameter");
@@ -71,7 +71,7 @@ function parseDays(raw: unknown): number | null {
 
 router.get(
   API_ROUTES.news.itemBody,
-  asyncHandler<Request<{ id: string }>, Response<{ body: string | null } | { error: string }>>("news", async (req, res) => {
+  asyncHandler<Request<{ id: string }>, Response<{ body: string | null } | { error: string }>>("news", "failed to load item body", async (req, res) => {
     const { id } = req.params;
     if (!id) {
       badRequest(res, "missing item id");
@@ -94,7 +94,7 @@ const readStateAbsPath = (): string => path.join(workspacePath, WORKSPACE_FILES.
 
 router.get(
   API_ROUTES.news.readState,
-  asyncHandler<Request, Response<ReadState | { error: string }>>("news", async (_req, res) => {
+  asyncHandler<Request, Response<ReadState | { error: string }>>("news", "failed to load news read-state", async (_req, res) => {
     const data = loadJsonFile<ReadState>(readStateAbsPath(), { readIds: [] });
     const sanitized = sanitizeReadState(data);
     res.json(sanitized);
@@ -103,7 +103,7 @@ router.get(
 
 router.put(
   API_ROUTES.news.readState,
-  asyncHandler<Request, Response<ReadState | { error: string }>>("news", async (req, res) => {
+  asyncHandler<Request, Response<ReadState | { error: string }>>("news", "failed to save news read-state", async (req, res) => {
     const { body } = req;
     if (!isRecord(body) || !Array.isArray(body.readIds)) {
       badRequest(res, "expected { readIds: string[] }");

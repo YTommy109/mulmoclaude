@@ -11,8 +11,12 @@
 // Scope:
 //
 //   - Catches anything the inner handler throws. The wrapper logs
-//     once at `log.error` with the request path + error message and
-//     returns a 500 with `serverError(res, …)`.
+//     the raw error message on the server side (full detail kept for
+//     debugging) and returns a 500 carrying ONLY the caller-supplied
+//     `fallbackMessage` — never the raw `err.message`. Leaking
+//     internal error text to clients would surface stack-shape
+//     details, file paths, and library internals to anyone hitting
+//     the endpoint.
 //   - The inner handler stays in charge of 4xx mapping (validation,
 //     not-found, etc.) — those paths respond + `return` inside the
 //     handler before the wrapper's catch ever runs.
@@ -22,7 +26,10 @@
 //
 // Naming: `namespace` is the log tag (e.g. "accounting", "wiki") —
 // matches the existing `log.info("namespace", …)` convention across
-// the route layer.
+// the route layer. `fallbackMessage` mirrors the strings the
+// hand-rolled try/catch blocks used before the migration ("failed to
+// load news items", "Failed to list tasks", …) so the client-facing
+// behaviour is unchanged.
 
 import type { Request, Response } from "express";
 import { log } from "../system/logger/index.js";
@@ -36,16 +43,16 @@ import { serverError } from "./httpError.js";
 // bound. Mirrors the existing `wrapPluginExecute` signature.
 export function asyncHandler<TReq extends Request<unknown, unknown, unknown, unknown> = Request, TRes extends Response = Response>(
   namespace: string,
+  fallbackMessage: string,
   handler: (req: TReq, res: TRes) => Promise<void>,
 ): (req: TReq, res: TRes) => Promise<void> {
   return async (req, res) => {
     try {
       await handler(req, res);
     } catch (err) {
-      const message = errorMessage(err);
-      log.error(namespace, "handler threw", { route: req.path, error: message });
+      log.error(namespace, "handler threw", { route: req.path, error: errorMessage(err) });
       if (!res.headersSent) {
-        serverError(res, message);
+        serverError(res, fallbackMessage);
       }
     }
   };

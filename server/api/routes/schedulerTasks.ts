@@ -29,7 +29,7 @@ const router = Router();
 bindRoute(
   router,
   API_ROUTES.scheduler.tasksList,
-  asyncHandler("scheduler-tasks", async (_req, res) => {
+  asyncHandler("scheduler-tasks", "Failed to list tasks", async (_req, res) => {
     log.info("scheduler-tasks", "list: start");
     // getSchedulerTasks() returns system-only tasks (registered via
     // initScheduler at startup — journal, chat-index, sources, etc.).
@@ -48,7 +48,7 @@ bindRoute(
 bindRoute(
   router,
   API_ROUTES.scheduler.tasksCreate,
-  asyncHandler("scheduler-tasks", async (req, res) => {
+  asyncHandler("scheduler-tasks", "Failed to create task", async (req, res) => {
     log.info("scheduler-tasks", "create: start");
     const validated = validateAndCreate(req.body);
     if (validated.kind === "error") {
@@ -70,7 +70,7 @@ bindRoute(
 bindRoute(
   router,
   API_ROUTES.scheduler.taskUpdate,
-  asyncHandler<Request<{ id: string }>, Response>("scheduler-tasks", async (req, res) => {
+  asyncHandler<Request<{ id: string }>, Response>("scheduler-tasks", "Failed to update task", async (req, res) => {
     const { id: taskId } = req.params;
     log.info("scheduler-tasks", "update: start", { taskId });
     try {
@@ -103,7 +103,7 @@ bindRoute(
 bindRoute(
   router,
   API_ROUTES.scheduler.taskDelete,
-  asyncHandler<Request<{ id: string }>, Response>("scheduler-tasks", async (req, res) => {
+  asyncHandler<Request<{ id: string }>, Response>("scheduler-tasks", "Failed to delete task", async (req, res) => {
     const { id: taskId } = req.params;
     log.info("scheduler-tasks", "delete: start", { taskId });
     try {
@@ -180,21 +180,25 @@ interface LogQuery {
 bindRoute(
   router,
   API_ROUTES.scheduler.logs,
-  asyncHandler<Request<object, unknown, object, LogQuery>, Response<{ logs: TaskLogEntry[] }>>("scheduler-tasks", async (req, res) => {
-    const MAX_LIMIT = 500;
-    const rawLimitStr = getOptionalStringQuery(req, "limit");
-    const rawLimit = rawLimitStr ? parseInt(rawLimitStr, 10) : undefined;
-    const limit = rawLimit !== undefined && Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, MAX_LIMIT) : undefined;
-    const taskId = getOptionalStringQuery(req, "taskId");
-    log.info("scheduler-tasks", "logs: start", { taskId, limit });
-    const logs = await getSchedulerLogs({
-      since: getOptionalStringQuery(req, "since"),
-      taskId,
-      limit,
-    });
-    log.info("scheduler-tasks", "logs: ok", { entries: logs.length, taskId });
-    res.json({ logs });
-  }),
+  asyncHandler<Request<object, unknown, object, LogQuery>, Response<{ logs: TaskLogEntry[] }>>(
+    "scheduler-tasks",
+    "Failed to read scheduler logs",
+    async (req, res) => {
+      const MAX_LIMIT = 500;
+      const rawLimitStr = getOptionalStringQuery(req, "limit");
+      const rawLimit = rawLimitStr ? parseInt(rawLimitStr, 10) : undefined;
+      const limit = rawLimit !== undefined && Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, MAX_LIMIT) : undefined;
+      const taskId = getOptionalStringQuery(req, "taskId");
+      log.info("scheduler-tasks", "logs: start", { taskId, limit });
+      const logs = await getSchedulerLogs({
+        since: getOptionalStringQuery(req, "since"),
+        taskId,
+        limit,
+      });
+      log.info("scheduler-tasks", "logs: ok", { entries: logs.length, taskId });
+      res.json({ logs });
+    },
+  ),
 );
 
 export default router;

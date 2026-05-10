@@ -60,7 +60,7 @@ interface ErrorResponse {
 bindRoute(
   router,
   API_ROUTES.sources.list,
-  asyncHandler<Request, Response<ListSourcesResponse | ErrorResponse>>("sources", async (_req, res) => {
+  asyncHandler<Request, Response<ListSourcesResponse | ErrorResponse>>("sources", "failed to list sources", async (_req, res) => {
     const sources = await listSources(workspacePath);
     res.json({ sources });
   }),
@@ -167,7 +167,7 @@ interface RebuildBody {
 bindRoute(
   router,
   API_ROUTES.sources.rebuild,
-  asyncHandler<Request<object, unknown, RebuildBody>, Response<ErrorResponse | Record<string, unknown>>>("sources", async (req, res) => {
+  asyncHandler<Request<object, unknown, RebuildBody>, Response<ErrorResponse | Record<string, unknown>>>("sources", "rebuild failed", async (req, res) => {
     const scheduleType = validateSchedule(req.body?.scheduleType, "daily");
     if (!scheduleType) {
       badRequest(res, `scheduleType must be one of: ${[...SOURCE_SCHEDULES].join(", ")}`);
@@ -246,26 +246,30 @@ const MANAGE_ACTIONS = new Set(["list", "register", "remove", "rebuild"]);
 bindRoute(
   router,
   API_ROUTES.sources.manage,
-  asyncHandler<Request<object, unknown, ManageSourceBody>, Response<ManageSourceSuccess | ErrorResponse>>("sources", async (req, res) => {
-    const action = req.body?.action;
-    if (typeof action !== "string" || !MANAGE_ACTIONS.has(action)) {
-      badRequest(res, `action must be one of: ${[...MANAGE_ACTIONS].join(", ")}`);
-      return;
-    }
-    switch (action) {
-      case "list":
-        await respondWithList(res, "Loaded source registry.");
+  asyncHandler<Request<object, unknown, ManageSourceBody>, Response<ManageSourceSuccess | ErrorResponse>>(
+    "sources",
+    "manageSource dispatch failed",
+    async (req, res) => {
+      const action = req.body?.action;
+      if (typeof action !== "string" || !MANAGE_ACTIONS.has(action)) {
+        badRequest(res, `action must be one of: ${[...MANAGE_ACTIONS].join(", ")}`);
         return;
-      case "register":
-        await handleRegister(req.body, res);
-        return;
-      case "remove":
-        await handleRemove(req.body, res);
-        return;
-      case "rebuild":
-        await handleRebuild(res);
-    }
-  }),
+      }
+      switch (action) {
+        case "list":
+          await respondWithList(res, "Loaded source registry.");
+          return;
+        case "register":
+          await handleRegister(req.body, res);
+          return;
+        case "remove":
+          await handleRemove(req.body, res);
+          return;
+        case "rebuild":
+          await handleRebuild(res);
+      }
+    },
+  ),
 );
 
 async function respondWithList(res: Response<ManageSourceSuccess | ErrorResponse>, message: string, extra: Partial<ManageSourceData> = {}): Promise<void> {
