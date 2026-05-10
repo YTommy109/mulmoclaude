@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { marked } from "marked";
 
 import { _resetWikiEmbeds, escapeHtml, listWikiEmbedPrefixes, registerWikiEmbed, wikiEmbedExtension } from "../../../src/utils/markdown/wikiEmbeds";
-import { registerAmazonEmbed, registerIsbnEmbed, registerBuiltInWikiEmbeds } from "../../../src/utils/markdown/wikiEmbedHandlers";
+import { registerAmazonEmbed, registerIsbnEmbed, registerYoutubeEmbed, registerBuiltInWikiEmbeds } from "../../../src/utils/markdown/wikiEmbedHandlers";
 
 // `marked.use()` mutates the global instance — install once per
 // suite. Tests that need a fresh handler set call
@@ -170,15 +170,56 @@ describe("ISBN embed handler", () => {
   });
 });
 
+describe("YouTube embed handler", () => {
+  beforeEach(() => {
+    registerYoutubeEmbed();
+  });
+
+  it("renders a thumbnail-link to youtube.com/watch?v=<id> for a valid 11-char id", () => {
+    const html = (marked.parse("watch [[youtube:dQw4w9WgXcQ]]") as string).trim();
+    assert.match(html, /href="https:\/\/www\.youtube\.com\/watch\?v=dQw4w9WgXcQ"/);
+    assert.match(html, /target="_blank"/);
+    assert.match(html, /rel="noopener noreferrer"/);
+    assert.match(html, /src="https:\/\/img\.youtube\.com\/vi\/dQw4w9WgXcQ\/hqdefault\.jpg"/);
+    assert.match(html, /loading="lazy"/);
+    assert.match(html, /class="wiki-embed wiki-embed-youtube"/);
+  });
+
+  it("accepts ids containing _ and - characters", () => {
+    const html = (marked.parse("[[youtube:abc_def-XYZ]]") as string).trim();
+    assert.match(html, /watch\?v=abc_def-XYZ/);
+  });
+
+  it("falls through to verbatim for an id shorter than 11 chars", () => {
+    const html = (marked.parse("[[youtube:tooShort]]") as string).trim();
+    assert.match(html, /\[\[youtube:tooShort\]\]/);
+    assert.doesNotMatch(html, /youtube\.com\/watch/);
+  });
+
+  it("falls through to verbatim for an id longer than 11 chars", () => {
+    const html = (marked.parse("[[youtube:thisIdIsTooLong]]") as string).trim();
+    assert.match(html, /\[\[youtube:thisIdIsTooLong\]\]/);
+    assert.doesNotMatch(html, /youtube\.com\/watch/);
+  });
+
+  it("rejects an id with HTML metacharacters (no XSS leak)", () => {
+    // 11 chars (passing length) but contains HTML metacharacters,
+    // so it must fail the strict alphanumeric+_- pattern.
+    const html = (marked.parse('[[youtube:<script>x"]]') as string).trim();
+    assert.doesNotMatch(html, /<script/);
+    assert.doesNotMatch(html, /youtube\.com\/watch/);
+  });
+});
+
 describe("registerBuiltInWikiEmbeds — bootstrap convenience", () => {
-  it("registers both amazon and isbn", () => {
+  it("registers amazon, isbn, and youtube", () => {
     registerBuiltInWikiEmbeds();
-    assert.deepEqual(listWikiEmbedPrefixes(), ["amazon", "isbn"]);
+    assert.deepEqual(listWikiEmbedPrefixes(), ["amazon", "isbn", "youtube"]);
   });
 
   it("is idempotent (re-running doesn't add duplicates)", () => {
     registerBuiltInWikiEmbeds();
     registerBuiltInWikiEmbeds();
-    assert.deepEqual(listWikiEmbedPrefixes(), ["amazon", "isbn"]);
+    assert.deepEqual(listWikiEmbedPrefixes(), ["amazon", "isbn", "youtube"]);
   });
 });

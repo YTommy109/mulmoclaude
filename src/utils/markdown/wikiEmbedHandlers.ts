@@ -21,6 +21,11 @@ const ASIN_PATTERN = /^[A-Z0-9]{10}$/i;
  *  Non-digit / dash chars (other than the trailing X) reject. */
 const ISBN_PATTERN = /^\d{9}[\dX]$|^\d{13}$/i;
 
+/** YouTube video id — fixed-length 11, alphanumeric + `_` / `-`.
+ *  Same shape for regular videos, Shorts, and Live (YouTube
+ *  auto-redirects `watch?v=<id>` to the right player). */
+const YOUTUBE_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
+
 /** Strip ISBN dashes the user might paste verbatim
  *  (`978-0-06-231609-7` → `9780062316097`). */
 function normaliseIsbn(raw: string): string {
@@ -72,9 +77,33 @@ export function registerIsbnEmbed(): void {
   });
 }
 
+export function registerYoutubeEmbed(): void {
+  registerWikiEmbed({
+    prefix: "youtube",
+    render: (embedId: string): string => {
+      if (!YOUTUBE_ID_PATTERN.test(embedId)) return verbatim("youtube", embedId);
+      // Thumbnail-as-link rather than an embedded iframe: a full
+      // YouTube embed pulls 100+ KB of player JS, autoplay heuristics
+      // and tracking pixels per occurrence — heavy when a wiki page
+      // references several videos. The static `hqdefault.jpg` is a
+      // single image (always available, no API key) and clicking
+      // opens the canonical watch URL in a new tab where the user
+      // expects video controls anyway.
+      const watchUrl = `https://www.youtube.com/watch?v=${embedId}`;
+      const thumbUrl = `https://img.youtube.com/vi/${embedId}/hqdefault.jpg`;
+      const label = `YouTube video ${embedId}`;
+      const escapedHref = escapeHtml(watchUrl);
+      const escapedThumb = escapeHtml(thumbUrl);
+      const escapedLabel = escapeHtml(label);
+      return `<a href="${escapedHref}" target="_blank" rel="noopener noreferrer" class="wiki-embed wiki-embed-youtube" title="${escapedLabel}"><img src="${escapedThumb}" alt="${escapedLabel}" loading="lazy" class="wiki-embed-thumbnail" /></a>`;
+    },
+  });
+}
+
 /** Convenience entry point — registers every built-in handler.
  *  Called once at app boot from `src/main.ts`. Idempotent. */
 export function registerBuiltInWikiEmbeds(): void {
   registerAmazonEmbed();
   registerIsbnEmbed();
+  registerYoutubeEmbed();
 }

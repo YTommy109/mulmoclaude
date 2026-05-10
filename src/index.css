@@ -119,3 +119,11 @@
   background: #f9fafb;
   font-weight: 600;
 }
+.markdown-content .wiki-embed-thumbnail {
+  display: inline-block;
+  max-width: 100%;
+  width: 320px;
+  height: auto;
+  border-radius: 0.375rem;
+  margin: 0.25rem 0;
+}
