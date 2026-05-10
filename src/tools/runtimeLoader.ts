@@ -114,14 +114,41 @@ export async function loadOne(listing: RuntimePluginListing): Promise<void> {
 
   const moduleUrl = `${listing.assetBase}/dist/vue.js`;
 
+  // HEAD-probe to distinguish "package has no Vue bundle" (404 —
+  // expected, server-only plugin path) from "bundle exists but
+  // can't be loaded" (warn — masks real bugs otherwise). Without
+  // this split, swallowing every dynamic-import failure silently
+  // would hide broken UI runtime plugins (bad asset path,
+  // transient fetch failure, malformed bundle) — the codex bot
+  // flagged this in PR #1273 review.
+  let probeStatus: number;
+  try {
+    const probe = await fetch(moduleUrl, { method: "HEAD" });
+    probeStatus = probe.status;
+  } catch (err) {
+    console.warn(`[runtime-plugin] HEAD probe failed for ${listing.name}@${listing.version}`, err);
+    return;
+  }
+
+  if (probeStatus === 404) {
+    // Server-only plugin (no Vue View). The fallback entry
+    // registered above is the final state.
+    return;
+  }
+  if (probeStatus !== 200) {
+    console.warn(`[runtime-plugin] unexpected HEAD status ${probeStatus} for ${listing.name}@${listing.version}`);
+    return;
+  }
+
   let mod: PluginVueModule;
   try {
     mod = (await import(/* @vite-ignore */ moduleUrl)) as PluginVueModule;
-  } catch {
-    // No Vue bundle (server-only plugin) — fallback entry already
-    // registered, nothing more to do. We deliberately don't warn
-    // here: a 404 on dist/vue.js is the expected, normal shape
-    // for any pure-API plugin.
+  } catch (err) {
+    // Asset is reachable but the import threw — parse error,
+    // module-evaluation crash, etc. This IS a real bug and must
+    // surface; the fallback stays so the tool name doesn't
+    // disappear from the role editor.
+    console.warn(`[runtime-plugin] dynamic import failed (asset reachable): ${listing.name}@${listing.version}`, err);
     return;
   }
   const plugin = mod.plugin ?? mod.default?.plugin;
