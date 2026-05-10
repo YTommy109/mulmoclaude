@@ -8,33 +8,71 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ## [Unreleased]
 
+---
+
+## [0.6.0] - 2026-05-08
+
+A two-week release. The themes: a usable **Accounting plugin**, the start of the **personal-use plugin sets** (recipe-book, reading-list / articles / quotes, map), a **Memory system** with proactive recall and edit UI, the **Notifier (Encore) prototype**, the **Spotify plugin**, **MulmoScript** quality-of-life polish, and a swarm of dev-experience wins.
+
 ### Highlights
 
-- **Wiki edits show inline in chat** (#989) — when the LLM `Write`s/`Edit`s a `data/wiki/pages/*.md`, the canvas now renders the page automatically, sourced from the snapshot taken at that exact moment of the edit. Persisted in the session JSONL so reloads of older chats replay correctly. The `manageWiki` MCP tool is **removed from the LLM's palette** in the same release; the plugin record stays for canvas dispatch + historical replay only.
-- **`presentHtml` becomes editable** (#988, #1001) — the agent can iteratively edit a generated HTML doc instead of regenerating from scratch. New `filepath-only` mode (#982) lets `presentHtml` point at an existing artifact instead of inlining the source.
-- **Image rendering pipeline reworked across three stages** (#969 stage 1 / #972 stage 2 / #974 stage 3) — workspace-relative `![]()` references are mounted, prompted, and `onerror`-recovered through a unified path so PDF, presentHtml iframes, and the chat canvas all render the same images consistently.
+- **Accounting plugin** — bookkeeping with batch journal entry, invoice-system T-number handling, BS/PL shortcuts, time-series view, account naming with codes, dedicated Accounting role.
+- **Memory system** — proactive recall during turns + in-app edit UI for memory entries.
+- **Personal-use plugin sets begin shipping** — recipe-book (Cooking Coach PR-A), reading-list / articles / quotes (My Library PR-A/B/C), map plugin scaffold. Roadmap in #1169.
+- **Skill body collapsed in canvas** (#1220) — invoking a skill shows a card (name + description), expandable to the full markdown body. No more wall-of-text in the canvas.
+- **Spotify plugin** — OAuth + listening data + search + player controls.
+- **Notifier (Encore) prototype** — early cross-channel notification surface.
+- **MulmoScript polish** — lightbox toolbar (#918), background-movie load (#888 / #889), General role can author MulmoScripts (#887).
+- **MCP catalog expansion** — Spotify, YouTube, GitHub, Linear, Google OAuth presets out of the box (#867 / #868 / #869 / #872 / #873).
 
 ### Added
 
-- **`tool_result` payloads carry an `artifactPath`** field (#983) — downstream consumers (notifications, journal, rich previews) can navigate from a tool-result card directly to the underlying file without re-deriving the path.
-- **Bridge skill shortcut** (#967) — bridge messages whose body starts with an unknown `/<slash>` command are routed to the matching saved skill instead of being passed through as plain text. Lets phone-side users invoke skills with one keystroke.
+- **Wiki edits show inline in chat** (#989) — when the LLM `Write`s/`Edit`s a `data/wiki/pages/*.md`, the canvas renders the page automatically from the snapshot taken at that exact moment.
+- **Wiki page history UI** (#917 / #946) — browse a page's edit history and roll back.
+- **`presentHtml` becomes editable** (#988 / #1001 / #982) — the agent can iteratively edit a generated HTML doc instead of regenerating from scratch.
+- **Copy chat as Markdown** (#1065) — one-click copy of the whole conversation.
+- **Skills tab in suggestions** (#886) — invoke saved skills from the suggestions panel.
+- **Today's journal shortcut** (#879) — sidebar shortcut to today's journal entry.
+- **Session bookmark + delete** (#953) — pin or remove sessions from the sidebar.
+- **Bridge skill shortcut** (#967) — bridge messages starting with `/<slash>` route to the matching saved skill, so phone-side users can invoke skills with one keystroke.
+- **`tool_result` payloads carry an `artifactPath`** field (#983) — cards link directly to the underlying file.
+- **Image rendering unified across PDF, presentHtml, and the chat canvas** (#969 / #972 / #974) — workspace-relative `![]()` references resolve consistently everywhere.
+- **Translation service** for role queries (#1172 / #1173).
+- **`/debug` page** (#1192) and dev-mode debug role (#1186), gated on `VITE_DEV_MODE=1`.
+- **`create-mulmoclaude-plugin` CLI** (#1163) — scaffolder for new runtime plugins.
+- **Preset skills** shipped with the launcher (#1211).
+- **Plugin error boundary** (#1147) — when a plugin crashes, the canvas shows a fallback card instead of breaking the whole pane.
+- **Tool-call history persists across reloads** (#1101) — the right-sidebar history pane reconstructs from the session JSONL.
 
 ### Changed
 
-- **`manageWiki` MCP tool removed** — the LLM no longer has a `manageWiki` tool. Browse / lint flows are answered by directing the user at the `/wiki` UI; page edits render inline (see Highlights). The General role's `availablePlugins` is updated and the role prompt rewritten accordingly. View-only `PluginEntry` retained in the registry so historical chat sessions still render their `manageWiki` tool-result cards (#989).
-- **General / Office role plugin lists** — minor cleanup to drop dead entries (#1004, #1006).
+- **`manageWiki` MCP tool removed** — wiki edits auto-render via Write/Edit. Browse / lint flows direct the user at the `/wiki` UI. View-only `PluginEntry` retained so historical sessions still render their `manageWiki` cards (#989).
+- **Todo plugin migrated to `packages/todo-plugin/`** runtime-plugin shape; existing `~/mulmoclaude/data/todos/{todos,columns}.json` auto-migrates on first launch (#1149).
+- **`yarn dev` skip-if-fresh package build** (#1208) — cold-restart 8.5s → 0.04s when source is unchanged.
+- **`yarn package`** one-liner builds a publishable `mulmoclaude-X.Y.Z.tgz` with stale-tarball cleanup (#1230).
+- **MCP server presets** — Spotify / YouTube / GitHub / Linear / Google OAuth available without manual registration (#867 / #868 / #869 / #872 / #873).
+- **Atomic writes v2** (#885 / #890) — workspace files (wiki pages, journal, todos, …) write via tmp-and-rename so a kill -9 mid-save can't leave a half-written file.
+- **`gui-chat-protocol` bumped to 0.3.0** (#1123) → 0.3.2 mid-cycle (typed runtime endpoints).
+- **`zod` v4** for built-in plugins (#1204).
 
 ### Fixed
 
-- **`presentHtml` Safari CSP** (#991) — the iframe `srcdoc` CSP previously blocked Safari's inline bootstrap scripts; now allows them while keeping the same exfiltration boundary on cross-origin requests.
-- **`/files` HTML preview relative paths** (#980) — relative `<img src="…">` and `<a href="…">` resolve against the previewed file's directory.
-- **`artifacts/html` mount allows sibling images** (#981) — image refs from `artifacts/html/<doc>.html` now resolve to images alongside.
-- **Wiki page-edit toolResult publish failure no longer 500s the snapshot route** — the snapshot is already on disk by the time the publish runs; a publish error is logged as a warning instead of failing the response (CodeRabbit follow-up on #989).
-- **`parseTableRow` complexity** in `server/api/routes/wiki.ts` reduced under the project's `complexity: 15` rule via a small `resolveTableColumnIndices` helper (#1002).
+- **Sandbox mode silently disabled in published npm package** — `Dockerfile.sandbox` and `sandbox-entrypoint.sh` are now bundled (carried over from 0.5.3 with extra tarball asserts).
+- **`presentHtml` iframe height** (#1228) — long HTML docs scroll naturally instead of clipping at the pane bottom.
+- **`presentHtml` Safari CSP** (#991) — Safari's inline bootstrap scripts no longer blocked.
+- **`/files` HTML preview relative paths** (#980), **`artifacts/html` sibling images resolve** (#981).
+- **Wiki page-edit publish failure no longer 500s** the snapshot route — the snapshot is already on disk; a publish error logs a warning instead of failing the response.
+- **Notifier validation + emit safety** (#1199 / #1223).
+- **Chat attachment leak** (#1069) — attachment uploads no longer carry over between chats.
+
+### Security
+
+- **Strict data gating** for plugin scope roots (#1181) — plugins can only read/write inside their scoped data directory; lexical traversal checks prevent `..` escapes.
 
 ### Breaking Changes
 
-- **`manageWiki` MCP tool definition removed** (#989). Custom roles whose `availablePlugins` lists `manageWiki` keep loading — the lenient zod parse silently filters the now-unknown name out — but the LLM can no longer call it. Agents that needed `manageWiki action='page'` to display a page in the canvas no longer need that call: a wiki Write/Edit auto-renders. For browse / lint flows, the role prompt directs the user at `/wiki`.
+- **`manageWiki` MCP tool definition removed** (#989). Custom roles listing it still load (lenient zod parse silently drops the name) but the LLM can no longer call it. Agents that needed `manageWiki action='page'` to display a page in the canvas no longer need that call — wiki Writes/Edits auto-render.
+- **Built-in todo plugin moved to `packages/todo-plugin/`** (#1149). Existing data auto-migrates on first launch. Custom code importing from `src/plugins/todo/` will fail to resolve — switch to `@mulmoclaude/todo-plugin/{shared,composables,vue}`.
 
 ### Packages published during this cycle
 

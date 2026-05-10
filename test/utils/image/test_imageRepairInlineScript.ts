@@ -1,17 +1,88 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { IMAGE_REPAIR_INLINE_SCRIPT, IMAGE_REPAIR_PATTERN, injectImageRepairScript } from "../../../src/utils/image/imageRepairInlineScript.js";
+import {
+  IMAGE_REPAIR_INLINE_SCRIPT,
+  IMAGE_REPAIR_PATTERN,
+  IMAGE_REPAIR_PATTERN_ENCODED,
+  injectImageRepairScript,
+  repairImageErrorTarget,
+} from "../../../src/utils/image/imageRepairInlineScript.js";
+
+// ---------------------------------------------------------------------------
+// Mock element shape — matches the duck-typed surface the inline script
+// touches. Lets us drive the handler without a DOM.
+// ---------------------------------------------------------------------------
+interface MockElement {
+  tagName: string;
+  dataset: { imageRepairTried?: string };
+  src?: string;
+  srcset?: string;
+  attrs: Record<string, string | undefined>;
+  children: MockElement[]; // simple "shadow tree" for the picture/audio/video case
+  parentPicture?: MockElement;
+  getAttribute: (name: string) => string | null;
+  setAttribute: (name: string, value: string) => void;
+  closest: (selector: string) => MockElement | null;
+  querySelectorAll: (selector: string) => MockElement[];
+}
+
+function makeElement(tagName: string, init: Partial<MockElement> = {}): MockElement {
+  const attrs: Record<string, string | undefined> = init.attrs ?? {};
+  const children: MockElement[] = init.children ?? [];
+  const element: MockElement = {
+    tagName,
+    dataset: init.dataset ?? {},
+    src: init.src,
+    srcset: init.srcset,
+    attrs,
+    children,
+    parentPicture: init.parentPicture,
+    getAttribute(name: string) {
+      // For SOURCE elements the inline script reads via getAttribute("src")
+      // — mirror that, falling back to the typed `src` slot for completeness.
+      if (name === "src") return attrs.src ?? this.src ?? null;
+      return attrs[name] ?? null;
+    },
+    setAttribute(name: string, value: string) {
+      attrs[name] = value;
+      if (name === "src") this.src = value;
+    },
+    closest(selector: string) {
+      if (selector === "picture") return this.parentPicture ?? null;
+      return null;
+    },
+    querySelectorAll(selector: string) {
+      if (selector === "source") return this.children.filter((child) => child.tagName === "SOURCE");
+      if (selector === ":scope > source") return this.children.filter((child) => child.tagName === "SOURCE");
+      return [];
+    },
+  };
+  return element;
+}
 
 describe("IMAGE_REPAIR_INLINE_SCRIPT — pure form", () => {
   it("embeds IMAGE_REPAIR_PATTERN.toString() verbatim so the two stay in lockstep", () => {
     assert.ok(IMAGE_REPAIR_INLINE_SCRIPT.includes(IMAGE_REPAIR_PATTERN.toString()));
   });
 
+  it("embeds the encoded-form pattern + decodeURIComponent call (issue #1102)", () => {
+    // Iframe surfaces (presentHtml) need the same broken-prefix-via-
+    // rewriter recovery the host shell does. If someone bumps the
+    // encoded regex without touching the inline script, this catches
+    // the drift.
+    assert.ok(IMAGE_REPAIR_INLINE_SCRIPT.includes(IMAGE_REPAIR_PATTERN_ENCODED.toString()));
+    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /decodeURIComponent/);
+  });
+
   it("references all four element kinds the document-scope handler covers", () => {
-    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName === "IMG"/);
-    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName === "SOURCE"/);
-    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName === "AUDIO"/);
-    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName === "VIDEO"/);
+    // Operator spacing varies by toolchain (`tagName === "IMG"` from
+    // tsc, `tagName==="IMG"` from tsx/esbuild's compact mode), so the
+    // pattern accepts either. The runtime-behavior tests below cover
+    // each branch on real values.
+    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName\s*===\s*"IMG"/);
+    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName\s*===\s*"SOURCE"/);
+    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName\s*===\s*"AUDIO"/);
+    assert.match(IMAGE_REPAIR_INLINE_SCRIPT, /tagName\s*===\s*"VIDEO"/);
   });
 
   it("attaches in capture phase (error events don't bubble)", () => {
@@ -107,5 +178,106 @@ describe("injectImageRepairScript", () => {
     // unchanged, and only the last close is preceded by a script tag.
     assert.ok(out.endsWith("</body>x"));
     assert.ok(elapsedMs < 1000, `expected <1s for 100K tokens, got ${elapsedMs}ms`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Behavior tests for `repairImageErrorTarget` — drives the actual function
+// with mock elements (no DOM / jsdom). Covers the same decision tree as the
+// inline script body since the script body IS this function (#1244).
+// ---------------------------------------------------------------------------
+describe("repairImageErrorTarget — runtime behavior", () => {
+  it("rewrites <img>.src when the URL carries a recognisable artifacts/images segment", () => {
+    const img = makeElement("IMG", { src: "/wrong/prefix/artifacts/images/2026/05/foo.png" });
+    repairImageErrorTarget(img as unknown as EventTarget, IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED);
+    assert.equal(img.src, "/artifacts/images/2026/05/foo.png");
+    assert.equal(img.dataset.imageRepairTried, "1");
+  });
+
+  it("rewrites the encoded form via decodeURIComponent (issue #1102)", () => {
+    const img = makeElement("IMG", { src: "/api/files/raw?path=artifacts%2Fimages%2F2026%2F05%2Ffoo.png" });
+    repairImageErrorTarget(img as unknown as EventTarget, IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED);
+    assert.equal(img.src, "/artifacts/images/2026/05/foo.png");
+  });
+
+  it("is a one-shot per element — second invocation is a no-op", () => {
+    const img = makeElement("IMG", { src: "/wrong/artifacts/images/foo.png" });
+    repairImageErrorTarget(img as unknown as EventTarget, IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED);
+    assert.equal(img.src, "/artifacts/images/foo.png");
+    // Even if a follow-up rewrite would change the path again, the
+    // dataset flag stops it.
+    img.src = "/wrong/again/artifacts/images/bar.png";
+    repairImageErrorTarget(img as unknown as EventTarget, IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED);
+    assert.equal(img.src, "/wrong/again/artifacts/images/bar.png");
+  });
+
+  it("leaves <img>.src alone when no pattern matches", () => {
+    const img = makeElement("IMG", { src: "/some/other/path.png" });
+    repairImageErrorTarget(img as unknown as EventTarget, IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED);
+    assert.equal(img.src, "/some/other/path.png");
+    assert.equal(img.dataset.imageRepairTried, undefined);
+  });
+
+  it("returns no-op when target is null", () => {
+    // No throw, no error.
+    repairImageErrorTarget(null, IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED);
+  });
+
+  it("rewrites a <source> element via getAttribute / setAttribute", () => {
+    const src = makeElement("SOURCE", { attrs: { src: "/wrong/artifacts/images/x.webp" } });
+    repairImageErrorTarget(src as unknown as EventTarget, IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED);
+    assert.equal(src.attrs.src, "/artifacts/images/x.webp");
+    assert.equal(src.dataset.imageRepairTried, "1");
+  });
+
+  it("rewrites every srcset candidate independently", () => {
+    const src = makeElement("SOURCE", {
+      srcset: "/wrong/artifacts/images/a.png 1x, /wrong/artifacts/images/b.png 2x, /unrelated.png 3x",
+    });
+    repairImageErrorTarget(src as unknown as EventTarget, IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED);
+    assert.equal(src.srcset, "/artifacts/images/a.png 1x, /artifacts/images/b.png 2x, /unrelated.png 3x");
+    assert.equal(src.dataset.imageRepairTried, "1");
+  });
+
+  it("rewrites <picture> sibling <source>s when an <img> inside it errors", () => {
+    const img = makeElement("IMG", { src: "/wrong/artifacts/images/main.png" });
+    const sourceA = makeElement("SOURCE", { attrs: { src: "/wrong/artifacts/images/a.webp" } });
+    const sourceB = makeElement("SOURCE", { attrs: { src: "/wrong/artifacts/images/b.avif" } });
+    const picture = makeElement("PICTURE", { children: [sourceA, sourceB, img] });
+    img.parentPicture = picture;
+
+    repairImageErrorTarget(img as unknown as EventTarget, IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED);
+
+    assert.equal(img.src, "/artifacts/images/main.png");
+    assert.equal(sourceA.attrs.src, "/artifacts/images/a.webp");
+    assert.equal(sourceB.attrs.src, "/artifacts/images/b.avif");
+  });
+
+  it("rewrites <source> children of <audio> / <video>", () => {
+    const sourceA = makeElement("SOURCE", { attrs: { src: "/wrong/artifacts/images/a.mp3" } });
+    const sourceB = makeElement("SOURCE", { attrs: { src: "/wrong/artifacts/images/b.ogg" } });
+    const audio = makeElement("AUDIO", { children: [sourceA, sourceB] });
+
+    repairImageErrorTarget(audio as unknown as EventTarget, IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED);
+
+    assert.equal(sourceA.attrs.src, "/artifacts/images/a.mp3");
+    assert.equal(sourceB.attrs.src, "/artifacts/images/b.ogg");
+  });
+
+  it("treats malformed percent-encoded input as no-op (decodeURIComponent throw is caught)", () => {
+    // `%E0%A4` is an incomplete UTF-8 sequence — decodeURIComponent will
+    // throw URIError. The handler must swallow that and leave src alone,
+    // not crash the iframe.
+    const img = makeElement("IMG", { src: "/api/files/raw?path=artifacts%2Fimages%2F%E0%A4" });
+    repairImageErrorTarget(img as unknown as EventTarget, IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED);
+    assert.equal(img.src, "/api/files/raw?path=artifacts%2Fimages%2F%E0%A4");
+    assert.equal(img.dataset.imageRepairTried, undefined);
+  });
+
+  it("ignores tags outside the IMG/SOURCE/AUDIO/VIDEO whitelist", () => {
+    const div = makeElement("DIV", { src: "/wrong/artifacts/images/foo.png" });
+    repairImageErrorTarget(div as unknown as EventTarget, IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED);
+    assert.equal(div.src, "/wrong/artifacts/images/foo.png");
+    assert.equal(div.dataset.imageRepairTried, undefined);
   });
 });

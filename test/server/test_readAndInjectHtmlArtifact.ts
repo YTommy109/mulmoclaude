@@ -50,7 +50,9 @@ describe("readAndInjectHtmlArtifact", () => {
     await writeFile(file, html, "utf8");
     const out = await readAndInjectHtmlArtifact(htmlsRoot, "preserve.html");
     assert.ok(out !== null);
-    assert.equal(out.replace(/<script>[\s\S]+?<\/script>/, ""), html);
+    // Strip ALL injected scripts (image repair + height reporter)
+    // before comparing — both run via the splicer chain.
+    assert.equal(out.replace(/<script>[\s\S]+?<\/script>/g, ""), html);
   });
 
   it("returns null when the path escapes htmlsRoot via traversal", async () => {

@@ -240,7 +240,7 @@
           {{ briefError }}
         </div>
         <!-- eslint-disable-next-line vue/no-v-html -->
-        <div v-else class="markdown-content" v-html="briefHtml" />
+        <div v-else class="markdown-content" @click="handleExternalLinkClick" v-html="briefHtml" />
       </div>
     </div>
 
@@ -282,6 +282,7 @@ import type { ManageSourceData, RebuildSummary, Source } from "../plugins/manage
 import { apiGet, apiPost, apiDelete } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
 import { buildRouteUrl } from "../plugins/meta-types";
+import { handleExternalLinkClick } from "../utils/dom/externalLink";
 import { SOURCE_FILTER_KEYS, countByFilter, matchesSourceFilter, type SourceFilterKey } from "../utils/sources/filter";
 import FilterChip from "./FilterChip.vue";
 import PageChatComposer from "./PageChatComposer.vue";

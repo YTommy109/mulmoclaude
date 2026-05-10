@@ -5,7 +5,7 @@
 // scope root used by the same package after the migration).
 //
 // Background: the todo plugin moved out of `src/plugins/todo/` +
-// `server/api/routes/todos.ts` into `packages/todo-plugin/` and
+// `server/api/routes/todos.ts` into `packages/plugins/todo-plugin/` and
 // loads as a runtime plugin. Runtime plugins persist their data
 // under `data/plugins/<encoded-package-name>/`, so the existing
 // `todos.json` and `columns.json` in `data/todos/` need to migrate

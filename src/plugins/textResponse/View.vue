@@ -17,9 +17,23 @@
         <div class="text-response-content-wrapper">
           <div class="p-6">
             <div class="max-w-3xl mx-auto space-y-4">
-              <div class="rounded-lg border border-gray-300 bg-white shadow-sm p-5" :class="roleTheme">
+              <div
+                class="rounded-lg border border-gray-300 bg-white shadow-sm p-5"
+                :class="roleTheme"
+                :data-testid="seededByPlugin ? 'text-response-plugin-seeded' : undefined"
+              >
                 <div class="flex justify-between items-start mb-2 text-sm text-gray-500">
-                  <span class="font-medium text-gray-700">{{ speakerLabel }}</span>
+                  <span class="flex items-center gap-2">
+                    <span class="font-medium text-gray-700">{{ speakerLabel }}</span>
+                    <span
+                      v-if="seededByPlugin"
+                      class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase font-medium bg-purple-100 text-purple-700 ring-1 ring-purple-200"
+                      :title="t('pluginTextResponse.seededByPluginTooltip', { pkg: seededByPlugin })"
+                      data-testid="text-response-seeded-by-plugin"
+                    >
+                      {{ t("pluginTextResponse.seededByPlugin", { pkg: seededByPlugin }) }}
+                    </span>
+                  </span>
                   <span v-if="transportKind" class="italic">{{ transportKind }}</span>
                 </div>
                 <!-- eslint-disable vue/no-v-html -- marked.parse output of app-owned assistant response text; trusted in-process render. Multi-line element so disable/enable pair (CLAUDE.md UI rule) instead of -next-line. -->
@@ -107,6 +121,11 @@ watch(editorSource, (next) => {
 const messageRole = computed(() => props.selectedResult.data?.role ?? "assistant");
 const transportKind = computed(() => props.selectedResult.data?.transportKind ?? "");
 const messageAttachments = computed<string[]>(() => props.selectedResult.data?.attachments ?? []);
+// Pkg name when this user turn was seeded by `runtime.chat.start()`
+// (Phase 1 of the Encore plan). Drives the "from <pkg>" chip and a
+// muted background variant so the user can tell the message came
+// from a plugin and not themselves.
+const seededByPlugin = computed<string>(() => props.selectedResult.data?.seededByPlugin ?? "");
 
 const renderedHtml = computed(() => {
   if (!messageText.value) return "";
@@ -145,6 +164,13 @@ const speakerLabel = computed(() => {
 });
 
 const roleTheme = computed(() => {
+  // Plugin-seeded user turns get a muted gray background instead of
+  // the standard "user" green so the row reads as "this came from a
+  // plugin, not you." The chip beside the speaker label carries the
+  // pkg name; the background change is the at-a-glance signal.
+  if (seededByPlugin.value && messageRole.value === "user") {
+    return "bg-gray-50 border-gray-200";
+  }
   switch (messageRole.value) {
     case "system":
       return "bg-blue-50 border-blue-200";

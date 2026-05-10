@@ -26,52 +26,203 @@
 // static mount will then serve the file directly.
 export const IMAGE_REPAIR_PATTERN = /artifacts\/images\/.+/;
 
-// Inline script intended for iframe surfaces. Same decision tree as
-// `useGlobalImageErrorRepair`; kept as a string so it can be embedded
-// into the rendered HTML and run inside the iframe. The regex literal
-// is interpolated from `IMAGE_REPAIR_PATTERN` so the two stay in
-// lockstep automatically.
-export const IMAGE_REPAIR_INLINE_SCRIPT = `
-document.addEventListener("error", function (event) {
-  const target = event.target;
+// Same segment in percent-encoded form. The wiki / markdown rewriter
+// routes an unrecognised absolute path like `/wrong/prefix/artifacts/
+// images/foo.png` through `/api/files/raw?path=...` (see
+// `rewriteMarkdownImageRefs.ts` / `resolveImageSrc`), which encodes
+// the slashes — so the rendered `img.src` carries
+// `artifacts%2Fimages%2Ffoo.png`, not the unencoded form. The pattern
+// above can't see through that, so a 404 that's actually salvageable
+// silently misses (issue #1102 / e2e-live L-W-S-04). The
+// `[^&#\s]` class stops the greedy match at a query-string separator
+// (`&`), a fragment (`#`) or whitespace, so a trailing `&v=<bump>`
+// from `resolveImageSrcFresh` doesn't get swallowed into the captured
+// path tail.
+//
+// Contract assumption: any in-app producer that may end up downstream
+// of this match uses `&` to start additional query params (the
+// `resolveImageSrc` / `resolveImageSrcFresh` pair is the only one
+// today). The class deliberately does NOT include `?` or `;` because
+// neither appears as a separator after `?path=...` in an in-app URL —
+// `?` only appears once at the start of the query string (already
+// before our match), and `;` is not used. If a future producer
+// switches to a `;`-list or emits a second `?`, this class will
+// over-consume; bound the match here in lockstep with that producer.
+export const IMAGE_REPAIR_PATTERN_ENCODED = /artifacts%2[Ff]images%2[Ff][^&#\s]+/;
+
+/** Pull the `artifacts/images/<rest>` substring out of a rendered
+ *  `<img>` / `<source>` URL, in either unencoded form or the
+ *  percent-encoded form the markdown rewriter produces.
+ *
+ *  Returns the raw (decoded) path tail without a leading `/`, so the
+ *  caller writes `/${target}` to the element. Returns `null` when the
+ *  URL doesn't carry a recognised artifacts/images segment, or when
+ *  the encoded match can't be `decodeURIComponent`-d (malformed input
+ *  is treated as a no-op rather than throwing into the error handler).
+ *
+ *  Unencoded match wins over the encoded one — matches the historical
+ *  Stage 3 behaviour for any URL that already carries plain slashes
+ *  (relative refs, broken-prefix raw absolute, etc.). */
+export function findRepairTarget(src: string): string | null {
+  const direct = src.match(IMAGE_REPAIR_PATTERN);
+  if (direct) return direct[0];
+  const encoded = src.match(IMAGE_REPAIR_PATTERN_ENCODED);
+  if (!encoded) return null;
+  try {
+    return decodeURIComponent(encoded[0]);
+  } catch {
+    return null;
+  }
+}
+
+/** The actual repair logic, written as a real TypeScript function so
+ *  ESLint, typecheck, and unit tests apply to it directly (#1244).
+ *  The inline-script form below is built by stringifying this function
+ *  and invoking it from inside an `addEventListener("error", ...)`
+ *  installed in the iframe's null-origin scope.
+ *
+ *  Pure: takes the event target + both regex patterns as arguments,
+ *  closes over no module-scope identifiers, so `Function.toString()`
+ *  produces a self-contained body that runs unchanged in the iframe.
+ *
+ *  The shapes used inside (`HTMLImageElement`, `HTMLSourceElement`,
+ *  `dataset`, `closest`, `querySelectorAll`) are all browser-native;
+ *  the function is cast through unknown-shape probes rather than
+ *  assuming a structurally-typed mock so the same body works in any
+ *  iframe context. */
+// Duck-typed element shape the repair logic touches. Real `Element` /
+// `HTMLImageElement` / `HTMLSourceElement` etc. all satisfy this; tests
+// pass a plain object that does too.
+interface ElLike {
+  tagName: string;
+  dataset: { imageRepairTried?: string };
+  src?: string;
+  srcset?: string;
+  getAttribute?: (name: string) => string | null;
+  setAttribute?: (name: string, value: string) => void;
+  closest?: (selector: string) => ElLike | null;
+  querySelectorAll?: (selector: string) => Iterable<ElLike>;
+}
+
+// Runtime resolver: pull the artifacts/images path tail out of either
+// the unencoded or percent-encoded URL form. Mirrors `findRepairTarget`
+// (which the host shell composable uses) but without depending on
+// module-scope identifiers — both forms have to round-trip through
+// `Function.toString()` into the iframe scope, so each takes the
+// patterns by argument.
+function findInlineRepairMatch(input: string, pattern: RegExp, patternEncoded: RegExp): string | null {
+  const direct = input.match(pattern);
+  if (direct) return direct[0];
+  const enc = input.match(patternEncoded);
+  if (!enc) return null;
+  try {
+    return decodeURIComponent(enc[0]);
+  } catch {
+    return null;
+  }
+}
+
+// One-shot rewrite of an `<img>` element. Marks `dataset.imageRepairTried`
+// before mutating so a second error event on the same element is a no-op.
+function repairImg(img: ElLike, pattern: RegExp, patternEncoded: RegExp): void {
+  if (img.dataset.imageRepairTried) return;
+  const match = findInlineRepairMatch(String(img.src ?? ""), pattern, patternEncoded);
+  if (!match) return;
+  img.dataset.imageRepairTried = "1";
+  img.src = `/${match}`;
+}
+
+// One-shot rewrite of a `<source>` element. Both `src` (via
+// getAttribute / setAttribute, since `<source>.src` doesn't behave like
+// `<img>.src`) and `srcset` get the same path-extraction treatment.
+function repairSource(src: ElLike, pattern: RegExp, patternEncoded: RegExp): void {
+  if (src.dataset.imageRepairTried) return;
+  let changed = false;
+  const srcAttr = src.getAttribute ? src.getAttribute("src") : null;
+  if (srcAttr) {
+    const match = findInlineRepairMatch(srcAttr, pattern, patternEncoded);
+    if (match && src.setAttribute) {
+      src.setAttribute("src", `/${match}`);
+      changed = true;
+    }
+  }
+  if (src.srcset) {
+    const orig = src.srcset;
+    const next = orig.replace(/[^\s,]+/g, (token) => {
+      const match = findInlineRepairMatch(token, pattern, patternEncoded);
+      return match ? `/${match}` : token;
+    });
+    if (next !== orig) {
+      src.srcset = next;
+      changed = true;
+    }
+  }
+  if (changed) src.dataset.imageRepairTried = "1";
+}
+
+// Public entry point: dispatch by tagName onto the right helper.
+// Pure (no module-scope closures); patterns come in by argument so the
+// stringified form runs unchanged inside the iframe's null-origin scope.
+export function repairImageErrorTarget(target: EventTarget | null, pattern: RegExp, patternEncoded: RegExp): void {
   if (!target) return;
-  const pattern = ${IMAGE_REPAIR_PATTERN.toString()};
-  function fixImg(img) {
-    if (img.dataset.imageRepairTried) return;
-    const m = String(img.src).match(pattern);
-    if (!m) return;
-    img.dataset.imageRepairTried = "1";
-    img.src = "/" + m[0];
-  }
-  function fixSource(src) {
-    if (src.dataset.imageRepairTried) return;
-    let changed = false;
-    const srcAttr = src.getAttribute("src");
-    if (srcAttr) {
-      const m = srcAttr.match(pattern);
-      if (m) { src.setAttribute("src", "/" + m[0]); changed = true; }
+  const element = target as unknown as ElLike;
+  if (element.tagName === "IMG") {
+    repairImg(element, pattern, patternEncoded);
+    const pic = element.closest ? element.closest("picture") : null;
+    if (pic && pic.querySelectorAll) {
+      for (const source of pic.querySelectorAll("source")) repairSource(source, pattern, patternEncoded);
     }
-    if (src.srcset) {
-      const orig = src.srcset;
-      const next = orig.replace(/[^\\s,]+/g, function (tok) {
-        const mm = tok.match(pattern);
-        return mm ? "/" + mm[0] : tok;
-      });
-      if (next !== orig) { src.srcset = next; changed = true; }
-    }
-    if (changed) src.dataset.imageRepairTried = "1";
+    return;
   }
-  if (target.tagName === "IMG") {
-    fixImg(target);
-    const pic = target.closest && target.closest("picture");
-    if (pic) for (const s of pic.querySelectorAll("source")) fixSource(s);
-  } else if (target.tagName === "SOURCE") {
-    fixSource(target);
-  } else if (target.tagName === "AUDIO" || target.tagName === "VIDEO") {
-    for (const s of target.querySelectorAll(":scope > source")) fixSource(s);
+  if (element.tagName === "SOURCE") {
+    repairSource(element, pattern, patternEncoded);
+    return;
   }
-}, true);
-`.trim();
+  if ((element.tagName === "AUDIO" || element.tagName === "VIDEO") && element.querySelectorAll) {
+    for (const source of element.querySelectorAll(":scope > source")) repairSource(source, pattern, patternEncoded);
+  }
+}
+
+// Inline script intended for iframe surfaces. The body is the
+// stringified `repairImageErrorTarget` plus a small installer that
+// binds the (module-scope) regex patterns and forwards each `error`
+// event's `target` into it. Same decision tree as
+// `useGlobalImageErrorRepair`. The regex literals are interpolated
+// from the exported patterns so the two stay in lockstep automatically.
+//
+// Why this shape (#1244): keeping the repair logic as a TypeScript
+// function lets ESLint, typecheck, and direct-call unit tests cover
+// it. `Function.toString()` returns the post-tsc JS, which round-trips
+// faithfully under our `target: ES2022` setting (no down-leveling of
+// `for`-loops, function declarations, or arrow functions).
+//
+// `__name` no-op stub: esbuild / tsx with `keepNames: true` (the
+// default in `tsx` dev runs) emits `__name(fn, "fn")` calls after
+// every named inner-function declaration to preserve `Function.name`
+// for stack traces. Those references are inert in production Vite
+// builds (where `__name` is hoisted to a module-level helper or
+// elided), but the iframe's null-origin scope sees the toString
+// output verbatim — so we MUST provide a definition or the iframe
+// crashes on first error event. Defining it as a passthrough in the
+// IIFE wrapper makes the script work in both dev and prod toolchains
+// without depending on which compiler emitted the body.
+export const IMAGE_REPAIR_INLINE_SCRIPT = [
+  "(function () {",
+  "  function __name(fn) { return fn; }",
+  // Hoist each helper into the IIFE scope so the dispatcher's
+  // `findInlineRepairMatch` / `repairImg` / `repairSource` references
+  // resolve. Each `.toString()` is self-contained (no closures over
+  // module-scope identifiers); the dispatcher then references them
+  // by name within the same scope.
+  `  ${findInlineRepairMatch.toString()}`,
+  `  ${repairImg.toString()}`,
+  `  ${repairSource.toString()}`,
+  `  var handler = ${repairImageErrorTarget.toString()};`,
+  '  document.addEventListener("error", function (event) {',
+  `    handler(event.target, ${IMAGE_REPAIR_PATTERN.toString()}, ${IMAGE_REPAIR_PATTERN_ENCODED.toString()});`,
+  "  }, true);",
+  "})();",
+].join("\n");
 
 // Wrap the script body in a `<script>` tag once at module load; the
 // splicer below uses this directly so each splice is a single string

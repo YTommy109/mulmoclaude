@@ -145,6 +145,31 @@ const frMessages = {
       mcp: "Serveurs MCP",
       dirs: "Répertoires",
       refs: "Répertoires de référence",
+      map: "Carte",
+      photos: "Photos",
+    },
+    mapTab: {
+      description: "Définit la clé API Google Maps utilisée par le plugin de carte. La clé est stockée localement et n'est envoyée qu'à Google Maps.",
+      apiKeyLabel: "Clé API Google Maps",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "Créez ou copiez une clé depuis {consoleLink}.",
+      requiredApis: "APIs requises : Maps JavaScript API, Geocoding API, Places API (New), Directions API.",
+      configured: "Configurée",
+      notConfigured: "Non configurée",
+      clear: "Effacer",
+      loadError: "Échec du chargement des paramètres",
+      saveError: "Échec de l'enregistrement",
+    },
+    photosTab: {
+      description:
+        "Contrôles de confidentialité pour les photos reçues par le chat ou par un bridge connecté. Les données de localisation EXIF sont sensibles — décochez pour désactiver la capture automatique.",
+      autoCaptureLabel: "Capturer automatiquement la localisation des photos",
+      autoCaptureHint:
+        "Activé : chaque image envoyée avec GPS EXIF génère un sidecar de localisation dans data/locations/. Désactivé : rien n'est capturé automatiquement ; le LLM peut toujours extraire EXIF à la demande.",
+      statusOn: "Capture automatique ACTIVÉE",
+      statusOff: "Capture automatique DÉSACTIVÉE",
+      loadError: "Échec du chargement des paramètres",
+      saveError: "Échec de l'enregistrement",
     },
     // Slots `<i18n-t>` — les noms `envKey` / `envFile` sont rendus sous
     // forme de `<code>` inline dans SettingsModal.vue ; les littéraux
@@ -991,6 +1016,14 @@ const frMessages = {
       clearFilter: "Effacer le filtre",
     },
   },
+  photoLocations: {
+    title: "Emplacements des photos",
+    summary: "{total} capturées · {withGps} avec GPS",
+    mapHint: "Demandez à Claude « affiche-les sur la carte » pour les tracer avec le plugin Google Map.",
+    loading: "Chargement…",
+    empty: "Aucun emplacement capturé pour le moment. Envoyez une photo avec balise GPS via le chat ou un bridge connecté pour commencer.",
+    noGps: "Pas de données GPS",
+  },
   pluginManageSkills: {
     deleteProjectSkill: "Supprimer cette skill de projet",
     heading: "Skills",
@@ -1102,6 +1135,11 @@ const frMessages = {
     copyLabel: "Copier",
     copiedLabel: "Copié !",
     cancel: "Annuler",
+    seededByPlugin: "depuis {pkg}",
+    seededByPluginTooltip: "Ce message a été généré par le plugin {pkg}, et non envoyé par vous.",
+  },
+  pluginSkill: {
+    noDescription: "(aucune description)",
   },
   pluginSpreadsheet: {
     previewUntitled: "Tableur",

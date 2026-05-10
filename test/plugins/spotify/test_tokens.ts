@@ -1,12 +1,12 @@
-// Unit tests for `packages/spotify-plugin/src/tokens.ts` —
+// Unit tests for `packages/plugins/spotify-plugin/src/tokens.ts` —
 // read/write round-trip + refresh-merge that preserves the prior
 // `refreshToken` when Spotify omits a fresh one.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { mergeRefreshResponse, readClientConfig, readTokens, writeClientConfig, writeTokens } from "../../../packages/spotify-plugin/src/tokens.js";
-import type { SpotifyTokens } from "../../../packages/spotify-plugin/src/types.js";
+import { mergeRefreshResponse, readClientConfig, readTokens, writeClientConfig, writeTokens } from "../../../packages/plugins/spotify-plugin/src/tokens.js";
+import type { SpotifyTokens } from "../../../packages/plugins/spotify-plugin/src/types.js";
 
 /** In-memory `FileOps` impl — mirrors what `runtime.files.config`
  *  hands plugins, scoped to a single fake "config dir". Plugins

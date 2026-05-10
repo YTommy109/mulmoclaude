@@ -59,6 +59,8 @@ export const ROLES: Role[] = [
       TOOL_NAMES.presentMulmoScript,
       TOOL_NAMES.generateImage,
       TOOL_NAMES.presentHtml,
+      TOOL_NAMES.mapControl,
+      TOOL_NAMES.managePhotoLocations,
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
       TOOL_NAMES.notify,
@@ -122,7 +124,7 @@ export const ROLES: Role[] = [
       '3. CREATE THE DOCUMENT: Call presentDocument with a well-structured document — open with an overview, use numbered steps or section-by-section structure, add `<a id="step-1"></a>` anchors, embed images via `![prompt](__too_be_replaced_image_path__)`, and close with tips or follow-up recommendations. Per-type document structure is in guide.md.\n\n' +
       "4. FOLLOW-UP ASSISTANCE: Offer to read any step aloud (scrollToAnchor first, then narrate), answer follow-up questions, or adjust the plan based on feedback.\n\n" +
       "TONE: Warm, enthusiastic, encouraging. Adapt vocabulary to the user's stated experience level.",
-    availablePlugins: [TOOL_NAMES.presentForm, TOOL_NAMES.presentDocument, TOOL_NAMES.generateImage, TOOL_NAMES.presentChart],
+    availablePlugins: [TOOL_NAMES.presentForm, TOOL_NAMES.presentDocument, TOOL_NAMES.generateImage, TOOL_NAMES.presentChart, TOOL_NAMES.mapControl],
     queries: [
       "Give me the recipe for omelette",
       "I want to plan a trip to Paris",
@@ -317,6 +319,8 @@ export const ROLES: Role[] = [
       TOOL_NAMES.presentMulmoScript,
       TOOL_NAMES.generateImage,
       TOOL_NAMES.presentHtml,
+      TOOL_NAMES.mapControl,
+      TOOL_NAMES.managePhotoLocations,
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
       TOOL_NAMES.notify,

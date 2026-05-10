@@ -14,7 +14,7 @@ import {
   formatTrackLine,
   sanitiseQueryForSummary,
   summariseSearch,
-} from "../../../packages/spotify-plugin/src/searchSummary.js";
+} from "../../../packages/plugins/spotify-plugin/src/searchSummary.js";
 
 describe("formatTrackLine", () => {
   it("prefixes 1-based index and joins artists with comma-space", () => {

@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full h-full overflow-y-auto p-8">
+  <div class="w-full h-full overflow-y-auto p-8" data-testid="present-form-view">
     <div v-if="formData" class="max-w-3xl w-full mx-auto">
       <h2 v-if="formData.title" class="text-gray-900 text-3xl font-bold mb-4 text-center">
         {{ formData.title }}

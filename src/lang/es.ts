@@ -150,6 +150,31 @@ const esMessages = {
       mcp: "Servidores MCP",
       dirs: "Directorios",
       refs: "Directorios de referencia",
+      map: "Mapa",
+      photos: "Fotos",
+    },
+    mapTab: {
+      description: "Configura la clave de la API de Google Maps que usa el plugin de mapas. La clave se guarda localmente y solo se envía a Google Maps.",
+      apiKeyLabel: "Clave API de Google Maps",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "Crea o copia una clave en {consoleLink}.",
+      requiredApis: "APIs necesarias: Maps JavaScript API, Geocoding API, Places API (New), Directions API.",
+      configured: "Configurada",
+      notConfigured: "Sin configurar",
+      clear: "Borrar",
+      loadError: "Error al cargar los ajustes",
+      saveError: "Error al guardar",
+    },
+    photosTab: {
+      description:
+        "Controles de privacidad para las fotos recibidas por chat o por un bridge conectado. Los datos de ubicación EXIF son sensibles — desmarca para desactivar la captura automática.",
+      autoCaptureLabel: "Capturar automáticamente la ubicación de las fotos",
+      autoCaptureHint:
+        "Activado: cada imagen subida con GPS en EXIF genera un sidecar de ubicación en data/locations/. Desactivado: no se captura nada automáticamente; el LLM aún puede extraer EXIF manualmente.",
+      statusOn: "Captura automática ACTIVADA",
+      statusOff: "Captura automática DESACTIVADA",
+      loadError: "Error al cargar los ajustes",
+      saveError: "Error al guardar",
     },
     // Slots `<i18n-t>` — los nombres `envKey` / `envFile` se renderizan
     // como `<code>` en línea en SettingsModal.vue, por lo que los
@@ -994,6 +1019,14 @@ const esMessages = {
       clearFilter: "Quitar filtro",
     },
   },
+  photoLocations: {
+    title: "Ubicaciones de fotos",
+    summary: "{total} capturadas · {withGps} con GPS",
+    mapHint: 'Pide a Claude "muéstralas en el mapa" para trazarlas con el plugin de Google Map.',
+    loading: "Cargando…",
+    empty: "Aún no se ha capturado ninguna ubicación. Envía una foto con etiqueta GPS por el chat o un bridge conectado para empezar.",
+    noGps: "Sin datos GPS",
+  },
   pluginManageSkills: {
     deleteProjectSkill: "Eliminar esta skill de proyecto",
     heading: "Skills",
@@ -1108,6 +1141,11 @@ const esMessages = {
     copyLabel: "Copiar",
     copiedLabel: "¡Copiado!",
     cancel: "Cancelar",
+    seededByPlugin: "desde {pkg}",
+    seededByPluginTooltip: "Este mensaje fue generado por el plugin {pkg}, no enviado por ti.",
+  },
+  pluginSkill: {
+    noDescription: "(sin descripción)",
   },
   pluginSpreadsheet: {
     previewUntitled: "Hoja de cálculo",

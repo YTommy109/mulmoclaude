@@ -18,9 +18,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { makePluginRuntime, normalizePluginPath, pluginChannelName, sanitisePackageNameForFs } from "../../server/plugins/runtime.js";
+import { makePluginRuntime, normalizePluginPath, pluginChannelName, pluginTaskId, sanitisePackageNameForFs } from "../../server/plugins/runtime.js";
 import { WORKSPACE_PATHS } from "../../server/workspace/paths.js";
 import type { IPubSub } from "../../server/events/pub-sub/index.js";
+import { createTaskManager, type ITaskManager } from "../../server/events/task-manager/index.js";
 
 // In-memory pubsub double — captures every publish for inspection.
 function makeRecordingPubSub(): { pubsub: IPubSub; published: { channel: string; data: unknown }[] } {
@@ -33,6 +34,13 @@ function makeRecordingPubSub(): { pubsub: IPubSub; published: { channel: string;
     },
     published,
   };
+}
+
+// Real task manager (pure, no timer started) — `tasks.register()`
+// rounds-trip into `taskManager.listTasks()` so the test can assert
+// the registration lands under the contracted id.
+function makeStubTaskManager(): ITaskManager {
+  return createTaskManager();
 }
 
 describe("normalizePluginPath", () => {
@@ -113,21 +121,101 @@ describe("pluginChannelName", () => {
 describe("makePluginRuntime — scoped pubsub", () => {
   it("prefixes the plugin name on every publish", () => {
     const { pubsub, published } = makeRecordingPubSub();
-    const runtime = makePluginRuntime({ pkgName: "@example/foo", pubsub, locale: "en" });
+    const runtime = makePluginRuntime({ pkgName: "@example/foo", pubsub, locale: "en", taskManager: makeStubTaskManager() });
     runtime.pubsub.publish("changed", { id: 1 });
     assert.deepEqual(published, [{ channel: "plugin:@example/foo:changed", data: { id: 1 } }]);
   });
 
   it("isolates two plugins sharing the same host pubsub", () => {
     const { pubsub, published } = makeRecordingPubSub();
-    const alpha = makePluginRuntime({ pkgName: "@a/p", pubsub, locale: "en" });
-    const beta = makePluginRuntime({ pkgName: "@b/p", pubsub, locale: "en" });
+    const alpha = makePluginRuntime({ pkgName: "@a/p", pubsub, locale: "en", taskManager: makeStubTaskManager() });
+    const beta = makePluginRuntime({ pkgName: "@b/p", pubsub, locale: "en", taskManager: makeStubTaskManager() });
     alpha.pubsub.publish("event", { from: "a" });
     beta.pubsub.publish("event", { from: "b" });
     assert.deepEqual(published, [
       { channel: "plugin:@a/p:event", data: { from: "a" } },
       { channel: "plugin:@b/p:event", data: { from: "b" } },
     ]);
+  });
+});
+
+describe("makePluginRuntime — scoped tasks (Phase 1 of Encore plan)", () => {
+  it("registers under the contracted plugin:<pkg> id", () => {
+    const { pubsub } = makeRecordingPubSub();
+    const taskManager = makeStubTaskManager();
+    const runtime = makePluginRuntime({ pkgName: "@example/foo", pubsub, locale: "en", taskManager });
+    runtime.tasks.register({
+      schedule: { type: "interval", intervalMs: 60_000 },
+      run: async () => undefined,
+    });
+    const tasks = taskManager.listTasks();
+    assert.equal(tasks.length, 1);
+    assert.equal(tasks[0].id, pluginTaskId("@example/foo"));
+    assert.equal(tasks[0].id, "plugin:@example/foo");
+  });
+
+  it("forwards the schedule verbatim", () => {
+    const { pubsub } = makeRecordingPubSub();
+    const taskManager = makeStubTaskManager();
+    const runtime = makePluginRuntime({ pkgName: "@example/foo", pubsub, locale: "en", taskManager });
+    runtime.tasks.register({
+      schedule: { type: "daily", time: "09:00" },
+      run: async () => undefined,
+    });
+    const [task] = taskManager.listTasks();
+    assert.deepEqual(task.schedule, { type: "daily", time: "09:00" });
+  });
+
+  it("throws on the second register from the same plugin (cap-at-1)", () => {
+    const { pubsub } = makeRecordingPubSub();
+    const taskManager = makeStubTaskManager();
+    const runtime = makePluginRuntime({ pkgName: "@example/foo", pubsub, locale: "en", taskManager });
+    runtime.tasks.register({
+      schedule: { type: "interval", intervalMs: 60_000 },
+      run: async () => undefined,
+    });
+    assert.throws(
+      () =>
+        runtime.tasks.register({
+          schedule: { type: "interval", intervalMs: 60_000 },
+          run: async () => undefined,
+        }),
+      /already registered a task — only one tick per plugin/,
+    );
+    // The second registration must not have leaked into the host registry.
+    assert.equal(taskManager.listTasks().length, 1);
+  });
+
+  it("isolates two plugins — each can register independently", () => {
+    const { pubsub } = makeRecordingPubSub();
+    const taskManager = makeStubTaskManager();
+    const alpha = makePluginRuntime({ pkgName: "@a/p", pubsub, locale: "en", taskManager });
+    const beta = makePluginRuntime({ pkgName: "@b/p", pubsub, locale: "en", taskManager });
+    alpha.tasks.register({ schedule: { type: "interval", intervalMs: 60_000 }, run: async () => undefined });
+    beta.tasks.register({ schedule: { type: "interval", intervalMs: 60_000 }, run: async () => undefined });
+    const ids = taskManager
+      .listTasks()
+      .map((task) => task.id)
+      .sort();
+    assert.deepEqual(ids, ["plugin:@a/p", "plugin:@b/p"]);
+  });
+
+  it("the registered run callback invokes the plugin's run", async () => {
+    const { pubsub } = makeRecordingPubSub();
+    const taskManager = makeStubTaskManager();
+    const runtime = makePluginRuntime({ pkgName: "@example/foo", pubsub, locale: "en", taskManager });
+    let calls = 0;
+    runtime.tasks.register({
+      schedule: { type: "interval", intervalMs: 60_000 },
+      run: async () => {
+        calls++;
+      },
+    });
+    // Drive the host task manager directly — `tick()` runs every due
+    // task once. Interval-aligned, but with intervalMs === ONE_MINUTE_MS
+    // (the default tickMs), the very first tick at 00:00 UTC is due.
+    await taskManager.tick();
+    assert.equal(calls, 1);
   });
 });
 
@@ -168,7 +256,7 @@ describe("makePluginRuntime — files.data and files.config", () => {
 
   function runtimeFor(pkgName: string) {
     const { pubsub } = makeRecordingPubSub();
-    return makePluginRuntime({ pkgName, pubsub, locale: "en" });
+    return makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: makeStubTaskManager() });
   }
 
   it("write+read round-trip lands under files.data root", async () => {

@@ -5,7 +5,7 @@ import type { ActiveSession } from "../../types/session";
 import type { SseEvent } from "../../types/sse";
 import { EVENT_TYPES, generationKey } from "../../types/events";
 import { findPendingToolCall, toToolCallEntry } from "./toolCalls";
-import { pushErrorMessage, applyTextEvent, applyToolResultToSession } from "../session/sessionHelpers";
+import { pushErrorMessage, applySkillEvent, applyTextEvent, applyToolResultToSession } from "../session/sessionHelpers";
 
 export interface AgentEventContext {
   session: ActiveSession;
@@ -35,6 +35,15 @@ export async function applyAgentEvent(event: SseEvent, ctx: AgentEventContext): 
       return;
     case EVENT_TYPES.text:
       applyTextEvent(session, event.message, event.source ?? "assistant", event.attachments);
+      return;
+    case EVENT_TYPES.skill:
+      applySkillEvent(session, {
+        skillName: event.skillName,
+        skillScope: event.skillScope,
+        skillPath: event.skillPath,
+        skillDescription: event.skillDescription,
+        message: event.message,
+      });
       return;
     case EVENT_TYPES.toolResult:
       applyToolResultToSession(session, event.result);

@@ -52,6 +52,10 @@ const HOST_TOOL_NAMES = {
 
   // Interactive / media
   putQuestions: "putQuestions",
+  // mapControl — Google Map render + Places + Directions, supplied by
+  // `@gui-chat-plugin/google-map`. Wired through `src/plugins/_extras.ts`
+  // (external-package binding pattern, same as mindmap / present3d).
+  mapControl: "mapControl",
   weather: "weather",
 
   // MCP tools (server-side, not GUI plugins — registered in

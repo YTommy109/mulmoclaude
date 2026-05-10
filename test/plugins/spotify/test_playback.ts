@@ -14,8 +14,8 @@ import {
   playerSeek,
   playerSetVolume,
   playerTransfer,
-} from "../../../packages/spotify-plugin/src/playback.js";
-import type { SpotifyTokens } from "../../../packages/spotify-plugin/src/types.js";
+} from "../../../packages/plugins/spotify-plugin/src/playback.js";
+import type { SpotifyTokens } from "../../../packages/plugins/spotify-plugin/src/types.js";
 
 const NOW = () => new Date("2026-05-05T00:00:00.000Z");
 const validTokens: SpotifyTokens = {

@@ -166,6 +166,31 @@ const enMessages = {
       mcp: "MCP Servers",
       dirs: "Directories",
       refs: "Reference Dirs",
+      map: "Map",
+      photos: "Photos",
+    },
+    mapTab: {
+      description: "Set the Google Maps API key used by the map plugin. The key is stored locally and never transmitted anywhere except to Google Maps.",
+      apiKeyLabel: "Google Maps API key",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "Create or copy a key from {consoleLink}.",
+      requiredApis: "Enable: Maps JavaScript API, Geocoding API, Places API (New), Directions API.",
+      configured: "Configured",
+      notConfigured: "Not configured",
+      clear: "Clear",
+      loadError: "Failed to load settings",
+      saveError: "Failed to save",
+    },
+    photosTab: {
+      description:
+        "Privacy controls for photos uploaded via chat or a connected bridge. EXIF location data is sensitive — uncheck the box to opt out of automatic capture.",
+      autoCaptureLabel: "Auto-capture photo location data",
+      autoCaptureHint:
+        "When on, every uploaded image with EXIF GPS gets a location sidecar at data/locations/. Off: nothing is captured automatically; the LLM can still extract EXIF on demand.",
+      statusOn: "Auto-capture is ON",
+      statusOff: "Auto-capture is OFF",
+      loadError: "Failed to load settings",
+      saveError: "Failed to save",
     },
     // `<i18n-t>` slots — named `envKey` / `envFile` render as inline
     // `<code>` in SettingsModal.vue, so the literal variable and file
@@ -982,6 +1007,14 @@ const enMessages = {
       clearFilter: "Clear filter",
     },
   },
+  photoLocations: {
+    title: "Photo locations",
+    summary: "{total} captured · {withGps} with GPS",
+    mapHint: 'Ask Claude "show these on a map" to plot them with the Google Map plugin.',
+    loading: "Loading…",
+    empty: "No photo locations captured yet. Send a geotagged photo via chat or a connected bridge to get started.",
+    noGps: "No GPS data",
+  },
   pluginManageSkills: {
     deleteProjectSkill: "Delete this project-scope skill",
     heading: "Skills",
@@ -1096,6 +1129,11 @@ const enMessages = {
     copyLabel: "Copy",
     copiedLabel: "Copied!",
     cancel: "Cancel",
+    seededByPlugin: "from {pkg}",
+    seededByPluginTooltip: "This message was seeded by the {pkg} plugin, not sent by you.",
+  },
+  pluginSkill: {
+    noDescription: "(no description)",
   },
   pluginSpreadsheet: {
     previewUntitled: "Spreadsheet",
