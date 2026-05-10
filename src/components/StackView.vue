@@ -202,24 +202,15 @@ function setNaturalWrapperRef(uuid: string, element: HTMLElement | null): void {
 }
 
 // Sandboxed iframes inside stack-natural plugins (e.g. presentHtml)
-// have no intrinsic content height, so CSS alone collapses them. Set
-// each iframe's height to match its document's scrollHeight on load.
+// have no intrinsic content height, so CSS alone collapses them. The
+// in-iframe reporter script (`iframeHeightReporterScript.ts`) posts
+// scrollHeight updates which `handleIframeHeightMessage` below applies
+// — that path's feedback-loop guard (slop heuristic + viewport cap +
+// `dataset.stackHeightPx`) is the canonical sizing channel.
 //
-// Two safeguards keep this from running away on viewport-relative
-// content (e.g. a Leaflet map with `html, body { height: 100% }` plus
-// `#map { height: calc(100vh - 130px) }`):
-//
-//   1. **Maximum height cap** at `MAX_IFRAME_VH * window.innerHeight`.
-//      A document that uses the iframe as its viewport reports a body
-//      ≥ viewport — without the cap, each src reload would inherit
-//      the previous iframe height as the new viewport and feed back.
-//   2. **Don't grow once stamped**. Subsequent measurements (e.g.
-//      after `useFileChange` bumps the `?v=<mtime>` query and the
-//      iframe reloads) only allow *shrinking* — the iframe can settle
-//      to a smaller content height on edit, but cannot use feedback
-//      to climb. Detected via `dataset.stackHeightPx` (last set value).
-const MAX_IFRAME_VH = 0.85;
-
+// `sizeIframesIn` / `resizeOneIframe` are a fallback for the rare
+// non-sandboxed case (same-origin iframe whose document is reachable
+// from the parent) and reuse the same safeguards.
 function sizeIframesIn(wrapper: HTMLElement): void {
   const iframes = wrapper.querySelectorAll<HTMLIFrameElement>("iframe");
   for (const iframe of iframes) {
@@ -273,14 +264,53 @@ function findIframeForSourceWindow(source: Window): HTMLIFrameElement | null {
 // !important defeats the stack-natural `:deep(.h-full)` rule which
 // forces `height: auto !important` to make plugin views flow at
 // natural height. For this specific iframe we WANT the explicit pixel
-// height back.
+// height back. `dataset.stackHeightPx` records the value we just
+// stamped so the next `mc-iframe-height` message can detect a
+// viewport-relative feedback loop (see `handleIframeHeightMessage`).
 function flushPendingIframeHeights(): void {
   pendingHeightFlushRafId = null;
   for (const [iframe, heightPx] of pendingIframeHeightsPx) {
     if (!iframe.isConnected) continue;
     iframe.style.setProperty("height", `${heightPx}px`, "important");
+    iframe.dataset.stackHeightPx = String(heightPx);
   }
   pendingIframeHeightsPx.clear();
+}
+
+// Tolerance for the viewport-relative feedback heuristic in
+// `handleIframeHeightMessage`. A reported height that's grown by
+// less than `max(FEEDBACK_SLOP_MIN_PX, previous * FEEDBACK_SLOP_PCT)`
+// from the previously-stamped value is treated as the noise signature
+// of a body whose CSS height resolves through the iframe's own
+// viewport (e.g. `body { height: 100% }` plus
+// `#map { height: calc(100vh - 130px) }`). Larger jumps (a chart that
+// loaded async, a markdown body that just received another paragraph)
+// are passed through.
+const FEEDBACK_SLOP_MIN_PX = 8;
+const FEEDBACK_SLOP_PCT = 0.05;
+
+// Cap reported iframes at a fraction of the host viewport on top of
+// the absolute MAX. Anything taller in stack view is almost certainly
+// a viewport-relative loop or a runaway script — clipping to ~85vh
+// keeps the chat scrollable even when the heuristic above fails to
+// catch the loop on the very first cycle.
+const MAX_IFRAME_VH = 0.85;
+
+function clampIframeHeight(reported: number, iframe: HTMLIFrameElement, viewportCap: number): number {
+  let heightPx = Math.min(reported, MAX_REPORTED_IFRAME_HEIGHT_PX, viewportCap);
+  // Viewport-relative feedback guard. Once we've stamped a height,
+  // refuse small "growth" updates — those are typically the iframe's
+  // own viewport bouncing back through `body { height: 100% }` /
+  // `100vh` calc, which would otherwise climb a few px per
+  // ResizeObserver tick indefinitely. Real content growth (an async
+  // chart, more paragraphs) jumps tens or hundreds of pixels and
+  // bypasses the slop band. Shrinking is always allowed.
+  const previous = Number(iframe.dataset.stackHeightPx);
+  if (Number.isFinite(previous) && previous > 0 && heightPx > previous) {
+    const slop = Math.max(FEEDBACK_SLOP_MIN_PX, previous * FEEDBACK_SLOP_PCT);
+    if (heightPx - previous <= slop) heightPx = previous;
+  }
+  return heightPx;
 }
 
 // Listen for iframe-height reports posted by the in-iframe reporter
@@ -302,7 +332,8 @@ function handleIframeHeightMessage(event: MessageEvent): void {
   if (!source || typeof source !== "object" || !("postMessage" in source)) return;
   const iframe = findIframeForSourceWindow(source as Window);
   if (!iframe) return;
-  const heightPx = Math.min(reported, MAX_REPORTED_IFRAME_HEIGHT_PX);
+  const viewportCap = Math.max(1, Math.floor(window.innerHeight * MAX_IFRAME_VH));
+  const heightPx = clampIframeHeight(reported, iframe, viewportCap);
   pendingIframeHeightsPx.set(iframe, heightPx);
   if (pendingHeightFlushRafId === null) {
     pendingHeightFlushRafId = requestAnimationFrame(flushPendingIframeHeights);
