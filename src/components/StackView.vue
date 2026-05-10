@@ -176,6 +176,22 @@ function setNaturalWrapperRef(uuid: string, element: HTMLElement | null): void {
 // Sandboxed iframes inside stack-natural plugins (e.g. presentHtml)
 // have no intrinsic content height, so CSS alone collapses them. Set
 // each iframe's height to match its document's scrollHeight on load.
+//
+// Two safeguards keep this from running away on viewport-relative
+// content (e.g. a Leaflet map with `html, body { height: 100% }` plus
+// `#map { height: calc(100vh - 130px) }`):
+//
+//   1. **Maximum height cap** at `MAX_IFRAME_VH * window.innerHeight`.
+//      A document that uses the iframe as its viewport reports a body
+//      ≥ viewport — without the cap, each src reload would inherit
+//      the previous iframe height as the new viewport and feed back.
+//   2. **Don't grow once stamped**. Subsequent measurements (e.g.
+//      after `useFileChange` bumps the `?v=<mtime>` query and the
+//      iframe reloads) only allow *shrinking* — the iframe can settle
+//      to a smaller content height on edit, but cannot use feedback
+//      to climb. Detected via `dataset.stackHeightPx` (last set value).
+const MAX_IFRAME_VH = 0.85;
+
 function sizeIframesIn(wrapper: HTMLElement): void {
   const iframes = wrapper.querySelectorAll<HTMLIFrameElement>("iframe");
   for (const iframe of iframes) {
@@ -199,8 +215,20 @@ function resizeOneIframe(iframe: HTMLIFrameElement): void {
   try {
     const doc = iframe.contentDocument;
     if (!doc) return;
-    const height = Math.max(doc.documentElement?.scrollHeight ?? 0, doc.body?.scrollHeight ?? 0);
-    if (height > 0) iframe.style.height = `${height}px`;
+    const measured = Math.max(doc.documentElement?.scrollHeight ?? 0, doc.body?.scrollHeight ?? 0);
+    if (measured <= 0) return;
+    const cap = Math.max(1, Math.floor(window.innerHeight * MAX_IFRAME_VH));
+    let target = Math.min(measured, cap);
+    // Re-measure path: a previous resize already stamped a height.
+    // Allow the iframe to *shrink* (genuine content edit) but never
+    // *grow* beyond the previously stamped value — that direction is
+    // the feedback loop's signature for viewport-relative CSS.
+    const previous = Number(iframe.dataset.stackHeightPx);
+    if (Number.isFinite(previous) && previous > 0) {
+      target = Math.min(target, previous);
+    }
+    iframe.style.height = `${target}px`;
+    iframe.dataset.stackHeightPx = String(target);
   } catch {
     // cross-origin sandbox — can't measure, leave default
   }
