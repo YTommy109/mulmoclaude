@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { buildMemoryContext, buildMemoryManagementSection } from "../../server/agent/prompt.js";
+import { loadMemorySnapshot } from "../../server/workspace/memory/snapshot.js";
 
 describe("memory/format-detect — atomic workspace", () => {
   let scoped: string;
@@ -28,8 +29,8 @@ describe("memory/format-detect — atomic workspace", () => {
     await rm(scoped, { recursive: true, force: true });
   });
 
-  it("buildMemoryContext renders the atomic entry verbatim", () => {
-    const out = buildMemoryContext(scoped);
+  it("buildMemoryContext renders the atomic entry verbatim", async () => {
+    const out = buildMemoryContext(await loadMemorySnapshot(scoped), scoped);
     assert.match(out, /yarn 固定/);
   });
 
@@ -74,8 +75,8 @@ describe("memory/format-detect — topic workspace", () => {
     await rm(scoped, { recursive: true, force: true });
   });
 
-  it("buildMemoryContext renders the topic file with its sections", () => {
-    const out = buildMemoryContext(scoped);
+  it("buildMemoryContext renders the topic file with its sections", async () => {
+    const out = buildMemoryContext(await loadMemorySnapshot(scoped), scoped);
     assert.match(out, /\[interest\] interest\/music\.md — Rock \/ Metal, Punk \/ Melodic/);
     assert.match(out, /Pantera, Metallica/);
   });
@@ -97,7 +98,7 @@ describe("memory/format-detect — topic workspace", () => {
     );
     await writeFile(path.join(scoped, "conversations", "memory.md"), "## Stale\n- should-not-leak-from-legacy", "utf-8");
 
-    const out = buildMemoryContext(scoped);
+    const out = buildMemoryContext(await loadMemorySnapshot(scoped), scoped);
     assert.doesNotMatch(out, /should-not-leak-from-atomic/, "atomic file at memory root must not bleed into topic-mode prompt");
     assert.doesNotMatch(out, /should-not-leak-from-legacy/, "legacy memory.md must not bleed into topic-mode prompt");
     // The topic file's content is still visible.
