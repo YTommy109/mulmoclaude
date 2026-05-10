@@ -68,6 +68,29 @@ export async function countAllSidecars(): Promise<number> {
   return total;
 }
 
+/** Defensive shape check for one sidecar JSON. The post-save hook
+ *  always writes a well-shaped object, but a hand-edited or
+ *  partially-truncated file mustn't crash the listing endpoint —
+ *  `localeCompare` on a missing `capturedAt` would throw at sort
+ *  time and 500 the request. Return `null` instead so the caller
+ *  skips the row with a `log.warn`. (Codex review on PR #1250.) */
+function validateSidecarShape(value: unknown): PhotoLocationSidecar | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if (record.version !== 1) return null;
+  if (typeof record.capturedAt !== "string") return null;
+  const { photo } = record;
+  if (!photo || typeof photo !== "object") return null;
+  const photoRecord = photo as Record<string, unknown>;
+  if (typeof photoRecord.relativePath !== "string") return null;
+  if (typeof photoRecord.mimeType !== "string") return null;
+  // `exif` is required as an object but its individual fields are
+  // all optional — the View / LLM handle the lat/lng-missing case
+  // already (only-altitude photos exist).
+  if (!record.exif || typeof record.exif !== "object") return null;
+  return record as unknown as PhotoLocationSidecar;
+}
+
 async function readSubdirsSafe(dir: string): Promise<string[]> {
   try {
     const entries = await readdir(dir, { withFileTypes: true });
@@ -88,7 +111,12 @@ async function readSidecarsInDir(absDir: string, year: string, month: string): P
     const absPath = path.join(absDir, entry);
     try {
       const raw = await readFile(absPath, "utf8");
-      const sidecar = JSON.parse(raw) as PhotoLocationSidecar;
+      const parsed = JSON.parse(raw) as unknown;
+      const sidecar = validateSidecarShape(parsed);
+      if (!sidecar) {
+        log.warn("photo-locations", "skipping sidecar with invalid shape", { path: absPath });
+        continue;
+      }
       out.push({
         id: sidecarId,
         relativePath: path.posix.join(WORKSPACE_DIRS.locations, year, month, entry),
