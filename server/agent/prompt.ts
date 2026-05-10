@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import type { MemoryEntry } from "../workspace/memory/types.js";
-import { hasTopicFormat } from "../workspace/memory/topic-detect.js";
 import type { TopicMemoryFile } from "../workspace/memory/topic-types.js";
 import type { MemorySnapshot } from "../workspace/memory/snapshot.js";
 import type { Role } from "../../src/config/roles.js";
@@ -282,11 +281,13 @@ Keep entries short — name + description + a few lines of body at most. Bias to
 // the workspace uses the topic layout (post-#1070 swap), emits the
 // topic-format rules (find-or-create `<type>/<topic>.md`, append
 // bullets under H2). Otherwise emits the atomic-format rules from
-// #1029 PR-B (one fact per `<type>_<slug>.md`). The same disk
-// signal that drives `buildMemoryContext` decides which one to
-// emit, so write rules and read context are always consistent.
-export function buildMemoryManagementSection(workspacePath: string): string {
-  return hasTopicFormat(workspacePath) ? TOPIC_MEMORY_MANAGEMENT : ATOMIC_MEMORY_MANAGEMENT;
+// #1029 PR-B (one fact per `<type>_<slug>.md`). Both this section
+// and `buildMemoryContext` derive format from the same `snapshot`
+// so write rules and read context stay consistent — including in
+// Docker runs where `workspacePath="/workspace"` doesn't match the
+// host path the snapshot was loaded from (Codex review on #1280).
+export function buildMemoryManagementSection(snapshot: MemorySnapshot): string {
+  return snapshot.format === "topic" ? TOPIC_MEMORY_MANAGEMENT : ATOMIC_MEMORY_MANAGEMENT;
 }
 
 // Pure formatters — I/O happens once via `loadMemorySnapshot` before
@@ -689,7 +690,7 @@ export function buildSystemPrompt(params: SystemPromptParams): string {
     { name: "workspace", content: `Workspace directory: ${workspacePath}` },
     { name: "time", content: buildTimeSection(new Date(), userTimezone) },
     { name: "memory", content: buildMemoryContext(memorySnapshot, workspacePath) },
-    { name: "memory-management", content: buildMemoryManagementSection(workspacePath) },
+    { name: "memory-management", content: buildMemoryManagementSection(memorySnapshot) },
     { name: "sandbox", content: useDocker ? SANDBOX_TOOLS_HINT : null },
     { name: "wiki", content: buildWikiContext(workspacePath) },
     { name: "sources", content: buildSourcesContext(workspacePath) },
