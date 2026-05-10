@@ -1,4 +1,4 @@
-// Pin the route's Zod input guards. Each regex below is a
+// Pin the plugin's Zod input guards. Each regex below is a
 // security boundary — `accession_number`, `primary_document`,
 // and `concept` are interpolated into URL path segments on
 // `sec.gov`. A regression that loosens any of these regexes
@@ -6,12 +6,12 @@
 //
 // Also pins the search_filings both-or-neither date refinement;
 // the older code silently dropped one-sided bounds and ran an
-// unbounded search, which is a correctness footgun.
+// unbounded search.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { Args } from "../../server/api/routes/edgar.js";
+import { Args } from "../src/args";
 
 describe("edgar Args schema — accession_number guard", () => {
   it("accepts canonical 18-digit dashed form", () => {
@@ -25,13 +25,13 @@ describe("edgar Args schema — accession_number guard", () => {
   });
 
   for (const bad of [
-    "../etc/passwd", // path traversal
-    "0000320193/24/000123", // path separators
-    "0000320193-24-000123?x=1", // query injection
-    "0000320193-24-000123#frag", // fragment injection
-    "0000320193-24-00012", // wrong length
-    "0000320193-24-0001234", // wrong length
-    "abcdefghij-24-000123", // non-digit
+    "../etc/passwd",
+    "0000320193/24/000123",
+    "0000320193-24-000123?x=1",
+    "0000320193-24-000123#frag",
+    "0000320193-24-00012",
+    "0000320193-24-0001234",
+    "abcdefghij-24-000123",
   ]) {
     it(`rejects ${JSON.stringify(bad)}`, () => {
       const result = Args.safeParse({
@@ -58,18 +58,7 @@ describe("edgar Args schema — primary_document guard", () => {
     });
   }
 
-  for (const bad of [
-    "../etc/passwd", // traversal
-    "../../secret.htm", // traversal
-    "foo/bar.htm", // path separator
-    "foo\\bar.htm", // windows separator
-    "foo.htm?x=1", // query
-    "foo.htm#x", // fragment
-    "..htm", // leading dot escape
-    ".hidden", // leading dot
-    "-foo.htm", // leading dash
-    "", // empty
-  ]) {
+  for (const bad of ["../etc/passwd", "../../secret.htm", "foo/bar.htm", "foo\\bar.htm", "foo.htm?x=1", "foo.htm#x", "..htm", ".hidden", "-foo.htm", ""]) {
     it(`rejects ${JSON.stringify(bad)}`, () => {
       const result = Args.safeParse({
         kind: "get_filing_document",
@@ -90,15 +79,7 @@ describe("edgar Args schema — concept guard", () => {
     });
   }
 
-  for (const bad of [
-    "../etc/passwd", // traversal
-    "Net/Income", // path separator
-    "Net.Income", // dot
-    "Net Income", // space
-    "Net?Income", // query
-    "1Revenues", // leading digit
-    "", // empty
-  ]) {
+  for (const bad of ["../etc/passwd", "Net/Income", "Net.Income", "Net Income", "Net?Income", "1Revenues", ""]) {
     it(`rejects ${JSON.stringify(bad)}`, () => {
       const result = Args.safeParse({ kind: "get_concept", company: "AAPL", concept: bad });
       assert.equal(result.success, false);

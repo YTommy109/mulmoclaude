@@ -1,14 +1,12 @@
 // Throttle concurrency invariant — the SEC's 10 req/s cap is
 // non-negotiable, so the throttle MUST serialise concurrent
 // callers (no overlapping work, ≥ MIN_INTERVAL_MS gap between
-// release timestamps). The earlier Date.now()-based gate let N
-// parallel callers all read the same `lastReleaseAt`, sleep
-// together, and burst — this test pins the fix in place.
+// release timestamps).
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { MIN_INTERVAL_MS, throttledSlot } from "../../server/edgar/client.js";
+import { MIN_INTERVAL_MS, throttledSlot } from "../src/edgar";
 
 describe("edgar throttledSlot — concurrency safety", () => {
   it("serialises N parallel callers (no overlap, gaps ≥ MIN_INTERVAL_MS)", async () => {
@@ -17,17 +15,12 @@ describe("edgar throttledSlot — concurrency safety", () => {
 
     const work = async (): Promise<void> => {
       const start = Date.now() - startedAt;
-      // Each unit of work takes ~10ms — well under MIN_INTERVAL_MS
-      // (~111ms) so the throttle's gap, not the work duration, is
-      // what spaces calls. If the throttle were broken, all five
-      // would start near-simultaneously and finish near-together.
       await new Promise((resolve) => setTimeout(resolve, 10));
       intervals.push({ start, end: Date.now() - startedAt });
     };
 
     await Promise.all([throttledSlot(work), throttledSlot(work), throttledSlot(work), throttledSlot(work), throttledSlot(work)]);
 
-    // No two work intervals should overlap.
     for (let i = 1; i < intervals.length; i++) {
       assert.ok(
         intervals[i].start >= intervals[i - 1].end,
@@ -35,9 +28,6 @@ describe("edgar throttledSlot — concurrency safety", () => {
       );
     }
 
-    // Successive starts must be at least MIN_INTERVAL_MS apart.
-    // Allow 5ms of clock-jitter slack so a slightly slow CI
-    // scheduler doesn't spurious-fail.
     const slack = 5;
     for (let i = 1; i < intervals.length; i++) {
       const gap = intervals[i].start - intervals[i - 1].start;

@@ -1,29 +1,19 @@
-import type { ToolDefinition } from "gui-chat-protocol";
-import { META } from "./meta";
+// Tool schema for the single `edgar` tool. The LLM picks one of
+// six `kind`s; the dispatch in `index.ts` validates with Zod and
+// routes to the matching client method.
+//
+// `name: "edgar" as const` narrows the literal so `definePlugin`'s
+// `PluginFactoryResult<N>` requires a handler exported under exactly
+// this key.
 
-// MCP tool definition for the SEC EDGAR plugin.
-//
-// **Opt-in only.** Not added to any built-in Role's
-// `availablePlugins` — a user wanting access creates a custom Role
-// (or edits one) and includes `edgar` in its plugin list.
-//
-// Single tool, six `kind`s. The host's POST /api/edgar handler
-// validates with Zod and routes to the matching client method.
-//
-// Configuration: this tool requires a contact name + email
-// (SEC's User-Agent rule). On the first call, if the config file
-// is missing the tool returns `{error: "config_required",
-// instructions, path, schema}` and the LLM is expected to ask
-// the user, write the file, and retry.
-
-const toolDefinition: ToolDefinition = {
-  type: "function",
-  name: META.toolName,
+export const TOOL_DEFINITION = {
+  type: "function" as const,
+  name: "edgar" as const,
   prompt:
     "Configuration: the SEC EDGAR API requires an identifying contact name + email on every request (their User-Agent rule). " +
-    "The plugin reads these from `~/mulmoclaude/config/plugins/edgar/config.json` with the shape " +
+    "The plugin reads these from `~/mulmoclaude/config/plugins/%40mulmoclaude%2Fedgar-plugin/config.json` with the shape " +
     '`{"name": "<full name>", "email": "<email address>"}`. ' +
-    "If that file is missing on the first call, the tool returns a `config_required` payload that quotes the absolute path; " +
+    "If that file is missing on the first call, the tool returns an `instructions` payload that quotes the absolute path and JSON schema inline; " +
     "ask the user for their full name and email address, write the JSON file at that path using the Write tool, then retry the original tool call. " +
     "Never invent a name or email — always ask the user.",
   description:
@@ -36,7 +26,7 @@ const toolDefinition: ToolDefinition = {
     " - `get_concept`: time series for one XBRL concept (Revenues, Assets, NetIncomeLoss, EarningsPerShareBasic, …) across all filings.\n" +
     " - `search_filings`: full-text search across the entire EDGAR corpus.",
   parameters: {
-    type: "object",
+    type: "object" as const,
     properties: {
       kind: {
         type: "string",
@@ -99,5 +89,3 @@ const toolDefinition: ToolDefinition = {
     required: ["kind"],
   },
 };
-
-export default toolDefinition;

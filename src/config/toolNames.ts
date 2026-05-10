@@ -83,6 +83,7 @@ const HOST_TOOL_NAMES = {
   manageSpotify: "manageSpotify",
   manageRecipes: "manageRecipes",
   manageDebug: "manageDebug",
+  edgar: "edgar",
 } as const;
 
 // Plugin-owned tool names auto-merged from each plugin's META.

@@ -49,4 +49,12 @@ export const PRESET_PLUGINS: readonly PresetPlugin[] = [
   // `VITE_DEV_MODE=1` so production builds hide the launcher button
   // (the page itself is still reachable by typing the URL).
   { packageName: "@mulmoclaude/debug-plugin" },
+  // SEC EDGAR runtime plugin — wraps the public EDGAR API as one
+  // tool with kind-discriminated dispatch. Server-only (no Vue).
+  // Self-healing config flow: when the SEC-required contact info
+  // is missing the dispatch returns a `config_required` payload
+  // that instructs the LLM to ask the user, write the JSON file
+  // at `~/mulmoclaude/config/plugins/<encoded-pkg>/config.json`,
+  // and retry. Opt-in per role like every other runtime plugin.
+  { packageName: "@mulmoclaude/edgar-plugin" },
 ];

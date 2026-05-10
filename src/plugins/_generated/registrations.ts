@@ -6,7 +6,6 @@ import type { PluginRegistration } from "../../tools/types";
 import { REGISTRATION as accountingRegistration } from "../accounting";
 import { REGISTRATION as canvasRegistration } from "../canvas";
 import { REGISTRATION as chartRegistration } from "../chart";
-import { REGISTRATION as edgarRegistration } from "../edgar";
 import { REGISTRATION as editImagesRegistration } from "../editImages";
 import { REGISTRATION as generateImageRegistration } from "../generateImage";
 import { REGISTRATION as manageSkillsRegistration } from "../manageSkills";
@@ -30,7 +29,6 @@ export const GENERATED_PLUGIN_REGISTRATIONS: readonly PluginRegistration[] = [
   accountingRegistration,
   canvasRegistration,
   chartRegistration,
-  edgarRegistration,
   editImagesRegistration,
   generateImageRegistration,
   manageSkillsRegistration,
