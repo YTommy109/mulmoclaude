@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { posix as pathPosix } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
@@ -58,7 +59,7 @@ test.describe("workspace link routing (real workspace)", () => {
     const filename = `e2e-live-l23-${projectSlug}-${nonce}-テストファイル.md`;
     // Stage the seed file under a test-only subtree so a stale-run
     // remnant cannot mix into real user reports if cleanup misses.
-    const relativePath = `artifacts/e2e-live/workspace-link-routing/${filename}`;
+    const relativePath = pathPosix.join("artifacts", "e2e-live", "workspace-link-routing", filename);
     const marker = `L-23 ${projectSlug} ${nonce} body marker`;
     const fileBody = `# ${filename}\n\n${marker}\n`;
 
@@ -141,7 +142,7 @@ test.describe("workspace link routing (real workspace)", () => {
     const projectSlug = testInfo.project.name;
     const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
     const filename = `e2e-live-l24-${projectSlug}-${nonce}-テストファイル.md`;
-    const relativePath = `artifacts/e2e-live/workspace-link-routing/${filename}`;
+    const relativePath = pathPosix.join("artifacts", "e2e-live", "workspace-link-routing", filename);
     const marker = `L-24 ${projectSlug} ${nonce} body marker`;
     const fileBody = `# ${filename}\n\n${marker}\n`;
 
