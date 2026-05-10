@@ -46,23 +46,35 @@ function stubFetch(impl: typeof globalThis.fetch): () => void {
 }
 
 describe("runtimeLoader.loadOne — fallback registration", () => {
-  it("registers a fallback entry SYNCHRONOUSLY before the import resolves", () => {
+  it("registers a fallback entry SYNCHRONOUSLY before the import resolves", async () => {
     // The body up to the first `await` runs synchronously, so the
     // registry must contain the fallback the moment loadOne is
-    // called — even if the import never resolves.
-    void loadOne({
-      name: "@fixture/server-only",
-      version: "1.0.0",
-      toolName: "myFakeTool",
-      description: "fixture description",
-      assetBase: "http://127.0.0.1:1/nowhere",
-    });
-    const entry = getRuntimePluginEntry("myFakeTool");
-    assert.ok(entry, "fallback entry should be registered before any await");
-    assert.equal(entry?.toolDefinition.name, "myFakeTool");
-    assert.equal(entry?.toolDefinition.description, "fixture description");
-    assert.equal(entry?.viewComponent, undefined, "no Vue View on the fallback");
-    assert.equal(entry?.previewComponent, undefined, "no Vue Preview on the fallback");
+    // called — even if the import never resolves. We stub fetch
+    // to a 404 so the post-await branch settles cleanly (without
+    // a stub the unawaited HEAD probe would leak network work
+    // past the assertions; bot-flagged on PR #1273).
+    const restore = stubFetch(async () => new Response(null, { status: 404 }));
+    try {
+      const promise = loadOne({
+        name: "@fixture/server-only",
+        version: "1.0.0",
+        toolName: "myFakeTool",
+        description: "fixture description",
+        assetBase: "http://example.invalid/sync-test",
+      });
+      // Read the registry BEFORE awaiting — this is the property
+      // under test: the fallback is registered before any await
+      // hands control back to the event loop.
+      const entry = getRuntimePluginEntry("myFakeTool");
+      assert.ok(entry, "fallback entry should be registered before any await");
+      assert.equal(entry?.toolDefinition.name, "myFakeTool");
+      assert.equal(entry?.toolDefinition.description, "fixture description");
+      assert.equal(entry?.viewComponent, undefined, "no Vue View on the fallback");
+      assert.equal(entry?.previewComponent, undefined, "no Vue Preview on the fallback");
+      await promise;
+    } finally {
+      restore();
+    }
   });
 
   it("404 HEAD response — silent fallback (server-only plugin path)", async () => {

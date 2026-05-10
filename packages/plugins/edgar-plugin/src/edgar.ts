@@ -16,11 +16,11 @@
 // are wrapped with URL context for the LLM.
 
 import type { PluginRuntime } from "gui-chat-protocol";
+import { FETCH_TIMEOUT_MS, MIN_INTERVAL_MS } from "./time";
 
-const ONE_SECOND_MS = 1_000;
-// Exported for the throttle-invariant unit test.
-export const MIN_INTERVAL_MS = ONE_SECOND_MS / 9; // ~111ms => 9 req/sec
-const FETCH_TIMEOUT_MS = 15 * ONE_SECOND_MS;
+// Re-exported for the throttle-invariant unit test (test/test_throttle.ts
+// pins `MIN_INTERVAL_MS` against the observed gap between calls).
+export { MIN_INTERVAL_MS };
 
 const ALLOWED_HOSTS = ["www.sec.gov", "data.sec.gov", "efts.sec.gov"];
 
