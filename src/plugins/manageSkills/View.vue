@@ -149,12 +149,12 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { marked } from "marked";
-import DOMPurify from "dompurify";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { ManageSkillsData, SkillSummary } from "./index";
 import { useAppApi } from "../../composables/useAppApi";
 import { apiGet, apiPut, apiDelete } from "../../utils/api";
 import { handleExternalLinkClick } from "../../utils/dom/externalLink";
+import { sanitizeMarkdownHtml } from "../../utils/markdown/sanitize";
 import { pluginEndpoints } from "../api";
 import { buildRouteUrl } from "../meta-types";
 import type { SkillsEndpoints } from "./definition";
@@ -192,7 +192,7 @@ const selected = computed(() => skills.value.find((skill) => skill.name === sele
 const renderedBody = computed(() => {
   const body = detail.value?.body;
   if (!body) return "";
-  return DOMPurify.sanitize(marked(body) as string);
+  return sanitizeMarkdownHtml(marked(body) as string);
 });
 
 // Reset the selection when the tool result is replaced (e.g. the

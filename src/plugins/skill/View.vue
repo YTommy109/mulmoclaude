@@ -48,10 +48,10 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { marked } from "marked";
-import DOMPurify from "dompurify";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { SkillData } from "./types";
 import { handleExternalLinkClick } from "../../utils/dom/externalLink";
+import { sanitizeMarkdownHtml } from "../../utils/markdown/sanitize";
 
 const { t } = useI18n();
 
@@ -65,7 +65,7 @@ const skillPath = computed(() => props.selectedResult.data?.skillPath ?? null);
 const skillDescription = computed(() => props.selectedResult.data?.skillDescription ?? null);
 const body = computed(() => props.selectedResult.data?.body ?? "");
 
-const renderedHtml = computed(() => DOMPurify.sanitize(marked(body.value, { breaks: true, gfm: true }) as string));
+const renderedHtml = computed(() => sanitizeMarkdownHtml(marked(body.value, { breaks: true, gfm: true }) as string));
 </script>
 
 <style scoped>
