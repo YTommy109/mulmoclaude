@@ -943,6 +943,7 @@ const esMessages = {
     applyChanges: "Aplicar cambios",
     saving: "Guardando...",
     saveError: "⚠ Error al guardar: {error}",
+    exportError: "⚠ Error al exportar: {error}",
     loadingSource: "Cargando código…",
     sourceError: "Error al cargar el código: {error}",
   },

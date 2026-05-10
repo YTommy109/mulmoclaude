@@ -414,15 +414,33 @@ app.use(
 
 // Static mount for SVG artifacts. SVG files are loaded into the View
 // and Preview as `<img src="/artifacts/svg/<name>.svg">`. Browsers
-// refuse to execute `<script>` inside an SVG loaded via `<img>`, so we
-// don't need the CSP machinery the HTML mount uses — the `<img>` tag
-// itself is the sandbox. Strict three-layer guard mirroring the
-// `/artifacts/images` mount: extension allowlist, realpath traversal
-// check, dotfiles deny + fallthrough false on `express.static`. Bearer
-// auth bypassed for the same reason as `/artifacts/images` /
-// `/artifacts/html`: an `<img src>` request can't carry an
-// Authorization header. Loopback-only listener + `requireSameOrigin`
-// remain the trust boundary.
+// refuse to execute `<script>` inside an SVG loaded via `<img>`, so
+// the `<img>` tag itself is the sandbox for that consumer path.
+//
+// BUT `/artifacts/svg/<file>.svg` is also a directly addressable URL on
+// the SPA's origin (loopback-only, bearer-auth bypassed for `<img src>`
+// access), so a user who navigates straight to that URL — or is tricked
+// into clicking a markdown link — would otherwise get the SVG rendered
+// as a TOP-LEVEL document with full script execution in the app's
+// origin (localStorage, /api/* with the user's session, etc.). Since
+// the SVG body is LLM-generated and writable via the update route, a
+// prompt-injected SVG becomes a stored-XSS vector.
+//
+// Mitigation: send a strict response CSP. The `sandbox` directive gives
+// the response an opaque origin and disables script execution for the
+// top-level navigation case; the other directives starve subresource
+// loads (block external script/font/connect, only allow `<image>` refs
+// to self / data URIs). CSP on a subresource response is mostly
+// informational — `<img>` rendering ignores the bytes' CSP — so this
+// header doesn't interfere with the normal View / Preview path.
+const SVG_RESPONSE_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; sandbox";
+
+// Strict three-layer guard mirroring the `/artifacts/images` mount:
+// extension allowlist, realpath traversal check, dotfiles deny +
+// fallthrough false on `express.static`. Bearer auth bypassed for the
+// same reason as `/artifacts/images` / `/artifacts/html`: an
+// `<img src>` request can't carry an Authorization header. Loopback-
+// only listener + `requireSameOrigin` remain the trust boundary.
 const SVG_EXT_RE = /\.svg$/i;
 let svgsDirReal: string | null = null;
 async function getSvgsDirReal(): Promise<string | null> {
@@ -463,6 +481,7 @@ app.use(
     }
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+    res.setHeader("Content-Security-Policy", SVG_RESPONSE_CSP);
     next();
   },
   express.static(WORKSPACE_PATHS.svgs, { dotfiles: "deny", fallthrough: false }),

@@ -3,6 +3,9 @@
     <div class="px-4 py-2 border-b border-gray-100 shrink-0 flex items-center justify-between gap-2">
       <span class="text-sm font-medium text-gray-700 truncate">{{ title ?? t("pluginPresentSvg.untitled") }}</span>
       <div class="flex items-center gap-2 shrink-0">
+        <span v-if="exportError" class="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1" role="alert">
+          {{ t("pluginPresentSvg.exportError", { error: exportError }) }}
+        </span>
         <button
           class="px-2 py-1 text-xs rounded border border-gray-300 text-gray-500 hover:bg-gray-50"
           :disabled="!previewUrl"
@@ -94,6 +97,10 @@ const sourceError = ref<string | null>(null);
 const editableSvg = ref("");
 const saving = ref(false);
 const saveError = ref<string | null>(null);
+// PNG export error surfaces next to the toolbar so a failure (canvas
+// tainted, `toBlob` returns null, image fetch fails) is visible even
+// when the edit-source pane is closed.
+const exportError = ref<string | null>(null);
 
 const cachedSource = computed(() => (filePath.value ? (sourceCache.value[filePath.value] ?? null) : null));
 const hasChanges = computed(() => cachedSource.value !== null && editableSvg.value !== cachedSource.value);
@@ -194,39 +201,42 @@ function deriveBaseName(): string {
   return last.replace(/\.svg$/i, "") || "drawing";
 }
 
-// Auto-print script string built by concatenation so the raw open/close
-// `<script>` byte sequence never appears verbatim in the SFC source —
-// otherwise the Vue SFC HTML parser misreads the inner tag and breaks
-// the surrounding setup block. Same trick presentHtml uses.
-// eslint-disable-next-line no-useless-concat -- prevent the opening-script byte sequence from appearing in source
-const PRINT_SCRIPT_OPEN_TAG = `<` + `script>`;
-// eslint-disable-next-line no-useless-concat -- prevent the closing-script byte sequence from appearing in source
-const PRINT_SCRIPT_CLOSE_TAG = `<` + `/script>`;
-const PRINT_AUTO_SCRIPT = `${PRINT_SCRIPT_OPEN_TAG}window.addEventListener("load", () => setTimeout(() => window.print(), 100));${PRINT_SCRIPT_CLOSE_TAG}`;
-
-function buildPrintableHtml(svgSource: string): string {
+// Reference the saved SVG via `<img src=ABS_URL>` inside the printable
+// wrapper rather than inlining its source. Browsers refuse to execute
+// `<script>` inside an SVG loaded via `<img>`, so even an LLM that
+// emits scripted SVG can't run code through this path. The wrapping
+// HTML is fully under our control — its only script is the auto-print
+// trigger below, not anything from the SVG.
+function buildPrintableHtml(absoluteImgUrl: string): string {
   const styleBlock = `<style>
     html, body { margin: 0; padding: 0; height: 100%; }
     body { display: flex; align-items: center; justify-content: center; padding: 12px; box-sizing: border-box; }
-    svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+    img { max-width: 100%; max-height: 100%; height: auto; width: auto; display: block; }
     @media print {
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       @page { margin: 10mm; }
     }
   </style>`;
-  return `<!DOCTYPE html><html><head><meta charset="utf-8">${styleBlock}</head><body>${svgSource}${PRINT_AUTO_SCRIPT}</body></html>`;
+  // Use `onload` on the `<img>` so the print dialog fires only after
+  // the SVG has rendered — beats a fixed timeout that could race a
+  // slow paint on cold cache.
+  const escapedUrl = absoluteImgUrl.replace(/"/g, "&quot;");
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">${styleBlock}</head><body><img src="${escapedUrl}" alt="" onload="window.print()"></body></html>`;
 }
 
-async function printToPdf() {
-  if (!filePath.value) return;
-  const svgSource = await fetchSource();
-  if (svgSource === null) {
-    if (sourceDetails.value) sourceDetails.value.open = true;
-    return;
-  }
-  const printable = buildPrintableHtml(svgSource);
+function printToPdf() {
+  const relative = previewUrl.value;
+  if (!relative) return;
+  // Iframe srcdoc has an opaque origin, so the `<img>` needs an
+  // absolute URL — relative paths would not resolve.
+  const absoluteImgUrl = `${window.location.origin}${relative}`;
+  const printable = buildPrintableHtml(absoluteImgUrl);
   const printFrame = document.createElement("iframe");
   printFrame.style.cssText = "position:fixed;left:-10000px;top:0;width:0;height:0;border:0";
+  // `allow-scripts` is still needed for the wrapper's inline `onload`
+  // handler to fire — but the SVG content itself can't execute scripts
+  // because it's loaded via `<img>`. `allow-modals` lets `window.print()`
+  // open the print dialog.
   printFrame.sandbox.value = "allow-scripts allow-modals";
   printFrame.srcdoc = printable;
   document.body.appendChild(printFrame);
@@ -243,11 +253,12 @@ const PNG_FALLBACK_DIM = 1024;
 async function exportPng() {
   const url = previewUrl.value;
   if (!url) return;
+  exportError.value = null;
   try {
     const blob = await rasterizeToPng(url);
     triggerDownload(blob, `${deriveBaseName()}.png`);
   } catch (err) {
-    saveError.value = errorMessage(err);
+    exportError.value = errorMessage(err);
   }
 }
 

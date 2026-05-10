@@ -948,6 +948,7 @@ const deMessages = {
     applyChanges: "Änderungen anwenden",
     saving: "Wird gespeichert...",
     saveError: "⚠ Speichern fehlgeschlagen: {error}",
+    exportError: "⚠ Export fehlgeschlagen: {error}",
     loadingSource: "Quelltext wird geladen…",
     sourceError: "Quelltext konnte nicht geladen werden: {error}",
   },

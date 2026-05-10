@@ -932,6 +932,7 @@ const koMessages = {
     applyChanges: "변경 사항 적용",
     saving: "저장 중...",
     saveError: "⚠ 저장 실패: {error}",
+    exportError: "⚠ 내보내기 실패: {error}",
     loadingSource: "소스를 불러오는 중…",
     sourceError: "소스 로드 실패: {error}",
   },

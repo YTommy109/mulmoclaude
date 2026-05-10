@@ -932,6 +932,7 @@ const jaMessages = {
     applyChanges: "変更を適用",
     saving: "保存中...",
     saveError: "⚠ 保存に失敗しました: {error}",
+    exportError: "⚠ エクスポートに失敗しました: {error}",
     loadingSource: "ソースを読み込み中…",
     sourceError: "ソースの読み込みに失敗しました: {error}",
   },

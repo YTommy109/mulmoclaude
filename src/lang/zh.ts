@@ -924,6 +924,7 @@ const zhMessages = {
     applyChanges: "应用更改",
     saving: "保存中...",
     saveError: "⚠ 保存失败：{error}",
+    exportError: "⚠ 导出失败：{error}",
     loadingSource: "正在加载源代码…",
     sourceError: "加载源代码失败：{error}",
   },

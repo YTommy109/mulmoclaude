@@ -935,6 +935,7 @@ const ptBRMessages = {
     applyChanges: "Aplicar alterações",
     saving: "Salvando...",
     saveError: "⚠ Falha ao salvar: {error}",
+    exportError: "⚠ Falha ao exportar: {error}",
     loadingSource: "Carregando fonte…",
     sourceError: "Falha ao carregar a fonte: {error}",
   },

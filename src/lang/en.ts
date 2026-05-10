@@ -931,6 +931,7 @@ const enMessages = {
     applyChanges: "Apply Changes",
     saving: "Saving...",
     saveError: "⚠ Save failed: {error}",
+    exportError: "⚠ Export failed: {error}",
     loadingSource: "Loading source…",
     sourceError: "Failed to load source: {error}",
   },

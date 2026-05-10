@@ -939,6 +939,7 @@ const frMessages = {
     applyChanges: "Appliquer les modifications",
     saving: "Enregistrement...",
     saveError: "⚠ Échec de l'enregistrement : {error}",
+    exportError: "⚠ Échec de l'exportation : {error}",
     loadingSource: "Chargement de la source…",
     sourceError: "Échec du chargement de la source : {error}",
   },
