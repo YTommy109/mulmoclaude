@@ -264,54 +264,27 @@ function findIframeForSourceWindow(source: Window): HTMLIFrameElement | null {
 // !important defeats the stack-natural `:deep(.h-full)` rule which
 // forces `height: auto !important` to make plugin views flow at
 // natural height. For this specific iframe we WANT the explicit pixel
-// height back. `dataset.stackHeightPx` records the value we just
-// stamped so the next `mc-iframe-height` message can detect a
-// viewport-relative feedback loop (see `handleIframeHeightMessage`).
+// height back.
 function flushPendingIframeHeights(): void {
   pendingHeightFlushRafId = null;
   for (const [iframe, heightPx] of pendingIframeHeightsPx) {
     if (!iframe.isConnected) continue;
     iframe.style.setProperty("height", `${heightPx}px`, "important");
-    iframe.dataset.stackHeightPx = String(heightPx);
   }
   pendingIframeHeightsPx.clear();
 }
 
-// Tolerance for the viewport-relative feedback heuristic in
-// `handleIframeHeightMessage`. A reported height that's grown by
-// less than `max(FEEDBACK_SLOP_MIN_PX, previous * FEEDBACK_SLOP_PCT)`
-// from the previously-stamped value is treated as the noise signature
-// of a body whose CSS height resolves through the iframe's own
-// viewport (e.g. `body { height: 100% }` plus
-// `#map { height: calc(100vh - 130px) }`). Larger jumps (a chart that
-// loaded async, a markdown body that just received another paragraph)
-// are passed through.
-const FEEDBACK_SLOP_MIN_PX = 8;
-const FEEDBACK_SLOP_PCT = 0.05;
-
 // Cap reported iframes at a fraction of the host viewport on top of
-// the absolute MAX. Anything taller in stack view is almost certainly
-// a viewport-relative loop or a runaway script — clipping to ~85vh
-// keeps the chat scrollable even when the heuristic above fails to
-// catch the loop on the very first cycle.
+// the absolute MAX. Stops viewport-relative content (e.g. a Leaflet
+// map with `body { height: 100% }` plus `#map { height:
+// calc(100vh - 130px) }`) from climbing without bound: every
+// ResizeObserver tick inside such an iframe reports a scrollHeight
+// roughly equal to the iframe's own height (because the body is the
+// viewport), so the height feeds back through `iframe.style.height`
+// and the previously-30K-only cap let it walk most of the way there.
+// 0.85 of the host viewport is enough to render any map / report
+// fully visible while keeping the surrounding chat scrollable.
 const MAX_IFRAME_VH = 0.85;
-
-function clampIframeHeight(reported: number, iframe: HTMLIFrameElement, viewportCap: number): number {
-  let heightPx = Math.min(reported, MAX_REPORTED_IFRAME_HEIGHT_PX, viewportCap);
-  // Viewport-relative feedback guard. Once we've stamped a height,
-  // refuse small "growth" updates — those are typically the iframe's
-  // own viewport bouncing back through `body { height: 100% }` /
-  // `100vh` calc, which would otherwise climb a few px per
-  // ResizeObserver tick indefinitely. Real content growth (an async
-  // chart, more paragraphs) jumps tens or hundreds of pixels and
-  // bypasses the slop band. Shrinking is always allowed.
-  const previous = Number(iframe.dataset.stackHeightPx);
-  if (Number.isFinite(previous) && previous > 0 && heightPx > previous) {
-    const slop = Math.max(FEEDBACK_SLOP_MIN_PX, previous * FEEDBACK_SLOP_PCT);
-    if (heightPx - previous <= slop) heightPx = previous;
-  }
-  return heightPx;
-}
 
 // Listen for iframe-height reports posted by the in-iframe reporter
 // script (`src/utils/html/iframeHeightReporterScript.ts` injected by
@@ -333,7 +306,7 @@ function handleIframeHeightMessage(event: MessageEvent): void {
   const iframe = findIframeForSourceWindow(source as Window);
   if (!iframe) return;
   const viewportCap = Math.max(1, Math.floor(window.innerHeight * MAX_IFRAME_VH));
-  const heightPx = clampIframeHeight(reported, iframe, viewportCap);
+  const heightPx = Math.min(reported, MAX_REPORTED_IFRAME_HEIGHT_PX, viewportCap);
   pendingIframeHeightsPx.set(iframe, heightPx);
   if (pendingHeightFlushRafId === null) {
     pendingHeightFlushRafId = requestAnimationFrame(flushPendingIframeHeights);
@@ -347,17 +320,7 @@ function resizeOneIframe(iframe: HTMLIFrameElement): void {
     const measured = Math.max(doc.documentElement?.scrollHeight ?? 0, doc.body?.scrollHeight ?? 0);
     if (measured <= 0) return;
     const cap = Math.max(1, Math.floor(window.innerHeight * MAX_IFRAME_VH));
-    let target = Math.min(measured, cap);
-    // Re-measure path: a previous resize already stamped a height.
-    // Allow the iframe to *shrink* (genuine content edit) but never
-    // *grow* beyond the previously stamped value — that direction is
-    // the feedback loop's signature for viewport-relative CSS.
-    const previous = Number(iframe.dataset.stackHeightPx);
-    if (Number.isFinite(previous) && previous > 0) {
-      target = Math.min(target, previous);
-    }
-    iframe.style.height = `${target}px`;
-    iframe.dataset.stackHeightPx = String(target);
+    iframe.style.height = `${Math.min(measured, cap)}px`;
   } catch {
     // cross-origin sandbox — can't measure, leave default
   }
