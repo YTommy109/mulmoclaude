@@ -11,6 +11,21 @@ export interface NotifyToolDeps {
   publish: NotifyPublishFn;
 }
 
+// When the bridge threads a chat session through, mark the
+// notification's primary action as "open the originating chat" so
+// the user can click the bell entry and land back on the session
+// that produced it (typically a scheduled / background chat that
+// finished while they were elsewhere). Without a session id, fall
+// back to plain push — entry is just dismissed on click, which is
+// the unchanged pre-fix behaviour.
+function buildNavigateAction(ctx?: McpToolContext) {
+  if (!ctx?.sessionId || ctx.sessionId.length === 0) return undefined;
+  return {
+    type: NOTIFICATION_ACTION_TYPES.navigate,
+    target: { view: NOTIFICATION_VIEWS.chat, sessionId: ctx.sessionId },
+  };
+}
+
 export function makeNotifyTool(deps: NotifyToolDeps) {
   return {
     definition: {
@@ -44,21 +59,7 @@ export function makeNotifyTool(deps: NotifyToolDeps) {
       const bodyRaw = typeof args.body === "string" ? args.body.trim() : "";
       const body = bodyRaw.length > 0 ? bodyRaw : undefined;
 
-      // When the bridge threads a chat session through, mark the
-      // notification's primary action as "open the originating chat"
-      // so the user can click the bell entry and land back on the
-      // session that produced it (typically a scheduled / background
-      // chat that finished while they were elsewhere). Without a
-      // session id, fall back to plain push (unchanged behaviour: the
-      // entry is just dismissed on click).
-      const action =
-        ctx?.sessionId && ctx.sessionId.length > 0
-          ? {
-              type: NOTIFICATION_ACTION_TYPES.navigate,
-              target: { view: NOTIFICATION_VIEWS.chat, sessionId: ctx.sessionId },
-            }
-          : undefined;
-
+      const action = buildNavigateAction(ctx);
       deps.publish({
         kind: NOTIFICATION_KINDS.push,
         title,
