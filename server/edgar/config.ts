@@ -4,9 +4,8 @@
 // the missing-config response below tells it the absolute path
 // and the JSON shape.
 
-import path from "node:path";
 import { z } from "zod";
-import { workspacePath } from "../workspace/paths.js";
+import { WORKSPACE_PATHS } from "../workspace/paths.js";
 import { loadJsonFile } from "../utils/files/json.js";
 
 const ConfigSchema = z.object({
@@ -16,11 +15,12 @@ const ConfigSchema = z.object({
 
 export type EdgarConfig = z.infer<typeof ConfigSchema>;
 
-const CONFIG_REL_PATH = "config/plugins/edgar/config.json";
-
-/** Absolute path the plugin reads from / Claude must write to. */
+/** Absolute path the plugin reads from / Claude must write to.
+ *  The workspace-relative path lives in
+ *  `src/config/workspacePaths.ts:WORKSPACE_FILES.edgarConfig`;
+ *  `WORKSPACE_PATHS` joins it with the workspace root. */
 export function configAbsolutePath(): string {
-  return path.join(workspacePath, CONFIG_REL_PATH);
+  return WORKSPACE_PATHS.edgarConfig;
 }
 
 /** Best-effort read. Any failure (missing file, malformed JSON,

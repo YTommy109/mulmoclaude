@@ -64,7 +64,7 @@ Single tool over six was chosen because `roles.ts` gates by tool name; one entry
 
 Config lives at the literal path:
 
-```
+```text
 ~/mulmoclaude/config/plugins/edgar/config.json
 ```
 

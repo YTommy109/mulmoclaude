@@ -24,6 +24,21 @@ import { fullTextSearch, getCompanyConcept, getCompanyFacts, getFilingDocument, 
 
 const router = Router();
 
+// SEC accession number canonical form: 10-digit filer prefix +
+// 2-digit year + 6-digit sequence (`0000320193-24-000123`). The
+// 18-digit dashless variant the URL uses is derived from this.
+// Pinning the format here blocks `/`, `..`, `?`, `#` and other
+// path-injection vectors before they reach URL construction.
+const ACCESSION_NUMBER_RE = /^\d{10}-\d{2}-\d{6}$/;
+
+// SEC primary-document filenames are kebab-case alphanumerics
+// with extensions like `.htm` / `.html` / `.xml` / `.txt`. Reject
+// anything that could escape the filing directory: no path
+// separators, no `..` traversal, no query / fragment markers.
+const PRIMARY_DOCUMENT_RE = /^(?!.*\.\.)[A-Za-z0-9][A-Za-z0-9_.-]*$/;
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 const Args = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("lookup_cik"),
@@ -38,8 +53,8 @@ const Args = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("get_filing_document"),
     company: z.string().min(1),
-    accession_number: z.string().min(1),
-    primary_document: z.string().min(1),
+    accession_number: z.string().regex(ACCESSION_NUMBER_RE, "accession_number must match NNNNNNNNNN-NN-NNNNNN"),
+    primary_document: z.string().regex(PRIMARY_DOCUMENT_RE, "primary_document must be a bare filename (no path separators or `..`)"),
     max_chars: z.number().int().min(1000).max(500000).default(20000),
   }),
   z.object({
@@ -52,56 +67,93 @@ const Args = z.discriminatedUnion("kind", [
     concept: z.string().min(1),
     taxonomy: z.enum(["us-gaap", "ifrs-full", "dei", "srt"]).default("us-gaap"),
   }),
-  z.object({
-    kind: z.literal("search_filings"),
-    query: z.string().min(1),
-    forms: z.array(z.string()).optional(),
-    from_date: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .optional(),
-    to_date: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .optional(),
-  }),
+  z
+    .object({
+      kind: z.literal("search_filings"),
+      query: z.string().min(1),
+      forms: z.array(z.string()).optional(),
+      from_date: z.string().regex(ISO_DATE_RE).optional(),
+      to_date: z.string().regex(ISO_DATE_RE).optional(),
+    })
+    // One-sided date bounds were silently dropped before — the
+    // search ran unbounded and the caller saw broader results
+    // than they asked for. Both-or-neither is explicit; partial
+    // ranges 400.
+    .refine((val) => Boolean(val.from_date) === Boolean(val.to_date), {
+      message: "from_date and to_date must be provided together (or both omitted)",
+    }),
 ]);
 
 type EdgarArgs = z.infer<typeof Args>;
 
+// Per-kind handlers, kept tiny so the dispatcher is well under
+// the 20-line cap and each kind can be tested in isolation.
+
+async function handleLookupCik(args: Extract<EdgarArgs, { kind: "lookup_cik" }>, userAgent: string): Promise<unknown> {
+  return await resolve(args.ticker, userAgent);
+}
+
+async function handleRecentFilings(args: Extract<EdgarArgs, { kind: "get_recent_filings" }>, userAgent: string): Promise<unknown> {
+  const { cik, name, ticker } = await resolve(args.company, userAgent);
+  const result = await getRecentFilings(cik, userAgent, { formTypes: args.form_types, limit: args.limit });
+  return { cik, ticker, resolvedName: name, ...result };
+}
+
+async function handleFilingDocument(args: Extract<EdgarArgs, { kind: "get_filing_document" }>, userAgent: string): Promise<unknown> {
+  const { cik } = await resolve(args.company, userAgent);
+  const { url, text } = await getFilingDocument(cik, args.accession_number, args.primary_document, userAgent);
+  const truncated = text.length > args.max_chars ? `${text.slice(0, args.max_chars)}\n\n[... truncated ${text.length - args.max_chars} more chars ...]` : text;
+  return { url, length: text.length, content: truncated };
+}
+
+async function handleCompanyFacts(args: Extract<EdgarArgs, { kind: "get_company_facts" }>, userAgent: string): Promise<unknown> {
+  const { cik } = await resolve(args.company, userAgent);
+  return await getCompanyFacts(cik, userAgent);
+}
+
+async function handleConcept(args: Extract<EdgarArgs, { kind: "get_concept" }>, userAgent: string): Promise<unknown> {
+  const { cik } = await resolve(args.company, userAgent);
+  return await getCompanyConcept(cik, args.taxonomy, args.concept, userAgent);
+}
+
+async function handleSearchFilings(args: Extract<EdgarArgs, { kind: "search_filings" }>, userAgent: string): Promise<unknown> {
+  const dateRange = args.from_date && args.to_date ? { from: args.from_date, to: args.to_date } : undefined;
+  return await fullTextSearch(args.query, userAgent, { forms: args.forms, dateRange });
+}
+
 async function dispatch(args: EdgarArgs, userAgent: string): Promise<unknown> {
   switch (args.kind) {
     case "lookup_cik":
-      return await resolve(args.ticker, userAgent);
-    case "get_recent_filings": {
-      const { cik, name, ticker } = await resolve(args.company, userAgent);
-      const result = await getRecentFilings(cik, userAgent, { formTypes: args.form_types, limit: args.limit });
-      return { cik, ticker, resolvedName: name, ...result };
-    }
-    case "get_filing_document": {
-      const { cik } = await resolve(args.company, userAgent);
-      const { url, text } = await getFilingDocument(cik, args.accession_number, args.primary_document, userAgent);
-      const truncated =
-        text.length > args.max_chars ? `${text.slice(0, args.max_chars)}\n\n[... truncated ${text.length - args.max_chars} more chars ...]` : text;
-      return { url, length: text.length, content: truncated };
-    }
-    case "get_company_facts": {
-      const { cik } = await resolve(args.company, userAgent);
-      return await getCompanyFacts(cik, userAgent);
-    }
-    case "get_concept": {
-      const { cik } = await resolve(args.company, userAgent);
-      return await getCompanyConcept(cik, args.taxonomy, args.concept, userAgent);
-    }
-    case "search_filings": {
-      const dateRange = args.from_date && args.to_date ? { from: args.from_date, to: args.to_date } : undefined;
-      return await fullTextSearch(args.query, userAgent, { forms: args.forms, dateRange });
-    }
+      return handleLookupCik(args, userAgent);
+    case "get_recent_filings":
+      return handleRecentFilings(args, userAgent);
+    case "get_filing_document":
+      return handleFilingDocument(args, userAgent);
+    case "get_company_facts":
+      return handleCompanyFacts(args, userAgent);
+    case "get_concept":
+      return handleConcept(args, userAgent);
+    case "search_filings":
+      return handleSearchFilings(args, userAgent);
     default: {
       const exhaustive: never = args;
       throw new Error(`unknown edgar kind: ${JSON.stringify(exhaustive)}`);
     }
   }
+}
+
+// The MCP bridge (server/agent/mcp-server.ts:handleToolCall)
+// surfaces only `message` + `instructions` to the LLM and drops
+// every other top-level field. We embed the structured payload
+// (path, schema) into `instructions` as a JSON-tagged block so
+// the LLM both reads the prose AND can parse the path/schema
+// values out without us setting `data` (which would trigger a
+// frontend canvas push — not wanted for a pure-API plugin).
+function respondMissingConfig(res: Response): void {
+  const payload = missingConfigResponse();
+  res.json({
+    instructions: `${payload.instructions}\n\nDetails (JSON):\n${JSON.stringify({ path: payload.path, schema: payload.schema }, null, 2)}`,
+  });
 }
 
 bindRoute(router, API_ROUTES.edgar.dispatch, async (req: Request<object, unknown, unknown>, res: Response) => {
@@ -117,27 +169,13 @@ bindRoute(router, API_ROUTES.edgar.dispatch, async (req: Request<object, unknown
   const cfg = readConfig();
   if (!cfg) {
     log.info("edgar", "POST dispatch: config missing — returning self-healing payload");
-    // The MCP bridge (server/agent/mcp-server.ts:handleToolCall)
-    // surfaces only `message` + `instructions` to the LLM and drops
-    // every other top-level field. We embed the structured payload
-    // (path, schema) into `instructions` as a JSON-tagged block so
-    // the LLM both reads the prose AND can parse the path/schema
-    // values out without us setting `data` (which would trigger a
-    // frontend canvas push — not wanted for a pure-API plugin).
-    const payload = missingConfigResponse();
-    res.json({
-      instructions: `${payload.instructions}\n\nDetails (JSON):\n${JSON.stringify({ path: payload.path, schema: payload.schema }, null, 2)}`,
-    });
+    respondMissingConfig(res);
     return;
   }
 
-  const userAgent = userAgentFromConfig(cfg);
   try {
-    const result = await dispatch(args, userAgent);
+    const result = await dispatch(args, userAgentFromConfig(cfg));
     log.info("edgar", "POST dispatch: ok", { kind: args.kind });
-    // Same constraint as above: the MCP bridge only forwards
-    // `message` + `instructions`. Stringify the result into
-    // `message` so the LLM actually receives the EDGAR data.
     res.json({ message: JSON.stringify(result) });
   } catch (err) {
     log.error("edgar", "POST dispatch: threw", { kind: args.kind, error: errorMessage(err) });

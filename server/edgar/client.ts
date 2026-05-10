@@ -10,14 +10,14 @@
 // state — single Node process, so a single instance is correct.
 
 import { log } from "../system/logger/index.js";
+import { ONE_SECOND_MS } from "../utils/time.js";
 
 const LOG_PREFIX = "edgar";
 
-const MIN_INTERVAL_MS = 1000 / 9; // ~111ms => 9 req/sec
+const MIN_INTERVAL_MS = ONE_SECOND_MS / 9; // ~111ms => 9 req/sec
+const FETCH_TIMEOUT_MS = 15 * ONE_SECOND_MS;
 
 const ALLOWED_HOSTS = new Set(["www.sec.gov", "data.sec.gov", "efts.sec.gov"]);
-
-let lastRequestAt = 0;
 
 interface TickerEntry {
   cik_str: number;
@@ -42,13 +42,35 @@ export interface ResolvedCompany {
   ticker?: string;
 }
 
-async function throttle(): Promise<void> {
-  const now = Date.now();
-  const wait = lastRequestAt + MIN_INTERVAL_MS - now;
-  if (wait > 0) {
-    await new Promise((resolveTimer) => setTimeout(resolveTimer, wait));
-  }
-  lastRequestAt = Date.now();
+// Concurrency-safe throttle. The earlier Date.now()-based gate let
+// N parallel callers all read the same `lastRequestAt`, sleep
+// together, and proceed in lockstep — bursting past SEC's 10 req/s
+// cap. Serialising through a single promise chain guarantees each
+// caller observes the prior caller's completion timestamp before
+// computing its own wait. Pattern mirrors bookmarks-plugin's
+// per-plugin write lock.
+let lastReleaseAt = 0;
+let throttleChain: Promise<unknown> = Promise.resolve();
+
+function throttledSlot<T>(work: () => Promise<T>): Promise<T> {
+  const next = throttleChain
+    .catch(() => undefined)
+    .then(async () => {
+      const wait = MIN_INTERVAL_MS - (Date.now() - lastReleaseAt);
+      if (wait > 0) {
+        await new Promise((resolveTimer) => setTimeout(resolveTimer, wait));
+      }
+      try {
+        return await work();
+      } finally {
+        lastReleaseAt = Date.now();
+      }
+    });
+  // Swallow rejections on the chain head so a thrown handler doesn't
+  // poison the next caller; each caller still sees its own error
+  // because we return `next`.
+  throttleChain = next.catch(() => undefined);
+  return next;
 }
 
 async function edgarFetch(url: string, userAgent: string): Promise<Response> {
@@ -56,18 +78,36 @@ async function edgarFetch(url: string, userAgent: string): Promise<Response> {
   if (!ALLOWED_HOSTS.has(hostname)) {
     throw new Error(`edgar: refusing to fetch ${hostname} — only sec.gov hosts are allowed`);
   }
-  await throttle();
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": userAgent,
-      Accept: "application/json, text/html;q=0.9",
-    },
+  return throttledSlot(async () => {
+    const abortController = new AbortController();
+    const timer = setTimeout(() => abortController.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        signal: abortController.signal,
+        headers: {
+          "User-Agent": userAgent,
+          Accept: "application/json, text/html;q=0.9",
+        },
+      });
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new Error(`EDGAR ${response.status} for ${url}\n${body.slice(0, 500)}`);
+      }
+      return response;
+    } catch (err) {
+      // Distinguish abort (timeout) vs other network errors so the
+      // downstream caller / LLM gets actionable context.
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new Error(`EDGAR request timed out after ${FETCH_TIMEOUT_MS}ms for ${url}`);
+      }
+      // Re-throw HTTP-status errors (which we threw above) untouched;
+      // wrap genuine network failures with URL context.
+      if (err instanceof Error && err.message.startsWith("EDGAR ")) throw err;
+      throw new Error(`EDGAR network error for ${url}: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      clearTimeout(timer);
+    }
   });
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(`EDGAR ${response.status} for ${url}\n${body.slice(0, 500)}`);
-  }
-  return response;
 }
 
 /** Pad a numeric CIK to the 10-digit zero-padded form EDGAR uses. */
