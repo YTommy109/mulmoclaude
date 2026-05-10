@@ -36,12 +36,23 @@ import { log } from "../system/logger/index.js";
 import { errorMessage } from "./errors.js";
 import { serverError } from "./httpError.js";
 
-// Generics intentionally use `Request` / `Response` shapes without
-// the upstream `Request<ParamsDictionary>` constraint — callers like
-// `Request<object, unknown, MyBody>` use `object` for params, which
-// is incompatible with Express's default `ParamsDictionary` upper
-// bound. Mirrors the existing `wrapPluginExecute` signature.
-export function asyncHandler<TReq extends Request<unknown, unknown, unknown, unknown> = Request, TRes extends Response = Response>(
+// The TReq / TRes generics intentionally have NO upper-bound constraint.
+//
+// Express's `Request<P, ResBody, ReqBody, Query>` interface uses these
+// type parameters in mixed variance positions (ResBody is
+// contravariant via `res.json(body: ResBody)`, P is constrained to
+// `ParamsDictionary` in the default form). Adding any `extends
+// Request<…>` upper bound here would reject perfectly valid call sites
+// like `Request<object, unknown, MyBody>` or `Request<SessionIdParams,
+// ResBody, ReqBody>` because of invariance — TS treats `object` /
+// concrete-ResBody as incompatible with the default's `ParamsDictionary`
+// / `any` slots.
+//
+// The wrapper doesn't dereference req / res itself, so dropping the
+// upper bound costs nothing — call sites still get full Express types
+// via the explicit type arguments. Mirrors `wrapPluginExecute` in
+// `server/api/routes/plugins.ts`, which this module generalises.
+export function asyncHandler<TReq = Request, TRes = Response>(
   namespace: string,
   fallbackMessage: string,
   handler: (req: TReq, res: TRes) => Promise<void>,
@@ -50,9 +61,14 @@ export function asyncHandler<TReq extends Request<unknown, unknown, unknown, unk
     try {
       await handler(req, res);
     } catch (err) {
-      log.error(namespace, "handler threw", { route: req.path, error: errorMessage(err) });
-      if (!res.headersSent) {
-        serverError(res, fallbackMessage);
+      // `req` / `res` are typed loosely here so the wrapper can stay
+      // open to any concrete Express Request / Response shape; we
+      // narrow back to the runtime contract just for the catch path.
+      const expressReq = req as Request;
+      const expressRes = res as Response;
+      log.error(namespace, "handler threw", { route: expressReq.path, error: errorMessage(err) });
+      if (!expressRes.headersSent) {
+        serverError(expressRes, fallbackMessage);
       }
     }
   };
