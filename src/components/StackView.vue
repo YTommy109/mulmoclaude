@@ -106,6 +106,7 @@ import { TOOL_NAMES } from "../config/toolNames";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { View as TextResponseOriginalView } from "../plugins/textResponse/index";
 import { handleExternalLinkClick } from "../utils/dom/externalLink";
+import { clampIframeHeight } from "../utils/dom/iframeHeightClamp";
 import type { TextResponseData } from "../plugins/textResponse/types";
 import { formatSmartTime } from "../utils/format/date";
 import { isRecord } from "../utils/types";
@@ -230,12 +231,12 @@ function sizeIframesIn(wrapper: HTMLElement): void {
   }
 }
 
-// Cap reported iframe heights so a malicious / buggy embedded script
-// can't request a multi-million-pixel iframe and tank the page. 30K is
-// well above any realistic single-document presentHtml content (a 4K
-// monitor's viewport height is ~2160px; a long Sankey or report fits
-// comfortably in a 5-10K range).
-const MAX_REPORTED_IFRAME_HEIGHT_PX = 30_000;
+// Iframe height clamp moved to a pure helper so the regression case
+// (#1268 — viewport-relative content climbing indefinitely through
+// the parent's height-setting feedback) can be unit-tested without
+// mounting Vue or a real iframe. See `iframeHeightClamp.ts` for both
+// caps (`MAX_REPORTED_IFRAME_HEIGHT_PX` absolute + `MAX_IFRAME_VH`
+// viewport-relative).
 
 // Cache `contentWindow → iframe` so message-driven sizing is O(1) per
 // message. Without this, every postMessage would force a full DOM walk
@@ -274,18 +275,6 @@ function flushPendingIframeHeights(): void {
   pendingIframeHeightsPx.clear();
 }
 
-// Cap reported iframes at a fraction of the host viewport on top of
-// the absolute MAX. Stops viewport-relative content (e.g. a Leaflet
-// map with `body { height: 100% }` plus `#map { height:
-// calc(100vh - 130px) }`) from climbing without bound: every
-// ResizeObserver tick inside such an iframe reports a scrollHeight
-// roughly equal to the iframe's own height (because the body is the
-// viewport), so the height feeds back through `iframe.style.height`
-// and the previously-30K-only cap let it walk most of the way there.
-// 0.85 of the host viewport is enough to render any map / report
-// fully visible while keeping the surrounding chat scrollable.
-const MAX_IFRAME_VH = 0.85;
-
 // Listen for iframe-height reports posted by the in-iframe reporter
 // script (`src/utils/html/iframeHeightReporterScript.ts` injected by
 // the server's `readAndInjectHtmlArtifact`). Cross-origin sandboxed
@@ -300,13 +289,13 @@ function handleIframeHeightMessage(event: MessageEvent): void {
   if (!data || typeof data !== "object") return;
   if ((data as { type?: unknown }).type !== "mc-iframe-height") return;
   const reported = (data as { height?: unknown }).height;
-  if (typeof reported !== "number" || !Number.isFinite(reported) || reported <= 0) return;
+  if (typeof reported !== "number") return;
   const { source } = event;
   if (!source || typeof source !== "object" || !("postMessage" in source)) return;
   const iframe = findIframeForSourceWindow(source as Window);
   if (!iframe) return;
-  const viewportCap = Math.max(1, Math.floor(window.innerHeight * MAX_IFRAME_VH));
-  const heightPx = Math.min(reported, MAX_REPORTED_IFRAME_HEIGHT_PX, viewportCap);
+  const heightPx = clampIframeHeight(reported, window.innerHeight);
+  if (heightPx <= 0) return;
   pendingIframeHeightsPx.set(iframe, heightPx);
   if (pendingHeightFlushRafId === null) {
     pendingHeightFlushRafId = requestAnimationFrame(flushPendingIframeHeights);
@@ -318,9 +307,9 @@ function resizeOneIframe(iframe: HTMLIFrameElement): void {
     const doc = iframe.contentDocument;
     if (!doc) return;
     const measured = Math.max(doc.documentElement?.scrollHeight ?? 0, doc.body?.scrollHeight ?? 0);
-    if (measured <= 0) return;
-    const cap = Math.max(1, Math.floor(window.innerHeight * MAX_IFRAME_VH));
-    iframe.style.height = `${Math.min(measured, cap)}px`;
+    const heightPx = clampIframeHeight(measured, window.innerHeight);
+    if (heightPx <= 0) return;
+    iframe.style.height = `${heightPx}px`;
   } catch {
     // cross-origin sandbox — can't measure, leave default
   }
