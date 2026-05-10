@@ -29,7 +29,12 @@ import { log } from "../system/logger/index.js";
 import { errorMessage } from "./errors.js";
 import { serverError } from "./httpError.js";
 
-export function asyncHandler<TReq extends Request = Request, TRes extends Response = Response>(
+// Generics intentionally use `Request` / `Response` shapes without
+// the upstream `Request<ParamsDictionary>` constraint — callers like
+// `Request<object, unknown, MyBody>` use `object` for params, which
+// is incompatible with Express's default `ParamsDictionary` upper
+// bound. Mirrors the existing `wrapPluginExecute` signature.
+export function asyncHandler<TReq extends Request<unknown, unknown, unknown, unknown> = Request, TRes extends Response = Response>(
   namespace: string,
   handler: (req: TReq, res: TRes) => Promise<void>,
 ): (req: TReq, res: TRes) => Promise<void> {
