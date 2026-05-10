@@ -130,13 +130,15 @@ This converts the discriminator from a global syntactic rule (every `:` ⇒ embe
 1. Add a shared `src/utils/markdown/externalLinks.ts` helper:
    - `marked.use({ renderer: { link({href, title, text}) {...} } })` — when `href` is an absolute URL (`/^https?:\/\//.test(href)`), append `target="_blank" rel="noopener noreferrer"` to the emitted `<a>`.
    - Internal links (`/`, `#`, `[[wiki-link]]` post-processing) untouched.
-2. Iframe `sandbox` attribute (if any view wraps content in an iframe — verify via grep): add `allow-popups allow-popups-to-escape-sandbox`. Audit every `sandbox=` usage; we don't want to widen capability set without intent.
-3. Unit test for the renderer override: external URL → `target="_blank"` injected; relative URL → unchanged.
+2. Unit test for the renderer override: external URL → `target="_blank"` injected; relative URL → unchanged.
+
+**No iframe sandbox tweak required** (revised after the 48h sweep). The wiki / files / chat-artifact markdown does NOT render inside an iframe — it goes straight through `marked.parse` → `DOMPurify` → SPA DOM, so a renderer override is enough. The only iframe in scope is `/artifacts/html/...` (the `presentHtml` preview, see #1228), and it deliberately uses `sandbox="allow-scripts"` (no `allow-same-origin`) so LLM-generated HTML can't read the parent's bearer token. Loosening that is a regression — leave it alone.
 
 **Out of scope** for PR-A:
 
 - New embed syntax — that's PR-B.
 - Restyling links — only their open-target changes.
+- Iframe sandbox capability changes (see note above).
 
 **Acceptance**:
 
@@ -205,7 +207,11 @@ Each future type is one self-contained PR adding `src/utils/markdown/embed/rende
 1. `youtube` — embed iframe (default thumbnail-link, opt-in to full embed via `?style=embed` since the iframe itself is heavy)
 2. `github` — repo card + issue/PR link (kind detected from id shape: `owner/repo`, `owner/repo/issues/N`, `owner/repo/pull/N`)
 3. `x` (Twitter) — tweet embed via oEmbed API
-4. `map` — geo pin (lat,lng + zoom). Composes with the existing google-map plugin (#1227).
+4. `map` — geo pin (lat,lng + zoom). Renderer is a thin shim that emits a `showLocation` invocation against the upstream `@gui-chat-plugin/google-map@0.4.0` plugin runtime API (integrated in #1241), NOT a custom `<google-map>` component. The `region` reserved param doesn't apply; `zoom` does.
+
+### Future candidate types (not on the critical path)
+
+- `photo:<id>` — embed a thumbnail + map link from `data/photo-locations/<id>` after #1222 / #1247 / #1250 / #1251 land. Needs a stable id surface (filename or stable hash) on the photo metadata first; flagging here so we remember to design the id shape with this in mind when photo metadata stabilises.
 
 ## Out of scope (the whole issue)
 
@@ -217,7 +223,9 @@ Each future type is one self-contained PR adding `src/utils/markdown/embed/rende
 
 - #1210 — preset skills infrastructure (mc-library is the first heavy user; will switch to `[[amazon:...]]` once PR-B lands)
 - #1169 — home-application plugin & role plan (most planned skills will produce content with external references)
-- #1227 — map plugin (PR-C `map:` renderer can compose with this)
+- #1227 / #1241 — map plugin via `@gui-chat-plugin/google-map` (PR-C `map:` renderer composes with this)
+- #1228 — `presentHtml` iframe sandbox + auto-height; explains why PR-A does NOT touch iframe sandbox
+- #1222 / #1247 / #1250 / #1251 — photo-EXIF + `managePhotoLocations` + Photos settings tab (sets up the eventual `[[photo:<id>]]` candidate)
 
 ## Tracking
 
