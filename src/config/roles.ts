@@ -1,25 +1,34 @@
 import { z } from "zod";
-import { ALL_TOOL_NAMES, TOOL_NAMES, isToolName, type ToolName } from "./toolNames";
+import { ALL_TOOL_NAMES, TOOL_NAMES, type ToolName } from "./toolNames";
 
 // `availablePlugins` accepts every literal listed in `TOOL_NAMES`.
 // Compile time: roles.ts static definitions below get typed as
 // `ToolName[]` via RoleSchema's zod inference, so `presentHTML` vs
 // `presentHtml` kind of typos are caught immediately.
 //
-// Runtime: take any string array and filter out unknown names
-// rather than failing the whole parse. A persisted custom role
-// file may still reference a tool that was removed in a later
-// release (e.g. `manageRoles` post-#949 / #951), and we want
-// such a role to keep loading with the dead reference silently
-// dropped — the alternative is `loadCustomRoles` swallowing the
-// whole role, which makes the user's edits disappear from
-// `/roles` for no obvious reason. Frontend create/update goes
-// through a plugin-picker UI that only emits valid names, so the
-// lenient parse doesn't weaken create-time validation.
+// Runtime: keep any non-empty string. The list is a wishlist —
+// `server/agent/activeTools.ts` is the choke point that intersects
+// it with the actually-loaded tool registry, so unknown names are a
+// silent no-op rather than a parse failure. Two reasons we keep
+// the lenient runtime parse:
+//
+//   - User-installed runtime plugins (`~/mulmoclaude/plugins/*`)
+//     publish their `toolName` only at process start; the role file
+//     lists those names but they aren't in `TOOL_NAMES` (which is
+//     compile-time and host-owned). Stripping them at parse would
+//     unconditionally break user-added plugins.
+//   - A persisted custom role may reference a tool that was removed
+//     in a later release (e.g. `manageRoles` post-#949 / #951);
+//     keeping the entry preserves the user's intent visually in
+//     `/roles` rather than making it disappear.
+//
+// Frontend create/update goes through a plugin-picker UI that only
+// emits names that are loaded right now, so the lenient parse
+// doesn't weaken create-time validation.
 const toolNameEnum = z.enum(ALL_TOOL_NAMES as readonly [ToolName, ...ToolName[]]);
 const availablePluginsSchema = z
   .union([z.array(z.string()), z.array(toolNameEnum)])
-  .transform((plugins) => plugins.filter((plugin): plugin is ToolName => isToolName(plugin)));
+  .transform((plugins) => plugins.filter((plugin) => typeof plugin === "string" && plugin.length > 0));
 
 export const RoleSchema = z.object({
   id: z.string(),
@@ -49,10 +58,6 @@ export const ROLES: Role[] = [
       "- **Browse / lint**: direct the user to the `/wiki` UI — catalog at `/wiki`, a specific page at `/wiki/pages/<slug>`, activity log at `/wiki/log`, or the Lint button on `/wiki` for a health check.\n\n" +
       "Page format: YAML frontmatter (title, created, updated, tags) + markdown body + `[[wiki links]]` for cross-references. Slugs are lowercase hyphen-separated. Always keep `data/wiki/index.md` current and append to `data/wiki/log.md` after any change. The page-list section of `index.md` is a flat, recency-ordered log: prepend new pages at the top, and when a page is updated (content, description, tags, or rename) move its entry to the top — don't group by category. The Tags section (if present) still needs its per-tag page lists updated on add / rename / delete, but the tag order itself is not reordered by recency. Read `config/helps/wiki.md` for full details.",
     availablePlugins: [
-      // manageTodoList: runtime plugin (`@mulmoclaude/todo-plugin`,
-      // #1145) — runtime-loaded plugins are auto-included in every
-      // role's active tool set regardless of `availablePlugins`, so
-      // it doesn't need to be listed here.
       TOOL_NAMES.manageCalendar,
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentForm,
@@ -64,6 +69,15 @@ export const ROLES: Role[] = [
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
       TOOL_NAMES.notify,
+      // Preset runtime plugins (server/plugins/preset-list.ts).
+      // Runtime plugins are gated by `availablePlugins` like the
+      // static-GUI / static-MCP entries above; listed here so the
+      // out-of-the-box "general" role keeps exposing them. User-
+      // installed runtime plugins (`~/mulmoclaude/plugins/*`) are
+      // added to roles via Settings → Roles.
+      TOOL_NAMES.manageBookmarks,
+      TOOL_NAMES.manageTodoList,
+      TOOL_NAMES.manageSpotify,
     ],
     queries: [
       "Tell me about this app, MulmoClaude.",
@@ -270,11 +284,6 @@ export const ROLES: Role[] = [
     icon: "restaurant",
     prompt:
       "You are a Cooking Coach assistant. You help the user keep a personal recipe book — saving recipes they like, retrieving them on demand, and updating them as they refine the technique.\n\n" +
-      // The tool name is a literal here (not `TOOL_NAMES.manageRecipes`)
-      // because the recipe-book plugin is a RUNTIME plugin — its
-      // `toolName` is loaded at process start, not at compile time, so
-      // `TOOL_NAMES` doesn't carry it. Same convention as
-      // `manageTodoList` references in the host (also runtime).
       "## manageRecipes (runtime plugin)\n\n" +
       "Use the `manageRecipes` tool for every recipe-book operation. The plugin owns its data; you just call the tool with the right `kind`. Each recipe lives as one markdown file with structured frontmatter (title, tags, servings, prepTime, cookTime, created, updated) and a free-form markdown body.\n\n" +
       '- **Saving** (`kind: "save"`): when the user shares a recipe they want to remember, distill it into a clean structure first. Pick a kebab-case ASCII slug for the filename — use a romanised form even when the title is non-ASCII (e.g. title `ピーマンの肉詰め` → slug `stuffed-peppers`). Title can be in the user\'s language. Body convention is `## 材料` (or `## Ingredients`) as a bullet list with quantities, then `## 手順` (or `## Steps`) as a numbered list, then optional notes / variations.\n' +
@@ -286,11 +295,10 @@ export const ROLES: Role[] = [
       "## Tone\n\n" +
       "Friendly, focused on the cooking — not the bookkeeping. Don't lecture about file paths or frontmatter; the structure is an implementation detail. When suggesting a substitution or technique, keep it short and practical.",
     // manageRecipes is provided by the `@mulmoclaude/recipe-book-plugin`
-    // runtime preset (server/plugins/preset-list.ts). Runtime plugins
-    // are auto-included in every role's active tool set regardless of
-    // `availablePlugins`, so it doesn't need to be listed here. Only
-    // host-static tools the role wants explicit go in this array.
-    availablePlugins: [TOOL_NAMES.presentForm, TOOL_NAMES.generateImage],
+    // runtime preset (`server/plugins/preset-list.ts`). Runtime
+    // plugins are now gated by `availablePlugins` like static tools,
+    // so the tool name has to be listed here.
+    availablePlugins: [TOOL_NAMES.manageRecipes, TOOL_NAMES.presentForm, TOOL_NAMES.generateImage],
     queries: [
       "Save my Mom's stuffed peppers recipe",
       "Show me the recipes I've saved",
@@ -324,6 +332,15 @@ export const ROLES: Role[] = [
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
       TOOL_NAMES.notify,
+      // Preset runtime plugins — same set as the `general` role plus
+      // the dev-only `manageDebug` plugin. Runtime plugins are gated
+      // by `availablePlugins` (see `general` role's note); listing
+      // them here keeps the debug role's "kitchen sink" promise.
+      TOOL_NAMES.manageBookmarks,
+      TOOL_NAMES.manageTodoList,
+      TOOL_NAMES.manageSpotify,
+      TOOL_NAMES.manageRecipes,
+      TOOL_NAMES.manageDebug,
     ],
     queries: [
       "Tell me about this app, MulmoClaude.",
