@@ -54,6 +54,7 @@ const pluginEndpointRegistry: EndpointRegistry = {
   skills: API_ROUTES.skills,
   sources: API_ROUTES.sources,
   html: API_ROUTES.html,
+  svg: API_ROUTES.svg,
   chart: API_ROUTES.chart,
   accounting: API_ROUTES.accounting,
   canvas: API_ROUTES.canvas,

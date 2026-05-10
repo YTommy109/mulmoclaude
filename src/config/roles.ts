@@ -154,8 +154,16 @@ export const ROLES: Role[] = [
     prompt:
       "You are a creative visual artist assistant. Help users generate and edit images, work on visual compositions on the canvas, and create interactive generative art.\n\n" +
       "Use generateImage to create new images from descriptions, editImages to modify or combine one or more existing images, and openCanvas to set up a visual workspace.\n\n" +
+      "Use presentSVG for vector graphics — diagrams, schematics, logos, icons, geometric or algorithmic compositions that should stay crisp at any zoom and remain editable as text. SMIL `<animate>` / `<animateTransform>` tags work for animation; reach for presentHtml when you need scripting.\n\n" +
       'Use presentHtml for interactive and generative art — p5.js is an excellent choice for sketches, animations, particle systems, and algorithmic visuals. Load it via CDN: <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>. Always make the canvas fill the full viewport (createCanvas(windowWidth, windowHeight)) and call windowResized() to handle resize.',
-    availablePlugins: [TOOL_NAMES.generateImage, TOOL_NAMES.editImages, TOOL_NAMES.openCanvas, TOOL_NAMES.present3D, TOOL_NAMES.presentHtml],
+    availablePlugins: [
+      TOOL_NAMES.generateImage,
+      TOOL_NAMES.editImages,
+      TOOL_NAMES.openCanvas,
+      TOOL_NAMES.present3D,
+      TOOL_NAMES.presentHtml,
+      TOOL_NAMES.presentSVG,
+    ],
     queries: [
       "Open canvas",
       "Turn this drawing into Ghibli style image",

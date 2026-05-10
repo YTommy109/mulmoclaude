@@ -14,6 +14,7 @@ import pluginsRoutes from "./api/routes/plugins.js";
 import imageRoutes from "./api/routes/image.js";
 import attachmentRoutes from "./api/routes/attachment.js";
 import presentHtmlRoutes from "./api/routes/presentHtml.js";
+import presentSvgRoutes from "./api/routes/presentSvg.js";
 import chartRoutes from "./api/routes/chart.js";
 import rolesRoutes from "./api/routes/roles.js";
 import { DEFAULT_ROLE_ID } from "../src/config/roles.js";
@@ -411,6 +412,62 @@ app.use(
   express.static(WORKSPACE_PATHS.htmls, { dotfiles: "deny", fallthrough: false }),
 );
 
+// Static mount for SVG artifacts. SVG files are loaded into the View
+// and Preview as `<img src="/artifacts/svg/<name>.svg">`. Browsers
+// refuse to execute `<script>` inside an SVG loaded via `<img>`, so we
+// don't need the CSP machinery the HTML mount uses — the `<img>` tag
+// itself is the sandbox. Strict three-layer guard mirroring the
+// `/artifacts/images` mount: extension allowlist, realpath traversal
+// check, dotfiles deny + fallthrough false on `express.static`. Bearer
+// auth bypassed for the same reason as `/artifacts/images` /
+// `/artifacts/html`: an `<img src>` request can't carry an
+// Authorization header. Loopback-only listener + `requireSameOrigin`
+// remain the trust boundary.
+const SVG_EXT_RE = /\.svg$/i;
+let svgsDirReal: string | null = null;
+async function getSvgsDirReal(): Promise<string | null> {
+  if (svgsDirReal) return svgsDirReal;
+  try {
+    svgsDirReal = await fsRealpath(WORKSPACE_PATHS.svgs);
+    return svgsDirReal;
+  } catch {
+    return null;
+  }
+}
+app.use(
+  "/artifacts/svg",
+  async (req, res, next) => {
+    if (!SVG_EXT_RE.test(req.path)) {
+      res.status(404).end();
+      return;
+    }
+    const root = await getSvgsDirReal();
+    if (!root) {
+      res.status(404).end();
+      return;
+    }
+    let relPath: string;
+    try {
+      relPath = decodeURIComponent(req.path.replace(/^\//, ""));
+    } catch {
+      res.status(404).end();
+      return;
+    }
+    if (!resolveWithinRoot(root, relPath)) {
+      res.status(404).end();
+      return;
+    }
+    if (containsDotfileSegment(relPath)) {
+      res.status(404).end();
+      return;
+    }
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+    next();
+  },
+  express.static(WORKSPACE_PATHS.svgs, { dotfiles: "deny", fallthrough: false }),
+);
+
 app.get(API_ROUTES.health, (_req: Request, res: Response) => {
   // `os.loadavg()[0]` is the kernel 1-minute load average. On Linux /
   // macOS it's the primary "is this machine busy" signal; on Windows
@@ -462,6 +519,7 @@ app.use(pluginsRoutes);
 app.use(imageRoutes);
 app.use(attachmentRoutes);
 app.use(presentHtmlRoutes);
+app.use(presentSvgRoutes);
 app.use(chartRoutes);
 app.use(rolesRoutes);
 app.use(mulmoScriptRoutes);

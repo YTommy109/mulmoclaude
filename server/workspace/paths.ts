@@ -129,6 +129,8 @@ const HOST_WORKSPACE_DIRS = {
   // overwritten. Kept separate so reloading a saved HTML artifact
   // doesn't clobber the current preview.
   html: "artifacts/html-scratch",
+  // `svgs` = `presentSVG` plugin output (vector graphics).
+  svgs: "artifacts/svg",
   images: "artifacts/images",
   spreadsheets: "artifacts/spreadsheets",
   stories: "artifacts/stories",
