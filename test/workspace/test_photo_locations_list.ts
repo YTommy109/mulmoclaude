@@ -104,14 +104,16 @@ describe("photo-locations list — defensive sidecar validation", () => {
     assert.deepEqual(all, []);
   });
 
-  it("count includes malformed-but-counted entries — same partition logic", async () => {
-    // count uses a cheaper partition walk that doesn't parse content.
-    // Bad sidecars still occupy disk and contribute to the badge — we
-    // accept the mismatch with `list` to keep `count` fast on a
-    // workspace with thousands of sidecars.
+  it("count agrees with list — malformed sidecars are excluded from both", async () => {
+    // count now reuses the same parse-+-validate path as list so
+    // the status badge can never disagree with the row list.
+    // (Codex review on PR #1263.)
     writeSidecar("a.json", VALID_SIDECAR);
     writeSidecar("b.json", "{garbage");
+    writeSidecar("c.json", { ...VALID_SIDECAR, version: 99 });
     const total = await countAllSidecars();
-    assert.equal(total, 2);
+    const all = await listAllSidecars();
+    assert.equal(total, 1);
+    assert.equal(total, all.length);
   });
 });

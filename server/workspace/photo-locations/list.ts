@@ -50,22 +50,16 @@ export async function listAllSidecars(): Promise<ListedSidecar[]> {
   return all;
 }
 
-/** Quick count without parsing every file. Used by the plugin's
- *  status endpoint so the badge "N photos captured" shows fast
- *  even on a workspace with thousands of sidecars. */
+/** Count of sidecars that pass the same shape validation as
+ *  `listAllSidecars` — so the plugin's status badge agrees with
+ *  what the list endpoint will actually return. The earlier
+ *  cheap-walk version drifted out of parity once a malformed
+ *  sidecar appeared on disk (`list` skipped it, `count` still
+ *  totalled it). On workspaces with thousands of sidecars the
+ *  parse cost is still a small fraction of the listing one and
+ *  worth the consistency. (Codex review on PR #1263.) */
 export async function countAllSidecars(): Promise<number> {
-  const root = WORKSPACE_PATHS.locations;
-  const yearDirs = await readSubdirsSafe(root);
-  let total = 0;
-  for (const year of yearDirs) {
-    const yearAbs = path.join(root, year);
-    const monthDirs = await readSubdirsSafe(yearAbs);
-    for (const month of monthDirs) {
-      const entries = await readdir(path.join(yearAbs, month)).catch(() => []);
-      total += entries.filter((entry) => entry.endsWith(SIDECAR_EXT)).length;
-    }
-  }
-  return total;
+  return (await listAllSidecars()).length;
 }
 
 /** Defensive shape check for one sidecar JSON. The post-save hook
