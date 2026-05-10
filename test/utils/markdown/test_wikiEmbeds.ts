@@ -120,12 +120,14 @@ describe("Amazon embed handler", () => {
     registerAmazonEmbed();
   });
 
-  it("renders a link to amazon.com/dp/<asin> for a valid ASIN", () => {
+  it("renders a thumbnail-link to amazon.com/dp/<asin> for a valid ASIN", () => {
     const html = (marked.parse("see [[amazon:B00ICN066A]]") as string).trim();
     assert.match(html, /href="https:\/\/www\.amazon\.com\/dp\/B00ICN066A"/);
     assert.match(html, /target="_blank"/);
     assert.match(html, /rel="noopener noreferrer"/);
-    assert.match(html, /📦 B00ICN066A/);
+    assert.match(html, /src="https:\/\/images-na\.ssl-images-amazon\.com\/images\/P\/B00ICN066A\.01\.L\.jpg"/);
+    assert.match(html, /loading="lazy"/);
+    assert.match(html, /class="wiki-embed wiki-embed-amazon"/);
   });
 
   it("falls through to verbatim for an invalid ASIN", () => {
@@ -175,31 +177,30 @@ describe("YouTube embed handler", () => {
     registerYoutubeEmbed();
   });
 
-  it("renders a thumbnail-link to youtube.com/watch?v=<id> for a valid 11-char id", () => {
+  it("renders an inline iframe via youtube-nocookie.com for a valid 11-char id", () => {
     const html = (marked.parse("watch [[youtube:dQw4w9WgXcQ]]") as string).trim();
-    assert.match(html, /href="https:\/\/www\.youtube\.com\/watch\?v=dQw4w9WgXcQ"/);
-    assert.match(html, /target="_blank"/);
-    assert.match(html, /rel="noopener noreferrer"/);
-    assert.match(html, /src="https:\/\/img\.youtube\.com\/vi\/dQw4w9WgXcQ\/hqdefault\.jpg"/);
+    assert.match(html, /<iframe /);
+    assert.match(html, /src="https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ"/);
+    assert.match(html, /allowfullscreen/);
     assert.match(html, /loading="lazy"/);
     assert.match(html, /class="wiki-embed wiki-embed-youtube"/);
   });
 
   it("accepts ids containing _ and - characters", () => {
     const html = (marked.parse("[[youtube:abc_def-XYZ]]") as string).trim();
-    assert.match(html, /watch\?v=abc_def-XYZ/);
+    assert.match(html, /youtube-nocookie\.com\/embed\/abc_def-XYZ/);
   });
 
   it("falls through to verbatim for an id shorter than 11 chars", () => {
     const html = (marked.parse("[[youtube:tooShort]]") as string).trim();
     assert.match(html, /\[\[youtube:tooShort\]\]/);
-    assert.doesNotMatch(html, /youtube\.com\/watch/);
+    assert.doesNotMatch(html, /youtube-nocookie\.com\/embed/);
   });
 
   it("falls through to verbatim for an id longer than 11 chars", () => {
     const html = (marked.parse("[[youtube:thisIdIsTooLong]]") as string).trim();
     assert.match(html, /\[\[youtube:thisIdIsTooLong\]\]/);
-    assert.doesNotMatch(html, /youtube\.com\/watch/);
+    assert.doesNotMatch(html, /youtube-nocookie\.com\/embed/);
   });
 
   it("rejects an id with HTML metacharacters (no XSS leak)", () => {
@@ -207,7 +208,7 @@ describe("YouTube embed handler", () => {
     // so it must fail the strict alphanumeric+_- pattern.
     const html = (marked.parse('[[youtube:<script>x"]]') as string).trim();
     assert.doesNotMatch(html, /<script/);
-    assert.doesNotMatch(html, /youtube\.com\/watch/);
+    assert.doesNotMatch(html, /youtube-nocookie\.com\/embed/);
   });
 });
 

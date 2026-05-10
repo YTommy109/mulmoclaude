@@ -277,9 +277,9 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { marked } from "marked";
-import DOMPurify from "dompurify";
 import type { ManageSourceData, RebuildSummary, Source } from "../plugins/manageSource/index";
 import { apiGet, apiPost, apiDelete } from "../utils/api";
+import { sanitizeMarkdownHtml } from "../utils/markdown/sanitize";
 import { API_ROUTES } from "../config/apiRoutes";
 import { buildRouteUrl } from "../plugins/meta-types";
 import { handleExternalLinkClick } from "../utils/dom/externalLink";
@@ -867,7 +867,7 @@ const briefHtml = computed(() => {
   // content:encoded blocks often carry tracking pixels, iframes,
   // inline <script> from scraped sources). Sanitize before
   // binding to v-html.
-  return DOMPurify.sanitize(marked(body) as string);
+  return sanitizeMarkdownHtml(marked(body) as string);
 });
 
 // Load on mount:
