@@ -40,12 +40,13 @@ GET /api/files/content?path=data%2Fnotes%2F%25E3%2583%2586%25E3%2582%25B9...md
 - 入力が encoded（`%E3%83%86...`）→ decode して "テ..." になる
 - 不正な percent シーケンスで `decodeURIComponent` が throw した場合は元の値を使う（フォールバック）
 
-これにより呼び出し元 4 箇所すべてに同じ修正が効く:
+これにより `classifyWorkspacePath` の呼び出し元すべてに同じ修正が効く:
 
-- `src/App.vue` (`navigateToWorkspacePath`)
-- `src/plugins/wiki/components/WikiPageBody.vue`
-- `src/plugins/textResponse/View.vue` (`openLinksInNewTab`)
-- `src/utils/notification/dispatch.ts`
+- `src/App.vue` の `navigateToWorkspacePath`（routing entrypoint。下 2 経路から踏まれる）
+- `src/plugins/wiki/components/WikiPageBody.vue`（wiki 本文内リンクの click 判定 → `appApi.navigateToWorkspacePath`）
+- `src/plugins/textResponse/View.vue` の `openLinksInNewTab`（chat 応答内リンクの click 判定 → `appApi.navigateToWorkspacePath`）
+
+UI 経路としては **Wiki** と **textResponse** の 2 つ。
 
 ## テスト
 

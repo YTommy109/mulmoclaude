@@ -6,14 +6,18 @@ import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
 import {
   deleteSession,
   getCurrentSessionId,
+  navigateToWikiPage,
+  placeWikiPage,
   placeWorkspaceFile,
   removeFromWorkspace,
+  removeWikiPage,
   sendChatMessage,
   startNewSession,
   waitForAssistantResponseComplete,
 } from "../fixtures/live-chat.ts";
 
 const L23_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
+const L24_TIMEOUT_MS = ONE_MINUTE_MS;
 const SESSION_URL_PATTERN = /\/chat\/[0-9a-f-]+/;
 const FILES_URL_PATTERN = /\/files\//;
 
@@ -117,6 +121,54 @@ test.describe("workspace link routing (real workspace)", () => {
       for (const sid of sessionsToCleanup) {
         await deleteSession(page, sid);
       }
+      await removeFromWorkspace(relativePath);
+    }
+  });
+
+  test("L-24: wiki ページ内の Markdown リンクからもマルチバイトファイルが Files で開ける", async ({ page }, testInfo) => {
+    test.setTimeout(L24_TIMEOUT_MS);
+    // Same regression as L-23, but exercises the OTHER UI path that
+    // shares classifyWorkspacePath: WikiPageBody.vue's click handler
+    // (`@workspace-link-click` → appApi.navigateToWorkspacePath).
+    // L-23 covers the textResponse path; without this case, the wiki
+    // path would only be transitively covered by the unit tests on
+    // classifyWorkspacePath, with no live verification that the wiki
+    // view actually wires the decoded path into the SPA router.
+    //
+    // No LLM round-trip — the markdown link is seeded directly into
+    // the wiki page body, so this scenario is deterministic (unlike
+    // L-23 which depends on the model echoing the link).
+    const projectSlug = testInfo.project.name;
+    const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
+    const filename = `e2e-live-l24-${projectSlug}-${nonce}-テストファイル.md`;
+    const relativePath = `artifacts/e2e-live/workspace-link-routing/${filename}`;
+    const marker = `L-24 ${projectSlug} ${nonce} body marker`;
+    const fileBody = `# ${filename}\n\n${marker}\n`;
+
+    const sourceSlug = `e2e-live-l24-source-${projectSlug}-${nonce}`;
+    // Markdown link form (not [[wikilink]]) — that's what triggers
+    // marked.parse's percent-encoding of the multibyte filename, which
+    // is the input shape the fix has to handle.
+    const sourceBody = [`# L-24 source page`, ``, `[${filename}](${relativePath})`, ``].join("\n");
+
+    await placeWorkspaceFile(relativePath, fileBody);
+    try {
+      await placeWikiPage(sourceSlug, sourceBody);
+      try {
+        await navigateToWikiPage(page, sourceSlug);
+
+        const link = page.locator(`a[href$="${encodeURIComponent(filename)}"]`).first();
+        await expect(link, "wiki body must render the markdown link to the seeded file").toBeVisible({ timeout: L24_TIMEOUT_MS });
+        await link.click();
+
+        await expect(page).toHaveURL(FILES_URL_PATTERN, { timeout: L24_TIMEOUT_MS });
+        expect(page.url(), "URL must not be double-percent-encoded (no %25)").not.toContain("%25");
+
+        await expect(page.getByText(marker), "FilesView must render the seeded file body (no 404)").toBeVisible({ timeout: L24_TIMEOUT_MS });
+      } finally {
+        await removeWikiPage(sourceSlug);
+      }
+    } finally {
       await removeFromWorkspace(relativePath);
     }
   });
