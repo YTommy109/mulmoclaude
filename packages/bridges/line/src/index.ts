@@ -148,12 +148,16 @@ app.post("/webhook", async (req: Request, res: Response) => {
         await pushMessage(incoming.userId, "Sorry, I couldn't fetch that image.");
         continue;
       }
-      // Send the image with an empty body — the agent sees the
-      // attachment in chat context and answers about it. The
-      // post-save EXIF hook (#1222 PR-A) writes a sidecar at
-      // `data/locations/...` if GPS data is present.
+      // chat-service's `parseMessagePayload` rejects empty `text`
+      // (`text is required`) so attachment-only messages need a
+      // placeholder body — match the convention other bridges use
+      // when an image arrives without a caption. The agent sees the
+      // attachment in chat context and answers about it; the
+      // post-save EXIF hook (#1222 PR-A) writes a sidecar if GPS
+      // data is present. (Codex review on PR #1255.)
       const attachments = [{ mimeType: image.mimeType, data: image.bytes.toString("base64") }];
-      const ack = await client.send(incoming.userId, "", attachments);
+      const placeholderText = "📷 Photo";
+      const ack = await client.send(incoming.userId, placeholderText, attachments);
       await pushMessage(incoming.userId, formatAckReply(ack));
     } catch (err) {
       console.error(`[line] message handling failed: ${err}`);

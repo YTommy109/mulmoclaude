@@ -63,19 +63,31 @@ async function refresh(): Promise<void> {
   }
 }
 
-const withGps = computed(() => locations.value.filter((row) => row.sidecar.exif.lat !== undefined && row.sidecar.exif.lng !== undefined));
+const withGps = computed(() => locations.value.filter((row) => hasFiniteCoords(row.sidecar.exif)));
 
 onMounted(() => {
   void refresh();
 });
 
-function fmtCoord(value: number): string {
-  return value.toFixed(5);
+function fmtCoord(value: unknown): string {
+  // The handler validates lat/lng on write, but a hand-edited
+  // sidecar can still ship a string / null past the type — guard
+  // before calling `toFixed` so one bad row doesn't crash the View.
+  // (Codex review on PR #1250.)
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(5) : "—";
+}
+
+function fmtAltitude(value: unknown): string | null {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(0) : null;
 }
 
 function fmtDate(iso: string | undefined): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString();
+}
+
+function hasFiniteCoords(exif: { lat?: unknown; lng?: unknown }): boolean {
+  return typeof exif.lat === "number" && Number.isFinite(exif.lat) && typeof exif.lng === "number" && Number.isFinite(exif.lng);
 }
 </script>
 
@@ -99,10 +111,10 @@ function fmtDate(iso: string | undefined): string {
           <span class="taken">{{ fmtDate(row.sidecar.exif.takenAt) }}</span>
         </div>
         <div class="row-meta">
-          <span v-if="row.sidecar.exif.lat !== undefined && row.sidecar.exif.lng !== undefined" class="coords">
+          <span v-if="hasFiniteCoords(row.sidecar.exif)" class="coords">
             <!-- eslint-disable @intlify/vue-i18n/no-raw-text -- coordinates emoji + decimal pair + altitude unit are language-neutral numeric formatters, not user-facing prose -->
             📍 {{ fmtCoord(row.sidecar.exif.lat) }}, {{ fmtCoord(row.sidecar.exif.lng) }}
-            <span v-if="row.sidecar.exif.altitude !== undefined" class="altitude">({{ row.sidecar.exif.altitude.toFixed(0) }}m)</span>
+            <span v-if="fmtAltitude(row.sidecar.exif.altitude)" class="altitude">({{ fmtAltitude(row.sidecar.exif.altitude) }}m)</span>
             <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
           </span>
           <span v-else class="no-gps">{{ t("photoLocations.noGps") }}</span>
