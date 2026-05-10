@@ -34,8 +34,14 @@ describe("edgar config — missingConfigResponse", () => {
 });
 
 describe("edgar config — configAbsolutePath", () => {
-  it("resolves under the workspace's runtime-plugin scope root", () => {
-    const expected = `${homedir()}/mulmoclaude/config/plugins/${encodeURIComponent(PKG_NAME)}/config.json`;
+  it("resolves under the workspace's runtime-plugin scope root (POSIX-normalised)", () => {
+    // Forward slashes throughout, even on Windows. Mirrors the
+    // production normalisation in src/config.ts so the path that
+    // ends up in `missingConfigResponse().instructions` is a
+    // clean string the LLM can hand to its Write tool without
+    // backslash-doubling JSON noise.
+    const home = homedir().replace(/\\/g, "/");
+    const expected = `${home}/mulmoclaude/config/plugins/${encodeURIComponent(PKG_NAME)}/config.json`;
     assert.equal(configAbsolutePath(), expected);
   });
 });

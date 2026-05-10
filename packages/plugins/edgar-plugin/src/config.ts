@@ -26,10 +26,17 @@ const ConfigSchema = z.object({
 
 export type EdgarConfig = z.infer<typeof ConfigSchema>;
 
-/** Absolute path the plugin reads from / Claude must write to. */
+/** Absolute path the plugin reads from / Claude must write to.
+ *  Forward slashes throughout — even on Windows, where `homedir()`
+ *  returns `C:\Users\...` with backslashes. Mixed separators look
+ *  ugly when JSON-stringified into the missing-config payload
+ *  (every `\` doubles to `\\`), and POSIX-only paths are valid on
+ *  Windows for fs operations. The plugin's eslint preset bans
+ *  `node:path`, so we normalise by hand. */
 export function configAbsolutePath(): string {
   const seg = encodeURIComponent(PKG_NAME);
-  return `${homedir()}/mulmoclaude/config/plugins/${seg}/${CONFIG_FILE}`;
+  const home = homedir().replace(/\\/g, "/");
+  return `${home}/mulmoclaude/config/plugins/${seg}/${CONFIG_FILE}`;
 }
 
 /** Best-effort read. Any failure (missing file, malformed JSON,

@@ -13,7 +13,7 @@ export const TOOL_DEFINITION = {
     "Configuration: the SEC EDGAR API requires an identifying contact name + email on every request (their User-Agent rule). " +
     "The plugin reads these from `~/mulmoclaude/config/plugins/%40mulmoclaude%2Fedgar-plugin/config.json` with the shape " +
     '`{"name": "<full name>", "email": "<email address>"}`. ' +
-    "If that file is missing on the first call, the tool returns a `config_required` payload that quotes the absolute path; " +
+    "If that file is missing on the first call, the tool returns an `instructions` payload that quotes the absolute path and JSON schema inline; " +
     "ask the user for their full name and email address, write the JSON file at that path using the Write tool, then retry the original tool call. " +
     "Never invent a name or email — always ask the user.",
   description:
