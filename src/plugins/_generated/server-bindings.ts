@@ -7,6 +7,7 @@ import { mcpEndpoint } from "../server-bindings-types";
 import accountingDef from "../accounting/definition";
 import canvasDef from "../canvas/definition";
 import chartDef from "../chart/definition";
+import edgarDef from "../edgar/definition";
 import manageSkillsDef from "../manageSkills/definition";
 import manageSourceDef from "../manageSource/definition";
 import markdownDef from "../markdown/definition";
@@ -20,6 +21,7 @@ import spreadsheetDef from "../spreadsheet/definition";
 import { META as accountingMeta } from "../accounting/meta";
 import { META as canvasMeta } from "../canvas/meta";
 import { META as chartMeta } from "../chart/meta";
+import { META as edgarMeta } from "../edgar/meta";
 import { META as manageSkillsMeta } from "../manageSkills/meta";
 import { META as manageSourceMeta } from "../manageSource/meta";
 import { META as markdownMeta } from "../markdown/meta";
@@ -37,6 +39,7 @@ export const GENERATED_SERVER_BINDINGS: readonly ServerPluginBinding[] = [
   { def: accountingDef, endpoint: mcpEndpoint(accountingMeta) },
   { def: canvasDef, endpoint: mcpEndpoint(canvasMeta) },
   { def: chartDef, endpoint: mcpEndpoint(chartMeta) },
+  { def: edgarDef, endpoint: mcpEndpoint(edgarMeta) },
   { def: manageSkillsDef, endpoint: mcpEndpoint(manageSkillsMeta) },
   { def: manageSourceDef, endpoint: mcpEndpoint(manageSourceMeta) },
   { def: markdownDef, endpoint: mcpEndpoint(markdownMeta) },

@@ -6,6 +6,7 @@ import type { PluginMeta } from "../meta-types";
 import { META as accountingMeta } from "../accounting/meta";
 import { META as canvasMeta } from "../canvas/meta";
 import { META as chartMeta } from "../chart/meta";
+import { META as edgarMeta } from "../edgar/meta";
 import { META as editImagesMeta } from "../editImages/meta";
 import { META as generateImageMeta } from "../generateImage/meta";
 import { META as manageSkillsMeta } from "../manageSkills/meta";
@@ -26,6 +27,7 @@ export const GENERATED_PLUGIN_METAS = [
   accountingMeta,
   canvasMeta,
   chartMeta,
+  edgarMeta,
   editImagesMeta,
   generateImageMeta,
   manageSkillsMeta,
