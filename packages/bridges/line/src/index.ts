@@ -150,13 +150,14 @@ app.post("/webhook", async (req: Request, res: Response) => {
       }
       // chat-service's `parseMessagePayload` rejects empty `text`
       // (`text is required`) so attachment-only messages need a
-      // placeholder body — match the convention other bridges use
-      // when an image arrives without a caption. The agent sees the
-      // attachment in chat context and answers about it; the
-      // post-save EXIF hook (#1222 PR-A) writes a sidecar if GPS
-      // data is present. (Codex review on PR #1255.)
+      // placeholder body. Mirror the Telegram convention (see
+      // `packages/bridges/telegram/src/router.ts`) — an instructive
+      // prompt rather than a caption, so the agent treats the
+      // attachment as the subject and produces a useful response.
+      // The post-save EXIF hook (#1222 PR-A) writes a sidecar if
+      // GPS data is present. (Codex review on PR #1255 / #1263.)
       const attachments = [{ mimeType: image.mimeType, data: image.bytes.toString("base64") }];
-      const placeholderText = "📷 Photo";
+      const placeholderText = "Describe / analyze this file.";
       const ack = await client.send(incoming.userId, placeholderText, attachments);
       await pushMessage(incoming.userId, formatAckReply(ack));
     } catch (err) {
