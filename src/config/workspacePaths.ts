@@ -39,6 +39,12 @@ export const WORKSPACE_FILES = {
    *  per installed plugin; the tgz files sit alongside in `plugins/`,
    *  extracted to `plugins/.cache/<name>/<version>/` on first boot. */
   pluginsLedger: "plugins/plugins.json",
+  /** Edgar plugin config — contact name + email used to build the
+   *  SEC-required `User-Agent` header. The plugin reads this file
+   *  on every dispatch; if absent it returns a `config_required`
+   *  payload instructing the LLM to ask the user, write the file,
+   *  and retry. */
+  edgarConfig: "config/plugins/edgar/config.json",
   /** Active notifier entries — JSON file rewritten atomically on
    *  every mutation, loaded fresh on every read. No in-memory cache;
    *  the file is the only source of truth. */
