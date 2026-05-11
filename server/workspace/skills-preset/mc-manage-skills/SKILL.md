@@ -1,6 +1,6 @@
 ---
 name: mc-manage-skills
-description: Save, edit, list, or delete a Claude Code skill in this workspace. Use when the user wants to turn a workflow into a reusable skill ("skill 化して", "save this as a skill"), modify or remove one, or list what's registered. Writes one `SKILL.md` per skill at `.claude/skills/<slug>/SKILL.md` (cwd-relative — the agent already runs with cwd = workspace); the auto-refresh hook re-registers scheduled skills on save.
+description: Save, edit, list, or delete a Claude Code skill in this workspace. Use when the user wants to turn a workflow into a reusable skill ("skill 化して", "save this as a skill"), modify or remove one, or list what's registered. Writes one markdown file per skill at `data/skills/<slug>.md`; a workspace-side hook mirrors it into `.claude/skills/<slug>/SKILL.md` so Claude Code picks it up.
 ---
 
 # Skill manager
@@ -8,11 +8,20 @@ description: Save, edit, list, or delete a Claude Code skill in this workspace. 
 A bundled MulmoClaude preset skill (`mc-` prefix = launcher-managed; do not edit
 this file in the workspace, it is overwritten on every server boot).
 
-Help the user manage **project-scope** Claude Code skills — the ones that live
-under `.claude/skills/` (cwd-relative; the agent runs with cwd set to the
-workspace root, so every path in this file is plain cwd-relative). The
-user-scope folder `~/.claude/skills/` is read-only territory managed outside
-MulmoClaude — don't touch those.
+Help the user manage **project-scope** Claude Code skills. The skill *body*
+that Claude Code reads lives at `.claude/skills/<slug>/SKILL.md`, but agents
+**must not write there directly** — Claude Code's permission system treats
+`.claude/` as a self-modification surface and the host GUI cannot answer the
+resulting prompt, so the write hangs.
+
+Instead, **edit the staging file** at `data/skills/<slug>.md`. A PostToolUse
+hook mirrors every Write / Edit / `rm` on those staging files into
+`.claude/skills/<slug>/SKILL.md` (or removes the entire dir on delete) and
+then asks the server to re-register skills — no restart needed. The user
+never sees the staging vs. canonical split; they just say "skill 化して".
+
+The user-scope folder `~/.claude/skills/` is read-only territory managed
+outside MulmoClaude — don't touch those.
 
 End with a one-line confirmation ("Saved as foo-skill." / "Removed foo-skill.")
 so the user can verify without scrolling.
@@ -34,9 +43,10 @@ hyphens between segments, no leading / trailing / consecutive hyphens, 1-64
 characters. Pattern: `^[a-z0-9]+(-[a-z0-9]+)*$`. If the user proposed a name,
 use it as-is (validate the same way).
 
-If `.claude/skills/<slug>/SKILL.md` already exists, ask before overwriting.
+If `data/skills/<slug>.md` already exists, ask before overwriting.
 
-**Step 3 — Write the SKILL.md**:
+**Step 3 — Write `data/skills/<slug>.md`** (NOT `.claude/skills/...` — the
+bridge hook handles that copy):
 
 ```markdown
 ---
@@ -65,48 +75,53 @@ Body in markdown, second person. Focused on the reusable workflow.
   scheduler auto-runs the skill at that cadence.
 - `roleId` — role to use for scheduled runs (defaults to `general`).
 
-The auto-refresh hook (`.claude/hooks/config-refresh.mjs`) fires on Write/Edit,
-so a new `schedule:` activates without a server restart.
+The bridge hook mirrors `data/skills/<slug>.md` → `.claude/skills/<slug>/SKILL.md`
+and fires `POST /api/config/refresh`, so a new `schedule:` activates without a
+server restart.
 
 ## Workflow 2: recall / browse
 
 **Triggers**: "what skills do I have?", "保存した skill みせて", "list my
 skills".
 
-List the directory:
+List the staging directory:
 
 ```bash
-find .claude/skills -maxdepth 2 -name SKILL.md | sort
+ls data/skills/
 ```
 
-Read each skill's frontmatter and present the names + one-line descriptions
-in chat. Don't dump raw markdown unless the user asks for one specifically.
+Read each `data/skills/<slug>.md`'s frontmatter and present the names + one-line
+descriptions in chat. Don't dump raw markdown unless the user asks for a
+specific skill's details.
 
 ## Workflow 3: update
 
 **Triggers**: "〇〇 の skill を更新して", "change the description of foo",
 "add a schedule to foo-skill".
 
-Read the current `SKILL.md`, apply the change with Edit (preserve every other
-field unless the user explicitly asked to change it), and confirm. The
-auto-refresh hook re-registers scheduled skills after the write.
+Read `data/skills/<slug>.md`, apply the change with Edit (preserve every other
+field unless the user explicitly asked to change it), and confirm. The bridge
+hook re-mirrors the file and triggers a refresh.
 
 ## Workflow 4: delete
 
 **Triggers**: "remove the foo skill", "foo-skill いらない".
 
 Only when the user explicitly asks. **Re-validate the slug against
-`^[a-z0-9]+(-[a-z0-9]+)*$` before running the command** — if it fails,
-refuse and ask the user to confirm by name. When valid, quote the path:
+`^[a-z0-9]+(-[a-z0-9]+)*$` before running the command** — if it fails, refuse
+and ask the user to confirm by name. When valid, use exactly this form
+(the bridge hook only mirrors deletes that match this shape; bulk `rm` with
+wildcards is intentionally NOT mirrored so a typo can't wipe every skill):
 
 ```bash
-rm -rf ".claude/skills/<slug>/"
+rm data/skills/<slug>.md
 ```
 
-Then confirm afterward.
+The hook then removes `.claude/skills/<slug>/` to match. Confirm afterward.
 
 ## Tone
 
-Friendly, practical. Don't lecture about paths or frontmatter — just save and
-confirm. If a request needs several decisions (e.g. "save as foo and schedule
-it daily"), do them in one go, don't ping-pong.
+Friendly, practical. Don't lecture about staging files, paths, or hooks —
+those exist behind the scenes and the user should never need to know. Just
+save and confirm. If a request needs several decisions (e.g. "save as foo
+and schedule it daily"), do them in one go, don't ping-pong.
