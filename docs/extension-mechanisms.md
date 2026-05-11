@@ -260,6 +260,20 @@ schedule: "interval 168h"
 
 **`schedule:` を持つ skill** は scheduler が自動実行する (`server/api/routes/scheduler.ts`)。
 
+**Preset skills (launcher 同梱)**:
+
+リポジトリには **launcher が同梱して出荷するプリセット skill** が `server/workspace/skills-preset/<name>/SKILL.md` に置かれている。命名規約は `mc-` プレフィックス (= "MulmoClaude managed") — workspace 側でこの prefix を持つ skill は launcher 起動時に上書き同期されるので、ユーザがその場で編集しても次回 boot で元に戻る。リポジトリ側を編集して PR を出すのが正規ルート。
+
+現在の preset (`mc-` prefix 持ち):
+
+| Preset | 用途 |
+|---|---|
+| `mc-settings` | 設定 (roles / mcp.json / sources / skills / automations) の編集手順 |
+| `mc-library` | wiki / sources / 通知の横断 query (`(:..)` リンク文法を含む) |
+| `mc-cooking-coach` | レシピの保存・更新・削除と `data/cooking/recipes/README.md` 索引維持 |
+
+同期の実装は `server/workspace/skills-preset.ts` (`syncPresetSkills`)。起動時に `server/workspace/workspace.ts:44` から呼ばれ、`<launcher>/server/workspace/skills-preset/` → `<workspace>/.claude/skills/` へコピーされる。ユーザ作成 skill (`mc-` でない名前) は同期対象外なので影響を受けない。
+
 **ソース実装**:
 
 - Discovery: `server/workspace/skills/index.ts` の `discoverSkills` — user + project を merge、project 優先
