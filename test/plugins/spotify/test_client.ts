@@ -1,12 +1,12 @@
-// Unit tests for `packages/spotify-plugin/src/client.ts` — proactive
+// Unit tests for `packages/plugins/spotify-plugin/src/client.ts` — proactive
 // refresh near expiry, 401 → refresh → retry-once, no-second-refresh
 // on retry's 401, 429 Retry-After parsing, error surfacing.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { parseRetryAfterSec, spotifyApi } from "../../../packages/spotify-plugin/src/client.js";
-import type { SpotifyTokens } from "../../../packages/spotify-plugin/src/types.js";
+import { parseRetryAfterSec, spotifyApi } from "../../../packages/plugins/spotify-plugin/src/client.js";
+import type { SpotifyTokens } from "../../../packages/plugins/spotify-plugin/src/types.js";
 
 interface FakeRuntimeOpts {
   responses: Response[];
@@ -177,6 +177,32 @@ describe("spotifyApi — refresh-path classification (auth_expired vs transient_
     if (result.ok) throw new Error("unreachable");
     assert.equal(result.error.kind, "transient_error");
     assert.match(result.error.detail, /503/);
+  });
+
+  it("classifies a 408 Request Timeout on refresh as transient_error", async () => {
+    // The refresh request never reached Spotify (proxy / network
+    // timeout) — credential wasn't actually checked, so forcing
+    // re-auth would be wrong. (Codex review on PR #1226.)
+    const handle = makeFakeRuntime({ responses: [new Response("", { status: 401 }), new Response("", { status: 408 })] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await spotifyApi(handle.runtime as any, "cid", validTokens, "GET", "/v1/me", {}, NOW);
+    assert.equal(result.ok, false);
+    if (result.ok) throw new Error("unreachable");
+    assert.equal(result.error.kind, "transient_error");
+    assert.match(result.error.detail, /408/);
+  });
+
+  it("classifies a 429 Too Many Requests on refresh as transient_error", async () => {
+    // Spotify's rate limiter — credential is fine, the caller just
+    // needs to back off. Forcing re-auth would silently lose the
+    // working refresh token.
+    const handle = makeFakeRuntime({ responses: [new Response("", { status: 401 }), new Response("", { status: 429 })] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await spotifyApi(handle.runtime as any, "cid", validTokens, "GET", "/v1/me", {}, NOW);
+    assert.equal(result.ok, false);
+    if (result.ok) throw new Error("unreachable");
+    assert.equal(result.error.kind, "transient_error");
+    assert.match(result.error.detail, /429/);
   });
 
   it("classifies a non-JSON 2xx body from token endpoint as transient_error", async () => {

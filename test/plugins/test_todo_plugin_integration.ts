@@ -13,12 +13,13 @@ import { fileURLToPath } from "node:url";
 
 import { loadPluginFromCacheDir } from "../../server/plugins/runtime-loader.js";
 import { makePluginRuntime } from "../../server/plugins/runtime.js";
+import { createTaskManager } from "../../server/events/task-manager/index.js";
 import { WORKSPACE_PATHS } from "../../server/workspace/paths.js";
 import type { IPubSub } from "../../server/events/pub-sub/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PLUGIN_DIR = path.resolve(__dirname, "../../packages/todo-plugin");
+const PLUGIN_DIR = path.resolve(__dirname, "../../packages/plugins/todo-plugin");
 const PLUGIN_DIST_INDEX = path.join(PLUGIN_DIR, "dist", "index.js");
 
 const PKG_NAME = "@mulmoclaude/todo-plugin";
@@ -62,7 +63,7 @@ interface TodoResult {
 describe("Todo plugin — end-to-end through the loader", () => {
   before(() => {
     if (!existsSync(PLUGIN_DIST_INDEX)) {
-      console.warn(`[todo integration] skipping: ${PLUGIN_DIST_INDEX} not built — run \`yarn build\` in packages/todo-plugin/`);
+      console.warn(`[todo integration] skipping: ${PLUGIN_DIST_INDEX} not built — run \`yarn build\` in packages/plugins/todo-plugin/`);
     }
   });
 
@@ -94,7 +95,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     }
     const { pubsub, published } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin, "plugin should load");
     assert.equal(plugin.definition.name, "manageTodoList");
@@ -130,7 +131,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     }
     const { pubsub, published } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
     const res = (await plugin.execute({}, { kind: "listAll" })) as TodoResult;
@@ -146,7 +147,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     }
     const { pubsub, published } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
 
@@ -172,7 +173,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     }
     const { pubsub, published } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
     const initial = (await plugin.execute({}, { kind: "listAll" })) as TodoResult;
@@ -193,7 +194,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     }
     const { pubsub, published } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
     const created = (await plugin.execute({}, { kind: "itemCreate", text: "Move me" })) as TodoResult;
@@ -212,7 +213,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     }
     const { pubsub } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
     const created = (await plugin.execute({}, { kind: "itemCreate", text: "Drag me" })) as TodoResult;
@@ -230,7 +231,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     }
     const { pubsub } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
     const missing = (await plugin.execute({}, { kind: "itemMove", id: "does-not-exist", status: "done" })) as TodoResult;
@@ -245,7 +246,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     }
     const { pubsub, published } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
     const res = (await plugin.execute({}, { kind: "columnPatch", id: "todo", label: "Doing" })) as TodoResult;
@@ -265,7 +266,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     }
     const { pubsub, published } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
 
@@ -290,7 +291,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     }
     const { pubsub } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
     await plugin.execute({}, { kind: "columnDelete", id: "backlog" });
@@ -308,7 +309,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     }
     const { pubsub, published } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
 
@@ -335,7 +336,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     }
     const { pubsub } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
     const res = (await plugin.execute({}, { kind: "no-such-kind" } as never)) as TodoResult;
@@ -357,7 +358,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     // based dispatch shows up here. Codex review iter on PR #1149.
     const { pubsub } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
 
@@ -393,7 +394,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
 
     const { pubsub } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
 
@@ -419,7 +420,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
 
     const { pubsub } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
 
@@ -436,7 +437,7 @@ describe("Todo plugin — end-to-end through the loader", () => {
     }
     const { pubsub } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin?.execute);
     const res = (await plugin.execute({}, { foo: "bar" } as never)) as TodoResult;

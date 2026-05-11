@@ -184,6 +184,15 @@ function performPrimaryAction(entry: NotifierEntry): void {
   if ((entry.lifecycle ?? "fyi") === "fyi") void clear(entry.id);
 }
 
+// True when activating the row (click, Enter, Space) does anything
+// useful — either clears a fyi notification or navigates to the
+// action's target. Action notifications without a `navigateTarget`
+// fall through both branches, so their row is not a button and
+// should not advertise as one to assistive technology.
+function hasPrimaryAction(entry: NotifierEntry): boolean {
+  return Boolean(entry.navigateTarget) || (entry.lifecycle ?? "fyi") === "fyi";
+}
+
 // Body click on an Active row. Stop propagation so the outer <li>'s
 // fyi-clear handler doesn't double-fire when a fyi click already
 // lands here (matches the debug popup's two-layer click handling).
@@ -273,13 +282,13 @@ async function clearAllFyi(): Promise<void> {
             :key="entry.id"
             :data-testid="`notification-item-${entry.id}`"
             :data-lifecycle="entry.lifecycle ?? 'fyi'"
-            role="button"
-            tabindex="0"
-            :aria-label="localizeTitle(entry)"
+            :role="hasPrimaryAction(entry) ? 'button' : undefined"
+            :tabindex="hasPrimaryAction(entry) ? 0 : undefined"
+            :aria-label="hasPrimaryAction(entry) ? localizeTitle(entry) : undefined"
             :class="['px-3 py-2 group focus:bg-gray-100 focus:outline-none', (entry.lifecycle ?? 'fyi') === 'fyi' ? 'cursor-pointer hover:bg-gray-50' : '']"
             @click="onActiveRowClick(entry)"
-            @keydown.enter.prevent.self="(e) => !e.repeat && performPrimaryAction(entry)"
-            @keydown.space.prevent.self="(e) => !e.repeat && performPrimaryAction(entry)"
+            @keydown.enter.prevent.self="(e) => hasPrimaryAction(entry) && !e.repeat && performPrimaryAction(entry)"
+            @keydown.space.prevent.self="(e) => hasPrimaryAction(entry) && !e.repeat && performPrimaryAction(entry)"
           >
             <div class="flex items-start gap-2">
               <span

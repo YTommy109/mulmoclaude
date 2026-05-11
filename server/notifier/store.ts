@@ -3,7 +3,7 @@
 // `WORKSPACE_PATHS`.
 
 import { promises as fsPromises } from "fs";
-import { writeFileAtomic } from "../utils/files/atomic.js";
+import { writeJsonAtomic } from "../utils/files/json.js";
 import type { NotifierFile, NotifierHistoryFile } from "./types.js";
 
 function isNotFoundError(err: unknown): boolean {
@@ -24,7 +24,17 @@ export async function loadActive(filePath: string): Promise<NotifierFile> {
     throw err;
   }
   const parsed: unknown = JSON.parse(text);
-  if (typeof parsed !== "object" || parsed === null || !("entries" in parsed) || typeof (parsed as { entries: unknown }).entries !== "object") {
+  // `typeof null === "object"` and `Array.isArray([])` is also true,
+  // so the previous check `typeof entries !== "object"` let
+  // `{ entries: null }` and `{ entries: [] }` through, which then
+  // crashed downstream `engine.get` / `list*` mutations. Reject both
+  // shapes here at load time so the failure surfaces as a clear
+  // "malformed file" error (CodeRabbit review on PR #1196).
+  if (typeof parsed !== "object" || parsed === null || !("entries" in parsed)) {
+    throw new Error(`notifier: malformed active.json at ${filePath}`);
+  }
+  const { entries } = parsed as { entries: unknown };
+  if (typeof entries !== "object" || entries === null || Array.isArray(entries)) {
     throw new Error(`notifier: malformed active.json at ${filePath}`);
   }
   return parsed as NotifierFile;
@@ -35,7 +45,7 @@ export async function loadActive(filePath: string): Promise<NotifierFile> {
  *  writes (engine.ts queues mutations) — this function makes no
  *  concurrency guarantees of its own. */
 export async function saveActive(filePath: string, state: NotifierFile): Promise<void> {
-  await writeFileAtomic(filePath, JSON.stringify(state, null, 2));
+  await writeJsonAtomic(filePath, state);
 }
 
 /** Read the history file. Empty array on first run. Same parse-error
@@ -56,5 +66,5 @@ export async function loadHistory(filePath: string): Promise<NotifierHistoryFile
 }
 
 export async function saveHistory(filePath: string, state: NotifierHistoryFile): Promise<void> {
-  await writeFileAtomic(filePath, JSON.stringify(state, null, 2));
+  await writeJsonAtomic(filePath, state);
 }

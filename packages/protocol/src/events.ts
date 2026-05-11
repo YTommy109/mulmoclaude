@@ -7,6 +7,15 @@
 export const EVENT_TYPES = {
   status: "status",
   text: "text",
+  // #1218 — assistant text whose content is the body of an invoked
+  // SKILL.md, synthesised by Claude CLI when the model calls the
+  // `Skill` tool. Tagged separately from `text` so the canvas can
+  // collapse it (skill bodies are huge and not actual prose).
+  // Detected server-side via the preceding tool_call's
+  // toolName === "Skill" (structural — survives Claude CLI body-text
+  // changes), then enriched with `skillName` / `skillScope` /
+  // `skillPath` resolved against `discoverSkills()`.
+  skill: "skill",
   toolCall: "tool_call",
   toolCallResult: "tool_call_result",
   toolResult: "tool_result",

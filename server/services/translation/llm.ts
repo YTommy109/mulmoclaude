@@ -5,7 +5,7 @@
 //
 // Patterned after `server/workspace/chat-index/summarizer.ts`.
 
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { tmpdir } from "node:os";
 import { CLI_SUBPROCESS_TIMEOUT_MS } from "../../utils/time.js";
 import { errorMessage } from "../../utils/errors.js";
@@ -81,52 +81,55 @@ function buildArgs(promptInput: string): string[] {
   ];
 }
 
+interface SpawnState {
+  stdout: string;
+  stderr: string;
+  settled: boolean;
+}
+
+type RejectFn = (err: Error) => void;
+type ResolveFn = (value: string) => void;
+
+function onTimeout(state: SpawnState, proc: ChildProcess, reject: RejectFn, timeoutMs: number): void {
+  if (state.settled) return;
+  state.settled = true;
+  proc.kill("SIGKILL");
+  reject(new Error(`[translation] claude translate timed out after ${timeoutMs}ms`));
+}
+
+function onError(state: SpawnState, timer: ReturnType<typeof setTimeout>, err: Error & { code?: string }, reject: RejectFn): void {
+  if (state.settled) return;
+  state.settled = true;
+  clearTimeout(timer);
+  reject(err.code === "ENOENT" ? new ClaudeCliNotFoundError() : err);
+}
+
+function onClose(state: SpawnState, timer: ReturnType<typeof setTimeout>, code: number | null, resolve: ResolveFn, reject: RejectFn): void {
+  if (state.settled) return;
+  state.settled = true;
+  clearTimeout(timer);
+  if (code !== 0) {
+    reject(new Error(formatSpawnFailure("[translation]", code, state.stdout, state.stderr)));
+    return;
+  }
+  resolve(state.stdout);
+}
+
 function spawnClaudeTranslate(promptInput: string, timeoutMs: number): Promise<string> {
-  return new Promise((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     // Run from tmpdir so claude does not load the project's
     // CLAUDE.md / plugins / memory and inflate the context.
-    const proc = spawn("claude", buildArgs(promptInput), {
-      cwd: tmpdir(),
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      proc.kill("SIGKILL");
-      reject(new Error(`[translation] claude translate timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-
+    const proc = spawn("claude", buildArgs(promptInput), { cwd: tmpdir(), stdio: ["ignore", "pipe", "pipe"] });
+    const state: SpawnState = { stdout: "", stderr: "", settled: false };
+    const timer = setTimeout(() => onTimeout(state, proc, reject, timeoutMs), timeoutMs);
     proc.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
+      state.stdout += chunk.toString();
     });
     proc.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
+      state.stderr += chunk.toString();
     });
-    proc.on("error", (err: Error & { code?: string }) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (err.code === "ENOENT") {
-        reject(new ClaudeCliNotFoundError());
-      } else {
-        reject(err);
-      }
-    });
-    proc.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (code !== 0) {
-        reject(new Error(formatSpawnFailure("[translation]", code, stdout, stderr)));
-        return;
-      }
-      resolve(stdout);
-    });
+    proc.on("error", (err: Error & { code?: string }) => onError(state, timer, err, reject));
+    proc.on("close", (code) => onClose(state, timer, code, resolve, reject));
   });
 }
 

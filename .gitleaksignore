@@ -20,3 +20,13 @@
 # fixture would defeat the test's intent — we WANT a known-token-
 # shape string so the redaction proof is meaningful. Not a real key.
 9637475787b4b8fa48b2e42b06ee15f08bec2922:test/utils/test_promptMeta.ts:stripe-access-token:51
+
+# test/plugins/test_map_integration.ts uses a Google-Maps-API-shaped
+# fake fixture at lines 93 (the dispatch arg) and 109 (the assert)
+# to verify the map-plugin's `kind: "configure"` round-trip persists
+# the supplied key into `google-maps.json` verbatim. The literal is
+# short, deterministic, and obviously not a real key (uses the
+# literal token "TestKey") but trips gitleaks' generic-api-key
+# prefix match. Not a real key.
+877b5911b33153ac3794a8d824ec49d2230006ae:test/plugins/test_map_integration.ts:generic-api-key:93
+877b5911b33153ac3794a8d824ec49d2230006ae:test/plugins/test_map_integration.ts:generic-api-key:109

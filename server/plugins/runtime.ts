@@ -13,6 +13,7 @@
 
 import path from "node:path";
 import { readFile, readdir, stat as fsStat, unlink as fsUnlink } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import type { FileOps, PluginRuntime } from "gui-chat-protocol";
 
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
@@ -23,6 +24,11 @@ import { ONE_SECOND_MS } from "../utils/time.js";
 import type { IPubSub } from "../events/pub-sub/index.js";
 import * as notifierEngine from "../notifier/engine.js";
 import type { MulmoclaudeRuntime, NotifierRuntimeApi } from "../notifier/runtime-api.js";
+import type { ITaskManager } from "../events/task-manager/index.js";
+import type { TasksRuntimeApi } from "./runtime-tasks-api.js";
+import type { ChatRuntimeApi } from "./runtime-chat-api.js";
+import { startChat } from "../api/routes/agent.js";
+import { PLUGIN_SESSION_ORIGIN_PREFIX } from "../../src/types/session.js";
 
 const DEFAULT_FETCH_TIMEOUT_MS = 10 * ONE_SECOND_MS;
 
@@ -261,6 +267,65 @@ function makeScopedNotifier(pkgName: string): NotifierRuntimeApi {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Scoped tasks (host extension — Phase 1 of Encore plan)
+// ─────────────────────────────────────────────────────────────────────
+
+/** Build the registry id used for a plugin's tick. Centralised so the
+ *  cap-at-1 closure check and the host task manager registration agree
+ *  on the format. Exported for tests. */
+export function pluginTaskId(pkgName: string): string {
+  return `plugin:${pkgName}`;
+}
+
+function makeScopedTasks(pkgName: string, taskManager: ITaskManager): TasksRuntimeApi {
+  // Cap-at-1 enforced at the runtime-API layer so the plugin author
+  // sees a friendly message before the host task manager's generic
+  // duplicate-id throw fires. The closure is per-plugin (each plugin
+  // gets its own runtime), so `registered` cannot leak across
+  // plugins.
+  let registered = false;
+  return {
+    register(task) {
+      if (registered) {
+        throw new Error(`plugin/${pkgName}: already registered a task — only one tick per plugin is allowed`);
+      }
+      registered = true;
+      taskManager.registerTask({
+        id: pluginTaskId(pkgName),
+        description: `tick for plugin ${pkgName}`,
+        schedule: task.schedule,
+        run: () => task.run(),
+      });
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Scoped chat (host extension — Phase 1 of Encore plan)
+// ─────────────────────────────────────────────────────────────────────
+
+const DEFAULT_PLUGIN_CHAT_ROLE = "general";
+
+function makeScopedChat(pkgName: string): ChatRuntimeApi {
+  return {
+    async start({ initialMessage, role }) {
+      const roleId = role ?? DEFAULT_PLUGIN_CHAT_ROLE;
+      const chatSessionId = randomUUID();
+      const result = await startChat({
+        message: initialMessage,
+        roleId,
+        chatSessionId,
+        origin: `${PLUGIN_SESSION_ORIGIN_PREFIX}${pkgName}`,
+      });
+      if (result.kind === "error") {
+        throw new Error(`plugin/${pkgName}: chat.start failed: ${result.error}`);
+      }
+      return { chatId: chatSessionId };
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Public entry — wire everything into one PluginRuntime
 // ─────────────────────────────────────────────────────────────────────
 
@@ -272,10 +337,14 @@ export interface MakePluginRuntimeDeps {
   /** Locale tag the host has detected (e.g. `"ja"`). Snapshot only;
    *  reactive updates ride the frontend `BrowserPluginRuntime.locale`. */
   locale: string;
+  /** Host task manager — backs `runtime.tasks.register()`. The same
+   *  instance the host's own system tasks (journal, chat-index)
+   *  register against. */
+  taskManager: ITaskManager;
 }
 
 export function makePluginRuntime(deps: MakePluginRuntimeDeps): MulmoclaudeRuntime {
-  const { pkgName, pubsub, locale } = deps;
+  const { pkgName, pubsub, locale, taskManager } = deps;
   const seg = sanitisePackageNameForFs(pkgName);
   const dataRoot = path.join(WORKSPACE_PATHS.pluginsData, seg);
   const configRoot = path.join(WORKSPACE_PATHS.pluginsConfig, seg);
@@ -291,9 +360,12 @@ export function makePluginRuntime(deps: MakePluginRuntimeDeps): MulmoclaudeRunti
     log: makeScopedLogger(pkgName),
     fetch: scopedFetch,
     fetchJson: makeScopedFetchJson(pkgName, scopedFetch),
-    // Host extension over gui-chat-protocol's PluginRuntime. Plugin
+    // Host extensions over gui-chat-protocol's PluginRuntime. Plugin
     // authors access via `runtime as MulmoclaudeRuntime` for now.
+    // Phase 3 of the Encore plan upstreams these into the protocol.
     notifier: makeScopedNotifier(pkgName),
+    tasks: makeScopedTasks(pkgName, taskManager),
+    chat: makeScopedChat(pkgName),
   };
 }
 

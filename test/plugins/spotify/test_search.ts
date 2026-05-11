@@ -6,8 +6,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { searchSpotify } from "../../../packages/spotify-plugin/src/search.js";
-import type { SpotifyTokens } from "../../../packages/spotify-plugin/src/types.js";
+import { searchSpotify } from "../../../packages/plugins/spotify-plugin/src/search.js";
+import type { SpotifyTokens } from "../../../packages/plugins/spotify-plugin/src/types.js";
 
 const NOW = () => new Date("2026-05-05T00:00:00.000Z");
 const validTokens: SpotifyTokens = {

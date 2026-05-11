@@ -72,8 +72,10 @@
           <component
             :is="getPlugin(result.toolName)?.viewComponent"
             v-if="getPlugin(result.toolName)?.viewComponent"
+            :key="`${result.uuid}-${googleMapKeyFor(result.toolName) ?? ''}`"
             :selected-result="result"
             :send-text-message="sendTextMessage"
+            :google-map-key="googleMapKeyFor(result.toolName)"
             @update-result="(r: ToolResultComplete) => emit('updateResult', r)"
           />
         </div>
@@ -83,8 +85,10 @@
           <component
             :is="getPlugin(result.toolName)?.viewComponent"
             v-if="getPlugin(result.toolName)?.viewComponent"
+            :key="`${result.uuid}-${googleMapKeyFor(result.toolName) ?? ''}`"
             :selected-result="result"
             :send-text-message="sendTextMessage"
+            :google-map-key="googleMapKeyFor(result.toolName)"
             @update-result="(r: ToolResultComplete) => emit('updateResult', r)"
           />
           <pre v-else class="h-full overflow-auto p-4 text-xs text-gray-500 whitespace-pre-wrap">{{ JSON.stringify(result, null, 2) }}</pre>
@@ -98,9 +102,11 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { getPlugin } from "../tools";
+import { TOOL_NAMES } from "../config/toolNames";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { View as TextResponseOriginalView } from "../plugins/textResponse/index";
 import { handleExternalLinkClick } from "../utils/dom/externalLink";
+import { clampIframeHeight } from "../utils/dom/iframeHeightClamp";
 import type { TextResponseData } from "../plugins/textResponse/types";
 import { formatSmartTime } from "../utils/format/date";
 import { isRecord } from "../utils/types";
@@ -131,6 +137,14 @@ const STACK_NATURAL_TOOLS = new Set<string>([
   // clipping forces an inner scrollbar per result. Letting them flow
   // keeps everything visible in one scroll.
   "presentChart",
+  // Skill (#1218) — collapsed card is ~80px tall, expanded body
+  // flows at natural height. The default `min(60vh, 560px)` frame
+  // would leave a 480px void below the collapsed card; letting it
+  // flow puts the card flush against its stack header with no
+  // empty pane. Auto-scrolling the OUTER stack handles overflow
+  // when the user expands the body, same as the document-like
+  // plugins above.
+  "skill",
 ]);
 
 function isStackNatural(toolName: string): boolean {
@@ -146,7 +160,22 @@ const props = defineProps<{
   sessionRoleIcon?: string;
   layoutMode: LayoutMode;
   showRightSidebar: boolean;
+  /** Google Maps JS API key forwarded from `App.vue` to plugin Views
+   *  that consume it (today: `@gui-chat-plugin/google-map`'s View).
+   *  Other plugins ignore the fallthrough. The single-layout
+   *  branch in App.vue forwards the same prop on its own
+   *  `<component :is>` mount. */
+  googleMapKey?: string | null;
 }>();
+
+// Scope `googleMapKey` to the `mapControl` plugin only — without
+// this gate, every plugin View in the stack receives the Google
+// Maps API key as a prop and a hostile third-party plugin could
+// declare a matching prop to exfiltrate the key. Codex security
+// review on PR #1241 caught this.
+function googleMapKeyFor(toolName: string): string | null {
+  return toolName === TOOL_NAMES.mapControl ? (props.googleMapKey ?? null) : null;
+}
 
 const emit = defineEmits<{
   select: [uuid: string];
@@ -174,8 +203,15 @@ function setNaturalWrapperRef(uuid: string, element: HTMLElement | null): void {
 }
 
 // Sandboxed iframes inside stack-natural plugins (e.g. presentHtml)
-// have no intrinsic content height, so CSS alone collapses them. Set
-// each iframe's height to match its document's scrollHeight on load.
+// have no intrinsic content height, so CSS alone collapses them. The
+// in-iframe reporter script (`iframeHeightReporterScript.ts`) posts
+// scrollHeight updates which `handleIframeHeightMessage` below applies
+// — that path's feedback-loop guard (slop heuristic + viewport cap +
+// `dataset.stackHeightPx`) is the canonical sizing channel.
+//
+// `sizeIframesIn` / `resizeOneIframe` are a fallback for the rare
+// non-sandboxed case (same-origin iframe whose document is reachable
+// from the parent) and reuse the same safeguards.
 function sizeIframesIn(wrapper: HTMLElement): void {
   const iframes = wrapper.querySelectorAll<HTMLIFrameElement>("iframe");
   for (const iframe of iframes) {
@@ -195,12 +231,85 @@ function sizeIframesIn(wrapper: HTMLElement): void {
   }
 }
 
+// Iframe height clamp moved to a pure helper so the regression case
+// (#1268 — viewport-relative content climbing indefinitely through
+// the parent's height-setting feedback) can be unit-tested without
+// mounting Vue or a real iframe. See `iframeHeightClamp.ts` for both
+// caps (`MAX_REPORTED_IFRAME_HEIGHT_PX` absolute + `MAX_IFRAME_VH`
+// viewport-relative).
+
+// Cache `contentWindow → iframe` so message-driven sizing is O(1) per
+// message. Without this, every postMessage would force a full DOM walk
+// over `naturalWrapperRefs * querySelectorAll("iframe")` — turning a
+// flood of messages from an untrusted (sandboxed but script-enabled)
+// iframe into parent-thread DoS. WeakMap key keeps the contentWindow
+// reference weak so it doesn't pin removed iframes.
+const iframesByContentWindow = new WeakMap<Window, HTMLIFrameElement>();
+const pendingIframeHeightsPx = new Map<HTMLIFrameElement, number>();
+let pendingHeightFlushRafId: number | null = null;
+
+function findIframeForSourceWindow(source: Window): HTMLIFrameElement | null {
+  const cached = iframesByContentWindow.get(source);
+  if (cached && cached.isConnected) return cached;
+  for (const wrapper of naturalWrapperRefs.values()) {
+    for (const iframe of wrapper.querySelectorAll<HTMLIFrameElement>("iframe")) {
+      const win = iframe.contentWindow;
+      if (!win) continue;
+      iframesByContentWindow.set(win, iframe);
+      if (win === source) return iframe;
+    }
+  }
+  return null;
+}
+
+// !important defeats the stack-natural `:deep(.h-full)` rule which
+// forces `height: auto !important` to make plugin views flow at
+// natural height. For this specific iframe we WANT the explicit pixel
+// height back.
+function flushPendingIframeHeights(): void {
+  pendingHeightFlushRafId = null;
+  for (const [iframe, heightPx] of pendingIframeHeightsPx) {
+    if (!iframe.isConnected) continue;
+    iframe.style.setProperty("height", `${heightPx}px`, "important");
+  }
+  pendingIframeHeightsPx.clear();
+}
+
+// Listen for iframe-height reports posted by the in-iframe reporter
+// script (`src/utils/html/iframeHeightReporterScript.ts` injected by
+// the server's `readAndInjectHtmlArtifact`). Cross-origin sandboxed
+// iframes can't have their `scrollHeight` read from the parent, so the
+// iframe self-reports via postMessage and we set its height here.
+//
+// Coalesces via rAF: a hostile iframe spamming postMessage can store
+// at most one pending height per iframe per frame; we apply the latest
+// one when the next animation frame fires.
+function handleIframeHeightMessage(event: MessageEvent): void {
+  const { data } = event;
+  if (!data || typeof data !== "object") return;
+  if ((data as { type?: unknown }).type !== "mc-iframe-height") return;
+  const reported = (data as { height?: unknown }).height;
+  if (typeof reported !== "number") return;
+  const { source } = event;
+  if (!source || typeof source !== "object" || !("postMessage" in source)) return;
+  const iframe = findIframeForSourceWindow(source as Window);
+  if (!iframe) return;
+  const heightPx = clampIframeHeight(reported, window.innerHeight);
+  if (heightPx <= 0) return;
+  pendingIframeHeightsPx.set(iframe, heightPx);
+  if (pendingHeightFlushRafId === null) {
+    pendingHeightFlushRafId = requestAnimationFrame(flushPendingIframeHeights);
+  }
+}
+
 function resizeOneIframe(iframe: HTMLIFrameElement): void {
   try {
     const doc = iframe.contentDocument;
     if (!doc) return;
-    const height = Math.max(doc.documentElement?.scrollHeight ?? 0, doc.body?.scrollHeight ?? 0);
-    if (height > 0) iframe.style.height = `${height}px`;
+    const measured = Math.max(doc.documentElement?.scrollHeight ?? 0, doc.body?.scrollHeight ?? 0);
+    const heightPx = clampIframeHeight(measured, window.innerHeight);
+    if (heightPx <= 0) return;
+    iframe.style.height = `${heightPx}px`;
   } catch {
     // cross-origin sandbox — can't measure, leave default
   }
@@ -335,6 +444,7 @@ onMounted(() => {
   containerRef.value?.addEventListener("scroll", onContainerScroll, {
     passive: true,
   });
+  window.addEventListener("message", handleIframeHeightMessage);
   // Align the initial scroll position with the externally selected
   // item so the sidebar and stack start in sync on mount.
   nextTick(() => {
@@ -348,8 +458,11 @@ onMounted(() => {
 
 onUnmounted(() => {
   containerRef.value?.removeEventListener("scroll", onContainerScroll);
+  window.removeEventListener("message", handleIframeHeightMessage);
   if (scrollSpyRafId !== null) cancelAnimationFrame(scrollSpyRafId);
   if (suppressScrollTimeout !== null) clearTimeout(suppressScrollTimeout);
+  if (pendingHeightFlushRafId !== null) cancelAnimationFrame(pendingHeightFlushRafId);
+  pendingIframeHeightsPx.clear();
   naturalWrapperRefs.clear();
 });
 </script>
@@ -372,6 +485,18 @@ onUnmounted(() => {
 }
 .stack-natural :deep(.flex-1) {
   flex: 0 0 auto !important;
+}
+/* presentHtml's View.vue uses CSS-defined (not Tailwind class)
+   `overflow: hidden` + `flex: 1` on its wrapper/container to keep the
+   iframe inside a fixed-height canvas in non-stack mode. In stack mode
+   we need them to flow at the iframe's natural height (the value the
+   postMessage height reporter sets via JS). The class-based
+   `.overflow-hidden` / `.flex-1` overrides above don't catch CSS-named
+   selectors, so spell them out here. */
+.stack-natural :deep(.iframe-wrapper),
+.stack-natural :deep(.html-container) {
+  flex: 0 0 auto !important;
+  overflow: visible !important;
 }
 
 /* Collapse the nested chrome that text-response draws around its

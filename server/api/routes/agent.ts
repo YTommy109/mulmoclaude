@@ -19,6 +19,9 @@ import { prependJournalPointer } from "../../agent/prompt.js";
 import { buildTranscriptPreamble, isStaleSessionError } from "../../agent/resumeFailover.js";
 import { getOrCreateSession, beginRun, endRun, cancelRun, pushSessionEvent, pushToolResult, getActiveSessionIds } from "../../events/session-store/index.js";
 import { workspacePath } from "../../workspace/workspace.js";
+import { discoverSkills } from "../../workspace/skills/discovery.js";
+import type { Skill } from "../../workspace/skills/types.js";
+import { isRecord } from "../../utils/types.js";
 import { maybeRunJournal } from "../../workspace/journal/index.js";
 import { maybeIndexSession } from "../../workspace/chat-index/index.js";
 import { maybeAppendWikiBacklinks } from "../../workspace/wiki-backlinks/index.js";
@@ -555,12 +558,76 @@ interface BackgroundRunParams {
 // `textAccumulator` collects streaming text chunks so we write
 // one consolidated line to the jsonl instead of per-chunk lines
 // (which would appear as separate cards on session reload).
+//
+// `pendingSkill` is set when a `tool_call` with `toolName === "Skill"`
+// arrives. The next non-empty text flush IS the SKILL.md body that
+// Claude CLI synthesises — gets tagged as `type: "skill"` instead of
+// `type: "text"` and consumes the flag. (#1218)
+//
+// `toolUseId` is tracked alongside the slug so we can recognise the
+// matching `tool_call_result` (which Claude CLI emits between the
+// Skill tool_call and the body) and let it pass without clearing.
+// Any OTHER non-text event between the Skill tool_call and the body
+// flush is treated as a sequence break and clears the flag — covers
+// the leak path Codex iter-2 flagged where a tool_call_result with
+// a different `toolUseId` (or a `claudeSessionId`, or a flush at
+// run-end) would otherwise leave `pendingSkill` set so a much-later
+// unrelated assistant text gets mis-tagged as `type: "skill"`.
 interface EventContext {
   chatSessionId: string;
   resultsFilePath: string;
   toolArgsCache: ReturnType<typeof createArgsCache>;
   textAccumulator: string[];
+  pendingSkill: { skillName: string; toolUseId: string } | null;
 }
+
+const CLAUDE_CLI_SKILL_BODY_PREFIX = "Base directory for this skill: ";
+
+// #1218 — state-machine helpers for `pendingSkill`. Extracted so
+// `handleAgentEvent` stays under the cognitive-complexity cap and so
+// the leak-fix logic (Codex iter-2: clear on mismatched
+// tool_call_result + claudeSessionId, in addition to the iter-1
+// "non-Skill tool_call" clear) lives in one named place.
+//
+// When the model invokes a skill, Claude CLI emits the SKILL.md
+// body as the next assistant text. We track that expectation here:
+// the structural signal is `toolName === "Skill"` + `args.skill`
+// slug, not a body-text prefix, so it survives any rewording Claude
+// CLI might do to the synthesised body.
+
+// Narrow the helpers to only the slot they read/mutate so the
+// state-machine unit test in test/agent/ doesn't have to construct
+// the full `EventContext` (chatSessionId, resultsFilePath, etc).
+type PendingSkillSlot = Pick<EventContext, "pendingSkill">;
+
+function updatePendingSkillOnToolCall(ctx: PendingSkillSlot, event: { toolName: string; toolUseId: string; args: unknown }): void {
+  // Any non-Skill tool_call resets the pending state. Without this,
+  // a Skill call followed by another tool (Bash, etc.) without a
+  // body flush in between would leak `pendingSkill` and miscategorise
+  // a later unrelated assistant text as a skill body.
+  if (event.toolName !== "Skill") {
+    ctx.pendingSkill = null;
+    return;
+  }
+  const skillSlug = isRecord(event.args) && typeof event.args.skill === "string" ? event.args.skill : null;
+  ctx.pendingSkill = skillSlug ? { skillName: skillSlug, toolUseId: event.toolUseId } : null;
+}
+
+// The Skill's own tool_call_result (matching toolUseId) carries
+// "Launching skill: X" content; the body follows in the next text
+// event so we leave `pendingSkill` set. A tool_call_result with any
+// OTHER id means a different tool's result interleaved before the
+// body — sequence broken, clear the flag so a later unrelated
+// assistant text isn't mis-tagged as `type: "skill"`.
+function updatePendingSkillOnToolCallResult(ctx: PendingSkillSlot, toolUseId: string): void {
+  if (ctx.pendingSkill && toolUseId !== ctx.pendingSkill.toolUseId) {
+    ctx.pendingSkill = null;
+  }
+}
+
+// Exported for the unit test in test/agent/test_pendingSkillStateMachine.ts.
+export const _updatePendingSkillOnToolCallForTest = updatePendingSkillOnToolCall;
+export const _updatePendingSkillOnToolCallResultForTest = updatePendingSkillOnToolCallResult;
 
 // Returns true if the event was handled "out of band" (no pub-sub
 // broadcast, no jsonl append). Right now only `claudeSessionId`
@@ -570,6 +637,10 @@ interface EventContext {
 async function handleAgentEvent(event: Awaited<ReturnType<typeof runAgent>> extends AsyncGenerator<infer E> ? E : never, ctx: EventContext): Promise<void> {
   if (event.type === EVENT_TYPES.claudeSessionId) {
     await flushTextAccumulator(ctx);
+    // claudeSessionId is a meta event — never part of a Skill→body
+    // sequence. Clear pendingSkill so a flag set earlier in the run
+    // can't leak into a later unrelated assistant text.
+    ctx.pendingSkill = null;
     await setClaudeId(ctx.chatSessionId, event.id);
     return;
   }
@@ -587,6 +658,7 @@ async function handleAgentEvent(event: Awaited<ReturnType<typeof runAgent>> exte
   // lose already-streamed text.
   await flushTextAccumulator(ctx);
   if (event.type === EVENT_TYPES.toolCall) {
+    updatePendingSkillOnToolCall(ctx, event);
     log.info("agent-tool", "call", {
       chatSessionId: ctx.chatSessionId,
       toolName: event.toolName,
@@ -594,6 +666,7 @@ async function handleAgentEvent(event: Awaited<ReturnType<typeof runAgent>> exte
       argsPreview: previewJson(event.args),
     });
   } else if (event.type === EVENT_TYPES.toolCallResult) {
+    updatePendingSkillOnToolCallResult(ctx, event.toolUseId);
     // Look up the toolName from the cache *before* recordToolEvent
     // runs (it deletes the cache entry on result).
     const cached = ctx.toolArgsCache.get(event.toolUseId);
@@ -620,11 +693,26 @@ async function handleAgentEvent(event: Awaited<ReturnType<typeof runAgent>> exte
 // jsonl line. Called at the end of each agent run (success or error)
 // so the session transcript has exactly one assistant text entry
 // per response, not N per-chunk entries.
+//
+// When `ctx.pendingSkill` is set (preceding tool_call had
+// `toolName === "Skill"`), the flushed text is the SKILL.md body
+// Claude CLI synthesised — write it as `type: "skill"` instead of
+// `type: "text"` and consume the flag (#1218).
 async function flushTextAccumulator(ctx: EventContext): Promise<void> {
   if (ctx.textAccumulator.length === 0) return;
   const fullText = ctx.textAccumulator.join("");
   ctx.textAccumulator.length = 0;
   if (!fullText) return;
+
+  // Empty-string flushes (already handled above) don't consume
+  // pendingSkill — only the actual skill body should clear it.
+  const skill = ctx.pendingSkill;
+  ctx.pendingSkill = null;
+
+  if (skill) {
+    await writeSkillEntry(ctx, skill.skillName, fullText);
+    return;
+  }
   await appendSessionLine(
     ctx.chatSessionId,
     JSON.stringify({
@@ -634,6 +722,133 @@ async function flushTextAccumulator(ctx: EventContext): Promise<void> {
     }),
   );
 }
+
+// Resolve the loaded skill against `discoverSkills()` to attach
+// scope + path metadata, then write the consolidated assistant entry
+// as `type: "skill"`. The body's full text is preserved in `message`
+// (archival + the canvas's expand-on-click affordance). A live SSE
+// `type: "skill"` event is also broadcast so observing tabs can
+// replace the streamed text bubble with a collapsed skill card
+// without waiting for a session reload.
+//
+// Claude CLI sometimes concatenates the LLM's actual reply to the
+// synthesised SKILL.md body in the same text block (no `tool_call`
+// or `content_block_stop` boundary between them — see PR #1220
+// comment for the shiritori reproducer). We split that here using
+// the SKILL.md body on disk as a structural delimiter; the reply
+// portion gets persisted as a SECOND entry of `type: "text"` so it
+// stays visible after the user collapses the skill card.
+async function writeSkillEntry(ctx: EventContext, skillName: string, body: string): Promise<void> {
+  const resolved = await resolveSkillMetadata(skillName);
+  // Canary: skill detection is sequence-based (not body-prefix based),
+  // but we still cross-check the prefix as a format-drift signal.
+  // If Claude CLI ever changes its synthesised body shape, this warn
+  // surfaces before any user-visible regression.
+  if (!body.startsWith(CLAUDE_CLI_SKILL_BODY_PREFIX)) {
+    log.warn("agent", "Skill tool followed by text NOT starting with the expected Claude CLI prefix — body shape may have changed", {
+      skillName,
+      expectedPrefix: CLAUDE_CLI_SKILL_BODY_PREFIX,
+      actualPreview: body.slice(0, 80),
+    });
+  }
+  // A second canary: the SKILL.md body should appear verbatim inside
+  // the synthesised text. Failure means either discovery missed the
+  // skill (already logged by `resolveSkillMetadata`) or Claude CLI
+  // changed how it inlines the body (worth investigating).
+  if (resolved.body && !body.includes(resolved.body.trim())) {
+    log.warn("agent", "Claude CLI text does not contain the SKILL.md body verbatim — body split may be incorrect", {
+      skillName,
+      bodyBytes: body.length,
+      skillFileBytes: resolved.body.length,
+    });
+  }
+  const { skillPart, replyPart } = splitSkillAndReply(body, resolved.body);
+
+  const skillPayload = {
+    source: "assistant",
+    type: EVENT_TYPES.skill,
+    skillName,
+    skillScope: resolved.scope,
+    skillPath: resolved.path,
+    skillDescription: resolved.description,
+    message: skillPart,
+  };
+  pushSessionEvent(ctx.chatSessionId, skillPayload as Record<string, unknown>);
+  await appendSessionLine(ctx.chatSessionId, JSON.stringify(skillPayload));
+
+  if (replyPart) {
+    const textPayload = { source: "assistant", type: EVENT_TYPES.text, message: replyPart };
+    pushSessionEvent(ctx.chatSessionId, textPayload as Record<string, unknown>);
+    await appendSessionLine(ctx.chatSessionId, JSON.stringify(textPayload));
+  }
+}
+
+interface SkillMetadata {
+  scope: "user" | "project" | "unknown";
+  path: string | null;
+  /** From the SKILL.md frontmatter `description:` field. Used by the
+   *  host's collapsed-skill card — Claude CLI strips frontmatter from
+   *  the synthesised body, so the renderer can't re-extract this from
+   *  `message`. Resolved here from `discoverSkills()` instead. */
+  description: string | null;
+  /** SKILL.md body (frontmatter already stripped by `discoverSkills`).
+   *  Used as a structural delimiter to split the text Claude CLI
+   *  emits — the body Claude CLI inlines is character-for-character
+   *  this same string, with the LLM's actual reply concatenated
+   *  after. */
+  body: string | null;
+}
+
+async function resolveSkillMetadata(skillName: string): Promise<SkillMetadata> {
+  try {
+    const skills: Skill[] = await discoverSkills({ workspaceRoot: workspacePath });
+    const found = skills.find((skill) => skill.name === skillName);
+    if (!found) return { scope: "unknown", path: null, description: null, body: null };
+    return { scope: found.source, path: found.path, description: found.description, body: found.body };
+  } catch (err) {
+    // Discovery failure is benign — keep tagging the entry so the UI
+    // can still collapse it; just leave metadata empty.
+    log.warn("agent", "skill metadata lookup failed — emitting entry without scope/path/description/body", {
+      skillName,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { scope: "unknown", path: null, description: null, body: null };
+  }
+}
+
+/** Split the consolidated text Claude CLI emits after a `Skill`
+ *  tool_call into the SKILL.md body half (synthesised by Claude CLI)
+ *  and the LLM's actual reply half. Without this, the entire blob
+ *  gets tagged `type: "skill"`, so when the user collapses the
+ *  card their actual reply disappears (#1218 reproducer: shiritori
+ *  skill, where the body ends with a "respond now" instruction and
+ *  the LLM's first move is concatenated to the same text block).
+ *
+ *  Structural split: the SKILL.md body is on disk, available via
+ *  `discoverSkills()`. We find that exact substring inside the
+ *  message and slice. Optional `ARGUMENTS: <user_input>` line that
+ *  Claude CLI appends when the SKILL.md uses `{{ARGUMENTS}}` is
+ *  consumed too. Returns the whole message as `skillPart` with
+ *  empty `replyPart` when `skillBody` is empty (discovery missed)
+ *  or not found verbatim (Claude CLI changed the inlining format —
+ *  the canary log warn fires in that case). */
+function splitSkillAndReply(message: string, skillBody: string | null): { skillPart: string; replyPart: string } {
+  if (!skillBody) return { skillPart: message, replyPart: "" };
+  const trimmedBody = skillBody.trim();
+  if (!trimmedBody) return { skillPart: message, replyPart: "" };
+  const idx = message.indexOf(trimmedBody);
+  if (idx < 0) return { skillPart: message, replyPart: "" };
+  let cursor = idx + trimmedBody.length;
+  // Skip the optional ARGUMENTS line + trailing whitespace.
+  const argMatch = /^\s*ARGUMENTS:[^\n]*\n?/.exec(message.slice(cursor));
+  if (argMatch) cursor += argMatch[0].length;
+  const skillPart = message.slice(0, cursor).trimEnd();
+  const replyPart = message.slice(cursor).replace(/^\s+/, "");
+  return { skillPart, replyPart };
+}
+
+// Exported for the unit test in test/agent/test_skillBodySplit.ts.
+export const _splitSkillAndReplyForTest = splitSkillAndReply;
 
 // Helper kept commented (instead of deleted) alongside the
 // publishNotification call below — see the duplicate-notification
@@ -665,6 +880,7 @@ async function runAgentInBackground(params: BackgroundRunParams): Promise<void> 
     resultsFilePath,
     toolArgsCache,
     textAccumulator: [],
+    pendingSkill: null,
   };
 
   // Retry budget for the stale `--resume` id fail-over (#211). Only

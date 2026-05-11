@@ -249,7 +249,7 @@ The package's `dist/index.js` is what the server dynamic-imports for `TOOL_DEFIN
 
 ### Reference plugin
 
-[`packages/bookmarks-plugin/`](../packages/bookmarks-plugin/) is a small (~70-line server / ~50-line View) reference plugin built on the factory shape. It exercises every API surface — pubsub publish + subscribe, `files.data` for the bookmarks JSON, `files.config` for sort prefs, locale-aware view text, Zod-discriminated args with exhaustive switch. Read this before writing your first plugin.
+[`packages/plugins/bookmarks-plugin/`](../packages/plugins/bookmarks-plugin/) is a small (~70-line server / ~50-line View) reference plugin built on the factory shape. It exercises every API surface — pubsub publish + subscribe, `files.data` for the bookmarks JSON, `files.config` for sort prefs, locale-aware view text, Zod-discriminated args with exhaustive switch. Read this before writing your first plugin.
 
 ### OAuth-using plugins (`@mulmoclaude/spotify-plugin` pattern, #1162)
 
@@ -297,7 +297,7 @@ For Spotify, the answer is: **one route entry** on the runtime-plugin router (th
 
 #### Reference
 
-[`packages/spotify-plugin/`](../packages/spotify-plugin/) is the reference implementation. PR 1 ships the OAuth surface only (`connect` / `oauthCallback` / `status` / `diagnose`); PR 2 adds the listening-data kinds + the View. Plan: [`plans/done/feat-spotify-plugin.md`](../plans/done/feat-spotify-plugin.md), tracking issue: #1162.
+[`packages/plugins/spotify-plugin/`](../packages/plugins/spotify-plugin/) is the reference implementation. PR 1 ships the OAuth surface only (`connect` / `oauthCallback` / `status` / `diagnose`); PR 2 adds the listening-data kinds + the View. Plan: [`plans/done/feat-spotify-plugin.md`](../plans/done/feat-spotify-plugin.md), tracking issue: #1162.
 
 ## API reference (factory shape)
 
