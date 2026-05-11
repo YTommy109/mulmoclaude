@@ -145,6 +145,31 @@ const ptBRMessages = {
       mcp: "Servidores MCP",
       dirs: "Diretórios",
       refs: "Diretórios de referência",
+      map: "Mapa",
+      photos: "Fotos",
+    },
+    mapTab: {
+      description: "Define a chave da API do Google Maps usada pelo plugin de mapa. A chave fica salva localmente e só é enviada para o Google Maps.",
+      apiKeyLabel: "Chave API do Google Maps",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "Crie ou copie uma chave em {consoleLink}.",
+      requiredApis: "APIs necessárias: Maps JavaScript API, Geocoding API, Places API (New), Directions API.",
+      configured: "Configurada",
+      notConfigured: "Não configurada",
+      clear: "Limpar",
+      loadError: "Falha ao carregar as configurações",
+      saveError: "Falha ao salvar",
+    },
+    photosTab: {
+      description:
+        "Controles de privacidade para fotos recebidas pelo chat ou por um bridge conectado. Os dados de localização EXIF são sensíveis — desmarque para desativar a captura automática.",
+      autoCaptureLabel: "Capturar automaticamente a localização das fotos",
+      autoCaptureHint:
+        "Ativado: cada imagem enviada com GPS no EXIF gera um sidecar de localização em data/locations/. Desativado: nada é capturado automaticamente; o LLM ainda pode extrair EXIF manualmente.",
+      statusOn: "Captura automática ATIVADA",
+      statusOff: "Captura automática DESATIVADA",
+      loadError: "Falha ao carregar as configurações",
+      saveError: "Falha ao salvar",
     },
     // Slots `<i18n-t>` — os nomes `envKey` / `envFile` renderizam como
     // `<code>` inline no SettingsModal.vue, então os literais de
@@ -899,6 +924,21 @@ const ptBRMessages = {
     loadingSource: "Carregando fonte…",
     sourceError: "Falha ao carregar a fonte: {error}",
   },
+  pluginPresentSvg: {
+    saveAsPng: "Baixar como PNG",
+    png: "PNG",
+    saveAsPdf: "Salvar como PDF (abre o diálogo de impressão)",
+    pdf: "PDF",
+    untitled: "Desenho SVG",
+    editSource: "Editar fonte SVG",
+    cancel: "Cancelar",
+    applyChanges: "Aplicar alterações",
+    saving: "Salvando...",
+    saveError: "⚠ Falha ao salvar: {error}",
+    exportError: "⚠ Falha ao exportar: {error}",
+    loadingSource: "Carregando fonte…",
+    sourceError: "Falha ao carregar a fonte: {error}",
+  },
   pluginNews: {
     title: "Notícias",
     itemCount: "{unread} não lidas / {total} no total",
@@ -985,6 +1025,14 @@ const ptBRMessages = {
       noMatching: "Nenhuma fonte corresponde ao filtro atual.",
       clearFilter: "Limpar filtro",
     },
+  },
+  photoLocations: {
+    title: "Localizações das fotos",
+    summary: "{total} capturadas · {withGps} com GPS",
+    mapHint: 'Peça ao Claude "mostre no mapa" para plotá-las com o plugin do Google Map.',
+    loading: "Carregando…",
+    empty: "Nenhuma localização capturada ainda. Envie uma foto com tag GPS pelo chat ou por um bridge conectado para começar.",
+    noGps: "Sem dados GPS",
   },
   pluginManageSkills: {
     deleteProjectSkill: "Excluir esta skill de projeto",
@@ -1097,6 +1145,11 @@ const ptBRMessages = {
     copyLabel: "Copiar",
     copiedLabel: "Copiado!",
     cancel: "Cancelar",
+    seededByPlugin: "de {pkg}",
+    seededByPluginTooltip: "Esta mensagem foi gerada pelo plugin {pkg}, não foi enviada por você.",
+  },
+  pluginSkill: {
+    noDescription: "(sem descrição)",
   },
   pluginSpreadsheet: {
     previewUntitled: "Planilha",

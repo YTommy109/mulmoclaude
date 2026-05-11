@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import agentRoutes, { startChat } from "./api/routes/agent.js";
 import accountingRoutes from "./api/routes/accounting.js";
+import photoLocationsRoutes from "./api/routes/photo-locations.js";
 import schedulerRoutes from "./api/routes/scheduler.js";
 import sessionsRoutes, { loadAllSessions } from "./api/routes/sessions.js";
 import chatIndexRoutes from "./api/routes/chat-index.js";
@@ -13,6 +14,7 @@ import pluginsRoutes from "./api/routes/plugins.js";
 import imageRoutes from "./api/routes/image.js";
 import attachmentRoutes from "./api/routes/attachment.js";
 import presentHtmlRoutes from "./api/routes/presentHtml.js";
+import presentSvgRoutes from "./api/routes/presentSvg.js";
 import chartRoutes from "./api/routes/chart.js";
 import rolesRoutes from "./api/routes/roles.js";
 import { DEFAULT_ROLE_ID } from "../src/config/roles.js";
@@ -36,6 +38,8 @@ import { createNotificationsRouter } from "./api/routes/notifications.js";
 import { startLegacyAdapters } from "./notifier/legacy-adapters.js";
 import notifierRoutes from "./api/routes/notifier.js";
 import { initNotifier } from "./notifier/engine.js";
+import { registerSaveAttachmentHook } from "./utils/files/attachment-store.js";
+import { capturePhotoLocation } from "./workspace/photo-locations/index.js";
 import { createJournalRouter } from "./api/routes/journal.js";
 import { createTranslationRouter } from "./api/routes/translation.js";
 import { announcePluginMetaDiagnostics } from "./plugins/diagnostics.js";
@@ -83,7 +87,7 @@ import { EVENT_TYPES } from "../src/types/events.js";
 import { SESSION_ORIGINS } from "../src/types/session.js";
 import { buildHtmlPreviewCsp } from "../src/utils/html/previewCsp.js";
 import { readAndInjectHtmlArtifact } from "./utils/html/htmlArtifactSplicer.js";
-import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS } from "./utils/time.js";
+import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS, STARTUP_FAILURE_FORCE_EXIT_MS } from "./utils/time.js";
 import { isPortFree, findAvailablePort, MAX_PORT_PROBES } from "./utils/port.mjs";
 import { SCHEDULE_TYPES, MISSED_RUN_POLICIES } from "@receptron/task-scheduler";
 
@@ -128,6 +132,15 @@ runMemoryMigrationOnce(workspacePath)
   .then(noop, noop);
 
 let sandboxEnabled = false;
+
+// --- Photo-EXIF capture hook (#1222 PR-A) ---
+// Registered at module load (NOT inside `startRuntimeServices`)
+// because uploads can land in the gap between `app.listen` accepting
+// connections and the runtime-services bootstrap finishing. The hook
+// itself short-circuits on non-image MIME / auto-capture opt-out, so
+// registering early is free for non-photo flows. (CodeRabbit review
+// on PR #1247.)
+registerSaveAttachmentHook(capturePhotoLocation);
 
 const app = express();
 
@@ -399,6 +412,81 @@ app.use(
   express.static(WORKSPACE_PATHS.htmls, { dotfiles: "deny", fallthrough: false }),
 );
 
+// Static mount for SVG artifacts. SVG files are loaded into the View
+// and Preview as `<img src="/artifacts/svg/<name>.svg">`. Browsers
+// refuse to execute `<script>` inside an SVG loaded via `<img>`, so
+// the `<img>` tag itself is the sandbox for that consumer path.
+//
+// BUT `/artifacts/svg/<file>.svg` is also a directly addressable URL on
+// the SPA's origin (loopback-only, bearer-auth bypassed for `<img src>`
+// access), so a user who navigates straight to that URL — or is tricked
+// into clicking a markdown link — would otherwise get the SVG rendered
+// as a TOP-LEVEL document with full script execution in the app's
+// origin (localStorage, /api/* with the user's session, etc.). Since
+// the SVG body is LLM-generated and writable via the update route, a
+// prompt-injected SVG becomes a stored-XSS vector.
+//
+// Mitigation: send a strict response CSP. The `sandbox` directive gives
+// the response an opaque origin and disables script execution for the
+// top-level navigation case; the other directives starve subresource
+// loads (block external script/font/connect, only allow `<image>` refs
+// to self / data URIs). CSP on a subresource response is mostly
+// informational — `<img>` rendering ignores the bytes' CSP — so this
+// header doesn't interfere with the normal View / Preview path.
+const SVG_RESPONSE_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; sandbox";
+
+// Strict three-layer guard mirroring the `/artifacts/images` mount:
+// extension allowlist, realpath traversal check, dotfiles deny +
+// fallthrough false on `express.static`. Bearer auth bypassed for the
+// same reason as `/artifacts/images` / `/artifacts/html`: an
+// `<img src>` request can't carry an Authorization header. Loopback-
+// only listener + `requireSameOrigin` remain the trust boundary.
+const SVG_EXT_RE = /\.svg$/i;
+let svgsDirReal: string | null = null;
+async function getSvgsDirReal(): Promise<string | null> {
+  if (svgsDirReal) return svgsDirReal;
+  try {
+    svgsDirReal = await fsRealpath(WORKSPACE_PATHS.svgs);
+    return svgsDirReal;
+  } catch {
+    return null;
+  }
+}
+app.use(
+  "/artifacts/svg",
+  async (req, res, next) => {
+    if (!SVG_EXT_RE.test(req.path)) {
+      res.status(404).end();
+      return;
+    }
+    const root = await getSvgsDirReal();
+    if (!root) {
+      res.status(404).end();
+      return;
+    }
+    let relPath: string;
+    try {
+      relPath = decodeURIComponent(req.path.replace(/^\//, ""));
+    } catch {
+      res.status(404).end();
+      return;
+    }
+    if (!resolveWithinRoot(root, relPath)) {
+      res.status(404).end();
+      return;
+    }
+    if (containsDotfileSegment(relPath)) {
+      res.status(404).end();
+      return;
+    }
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+    res.setHeader("Content-Security-Policy", SVG_RESPONSE_CSP);
+    next();
+  },
+  express.static(WORKSPACE_PATHS.svgs, { dotfiles: "deny", fallthrough: false }),
+);
+
 app.get(API_ROUTES.health, (_req: Request, res: Response) => {
   // `os.loadavg()[0]` is the kernel 1-minute load average. On Linux /
   // macOS it's the primary "is this machine busy" signal; on Windows
@@ -437,6 +525,7 @@ app.get(API_ROUTES.sandbox, (_req: Request, res: Response) => {
 // the `/api` literal into each `router.post(API_ROUTES.…)` call.
 app.use(agentRoutes);
 app.use(accountingRoutes);
+app.use(photoLocationsRoutes);
 // todosRoutes removed (#1145) — todo is now a runtime plugin
 // (`@mulmoclaude/todo-plugin`); the dispatch route is generated by
 // `runtime-plugin.ts` at `/api/plugins/runtime/<pkg>/dispatch`.
@@ -449,6 +538,7 @@ app.use(pluginsRoutes);
 app.use(imageRoutes);
 app.use(attachmentRoutes);
 app.use(presentHtmlRoutes);
+app.use(presentSvgRoutes);
 app.use(chartRoutes);
 app.use(rolesRoutes);
 app.use(mulmoScriptRoutes);
@@ -682,19 +772,14 @@ function maybeForceChatIndexBackfill(): void {
     .catch(logBackgroundError("chat-index", "forced startup backfill failed"));
 }
 
-async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: number): Promise<void> {
+async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, port: number, pubsub: IPubSub): Promise<void> {
   log.info("server", "listening", { port });
 
-  // --- Pub/Sub ---
-  const pubsub = createPubSub(httpServer);
-
-  // --- Notifier engine ---
-  // Routes mounted at module-load above; engine emit is wired here
-  // once pubsub exists. Mutating APIs called between mount and this
-  // call would persist state but log a warning instead of emitting.
-  initNotifier({
-    publish: (channel, payload) => pubsub.publish(channel, payload),
-  });
+  // The notifier engine + its pubsub are now wired in the listen
+  // callback (see PR-#1196 follow-up) so requests arriving before
+  // this function runs hit a fully-initialized engine. The pubsub
+  // is forwarded in here so the rest of `startRuntimeServices` can
+  // share the same instance.
 
   // --- Legacy adapters (bridge + macOS Reminder push) ---
   // Subscribe in-process to the engine so any `notifier.publish` —
@@ -725,6 +810,20 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // --- Session Store ---
   initSessionStore(pubsub);
 
+  // --- Task Manager ---
+  // Created BEFORE the runtime plugins block so plugin runtimes
+  // (which receive `taskManager` via `MakePluginRuntimeDeps`) can
+  // close over it. The `void (async () => ...)()` IIFE below would
+  // also work via async-yield ordering, but the lint rule forbids
+  // closing over a variable declared later in the same scope.
+  const taskManager = createTaskManager({
+    tickMs: debugMode ? ONE_SECOND_MS : ONE_MINUTE_MS,
+  });
+
+  if (debugMode) {
+    registerDebugTasks(taskManager, pubsub);
+  }
+
   // --- Runtime plugins (#1043 C-2 + #1110) ---
   // Two sources of plugins, same RuntimePlugin shape:
   //   1. Presets — server/plugins/preset-list.ts (loaded from node_modules)
@@ -750,6 +849,14 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
           // BrowserPluginRuntime carries the reactive ref. Future
           // enhancement: per-request locale from Accept-Language.
           locale: process.env.LANG?.split(/[._]/)[0] || "en",
+          // `taskManager` is created synchronously below (see "Task
+          // Manager" block) before this async IIFE awaits and yields.
+          // By the time `runtimeFactory(pkgName)` is invoked from
+          // inside `loadPresetPlugins` / `loadRuntimePlugins` /
+          // `loadDevPlugins`, the synchronous initialisation has
+          // completed and `taskManager` is ready. Backs
+          // `runtime.tasks.register()` (Phase 1 of the Encore plan).
+          taskManager,
         });
       const [presets, userInstalled, devLoad] = await Promise.all([
         loadPresetPlugins({ runtimeFactory }),
@@ -814,15 +921,6 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // boot already sees a live publisher.
   initFileChangePublisher(pubsub);
   initAccountingEventPublisher(pubsub);
-
-  // --- Task Manager ---
-  const taskManager = createTaskManager({
-    tickMs: debugMode ? ONE_SECOND_MS : ONE_MINUTE_MS,
-  });
-
-  if (debugMode) {
-    registerDebugTasks(taskManager, pubsub);
-  }
 
   // --- Scheduler (Phase 1 of #357) ---
   // Register system tasks with persistence + catch-up. The journal
@@ -980,6 +1078,20 @@ process.on("SIGTERM", () => {
   // workspace file API is a credential-theft risk. Personal dev
   // tool — localhost is the right default.
   const httpServer = app.listen(port, "127.0.0.1", async () => {
+    // Initialize the notifier engine synchronously, before any await
+    // in this callback. The HTTP listener is already accepting
+    // connections by the time this callback fires, so any awaited
+    // I/O below (e.g. the `.server-port` write) opens a window where
+    // `/api/notifier` requests would race against the engine's
+    // `deps`-still-null state and silently drop the pub/sub event
+    // (CodeRabbit review on PR #1196). Both `createPubSub` and
+    // `initNotifier` are sync, so wiring them up here costs nothing
+    // and closes the window.
+    const earlyPubsub = createPubSub(httpServer);
+    initNotifier({
+      publish: (channel, payload) => earlyPubsub.publish(channel, payload),
+    });
+
     // Publish the actually-bound port so the hook script can
     // address us — the requested PORT may have walked forward
     // off a busy default. Use writeFile (not writeFileAtomic)
@@ -993,8 +1105,26 @@ process.on("SIGTERM", () => {
         error: String(err),
       });
     }
-    startRuntimeServices(httpServer, port).catch((err: unknown) => {
-      log.error("server", "startRuntimeServices failed", { error: String(err) });
+    startRuntimeServices(httpServer, port, earlyPubsub).catch((err: unknown) => {
+      // Fail fast — a half-initialized runtime is worse than a
+      // crashed one. Routes mounted at module load already accept
+      // requests, so without this exit the app would respond with a
+      // confusing mix of 200s (from already-mounted routes) and
+      // 500s (from the agent / scheduler / plugins that never came
+      // up). Exit so the supervisor (Electron / launcher) can show
+      // a real error instead of the user staring at a half-broken
+      // UI. (CodeRabbit review on PR #1201.)
+      //
+      // `httpServer.close(cb)` only fires `cb` once every existing
+      // connection has drained. SSE streams + WebSocket upgrades
+      // can hold connections open indefinitely, so the graceful
+      // path alone isn't a fail-fast guarantee. Schedule a hard
+      // exit on a short timer as the floor; whichever fires first
+      // wins. `.unref()` keeps the timer from blocking the event
+      // loop on its own. (Codex review on PR #1226.)
+      log.error("server", "startRuntimeServices failed — exiting", { error: String(err) });
+      httpServer.close(() => process.exit(1));
+      setTimeout(() => process.exit(1), STARTUP_FAILURE_FORCE_EXIT_MS).unref();
     });
   });
 

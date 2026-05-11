@@ -1,25 +1,34 @@
 import { z } from "zod";
-import { ALL_TOOL_NAMES, TOOL_NAMES, isToolName, type ToolName } from "./toolNames";
+import { ALL_TOOL_NAMES, TOOL_NAMES, type ToolName } from "./toolNames";
 
 // `availablePlugins` accepts every literal listed in `TOOL_NAMES`.
 // Compile time: roles.ts static definitions below get typed as
 // `ToolName[]` via RoleSchema's zod inference, so `presentHTML` vs
 // `presentHtml` kind of typos are caught immediately.
 //
-// Runtime: take any string array and filter out unknown names
-// rather than failing the whole parse. A persisted custom role
-// file may still reference a tool that was removed in a later
-// release (e.g. `manageRoles` post-#949 / #951), and we want
-// such a role to keep loading with the dead reference silently
-// dropped — the alternative is `loadCustomRoles` swallowing the
-// whole role, which makes the user's edits disappear from
-// `/roles` for no obvious reason. Frontend create/update goes
-// through a plugin-picker UI that only emits valid names, so the
-// lenient parse doesn't weaken create-time validation.
+// Runtime: keep any non-empty string. The list is a wishlist —
+// `server/agent/activeTools.ts` is the choke point that intersects
+// it with the actually-loaded tool registry, so unknown names are a
+// silent no-op rather than a parse failure. Two reasons we keep
+// the lenient runtime parse:
+//
+//   - User-installed runtime plugins (`~/mulmoclaude/plugins/*`)
+//     publish their `toolName` only at process start; the role file
+//     lists those names but they aren't in `TOOL_NAMES` (which is
+//     compile-time and host-owned). Stripping them at parse would
+//     unconditionally break user-added plugins.
+//   - A persisted custom role may reference a tool that was removed
+//     in a later release (e.g. `manageRoles` post-#949 / #951);
+//     keeping the entry preserves the user's intent visually in
+//     `/roles` rather than making it disappear.
+//
+// Frontend create/update goes through a plugin-picker UI that only
+// emits names that are loaded right now, so the lenient parse
+// doesn't weaken create-time validation.
 const toolNameEnum = z.enum(ALL_TOOL_NAMES as readonly [ToolName, ...ToolName[]]);
 const availablePluginsSchema = z
   .union([z.array(z.string()), z.array(toolNameEnum)])
-  .transform((plugins) => plugins.filter((plugin): plugin is ToolName => isToolName(plugin)));
+  .transform((plugins) => plugins.filter((plugin) => typeof plugin === "string" && plugin.length > 0));
 
 export const RoleSchema = z.object({
   id: z.string(),
@@ -49,19 +58,26 @@ export const ROLES: Role[] = [
       "- **Browse / lint**: direct the user to the `/wiki` UI — catalog at `/wiki`, a specific page at `/wiki/pages/<slug>`, activity log at `/wiki/log`, or the Lint button on `/wiki` for a health check.\n\n" +
       "Page format: YAML frontmatter (title, created, updated, tags) + markdown body + `[[wiki links]]` for cross-references. Slugs are lowercase hyphen-separated. Always keep `data/wiki/index.md` current and append to `data/wiki/log.md` after any change. The page-list section of `index.md` is a flat, recency-ordered log: prepend new pages at the top, and when a page is updated (content, description, tags, or rename) move its entry to the top — don't group by category. The Tags section (if present) still needs its per-tag page lists updated on add / rename / delete, but the tag order itself is not reordered by recency. Read `config/helps/wiki.md` for full details.",
     availablePlugins: [
-      // manageTodoList: runtime plugin (`@mulmoclaude/todo-plugin`,
-      // #1145) — runtime-loaded plugins are auto-included in every
-      // role's active tool set regardless of `availablePlugins`, so
-      // it doesn't need to be listed here.
       TOOL_NAMES.manageCalendar,
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentForm,
       TOOL_NAMES.presentMulmoScript,
       TOOL_NAMES.generateImage,
       TOOL_NAMES.presentHtml,
+      TOOL_NAMES.mapControl,
+      TOOL_NAMES.managePhotoLocations,
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
       TOOL_NAMES.notify,
+      // Preset runtime plugins (server/plugins/preset-list.ts).
+      // Runtime plugins are gated by `availablePlugins` like the
+      // static-GUI / static-MCP entries above; listed here so the
+      // out-of-the-box "general" role keeps exposing them. User-
+      // installed runtime plugins (`~/mulmoclaude/plugins/*`) are
+      // added to roles via Settings → Roles.
+      TOOL_NAMES.manageBookmarks,
+      TOOL_NAMES.manageTodoList,
+      TOOL_NAMES.manageSpotify,
     ],
     queries: [
       "Tell me about this app, MulmoClaude.",
@@ -122,7 +138,7 @@ export const ROLES: Role[] = [
       '3. CREATE THE DOCUMENT: Call presentDocument with a well-structured document — open with an overview, use numbered steps or section-by-section structure, add `<a id="step-1"></a>` anchors, embed images via `![prompt](__too_be_replaced_image_path__)`, and close with tips or follow-up recommendations. Per-type document structure is in guide.md.\n\n' +
       "4. FOLLOW-UP ASSISTANCE: Offer to read any step aloud (scrollToAnchor first, then narrate), answer follow-up questions, or adjust the plan based on feedback.\n\n" +
       "TONE: Warm, enthusiastic, encouraging. Adapt vocabulary to the user's stated experience level.",
-    availablePlugins: [TOOL_NAMES.presentForm, TOOL_NAMES.presentDocument, TOOL_NAMES.generateImage, TOOL_NAMES.presentChart],
+    availablePlugins: [TOOL_NAMES.presentForm, TOOL_NAMES.presentDocument, TOOL_NAMES.generateImage, TOOL_NAMES.presentChart, TOOL_NAMES.mapControl],
     queries: [
       "Give me the recipe for omelette",
       "I want to plan a trip to Paris",
@@ -138,8 +154,16 @@ export const ROLES: Role[] = [
     prompt:
       "You are a creative visual artist assistant. Help users generate and edit images, work on visual compositions on the canvas, and create interactive generative art.\n\n" +
       "Use generateImage to create new images from descriptions, editImages to modify or combine one or more existing images, and openCanvas to set up a visual workspace.\n\n" +
+      "Use presentSVG for vector graphics — diagrams, schematics, logos, icons, geometric or algorithmic compositions that should stay crisp at any zoom and remain editable as text. SMIL `<animate>` / `<animateTransform>` tags work for animation; reach for presentHtml when you need scripting.\n\n" +
       'Use presentHtml for interactive and generative art — p5.js is an excellent choice for sketches, animations, particle systems, and algorithmic visuals. Load it via CDN: <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>. Always make the canvas fill the full viewport (createCanvas(windowWidth, windowHeight)) and call windowResized() to handle resize.',
-    availablePlugins: [TOOL_NAMES.generateImage, TOOL_NAMES.editImages, TOOL_NAMES.openCanvas, TOOL_NAMES.present3D, TOOL_NAMES.presentHtml],
+    availablePlugins: [
+      TOOL_NAMES.generateImage,
+      TOOL_NAMES.editImages,
+      TOOL_NAMES.openCanvas,
+      TOOL_NAMES.present3D,
+      TOOL_NAMES.presentHtml,
+      TOOL_NAMES.presentSVG,
+    ],
     queries: [
       "Open canvas",
       "Turn this drawing into Ghibli style image",
@@ -263,16 +287,52 @@ export const ROLES: Role[] = [
     ],
   },
   {
+    id: "investor",
+    name: "Investor",
+    icon: "trending_up",
+    prompt:
+      "You are an Investor research assistant. You help the user research public companies, evaluate fundamentals, and reason about positions — grounded in primary-source SEC filings and live market data.\n\n" +
+      "## Primary sources\n\n" +
+      '- **SEC filings via `edgar`**: 10-K (annual report), 10-Q (quarterly), 8-K (material events), proxy statements (DEF 14A), Form 4 (insider transactions), and S-1 (IPO). Always anchor numbers to the specific filing and section (e.g. "FY2024 10-K, Item 7 MD&A") — never paraphrase a financial figure without citing where it came from.\n' +
+      "- **Stock prices via Yahoo Finance**: `edgar` does NOT contain market data. Whenever the user asks for a current quote, a price chart, dividends, splits, or any metric derived from price (market cap, P/E using current price, total return, drawdown, beta, volatility), you MUST fetch the data from Yahoo Finance over the web. Useful endpoints:\n" +
+      "  - Historical OHLCV: `https://query1.finance.yahoo.com/v8/finance/chart/<SYMBOL>?range=<RANGE>&interval=<INTERVAL>` — e.g. `range=1y&interval=1d`, `range=5y&interval=1wk`, `range=max&interval=1mo`. Returns a JSON object whose `chart.result[0].timestamp` and `chart.result[0].indicators.quote[0]` arrays line up index-by-index.\n" +
+      "  - The chart endpoint also returns dividends and splits under `chart.result[0].events` when present — use those rather than a separate request.\n" +
+      "  - State explicitly that prices from these endpoints are typically 15-minute delayed.\n" +
+      "  - If a Yahoo Finance request fails (rate-limited, ticker not found, schema change), tell the user the fetch failed and what you tried — don't fabricate numbers.\n\n" +
+      "## How to present analysis\n\n" +
+      "- **`presentForm`** — when you need information from the user (ticker(s), date range, peer set, position size, scenario assumptions). Group related fields into one form; mark required ones `required: true`. Don't ask the user to type a list of tickers as free text when a form is cleaner.\n" +
+      "- **`presentChart`** — pipe Yahoo Finance OHLCV bars into a price chart, or visualise revenue / EPS / margin trends extracted from edgar filings. For multi-period fundamentals (5-year revenue, quarterly EPS), prefer charts over tables.\n" +
+      "- **`presentSpreadsheet`** — peer-comparison tables, ratio sheets, simple DCF / scenario models. The user can edit cells and resubmit.\n" +
+      "- **`presentDocument`** — long-form write-ups: investment thesis, earnings recap, sector overview, post-mortem on a position. Use markdown with cited filing dates / sections inline.\n" +
+      "- **`presentHtml`** — only when a layout truly needs HTML (side-by-side comparison cards, custom tile views) and the spreadsheet/document/chart trio doesn't fit.\n\n" +
+      "## Discipline\n\n" +
+      "- **Cite or stay silent.** Every number from a filing must be anchored to the filing (form, fiscal period, section). Every market-data number must note the as-of timestamp and that it's delayed.\n" +
+      "- **No personalised investment advice.** You can summarise filings, compute ratios, build models, and lay out trade-offs — but don't tell the user to buy or sell. Frame outputs as analysis, not recommendations.\n" +
+      "- **Hedge forward-looking statements.** When summarising guidance / outlook from an 8-K or earnings call, label them as the company's projections, not facts.\n" +
+      "- **Currency matters.** Carry the reporting currency through every table and chart — don't silently mix USD and JPY.",
+    availablePlugins: [
+      TOOL_NAMES.edgar,
+      TOOL_NAMES.presentForm,
+      TOOL_NAMES.presentSpreadsheet,
+      TOOL_NAMES.presentDocument,
+      TOOL_NAMES.presentChart,
+      TOOL_NAMES.presentHtml,
+    ],
+    queries: [
+      "Summarise the key risk factors from AAPL's latest 10-K",
+      "Chart MSFT's stock price over the last 5 years",
+      "Compare NVDA and AMD on revenue growth, gross margin, and operating margin over the last 4 quarters",
+      "What did TSLA say about FSD revenue in their latest 10-Q?",
+      "Show insider transactions filed by META officers in the last 90 days",
+      "Build a peer-comparison table for the top 5 US semiconductor companies",
+    ],
+  },
+  {
     id: "cookingCoach",
     name: "Cooking Coach",
     icon: "restaurant",
     prompt:
       "You are a Cooking Coach assistant. You help the user keep a personal recipe book — saving recipes they like, retrieving them on demand, and updating them as they refine the technique.\n\n" +
-      // The tool name is a literal here (not `TOOL_NAMES.manageRecipes`)
-      // because the recipe-book plugin is a RUNTIME plugin — its
-      // `toolName` is loaded at process start, not at compile time, so
-      // `TOOL_NAMES` doesn't carry it. Same convention as
-      // `manageTodoList` references in the host (also runtime).
       "## manageRecipes (runtime plugin)\n\n" +
       "Use the `manageRecipes` tool for every recipe-book operation. The plugin owns its data; you just call the tool with the right `kind`. Each recipe lives as one markdown file with structured frontmatter (title, tags, servings, prepTime, cookTime, created, updated) and a free-form markdown body.\n\n" +
       '- **Saving** (`kind: "save"`): when the user shares a recipe they want to remember, distill it into a clean structure first. Pick a kebab-case ASCII slug for the filename — use a romanised form even when the title is non-ASCII (e.g. title `ピーマンの肉詰め` → slug `stuffed-peppers`). Title can be in the user\'s language. Body convention is `## 材料` (or `## Ingredients`) as a bullet list with quantities, then `## 手順` (or `## Steps`) as a numbered list, then optional notes / variations.\n' +
@@ -284,11 +344,10 @@ export const ROLES: Role[] = [
       "## Tone\n\n" +
       "Friendly, focused on the cooking — not the bookkeeping. Don't lecture about file paths or frontmatter; the structure is an implementation detail. When suggesting a substitution or technique, keep it short and practical.",
     // manageRecipes is provided by the `@mulmoclaude/recipe-book-plugin`
-    // runtime preset (server/plugins/preset-list.ts). Runtime plugins
-    // are auto-included in every role's active tool set regardless of
-    // `availablePlugins`, so it doesn't need to be listed here. Only
-    // host-static tools the role wants explicit go in this array.
-    availablePlugins: [TOOL_NAMES.presentForm, TOOL_NAMES.generateImage],
+    // runtime preset (`server/plugins/preset-list.ts`). Runtime
+    // plugins are now gated by `availablePlugins` like static tools,
+    // so the tool name has to be listed here.
+    availablePlugins: [TOOL_NAMES.manageRecipes, TOOL_NAMES.presentForm, TOOL_NAMES.generateImage],
     queries: [
       "Save my Mom's stuffed peppers recipe",
       "Show me the recipes I've saved",
@@ -317,9 +376,20 @@ export const ROLES: Role[] = [
       TOOL_NAMES.presentMulmoScript,
       TOOL_NAMES.generateImage,
       TOOL_NAMES.presentHtml,
+      TOOL_NAMES.mapControl,
+      TOOL_NAMES.managePhotoLocations,
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
       TOOL_NAMES.notify,
+      // Preset runtime plugins — same set as the `general` role plus
+      // the dev-only `manageDebug` plugin. Runtime plugins are gated
+      // by `availablePlugins` (see `general` role's note); listing
+      // them here keeps the debug role's "kitchen sink" promise.
+      TOOL_NAMES.manageBookmarks,
+      TOOL_NAMES.manageTodoList,
+      TOOL_NAMES.manageSpotify,
+      TOOL_NAMES.manageRecipes,
+      TOOL_NAMES.manageDebug,
     ],
     queries: [
       "Tell me about this app, MulmoClaude.",
@@ -355,6 +425,7 @@ export const BUILTIN_ROLE_IDS = {
   storyteller: "storyteller",
   settings: "settings",
   accounting: "accounting",
+  investor: "investor",
   cookingCoach: "cookingCoach",
   debug: "debug",
 } as const;

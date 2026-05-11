@@ -52,6 +52,10 @@ const HOST_TOOL_NAMES = {
 
   // Interactive / media
   putQuestions: "putQuestions",
+  // mapControl — Google Map render + Places + Directions, supplied by
+  // `@gui-chat-plugin/google-map`. Wired through `src/plugins/_extras.ts`
+  // (external-package binding pattern, same as mindmap / present3d).
+  mapControl: "mapControl",
   weather: "weather",
 
   // MCP tools (server-side, not GUI plugins — registered in
@@ -60,6 +64,26 @@ const HOST_TOOL_NAMES = {
   readXPost: "readXPost",
   searchX: "searchX",
   notify: "notify",
+
+  // Preset runtime plugins (`server/plugins/preset-list.ts`).
+  // Their `toolName` comes from the plugin package's
+  // `TOOL_DEFINITION.name` and is stable across versions. Listing
+  // them here gives `TOOL_NAMES.<x>` type safety in `roles.ts`,
+  // mirroring static GUI / MCP tools.
+  //
+  // Runtime plugins are now gated by `role.availablePlugins`
+  // (server/agent/activeTools.ts) — the previous "auto-included
+  // regardless of role" rule made `manageRecipes` etc. leak into
+  // every role and was a real bug. User-installed (non-preset)
+  // runtime plugins are accepted in `availablePlugins` as bare
+  // strings via the schema's permissive branch — see
+  // `availablePluginsSchema` in `src/config/roles.ts`.
+  manageBookmarks: "manageBookmarks",
+  manageTodoList: "manageTodoList",
+  manageSpotify: "manageSpotify",
+  manageRecipes: "manageRecipes",
+  manageDebug: "manageDebug",
+  edgar: "edgar",
 } as const;
 
 // Plugin-owned tool names auto-merged from each plugin's META.

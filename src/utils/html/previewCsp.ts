@@ -14,6 +14,13 @@ export const HTML_PREVIEW_CSP_ALLOWED_CDNS: readonly string[] = [
   "https://cdnjs.cloudflare.com",
   "https://fonts.googleapis.com",
   "https://fonts.gstatic.com",
+  // Plotly's official CDN. The LLM defaults to this URL when it
+  // includes a Sankey or other Plotly chart in presentHtml output —
+  // Plotly's docs recommend it, so unconditioned LLM output ends up
+  // pointing here. Also reachable through jsdelivr, but adding the
+  // first-party CDN keeps historical artifacts (where the URL is
+  // already baked into the file on disk) rendering correctly.
+  "https://cdn.plot.ly",
 ];
 
 /**

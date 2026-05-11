@@ -100,6 +100,91 @@ describe("parseSessionEntries", () => {
     const out = parseSessionEntries(entries);
     assert.equal(out.length, 1);
   });
+
+  // --- plugin-seeded chat marker (Phase 1 of Encore plan) ---------
+
+  it("does NOT mark seededByPlugin when sessionOrigin is undefined", () => {
+    const entries: SessionEntry[] = [{ source: "user", type: "text", message: "hi" }];
+    const out = parseSessionEntries(entries, undefined);
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, undefined);
+  });
+
+  it("does NOT mark seededByPlugin for non-plugin origins", () => {
+    const entries: SessionEntry[] = [{ source: "user", type: "text", message: "hi" }];
+    const out = parseSessionEntries(entries, "scheduler");
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, undefined);
+  });
+
+  it("marks the FIRST user turn with seededByPlugin when origin is plugin:<pkg>", () => {
+    const entries: SessionEntry[] = [
+      { source: "user", type: "text", message: "did you get your W-2?" },
+      { source: "assistant", type: "text", message: "Have you received your W-2?" },
+    ];
+    const out = parseSessionEntries(entries, "plugin:@mulmoclaude/encore-plugin");
+    const userData = out[0].data as Record<string, unknown>;
+    const assistantData = out[1].data as Record<string, unknown>;
+    assert.equal(userData.seededByPlugin, "@mulmoclaude/encore-plugin");
+    // Assistant turn must NOT be marked.
+    assert.equal(assistantData.seededByPlugin, undefined);
+  });
+
+  it("does NOT mark a SECOND user turn (only the first user turn is the seed)", () => {
+    const entries: SessionEntry[] = [
+      { source: "user", type: "text", message: "seed" },
+      { source: "assistant", type: "text", message: "ok" },
+      { source: "user", type: "text", message: "second user reply" },
+    ];
+    const out = parseSessionEntries(entries, "plugin:@mulmoclaude/encore-plugin");
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, "@mulmoclaude/encore-plugin");
+    assert.equal((out[2].data as Record<string, unknown>).seededByPlugin, undefined);
+  });
+
+  it("rejects plugin:<empty-pkg> as a non-plugin origin", () => {
+    const entries: SessionEntry[] = [{ source: "user", type: "text", message: "hi" }];
+    // `plugin:` with empty pkg should not match the plugin-tag regex.
+    const out = parseSessionEntries(entries, "plugin:" as never);
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, undefined);
+  });
+
+  // --- meta-row fallback for sessionOrigin (Codex review on PR #1237) -
+
+  it("falls back to session_meta.origin when sessionOrigin is undefined", () => {
+    // Simulates loadSession() racing fetchSessions() — serverSummary is
+    // undefined but the detail payload's meta row carries the origin.
+    const entries: SessionEntry[] = [
+      { type: "session_meta", roleId: "general", origin: "plugin:@mulmoclaude/encore-plugin" } as SessionEntry,
+      { source: "user", type: "text", message: "seed" },
+    ];
+    const out = parseSessionEntries(entries);
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, "@mulmoclaude/encore-plugin");
+  });
+
+  it("explicit sessionOrigin wins over session_meta.origin", () => {
+    // Summary's origin is the canonical source when both are present
+    // (server populates it from the same meta row, so they should agree
+    // — but if a stale summary disagrees with disk, prefer the caller).
+    const entries: SessionEntry[] = [
+      { type: "session_meta", roleId: "general", origin: "plugin:@a/p" } as SessionEntry,
+      { source: "user", type: "text", message: "seed" },
+    ];
+    const out = parseSessionEntries(entries, "plugin:@b/p");
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, "@b/p");
+  });
+
+  it("does NOT fall back when meta.origin is missing", () => {
+    const entries: SessionEntry[] = [{ type: "session_meta", roleId: "general" } as SessionEntry, { source: "user", type: "text", message: "seed" }];
+    const out = parseSessionEntries(entries);
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, undefined);
+  });
+
+  it("ignores malformed meta.origin (not a SessionOrigin)", () => {
+    const entries: SessionEntry[] = [
+      { type: "session_meta", roleId: "general", origin: "not-a-real-origin" } as SessionEntry,
+      { source: "user", type: "text", message: "seed" },
+    ];
+    const out = parseSessionEntries(entries);
+    assert.equal((out[0].data as Record<string, unknown>).seededByPlugin, undefined);
+  });
 });
 
 // --- resolveSelectedUuid ------------------------------------------
@@ -159,6 +244,34 @@ describe("resolveSelectedUuid — heuristic (last non-text)", () => {
 
   it("returns the only result regardless of type", () => {
     assert.equal(resolveSelectedUuid([makeResult("only", "text-response")], null), "only");
+  });
+});
+
+// #1218 — skill envelopes are text-like for selection (Codex
+// iter-3 fixed live-run behaviour; iter-4 surfaced the same
+// mismatch on reload). After a `Skill → body-split → assistant
+// reply` turn, reload should land on the reply, NOT re-pick the
+// skill card. Pinning the contract here so regression to the
+// old `toolName !== "text-response"` rule shows up immediately.
+describe("resolveSelectedUuid — skill envelopes count as text-like", () => {
+  it("falls back to the last result when only a skill card is present", () => {
+    const results = [makeResult("skill-1", "skill")];
+    assert.equal(resolveSelectedUuid(results, null), "skill-1");
+  });
+
+  it("picks the trailing reply text-response over a preceding skill card (the body-split case)", () => {
+    const results = [makeResult("user-1", "text-response"), makeResult("skill-1", "skill"), makeResult("reply-1", "text-response")];
+    assert.equal(resolveSelectedUuid(results, null), "reply-1");
+  });
+
+  it("picks a real plugin result over both skill and text-response", () => {
+    const results = [
+      makeResult("text-1", "text-response"),
+      makeResult("skill-1", "skill"),
+      makeResult("img-1", "generateImage"),
+      makeResult("reply-1", "text-response"),
+    ];
+    assert.equal(resolveSelectedUuid(results, null), "img-1");
   });
 });
 

@@ -8,6 +8,7 @@ describe("@mulmobridge/protocol exports", () => {
     const expected = [
       "status",
       "text",
+      "skill",
       "toolCall",
       "toolCallResult",
       "toolResult",

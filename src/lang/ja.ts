@@ -150,6 +150,31 @@ const jaMessages = {
       mcp: "MCP サーバ",
       dirs: "ディレクトリ",
       refs: "参照ディレクトリ",
+      map: "地図",
+      photos: "写真",
+    },
+    mapTab: {
+      description: "地図プラグインで使う Google Maps API キーを設定します。キーはローカルに保存され、Google Maps への通信以外で送信されることはありません。",
+      apiKeyLabel: "Google Maps API キー",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "{consoleLink} でキーを作成またはコピーしてください。",
+      requiredApis: "有効化が必要な API: Maps JavaScript API / Geocoding API / Places API (New) / Directions API",
+      configured: "設定済み",
+      notConfigured: "未設定",
+      clear: "クリア",
+      loadError: "設定の読み込みに失敗しました",
+      saveError: "保存に失敗しました",
+    },
+    photosTab: {
+      description:
+        "チャットや bridge 経由で受け取った写真のプライバシー設定。EXIF の位置情報は機微なため、自動取得を停止したい場合はチェックを外してください。",
+      autoCaptureLabel: "写真の位置情報を自動取得",
+      autoCaptureHint:
+        "ON のとき、EXIF に GPS を持つ画像をアップロードすると data/locations/ に sidecar が自動生成されます。OFF にすると自動取得は停止しますが、必要なときに LLM が手動で EXIF を読むことは可能です。",
+      statusOn: "自動取得は ON",
+      statusOff: "自動取得は OFF",
+      loadError: "設定の読み込みに失敗しました",
+      saveError: "保存に失敗しました",
     },
     // `<i18n-t>` スロット — `envKey` / `envFile` は SettingsModal.vue で
     // インラインの `<code>` として描画されるため、変数名とファイル名は
@@ -896,6 +921,21 @@ const jaMessages = {
     loadingSource: "ソースを読み込み中…",
     sourceError: "ソースの読み込みに失敗しました: {error}",
   },
+  pluginPresentSvg: {
+    saveAsPng: "PNG としてダウンロード",
+    png: "PNG",
+    saveAsPdf: "PDF として保存（印刷ダイアログを開きます）",
+    pdf: "PDF",
+    untitled: "SVG 図形",
+    editSource: "SVG ソースを編集",
+    cancel: "キャンセル",
+    applyChanges: "変更を適用",
+    saving: "保存中...",
+    saveError: "⚠ 保存に失敗しました: {error}",
+    exportError: "⚠ エクスポートに失敗しました: {error}",
+    loadingSource: "ソースを読み込み中…",
+    sourceError: "ソースの読み込みに失敗しました: {error}",
+  },
   pluginNews: {
     title: "ニュース",
     itemCount: "未読 {unread} / 全 {total}",
@@ -982,6 +1022,14 @@ const jaMessages = {
       noMatching: "現在のフィルタに一致するソースはありません。",
       clearFilter: "フィルタを解除",
     },
+  },
+  photoLocations: {
+    title: "写真の位置情報",
+    summary: "{total} 件取得済 · {withGps} 件 GPS あり",
+    mapHint: "Claude に「地図に表示して」と依頼すると、Google Map プラグインで一括表示できます。",
+    loading: "読み込み中…",
+    empty: "まだ写真の位置情報がありません。GPS タグ付きの写真をチャットまたは接続済 bridge 経由で送ると蓄積が始まります。",
+    noGps: "GPS データなし",
   },
   pluginManageSkills: {
     deleteProjectSkill: "このプロジェクト限定スキルを削除",
@@ -1097,6 +1145,11 @@ const jaMessages = {
     copyLabel: "コピー",
     copiedLabel: "コピーしました！",
     cancel: "キャンセル",
+    seededByPlugin: "{pkg} から",
+    seededByPluginTooltip: "このメッセージは {pkg} プラグインによって作成されたもので、あなたが送信したものではありません。",
+  },
+  pluginSkill: {
+    noDescription: "(説明なし)",
   },
   pluginSpreadsheet: {
     previewUntitled: "スプレッドシート",

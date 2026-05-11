@@ -9,9 +9,9 @@
 //
 // ─────────────────────────────────────────────────────────────────
 // MAINTENANCE — keep `PACKAGE_JSON` (devDeps) and `VITE_CONFIG`
-// in sync with the in-tree reference plugin (`packages/bookmarks-
-// plugin/`). When that one bumps `vite` / `typescript` / `vite-
-// plugin-dts` / `@vitejs/plugin-vue`, copy the same caret ranges
+// in sync with the in-tree reference plugin (`packages/plugins/
+// bookmarks-plugin/`). When that one bumps `vite` / `typescript` /
+// `vite-plugin-dts` / `@vitejs/plugin-vue`, copy the same caret ranges
 // here. The same goes for build-config tweaks (e.g. dropping
 // `rollupTypes: true` for TS-major bumps). See CLAUDE.md →
 // "Plugin scaffold sync" for the exact procedure.

@@ -18,6 +18,11 @@
 
 import type { PluginRuntime } from "gui-chat-protocol";
 import type { NotifierLifecycle, NotifierSeverity } from "./types.js";
+import type { TasksRuntimeApi } from "../plugins/runtime-tasks-api.js";
+import type { ChatRuntimeApi } from "../plugins/runtime-chat-api.js";
+
+export type { TasksRuntimeApi, PluginTaskRegistration, PluginTaskSchedule } from "../plugins/runtime-tasks-api.js";
+export type { ChatRuntimeApi, ChatStartInput, ChatStartResult } from "../plugins/runtime-chat-api.js";
 
 /** Caller-supplied input for the plugin-facing `publish`. Same shape
  *  as `PublishInput` minus `pluginPkg`, which the host fills in
@@ -59,8 +64,11 @@ export interface NotifierRuntimeApi {
 }
 
 /** The runtime shape MulmoClaude actually provides — the
- *  gui-chat-protocol `PluginRuntime` plus the host's notifier
- *  extension. */
+ *  gui-chat-protocol `PluginRuntime` plus the host's extensions:
+ *  notifier (publish/clear), tasks (one periodic tick per plugin),
+ *  and chat (seed a new chat with an instruction prompt). */
 export type MulmoclaudeRuntime = PluginRuntime & {
   notifier: NotifierRuntimeApi;
+  tasks: TasksRuntimeApi;
+  chat: ChatRuntimeApi;
 };

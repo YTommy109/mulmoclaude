@@ -7,6 +7,31 @@ Reference for the `presentHtml` plugin. The HTML you provide is saved to `artifa
 - Full document including `<!DOCTYPE html>` and `<html>` / `<body>` tags.
 - All CSS and JavaScript inline, or loaded via a public CDN. No local script / stylesheet files (the app does not host arbitrary `.css` / `.js`).
 
+### Allowed CDNs
+
+The preview iframe enforces a CSP that only permits a curated set of CDNs. **Use these origins or your script / stylesheet will be silently blocked** and the page will render broken (e.g. `Plotly is not defined` if the chart library was blocked):
+
+- `https://cdn.jsdelivr.net` — broadest coverage; preferred for any npm-shaped library
+- `https://unpkg.com` — same scope as jsdelivr; fallback
+- `https://cdnjs.cloudflare.com` — curated mirror; common for older libraries
+- `https://fonts.googleapis.com` + `https://fonts.gstatic.com` — Google Fonts
+- `https://cdn.plot.ly` — Plotly's first-party CDN (also reachable via jsdelivr)
+
+When in doubt, pull from `cdn.jsdelivr.net` — it mirrors most npm packages and is always safe. Examples:
+
+```html
+<!-- Plotly via jsdelivr (preferred) -->
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@2/plotly.min.js"></script>
+
+<!-- D3 -->
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+
+<!-- Tailwind (browser play CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+```
+
+If a library you need is hosted only on a CDN not in this list (e.g. `cdn.example.org`), inline the library code directly — do not link to an unlisted host.
+
 ## Referencing Workspace Files
 
 The output HTML lives three directory levels deep under `artifacts/`. To reference an image / chart / other artifact, use a **relative path with exactly three `../`** to climb out of `html/<YYYY>/<MM>/`:

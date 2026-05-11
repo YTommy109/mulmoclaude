@@ -27,6 +27,13 @@ export interface TextResponseData {
    *  page 1 of the PDF); leave false for chat / generic markdown so
    *  documents that literally start with `---\n…\n---\n` survive. */
   pdfStripFrontmatter?: boolean;
+  /** Pkg name of the plugin that seeded this user turn via
+   *  `runtime.chat.start()` (Phase 1 of the Encore plan). Set on the
+   *  first user message in a session whose origin is `plugin:<pkg>`,
+   *  drives the "from <pkg>" chip + muted background in the chat
+   *  view so the user can tell the message came from a plugin, not
+   *  themselves. Undefined for human-sent and assistant turns. */
+  seededByPlugin?: string;
 }
 
 export type TextResponseArgs = TextResponseData;

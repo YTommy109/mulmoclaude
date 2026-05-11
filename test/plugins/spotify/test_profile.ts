@@ -6,8 +6,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { getProfile, isPremium } from "../../../packages/spotify-plugin/src/profile.js";
-import type { SpotifyTokens } from "../../../packages/spotify-plugin/src/types.js";
+import { getProfile, isPremium } from "../../../packages/plugins/spotify-plugin/src/profile.js";
+import type { SpotifyTokens } from "../../../packages/plugins/spotify-plugin/src/types.js";
 
 const NOW_DATE = new Date("2026-05-05T00:00:00.000Z");
 const NOW = () => NOW_DATE;

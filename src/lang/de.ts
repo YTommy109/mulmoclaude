@@ -146,6 +146,32 @@ const deMessages = {
       mcp: "MCP-Server",
       dirs: "Verzeichnisse",
       refs: "Referenzverzeichnisse",
+      map: "Karte",
+      photos: "Fotos",
+    },
+    mapTab: {
+      description:
+        "Legt den Google-Maps-API-Schlüssel fest, den das Karten-Plugin verwendet. Der Schlüssel wird lokal gespeichert und nur an Google Maps gesendet.",
+      apiKeyLabel: "Google-Maps-API-Schlüssel",
+      apiKeyPlaceholder: "AIza…",
+      helperText: "Erstelle oder kopiere einen Schlüssel aus {consoleLink}.",
+      requiredApis: "Erforderliche APIs: Maps JavaScript API, Geocoding API, Places API (New), Directions API.",
+      configured: "Konfiguriert",
+      notConfigured: "Nicht konfiguriert",
+      clear: "Löschen",
+      loadError: "Einstellungen konnten nicht geladen werden",
+      saveError: "Speichern fehlgeschlagen",
+    },
+    photosTab: {
+      description:
+        "Datenschutzeinstellungen für Fotos, die per Chat oder verbundener Bridge empfangen wurden. EXIF-Standortdaten sind sensibel — Häkchen entfernen, um die automatische Erfassung zu deaktivieren.",
+      autoCaptureLabel: "Fotostandort automatisch erfassen",
+      autoCaptureHint:
+        "Aktiv: Für jedes hochgeladene Bild mit EXIF-GPS wird ein Standort-Sidecar in data/locations/ erzeugt. Aus: Es wird nichts automatisch erfasst; das LLM kann EXIF weiterhin auf Anforderung lesen.",
+      statusOn: "Automatische Erfassung AN",
+      statusOff: "Automatische Erfassung AUS",
+      loadError: "Einstellungen konnten nicht geladen werden",
+      saveError: "Speichern fehlgeschlagen",
     },
     // `<i18n-t>`-Slots — die Namen `envKey` / `envFile` werden in
     // SettingsModal.vue als Inline-`<code>` gerendert, sodass die
@@ -911,6 +937,21 @@ const deMessages = {
     loadingSource: "Quelltext wird geladen…",
     sourceError: "Quelltext konnte nicht geladen werden: {error}",
   },
+  pluginPresentSvg: {
+    saveAsPng: "Als PNG herunterladen",
+    png: "PNG",
+    saveAsPdf: "Als PDF speichern (öffnet Druckdialog)",
+    pdf: "PDF",
+    untitled: "SVG-Zeichnung",
+    editSource: "SVG-Quelltext bearbeiten",
+    cancel: "Abbrechen",
+    applyChanges: "Änderungen anwenden",
+    saving: "Wird gespeichert...",
+    saveError: "⚠ Speichern fehlgeschlagen: {error}",
+    exportError: "⚠ Export fehlgeschlagen: {error}",
+    loadingSource: "Quelltext wird geladen…",
+    sourceError: "Quelltext konnte nicht geladen werden: {error}",
+  },
   pluginNews: {
     title: "Nachrichten",
     itemCount: "{unread} ungelesen / {total} insgesamt",
@@ -998,6 +1039,14 @@ const deMessages = {
       noMatching: "Keine Quellen passen zum aktuellen Filter.",
       clearFilter: "Filter zurücksetzen",
     },
+  },
+  photoLocations: {
+    title: "Fotostandorte",
+    summary: "{total} erfasst · {withGps} mit GPS",
+    mapHint: 'Bitte Claude um "auf der Karte anzeigen", um sie mit dem Google-Map-Plugin einzuzeichnen.',
+    loading: "Lädt…",
+    empty: "Noch keine Fotostandorte erfasst. Sende ein Foto mit GPS-Tag über den Chat oder eine verbundene Bridge, um zu beginnen.",
+    noGps: "Keine GPS-Daten",
   },
   pluginManageSkills: {
     deleteProjectSkill: "Diese Projekt-Skill löschen",
@@ -1111,6 +1160,11 @@ const deMessages = {
     copyLabel: "Kopieren",
     copiedLabel: "Kopiert!",
     cancel: "Abbrechen",
+    seededByPlugin: "von {pkg}",
+    seededByPluginTooltip: "Diese Nachricht wurde vom Plugin {pkg} erstellt und nicht von Ihnen gesendet.",
+  },
+  pluginSkill: {
+    noDescription: "(keine Beschreibung)",
   },
   pluginSpreadsheet: {
     previewUntitled: "Tabelle",

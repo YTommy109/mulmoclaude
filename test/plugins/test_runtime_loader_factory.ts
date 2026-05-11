@@ -17,6 +17,7 @@ import path from "node:path";
 
 import { loadPluginFromCacheDir } from "../../server/plugins/runtime-loader.js";
 import { makePluginRuntime } from "../../server/plugins/runtime.js";
+import { createTaskManager } from "../../server/events/task-manager/index.js";
 import type { IPubSub } from "../../server/events/pub-sub/index.js";
 
 interface FixtureOpts {
@@ -75,7 +76,7 @@ export default definePlugin(({ pubsub }) => ({
     const { pubsub, published } = makeRecordingPubSub();
     const plugin = await loadPluginFromCacheDir("@fixture/plugin", "1.0.0", dir, {
       // Production wiring: each plugin gets a fresh scoped runtime.
-      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en" }),
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
     });
     assert.ok(plugin, "expected plugin to load");
     assert.equal(plugin.definition.name, "fixtureTool");

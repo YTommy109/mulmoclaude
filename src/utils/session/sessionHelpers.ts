@@ -4,8 +4,8 @@
 
 import { v4 as uuidv4 } from "uuid";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-import type { ActiveSession } from "../../types/session";
-import { makeTextResult } from "../tools/result";
+import type { ActiveSession, SkillScope } from "../../types/session";
+import { makeSkillResult, makeTextResult, SKILL_TOOL_NAME } from "../tools/result";
 import { shouldSelectAssistantText } from "../agent/toolCalls";
 
 /** Push a result and record its timestamp in one place. */
@@ -80,6 +80,42 @@ export function applyTextEvent(session: ActiveSession, message: string, source: 
     session.selectedResultUuid = textResult.uuid;
   }
 }
+
+/** Replace the trailing assistant text-response (the streamed skill
+ *  body from Claude CLI) with a collapsed skill card, preserving the
+ *  uuid so any view bound to that uuid (selection, scroll anchors)
+ *  doesn't lose its handle. Falls back to pushing a fresh skill
+ *  card if no assistant text-response is at the tail (e.g. flush
+ *  fired with no streamed deltas, or another result snuck in
+ *  between).  #1218 */
+export function applySkillEvent(
+  session: ActiveSession,
+  payload: {
+    skillName: string;
+    skillScope: SkillScope;
+    skillPath: string | null;
+    skillDescription: string | null;
+    message: string;
+  },
+): void {
+  const last = session.toolResults[session.toolResults.length - 1];
+  const lastData = last?.data as { role?: string } | undefined;
+  if (last?.toolName === "text-response" && lastData?.role === "assistant") {
+    const replacement = makeSkillResult(payload);
+    // Preserve uuid so selection / scroll anchors don't blink off.
+    Object.assign(last, { ...replacement, uuid: last.uuid });
+    return;
+  }
+  const skillResult = makeSkillResult(payload);
+  pushResult(session, skillResult);
+  if (shouldSelectAssistantText(session.toolResults, session.runStartIndex)) {
+    session.selectedResultUuid = skillResult.uuid;
+  }
+}
+
+// Re-export so callers don't need to import from `tools/result` for
+// the tool-name comparison constant.
+export { SKILL_TOOL_NAME };
 
 /** In-place update a result that was re-emitted by a plugin view
  *  (e.g. after the user edits a chart config). */

@@ -1,11 +1,11 @@
 import { onMounted, onBeforeUnmount } from "vue";
-import { IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_INLINE_SCRIPT } from "../utils/image/imageRepairInlineScript.js";
+import { IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED, IMAGE_REPAIR_INLINE_SCRIPT, findRepairTarget } from "../utils/image/imageRepairInlineScript.js";
 
 // Re-exported from the pure module so existing callers keep working.
 // New callers (server/index.ts splice, future iframe-injection
 // surfaces) should import from `../utils/image/imageRepairInlineScript.js`
 // directly to avoid pulling Vue lifecycle hooks into Node code paths.
-export { IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_INLINE_SCRIPT };
+export { IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_PATTERN_ENCODED, IMAGE_REPAIR_INLINE_SCRIPT, findRepairTarget };
 
 // Whitespace- and comma-bounded URL token inside a `srcset` value.
 // `srcset` is a comma-list of `<url> [descriptor]` entries; the
@@ -13,17 +13,31 @@ export { IMAGE_REPAIR_PATTERN, IMAGE_REPAIR_INLINE_SCRIPT };
 // (`1x`, `2x`, `100w`, …) survives the repair pass untouched.
 const SRCSET_TOKEN_RE = /[^\s,]+/g;
 
+// Pure srcset transform — runs `findRepairTarget` per URL token and
+// returns the rewritten srcset string. Descriptors (`1x`, `2x`,
+// `100w`, …) survive untouched because the token regex only matches
+// non-whitespace, non-comma runs. Extracted to keep `repairSourceSrc`
+// under the 20-line cap and to make the per-token logic independently
+// unit-testable. (CodeRabbit iter-1 nit.)
+function repairSrcsetTokens(srcset: string): string {
+  return srcset.replace(SRCSET_TOKEN_RE, (token) => {
+    const target = findRepairTarget(token);
+    return target ? `/${target}` : token;
+  });
+}
+
 export function repairImageSrc(img: HTMLImageElement): boolean {
   if (img.dataset.imageRepairTried) return false;
-  // Set the one-shot marker only AFTER confirming the URL matches the
-  // repair pattern. Otherwise an unrelated 404 (different domain, no
-  // artifacts/images segment) would pin the marker and silently block
-  // any future repair attempt on the same DOM element if the src is
-  // later replaced with a repairable one.
-  const match = img.src.match(IMAGE_REPAIR_PATTERN);
-  if (!match) return false;
+  // Set the one-shot marker only AFTER confirming the URL carries a
+  // recoverable artifacts/images segment (either unencoded or
+  // percent-encoded — see `findRepairTarget`). Otherwise an unrelated
+  // 404 would pin the marker and silently block a future repair
+  // attempt on the same DOM element when the src is later replaced
+  // with a repairable one.
+  const target = findRepairTarget(img.src);
+  if (!target) return false;
   img.dataset.imageRepairTried = "1";
-  img.src = `/${match[0]}`;
+  img.src = `/${target}`;
   return true;
 }
 
@@ -38,19 +52,15 @@ export function repairSourceSrc(source: HTMLSourceElement): boolean {
   let repaired = false;
   const src = source.getAttribute("src");
   if (src) {
-    const match = src.match(IMAGE_REPAIR_PATTERN);
-    if (match) {
-      source.setAttribute("src", `/${match[0]}`);
+    const target = findRepairTarget(src);
+    if (target) {
+      source.setAttribute("src", `/${target}`);
       repaired = true;
     }
   }
   if (source.srcset) {
-    const original = source.srcset;
-    const next = original.replace(SRCSET_TOKEN_RE, (token) => {
-      const tokenMatch = token.match(IMAGE_REPAIR_PATTERN);
-      return tokenMatch ? `/${tokenMatch[0]}` : token;
-    });
-    if (next !== original) {
+    const next = repairSrcsetTokens(source.srcset);
+    if (next !== source.srcset) {
       source.srcset = next;
       repaired = true;
     }

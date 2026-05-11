@@ -165,6 +165,8 @@ const HOST_API_ROUTES = {
     // `form` and `canvas` migrated to META — exposed at top-level
     // `API_ROUTES.presentForm.dispatch` / `API_ROUTES.canvas.dispatch`.
     present3d: "/api/present3d",
+    // mapControl — `@gui-chat-plugin/google-map` external package.
+    googleMap: "/api/google-map",
     // Runtime-loaded plugins (#1043 C-2). One generic dispatch
     // endpoint shared by every workspace-installed plugin; the URL
     // pkg parameter is the URL-encoded npm package name (e.g.
