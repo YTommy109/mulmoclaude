@@ -23,6 +23,7 @@
               :data-testid="`skill-group-toggle-${group.key}`"
               class="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:bg-gray-100 border-b border-gray-100"
               :aria-expanded="group.open"
+              :aria-controls="`skill-group-panel-${group.key}`"
               @click="toggleGroup(group.key)"
             >
               <span class="flex items-center gap-1">
@@ -33,7 +34,7 @@
                 {{ group.skills.length }}
               </span>
             </button>
-            <div v-if="group.open">
+            <div v-show="group.open" :id="`skill-group-panel-${group.key}`" role="group">
               <div
                 v-for="skill in group.skills"
                 :key="skill.name"
@@ -91,7 +92,7 @@
               </template>
               <template v-else>
                 <button
-                  v-if="detail && detail.source === 'project'"
+                  v-if="isSelectedEditable"
                   class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
                   :disabled="detailLoading"
                   data-testid="skill-edit-btn"
@@ -101,7 +102,7 @@
                   {{ t("pluginManageSkills.btnEdit") }}
                 </button>
                 <button
-                  v-if="detail && detail.source === 'project'"
+                  v-if="isSelectedEditable"
                   class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-40"
                   :disabled="detailLoading || deleting"
                   data-testid="skill-delete-btn"
@@ -308,6 +309,11 @@ const renderedBody = computed(() => {
   return sanitizeMarkdownHtml(marked(body) as string);
 });
 
+// Edit/Delete gate. Built-in (`mc-` prefix) project skills are read-only
+// because they ship with the app — editing them would mask a future
+// upstream update. Only user-authored project skills are mutable.
+const isSelectedEditable = computed(() => detail.value !== null && categorizeSkill(detail.value) === "project");
+
 // Reset the selection when the tool result is replaced (e.g. the
 // user opens a newer `manageSkills` invocation from the sidebar).
 watch(
@@ -428,7 +434,7 @@ function runSkill(): void {
 // when source !== "project". A native confirm() is enough for phase 1
 // since the action is reversible by re-saving via the conversation.
 async function deleteSkill(): Promise<void> {
-  if (!detail.value || detail.value.source !== "project") return;
+  if (!detail.value || categorizeSkill(detail.value) !== "project") return;
   const { name } = detail.value;
   if (!window.confirm(t("pluginManageSkills.confirmDelete", { name }))) {
     return;
