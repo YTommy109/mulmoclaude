@@ -37,6 +37,10 @@ export interface CookingRecipesMigrationOptions {
 interface MigrationResult {
   copied: number;
   skipped: number;
+  /** Number of `.md` source files whose copy threw an I/O error.
+   *  When non-zero the sentinel is NOT written, so the next boot
+   *  retries — transient failures don't become permanent. */
+  copyFailures: number;
   alreadyDone: boolean;
 }
 
@@ -49,20 +53,21 @@ export async function migrateCookingRecipesFromPlugin(opts: CookingRecipesMigrat
   const sentinelPath = path.join(cookingRecipes, SENTINEL_FILENAME);
 
   if (existsSync(sentinelPath)) {
-    return { copied: 0, skipped: 0, alreadyDone: true };
+    return { copied: 0, skipped: 0, copyFailures: 0, alreadyDone: true };
   }
   if (!existsSync(legacyDir)) {
     // No plugin storage to migrate from. Drop the sentinel so we
     // don't re-stat the source dir on every future boot.
     await mkdir(cookingRecipes, { recursive: true });
     await writeFile(sentinelPath, sentinelBody("no legacy source found"), "utf-8");
-    return { copied: 0, skipped: 0, alreadyDone: false };
+    return { copied: 0, skipped: 0, copyFailures: 0, alreadyDone: false };
   }
 
   await mkdir(cookingRecipes, { recursive: true });
   const entries = await readdir(legacyDir);
   let copied = 0;
   let skipped = 0;
+  let copyFailures = 0;
   for (const name of entries) {
     if (!name.endsWith(".md")) {
       skipped += 1;
@@ -72,7 +77,8 @@ export async function migrateCookingRecipesFromPlugin(opts: CookingRecipesMigrat
     const dst = path.join(cookingRecipes, name);
     if (existsSync(dst)) {
       // Don't overwrite a file the user may have hand-edited at the
-      // new location. Skip + log + carry on.
+      // new location. Skip + log + carry on — this is an intentional
+      // skip, not a failure, so it doesn't block the sentinel.
       log.warn("cooking-recipes", "migration: destination already exists, skipping", { name });
       skipped += 1;
       continue;
@@ -81,16 +87,25 @@ export async function migrateCookingRecipesFromPlugin(opts: CookingRecipesMigrat
       await copyFile(src, dst);
       copied += 1;
     } catch (err) {
-      log.warn("cooking-recipes", "migration: copy failed", { name, error: err instanceof Error ? err.message : String(err) });
-      skipped += 1;
+      // Transient I/O failures (disk full, EBUSY, permissions) MUST NOT
+      // mark migration as done — Codex review on PR #1287. Track
+      // separately from intentional skips so the sentinel-gate below
+      // can decide. Next boot retries the source files we missed.
+      log.warn("cooking-recipes", "migration: copy failed (will retry next boot)", { name, error: err instanceof Error ? err.message : String(err) });
+      copyFailures += 1;
     }
+  }
+
+  if (copyFailures > 0) {
+    log.warn("cooking-recipes", "migration: not marking complete — copy failures present", { copied, skipped, copyFailures });
+    return { copied, skipped, copyFailures, alreadyDone: false };
   }
 
   await writeFile(sentinelPath, sentinelBody(`copied=${copied} skipped=${skipped}`), "utf-8");
   if (copied > 0) {
     log.info("cooking-recipes", "migration from recipe-book-plugin complete", { copied, skipped, legacyDir, cookingRecipes });
   }
-  return { copied, skipped, alreadyDone: false };
+  return { copied, skipped, copyFailures: 0, alreadyDone: false };
 }
 
 function sentinelBody(detail: string): string {

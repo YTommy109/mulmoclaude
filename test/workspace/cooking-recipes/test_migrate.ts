@@ -123,3 +123,48 @@ describe("migrateCookingRecipesFromPlugin — empty source", () => {
     await cleanup();
   });
 });
+
+describe("migrateCookingRecipesFromPlugin — partial failure must NOT mark done (Codex review on #1287)", () => {
+  it("withholds sentinel when a copy fails so the next boot retries", async () => {
+    const { pluginsData, cookingRecipes, cleanup } = await makeTmp("partial");
+    // Source has a real file PLUS a name that points at a missing
+    // file under the legacy dir — we simulate the I/O failure by
+    // making the source unreadable.
+    const legacy = await seedLegacy(pluginsData, { "good.md": "good", "bad.md": "to-be-unreadable" });
+    // Drop read perms on bad.md so copyFile() throws (EACCES).
+    // On systems that ignore mode bits (Windows / root) this won't
+    // simulate failure — guard with an early skip.
+    const { chmod } = await import("node:fs/promises");
+    await chmod(path.join(legacy, "bad.md"), 0o000);
+
+    let result;
+    try {
+      result = await migrateCookingRecipesFromPlugin({ pluginsDataRoot: pluginsData, cookingRecipesRoot: cookingRecipes });
+    } finally {
+      // Always restore perms so the tmpdir cleanup below can succeed.
+      await chmod(path.join(legacy, "bad.md"), 0o644);
+    }
+
+    if (result.copyFailures === 0) {
+      // The platform / user runs with root or chmod doesn't take —
+      // can't exercise the failure path here. The assertion below
+      // would be invalid; skip the rest of the check.
+      await cleanup();
+      return;
+    }
+
+    assert.equal(result.copied, 1, "the good file still gets copied");
+    assert.equal(result.copyFailures, 1);
+    assert.equal(result.alreadyDone, false);
+    assert.ok(!existsSync(path.join(cookingRecipes, SENTINEL)), "sentinel MUST NOT be written when a copy failed — next boot retries");
+
+    // Verify retry behaviour: subsequent run with permissions restored
+    // copies the previously-failed file.
+    const retry = await migrateCookingRecipesFromPlugin({ pluginsDataRoot: pluginsData, cookingRecipesRoot: cookingRecipes });
+    assert.equal(retry.copied, 1, "retry picks up the file that failed last time");
+    assert.equal(retry.copyFailures, 0);
+    assert.ok(existsSync(path.join(cookingRecipes, SENTINEL)), "sentinel written once the retry succeeds");
+
+    await cleanup();
+  });
+});

@@ -31,8 +31,17 @@ to what the user said and skip them if they didn't say.
 
 **Step 2 — pick a kebab-case ASCII slug.** `ピーマンの肉詰め` → `stuffed-peppers`
 or `piman-no-nikuzume`. Use a romanised form even when the title is non-ASCII.
-Keep it short. If a recipe with that slug already exists, ask the user (don't
-overwrite without permission).
+
+The slug MUST match the pattern `^[a-z0-9]+(-[a-z0-9]+)*$` — lowercase ASCII
+letters / digits, single hyphens between segments only, no leading / trailing /
+consecutive hyphens, no whitespace, no punctuation (no apostrophes,
+parentheses, accents). Max 64 characters. If the romanisation has any of
+those, strip / replace them before saving. The strict pattern is also a
+**safety boundary**: it's how the delete workflow below stays free of shell-
+metacharacter concerns.
+
+If a recipe with that slug already exists, ask the user (don't overwrite
+without permission).
 
 **Step 3 — Write the recipe file** at `data/cooking/recipes/<slug>.md`:
 
@@ -45,6 +54,7 @@ tags:
 servings: 4
 prepTime: 15
 cookTime: 20
+restTime: 0
 created: 2026-05-11T12:00:00.000Z
 updated: 2026-05-11T12:00:00.000Z
 ---
@@ -73,9 +83,12 @@ Title can be in the user's language. Body convention: `## 材料` (or `## Ingred
 as a bullet list with quantities, then `## 手順` (or `## Steps`) as a numbered list,
 then optional `## メモ` / `## Notes` / `## バリエーション` sections.
 
-`servings`, `prepTime`, `cookTime` are all integers and all optional — omit if
-the user didn't volunteer them. `tags` is a free-form list. `created` and
-`updated` are ISO timestamps; on a fresh save they're the same.
+`servings`, `prepTime`, `cookTime`, `restTime` are all integers (in minutes
+for the time fields) and all optional — omit if the user didn't volunteer
+them. `restTime` covers non-active time like marinating, chilling, proofing,
+resting — anything where the user isn't doing work; keep `cookTime` for
+active cooking only so totals stay accurate. `tags` is a free-form list.
+`created` and `updated` are ISO timestamps; on a fresh save they're the same.
 
 **Step 4 — regenerate `data/cooking/recipes/README.md`** (see "The README index"
 below).
@@ -110,8 +123,17 @@ frontmatter:
 
 Then regenerate `README.md`.
 
-**Delete**: only when the user explicitly asks. Use the Bash tool (`rm
-data/cooking/recipes/<slug>.md`) and regenerate `README.md`. Confirm afterward.
+**Delete**: only when the user explicitly asks. **Re-validate the slug
+against `^[a-z0-9]+(-[a-z0-9]+)*$` BEFORE running the command** — if it
+fails the pattern, refuse and ask the user to confirm by name. When valid,
+quote the path even though the slug pattern already excludes shell
+metacharacters (belt + braces):
+
+```bash
+rm "data/cooking/recipes/<slug>.md"
+```
+
+Then regenerate `README.md`. Confirm afterward.
 
 ## Workflow 4: visualise
 
@@ -123,9 +145,16 @@ per request unless they ask for variations.
 ## The README index — keep it current
 
 After every save / update / delete, regenerate `data/cooking/recipes/README.md`
-from the files currently in the directory (use `Bash: ls data/cooking/recipes/*.md`
-or the Files tool to enumerate, then Read each frontmatter you don't already
-know).
+from the recipe files currently in the directory. Enumerate with the Files
+tool, or with Bash. **The enumeration MUST exclude `README.md` itself** —
+otherwise the index treats its own catalogue as a recipe and emits a
+self-referential entry. Convenient form:
+
+```bash
+ls data/cooking/recipes/*.md | grep -v '/README\.md$'
+```
+
+Then Read each frontmatter you don't already know.
 
 Format:
 
@@ -137,16 +166,16 @@ Format:
 
 ## 主菜
 
-- [ピーマンの肉詰め](stuffed-peppers.md) — 和食 / 4 人分 / 35 分
-- [ラザニア](lasagna.md) — イタリアン / 6 人分 / 90 分
+- [ピーマンの肉詰め](stuffed-peppers.md) — 和食 / 4 人分 / 15 + 20 分
+- [ラザニア](lasagna.md) — イタリアン / 6 人分 / 30 + 60 分
 
 ## 副菜・スープ
 
-- [豚汁](tonjiru.md) — 和食 / 4 人分 / 30 分
+- [豚汁](tonjiru.md) — 和食 / 4 人分 / 10 + 20 分
 
 ## デザート
 
-- [チョコレートムース](chocolate-mousse.md) — フレンチ / 4 人分 / 20 分 + 冷却 2 h
+- [チョコレートムース](chocolate-mousse.md) — フレンチ / 4 人分 / 20 分 + 冷却 120 分
 
 ## (タグ未分類)
 
@@ -157,10 +186,15 @@ Rules for the README:
 
 - **Group by primary tag** (the first item in the recipe's `tags`) when there's
   a meaningful taxonomy in use; fall back to "(タグ未分類)" otherwise.
-- **One bullet per recipe**: `[Title](slug.md) — tags / servings / total time`.
-  Use long-form units in the user's language (人分, 分, mins, etc.). Total time
-  = `prepTime + cookTime` if both are set; otherwise show whichever is set;
-  otherwise omit. Tags are slash-joined.
+- **One bullet per recipe**: `[Title](slug.md) — tags / servings / time`.
+  Use long-form units in the user's language (人分, 分, mins, etc.). The
+  time column composes `prepTime + cookTime` (active time only) plus a
+  trailing `+ rest <restTime> 分` suffix when `restTime` is present. Examples:
+    - all three set: `15 + 20 分 + 冷却 120 分`
+    - prepTime + cookTime only: `35 分`
+    - restTime only: `冷却 120 分`
+    - none set: omit the time column entirely
+  Tags are slash-joined.
 - **Don't include `created` / `updated` dates** — they're noisy and rarely
   what the user wants to scan for.
 - **Alphabetical within each group** by display title (Japanese / English
