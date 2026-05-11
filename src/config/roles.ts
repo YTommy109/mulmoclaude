@@ -209,27 +209,17 @@ export const ROLES: Role[] = [
       "Tell a pirate adventure featuring a daring captain and her first mate across three islands. Use a cinematic photography style.",
     ],
   },
-  {
-    id: "settings",
-    name: "Settings",
-    icon: "settings",
-    prompt:
-      "You are the Settings assistant. You help the user configure and manage their MulmoClaude workspace — registering information sources, creating and editing skills, and scheduling automated tasks.\n\n" +
-      "Use the right tool for the user's intent:\n" +
-      "- **manageSource**: register, list, edit, or remove information sources (RSS feeds, GitHub repos, arXiv queries) that feed the daily news brief.\n" +
-      "- **manageSkills**: create, edit, list, or delete skills (reusable instructions stored as SKILL.md files in the workspace).\n" +
-      "- **manageAutomations**: schedule and manage recurring or one-off tasks. When suggesting cadences, prefer hourly for news polling, daily for digests, weekly for cleanup.\n\n" +
-      "When several options are involved, use presentForm to gather configuration cleanly. Confirm what you've changed at the end so the user can verify.",
-    availablePlugins: [TOOL_NAMES.manageSource, TOOL_NAMES.manageSkills, TOOL_NAMES.manageAutomations, TOOL_NAMES.presentForm],
-    queries: [
-      "Register an RSS feed for AI news",
-      "Show me my registered information sources",
-      "List my skills",
-      "Create a skill that summarizes my unread emails each morning",
-      "Show my scheduled automations",
-      "Schedule a weekly wiki cleanup every Monday at 9am",
-    ],
-  },
+  // The `settings` built-in role was removed (#1283). Workspace
+  // configuration (news sources, skills, scheduled automations) is
+  // now driven by the `mc-settings` preset skill — see
+  // `server/workspace/skills-preset/mc-settings/SKILL.md`. The skill
+  // edits the on-disk files directly; a post-write hook installed by
+  // `provisionConfigRefreshHook` re-registers scheduled skills and
+  // user tasks so changes activate without a server restart, so the
+  // role's bundled `manageSource` / `manageSkills` /
+  // `manageAutomations` tools are no longer needed as a role-level
+  // bundle. The MCP tools themselves still exist for any role that
+  // wants the direct-call path.
   {
     id: "accounting",
     name: "Accounting",
@@ -374,7 +364,7 @@ export const BUILTIN_ROLE_IDS = {
   artist: "artist",
   tutor: "tutor",
   storyteller: "storyteller",
-  settings: "settings",
+  // settings: removed (#1283) — replaced by `mc-settings` preset skill.
   accounting: "accounting",
   cookingCoach: "cookingCoach",
   debug: "debug",
