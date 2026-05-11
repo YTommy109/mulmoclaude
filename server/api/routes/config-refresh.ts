@@ -1,7 +1,9 @@
 // POST /api/config/refresh — wraps `refreshScheduledSkills()` +
-// `refreshUserTasks()` into one endpoint so the `mc-settings` skill's
+// `refreshUserTasks()` into one endpoint so the config-refresh
 // PostToolUse hook (#1283) can fire-and-forget after Write/Edit of
 // the relevant config files without knowing which refreshers exist.
+// Serves the `mc-manage-skills` + `mc-manage-automations` preset
+// skills (split out from the original `mc-settings` in #1295).
 //
 // Best-effort by design: failures from one refresher don't block the
 // other; the response is always 200 with a per-refresher status so the

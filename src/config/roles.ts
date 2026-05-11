@@ -217,15 +217,18 @@ export const ROLES: Role[] = [
       "Tell a pirate adventure featuring a daring captain and her first mate across three islands. Use a cinematic photography style.",
     ],
   },
-  // The `settings` built-in role was removed (#1283). Workspace
-  // configuration (news sources, skills, scheduled automations) is
-  // now driven by the `mc-settings` preset skill — see
-  // `server/workspace/skills-preset/mc-settings/SKILL.md`. The skill
-  // edits the on-disk files directly; a post-write hook installed by
-  // `provisionConfigRefreshHook` re-registers scheduled skills and
-  // user tasks so changes activate without a server restart, so the
-  // role's bundled `manageSource` / `manageSkills` /
-  // `manageAutomations` tools are no longer needed as a role-level
+  // The `settings` built-in role was removed (#1283) and the
+  // `mc-settings` skill that replaced it was split (#1295) into
+  // three focused preset skills so Claude's discovery layer can pick
+  // the right one from a single user phrase:
+  //   - `mc-manage-skills`      — `<workspace>/.claude/skills/<slug>/SKILL.md`
+  //   - `mc-manage-sources`     — `<workspace>/sources/<slug>.md`
+  //   - `mc-manage-automations` — `<workspace>/config/scheduler/tasks.json`
+  // Each skill edits the on-disk files directly; the post-write hook
+  // installed by `provisionConfigRefreshHook` re-registers scheduled
+  // skills and user tasks so changes activate without a server
+  // restart. Role-level `manageSource` / `manageSkills` /
+  // `manageAutomations` tools are therefore no longer needed as a
   // bundle. The MCP tools themselves still exist for any role that
   // wants the direct-call path.
   {
@@ -397,7 +400,10 @@ export const BUILTIN_ROLE_IDS = {
   artist: "artist",
   tutor: "tutor",
   storyteller: "storyteller",
-  // settings: removed (#1283) — replaced by `mc-settings` preset skill.
+  // settings: removed (#1283) — replaced by `mc-manage-skills` /
+  // `mc-manage-sources` / `mc-manage-automations` preset skills (the
+  // single-skill `mc-settings` originally introduced in #1283 was
+  // split into three in #1295 for stronger discovery).
   accounting: "accounting",
   investor: "investor",
   // cookingCoach: removed (#1286) — replaced by `mc-cooking-coach` preset skill.

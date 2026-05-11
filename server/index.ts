@@ -1080,9 +1080,10 @@ process.on("SIGTERM", () => {
     });
   });
 
-  // mc-settings auto-refresh hook (#1283). Installs a PostToolUse
-  // entry that fires POST /api/config/refresh after Write/Edit on
-  // SKILL.md or scheduler tasks.json so the `mc-settings` skill can
+  // config-refresh auto-refresh hook (#1283, #1295). Installs a
+  // PostToolUse entry that fires POST /api/config/refresh after
+  // Write/Edit on SKILL.md or scheduler tasks.json so the
+  // `mc-manage-skills` and `mc-manage-automations` preset skills can
   // drive workspace settings via plain file edits without leaving
   // scheduled jobs stuck on the pre-edit definition.
   await provisionConfigRefreshHook().catch((err) => {

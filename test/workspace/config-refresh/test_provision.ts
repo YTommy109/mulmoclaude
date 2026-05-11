@@ -1,7 +1,8 @@
-// Unit tests for the `mc-settings` auto-refresh hook provisioning
-// (#1283). Provisioning must be idempotent, coexist with the
-// existing `mulmoclaudeWikiHistory`-owned entry, and never clobber
-// user-set keys in `.claude/settings.json`.
+// Unit tests for the config-refresh auto-refresh hook provisioning
+// (#1283; serves `mc-manage-skills` + `mc-manage-automations` after
+// the split in #1295). Provisioning must be idempotent, coexist with
+// the existing `mulmoclaudeWikiHistory`-owned entry, and never
+// clobber user-set keys in `.claude/settings.json`.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
