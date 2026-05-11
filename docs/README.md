@@ -16,6 +16,7 @@ Guides for using MulmoClaude. No programming knowledge required.
 | [LINE セットアップ](message_apps/line/README.ja.md)         | 日本語   | LINE bot の作成と接続手順 (ngrok 必要)                  |
 | [Relay Setup](message_apps/relay/README.md)                 | English  | Deploy a cloud relay — no ngrok, offline queue          |
 | [Relay セットアップ](message_apps/relay/README.ja.md)       | 日本語   | クラウドリレーのデプロイ — ngrok 不要、オフラインキュー |
+| [Claude Code → MulmoClaude 移行ガイド](migrating-from-claude-code.md) | 日本語 | 普段 Claude Code (CLI) を使っているユーザ向けの移行手順 — skill / MCP / hooks / settings の引っ越し早見表 |
 
 ## Tips & Integrations
 
@@ -39,6 +40,14 @@ Guides for using MulmoClaude. No programming knowledge required.
 | [Image-path Routing — Research](image-path-routing.md)            | English  | Read-only audit of how the LLM's image references become browser-loadable URLs                                     |
 | [Image-path Routing — 設計議論](discussion-image-path-routing.md) | 日本語   | 画像パスのルーティング再設計の議論メモと段階的実装計画                                                             |
 | [Wiki / HTML 表示サーフェス](wiki-html-render-surfaces.md)        | 日本語   | Wiki / HTML / Markdown が表示される複数箇所の差異 (権限・画像パス解決) を整理                                      |
+
+## Extension Mechanisms
+
+Before adding a new feature, pick the right extension path. The document below compares all seven (built-in plugin / runtime plugin / external MCP / skill / role / bridge / built-in MCP-only tool), maps which capabilities each one offers, and gives the project's design priority (skill-first; plugin / role only as last resort).
+
+| Document                                                          | Language | Description                                                                                                                                                                            |
+| ----------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Extension Mechanisms — どこに何を作るか](extension-mechanisms.md) | 日本語   | 7 つの拡張経路の比較・capability マトリクス・判断ガイド・設計指針 (skill ファースト / plugin と role は極力増やさない方針)                                                              |
 
 ## Plugin Authoring
 
