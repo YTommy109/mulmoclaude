@@ -148,18 +148,37 @@ function safeParse(raw: string): SettingsShape {
   return {};
 }
 
-// Pure helper exported for unit testing. Apply the desired
-// dispatcher entry, strip every legacy-marker entry, and return the
-// new settings object. Existing user-owned entries (under matchers
-// like `Bash` or with no owner marker) are preserved.
+// Pure helper exported for unit testing. Strip every MulmoClaude-
+// owned (or legacy-owned) hook descriptor from `PostToolUse`,
+// preserving every sibling descriptor and entry that wasn't ours.
+// Then append the desired dispatcher entry. Returns the new
+// settings object.
+//
+// Stripping happens at the descriptor level, NOT the entry level
+// (Codex review on this PR): a user-owned hook descriptor sharing a
+// matcher with one of our legacy entries — e.g.
+//
+//   { matcher: "Write|Edit",
+//     hooks: [
+//       { type: "command", command: "user-thing.sh" },        // keep
+//       { type: "command", command: "wiki-snapshot.mjs",      // drop
+//         mulmoclaudeWikiHistory: true },
+//     ] }
+//
+// must survive. The previous entry-level filter dropped the whole
+// object, silently deleting the user's hook.
 export function upsertDispatcherEntry(settings: SettingsShape): SettingsShape {
   const hooks = settings.hooks ?? {};
   const rawPostToolUse = hooks.PostToolUse;
   const postToolUse = Array.isArray(rawPostToolUse) ? rawPostToolUse : [];
 
-  // Drop any legacy MulmoClaude-owned entries — they are subsumed
-  // by the dispatcher and would otherwise double-fire.
-  const filtered = postToolUse.filter((entry) => !entryHasLegacyMarker(entry) && !entryHasOwnedMarker(entry));
+  const cleaned = postToolUse
+    .map(stripOwnedDescriptors)
+    // Drop any entry whose `hooks` array is empty after stripping
+    // — those were 100% ours and only existed to host our hook.
+    // Keeping an empty `hooks` array would be a Claude Code
+    // schema-violation noise file.
+    .filter((entry) => Array.isArray(entry.hooks) && entry.hooks.length > 0);
 
   const desiredEntry: HookMatcher = {
     // Bash matcher is required so the skill-bridge delete branch
@@ -179,17 +198,24 @@ export function upsertDispatcherEntry(settings: SettingsShape): SettingsShape {
     ...settings,
     hooks: {
       ...hooks,
-      PostToolUse: [...filtered, desiredEntry],
+      PostToolUse: [...cleaned, desiredEntry],
     },
   };
 }
 
-function entryHasOwnedMarker(entry: HookMatcher): boolean {
-  if (!Array.isArray(entry.hooks)) return false;
-  return entry.hooks.some((hook) => hook[OWNER_MARKER] === true);
+// Remove every MulmoClaude-owned descriptor (current marker +
+// legacy markers) from one HookMatcher entry. Preserves sibling
+// descriptors and every non-`hooks` field on the entry. Entries
+// without a `hooks` array pass through unchanged — defensive
+// against future schema fields we don't yet model.
+function stripOwnedDescriptors(entry: HookMatcher): HookMatcher {
+  if (!Array.isArray(entry.hooks)) return entry;
+  const nextHooks = entry.hooks.filter((hook) => !isOwnedDescriptor(hook));
+  if (nextHooks.length === entry.hooks.length) return entry;
+  return { ...entry, hooks: nextHooks };
 }
 
-function entryHasLegacyMarker(entry: HookMatcher): boolean {
-  if (!Array.isArray(entry.hooks)) return false;
-  return entry.hooks.some((hook) => LEGACY_MARKERS.some((marker) => hook[marker] === true));
+function isOwnedDescriptor(hook: HookCommandEntry): boolean {
+  if (hook[OWNER_MARKER] === true) return true;
+  return LEGACY_MARKERS.some((marker) => hook[marker] === true);
 }

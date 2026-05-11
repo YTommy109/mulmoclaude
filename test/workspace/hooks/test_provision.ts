@@ -132,6 +132,80 @@ describe("provisionDispatcherHook — legacy migration", () => {
   });
 });
 
+describe("provisionDispatcherHook — descriptor-level stripping", () => {
+  it("preserves user-owned hook descriptors that share an entry with a MulmoClaude marker", async () => {
+    // Codex regression: previously the migration filtered at the
+    // entry level (whole HookMatcher), so a user-owned descriptor
+    // co-located in the same matcher as our legacy entry was
+    // silently deleted. The fix strips descriptors individually.
+    const root = await mkdtemp(path.join(tmpdir(), "hooks-prov-mixed-"));
+    await mkdir(path.join(root, ".claude", "hooks"), { recursive: true });
+    const mixed = {
+      hooks: {
+        PostToolUse: [
+          {
+            matcher: "Write|Edit",
+            hooks: [
+              // User's own hook — must survive.
+              { type: "command", command: "node my-formatter.mjs" },
+              // Legacy MulmoClaude entry — must be stripped.
+              { type: "command", command: 'node "$CLAUDE_PROJECT_DIR/.claude/hooks/wiki-snapshot.mjs"', mulmoclaudeWikiHistory: true },
+              // Another user hook — must survive.
+              { type: "command", command: "node my-tracker.mjs" },
+            ],
+          },
+        ],
+      },
+    };
+    await writeFile(path.join(root, ".claude", "settings.json"), `${JSON.stringify(mixed, null, 2)}\n`, "utf-8");
+
+    await provisionDispatcherHook({ workspaceRoot: root });
+
+    const settings = await readSettings(root);
+    const entries = settings.hooks?.PostToolUse ?? [];
+    // Two entries left: the surviving mixed entry (user hooks only)
+    // and the appended dispatcher entry.
+    assert.equal(entries.length, 2);
+    const survivingMixed = entries.find((entry) => entry.matcher === "Write|Edit");
+    assert.ok(survivingMixed, "mixed user/MC entry must survive when user descriptors remain");
+    const commands = (survivingMixed.hooks ?? []).map((hook) => hook.command);
+    assert.deepEqual(commands, ["node my-formatter.mjs", "node my-tracker.mjs"]);
+
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("drops the entry entirely when stripping leaves the hooks array empty", async () => {
+    // A pre-unification entry that contained ONLY our legacy hook
+    // (no user siblings) has nothing left after stripping. Keep
+    // an empty `hooks: []` would be a schema-noise file; drop the
+    // entry.
+    const root = await mkdtemp(path.join(tmpdir(), "hooks-prov-empty-"));
+    await mkdir(path.join(root, ".claude", "hooks"), { recursive: true });
+    const onlyOurs = {
+      hooks: {
+        PostToolUse: [
+          {
+            matcher: "Write|Edit",
+            hooks: [{ type: "command", command: 'node "$CLAUDE_PROJECT_DIR/.claude/hooks/wiki-snapshot.mjs"', mulmoclaudeWikiHistory: true }],
+          },
+        ],
+      },
+    };
+    await writeFile(path.join(root, ".claude", "settings.json"), `${JSON.stringify(onlyOurs, null, 2)}\n`, "utf-8");
+
+    await provisionDispatcherHook({ workspaceRoot: root });
+
+    const settings = await readSettings(root);
+    const entries = settings.hooks?.PostToolUse ?? [];
+    // Just the dispatcher entry — the now-empty Write|Edit entry
+    // is gone, not a no-hooks zombie.
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].hooks?.[0]?.[OWNER_MARKER], true);
+
+    await rm(root, { recursive: true, force: true });
+  });
+});
+
 describe("upsertDispatcherEntry — pure helper", () => {
   it("dedupes our own marker on repeated calls", () => {
     const first = upsertDispatcherEntry({});
