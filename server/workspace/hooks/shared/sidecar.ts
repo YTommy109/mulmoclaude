@@ -100,3 +100,24 @@ export async function safePost(req: PostRequest | null, timeoutMs = DEFAULT_TIME
     clearTimeout(timer);
   }
 }
+
+// Forward a structured log line into the server's logger via
+// `POST /api/hooks/log`. Handlers call this after each meaningful
+// side-effect (mirror copy, delete, etc.) so the user can verify
+// from server logs that the hook fired and what it did. The endpoint
+// authenticates via bearer token (same as every other internal hook
+// POST); a missing token / port is the silent no-op safePost
+// already handles. 1 s timeout — logging shouldn't stall the user's
+// tool turn even if the server is briefly slow.
+const LOG_TIMEOUT_MS = 1000;
+
+export async function serverLog(namespace: string, message: string, options: { level?: "info" | "warn" | "error"; data?: object } = {}): Promise<void> {
+  const body = {
+    namespace,
+    message,
+    level: options.level ?? "info",
+    ...(options.data ? { data: options.data } : {}),
+  };
+  const req = buildAuthPost("/api/hooks/log", body);
+  await safePost(req, LOG_TIMEOUT_MS);
+}

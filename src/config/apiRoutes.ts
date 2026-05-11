@@ -249,6 +249,19 @@ const HOST_API_ROUTES = {
   // `useTodos` (`@mulmoclaude/todo-plugin/composables`); no
   // host-managed routes remain.
 
+  hooks: {
+    /** Internal endpoint hit by the PostToolUse dispatcher
+     *  (`<workspace>/.claude/hooks/mulmoclaude-dispatcher.mjs`) to
+     *  forward debug / status lines into the server's structured
+     *  logger. Without this, hook handlers (skill-bridge mirror copy
+     *  etc.) silently succeed and a user trying to verify a copy
+     *  ran has no signal to look at. POST body:
+     *    { namespace: string; message: string;
+     *      level?: "info" | "warn" | "error"; data?: object }
+     *  Never called by the Vue client. */
+    log: "/api/hooks/log",
+  },
+
   wiki: {
     base: "/api/wiki",
     /** History routes (#763 PR 2). `:slug` and `:stamp` are filled in

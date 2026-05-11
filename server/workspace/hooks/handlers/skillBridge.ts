@@ -35,6 +35,7 @@
 
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { serverLog } from "../shared/sidecar.js";
 import type { HookPayload } from "../shared/stdin.js";
 import { extractCommand, extractFilePath, extractToolName } from "../shared/stdin.js";
 import { workspaceRoot } from "../shared/workspace.js";
@@ -123,35 +124,56 @@ function mirrorDelete(slug: string): void {
   rmSync(claudeSkillDir(slug), { recursive: true, force: true });
 }
 
+async function handleWriteOrEdit(payload: HookPayload): Promise<void> {
+  const filePath = extractFilePath(payload);
+  if (!filePath) return;
+  const slug = slugFromDataPath(filePath);
+  if (slug === null) return;
+  try {
+    mirrorWrite(slug);
+    // Server-side log line so the user can see from
+    // `server-<date>.log` that the hook fired and what it did.
+    // Without this the mirror is invisible — a successful copy
+    // and "the hook never ran" look identical from the chat UI.
+    await serverLog("skill-bridge", `mirrored ${dataSkillFilePath(slug)} → ${claudeSkillFilePath(slug)}`, { data: { slug, op: "write" } });
+  } catch (err) {
+    // The Write itself succeeded; a failed mirror would leave the
+    // staging copy in place. Surface the failure to server logs
+    // (so the user has a chance to react) but never throw — the
+    // user's tool turn must stay clean.
+    await serverLog("skill-bridge", `mirror write failed for slug=${slug}`, {
+      level: "error",
+      data: { slug, error: err instanceof Error ? err.message : String(err) },
+    });
+  }
+}
+
+async function handleBash(payload: HookPayload): Promise<void> {
+  const command = extractCommand(payload);
+  if (!command) return;
+  const slug = slugFromRmCommand(command);
+  if (slug === null) return;
+  try {
+    mirrorDelete(slug);
+    await serverLog("skill-bridge", `removed ${claudeSkillDir(slug)}`, { data: { slug, op: "delete" } });
+  } catch (err) {
+    // Same silent-fail discipline — a missed delete leaves an
+    // orphan in `.claude/skills/` that the user can clean up
+    // manually, which is better than aborting the tool turn.
+    await serverLog("skill-bridge", `mirror delete failed for slug=${slug}`, {
+      level: "error",
+      data: { slug, error: err instanceof Error ? err.message : String(err) },
+    });
+  }
+}
+
 export async function handleSkillBridge(payload: HookPayload): Promise<void> {
   const tool = extractToolName(payload);
-
   if (tool === "Write" || tool === "Edit") {
-    const filePath = extractFilePath(payload);
-    if (!filePath) return;
-    const slug = slugFromDataPath(filePath);
-    if (slug === null) return;
-    try {
-      mirrorWrite(slug);
-    } catch {
-      // The Write itself succeeded; a failed mirror would leave the
-      // staging copy in place. Silent fail keeps the user's tool
-      // turn clean; the next save retries.
-    }
+    await handleWriteOrEdit(payload);
     return;
   }
-
   if (tool === "Bash") {
-    const command = extractCommand(payload);
-    if (!command) return;
-    const slug = slugFromRmCommand(command);
-    if (slug === null) return;
-    try {
-      mirrorDelete(slug);
-    } catch {
-      // Same silent-fail discipline — a missed delete leaves an
-      // orphan in `.claude/skills/` that the user can clean up
-      // manually, which is better than aborting the tool turn.
-    }
+    await handleBash(payload);
   }
 }

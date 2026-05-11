@@ -26,6 +26,7 @@ import pdfRoutes from "./api/routes/pdf.js";
 import filesRoutes from "./api/routes/files.js";
 import configRoutes from "./api/routes/config.js";
 import configRefreshRoutes from "./api/routes/config-refresh.js";
+import hookLogRoutes from "./api/routes/hookLog.js";
 import skillsRoutes from "./api/routes/skills.js";
 import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
 import { loadRuntimePlugins } from "./plugins/runtime-loader.js";
@@ -564,6 +565,7 @@ app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
 app.use(configRefreshRoutes);
+app.use(hookLogRoutes);
 app.use(skillsRoutes);
 app.use(runtimePluginRoutes);
 async function listSessionsForBridge(opts: { limit: number; offset: number }) {
