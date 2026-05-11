@@ -72,20 +72,6 @@ describe("buildCliArgs", () => {
     assert.ok(args.includes("--allowedTools"));
   });
 
-  it("runs the spawned CLI in bypassPermissions mode", async () => {
-    // The host GUI never surfaces Claude Code's permission prompts;
-    // without an explicit mode the CLI falls back to the user's
-    // `~/.claude/settings.json` default and Write/Edit on workspace
-    // paths gets stuck waiting for a confirmation that never arrives.
-    const args = buildCliArgs({
-      systemPrompt: "test",
-      activePlugins: [],
-    });
-    const modeIdx = args.indexOf("--permission-mode");
-    assert.ok(modeIdx >= 0, "--permission-mode flag must be present");
-    assert.equal(args[modeIdx + 1], "bypassPermissions");
-  });
-
   it("does NOT pass the user message as a CLI argument", async () => {
     // Regression: the message must arrive via stdin in stream-json
     // input mode. Passing it as `-p <text>` (the old mode) bypasses

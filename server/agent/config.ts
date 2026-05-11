@@ -243,19 +243,6 @@ export function buildCliArgs(params: CliArgsParams): string[] {
     systemPrompt,
     "--allowedTools",
     allowedTools.join(","),
-    // The agent has no UI surface for permission prompts — the GUI
-    // shows the stream-json events, not the CLI's interactive prompt.
-    // Without an explicit mode, Claude Code falls back to the user's
-    // `~/.claude/settings.json` default, which prompts on Write/Edit
-    // for any path not in the allow list. In MulmoClaude that path
-    // is always under `cwd` (the workspace), and the tool surface is
-    // already locked down by `--allowedTools` above. Bypass the
-    // prompt so the agent can actually mutate files the user invited
-    // it to manage (creating skills, sources, scheduler tasks, etc.).
-    // Docker mode reaches the same outcome via the sandbox image —
-    // this flag aligns native fallback with that behaviour.
-    "--permission-mode",
-    "bypassPermissions",
     "-p",
   ];
 
