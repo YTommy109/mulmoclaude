@@ -178,6 +178,15 @@ import { sanitizeMarkdownHtml } from "../../utils/markdown/sanitize";
 import { pluginEndpoints } from "../api";
 import { buildRouteUrl } from "../meta-types";
 import type { SkillsEndpoints } from "./definition";
+import {
+  CATEGORY_LABEL_KEYS,
+  SKILL_CATEGORY_KEYS,
+  categorizeSkill,
+  loadCollapsedGroups,
+  persistCollapsedGroups,
+  pickInitialSelection,
+  type SkillCategoryKey,
+} from "./categories";
 
 const { t } = useI18n();
 
@@ -187,56 +196,6 @@ interface SkillDetail {
   body: string;
   source: "user" | "project";
   path: string;
-}
-
-// Skills fall into three categories that the user benefits from seeing
-// separately: bundled mc- prefix project skills, user-authored project
-// skills (the only editable ones), and global user skills under ~/.
-// The backend reports only `source`; the `mc-` split is name-based.
-const SKILL_CATEGORY_KEYS = ["builtin", "project", "user"] as const;
-type SkillCategoryKey = (typeof SKILL_CATEGORY_KEYS)[number];
-
-const MC_BUILTIN_PREFIX = "mc-";
-const COLLAPSED_GROUPS_STORAGE_KEY = "skills:groupCollapsed";
-const DEFAULT_CLOSED_CATEGORIES: readonly SkillCategoryKey[] = ["builtin"];
-
-const CATEGORY_LABEL_KEYS: Record<SkillCategoryKey, string> = {
-  builtin: "pluginManageSkills.categoryBuiltIn",
-  project: "pluginManageSkills.categoryProject",
-  user: "pluginManageSkills.categoryUser",
-};
-
-function categorizeSkill(skill: SkillSummary): SkillCategoryKey {
-  if (skill.source === "user") return "user";
-  if (skill.name.startsWith(MC_BUILTIN_PREFIX)) return "builtin";
-  return "project";
-}
-
-function isSkillCategoryKey(value: unknown): value is SkillCategoryKey {
-  return typeof value === "string" && (SKILL_CATEGORY_KEYS as readonly string[]).includes(value);
-}
-
-function loadCollapsedGroups(): Set<SkillCategoryKey> {
-  const defaults = new Set<SkillCategoryKey>(DEFAULT_CLOSED_CATEGORIES);
-  if (typeof window === "undefined") return defaults;
-  try {
-    const raw = window.localStorage.getItem(COLLAPSED_GROUPS_STORAGE_KEY);
-    if (raw === null) return defaults;
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return defaults;
-    return new Set<SkillCategoryKey>(parsed.filter(isSkillCategoryKey));
-  } catch {
-    return defaults;
-  }
-}
-
-function persistCollapsedGroups(state: Set<SkillCategoryKey>): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(COLLAPSED_GROUPS_STORAGE_KEY, JSON.stringify([...state]));
-  } catch {
-    // localStorage may be unavailable (private mode) — swallow silently.
-  }
 }
 
 const props = defineProps<{
@@ -279,20 +238,7 @@ function toggleGroup(key: SkillCategoryKey): void {
   persistCollapsedGroups(next);
 }
 
-// Pick the first skill whose category is currently open, so we never
-// auto-select a row hidden under a collapsed header. Falls back to the
-// very first skill if every group is collapsed.
-function pickInitialSelection(skillList: readonly SkillSummary[]): string | null {
-  if (skillList.length === 0) return null;
-  for (const key of SKILL_CATEGORY_KEYS) {
-    if (collapsedGroups.value.has(key)) continue;
-    const firstInCategory = skillList.find((skill) => categorizeSkill(skill) === key);
-    if (firstInCategory) return firstInCategory.name;
-  }
-  return skillList[0].name;
-}
-
-const selectedName = ref<string | null>(pickInitialSelection(skills.value));
+const selectedName = ref<string | null>(pickInitialSelection(skills.value, collapsedGroups.value));
 const detail = ref<SkillDetail | null>(null);
 const detailLoading = ref(false);
 const detailError = ref<string | null>(null);
@@ -321,7 +267,7 @@ watch(
   () => props.selectedResult?.uuid,
   () => {
     skills.value = props.selectedResult?.data?.skills ?? [];
-    selectedName.value = pickInitialSelection(skills.value);
+    selectedName.value = pickInitialSelection(skills.value, collapsedGroups.value);
   },
 );
 
@@ -340,7 +286,7 @@ onMounted(async () => {
   }
   if (Array.isArray(response.data.skills)) {
     skills.value = response.data.skills;
-    selectedName.value = pickInitialSelection(skills.value);
+    selectedName.value = pickInitialSelection(skills.value, collapsedGroups.value);
   }
 });
 
@@ -452,7 +398,7 @@ async function deleteSkill(): Promise<void> {
   if (idx >= 0) {
     skills.value.splice(idx, 1);
   }
-  selectedName.value = pickInitialSelection(skills.value);
+  selectedName.value = pickInitialSelection(skills.value, collapsedGroups.value);
   detail.value = null;
 }
 </script>
