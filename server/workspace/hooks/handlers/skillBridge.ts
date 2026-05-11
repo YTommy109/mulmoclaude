@@ -52,13 +52,22 @@ const SKILL_FILENAME = "SKILL.md";
 // eslint-disable-next-line security/detect-unsafe-regex -- input is always a basename slice ≤ 64 chars, so the theoretical worst-case backtracking is bounded; this is the canonical kebab-case pattern used across the skill toolchain.
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-// `rm -rf data/skills/<slug>` regex. Tolerates -f / -rf flags,
-// optional trailing slash, and optional quoting around the path.
-// A literal `rm -rf data/skills` (the parent dir itself) or paths
-// with wildcards / shell expansion are intentionally NOT matched.
+// `rm -rf data/skills/<slug>` regex. Captures the flag run as
+// `match[1]` so the caller can post-validate that the user passed
+// a recursive flag (`-r`, `-R`, `-rf`, `-fr`, …). Tolerates optional
+// trailing slash and optional quoting around the path. A literal
+// `rm -rf data/skills` (the parent dir itself) or paths with
+// wildcards / shell expansion are intentionally NOT matched.
+//
+// Recursive-flag enforcement (Codex review on this PR): plain `rm`
+// or `rm -f` cannot remove a directory, so the staging delete fails
+// silently while the canonical delete still runs — desyncing the
+// two trees. Requiring at least one `r` / `R` in the flags rejects
+// those forms outright.
 //
 // eslint-disable-next-line security/detect-unsafe-regex -- the `(-[a-z0-9]+)*` slug clause is bounded by the path tail and the input is a single-line Bash command Claude CLI captured; no pathological backtracking surface.
-const RM_RE = /^\s*rm\s+(?:-[a-zA-Z]+\s+)*['"]?data\/skills\/([a-z0-9-]+)\/?['"]?\s*$/;
+const RM_RE = /^\s*rm\s+((?:-[a-zA-Z]+\s+)+)['"]?data\/skills\/([a-z0-9-]+)\/?['"]?\s*$/;
+const RECURSIVE_FLAG_RE = /[rR]/;
 
 // Pure helpers exported for unit testing. Source paths stay relative
 // to the workspace root resolved at call time so the handler is
@@ -106,11 +115,14 @@ export function slugFromDataPath(filePath: string): string | null {
 
 // Extract the slug from a Bash `rm -rf data/skills/<slug>/` command.
 // Returns null on any mismatch — wildcards, paths outside the
-// staging dir, or anything else are intentionally rejected.
+// staging dir, or non-recursive `rm` / `rm -f` (which can't delete
+// the staging dir anyway, so mirroring would desync) are all
+// intentionally rejected.
 export function slugFromRmCommand(command: string): string | null {
   const match = RM_RE.exec(command);
   if (!match) return null;
-  const [, slug] = match;
+  const [, flags, slug] = match;
+  if (!RECURSIVE_FLAG_RE.test(flags)) return null;
   return SLUG_RE.test(slug) ? slug : null;
 }
 

@@ -67,11 +67,24 @@ describe("slugFromDataPath", () => {
 });
 
 describe("slugFromRmCommand", () => {
-  it("matches `rm -rf data/skills/<slug>/` and variants", () => {
+  it("matches `rm -rf data/skills/<slug>/` and variants with recursive flags", () => {
     assert.equal(slugFromRmCommand("rm -rf data/skills/nazonazo/"), "nazonazo");
     assert.equal(slugFromRmCommand("rm -rf data/skills/nazonazo"), "nazonazo");
     assert.equal(slugFromRmCommand("rm -r data/skills/foo/"), "foo");
+    assert.equal(slugFromRmCommand("rm -R data/skills/foo"), "foo", "capital -R also recursive");
+    assert.equal(slugFromRmCommand("rm -fr data/skills/foo"), "foo", "flag order doesn't matter");
     assert.equal(slugFromRmCommand("rm -rf 'data/skills/my-skill/'"), "my-skill");
+  });
+
+  it("rejects non-recursive forms (rm / rm -f) — they can't delete a directory, so mirroring would desync", () => {
+    // Codex regression: `rm` / `rm -f` against `data/skills/<slug>/`
+    // (a dir) fails with "is a directory" — the staging copy stays,
+    // but the previous regex would still let us delete the canonical
+    // tree. Strictly require a recursive flag now.
+    assert.equal(slugFromRmCommand("rm data/skills/nazonazo"), null);
+    assert.equal(slugFromRmCommand("rm -f data/skills/nazonazo"), null);
+    assert.equal(slugFromRmCommand("rm -fv data/skills/nazonazo"), null, "verbose-only still rejected");
+    assert.equal(slugFromRmCommand("rm -i data/skills/nazonazo"), null, "interactive-only rejected");
   });
 
   it("rejects wildcards and parent-dir deletes", () => {
