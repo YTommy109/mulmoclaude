@@ -63,6 +63,20 @@ function readSidecar(filePath) {
   }
 }
 
+// `.server-port` is hand-written by the parent server on each
+// startup. Parse it as a strict integer in [1, 65535] before
+// interpolating into the URL — a crafted file value like
+// `80@attacker.example` would otherwise change the request
+// authority and exfiltrate the bearer token off-host. Same
+// hardening as `wiki-history` hook's `readPortSafe` (Codex
+// review on PR #1284).
+function readPortSafe() {
+  const raw = readSidecar(PORT_PATH);
+  if (!raw) return null;
+  const port = Number.parseInt(raw, 10);
+  return Number.isInteger(port) && port > 0 && port < 65536 ? port : null;
+}
+
 (async () => {
   const raw = await readStdin();
   let payload;
@@ -76,7 +90,7 @@ function readSidecar(filePath) {
   if (!filePath) return;
   if (!PATTERNS.some((pattern) => pattern.test(filePath))) return;
 
-  const port = readSidecar(PORT_PATH);
+  const port = readPortSafe();
   const token = readSidecar(TOKEN_PATH);
   if (!port || !token) return;
 
