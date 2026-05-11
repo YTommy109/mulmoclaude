@@ -81,6 +81,15 @@ const HOST_API_ROUTES = {
     workspaceDirs: "/api/config/workspace-dirs",
     referenceDirs: "/api/config/reference-dirs",
     schedulerOverrides: "/api/config/scheduler-overrides",
+    // Side-effect refresh endpoint: re-scans the skills dir +
+    // re-registers user-defined scheduler tasks so changes to
+    // `<workspace>/.claude/skills/<slug>/SKILL.md` or
+    // `<workspace>/config/scheduler/tasks.json` activate without
+    // a server restart. Called by the config-refresh PostToolUse hook
+    // after Write/Edit (#1283); serves the `mc-manage-skills` +
+    // `mc-manage-automations` preset skills (split out in #1295).
+    // Safe to call ad-hoc — pure side effect, no body.
+    refresh: "/api/config/refresh",
   },
 
   files: {

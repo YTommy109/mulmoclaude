@@ -22,9 +22,11 @@ import mulmoScriptRoutes from "./api/routes/mulmo-script.js";
 import wikiRoutes from "./api/routes/wiki.js";
 import wikiHistoryRoutes from "./api/routes/wiki/history.js";
 import { provisionWikiHistoryHook } from "./workspace/wiki-history/provision.js";
+import { provisionConfigRefreshHook } from "./workspace/config-refresh/provision.js";
 import pdfRoutes from "./api/routes/pdf.js";
 import filesRoutes from "./api/routes/files.js";
 import configRoutes from "./api/routes/config.js";
+import configRefreshRoutes from "./api/routes/config-refresh.js";
 import skillsRoutes from "./api/routes/skills.js";
 import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
 import { loadRuntimePlugins } from "./plugins/runtime-loader.js";
@@ -57,6 +59,7 @@ import { mcpToolsRouter, mcpTools, isMcpToolEnabled } from "./agent/mcp-tools/in
 import { initWorkspace, workspacePath } from "./workspace/workspace.js";
 import { runMemoryMigrationOnce } from "./workspace/memory/run.js";
 import { runTopicMigrationOnce } from "./workspace/memory/topic-run.js";
+import { migrateCookingRecipesFromPlugin } from "./workspace/cooking-recipes/migrate.js";
 import { env, isGeminiAvailable } from "./system/env.js";
 import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import { existsSync, readFileSync } from "fs";
@@ -130,6 +133,17 @@ const noop = (): void => {};
 runMemoryMigrationOnce(workspacePath)
   .then(() => runTopicMigrationOnce(workspacePath))
   .then(noop, noop);
+
+// Recipe-book plugin → `mc-cooking-coach` skill migration (#1286).
+// Boot-time idempotent copy from the plugin's `files.data` scope
+// (`data/plugins/<sanitised-pkg>/recipes/`) to the canonical
+// `data/cooking/recipes/` path the skill drives. Sentinel-gated so
+// every boot after the first is a no-op.
+migrateCookingRecipesFromPlugin().catch((err) => {
+  log.warn("cooking-recipes", "migration from plugin failed; falling back to original plugin path", {
+    error: err instanceof Error ? err.message : String(err),
+  });
+});
 
 let sandboxEnabled = false;
 
@@ -550,6 +564,7 @@ app.use("/api/wiki", wikiHistoryRoutes);
 app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
+app.use(configRefreshRoutes);
 app.use(skillsRoutes);
 app.use(runtimePluginRoutes);
 async function listSessionsForBridge(opts: { limit: number; offset: number }) {
@@ -1061,6 +1076,18 @@ process.on("SIGTERM", () => {
   // so the hook is in place from the first turn.
   await provisionWikiHistoryHook().catch((err) => {
     log.warn("wiki-history", "hook provisioning failed; LLM wiki edits will not be snapshotted this session", {
+      error: String(err),
+    });
+  });
+
+  // config-refresh auto-refresh hook (#1283, #1295). Installs a
+  // PostToolUse entry that fires POST /api/config/refresh after
+  // Write/Edit on SKILL.md or scheduler tasks.json so the
+  // `mc-manage-skills` and `mc-manage-automations` preset skills can
+  // drive workspace settings via plain file edits without leaving
+  // scheduled jobs stuck on the pre-edit definition.
+  await provisionConfigRefreshHook().catch((err) => {
+    log.warn("config-refresh", "hook provisioning failed; settings file edits will need a manual server restart this session", {
       error: String(err),
     });
   });

@@ -20,7 +20,7 @@
     "sandbox-entrypoint.sh"
   ],
   "dependencies": {
-    "@google/genai": "^1.52.0",
+    "@google/genai": "^2.0.1",
     "@gui-chat-plugin/browse": "^0.4.0",
     "@gui-chat-plugin/camera": "^0.4.1",
     "@gui-chat-plugin/google-map": "^0.4.0",
@@ -29,7 +29,7 @@
     "@mulmobridge/chat-service": "^0.1.2",
     "@mulmobridge/client": "^0.1.4",
     "@mulmobridge/protocol": "^0.1.4",
-    "@mulmocast/types": "^2.6.10",
+    "@mulmocast/types": "^2.6.12",
     "@mulmochat-plugin/quiz": "0.4.3",
     "@mulmochat-plugin/ui-image": "^0.4.0",
     "@receptron/task-scheduler": "^0.1.0",
@@ -43,7 +43,7 @@
     "js-yaml": "^4.1.1",
     "mammoth": "^1.12.0",
     "marked": "^18.0.3",
-    "mulmocast": "^2.6.10",
+    "mulmocast": "^2.6.12",
     "puppeteer": "^24.43.0",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
