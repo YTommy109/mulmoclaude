@@ -151,8 +151,11 @@ otherwise the index treats its own catalogue as a recipe and emits a
 self-referential entry. Convenient form:
 
 ```bash
-ls data/cooking/recipes/*.md | grep -v '/README\.md$'
+find data/cooking/recipes -maxdepth 1 -type f -name '*.md' ! -name 'README.md' | sort
 ```
+
+(`find` over `ls *.md` so an empty directory after a delete doesn't error out
+on the glob — also keeps the README exclusion explicit.)
 
 Then Read each frontmatter you don't already know.
 
