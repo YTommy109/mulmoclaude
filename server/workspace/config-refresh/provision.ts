@@ -129,36 +129,40 @@ function safeParse(raw: string): SettingsShape {
   return {};
 }
 
-function upsertOurHook(settings: SettingsShape, desiredHook: HookCommandEntry): SettingsShape {
-  const hooks = settings.hooks ?? {};
-  // Defensive normalisation — an unexpected shape (object, string,
-  // etc.) under PostToolUse becomes `[]` so findIndex doesn't throw.
-  const rawPostToolUse = hooks.PostToolUse;
-  const postToolUse = Array.isArray(rawPostToolUse) ? rawPostToolUse : [];
-
-  const ownedIndex = postToolUse.findIndex((entry) => entryHasOwnedHook(entry));
-  const desiredEntry: HookMatcher = {
-    matcher: "Write|Edit",
-    hooks: [desiredHook],
-  };
-
-  const nextPostToolUse = [...postToolUse];
-  if (ownedIndex === -1) {
-    nextPostToolUse.push(desiredEntry);
-  } else {
-    nextPostToolUse[ownedIndex] = desiredEntry;
-  }
-
-  return {
-    ...settings,
-    hooks: {
-      ...hooks,
-      PostToolUse: nextPostToolUse,
-    },
-  };
+/** Cast `hooks.PostToolUse` defensively to a `HookMatcher[]`. An
+ *  unexpected shape (object, string, etc.) under that key — possible
+ *  when the file was hand-edited or written by another tool — becomes
+ *  `[]` so the caller can splice without throwing. Exported for tests
+ *  (the cast is the easy-to-regress part). */
+export function normalisePostToolUse(raw: unknown): HookMatcher[] {
+  return Array.isArray(raw) ? (raw as HookMatcher[]) : [];
 }
 
-function entryHasOwnedHook(entry: HookMatcher): boolean {
-  if (!Array.isArray(entry.hooks)) return false;
-  return entry.hooks.some((hook) => hook[OWNER_MARKER] === true);
+/** Replace the existing owned entry, or append the desired one if
+ *  no owned entry is present. Pure — returns a new array. */
+export function mergePostToolUse(postToolUse: readonly HookMatcher[], desiredEntry: HookMatcher): HookMatcher[] {
+  const ownedIndex = postToolUse.findIndex((entry) => entryHasOwnedHook(entry));
+  const next = [...postToolUse];
+  if (ownedIndex === -1) next.push(desiredEntry);
+  else next[ownedIndex] = desiredEntry;
+  return next;
+}
+
+function upsertOurHook(settings: SettingsShape, desiredHook: HookCommandEntry): SettingsShape {
+  const hooks = settings.hooks ?? {};
+  const postToolUse = normalisePostToolUse(hooks.PostToolUse);
+  const desiredEntry: HookMatcher = { matcher: "Write|Edit", hooks: [desiredHook] };
+  const nextPostToolUse = mergePostToolUse(postToolUse, desiredEntry);
+  return { ...settings, hooks: { ...hooks, PostToolUse: nextPostToolUse } };
+}
+
+/** Robust against hand-edited / non-conformant `PostToolUse` items:
+ *  null, primitive, or object-without-`hooks-array` all return false
+ *  rather than throwing on property access (CodeRabbit review on
+ *  PR #1284). */
+function entryHasOwnedHook(entry: unknown): boolean {
+  if (!entry || typeof entry !== "object") return false;
+  const { hooks } = entry as HookMatcher;
+  if (!Array.isArray(hooks)) return false;
+  return hooks.some((hook) => hook !== null && typeof hook === "object" && (hook as Record<string, unknown>)[OWNER_MARKER] === true);
 }

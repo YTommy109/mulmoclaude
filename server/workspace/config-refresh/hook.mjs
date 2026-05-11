@@ -94,13 +94,27 @@ function readPortSafe() {
   const token = readSidecar(TOKEN_PATH);
   if (!port || !token) return;
 
+  // PostToolUse hooks block Claude CLI's tool turn until the script
+  // exits. Without a timeout, a slow / hung parent server (refresh
+  // deadlock, GC pause, or an unrelated long-running route holding
+  // the loop) would leave the hook waiting on the socket and the
+  // user's Write/Edit appearing frozen. 2 s is plenty — the refresh
+  // is fire-and-forget anyway; if the server can't respond inside
+  // that, the file is already on disk and the next restart picks it
+  // up. (CodeRabbit review on PR #1284.)
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2000);
   try {
     await fetch(`http://${SERVER_HOST}:${port}/api/config/refresh`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
     });
   } catch {
-    // Server might be restarting / unreachable — silent fail is fine;
-    // the file is on disk and the next manual restart picks it up.
+    // Server might be restarting / unreachable / timed out — silent
+    // fail is fine; the file is on disk and the next manual restart
+    // picks it up.
+  } finally {
+    clearTimeout(timer);
   }
 })();

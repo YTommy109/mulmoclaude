@@ -128,7 +128,10 @@ automations", "stop the foo task".
 
 Schedule kinds:
 
-- `{ "type": "daily", "time": "HH:MM" }` — daily at the given local time.
+- `{ "type": "daily", "time": "HH:MM" }` — daily at the given **UTC** time
+  (the task-manager compares against `Date.getUTCHours/Minutes`; "07:00 UTC"
+  is 16:00 JST). When the user phrases the time in a local zone, convert to
+  UTC before writing.
 - `{ "type": "interval", "intervalMs": <ms> }` — every N ms (60000 = 1 min;
   for "every hour" use 3600000).
 
