@@ -59,6 +59,7 @@ import { mcpToolsRouter, mcpTools, isMcpToolEnabled } from "./agent/mcp-tools/in
 import { initWorkspace, workspacePath } from "./workspace/workspace.js";
 import { runMemoryMigrationOnce } from "./workspace/memory/run.js";
 import { runTopicMigrationOnce } from "./workspace/memory/topic-run.js";
+import { migrateCookingRecipesFromPlugin } from "./workspace/cooking-recipes/migrate.js";
 import { env, isGeminiAvailable } from "./system/env.js";
 import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import { existsSync, readFileSync } from "fs";
@@ -132,6 +133,17 @@ const noop = (): void => {};
 runMemoryMigrationOnce(workspacePath)
   .then(() => runTopicMigrationOnce(workspacePath))
   .then(noop, noop);
+
+// Recipe-book plugin → `mc-cooking-coach` skill migration (#1286).
+// Boot-time idempotent copy from the plugin's `files.data` scope
+// (`data/plugins/<sanitised-pkg>/recipes/`) to the canonical
+// `data/cooking/recipes/` path the skill drives. Sentinel-gated so
+// every boot after the first is a no-op.
+migrateCookingRecipesFromPlugin().catch((err) => {
+  log.warn("cooking-recipes", "migration from plugin failed; falling back to original plugin path", {
+    error: err instanceof Error ? err.message : String(err),
+  });
+});
 
 let sandboxEnabled = false;
 
