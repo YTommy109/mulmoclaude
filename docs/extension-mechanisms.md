@@ -269,7 +269,7 @@ schedule: "interval 168h"
 | Preset | 用途 |
 |---|---|
 | `mc-settings` | 設定 (roles / mcp.json / sources / skills / automations) の編集手順 |
-| `mc-library` | wiki / sources / 通知の横断 query (`(:..)` リンク文法を含む) |
+| `mc-library` | 読書記録 — 読みたい本 / 読了の登録、感想を本人の言葉で記録、後から想起できるジャーナル |
 | `mc-cooking-coach` | レシピの保存・更新・削除と `data/cooking/recipes/README.md` 索引維持 |
 
 同期の実装は `server/workspace/skills-preset.ts` (`syncPresetSkills`)。起動時に `server/workspace/workspace.ts:44` から呼ばれ、`<launcher>/server/workspace/skills-preset/` → `<workspace>/.claude/skills/` へコピーされる。ユーザ作成 skill (`mc-` でない名前) は同期対象外なので影響を受けない。
