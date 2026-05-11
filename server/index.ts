@@ -23,6 +23,7 @@ import wikiRoutes from "./api/routes/wiki.js";
 import wikiHistoryRoutes from "./api/routes/wiki/history.js";
 import { provisionWikiHistoryHook } from "./workspace/wiki-history/provision.js";
 import { provisionConfigRefreshHook } from "./workspace/config-refresh/provision.js";
+import { provisionAgentPermissions } from "./workspace/agent-permissions/provision.js";
 import pdfRoutes from "./api/routes/pdf.js";
 import filesRoutes from "./api/routes/files.js";
 import configRoutes from "./api/routes/config.js";
@@ -1088,6 +1089,20 @@ process.on("SIGTERM", () => {
   // scheduled jobs stuck on the pre-edit definition.
   await provisionConfigRefreshHook().catch((err) => {
     log.warn("config-refresh", "hook provisioning failed; settings file edits will need a manual server restart this session", {
+      error: String(err),
+    });
+  });
+
+  // Workspace-scoped permission allow-list. The host GUI never
+  // surfaces Claude Code's interactive permission prompt; without
+  // pre-approval, the agent hangs the first time it tries to
+  // Write/Edit inside `.claude/` (the dir holds the agent's own
+  // skills / hooks / settings, so Claude Code treats it more
+  // carefully than ordinary cwd subdirs). Auto-allow Write/Edit under
+  // cwd (the workspace) — writes outside cwd still prompt, keeping
+  // the trust boundary explicit.
+  await provisionAgentPermissions().catch((err) => {
+    log.warn("agent-permissions", "permission provisioning failed; agent Write/Edit under .claude/ may prompt without UI", {
       error: String(err),
     });
   });
