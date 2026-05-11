@@ -1,9 +1,10 @@
 // Shared wiki-page slug logic — pure functions reused by:
 //
 //   - server/workspace/wiki-pages/io.ts (the write chokepoint)
-//   - server/workspace/wiki-history/hook/snapshot.ts (the
-//     PostToolUse hook script that detects LLM Write/Edit on a
-//     wiki page and triggers a snapshot)
+//   - server/workspace/hooks/handlers/wikiSnapshot.ts (the
+//     PostToolUse handler that detects LLM Write/Edit on a wiki
+//     page and triggers a snapshot, run via the unified hook
+//     dispatcher bundle)
 //
 // Both call sites need the same answer: "given this absolute
 // path and the pages directory, is it a wiki page, and if so
