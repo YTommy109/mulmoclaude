@@ -1,6 +1,6 @@
 ---
 name: mc-manage-skills
-description: Save, edit, list, or delete a Claude Code skill in this workspace. Use when the user wants to turn a workflow into a reusable skill ("skill 化して", "save this as a skill"), modify or remove one, or list what's registered. Writes one markdown file per skill at `data/skills/<slug>.md`; a workspace-side hook mirrors it into `.claude/skills/<slug>/SKILL.md` so Claude Code picks it up.
+description: Save, edit, list, or delete a Claude Code skill in this workspace. Use when the user wants to turn a workflow into a reusable skill ("skill 化して", "save this as a skill"), modify or remove one, or list what's registered. Writes one markdown file per skill at `data/skills/<slug>/SKILL.md`; a workspace-side hook mirrors it into `.claude/skills/<slug>/SKILL.md` so Claude Code picks it up.
 ---
 
 # Skill manager
@@ -14,7 +14,7 @@ that Claude Code reads lives at `.claude/skills/<slug>/SKILL.md`, but agents
 `.claude/` as a self-modification surface and the host GUI cannot answer the
 resulting prompt, so the write hangs.
 
-Instead, **edit the staging file** at `data/skills/<slug>.md`. A PostToolUse
+Instead, **edit the staging file** at `data/skills/<slug>/SKILL.md`. A PostToolUse
 hook mirrors every Write / Edit / `rm` on those staging files into
 `.claude/skills/<slug>/SKILL.md` (or removes the entire dir on delete) and
 then asks the server to re-register skills — no restart needed. The user
@@ -43,9 +43,9 @@ hyphens between segments, no leading / trailing / consecutive hyphens, 1-64
 characters. Pattern: `^[a-z0-9]+(-[a-z0-9]+)*$`. If the user proposed a name,
 use it as-is (validate the same way).
 
-If `data/skills/<slug>.md` already exists, ask before overwriting.
+If `data/skills/<slug>/SKILL.md` already exists, ask before overwriting.
 
-**Step 3 — Write `data/skills/<slug>.md`** (NOT `.claude/skills/...` — the
+**Step 3 — Write `data/skills/<slug>/SKILL.md`** (NOT `.claude/skills/...` — the
 bridge hook handles that copy):
 
 ```markdown
@@ -75,7 +75,7 @@ Body in markdown, second person. Focused on the reusable workflow.
   scheduler auto-runs the skill at that cadence.
 - `roleId` — role to use for scheduled runs (defaults to `general`).
 
-The bridge hook mirrors `data/skills/<slug>.md` → `.claude/skills/<slug>/SKILL.md`
+The bridge hook mirrors `data/skills/<slug>/SKILL.md` → `.claude/skills/<slug>/SKILL.md`
 and fires `POST /api/config/refresh`, so a new `schedule:` activates without a
 server restart.
 
@@ -90,7 +90,7 @@ List the staging directory:
 ls data/skills/
 ```
 
-Read each `data/skills/<slug>.md`'s frontmatter and present the names + one-line
+Read each `data/skills/<slug>/SKILL.md`'s frontmatter and present the names + one-line
 descriptions in chat. Don't dump raw markdown unless the user asks for a
 specific skill's details.
 
@@ -99,7 +99,7 @@ specific skill's details.
 **Triggers**: "〇〇 の skill を更新して", "change the description of foo",
 "add a schedule to foo-skill".
 
-Read `data/skills/<slug>.md`, apply the change with Edit (preserve every other
+Read `data/skills/<slug>/SKILL.md`, apply the change with Edit (preserve every other
 field unless the user explicitly asked to change it), and confirm. The bridge
 hook re-mirrors the file and triggers a refresh.
 
@@ -110,11 +110,12 @@ hook re-mirrors the file and triggers a refresh.
 Only when the user explicitly asks. **Re-validate the slug against
 `^[a-z0-9]+(-[a-z0-9]+)*$` before running the command** — if it fails, refuse
 and ask the user to confirm by name. When valid, use exactly this form
-(the bridge hook only mirrors deletes that match this shape; bulk `rm` with
-wildcards is intentionally NOT mirrored so a typo can't wipe every skill):
+(the bridge hook only mirrors deletes that match this shape; bulk `rm -rf` of
+the parent dir or paths with wildcards are intentionally NOT mirrored so a
+typo can't wipe every skill):
 
 ```bash
-rm data/skills/<slug>.md
+rm -rf data/skills/<slug>/
 ```
 
 The hook then removes `.claude/skills/<slug>/` to match. Confirm afterward.

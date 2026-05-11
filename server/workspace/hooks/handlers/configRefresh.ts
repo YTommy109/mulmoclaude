@@ -16,7 +16,15 @@ import { extractFilePath, extractToolName } from "../shared/stdin.js";
 // delivered. Windows path separators are tolerated for cross-
 // platform robustness even though the host is currently darwin /
 // linux only.
-const PATTERNS = [/[\\/]\.claude[\\/]skills[\\/][^\\/]+[\\/]SKILL\.md$/, /[\\/]config[\\/]scheduler[\\/]tasks\.json$/, /[\\/]data[\\/]skills[\\/][^\\/]+\.md$/];
+const PATTERNS = [
+  /[\\/]\.claude[\\/]skills[\\/][^\\/]+[\\/]SKILL\.md$/,
+  /[\\/]config[\\/]scheduler[\\/]tasks\.json$/,
+  // Skill-bridge staging path. Refreshing on Write/Edit to the
+  // staging SKILL.md lets `mc-manage-skills` see new / updated
+  // skills without restarting the server; the skillBridge handler
+  // takes care of the actual copy to `.claude/skills/<slug>/`.
+  /[\\/]data[\\/]skills[\\/][^\\/]+[\\/]SKILL\.md$/,
+];
 
 export async function handleConfigRefresh(payload: HookPayload): Promise<void> {
   const tool = extractToolName(payload);

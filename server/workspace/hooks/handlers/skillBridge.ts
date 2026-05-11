@@ -1,7 +1,8 @@
 // Skill-bridge handler — agent writes skill drafts to
-// `data/skills/<slug>.md` (a plain data dir, no permission special
-// case) and this hook mirrors them into `.claude/skills/<slug>/SKILL.md`
-// so Claude CLI's skill discovery picks them up.
+// `data/skills/<slug>/SKILL.md` (a plain data dir, no permission
+// special case) and this hook mirrors them into
+// `.claude/skills/<slug>/SKILL.md` so Claude CLI's skill discovery
+// picks them up.
 //
 // Why a bridge: Claude Code's permission system gives `.claude/`
 // stricter scrutiny than ordinary cwd subdirs (the dir holds the
@@ -13,17 +14,24 @@
 // subprocess, NOT a Claude tool call) does the mirror copy and is
 // not subject to the gate.
 //
+// Why mirror as `<slug>/SKILL.md` (not flat `<slug>.md`): Claude
+// CLI's canonical skill layout IS the nested form, and the agent
+// naturally writes that shape. A flat staging path forced the agent
+// to reason against its own training, missed the regex, and the
+// mirror silently never fired. Mirroring 1:1 keeps the path math
+// trivial for both sides.
+//
 // Mirror operations:
 //
-//   Write/Edit data/skills/<slug>.md
+//   Write/Edit data/skills/<slug>/SKILL.md
 //     → copy content to .claude/skills/<slug>/SKILL.md
 //       (creates the parent dir on first install)
 //
-//   Bash "rm data/skills/<slug>.md"
+//   Bash "rm -rf data/skills/<slug>/" or "rm -rf data/skills/<slug>"
 //     → rm -rf .claude/skills/<slug>/
 //       (regex-matched so the agent's intent is unambiguous;
-//        a bulk `rm data/skills/*.md` is intentionally NOT
-//        mirrored to avoid mass deletion surprises)
+//        a bulk `rm -rf data/skills/` or wildcards are intentionally
+//        NOT mirrored to avoid mass deletion surprises)
 
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -33,6 +41,7 @@ import { workspaceRoot } from "../shared/workspace.js";
 
 const DATA_SKILLS_DIR = path.join("data", "skills");
 const CLAUDE_SKILLS_DIR = path.join(".claude", "skills");
+const SKILL_FILENAME = "SKILL.md";
 
 // Slugs follow Claude Code's skill-name convention: lowercase ASCII
 // letters / digits with single-hyphen separators. Matching is
@@ -42,20 +51,24 @@ const CLAUDE_SKILLS_DIR = path.join(".claude", "skills");
 // eslint-disable-next-line security/detect-unsafe-regex -- input is always a basename slice ≤ 64 chars, so the theoretical worst-case backtracking is bounded; this is the canonical kebab-case pattern used across the skill toolchain.
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-// `rm data/skills/<slug>.md` regex. Tolerates -f / -rf flags and
-// optional quoting around the path. Bulk deletes (`rm data/skills/*.md`
-// or paths with wildcards / shell expansion) are intentionally NOT
-// matched to avoid mass deletion via Bash mistakes.
+// `rm -rf data/skills/<slug>` regex. Tolerates -f / -rf flags,
+// optional trailing slash, and optional quoting around the path.
+// A literal `rm -rf data/skills` (the parent dir itself) or paths
+// with wildcards / shell expansion are intentionally NOT matched.
 //
-// eslint-disable-next-line security/detect-unsafe-regex -- the `(-[a-z0-9]+)*` slug clause is bounded by `.md` and the input is a single-line Bash command Claude CLI captured; no pathological backtracking surface.
-const RM_RE = /^\s*rm\s+(?:-[a-zA-Z]+\s+)*['"]?data\/skills\/([a-z0-9-]+)\.md['"]?\s*$/;
+// eslint-disable-next-line security/detect-unsafe-regex -- the `(-[a-z0-9]+)*` slug clause is bounded by the path tail and the input is a single-line Bash command Claude CLI captured; no pathological backtracking surface.
+const RM_RE = /^\s*rm\s+(?:-[a-zA-Z]+\s+)*['"]?data\/skills\/([a-z0-9-]+)\/?['"]?\s*$/;
 
 // Pure helpers exported for unit testing. Source paths stay relative
 // to the workspace root resolved at call time so the handler is
 // safe to run from any cwd.
 
+export function dataSkillDir(slug: string): string {
+  return path.join(workspaceRoot(), DATA_SKILLS_DIR, slug);
+}
+
 export function dataSkillFilePath(slug: string): string {
-  return path.join(workspaceRoot(), DATA_SKILLS_DIR, `${slug}.md`);
+  return path.join(dataSkillDir(slug), SKILL_FILENAME);
 }
 
 export function claudeSkillDir(slug: string): string {
@@ -63,26 +76,34 @@ export function claudeSkillDir(slug: string): string {
 }
 
 export function claudeSkillFilePath(slug: string): string {
-  return path.join(claudeSkillDir(slug), "SKILL.md");
+  return path.join(claudeSkillDir(slug), SKILL_FILENAME);
 }
 
-// Extract the slug from a Write/Edit on a `data/skills/<slug>.md`
-// path. Returns null when the path doesn't match the staging
-// pattern, the basename isn't a valid slug, or the file is nested
-// deeper than expected (only direct children of data/skills/ are
-// bridged).
+// Extract the slug from a Write/Edit on a
+// `data/skills/<slug>/SKILL.md` path. Returns null when:
+//   - the path doesn't sit directly under data/skills/<slug>/
+//   - the filename isn't SKILL.md
+//   - the slug isn't a valid kebab-case identifier
+//
+// Sibling files in the same dir (e.g. data/skills/<slug>/README.md
+// or data/skills/<slug>/assets/foo.png) are intentionally NOT
+// bridged — only the canonical SKILL.md crosses over. Skill authors
+// can keep extra material staging-side until they decide what
+// belongs in the bundle.
 export function slugFromDataPath(filePath: string): string | null {
   const root = workspaceRoot();
   const staging = path.join(root, DATA_SKILLS_DIR);
   const rel = path.relative(staging, filePath);
   if (!rel || rel.startsWith("..")) return null;
-  if (path.dirname(rel) !== ".") return null;
-  if (!rel.endsWith(".md")) return null;
-  const slug = rel.slice(0, -".md".length);
+  // Expect exactly `<slug>/SKILL.md` — two segments deep.
+  const segments = rel.split(path.sep);
+  if (segments.length !== 2) return null;
+  const [slug, basename] = segments;
+  if (basename !== SKILL_FILENAME) return null;
   return SLUG_RE.test(slug) ? slug : null;
 }
 
-// Extract the slug from a Bash `rm data/skills/<slug>.md` command.
+// Extract the slug from a Bash `rm -rf data/skills/<slug>/` command.
 // Returns null on any mismatch — wildcards, paths outside the
 // staging dir, or anything else are intentionally rejected.
 export function slugFromRmCommand(command: string): string | null {
