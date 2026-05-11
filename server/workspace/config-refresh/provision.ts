@@ -1,11 +1,15 @@
-// Workspace provisioning for the `mc-settings` skill's auto-refresh
-// hook (#1283). On every server start: copy the hook script into
+// Workspace provisioning for the config-refresh auto-refresh hook
+// (#1283, #1295). On every server start: copy the hook script into
 // `<workspaceRoot>/.claude/hooks/config-refresh.mjs` and ensure
 // `<workspaceRoot>/.claude/settings.json` has a `PostToolUse` entry
-// that runs it. Idempotent — repeated calls produce the same on-disk
-// state; user-owned hooks under the same matcher are preserved
-// (identified by a `mulmoclaudeConfigRefresh: true` owner marker on
-// the descriptor).
+// that runs it. The hook serves the `mc-manage-skills` /
+// `mc-manage-automations` preset skills — it watches for Write/Edit
+// on `<ws>/.claude/skills/*/SKILL.md` or `<ws>/config/scheduler/tasks.json`
+// and POSTs `/api/config/refresh` so the change activates without a
+// server restart. Idempotent — repeated calls produce the same
+// on-disk state; user-owned hooks under the same matcher are
+// preserved (identified by a `mulmoclaudeConfigRefresh: true` owner
+// marker on the descriptor).
 //
 // Modelled on `server/workspace/wiki-history/provision.ts` — the
 // settings.json merge logic is functionally identical with a

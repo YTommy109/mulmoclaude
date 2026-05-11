@@ -85,9 +85,10 @@ const HOST_API_ROUTES = {
     // re-registers user-defined scheduler tasks so changes to
     // `<workspace>/.claude/skills/<slug>/SKILL.md` or
     // `<workspace>/config/scheduler/tasks.json` activate without
-    // a server restart. Called by the `mc-settings` PostToolUse hook
-    // after Write/Edit (#1283). Safe to call ad-hoc — pure side
-    // effect, no body.
+    // a server restart. Called by the config-refresh PostToolUse hook
+    // after Write/Edit (#1283); serves the `mc-manage-skills` +
+    // `mc-manage-automations` preset skills (split out in #1295).
+    // Safe to call ad-hoc — pure side effect, no body.
     refresh: "/api/config/refresh",
   },
 
