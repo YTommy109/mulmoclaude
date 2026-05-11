@@ -43,26 +43,47 @@ const router = Router();
 // enough to keep one event readable in the tail.
 const MAX_FIELD_CHARS = 2048;
 
-router.post(API_ROUTES.hooks.log, (req: Request<object, unknown, HookLogBody>, res: Response) => {
-  const { namespace, message, level, data } = req.body ?? {};
+interface ValidatedHookLog {
+  namespace: string;
+  message: string;
+  level: Level;
+  // `Record<string, unknown>` matches the server logger's `data?`
+  // parameter exactly — `object` would force a cast at the log
+  // call site. The validator already narrows via `isRecord`, so the
+  // tighter type also documents the gate visually.
+  data?: Record<string, unknown>;
+}
+
+// Pull validation into a helper so the route body stays under the
+// 20-line cognitive-complexity guideline. The helper either returns
+// the typed shape ready for `log[level](...)` or writes a 400 and
+// returns null — caller short-circuits on null.
+function validateHookLogBody(body: HookLogBody | undefined, res: Response): ValidatedHookLog | null {
+  const { namespace, message, level, data } = body ?? {};
   if (typeof namespace !== "string" || namespace.length === 0) {
     badRequest(res, "namespace required");
-    return;
+    return null;
   }
   if (typeof message !== "string" || message.length === 0) {
     badRequest(res, "message required");
-    return;
+    return null;
   }
-  const resolvedLevel = resolveLevel(level);
-  const truncatedNamespace = namespace.slice(0, MAX_FIELD_CHARS);
-  const truncatedMessage = message.slice(0, MAX_FIELD_CHARS);
-  const extras = isRecord(data) ? data : undefined;
-  // Tag the log entry's namespace so it's easy to grep against
-  // server-side noise — every hook-side log line starts with
-  // `hook:<handler>` rather than the bare handler name a server
-  // module would use.
-  const taggedNamespace = `hook:${truncatedNamespace}`;
-  log[resolvedLevel](taggedNamespace, truncatedMessage, extras);
+  return {
+    // Tag the log entry's namespace so it's easy to grep against
+    // server-side noise — every hook-side log line starts with
+    // `hook:<handler>` rather than the bare handler name a server
+    // module would use.
+    namespace: `hook:${namespace.slice(0, MAX_FIELD_CHARS)}`,
+    message: message.slice(0, MAX_FIELD_CHARS),
+    level: resolveLevel(level),
+    data: isRecord(data) ? data : undefined,
+  };
+}
+
+router.post(API_ROUTES.hooks.log, (req: Request<object, unknown, HookLogBody>, res: Response) => {
+  const validated = validateHookLogBody(req.body, res);
+  if (validated === null) return;
+  log[validated.level](validated.namespace, validated.message, validated.data);
   res.status(204).end();
 });
 

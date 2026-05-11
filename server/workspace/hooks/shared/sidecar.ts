@@ -10,6 +10,7 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { ONE_SECOND_MS } from "../../../utils/time.js";
 import { workspaceRoot } from "./workspace.js";
 
 const TOKEN_FILE = ".session-token";
@@ -84,7 +85,7 @@ export function buildAuthPost(pathname: string, body?: unknown): PostRequest | n
 // POSTs are fire-and-forget anyway; if the server can't respond
 // inside that window, the file is already on disk and the next
 // restart picks it up.
-const DEFAULT_TIMEOUT_MS = 2000;
+const DEFAULT_TIMEOUT_MS = 2 * ONE_SECOND_MS;
 
 export async function safePost(req: PostRequest | null, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<void> {
   if (!req) return;
@@ -109,7 +110,7 @@ export async function safePost(req: PostRequest | null, timeoutMs = DEFAULT_TIME
 // POST); a missing token / port is the silent no-op safePost
 // already handles. 1 s timeout — logging shouldn't stall the user's
 // tool turn even if the server is briefly slow.
-const LOG_TIMEOUT_MS = 1000;
+const LOG_TIMEOUT_MS = ONE_SECOND_MS;
 
 export async function serverLog(namespace: string, message: string, options: { level?: "info" | "warn" | "error"; data?: object } = {}): Promise<void> {
   const body = {

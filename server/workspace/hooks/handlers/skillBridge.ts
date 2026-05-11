@@ -35,7 +35,7 @@
 
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { serverLog } from "../shared/sidecar.js";
+import { buildAuthPost, safePost, serverLog } from "../shared/sidecar.js";
 import type { HookPayload } from "../shared/stdin.js";
 import { extractCommand, extractFilePath, extractToolName } from "../shared/stdin.js";
 import { workspaceRoot } from "../shared/workspace.js";
@@ -124,6 +124,17 @@ function mirrorDelete(slug: string): void {
   rmSync(claudeSkillDir(slug), { recursive: true, force: true });
 }
 
+// `configRefresh` used to fan this out for us as a sibling handler,
+// but running it in parallel with the mirror race'd: the
+// `/api/config/refresh` POST could land before the canonical
+// `.claude/skills/<slug>/SKILL.md` existed on disk, leaving a fresh
+// skill unregistered until the next restart. `skillBridge` now
+// fires the refresh itself, ALWAYS after a successful mirror (or
+// delete), so ordering is deterministic (Codex review on this PR).
+async function refreshConfig(): Promise<void> {
+  await safePost(buildAuthPost("/api/config/refresh"));
+}
+
 async function handleWriteOrEdit(payload: HookPayload): Promise<void> {
   const filePath = extractFilePath(payload);
   if (!filePath) return;
@@ -131,6 +142,10 @@ async function handleWriteOrEdit(payload: HookPayload): Promise<void> {
   if (slug === null) return;
   try {
     mirrorWrite(slug);
+    // Order matters: mirror must complete before refresh so the
+    // server's skill scan sees the new SKILL.md. See refreshConfig
+    // comment for the race history.
+    await refreshConfig();
     // Server-side log line so the user can see from
     // `server-<date>.log` that the hook fired and what it did.
     // Without this the mirror is invisible — a successful copy
@@ -155,6 +170,10 @@ async function handleBash(payload: HookPayload): Promise<void> {
   if (slug === null) return;
   try {
     mirrorDelete(slug);
+    // Same ordering invariant as handleWriteOrEdit — refresh must
+    // run after the canonical dir is gone so the server's rescan
+    // deregisters the deleted skill.
+    await refreshConfig();
     await serverLog("skill-bridge", `removed ${claudeSkillDir(slug)}`, { data: { slug, op: "delete" } });
   } catch (err) {
     // Same silent-fail discipline — a missed delete leaves an

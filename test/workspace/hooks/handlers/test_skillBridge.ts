@@ -128,6 +128,50 @@ describe("handleSkillBridge — mirror copy", () => {
     await rm(root, { recursive: true, force: true });
   });
 
+  it("mirror copy completes BEFORE the refresh POST fires (no race)", async () => {
+    // Regression for Codex review on this PR: previously
+    // `handleConfigRefresh` ran in parallel with this handler, so
+    // `/api/config/refresh` could land before the canonical
+    // `.claude/skills/<slug>/SKILL.md` existed and the server's
+    // skill scan would miss the new file. Now `skillBridge` owns
+    // the refresh POST and fires it AFTER mirrorWrite. This test
+    // captures the request order by intercepting `fetch`.
+    const root = await mkdtemp(path.join(tmpdir(), "skill-bridge-race-"));
+    setWorkspace(root);
+    await mkdir(dataSkillDir("racey"), { recursive: true });
+    await writeFile(dataSkillFilePath("racey"), "---\nname: racey\n---\n", "utf-8");
+    // Provide token + port sidecars so buildAuthPost returns a
+    // real request (otherwise safePost short-circuits to no-op).
+    await writeFile(path.join(root, ".session-token"), "test-token", "utf-8");
+    await writeFile(path.join(root, ".server-port"), "65535", "utf-8");
+
+    const callOrder: { url: string; canonicalExists: boolean }[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
+      callOrder.push({ url, canonicalExists: existsSync(claudeSkillFilePath("racey")) });
+      return new Response(null, { status: 204 });
+    };
+    try {
+      await handleSkillBridge({
+        tool_name: "Write",
+        tool_input: { file_path: dataSkillFilePath("racey") },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    // Two fetches: /api/config/refresh, then /api/hooks/log.
+    // Both must observe the canonical file already on disk —
+    // i.e. mirrorWrite ran before either POST.
+    assert.ok(callOrder.length >= 1, "at least one fetch (refresh) should fire");
+    const refreshCall = callOrder.find((entry) => entry.url.endsWith("/api/config/refresh"));
+    assert.ok(refreshCall, "/api/config/refresh must be called");
+    assert.equal(refreshCall.canonicalExists, true, "canonical SKILL.md must exist before /api/config/refresh fires");
+
+    await rm(root, { recursive: true, force: true });
+  });
+
   it("ignores writes outside data/skills/", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "skill-bridge-noop-"));
     setWorkspace(root);
