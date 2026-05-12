@@ -17,7 +17,7 @@
       <p class="text-xs text-gray-500">{{ t("settingsModal.modelTab.helperText") }}</p>
     </div>
 
-    <div v-if="loaded" class="flex items-center gap-3 text-xs">
+    <div v-if="loaded && !errorMessage" class="flex items-center gap-3 text-xs">
       <span :class="statusColour" data-testid="settings-model-status">
         {{ statusText }}
       </span>
@@ -56,15 +56,16 @@ const loaded = ref(false);
 const saving = ref(false);
 const errorMessage = ref("");
 
+// statusText / statusColour are only consumed when there is no
+// errorMessage (the template hides the strip in that case), so the
+// error branches don't need to be repeated here.
 const statusText = computed(() => {
   if (saving.value) return t("common.saving");
-  if (errorMessage.value) return errorMessage.value;
   return storedEffort.value ? t("settingsModal.modelTab.configured", { level: storedEffort.value }) : t("settingsModal.modelTab.notConfigured");
 });
 
 const statusColour = computed(() => {
   if (saving.value) return "text-gray-500";
-  if (errorMessage.value) return "text-red-600";
   return storedEffort.value ? "text-green-600" : "text-gray-500";
 });
 
@@ -83,20 +84,31 @@ async function load(): Promise<void> {
 async function save(): Promise<void> {
   if (saving.value) return;
   if (effortDraft.value === storedEffort.value) return;
+  // Capture the submitted value before awaiting — if the user changes
+  // the select again while this PUT is in flight, the second save()
+  // would early-return on `saving=true`, and a naive
+  // `storedEffort = effortDraft` assignment after await would store
+  // the newer (unsaved) draft, masking later saves (codex review).
+  const requested = effortDraft.value;
   saving.value = true;
   errorMessage.value = "";
   // Empty selection clears the field. The server merges patches over
   // on-disk state, so omitting effortLevel keeps the previous value —
   // we must send `null` to clear. Use undefined→omitted, "" → null.
-  const payload: Record<string, unknown> = effortDraft.value === "" ? { effortLevel: null } : { effortLevel: effortDraft.value };
+  const payload: Record<string, unknown> = requested === "" ? { effortLevel: null } : { effortLevel: requested };
   const response = await apiPut<unknown>(API_ROUTES.config.settings, payload);
   saving.value = false;
   if (!response.ok) {
     errorMessage.value = response.error || t("settingsModal.modelTab.saveError");
     return;
   }
-  storedEffort.value = effortDraft.value;
+  storedEffort.value = requested;
   emit("saved");
+  // If the draft moved while we were in flight, re-trigger save so
+  // the latest value reaches the server.
+  if (effortDraft.value !== requested) {
+    void save();
+  }
 }
 
 watch(
