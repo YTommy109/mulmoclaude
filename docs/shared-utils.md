@@ -50,12 +50,9 @@ This catalog only covers **cross-cutting** helpers — formatters, error helpers
 
 ## Strings / Text
 
-> Open item — helper doesn't exist yet, see linked issue:
->
-> - `truncate(s, max, ellipsis?)` — six inline implementations exist today, consolidation pending (#1306).
-
 | Path | Helper | When to use |
 |---|---|---|
+| `server/utils/text.ts` | `truncate(text, max, ellipsis?)` | Clip a string to at most `max` chars, ellipsis included in the budget so output never exceeds `max`. Default ellipsis is `…`. Empty string for `max <= 0`. Distinct from `truncateMiddle` in `chat-index/summarizer.ts` which preserves both ends. |
 | `src/utils/format/bytes.ts` | `formatBytes(bytes, opts?)` | Human-readable file / attachment sizes (B / KB / MB / GB, 1024-based, default 1 decimal). Returns `"—"` for negative or non-finite input. |
 | `server/utils/slug.ts` | slug helpers | URL-safe slugs from arbitrary text. |
 | `src/lib/wiki-page/slug.ts` | wiki page slug helpers | Wiki-specific slug shape (separate from the server one because the rules differ). |
