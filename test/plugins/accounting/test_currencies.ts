@@ -26,6 +26,15 @@ describe("formatAmountNumeric", () => {
     assert.match(out, /0/);
     assert.match(out, /00/);
   });
+
+  it("respects an explicit locale when provided", () => {
+    // en-US uses comma as the thousands separator + period as the
+    // decimal mark, regardless of the host's default locale, so we
+    // can pin the expected output. (de-DE swaps them — different
+    // host defaults must NOT bleed into a caller-pinned locale.)
+    assert.equal(formatAmountNumeric(1234.5, 2, "en-US"), "1,234.50");
+    assert.equal(formatAmountNumeric(1234.5, 2, "de-DE"), "1.234,50");
+  });
 });
 
 describe("formatAmount currency awareness", () => {

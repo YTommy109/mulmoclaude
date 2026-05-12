@@ -67,7 +67,11 @@ export function formatAmount(value: number, currency: string, locale?: string): 
  *  don't carry the currency code on the data path (compact preview
  *  envelopes etc.). Use `formatAmount(value, currency)` whenever the
  *  currency IS available — the currency-aware path picks the right
- *  fraction-digit count automatically (JPY = 0, USD = 2). */
-export function formatAmountNumeric(value: number, decimals = 2): string {
-  return value.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+ *  fraction-digit count automatically (JPY = 0, USD = 2).
+ *
+ *  `locale` mirrors `formatAmount`'s signature: pass an explicit BCP-47
+ *  locale (`"en-US"`, `"ja-JP"`, …) when the caller knows the desired
+ *  grouping / digit-shape; omit to fall back to the runtime default. */
+export function formatAmountNumeric(value: number, decimals = 2, locale?: string): string {
+  return value.toLocaleString(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
