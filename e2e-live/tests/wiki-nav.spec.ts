@@ -81,20 +81,19 @@ test.describe("wiki navigation (real workspace)", () => {
     //     and the fuzzy fallback is what makes the file findable
     //     without depending on a seeded data/wiki/index.md row)
     //
-    // Slug shape — the trailing ASCII tail must (1) survive
-    // wikiSlugify so the fuzzy step has *something* to substring-
-    // match against, and (2) NOT appear inside the sibling source
-    // page's filename, otherwise the fuzzy `key.includes(slug)`
-    // loop happily returns whichever matching key it iterates first
-    // (readdir order). The first run of this spec hit exactly that:
-    // both `日本語タイトル-${project}-${nonce}` and `e2e-live-l15-source-${project}-${nonce}`
-    // collapse under wikiSlugify to a string ending in
-    // `-${project}-${nonce}`, the source key contains that
-    // substring too, and the target navigation rendered the source
-    // page instead of the target. Using a target-unique
-    // `nonascii-target-${nonce}` token keeps the fuzzy match
-    // pointed at the right file. The shared `nonce` still drives
-    // cleanup correlation across both pages.
+    // Slug shape — the trailing ASCII tail must survive wikiSlugify
+    // so the fuzzy step has *something* to substring-match against.
+    // The original first run of this spec also hit a server-side bug
+    // (#1194): when the slug + a sibling page filename shared a
+    // suffix, the resolver's fuzzy `key.includes(slug)` loop returned
+    // whichever matching key it iterated first (readdir order) — i.e.
+    // the source page got rendered instead of the target. That bug
+    // is fixed (`pickFuzzyMatch` now scores by length-ratio and
+    // returns null on a tie), so the `nonascii-target` token is no
+    // longer load-bearing for correctness. It stays as a redundancy
+    // belt: the target slug is still uniquely identifiable and the
+    // spec doesn't depend on the implementation's tie-breaker. The
+    // shared `nonce` drives cleanup correlation across both pages.
     const projectSlug = testInfo.project.name;
     const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
     const targetSlug = `日本語タイトル-nonascii-target-${projectSlug}-${nonce}`;
