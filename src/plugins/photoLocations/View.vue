@@ -12,6 +12,7 @@ import { apiPost } from "../../utils/api";
 import { pluginEndpoints } from "../api";
 import type { ResolvedRoute } from "../meta-types";
 import { errorMessage as toErrorMessage } from "../../utils/errors";
+import { formatDate } from "../../utils/format/date";
 
 interface Sidecar {
   version: 1;
@@ -84,7 +85,7 @@ function fmtAltitude(value: unknown): string | null {
 
 function fmtDate(iso: string | undefined): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString();
+  return formatDate(iso);
 }
 
 function hasFiniteCoords(exif: { lat?: unknown; lng?: unknown }): boolean {

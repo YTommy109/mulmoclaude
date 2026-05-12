@@ -14,7 +14,7 @@ This catalog only covers **cross-cutting** helpers — formatters, error helpers
 |---|---|---|
 | `server/utils/time.ts` | `ONE_SECOND_MS`, `ONE_MINUTE_MS`, `ONE_HOUR_MS`, `ONE_DAY_MS` | Anywhere a duration in milliseconds shows up. Never raw literals like `60_000`. |
 | `server/utils/time.ts` | `SUBPROCESS_PROBE_TIMEOUT_MS`, `SUBPROCESS_WORK_TIMEOUT_MS`, `CLI_SUBPROCESS_TIMEOUT_MS`, `STARTUP_FAILURE_FORCE_EXIT_MS`, `DEV_PLUGIN_WATCH_DEBOUNCE_MS` | Named timeout presets for subprocess / CLI / startup paths. Add a new constant rather than passing a literal. |
-| `src/utils/format/date.ts` | `formatDate`, `formatDateTime`, `formatTime`, `formatShortDate`, `formatShortTime`, `formatSmartTime`, `formatRelativeTime` | User-facing date display in Vue Views. Prefer over inline `toLocaleString()`. |
+| `src/utils/format/date.ts` | `formatDate`, `formatDateTime`, `formatTime`, `formatShortDate`, `formatShortTime`, `formatMonthYear`, `formatSmartTime`, `formatRelativeTime` | User-facing date display in Vue Views. Prefer over inline `toLocaleString()`. |
 | `src/utils/format/date.ts` | `isSameDay`, `isToday` | Day-boundary comparisons. |
 
 ## Errors
