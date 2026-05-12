@@ -28,6 +28,7 @@ import { readTextOrNull } from "../../utils/files/safe.js";
 import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { workspacePath as defaultWorkspacePath } from "../workspace.js";
 import { log } from "../../system/logger/index.js";
+import { errorMessage } from "../../utils/errors.js";
 
 // The esbuild bundle is the source of truth for the dispatcher
 // script written into <workspace>/.claude/hooks/. Source TS is
@@ -45,7 +46,7 @@ function readDispatcherBundle(): string | null {
   } catch (err) {
     log.warn("hooks", "dispatcher bundle unreadable, skipping provisioning", {
       bundlePath: DISPATCHER_BUNDLE_PATH,
-      error: err instanceof Error ? err.message : String(err),
+      error: errorMessage(err),
     });
     return null;
   }

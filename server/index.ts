@@ -83,6 +83,7 @@ import { bearerAuth } from "./api/auth/bearerAuth.js";
 import { deleteTokenFile, generateAndWriteToken, getCurrentToken } from "./api/auth/token.js";
 import { log } from "./system/logger/index.js";
 import { logBackgroundError } from "./utils/logBackgroundError.js";
+import { errorMessage } from "./utils/errors.js";
 import { registerScheduledSkills } from "./workspace/skills/scheduler.js";
 import { registerUserTasks } from "./workspace/skills/user-tasks.js";
 import { API_ROUTES } from "../src/config/apiRoutes.js";
@@ -141,7 +142,7 @@ runMemoryMigrationOnce(workspacePath)
 // every boot after the first is a no-op.
 migrateCookingRecipesFromPlugin().catch((err) => {
   log.warn("cooking-recipes", "migration from plugin failed; falling back to original plugin path", {
-    error: err instanceof Error ? err.message : String(err),
+    error: errorMessage(err),
   });
 });
 
