@@ -150,6 +150,12 @@ const ptBRMessages = {
       photos: "Fotos",
       model: "Modelo",
     },
+    groups: {
+      llm: "LLM",
+      servers: "Servidores",
+      workspace: "Espaço de trabalho",
+      plugins: "Plugins",
+    },
     mapTab: {
       description: "Define a chave da API do Google Maps usada pelo plugin de mapa. A chave fica salva localmente e só é enviada para o Google Maps.",
       apiKeyLabel: "Chave API do Google Maps",

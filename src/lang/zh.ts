@@ -153,6 +153,12 @@ const zhMessages = {
       photos: "照片",
       model: "模型",
     },
+    groups: {
+      llm: "LLM",
+      servers: "服务器",
+      workspace: "工作区",
+      plugins: "插件",
+    },
     mapTab: {
       description: "设置地图插件使用的 Google Maps API 密钥。密钥仅存储在本地,除发送到 Google Maps 外不会传输到任何地方。",
       apiKeyLabel: "Google Maps API 密钥",
