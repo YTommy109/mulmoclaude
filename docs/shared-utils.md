@@ -49,13 +49,13 @@ This catalog only covers **cross-cutting** helpers — formatters, error helpers
 
 ## Strings / Text
 
-> Open items — these helpers don't exist yet, see linked issues:
+> Open item — helper doesn't exist yet, see linked issue:
 >
 > - `truncate(s, max, ellipsis?)` — six inline implementations exist today, consolidation pending (#1306).
-> - `formatBytes(bytes, opts?)` — two declared copies + one inline calculation, consolidation pending (#1309).
 
 | Path | Helper | When to use |
 |---|---|---|
+| `src/utils/format/bytes.ts` | `formatBytes(bytes, opts?)` | Human-readable file / attachment sizes (B / KB / MB / GB, 1024-based, default 1 decimal). Returns `"—"` for negative or non-finite input. |
 | `server/utils/slug.ts` | slug helpers | URL-safe slugs from arbitrary text. |
 | `src/lib/wiki-page/slug.ts` | wiki page slug helpers | Wiki-specific slug shape (separate from the server one because the rules differ). |
 | `server/utils/id.ts` | id generation | Stable IDs (attachment, session). |
