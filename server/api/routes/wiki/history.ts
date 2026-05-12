@@ -24,6 +24,7 @@ import { readTextOrNull } from "../../../utils/files/safe.js";
 import { workspacePath } from "../../../workspace/workspace.js";
 import { pushToolResult } from "../../../events/session-store/index.js";
 import { log } from "../../../system/logger/index.js";
+import { errorMessage } from "../../../utils/errors.js";
 import { isSafeSlug } from "../../../../src/lib/wiki-page/slug.js";
 
 const router = Router();
@@ -240,7 +241,7 @@ router.post("/internal/snapshot", async (req: Request<object, unknown, InternalS
     } catch (err) {
       log.warn("wiki", "page-edit toolResult publish failed", {
         slug,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
     }
   }

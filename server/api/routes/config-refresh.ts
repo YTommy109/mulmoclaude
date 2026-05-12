@@ -12,6 +12,7 @@
 import { Router, Request, Response } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { log } from "../../system/logger/index.js";
+import { errorMessage } from "../../utils/errors.js";
 import { refreshScheduledSkills } from "../../workspace/skills/scheduler.js";
 import { refreshUserTasks } from "../../workspace/skills/user-tasks.js";
 
@@ -33,7 +34,7 @@ async function safeRefresh(label: string, refresher: () => Promise<number>): Pro
     const count = await refresher();
     return { ok: true, count };
   } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
+    const error = errorMessage(err);
     log.warn("config-refresh", `${label} refresh failed`, { error });
     return { ok: false, error };
   }
