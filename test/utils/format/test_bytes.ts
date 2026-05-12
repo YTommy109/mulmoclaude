@@ -64,4 +64,14 @@ describe("formatBytes", () => {
     assert.equal(formatBytes(512, { decimals: 3 }), "512 B");
     assert.equal(formatBytes(512, { decimals: 0 }), "512 B");
   });
+
+  it("truncates fractional sub-KiB input — the 'B' branch never shows decimals", () => {
+    // CodeRabbit flagged that the doc-comment promises integers for
+    // the B branch, but raw template interpolation would leak `0.5 B`
+    // through when a caller passes a fractional byte count (rare but
+    // possible if upstream sums something like `file.size * ratio`).
+    assert.equal(formatBytes(0.5), "0 B");
+    assert.equal(formatBytes(512.9), "512 B");
+    assert.equal(formatBytes(1023.999), "1023 B");
+  });
 });

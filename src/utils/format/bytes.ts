@@ -30,7 +30,11 @@ function sanitiseDecimals(raw: number | undefined): number {
 export function formatBytes(bytes: number, opts: FormatBytesOptions = {}): string {
   if (!Number.isFinite(bytes) || bytes < 0) return "—";
   const decimals = sanitiseDecimals(opts.decimals);
-  if (bytes < KiB) return `${bytes} B`;
+  // The interface comment promises "Bytes (B) are always shown as
+  // integers" — `Math.trunc` keeps that contract honest when callers
+  // pass fractional input (e.g. file.size from some upstream APIs
+  // can carry a sub-byte fraction).
+  if (bytes < KiB) return `${Math.trunc(bytes)} B`;
   if (bytes < MiB) return `${(bytes / KiB).toFixed(decimals)} KB`;
   if (bytes < GiB) return `${(bytes / MiB).toFixed(decimals)} MB`;
   return `${(bytes / GiB).toFixed(decimals)} GB`;

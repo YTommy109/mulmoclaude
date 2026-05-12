@@ -8,7 +8,7 @@ Two declared `formatBytes()` implementations exist with slightly different round
 
 - `src/components/FileContentHeader.vue:47` — `formatBytes(bytes)` returns `"123 B"` / `"4.5 KB"` / `"7.2 MB"` (1024-based, 1 decimal).
 - `packages/mock-server/src/server.ts:163` — own copy, different decimal rules per unit. **Left alone** per issue scope — mock-server is a standalone bridge package with its own lint scope.
-- `src/components/ChatInput.vue:149` — inline `(file.size / 1024 / 1024).toFixed(1)` feeding the i18n key `chatInput.fileTooLarge` with `{ sizeMB }`. The i18n string is `"File too large ({sizeMB} MB). Maximum is 30 MB."` across all 8 locales — migrating would force ` MB` suffix changes in every locale and the value would have to lose the unit. **Out of scope**: different display contract (always-MB upper-bound error) and i18n churn that's larger than the refactor itself.
+- `src/components/ChatInput.vue:149` — inline `(file.size / 1024 / 1024).toFixed(1)` feeding the i18n key `chatInput.fileTooLarge` with `{sizeMB}`. The i18n string is `"File too large ({sizeMB} MB). Maximum is 30 MB."` across all 8 locales — migrating would force ` MB` suffix changes in every locale and the value would have to lose the unit. **Out of scope**: different display contract (always-MB upper-bound error) and i18n churn that's larger than the refactor itself.
 
 ## Approach
 
