@@ -142,6 +142,20 @@ function extractTextMessages(body: unknown): WhatsAppTextMessage[] {
 
 const app = express();
 app.disable("x-powered-by");
+
+// Honour an explicit `trust proxy` setting so `req.ip` (the
+// rate-limit key below) reflects the real client IP rather than the
+// load balancer's. Default `false` for safety; operators behind a
+// known LB should set BRIDGE_TRUST_PROXY=1 (or a number of hops, or
+// an Express preset like "loopback"). Without this every webhook
+// looks like it comes from one IP and the limiter degrades into a
+// global throttle (Codex review on #1326).
+const trustProxyEnv = process.env.BRIDGE_TRUST_PROXY;
+if (trustProxyEnv) {
+  const numeric = Number(trustProxyEnv);
+  app.set("trust proxy", Number.isInteger(numeric) && numeric >= 0 ? numeric : trustProxyEnv);
+}
+
 // Parse as raw text so we can verify the HMAC before JSON parsing
 app.use(express.text({ type: "application/json" }));
 
