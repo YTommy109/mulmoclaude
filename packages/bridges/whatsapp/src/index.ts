@@ -146,21 +146,34 @@ app.use(express.text({ type: "application/json" }));
 
 // Webhook verification (GET).
 //
-// Meta's verification flow sends `hub.mode=subscribe` + the shared
-// `hub.verify_token` + a one-time `hub.challenge` random ASCII
-// nonce that we must echo back verbatim. The default `res.send`
-// path returns `Content-Type: text/html`, which would let a
-// crafted `hub.challenge=<script>...</script>` reflect executable
-// HTML into the response (CodeQL `js/reflected-xss`). Force
-// `text/plain` AND narrow the query value to a string so an
-// `hub.challenge[]=...` array form also bounces safely.
+// Meta sends `hub.mode=subscribe` + the shared `hub.verify_token`
+// + a one-time `hub.challenge` random ASCII nonce that we must
+// echo back verbatim. Three layered defences against
+// `js/reflected-xss`:
+//
+//   1. Strict shape whitelist on `hub.challenge` — Meta's nonce is
+//      always alphanumeric + `_`/`-`, ≤256 chars. Anything else is
+//      a forgery / XSS probe and gets the same 403 the verify-token
+//      mismatch returns. CodeQL recognises this kind of
+//      "validate-then-reflect" sequence as a sanitiser, so the
+//      data-flow alert clears too. (The previous patch set only
+//      `text/plain` and CodeQL still flagged the data flow on
+//      heuristic grounds.)
+//   2. `text/plain` content-type — even if a future regression
+//      widened the whitelist, the browser wouldn't execute the
+//      body as HTML.
+//   3. Narrow the query value to a string up front so
+//      `?hub.challenge[]=…` array forms can't bypass the
+//      whitelist via toString().
+const SAFE_CHALLENGE_RE = /^[A-Za-z0-9_-]{1,256}$/;
+
 app.get("/webhook", (req: Request, res: Response) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const rawChallenge = req.query["hub.challenge"];
-  const challenge = typeof rawChallenge === "string" ? rawChallenge : "";
+  const challenge = typeof rawChallenge === "string" && SAFE_CHALLENGE_RE.test(rawChallenge) ? rawChallenge : "";
 
-  if (mode === "subscribe" && token === verifyToken) {
+  if (mode === "subscribe" && token === verifyToken && challenge.length > 0) {
     console.log("[whatsapp] webhook verified");
     res.type("text/plain").status(200).send(challenge);
   } else {
