@@ -7,6 +7,7 @@
 // in a sibling Node-only file (today nothing under `src/lib/wiki-page/`
 // touches disk except `paths.ts`).
 
+import { parseWikiLink } from "./link.js";
 import { wikiSlugify } from "./slug.js";
 
 export interface WikiPageEntry {
@@ -161,10 +162,18 @@ function parseBulletLinkRow(trimmed: string): WikiPageEntry | null {
 function parseBulletWikiLinkRow(trimmed: string): WikiPageEntry | null {
   const match = BULLET_WIKI_LINK_PATTERN.exec(trimmed);
   if (!match) return null;
-  const title = match[1].trim();
+  // Split `[[target|display]]` so the bullet entry's slug derives
+  // from the TARGET (which is already a slug-shaped identifier
+  // when the author wrote the alias form) and the title shows
+  // the DISPLAY half. Pre-#1297 the parser slugified the full
+  // `target|display` body, which collapses `|` to "" and
+  // produces a wrong slug — Codex review on PR #1312.
+  const { target, display } = parseWikiLink(match[1]);
+  const title = (display || target).trim();
+  const slug = target ? wikiSlugify(target) : wikiSlugify(title);
   const raw = match[2]?.trim() ?? "";
   const { description, tags } = extractHashTags(raw);
-  return { title, slug: wikiSlugify(title), description, tags };
+  return { title, slug, description, tags };
 }
 
 // ── Top-level parser ──────────────────────────────────────────

@@ -116,6 +116,18 @@ describe("parseIndexEntries — bullet formats", () => {
     assert.deepEqual(entries[0], { slug: "foo-bar", title: "Foo Bar", description: "first", tags: [] });
   });
 
+  it("splits `- [[slug|display]] — description` via parseWikiLink", () => {
+    // Codex regression on PR #1312: the bullet [[…]] parser used
+    // to slugify the full `target|display` body, which collapses
+    // `|` and produces a wrong slug (and a fake "Orphan page" or
+    // "Missing file" diagnostic downstream).
+    const entries = parseIndexEntries("- [[keith-rabois-ai-pm-end|キース・ラボイス]] — first");
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].slug, "keith-rabois-ai-pm-end", "slug must come from the target half");
+    assert.equal(entries[0].title, "キース・ラボイス", "title must come from the display half");
+    assert.equal(entries[0].description, "first");
+  });
+
   it("prefers slug from href when title is non-ASCII", () => {
     // wikiSlugify strips non-ASCII to "", so without the href fall-
     // back the slug would be lost. The bullet parser keeps the slug
