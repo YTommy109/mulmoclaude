@@ -145,6 +145,67 @@ test.describe("ChatInput drop-target affordance (#1289 Step 1)", () => {
     await expect(overlay).toHaveCount(0);
   });
 
+  test("window-leave dragleave (no Files type) clears the stuck overlay", async ({ page }) => {
+    // Regression for the Codex review on #1327: some browsers strip
+    // `Files` from `dataTransfer.types` when the dragleave event
+    // crosses a window boundary. The old handler bailed early on
+    // that case → counter stayed at 1 → overlay stuck `true` until
+    // the next drop.
+    const dropTarget = page.locator("[data-testid=user-input]").locator("..").locator("..");
+    const overlay = page.getByTestId("chat-drop-overlay");
+
+    // Enter with a real file drag → overlay shows.
+    await dropTarget.evaluate((element) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(["payload"], "thing.txt", { type: "text/plain" }));
+      element.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    });
+    await expect(overlay).toBeVisible();
+
+    // Leave the window — Firefox / WebKit sometimes deliver this
+    // dragleave with `relatedTarget === null` and an empty
+    // `dataTransfer.types`. Reproduce that shape.
+    await dropTarget.evaluate((element) => {
+      const transfer = new DataTransfer(); // no items / no types
+      element.dispatchEvent(
+        new DragEvent("dragleave", {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer: transfer,
+          relatedTarget: null,
+        }),
+      );
+    });
+
+    // Overlay must clear — the leave handler decrements regardless
+    // of the missing `Files` type once the counter is positive.
+    await expect(overlay).toHaveCount(0);
+  });
+
+  test("window-level drop outside the wrapper resets the overlay", async ({ page }) => {
+    // Belt-and-suspenders: if the user releases the file on a part
+    // of the page that ISN'T the chat input, the wrapper never sees
+    // a `drop`. The window-level `drop` listener catches it.
+    const dropTarget = page.locator("[data-testid=user-input]").locator("..").locator("..");
+    const overlay = page.getByTestId("chat-drop-overlay");
+
+    await dropTarget.evaluate((element) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(["payload"], "thing.txt", { type: "text/plain" }));
+      element.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    });
+    await expect(overlay).toBeVisible();
+
+    // Drop somewhere on document body (not inside the wrapper).
+    await page.evaluate(() => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(["payload"], "thing.txt", { type: "text/plain" }));
+      window.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    });
+
+    await expect(overlay).toHaveCount(0);
+  });
+
   test("counter pattern absorbs child-element enter/leave pairs without flicker", async ({ page }) => {
     const dropTarget = page.locator("[data-testid=user-input]").locator("..").locator("..");
     const child = page.getByTestId("user-input");
