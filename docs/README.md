@@ -74,6 +74,7 @@ Code structure, APIs, and build instructions for the host itself. Plugin authors
 | Document                                      | Language | Description                                                                                                                                  |
 | --------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Developer Guide](developer.md)               | English  | Environment variables, scripts, workspace structure, CI, internal packages, and the in-tree [plugin development](developer.md#plugin-development) reference |
+| [Shared Utilities Catalog](shared-utils.md)   | English  | One-stop list of cross-cutting helpers (time, errors, paths, files, network, markdown, …). Check this before writing a new helper; append a 1-line entry when adding one |
 | [UI Cheatsheet](ui-cheatsheet.md)             | English  | ASCII layouts of every major UI surface, anchored to component / `data-testid` names so chat / PR text can reference them precisely |
 | [Bridge Protocol](bridge-protocol.md)         | English  | MulmoBridge wire protocol spec (socket.io events, auth)                                                                             |
 | [Task Manager](task-manager.md)               | English  | Server tick loop + @receptron/task-scheduler integration                                                                            |
