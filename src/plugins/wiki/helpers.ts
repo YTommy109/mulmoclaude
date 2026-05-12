@@ -6,6 +6,7 @@ import { marked } from "marked";
 import { parseWikiLink } from "../../lib/wiki-page/link";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { makeTasksInteractive } from "../../utils/markdown/taskList";
+import { escapeHtml } from "../../utils/markdown/wikiEmbeds";
 
 /**
  * Pure markdown→HTML pipeline shared between the standalone /wiki
@@ -37,6 +38,15 @@ export function renderWikiPageHtml(body: string, baseDir: string): string {
  * found the file, but the URL was ugly and the lint flagged the
  * link as broken). Routing through `parseWikiLink` makes the
  * renderer, the resolver, and the lint agree.
+ *
+ * Both halves are HTML-escaped before interpolation — a wiki page
+ * author writing `[[foo"onclick=alert(1)//|<img>]]` would
+ * otherwise break out of the attribute context (target) or the
+ * text context (display) and execute markup. Pre-#1297 the
+ * original code interpolated the raw body too; the issue was
+ * latent because everything that touched a wiki page also went
+ * through `marked.parse` first, but `parseWikiLink` runs BEFORE
+ * marked sees the body so escaping has to happen here.
  */
 export function renderWikiLinks(content: string): string {
   const out: string[] = [];
@@ -47,7 +57,7 @@ export function renderWikiLinks(content: string): string {
       if (closeStart !== -1) {
         const inner = content.slice(i + 2, closeStart);
         const { target, display } = parseWikiLink(inner);
-        out.push(`<span class="wiki-link" data-page="${target}">${display}</span>`);
+        out.push(`<span class="wiki-link" data-page="${escapeHtml(target)}">${escapeHtml(display)}</span>`);
         i = closeStart + 2;
         continue;
       }

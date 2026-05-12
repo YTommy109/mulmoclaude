@@ -77,4 +77,28 @@ describe("renderWikiLinks", () => {
     // target/display delimiter.
     assert.equal(renderWikiLinks("[[a|b|c]]"), '<span class="wiki-link" data-page="a">b|c</span>');
   });
+
+  // ── XSS escaping (Codex review on PR #1312) ───────────────────
+
+  it("HTML-escapes the target (attribute context)", () => {
+    // A wiki page author writing `[[foo"onclick=alert(1)//]]` would
+    // otherwise break out of the `data-page="…"` attribute and
+    // execute the handler when the user clicks anything. Escape
+    // before interpolation.
+    assert.equal(
+      renderWikiLinks(`[[foo"onclick=alert(1)//]]`),
+      '<span class="wiki-link" data-page="foo&quot;onclick=alert(1)//">foo&quot;onclick=alert(1)//</span>',
+    );
+  });
+
+  it("HTML-escapes the display (text context)", () => {
+    // Same threat at the inner-text position — `[[foo|<img src=x onerror=alert(1)>]]`
+    // would inject the img tag and execute the handler. Escape `<`/`>`
+    // (and `&`) so the markup renders as plain text.
+    assert.equal(renderWikiLinks("[[foo|<img src=x onerror=alert(1)>]]"), '<span class="wiki-link" data-page="foo">&lt;img src=x onerror=alert(1)&gt;</span>');
+  });
+
+  it("HTML-escapes `&` so existing entities aren't doubled (target + display)", () => {
+    assert.equal(renderWikiLinks("[[a&b|c&d]]"), '<span class="wiki-link" data-page="a&amp;b">c&amp;d</span>');
+  });
 });
