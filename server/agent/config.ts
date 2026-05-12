@@ -79,6 +79,22 @@ export function prepareUserServers(userServers: Record<string, McpServerSpec>, u
     if (spec.type === "http") {
       out[serverId] = prepareUserHttpServer(spec, useDocker);
     } else {
+      // Stay symmetric with `userServerAllowedToolNames`: stdio
+      // servers can't run inside the sandbox image (see
+      // docs/mcp-sandbox.md for the full rationale — #162 / #1334).
+      // Claude CLI 2.1.x silently exits 1 when a stdio MCP fails to
+      // start, so passing the spec through here would mask the
+      // failure as a generic boot error. Drop + log per skipped
+      // entry so an operator scanning the log knows why their MCP
+      // didn't load.
+      if (useDocker) {
+        log.info("mcp", "skipping stdio server in Docker sandbox", {
+          serverId,
+          transport: "stdio",
+          reason: "sandbox image is too minimal to host arbitrary stdio MCP runtimes",
+        });
+        continue;
+      }
       out[serverId] = prepareUserStdioServer(spec, useDocker, hostWorkspacePath);
     }
   }
