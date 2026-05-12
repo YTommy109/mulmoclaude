@@ -74,7 +74,7 @@ async function resolvePagePath(pageName: string): Promise<string | null> {
 
 1. **正常 fuzzy** — slug `bar` が key `foobar` に含まれる → 唯一の
    候補なら return
-2. **短すぎ slug は skip** — slug が 5 文字以下なら fuzzy 全 skip
+2. **短すぎる slug は skip** — slug が 5 文字以下なら fuzzy 全 skip
    (title-match だけ動く)
 3. **tie → null** — 2 候補が同 score (= 同 length 関係) で並ぶ
    → null (caller の title-match に委譲)
@@ -83,7 +83,7 @@ async function resolvePagePath(pageName: string): Promise<string | null> {
 5. **exact match 優先** — fuzzy より先に handled、 score 経路を
    通らない (回帰防止)
 
-既存の `e2e-live/tests/wiki-nav.spec.ts` の L-15 の「ユニークトークン
+既存の `e2e-live/tests/wiki-nav.spec.ts` の L-15 の「ユニークトークンを
 入れて回避」コメントから、 server 側で塞いだ旨に書き換える
 (コードは変更不要、 コメントのみ更新)。
 
