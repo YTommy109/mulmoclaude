@@ -157,6 +157,7 @@ const deMessages = {
       workspace: "Arbeitsbereich",
       plugins: "Plugins",
     },
+    navAriaLabel: "Einstellungsbereiche",
     mapTab: {
       description:
         "Legt den Google-Maps-API-Schlüssel fest, den das Karten-Plugin verwendet. Der Schlüssel wird lokal gespeichert und nur an Google Maps gesendet.",
