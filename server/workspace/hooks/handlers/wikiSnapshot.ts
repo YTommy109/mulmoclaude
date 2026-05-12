@@ -6,7 +6,7 @@
 // carries a single PostToolUse entry instead of one per hook source.
 
 import path from "node:path";
-import { wikiSlugFromAbsPath } from "../../../../src/lib/wiki-page/slug.js";
+import { wikiSlugFromAbsPath } from "../../../../src/lib/wiki-page/paths.js";
 import { buildAuthPost, safePost } from "../shared/sidecar.js";
 import type { HookPayload } from "../shared/stdin.js";
 import { extractFilePath, extractSessionId, extractToolName } from "../shared/stdin.js";
