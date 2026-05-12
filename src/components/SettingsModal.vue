@@ -1,7 +1,7 @@
 <template>
   <div v-if="open" class="fixed inset-0 z-50 bg-black/40 flex items-start justify-center pt-16" data-testid="settings-modal-backdrop" @click="close">
     <div
-      class="bg-white rounded-lg shadow-xl w-[52rem] max-h-[85vh] flex flex-col"
+      class="bg-white rounded-lg shadow-xl w-[52rem] max-w-[95vw] max-h-[85vh] flex flex-col"
       role="dialog"
       aria-modal="true"
       aria-labelledby="settings-modal-title"
@@ -16,7 +16,7 @@
       </div>
 
       <div class="flex flex-1 min-h-0">
-        <nav class="w-44 border-r border-gray-200 bg-gray-50 py-3 overflow-y-auto" aria-label="Settings sections" data-testid="settings-nav">
+        <nav class="w-44 border-r border-gray-200 bg-gray-50 py-3 overflow-y-auto" :aria-label="t('settingsModal.navAriaLabel')" data-testid="settings-nav">
           <div v-for="group in visibleGroups" :key="group.key" class="mb-3">
             <div class="px-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
               {{ t(`settingsModal.groups.${group.key}`) }}
@@ -27,6 +27,7 @@
               class="w-full text-left px-4 py-1.5 text-sm border-l-2"
               :class="activeTab === tabId ? 'border-blue-500 bg-white text-blue-700 font-medium' : 'border-transparent text-gray-700 hover:bg-gray-100'"
               :data-testid="`settings-tab-${tabId}`"
+              :aria-current="activeTab === tabId ? 'page' : undefined"
               @click="activeTab = tabId"
             >
               {{ t(`settingsModal.tabs.${tabId}`) }}

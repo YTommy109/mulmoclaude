@@ -156,6 +156,7 @@ const ptBRMessages = {
       workspace: "Espaço de trabalho",
       plugins: "Plugins",
     },
+    navAriaLabel: "Seções de configurações",
     mapTab: {
       description: "Define a chave da API do Google Maps usada pelo plugin de mapa. A chave fica salva localmente e só é enviada para o Google Maps.",
       apiKeyLabel: "Chave API do Google Maps",

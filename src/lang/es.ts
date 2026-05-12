@@ -161,6 +161,7 @@ const esMessages = {
       workspace: "Espacio de trabajo",
       plugins: "Plugins",
     },
+    navAriaLabel: "Secciones de ajustes",
     mapTab: {
       description: "Configura la clave de la API de Google Maps que usa el plugin de mapas. La clave se guarda localmente y solo se envía a Google Maps.",
       apiKeyLabel: "Clave API de Google Maps",

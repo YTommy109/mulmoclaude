@@ -163,6 +163,7 @@ const koMessages = {
       workspace: "워크스페이스",
       plugins: "플러그인",
     },
+    navAriaLabel: "설정 섹션",
     mapTab: {
       description: "지도 플러그인에서 사용하는 Google Maps API 키를 설정합니다. 키는 로컬에 저장되며 Google Maps 외부로는 전송되지 않습니다.",
       apiKeyLabel: "Google Maps API 키",

@@ -161,6 +161,7 @@ const jaMessages = {
       workspace: "ワークスペース",
       plugins: "プラグイン",
     },
+    navAriaLabel: "設定セクション",
     mapTab: {
       description: "地図プラグインで使う Google Maps API キーを設定します。キーはローカルに保存され、Google Maps への通信以外で送信されることはありません。",
       apiKeyLabel: "Google Maps API キー",
