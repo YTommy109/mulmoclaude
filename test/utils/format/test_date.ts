@@ -75,19 +75,31 @@ describe("formatShortDate", () => {
 });
 
 describe("formatMonthYear", () => {
+  // Fixed instant — using `Date.now()` would make the suite
+  // non-deterministic (Sourcery #1316). The exact picked instant
+  // doesn't matter, only that all three input shapes below address
+  // the same moment so the equivalence assertion is meaningful.
+  const FIXED_INSTANT = new Date(Date.UTC(2026, 3, 10, 12, 0, 0));
+  const FIXED_EPOCH = FIXED_INSTANT.getTime();
+  const FIXED_ISO = FIXED_INSTANT.toISOString();
+
   it("returns a non-empty string from a Date", () => {
-    const out = formatMonthYear(new Date(2026, 3, 10));
+    const out = formatMonthYear(FIXED_INSTANT);
     assert.equal(typeof out, "string");
     assert.ok(out.length > 0);
   });
 
-  it("includes a 4-digit year", () => {
-    const out = formatMonthYear(new Date(2026, 3, 10));
-    assert.match(out, /2026/);
-  });
-
-  it("accepts epoch ms and ISO strings", () => {
-    assert.equal(typeof formatMonthYear(Date.now()), "string");
-    assert.equal(typeof formatMonthYear("2026-04-10T00:00:00Z"), "string");
+  it("returns the same string for equivalent Date / epoch ms / ISO inputs", () => {
+    // Locale-agnostic structural invariant (Codex #1316): assert
+    // that the three input shapes produce identical output for the
+    // same instant, not that the output matches a literal year /
+    // digit sequence (which would break in non-ASCII-digit or
+    // non-Gregorian locales).
+    const fromDate = formatMonthYear(FIXED_INSTANT);
+    const fromEpoch = formatMonthYear(FIXED_EPOCH);
+    const fromIso = formatMonthYear(FIXED_ISO);
+    assert.equal(fromEpoch, fromDate);
+    assert.equal(fromIso, fromDate);
+    assert.ok(fromDate.length > 0);
   });
 });
