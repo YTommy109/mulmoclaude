@@ -98,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import ChatAttachmentPreview from "./ChatAttachmentPreview.vue";
 import SuggestionsPanel from "./SuggestionsPanel.vue";
@@ -232,14 +232,43 @@ function onDragEnter(event: DragEvent): void {
   isDragging.value = true;
 }
 
-function onDragLeave(event: DragEvent): void {
-  if (!isFileDrag(event)) return;
+function onDragLeave(): void {
+  // The `isFileDrag` guard is intentionally NOT applied here. Some
+  // browsers strip `Files` from `dataTransfer.types` when the leave
+  // event crosses a window boundary, which would leave the overlay
+  // stuck (counter never decremented, `isDragging` stays `true` until
+  // the next drop). The enter handler already filters out non-file
+  // drags, so anything reaching this point with a positive counter
+  // is a file drag we entered earlier — Codex review on #1327.
+  if (dragEnterCount === 0) return;
   dragEnterCount -= 1;
   if (dragEnterCount <= 0) {
     dragEnterCount = 0;
     isDragging.value = false;
   }
 }
+
+// Belt-and-suspenders escape hatch: `drop` outside our wrapper and
+// `dragend` (when applicable) both reset the overlay so a half-
+// observed drag sequence can't strand the UI in drag-state. Cross-
+// window file drags from the desktop never fire `dragend` inside
+// the page, but a user releasing the file on an inert part of the
+// page does fire `drop` at the window — that's the case we mainly
+// want to catch.
+function onWindowDragTerminal(): void {
+  dragEnterCount = 0;
+  isDragging.value = false;
+}
+
+onMounted(() => {
+  window.addEventListener("drop", onWindowDragTerminal);
+  window.addEventListener("dragend", onWindowDragTerminal);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("drop", onWindowDragTerminal);
+  window.removeEventListener("dragend", onWindowDragTerminal);
+});
 
 function openFilePicker(): void {
   fileInput.value?.click();
