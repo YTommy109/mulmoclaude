@@ -65,6 +65,20 @@ describe("isWorkspacePath — pure detector", () => {
   it("rejects extensions longer than 8 chars (heuristic — not real)", () => {
     assert.equal(isWorkspacePath("artifacts/foo.verylongext"), false);
   });
+
+  it("rejects paths containing HTML-meta or quote chars", () => {
+    // Sourcery / Codex review on #1325: the body of a workspace
+    // path is restricted to `[A-Za-z0-9._/-]`, so a crafted
+    // codespan content like `artifacts/x"<onclick=...>.pdf`
+    // does NOT match the detector and falls through to the
+    // (HTML-escaped) default codespan renderer. Pin the contract
+    // so a regex relax never silently regresses.
+    assert.equal(isWorkspacePath('artifacts/x".pdf'), false);
+    assert.equal(isWorkspacePath("artifacts/x'.pdf"), false);
+    assert.equal(isWorkspacePath("artifacts/x<y.pdf"), false);
+    assert.equal(isWorkspacePath("artifacts/x>y.pdf"), false);
+    assert.equal(isWorkspacePath("artifacts/x=y.pdf"), false);
+  });
 });
 
 describe("marked codespan → workspace-link auto-linkify", () => {
@@ -101,5 +115,27 @@ describe("marked codespan → workspace-link auto-linkify", () => {
     const html = (marked.parse("`artifacts/documents/2026/05/example.pdf` 開いて内容を確認") as string).trim();
     assert.match(html, /<a href="artifacts\/documents\/2026\/05\/example\.pdf"[^>]*class="workspace-link"/);
     assert.match(html, /開いて内容を確認/);
+  });
+
+  it("HTML-escapes codespan content for non-workspace paths (no XSS via inline code)", () => {
+    // Codex review on #1325: chat HTML is rendered via v-html, so a
+    // codespan containing `<img onerror=...>` must surface as
+    // ESCAPED text inside `<code>`, not as a live element. Marked's
+    // lexer pre-escapes the token; this test pins that the extension
+    // doesn't undo it.
+    const html = (marked.parse("here is `<img src=x onerror=alert(1)>` lol") as string).trim();
+    assert.match(html, /<code>&lt;img src=x onerror=alert\(1\)&gt;<\/code>/);
+    assert.doesNotMatch(html, /<img src=x onerror/); // no live element
+    assert.doesNotMatch(html, /workspace-link/);
+  });
+
+  it("HTML-escapes ampersand-bearing content without double-escaping (default-renderer parity)", () => {
+    // The codespan should keep marked's default escaping behaviour
+    // unchanged — `&` → `&amp;` exactly once. If we hardcoded
+    // `<code>${text}</code>` and marked's lexer changed in a future
+    // release, we'd silently drift; delegating to defaultRenderer
+    // keeps us in lockstep.
+    const html = (marked.parse("query `a & b = c`") as string).trim();
+    assert.match(html, /<code>a &amp; b = c<\/code>/);
   });
 });
