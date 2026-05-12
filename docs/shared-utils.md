@@ -22,6 +22,7 @@ This catalog only covers **cross-cutting** helpers — formatters, error helpers
 | Path | Helper | When to use |
 |---|---|---|
 | `server/utils/errors.ts` | `errorMessage(err, fallback?)` | Inside any `catch (err)` block, instead of inlining `err instanceof Error ? err.message : String(err)`. Also handles gRPC-style `{ details }` and plain `{ message }` objects (which would otherwise print as `[object Object]`). |
+| `src/utils/errors.ts` | `errorMessage(err, fallback?)` | Frontend mirror of the server-side helper. Inside a Vue `<script setup>` where `errorMessage` is already a ref name, import as `import { errorMessage as toErrorMessage } from "../../utils/errors"` to avoid the shadow. |
 | `server/utils/asyncHandler.ts` | `asyncHandler(namespace, fallbackMessage, handler)` | Wrap every async Express route handler. Logs the raw error server-side, sends a sanitized 500 to the client. Never let an unhandled throw escape a route. |
 | `server/utils/httpError.ts` | `serverError(res, msg)`, `badRequest(res, msg)`, etc. | HTTP error responses with consistent shape. |
 | `server/utils/logBackgroundError.ts` | `logBackgroundError(namespace, msg, err)` | Fire-and-forget background tasks where the caller can't await. Logs with the right namespace and stack. |

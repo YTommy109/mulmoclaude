@@ -21,6 +21,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { WORKSPACE_PATHS } from "../paths.js";
 import { log } from "../../system/logger/index.js";
+import { errorMessage } from "../../utils/errors.js";
 
 const LEGACY_PLUGIN_SEG = "%40mulmoclaude%2Frecipe-book-plugin";
 const LEGACY_RECIPES_SUBDIR = "recipes";
@@ -91,7 +92,7 @@ export async function migrateCookingRecipesFromPlugin(opts: CookingRecipesMigrat
       // mark migration as done — Codex review on PR #1287. Track
       // separately from intentional skips so the sentinel-gate below
       // can decide. Next boot retries the source files we missed.
-      log.warn("cooking-recipes", "migration: copy failed (will retry next boot)", { name, error: err instanceof Error ? err.message : String(err) });
+      log.warn("cooking-recipes", "migration: copy failed (will retry next boot)", { name, error: errorMessage(err) });
       copyFailures += 1;
     }
   }

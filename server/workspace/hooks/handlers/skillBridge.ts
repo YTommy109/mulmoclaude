@@ -39,6 +39,7 @@ import { buildAuthPost, safePost, serverLog } from "../shared/sidecar.js";
 import type { HookPayload } from "../shared/stdin.js";
 import { extractCommand, extractFilePath, extractToolName } from "../shared/stdin.js";
 import { workspaceRoot } from "../shared/workspace.js";
+import { errorMessage } from "../../../utils/errors.js";
 
 const DATA_SKILLS_DIR = path.join("data", "skills");
 const CLAUDE_SKILLS_DIR = path.join(".claude", "skills");
@@ -170,7 +171,7 @@ async function handleWriteOrEdit(payload: HookPayload): Promise<void> {
     // user's tool turn must stay clean.
     await serverLog("skill-bridge", `mirror write failed for slug=${slug}`, {
       level: "error",
-      data: { slug, error: err instanceof Error ? err.message : String(err) },
+      data: { slug, error: errorMessage(err) },
     });
   }
 }
@@ -193,7 +194,7 @@ async function handleBash(payload: HookPayload): Promise<void> {
     // manually, which is better than aborting the tool turn.
     await serverLog("skill-bridge", `mirror delete failed for slug=${slug}`, {
       level: "error",
-      data: { slug, error: err instanceof Error ? err.message : String(err) },
+      data: { slug, error: errorMessage(err) },
     });
   }
 }
