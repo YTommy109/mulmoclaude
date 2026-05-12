@@ -34,6 +34,7 @@ const ptBRMessages = {
     fileTooLarge: "Arquivo muito grande ({sizeMB} MB). O limite é 30 MB.",
     unsupportedFileType: "Tipo de arquivo não suportado. Aceitos: imagens, PDF, DOCX, XLSX, PPTX e arquivos de texto.",
     attachImageFailed: "Falha ao anexar a imagem: {error}",
+    dropHint: "Solte o arquivo para anexar",
   },
   sessionHistoryPanel: {
     filters: {

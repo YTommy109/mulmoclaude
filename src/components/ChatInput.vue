@@ -1,5 +1,25 @@
 <template>
-  <div class="border-t border-gray-200" @dragover.prevent @drop="onDropFile">
+  <div
+    class="relative border-t border-gray-200"
+    :class="{ 'bg-blue-50/40': isDragging }"
+    @dragenter="onDragEnter"
+    @dragover.prevent
+    @dragleave="onDragLeave"
+    @drop="onDropFile"
+  >
+    <!-- Drop-target visual cue (#1289 Step 1). pointer-events-none so
+         it never absorbs the drop — the real handler is on the
+         wrapper. Files-only guard runs in the enter/leave handlers
+         so a stray text-selection drag won't trigger the overlay. -->
+    <div
+      v-if="isDragging"
+      class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded border-2 border-dashed border-blue-400"
+      data-testid="chat-drop-overlay"
+    >
+      <span class="rounded bg-white/85 px-3 py-1 text-sm font-medium text-blue-700 shadow-sm">
+        {{ t("chatInput.dropHint") }}
+      </span>
+    </div>
     <SuggestionsPanel
       v-model:expanded="suggestionsExpanded"
       :queries="queries"
@@ -112,6 +132,15 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const suggestionsExpanded = ref(false);
 const suggestionsBtnRef = ref<HTMLButtonElement | null>(null);
 
+// Drop-target affordance (#1289 Step 1). `dragEnterCount` is the
+// counter pattern — every time the dragged pointer crosses into a
+// child element (textarea, button, preview thumb) the browser
+// fires another `dragenter`; without the counter, an immediate
+// `dragleave` from the previous element would flicker the overlay
+// off and back on as the user moves across children.
+const isDragging = ref(false);
+let dragEnterCount = 0;
+
 const MAX_ATTACH_BYTES = 30 * 1024 * 1024;
 
 const ACCEPTED_MIME_PREFIXES = ["image/", "text/"];
@@ -180,8 +209,36 @@ function onPasteFile(event: ClipboardEvent): void {
 
 function onDropFile(event: DragEvent): void {
   event.preventDefault();
+  dragEnterCount = 0;
+  isDragging.value = false;
   const file = event.dataTransfer?.files[0];
   if (file) readAttachmentFile(file);
+}
+
+function isFileDrag(event: DragEvent): boolean {
+  // `dataTransfer.types` is a DOMStringList in some browsers and a
+  // plain array in others — both expose `.includes` reliably in
+  // modern Chromium / WebKit / Firefox. Text-selection drags inside
+  // the page set "text/plain" / "text/html" but NOT "Files", so
+  // this guard keeps the overlay from flashing on local-page text
+  // drags. (#1289 Step 1)
+  return event.dataTransfer?.types.includes("Files") ?? false;
+}
+
+function onDragEnter(event: DragEvent): void {
+  if (!isFileDrag(event)) return;
+  event.preventDefault();
+  dragEnterCount += 1;
+  isDragging.value = true;
+}
+
+function onDragLeave(event: DragEvent): void {
+  if (!isFileDrag(event)) return;
+  dragEnterCount -= 1;
+  if (dragEnterCount <= 0) {
+    dragEnterCount = 0;
+    isDragging.value = false;
+  }
 }
 
 function openFilePicker(): void {

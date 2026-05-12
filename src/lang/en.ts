@@ -56,6 +56,7 @@ const enMessages = {
     fileTooLarge: "File too large ({sizeMB} MB). Maximum is 30 MB.",
     unsupportedFileType: "File type not supported. Accepted: images, PDF, DOCX, XLSX, PPTX, text files.",
     attachImageFailed: "Failed to attach image: {error}",
+    dropHint: "Drop file to attach",
   },
   sessionHistoryPanel: {
     filters: {

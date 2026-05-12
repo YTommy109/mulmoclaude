@@ -97,3 +97,82 @@ test.describe("ChatInput attach discoverability", () => {
     expect(text).toContain("30");
   });
 });
+
+test.describe("ChatInput drop-target affordance (#1289 Step 1)", () => {
+  test.beforeEach(async ({ page }) => {
+    await mockAllApis(page);
+    await page.goto("/");
+  });
+
+  test("file dragenter reveals the overlay, drop clears it", async ({ page }) => {
+    const dropTarget = page.locator("[data-testid=user-input]").locator("..").locator("..");
+    const overlay = page.getByTestId("chat-drop-overlay");
+
+    // Pre-condition: overlay is not present before the drag starts.
+    await expect(overlay).toHaveCount(0);
+
+    // Fire a synthetic dragenter carrying a File. The handler should
+    // flip `isDragging` true and render the overlay.
+    await dropTarget.evaluate((element) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(["payload"], "thing.txt", { type: "text/plain" }));
+      element.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    });
+    await expect(overlay).toBeVisible();
+
+    // A drop must clear the overlay — the counter is forced to zero
+    // even if the synthetic events skipped a paired dragleave.
+    await dropTarget.evaluate((element) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(["payload"], "thing.txt", { type: "text/plain" }));
+      element.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    });
+    await expect(overlay).toHaveCount(0);
+  });
+
+  test("a text-selection drag (no 'Files' type) does NOT trigger the overlay", async ({ page }) => {
+    const dropTarget = page.locator("[data-testid=user-input]").locator("..").locator("..");
+    const overlay = page.getByTestId("chat-drop-overlay");
+
+    // Dragging selected text inside the page populates dataTransfer
+    // with `text/plain` only. The Files-only guard must keep the
+    // overlay hidden for these.
+    await dropTarget.evaluate((element) => {
+      const transfer = new DataTransfer();
+      transfer.setData("text/plain", "some selected words");
+      element.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    });
+    await expect(overlay).toHaveCount(0);
+  });
+
+  test("counter pattern absorbs child-element enter/leave pairs without flicker", async ({ page }) => {
+    const dropTarget = page.locator("[data-testid=user-input]").locator("..").locator("..");
+    const child = page.getByTestId("user-input");
+    const overlay = page.getByTestId("chat-drop-overlay");
+
+    // Real browsers fire `dragenter` on the wrapper, then again on
+    // each child the pointer crosses (textarea, buttons). A naive
+    // toggle would flicker the overlay off when the pointer leaves
+    // the wrapper to "enter" the textarea. The counter must keep it
+    // open across that transition.
+    await dropTarget.evaluate((element) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(["payload"], "thing.txt", { type: "text/plain" }));
+      element.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    });
+    await expect(overlay).toBeVisible();
+
+    // Simulate the pointer crossing into the textarea (browser fires
+    // dragenter on the new target, then dragleave on the previous
+    // one — both bubble up to the wrapper handler).
+    await child.evaluate((element) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(["payload"], "thing.txt", { type: "text/plain" }));
+      element.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+      element.dispatchEvent(new DragEvent("dragleave", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    });
+    // Overlay stays open — the counter was at 2 (wrapper + child)
+    // and only one leave landed, so it stays positive.
+    await expect(overlay).toBeVisible();
+  });
+});

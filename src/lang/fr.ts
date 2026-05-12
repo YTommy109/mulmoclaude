@@ -34,6 +34,7 @@ const frMessages = {
     fileTooLarge: "Fichier trop volumineux ({sizeMB} Mo). La limite est de 30 Mo.",
     unsupportedFileType: "Type de fichier non pris en charge. Acceptés : images, PDF, DOCX, XLSX, PPTX, fichiers texte.",
     attachImageFailed: "Échec de l'attache de l'image : {error}",
+    dropHint: "Déposez le fichier pour joindre",
   },
   sessionHistoryPanel: {
     filters: {
