@@ -62,3 +62,12 @@ export function formatAmount(value: number, currency: string, locale?: string): 
     return value.toFixed(fractionDigitsFor(currency));
   }
 }
+
+/** Currency-agnostic amount formatter — "1,130.00" — for places that
+ *  don't carry the currency code on the data path (compact preview
+ *  envelopes etc.). Use `formatAmount(value, currency)` whenever the
+ *  currency IS available — the currency-aware path picks the right
+ *  fraction-digit count automatically (JPY = 0, USD = 2). */
+export function formatAmountNumeric(value: number, decimals = 2): string {
+  return value.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
