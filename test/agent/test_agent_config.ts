@@ -142,6 +142,27 @@ describe("buildCliArgs", () => {
 
     assert.ok(!args.includes("--mcp-config"));
   });
+
+  it("includes --effort when effortLevel is set", async () => {
+    const args = buildCliArgs({
+      systemPrompt: "test",
+      activePlugins: [],
+      effortLevel: "high",
+    });
+
+    const effortIdx = args.indexOf("--effort");
+    assert.ok(effortIdx >= 0, "--effort flag must exist");
+    assert.equal(args[effortIdx + 1], "high");
+  });
+
+  it("omits --effort when effortLevel is unset", async () => {
+    const args = buildCliArgs({
+      systemPrompt: "test",
+      activePlugins: [],
+    });
+
+    assert.ok(!args.includes("--effort"));
+  });
 });
 
 describe("resolveMcpConfigPaths", () => {
