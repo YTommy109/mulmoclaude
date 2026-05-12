@@ -38,23 +38,28 @@ export interface UseFileDropZoneOptions {
   onFile: (file: File) => void;
 }
 
-let windowGuardInstalled = false;
+// Module-scope so the install-once contract holds across multiple
+// `useFileDropZone` consumers. The handler reference is retained
+// so `_resetFileDropZoneForTests` can actually remove the listeners
+// (a naive reset that only flipped the flag would leak handlers
+// across test runs — Sourcery review on PR #1331).
+let windowGuardHandler: ((event: DragEvent) => void) | null = null;
 
 function isFileDrag(event: DragEvent): boolean {
   return event.dataTransfer?.types.includes("Files") ?? false;
 }
 
 function installWindowDefaultGuard(): void {
-  if (windowGuardInstalled) return;
+  if (windowGuardHandler !== null) return;
   if (typeof window === "undefined") return;
-  windowGuardInstalled = true;
-  const prevent = (event: DragEvent): void => {
+  const handler = (event: DragEvent): void => {
     if (isFileDrag(event)) event.preventDefault();
   };
   // Capture-phase isn't needed: `preventDefault` from a bubbling
   // handler still suppresses the default action.
-  window.addEventListener("dragover", prevent);
-  window.addEventListener("drop", prevent);
+  window.addEventListener("dragover", handler);
+  window.addEventListener("drop", handler);
+  windowGuardHandler = handler;
 }
 
 export function useFileDropZone(opts: UseFileDropZoneOptions): UseFileDropZoneResult {
@@ -87,6 +92,11 @@ export function useFileDropZone(opts: UseFileDropZoneOptions): UseFileDropZoneRe
   }
 
   function onDrop(event: DragEvent): void {
+    // Non-file drops (e.g. dropping selected text from elsewhere on
+    // the page into the textarea) need to keep their default
+    // behaviour. Suppressing the default for those would break a
+    // legitimate browser action. Sourcery review on PR #1331.
+    if (!isFileDrag(event)) return;
     event.preventDefault();
     dragEnterCount = 0;
     isDragging.value = false;
@@ -97,8 +107,13 @@ export function useFileDropZone(opts: UseFileDropZoneOptions): UseFileDropZoneRe
   return { isDragging, onDragenter, onDragover, onDragleave, onDrop };
 }
 
-/** Test-only reset. Lets unit tests verify the install-once contract
- *  without leaking listeners across cases. */
+/** Test-only reset. Removes the window listeners installed by
+ *  `installWindowDefaultGuard` so a test can verify the install-once
+ *  contract without leaking handlers across cases. */
 export function _resetFileDropZoneForTests(): void {
-  windowGuardInstalled = false;
+  if (windowGuardHandler !== null && typeof window !== "undefined") {
+    window.removeEventListener("dragover", windowGuardHandler);
+    window.removeEventListener("drop", windowGuardHandler);
+  }
+  windowGuardHandler = null;
 }
