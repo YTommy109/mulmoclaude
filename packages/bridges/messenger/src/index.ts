@@ -15,6 +15,7 @@ import "dotenv/config";
 import crypto from "crypto";
 import express, { type Request, type Response } from "express";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
+import { narrowChallenge } from "./verify.js";
 
 const TRANSPORT_ID = "messenger";
 const PORT = Number(process.env.MESSENGER_BRIDGE_PORT) || 3004;
@@ -95,16 +96,21 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.text({ type: "application/json", limit: BODY_LIMIT }));
 
-// Webhook verification (GET)
+// Webhook verification (GET).
+//
+// Meta's Send/Receive verification protocol is shared across
+// WhatsApp Cloud API and Messenger Platform — see
+// `./verify.ts` for the full rationale on the `narrowChallenge`
+// shape whitelist (CodeQL sanitiser + Meta compatibility notes).
 app.get("/webhook", (req: Request, res: Response) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
-  if (mode === "subscribe" && token === verifyToken) {
+  const challenge = narrowChallenge(req.query["hub.challenge"]);
+  if (mode === "subscribe" && token === verifyToken && challenge !== null) {
     console.log("[messenger] webhook verified");
-    res.status(200).send(challenge);
+    res.type("text/plain").status(200).send(challenge);
   } else {
-    res.status(403).send("Forbidden");
+    res.status(403).type("text/plain").send("Forbidden");
   }
 });
 

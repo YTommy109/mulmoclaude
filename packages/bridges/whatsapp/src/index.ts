@@ -17,6 +17,7 @@ import "dotenv/config";
 import crypto from "crypto";
 import express, { type Request, type Response } from "express";
 import { createBridgeClient } from "@mulmobridge/client";
+import { narrowChallenge } from "./verify.js";
 
 const TRANSPORT_ID = "whatsapp";
 const PORT = Number(process.env.WHATSAPP_BRIDGE_PORT) || 3003;
@@ -144,17 +145,32 @@ app.disable("x-powered-by");
 // Parse as raw text so we can verify the HMAC before JSON parsing
 app.use(express.text({ type: "application/json" }));
 
-// Webhook verification (GET)
+// Webhook verification (GET).
+//
+// Meta sends `hub.mode=subscribe` + the shared `hub.verify_token`
+// + a one-time `hub.challenge` ASCII nonce that we must echo back.
+// Three layered defences against `js/reflected-xss` — full
+// rationale + compatibility notes live in `./verify.ts` next to
+// the unit-tested `narrowChallenge` helper.
+//
+//   1. **Shape whitelist** on `hub.challenge` (`narrowChallenge`)
+//      — required to clear CodeQL's data-flow analyser (we tried
+//      `text/plain` alone and the alert stayed open).
+//   2. **`text/plain` content-type** — neutralises browser HTML
+//      execution even if a future regression widened the whitelist.
+//   3. **String-narrowing** — `narrowChallenge` rejects non-string
+//      query values so `?hub.challenge[]=…` array forms can't
+//      bypass the regex via toString().
 app.get("/webhook", (req: Request, res: Response) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
+  const challenge = narrowChallenge(req.query["hub.challenge"]);
 
-  if (mode === "subscribe" && token === verifyToken) {
+  if (mode === "subscribe" && token === verifyToken && challenge !== null) {
     console.log("[whatsapp] webhook verified");
-    res.status(200).send(challenge);
+    res.type("text/plain").status(200).send(challenge);
   } else {
-    res.status(403).send("Forbidden");
+    res.status(403).type("text/plain").send("Forbidden");
   }
 });
 
