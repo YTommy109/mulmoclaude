@@ -115,6 +115,14 @@ const HOST_WORKSPACE_DIRS = {
   // (lat/lng numbers) so the LLM can hand a sidecar straight to the
   // Google Map plugin without reshape.
   locations: "data/locations",
+  // Recipe markdown files driven by the `mc-cooking-coach` preset
+  // skill (#1286). Replaces the runtime plugin's `files.data` scope
+  // path (`data/plugins/<sanitised-pkg>/recipes/`) with a clean,
+  // human-readable canonical path. A boot-time migration helper
+  // (`server/workspace/cooking-recipes/migrate.ts`) moves any
+  // existing files from the legacy plugin path on first boot after
+  // the migration lands.
+  cookingRecipes: "data/cooking/recipes",
   transports: "data/transports",
   // artifacts/
   charts: "artifacts/charts",

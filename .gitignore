@@ -24,13 +24,19 @@ test-results-live/
 conversations/
 data/
 artifacts/
+news/
+sources/
 config/roles/
 config/helps/
 config/settings.json
 config/mcp.json
 config/scheduler/state.json
+config/news-read-state.json
 .session-token
 .mulmoclaude/
 migration-284-manifest.json
 github/
 .server-port
+
+# launcher-managed preset skills (mc- prefix; auto-installed on server boot)
+.claude/skills/mc-*/

@@ -26,6 +26,7 @@ describe("WORKSPACE_DIRS expected keys", () => {
     "claudeSkills",
     "configs",
     "contacts",
+    "cookingRecipes",
     "github",
     "helps",
     "html",
