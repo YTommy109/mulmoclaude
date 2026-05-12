@@ -232,7 +232,7 @@ function onDragEnter(event: DragEvent): void {
   isDragging.value = true;
 }
 
-function onDragLeave(event: DragEvent): void {
+function onDragLeave(): void {
   // The `isFileDrag` guard is intentionally NOT applied here. Some
   // browsers strip `Files` from `dataTransfer.types` when the leave
   // event crosses a window boundary, which would leave the overlay
@@ -243,15 +243,6 @@ function onDragLeave(event: DragEvent): void {
   if (dragEnterCount === 0) return;
   dragEnterCount -= 1;
   if (dragEnterCount <= 0) {
-    dragEnterCount = 0;
-    isDragging.value = false;
-  }
-  // `event.relatedTarget === null` means the pointer left the
-  // document entirely (e.g. user dragged the file outside the
-  // browser window). Force a hard reset — counters can drift if
-  // some enter/leave pairs were unbalanced by intermediate
-  // re-renders.
-  if (event.relatedTarget === null) {
     dragEnterCount = 0;
     isDragging.value = false;
   }
