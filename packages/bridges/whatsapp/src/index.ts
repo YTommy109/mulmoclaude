@@ -17,6 +17,7 @@ import "dotenv/config";
 import crypto from "crypto";
 import express, { type Request, type Response } from "express";
 import { createBridgeClient } from "@mulmobridge/client";
+import { narrowChallenge } from "./verify.js";
 
 const TRANSPORT_ID = "whatsapp";
 const PORT = Number(process.env.WHATSAPP_BRIDGE_PORT) || 3003;
@@ -147,33 +148,25 @@ app.use(express.text({ type: "application/json" }));
 // Webhook verification (GET).
 //
 // Meta sends `hub.mode=subscribe` + the shared `hub.verify_token`
-// + a one-time `hub.challenge` random ASCII nonce that we must
-// echo back verbatim. Three layered defences against
-// `js/reflected-xss`:
+// + a one-time `hub.challenge` ASCII nonce that we must echo back.
+// Three layered defences against `js/reflected-xss` — full
+// rationale + compatibility notes live in `./verify.ts` next to
+// the unit-tested `narrowChallenge` helper.
 //
-//   1. Strict shape whitelist on `hub.challenge` — Meta's nonce is
-//      always alphanumeric + `_`/`-`, ≤256 chars. Anything else is
-//      a forgery / XSS probe and gets the same 403 the verify-token
-//      mismatch returns. CodeQL recognises this kind of
-//      "validate-then-reflect" sequence as a sanitiser, so the
-//      data-flow alert clears too. (The previous patch set only
-//      `text/plain` and CodeQL still flagged the data flow on
-//      heuristic grounds.)
-//   2. `text/plain` content-type — even if a future regression
-//      widened the whitelist, the browser wouldn't execute the
-//      body as HTML.
-//   3. Narrow the query value to a string up front so
-//      `?hub.challenge[]=…` array forms can't bypass the
-//      whitelist via toString().
-const SAFE_CHALLENGE_RE = /^[A-Za-z0-9_-]{1,256}$/;
-
+//   1. **Shape whitelist** on `hub.challenge` (`narrowChallenge`)
+//      — required to clear CodeQL's data-flow analyser (we tried
+//      `text/plain` alone and the alert stayed open).
+//   2. **`text/plain` content-type** — neutralises browser HTML
+//      execution even if a future regression widened the whitelist.
+//   3. **String-narrowing** — `narrowChallenge` rejects non-string
+//      query values so `?hub.challenge[]=…` array forms can't
+//      bypass the regex via toString().
 app.get("/webhook", (req: Request, res: Response) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
-  const rawChallenge = req.query["hub.challenge"];
-  const challenge = typeof rawChallenge === "string" && SAFE_CHALLENGE_RE.test(rawChallenge) ? rawChallenge : "";
+  const challenge = narrowChallenge(req.query["hub.challenge"]);
 
-  if (mode === "subscribe" && token === verifyToken && challenge.length > 0) {
+  if (mode === "subscribe" && token === verifyToken && challenge !== null) {
     console.log("[whatsapp] webhook verified");
     res.type("text/plain").status(200).send(challenge);
   } else {
