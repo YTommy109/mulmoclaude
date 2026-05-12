@@ -98,7 +98,7 @@ test.describe("ChatInput attach discoverability", () => {
   });
 });
 
-test.describe("ChatInput drop-target affordance (#1289 Step 1)", () => {
+test.describe("ChatInput drop-target affordance (#1289 Step 1 + Step 2)", () => {
   test.beforeEach(async ({ page }) => {
     await mockAllApis(page);
     await page.goto("/");
@@ -235,5 +235,35 @@ test.describe("ChatInput drop-target affordance (#1289 Step 1)", () => {
     // Overlay stays open — the counter was at 2 (wrapper + child)
     // and only one leave landed, so it stays positive.
     await expect(overlay).toBeVisible();
+  });
+
+  test("Step 2: dragging onto the chat-sidebar (panel-wide) shows the overlay and attaches on drop", async ({ page }) => {
+    // The panel-wide drop zone (#1289 Step 2) wires the handlers on
+    // the chat-sidebar div instead of the ChatInput wrapper.
+    // Dragging onto an element above the input (i.e. the sessions
+    // list region) should now reveal the overlay, and a drop there
+    // should still route the file through ChatInput.readFile().
+    const panel = page.getByTestId("chat-sidebar");
+    const overlay = page.getByTestId("chat-drop-overlay");
+
+    await expect(overlay).toHaveCount(0);
+
+    await panel.evaluate((element) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(["payload"], "thing.txt", { type: "text/plain" }));
+      element.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    });
+    await expect(overlay).toBeVisible();
+
+    // Dropping an unsupported type at the panel level surfaces the
+    // SAME error banner the textarea-drop path surfaces — verifies
+    // App.vue actually routes the dropped file into ChatInput.readFile.
+    await panel.evaluate((element) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(["payload"], "thing.zip", { type: "application/zip" }));
+      element.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    });
+    await expect(overlay).toHaveCount(0);
+    await expect(page.getByTestId("file-error")).toBeVisible();
   });
 });
