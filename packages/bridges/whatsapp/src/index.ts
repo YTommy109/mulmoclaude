@@ -16,7 +16,7 @@
 import "dotenv/config";
 import crypto from "crypto";
 import express, { type Request, type Response } from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { createBridgeClient } from "@mulmobridge/client";
 
 const TRANSPORT_ID = "whatsapp";
@@ -171,14 +171,16 @@ const webhookRateLimit = rateLimit({
   limit: 120,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  // Explicit keyGenerator — uses Express's `req.ip` which honours
-  // the `app.set("trust proxy", ...)` block above. Made explicit
-  // here so a reviewer doesn't have to dig through default values
-  // to confirm the limiter is per-client rather than global
-  // (Codex review on #1326). `"unknown"` fallback only fires when
-  // Express couldn't determine an IP at all (e.g. socket closed
-  // mid-request), keeping the limit from silently disappearing.
-  keyGenerator: (req) => req.ip ?? "unknown",
+  // Explicit keyGenerator routed through `ipKeyGenerator(...)`. The
+  // raw `req.ip` reading isn't safe on its own — IPv6 clients can
+  // rotate addresses within a /56 prefix and evade per-client limits.
+  // `express-rate-limit`'s `ipKeyGenerator` normalises both IPv4
+  // and IPv6 (folding IPv6 to its /56 subnet by default), which is
+  // what `req.ip` alone misses. The `app.set("trust proxy", ...)`
+  // block above is what makes `req.ip` reflect the real client
+  // rather than the LB. Together: explicit + IPv6-safe + proxy-
+  // aware (Codex reviews iter-1 + iter-2 on #1326).
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? "", 56),
 });
 
 // Webhook verification (GET)

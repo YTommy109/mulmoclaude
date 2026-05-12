@@ -18,7 +18,7 @@
 import "dotenv/config";
 import crypto from "crypto";
 import express, { type Request, type Response } from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { createBridgeClient } from "@mulmobridge/client";
 
 const TRANSPORT_ID = "google-chat";
@@ -194,12 +194,13 @@ const webhookRateLimit = rateLimit({
   limit: 120,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  // Explicit keyGenerator — uses Express's `req.ip` which honours
-  // the `app.set("trust proxy", ...)` block elsewhere in this file.
-  // Made explicit so a reviewer doesn't have to dig through default
-  // values to confirm the limiter is per-client rather than global
-  // (Codex review on #1326).
-  keyGenerator: (req) => req.ip ?? "unknown",
+  // Explicit keyGenerator routed through `ipKeyGenerator(...)` so
+  // IPv6 clients get folded to their /56 subnet (a raw `req.ip` key
+  // would let IPv6 rotation within a prefix evade the per-client
+  // limit). `req.ip` itself is trust-proxy-aware via the
+  // `app.set("trust proxy", ...)` block elsewhere in this file.
+  // (Codex reviews iter-1 + iter-2 on #1326.)
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? "", 56),
 });
 
 function redactId(resourceId: string): string {
