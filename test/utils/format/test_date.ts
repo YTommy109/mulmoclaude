@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatDate, formatDateTime, formatTime, formatShortTime, formatShortDate } from "../../../src/utils/format/date.js";
+import { formatDate, formatDateTime, formatTime, formatShortTime, formatShortDate, formatMonthYear } from "../../../src/utils/format/date.js";
 
 describe("formatDate", () => {
   it("returns a non-empty string for a valid ISO date", () => {
@@ -71,5 +71,23 @@ describe("formatShortDate", () => {
     const out = formatShortDate(Date.now());
     assert.equal(typeof out, "string");
     assert.match(out, /\d/);
+  });
+});
+
+describe("formatMonthYear", () => {
+  it("returns a non-empty string from a Date", () => {
+    const out = formatMonthYear(new Date(2026, 3, 10));
+    assert.equal(typeof out, "string");
+    assert.ok(out.length > 0);
+  });
+
+  it("includes a 4-digit year", () => {
+    const out = formatMonthYear(new Date(2026, 3, 10));
+    assert.match(out, /2026/);
+  });
+
+  it("accepts epoch ms and ISO strings", () => {
+    assert.equal(typeof formatMonthYear(Date.now()), "string");
+    assert.equal(typeof formatMonthYear("2026-04-10T00:00:00Z"), "string");
   });
 });
