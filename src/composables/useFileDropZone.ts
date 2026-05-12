@@ -18,7 +18,7 @@
 // then on again, flickering the overlay. The counter ratchets up on
 // each enter and only releases the overlay once it hits zero.
 
-import { ref, type Ref } from "vue";
+import { onBeforeUnmount, onMounted, ref, type Ref } from "vue";
 
 export interface FileDropHandlers {
   onDragenter: (event: DragEvent) => void;
@@ -82,13 +82,19 @@ export function useFileDropZone(opts: UseFileDropZoneOptions): UseFileDropZoneRe
     if (isFileDrag(event)) event.preventDefault();
   }
 
-  function onDragleave(event: DragEvent): void {
-    if (!isFileDrag(event)) return;
+  function onDragleave(): void {
+    // The `isFileDrag` guard is intentionally NOT applied here. Some
+    // browsers strip `Files` from `dataTransfer.types` when the
+    // dragleave event crosses a window boundary, which would leave
+    // the overlay stuck (counter never decremented, `isDragging`
+    // stays `true` until the next drop). The enter handler already
+    // filters out non-file drags, so anything reaching this point
+    // with a positive counter is a file drag we entered earlier.
+    // (Codex review on PR #1327, ported into the composable on PR
+    // #1331.)
+    if (dragEnterCount === 0) return;
     dragEnterCount -= 1;
-    if (dragEnterCount <= 0) {
-      dragEnterCount = 0;
-      isDragging.value = false;
-    }
+    if (dragEnterCount <= 0) resetTerminal();
   }
 
   function onDrop(event: DragEvent): void {
@@ -98,11 +104,34 @@ export function useFileDropZone(opts: UseFileDropZoneOptions): UseFileDropZoneRe
     // legitimate browser action. Sourcery review on PR #1331.
     if (!isFileDrag(event)) return;
     event.preventDefault();
-    dragEnterCount = 0;
-    isDragging.value = false;
+    resetTerminal();
     const file = event.dataTransfer?.files[0];
     if (file) opts.onFile(file);
   }
+
+  function resetTerminal(): void {
+    dragEnterCount = 0;
+    isDragging.value = false;
+  }
+
+  // Belt-and-suspenders escape hatch: if a half-observed drag
+  // sequence would otherwise strand the UI in `isDragging=true`
+  // (e.g. the user releases the file on an inert part of the page
+  // outside the target, or hits Escape mid-drag), the window-level
+  // `drop` / `dragend` listeners force-reset. Cross-window file
+  // drags from the desktop never fire `dragend` inside the page
+  // but DO fire `drop` at the window — that's the case we mainly
+  // want to catch. (Codex review on PR #1327.)
+  onMounted(() => {
+    if (typeof window === "undefined") return;
+    window.addEventListener("drop", resetTerminal);
+    window.addEventListener("dragend", resetTerminal);
+  });
+  onBeforeUnmount(() => {
+    if (typeof window === "undefined") return;
+    window.removeEventListener("drop", resetTerminal);
+    window.removeEventListener("dragend", resetTerminal);
+  });
 
   return { isDragging, onDragenter, onDragover, onDragleave, onDrop };
 }
