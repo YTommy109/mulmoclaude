@@ -18,6 +18,7 @@
 import "dotenv/config";
 import crypto from "crypto";
 import express, { type Request, type Response as ExpressResponse } from "express";
+import rateLimit from "express-rate-limit";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
 
 const TRANSPORT_ID = "viber";
@@ -146,11 +147,22 @@ app.disable("x-powered-by");
 // Parse as raw text so HMAC runs on the exact bytes Viber signed.
 app.use(express.text({ type: "application/json", limit: "1mb" }));
 
+// Per-IP throttle on the webhook. CodeQL's
+// `js/missing-rate-limiting` rule recognises `express-rate-limit`
+// specifically. 120 req/min/IP is well above Viber's normal
+// delivery rate; the cap bounds a flood / stuck retry loop.
+const webhookRateLimit = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+
 app.get("/health", (__req, res) => {
   res.json({ status: "ok", transport: TRANSPORT_ID });
 });
 
-app.post("/viber", async (req: Request, res: ExpressResponse) => {
+app.post("/viber", webhookRateLimit, async (req: Request, res: ExpressResponse) => {
   const signature = typeof req.headers["x-viber-content-signature"] === "string" ? req.headers["x-viber-content-signature"] : "";
   const rawBody = typeof req.body === "string" ? req.body : "";
 

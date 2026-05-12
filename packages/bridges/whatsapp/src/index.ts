@@ -16,6 +16,7 @@
 import "dotenv/config";
 import crypto from "crypto";
 import express, { type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import { createBridgeClient } from "@mulmobridge/client";
 
 const TRANSPORT_ID = "whatsapp";
@@ -144,8 +145,22 @@ app.disable("x-powered-by");
 // Parse as raw text so we can verify the HMAC before JSON parsing
 app.use(express.text({ type: "application/json" }));
 
+// Per-IP throttle on the webhook endpoint. CodeQL's
+// `js/missing-rate-limiting` rule recognises `express-rate-limit`
+// specifically, and Meta's platform sends well under 120 req/min/IP
+// during normal use, so the cap exists to bound a flood / stuck
+// retry loop. The verification GET shares the limiter since a
+// flood of bogus `hub.challenge` probes would otherwise hammer
+// us just as effectively.
+const webhookRateLimit = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+
 // Webhook verification (GET)
-app.get("/webhook", (req: Request, res: Response) => {
+app.get("/webhook", webhookRateLimit, (req: Request, res: Response) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
@@ -158,8 +173,8 @@ app.get("/webhook", (req: Request, res: Response) => {
   }
 });
 
-// Webhook events (POST) — signature-verified
-app.post("/webhook", async (req: Request, res: Response) => {
+// Webhook events (POST) — signature-verified + rate-limited
+app.post("/webhook", webhookRateLimit, async (req: Request, res: Response) => {
   const signature = req.headers["x-hub-signature-256"] as string;
   const rawBody = req.body as string;
 

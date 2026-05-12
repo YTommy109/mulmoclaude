@@ -18,6 +18,7 @@
 import "dotenv/config";
 import crypto from "crypto";
 import express, { type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import { createBridgeClient } from "@mulmobridge/client";
 
 const TRANSPORT_ID = "google-chat";
@@ -181,20 +182,19 @@ async function verifyGoogleChatToken(authHeader: string | undefined): Promise<bo
 // ── Webhook server ──────────────────────────────────────────────
 
 const BODY_LIMIT = "1mb";
-const RATE_WINDOW_MS = 60_000;
-const MAX_REQUESTS_PER_WINDOW = 120;
-const requestCounts = new Map<string, { count: number; resetAt: number }>();
 
-function rateLimitCheck(clientIp: string): boolean {
-  const now = Date.now();
-  const entry = requestCounts.get(clientIp);
-  if (!entry || now >= entry.resetAt) {
-    requestCounts.set(clientIp, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return true;
-  }
-  entry.count += 1;
-  return entry.count <= MAX_REQUESTS_PER_WINDOW;
-}
+// `express-rate-limit` is the well-tested per-IP throttle that
+// CodeQL's `js/missing-rate-limiting` rule recognises. Defaults
+// match the conservative 120 req/min/IP cap the bridge has shipped
+// since the original custom Map-based limiter was added — Google's
+// platform sends well under this rate during normal use, so the
+// cap exists to bound a flood / accidentally-stuck retry loop.
+const webhookRateLimit = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
 
 function redactId(resourceId: string): string {
   return resourceId.length > 6 ? `${resourceId.slice(0, 3)}***${resourceId.slice(-3)}` : "***";
@@ -227,13 +227,10 @@ function extractMessage(body: unknown): ParsedMessage | null {
   return { spaceName: space.name, senderName, text: msg.text };
 }
 
-app.post("/", async (req: Request, res: Response) => {
-  const clientIp = req.ip ?? "unknown";
-  if (!rateLimitCheck(clientIp)) {
-    res.status(429).json({ error: "Too Many Requests" });
-    return;
-  }
-
+// Webhook events. Rate-limited per-IP via `webhookRateLimit`; the
+// middleware writes the 429 response itself when the cap is hit so
+// the handler body only sees admitted requests.
+app.post("/", webhookRateLimit, async (req: Request, res: Response) => {
   // Verify the request is from Google Chat
   const authHeader = typeof req.headers.authorization === "string" ? req.headers.authorization : undefined;
   const verified = await verifyGoogleChatToken(authHeader);

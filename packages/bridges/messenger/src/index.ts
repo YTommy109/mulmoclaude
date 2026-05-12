@@ -14,6 +14,7 @@
 import "dotenv/config";
 import crypto from "crypto";
 import express, { type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
 
 const TRANSPORT_ID = "messenger";
@@ -76,20 +77,21 @@ function verifySignature(rawBody: string, signature: string): boolean {
 // ── Webhook server ──────────────────────────────────────────────
 
 const BODY_LIMIT = "1mb";
-const RATE_WINDOW_MS = 60_000;
-const MAX_REQUESTS_PER_WINDOW = 120;
-const requestCounts = new Map<string, { count: number; resetAt: number }>();
 
-function rateLimitCheck(clientIp: string): boolean {
-  const now = Date.now();
-  const entry = requestCounts.get(clientIp);
-  if (!entry || now >= entry.resetAt) {
-    requestCounts.set(clientIp, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return true;
-  }
-  entry.count += 1;
-  return entry.count <= MAX_REQUESTS_PER_WINDOW;
-}
+// `express-rate-limit` is the well-tested per-IP throttle that
+// CodeQL's `js/missing-rate-limiting` rule recognises. Defaults
+// match the conservative 120 req/min/IP cap the bridge has shipped
+// since the original custom Map-based limiter was added — Meta's
+// platform sends well under this rate during normal use, so the
+// cap exists to bound a flood / accidentally-stuck retry loop.
+const webhookRateLimit = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  // Send the limit + remaining count in standard `RateLimit-*`
+  // headers so the upstream platform can self-throttle.
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
 
 const app = express();
 app.disable("x-powered-by");
@@ -121,14 +123,10 @@ async function handleWebhookBody(rawBody: string): Promise<void> {
   }
 }
 
-// Webhook events (POST)
-app.post("/webhook", async (req: Request, res: Response) => {
-  const clientIp = req.ip ?? "unknown";
-  if (!rateLimitCheck(clientIp)) {
-    res.status(429).send("Too Many Requests");
-    return;
-  }
-
+// Webhook events (POST). Rate-limited per-IP via `webhookRateLimit`
+// above; the middleware writes the 429 response itself when the cap
+// is hit so the handler body only sees admitted requests.
+app.post("/webhook", webhookRateLimit, async (req: Request, res: Response) => {
   const signature = typeof req.headers["x-hub-signature-256"] === "string" ? req.headers["x-hub-signature-256"] : "";
   const rawBody = typeof req.body === "string" ? req.body : "";
 

@@ -16,6 +16,7 @@
 import "dotenv/config";
 import crypto from "crypto";
 import express, { type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import { createBridgeClient, chunkText, formatAckReply } from "@mulmobridge/client";
 import { extractIncomingLineMessage, parseLineWebhookBody } from "./parse.js";
 
@@ -113,7 +114,18 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.text({ type: "application/json" }));
 
-app.post("/webhook", async (req: Request, res: Response) => {
+// Per-IP throttle on the webhook endpoint. CodeQL's
+// `js/missing-rate-limiting` rule recognises `express-rate-limit`
+// specifically, and LINE's platform sends well under 120 req/min/IP
+// during normal use — the cap bounds a flood / stuck retry loop.
+const webhookRateLimit = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+
+app.post("/webhook", webhookRateLimit, async (req: Request, res: Response) => {
   const signature = req.headers["x-line-signature"] as string;
   const bodyStr = req.body as string;
 
