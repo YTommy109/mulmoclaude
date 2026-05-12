@@ -16,6 +16,7 @@ import crypto from "crypto";
 import express, { type Request, type Response } from "express";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { createBridgeClient, chunkText } from "@mulmobridge/client";
+import { narrowChallenge } from "./verify.js";
 
 const TRANSPORT_ID = "messenger";
 const PORT = Number(process.env.MESSENGER_BRIDGE_PORT) || 3004;
@@ -104,16 +105,25 @@ const app = express();
 app.disable("x-powered-by");
 
 // Honour an explicit `trust proxy` setting so `req.ip` (the
-// rate-limit key below) reflects the real client IP rather than the
-// load balancer's. Default `false` for safety; operators behind a
-// known LB should set BRIDGE_TRUST_PROXY=1 (or a number of hops, or
-// an Express preset like "loopback"). Without this every webhook
-// looks like it comes from one IP and the limiter degrades into a
-// global throttle (Codex review on #1326).
+// rate-limit key below) reflects the real client IP rather than
+// the load balancer's. Default `false` for safety; operators
+// behind a known LB choose from:
+//   - hop count:  BRIDGE_TRUST_PROXY=1
+//   - boolean:    BRIDGE_TRUST_PROXY=true / false
+//   - preset:     BRIDGE_TRUST_PROXY=loopback
+//   - CIDR list:  BRIDGE_TRUST_PROXY=10.0.0.0/8,192.168.0.0/16
+// Without this every webhook looks like it comes from one IP and
+// the limiter degrades into a global throttle. The boolean branch
+// is required because Express does NOT auto-convert string
+// "true"/"false" — without this, `BRIDGE_TRUST_PROXY=true` is read
+// as a (never-matching) CIDR rule (Codex reviews on #1326).
 const trustProxyEnv = process.env.BRIDGE_TRUST_PROXY;
 if (trustProxyEnv) {
+  const lower = trustProxyEnv.toLowerCase();
   const numeric = Number(trustProxyEnv);
-  app.set("trust proxy", Number.isInteger(numeric) && numeric >= 0 ? numeric : trustProxyEnv);
+  const value: boolean | number | string =
+    lower === "true" ? true : lower === "false" ? false : Number.isInteger(numeric) && numeric >= 0 ? numeric : trustProxyEnv;
+  app.set("trust proxy", value);
 }
 
 app.use(express.text({ type: "application/json", limit: BODY_LIMIT }));
@@ -122,16 +132,18 @@ app.use(express.text({ type: "application/json", limit: BODY_LIMIT }));
 // `hub.challenge` probes can't hammer the bridge before the
 // `hub.verify_token` check rejects them. Matches the WhatsApp
 // bridge's GET-side throttling — same shared Meta protocol, same
-// abuse surface (Codex review on #1326).
+// abuse surface (Codex review on #1326). The `narrowChallenge`
+// helper from `./verify.ts` enforces the `js/reflected-xss`
+// shape whitelist; see that file for the full rationale.
 app.get("/webhook", webhookRateLimit, (req: Request, res: Response) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
-  if (mode === "subscribe" && token === verifyToken) {
+  const challenge = narrowChallenge(req.query["hub.challenge"]);
+  if (mode === "subscribe" && token === verifyToken && challenge !== null) {
     console.log("[messenger] webhook verified");
-    res.status(200).send(challenge);
+    res.type("text/plain").status(200).send(challenge);
   } else {
-    res.status(403).send("Forbidden");
+    res.status(403).type("text/plain").send("Forbidden");
   }
 });
 

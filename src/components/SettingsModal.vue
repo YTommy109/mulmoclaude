@@ -73,6 +73,14 @@
         >
           {{ t("settingsModal.tabs.photos") }}
         </button>
+        <button
+          class="px-3 py-2 text-sm border-b-2"
+          :class="activeTab === 'model' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-800'"
+          data-testid="settings-tab-model"
+          @click="activeTab = 'model'"
+        >
+          {{ t("settingsModal.tabs.model") }}
+        </button>
       </div>
 
       <div class="px-5 py-4 overflow-y-auto flex-1 space-y-4 text-gray-900">
@@ -155,6 +163,8 @@
         <SettingsMapTab v-else-if="activeTab === 'map'" :reload-token="mapReloadToken" @saved="onMapSaved" />
 
         <SettingsPhotosTab v-else-if="activeTab === 'photos'" :reload-token="photosReloadToken" />
+
+        <SettingsModelTab v-else-if="activeTab === 'model'" :reload-token="modelReloadToken" @saved="emit('saved')" />
       </div>
 
       <!-- Footer: status strip only. MCP / Workspace Dirs / Reference
@@ -181,6 +191,7 @@ import SettingsWorkspaceDirsTab from "./SettingsWorkspaceDirsTab.vue";
 import SettingsReferenceDirsTab from "./SettingsReferenceDirsTab.vue";
 import SettingsMapTab from "./SettingsMapTab.vue";
 import SettingsPhotosTab from "./SettingsPhotosTab.vue";
+import SettingsModelTab from "./SettingsModelTab.vue";
 import type { McpServerEntry } from "./SettingsMcpTab.vue";
 import { apiGet, apiPut } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
@@ -226,7 +237,7 @@ const emit = defineEmits<{
 // update / remove persist immediately).
 const mcpTabRef = ref<{ flushDraft: () => boolean; hasPendingDraft: () => boolean } | null>(null);
 
-const activeTab = ref<"gemini" | "tools" | "mcp" | "dirs" | "refs" | "map" | "photos">("tools");
+const activeTab = ref<"gemini" | "tools" | "mcp" | "dirs" | "refs" | "map" | "photos" | "model">("tools");
 
 // Forces SettingsMapTab to re-load when the modal opens or the user
 // confirms a save — ensures the input always reflects the latest
@@ -243,6 +254,7 @@ function onMapSaved(): void {
 // the Photos tab refetches the autoCapture flag (could have been
 // hand-edited in settings.json since the last visit).
 const photosReloadToken = ref(0);
+const modelReloadToken = ref(0);
 const toolsText = ref("");
 // Server truth for tools — updated on load and on a successful Save
 // from the Tools tab. `toolsDirty` compares this against `toolsText`
@@ -415,6 +427,7 @@ watch(
       loadConfig();
       mapReloadToken.value += 1;
       photosReloadToken.value += 1;
+      modelReloadToken.value += 1;
       statusMessage.value = "";
       statusError.value = false;
     }

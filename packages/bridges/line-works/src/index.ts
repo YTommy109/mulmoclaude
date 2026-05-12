@@ -220,16 +220,25 @@ const app = express();
 app.disable("x-powered-by");
 
 // Honour an explicit `trust proxy` setting so `req.ip` (the
-// rate-limit key below) reflects the real client IP rather than the
-// load balancer's. Default `false` for safety; operators behind a
-// known LB should set BRIDGE_TRUST_PROXY=1 (or a number of hops, or
-// an Express preset like "loopback"). Without this every webhook
-// looks like it comes from one IP and the limiter degrades into a
-// global throttle (Codex review on #1326).
+// rate-limit key below) reflects the real client IP rather than
+// the load balancer's. Default `false` for safety; operators
+// behind a known LB choose from:
+//   - hop count:  BRIDGE_TRUST_PROXY=1
+//   - boolean:    BRIDGE_TRUST_PROXY=true / false
+//   - preset:     BRIDGE_TRUST_PROXY=loopback
+//   - CIDR list:  BRIDGE_TRUST_PROXY=10.0.0.0/8,192.168.0.0/16
+// Without this every webhook looks like it comes from one IP and
+// the limiter degrades into a global throttle. The boolean branch
+// is required because Express does NOT auto-convert string
+// "true"/"false" — without this, `BRIDGE_TRUST_PROXY=true` is read
+// as a (never-matching) CIDR rule (Codex reviews on #1326).
 const trustProxyEnv = process.env.BRIDGE_TRUST_PROXY;
 if (trustProxyEnv) {
+  const lower = trustProxyEnv.toLowerCase();
   const numeric = Number(trustProxyEnv);
-  app.set("trust proxy", Number.isInteger(numeric) && numeric >= 0 ? numeric : trustProxyEnv);
+  const value: boolean | number | string =
+    lower === "true" ? true : lower === "false" ? false : Number.isInteger(numeric) && numeric >= 0 ? numeric : trustProxyEnv;
+  app.set("trust proxy", value);
 }
 
 app.use(express.text({ type: "application/json", limit: "1mb" }));

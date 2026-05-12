@@ -34,6 +34,7 @@ const ptBRMessages = {
     fileTooLarge: "Arquivo muito grande ({sizeMB} MB). O limite é 30 MB.",
     unsupportedFileType: "Tipo de arquivo não suportado. Aceitos: imagens, PDF, DOCX, XLSX, PPTX e arquivos de texto.",
     attachImageFailed: "Falha ao anexar a imagem: {error}",
+    dropHint: "Solte o arquivo para anexar",
   },
   sessionHistoryPanel: {
     filters: {
@@ -147,6 +148,7 @@ const ptBRMessages = {
       refs: "Diretórios de referência",
       map: "Mapa",
       photos: "Fotos",
+      model: "Modelo",
     },
     mapTab: {
       description: "Define a chave da API do Google Maps usada pelo plugin de mapa. A chave fica salva localmente e só é enviada para o Google Maps.",
@@ -168,6 +170,16 @@ const ptBRMessages = {
         "Ativado: cada imagem enviada com GPS no EXIF gera um sidecar de localização em data/locations/. Desativado: nada é capturado automaticamente; o LLM ainda pode extrair EXIF manualmente.",
       statusOn: "Captura automática ATIVADA",
       statusOff: "Captura automática DESATIVADA",
+      loadError: "Falha ao carregar as configurações",
+      saveError: "Falha ao salvar",
+    },
+    modelTab: {
+      description: "Controla o esforço de raciocínio que o Claude Code usa em cada turno. Deixe sem configurar para usar o padrão do Claude.",
+      effortLabel: "Esforço de raciocínio",
+      effortUnset: "(sem configurar — usar padrão do Claude)",
+      helperText: "Níveis mais altos permitem mais tempo de pensamento mas aumentam latência e uso de tokens.",
+      configured: "Esforço: {level}",
+      notConfigured: "Sem configurar",
       loadError: "Falha ao carregar as configurações",
       saveError: "Falha ao salvar",
     },

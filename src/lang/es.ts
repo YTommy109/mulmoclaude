@@ -39,6 +39,7 @@ const esMessages = {
     fileTooLarge: "El archivo es demasiado grande ({sizeMB} MB). El máximo es 30 MB.",
     unsupportedFileType: "Tipo de archivo no admitido. Se aceptan: imágenes, PDF, DOCX, XLSX, PPTX y archivos de texto.",
     attachImageFailed: "No se pudo adjuntar la imagen: {error}",
+    dropHint: "Suelta el archivo para adjuntar",
   },
   sessionHistoryPanel: {
     filters: {
@@ -152,6 +153,7 @@ const esMessages = {
       refs: "Directorios de referencia",
       map: "Mapa",
       photos: "Fotos",
+      model: "Modelo",
     },
     mapTab: {
       description: "Configura la clave de la API de Google Maps que usa el plugin de mapas. La clave se guarda localmente y solo se envía a Google Maps.",
@@ -173,6 +175,16 @@ const esMessages = {
         "Activado: cada imagen subida con GPS en EXIF genera un sidecar de ubicación en data/locations/. Desactivado: no se captura nada automáticamente; el LLM aún puede extraer EXIF manualmente.",
       statusOn: "Captura automática ACTIVADA",
       statusOff: "Captura automática DESACTIVADA",
+      loadError: "Error al cargar los ajustes",
+      saveError: "Error al guardar",
+    },
+    modelTab: {
+      description: "Controla el esfuerzo de razonamiento que Claude Code usa en cada turno. Déjalo sin configurar para usar el valor por defecto de Claude.",
+      effortLabel: "Esfuerzo de razonamiento",
+      effortUnset: "(sin configurar — usar valor por defecto de Claude)",
+      helperText: "Niveles más altos permiten más tiempo de pensamiento pero aumentan la latencia y el uso de tokens.",
+      configured: "Esfuerzo: {level}",
+      notConfigured: "Sin configurar",
       loadError: "Error al cargar los ajustes",
       saveError: "Error al guardar",
     },
