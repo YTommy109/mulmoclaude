@@ -91,6 +91,14 @@ const webhookRateLimit = rateLimit({
   // headers so the upstream platform can self-throttle.
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  // Explicit keyGenerator — uses Express's `req.ip` which honours
+  // the `app.set("trust proxy", ...)` block below. Made explicit
+  // here so a reviewer doesn't have to dig through default values
+  // to confirm the limiter is per-client rather than global
+  // (Codex review on #1326). `"unknown"` fallback only fires when
+  // Express couldn't determine an IP at all (e.g. socket closed
+  // mid-request), keeping the limit from silently disappearing.
+  keyGenerator: (req) => req.ip ?? "unknown",
 });
 
 const app = express();
@@ -111,8 +119,12 @@ if (trustProxyEnv) {
 
 app.use(express.text({ type: "application/json", limit: BODY_LIMIT }));
 
-// Webhook verification (GET)
-app.get("/webhook", (req: Request, res: Response) => {
+// Webhook verification (GET). Rate-limited so a flood of bogus
+// `hub.challenge` probes can't hammer the bridge before the
+// `hub.verify_token` check rejects them. Matches the WhatsApp
+// bridge's GET-side throttling — same shared Meta protocol, same
+// abuse surface (Codex review on #1326).
+app.get("/webhook", webhookRateLimit, (req: Request, res: Response) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];

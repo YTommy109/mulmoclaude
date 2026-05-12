@@ -171,6 +171,14 @@ const webhookRateLimit = rateLimit({
   limit: 120,
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  // Explicit keyGenerator — uses Express's `req.ip` which honours
+  // the `app.set("trust proxy", ...)` block above. Made explicit
+  // here so a reviewer doesn't have to dig through default values
+  // to confirm the limiter is per-client rather than global
+  // (Codex review on #1326). `"unknown"` fallback only fires when
+  // Express couldn't determine an IP at all (e.g. socket closed
+  // mid-request), keeping the limit from silently disappearing.
+  keyGenerator: (req) => req.ip ?? "unknown",
 });
 
 // Webhook verification (GET)

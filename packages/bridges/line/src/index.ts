@@ -137,6 +137,12 @@ const webhookRateLimit = rateLimit({
   limit: 120,
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  // Explicit keyGenerator — uses Express's `req.ip` which honours
+  // the `app.set("trust proxy", ...)` block elsewhere in this file.
+  // Made explicit so a reviewer doesn't have to dig through default
+  // values to confirm the limiter is per-client rather than global
+  // (Codex review on #1326).
+  keyGenerator: (req) => req.ip ?? "unknown",
 });
 
 app.post("/webhook", webhookRateLimit, async (req: Request, res: Response) => {
