@@ -154,6 +154,12 @@ const jaMessages = {
       photos: "写真",
       model: "モデル",
     },
+    groups: {
+      llm: "LLM",
+      servers: "サーバ",
+      workspace: "ワークスペース",
+      plugins: "プラグイン",
+    },
     mapTab: {
       description: "地図プラグインで使う Google Maps API キーを設定します。キーはローカルに保存され、Google Maps への通信以外で送信されることはありません。",
       apiKeyLabel: "Google Maps API キー",

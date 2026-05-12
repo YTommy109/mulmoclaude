@@ -149,6 +149,12 @@ const frMessages = {
       photos: "Photos",
       model: "Modèle",
     },
+    groups: {
+      llm: "LLM",
+      servers: "Serveurs",
+      workspace: "Espace de travail",
+      plugins: "Plugins",
+    },
     mapTab: {
       description: "Définit la clé API Google Maps utilisée par le plugin de carte. La clé est stockée localement et n'est envoyée qu'à Google Maps.",
       apiKeyLabel: "Clé API Google Maps",

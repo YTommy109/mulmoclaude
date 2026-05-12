@@ -170,6 +170,12 @@ const enMessages = {
       photos: "Photos",
       model: "Model",
     },
+    groups: {
+      llm: "LLM",
+      servers: "Servers",
+      workspace: "Workspace",
+      plugins: "Plugins",
+    },
     mapTab: {
       description: "Set the Google Maps API key used by the map plugin. The key is stored locally and never transmitted anywhere except to Google Maps.",
       apiKeyLabel: "Google Maps API key",

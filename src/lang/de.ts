@@ -150,6 +150,12 @@ const deMessages = {
       photos: "Fotos",
       model: "Modell",
     },
+    groups: {
+      llm: "LLM",
+      servers: "Server",
+      workspace: "Arbeitsbereich",
+      plugins: "Plugins",
+    },
     mapTab: {
       description:
         "Legt den Google-Maps-API-Schlüssel fest, den das Karten-Plugin verwendet. Der Schlüssel wird lokal gespeichert und nur an Google Maps gesendet.",
