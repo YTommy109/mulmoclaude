@@ -53,4 +53,28 @@ describe("renderWikiLinks", () => {
   it("preserves surrounding markdown syntax", () => {
     assert.equal(renderWikiLinks("- item: [[x]]"), '- item: <span class="wiki-link" data-page="x">x</span>');
   });
+
+  // ── [[target|display]] alias form (#1297) ─────────────────────
+
+  it("splits `[[slug|display]]` into data-page=slug + visible display", () => {
+    // Pre-#1297 the whole bracket body went into both attributes, so
+    // a click navigated to `/wiki/pages/keith-rabois-...|キース...`
+    // (the resolver's fuzzy match still found the file but the URL
+    // was ugly and the lint flagged the link as broken).
+    assert.equal(
+      renderWikiLinks("[[keith-rabois-ai-pm-end|キース・ラボイス]]"),
+      '<span class="wiki-link" data-page="keith-rabois-ai-pm-end">キース・ラボイス</span>',
+    );
+  });
+
+  it("trims whitespace on the target, preserves it on the display", () => {
+    assert.equal(renderWikiLinks("[[  foo  |  Bar  ]]"), '<span class="wiki-link" data-page="foo">  Bar  </span>');
+  });
+
+  it("preserves additional pipes in the display half (only first pipe splits)", () => {
+    // A display string can legitimately contain `|` (sub-title
+    // separator etc.). Only the first pipe acts as the
+    // target/display delimiter.
+    assert.equal(renderWikiLinks("[[a|b|c]]"), '<span class="wiki-link" data-page="a">b|c</span>');
+  });
 });

@@ -3,6 +3,7 @@
 // for backtracking risk — with a linear walker.
 
 import { marked } from "marked";
+import { parseWikiLink } from "../../lib/wiki-page/link";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { makeTasksInteractive } from "../../utils/markdown/taskList";
 
@@ -27,9 +28,15 @@ export function renderWikiPageHtml(body: string, baseDir: string): string {
  * untouched so malformed text renders as-is — matching the
  * previous regex's non-match behaviour.
  *
- * The page-name text is used both as the `data-page` attribute
- * value and as the span's visible text, identical to the old
- * replacement string `'<span class="wiki-link" data-page="$1">$1</span>'`.
+ * `[[target|display]]` is split via the shared `parseWikiLink`
+ * helper (`src/lib/wiki-page/link.ts`) so `data-page` carries only
+ * the target slug while the visible text shows the display half.
+ * Pre-#1297 we shoved the whole bracket body into both fields,
+ * which left the URL containing a literal `|display` after click
+ * (the resolver fell back to fuzzy `includes` matching and still
+ * found the file, but the URL was ugly and the lint flagged the
+ * link as broken). Routing through `parseWikiLink` makes the
+ * renderer, the resolver, and the lint agree.
  */
 export function renderWikiLinks(content: string): string {
   const out: string[] = [];
@@ -38,8 +45,9 @@ export function renderWikiLinks(content: string): string {
     if (content[i] === "[" && content[i + 1] === "[") {
       const closeStart = findNextCloseBrackets(content, i + 2);
       if (closeStart !== -1) {
-        const page = content.slice(i + 2, closeStart);
-        out.push(`<span class="wiki-link" data-page="${page}">${page}</span>`);
+        const inner = content.slice(i + 2, closeStart);
+        const { target, display } = parseWikiLink(inner);
+        out.push(`<span class="wiki-link" data-page="${target}">${display}</span>`);
         i = closeStart + 2;
         continue;
       }
