@@ -155,6 +155,12 @@ const esMessages = {
       photos: "Fotos",
       model: "Modelo",
     },
+    groups: {
+      llm: "LLM",
+      servers: "Servidores",
+      workspace: "Espacio de trabajo",
+      plugins: "Plugins",
+    },
     mapTab: {
       description: "Configura la clave de la API de Google Maps que usa el plugin de mapas. La clave se guarda localmente y solo se envía a Google Maps.",
       apiKeyLabel: "Clave API de Google Maps",
