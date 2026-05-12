@@ -17,9 +17,19 @@ export interface FormatBytesOptions {
   decimals?: number;
 }
 
+// `toFixed` throws RangeError for arguments outside [0, 100] and for
+// non-integers after coercion. As a shared helper, a single bad caller
+// option (negative, fractional, Infinity, NaN) would otherwise crash
+// the UI render path. Clamp + floor to keep the helper defensive.
+function sanitiseDecimals(raw: number | undefined): number {
+  if (raw === undefined) return 1;
+  if (!Number.isFinite(raw)) return 1;
+  return Math.min(100, Math.max(0, Math.floor(raw)));
+}
+
 export function formatBytes(bytes: number, opts: FormatBytesOptions = {}): string {
-  const decimals = opts.decimals ?? 1;
   if (!Number.isFinite(bytes) || bytes < 0) return "—";
+  const decimals = sanitiseDecimals(opts.decimals);
   if (bytes < KiB) return `${bytes} B`;
   if (bytes < MiB) return `${(bytes / KiB).toFixed(decimals)} KB`;
   if (bytes < GiB) return `${(bytes / MiB).toFixed(decimals)} MB`;
