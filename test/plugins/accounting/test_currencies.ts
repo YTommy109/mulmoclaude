@@ -2,36 +2,40 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { formatAmountNumeric, formatAmount, fractionDigitsFor } from "../../../src/plugins/accounting/currencies.js";
 
+// Pin locale on every assertion so host-default locale variations
+// (CI vs. dev machine, de-DE vs. en-US) cannot turn into flakes.
+// `.toLocaleString` honours the locale arg even when the host default
+// is something else — that's exactly the contract this suite verifies.
+
 describe("formatAmountNumeric", () => {
   it("renders 2 decimals by default", () => {
-    const out = formatAmountNumeric(1234.5);
-    assert.match(out, /[.,]50/);
+    assert.equal(formatAmountNumeric(1234.5, 2, "en-US"), "1,234.50");
   });
 
   it("accepts 0 decimals for integer-only currencies", () => {
-    const out = formatAmountNumeric(1234, 0);
-    // Locale-dependent grouping (`1,234` / `1.234` / `1234`); just
-    // assert the fractional part is absent.
-    assert.equal(out.endsWith(".00"), false);
-    assert.equal(/\.\d/.test(out), false);
+    // de-DE uses `.` as thousands separator — a regex like `/\.\d/`
+    // would false-match here even though there is no fractional part.
+    // Pin both locales and compare exact output instead. (Codex review
+    // on #1318.)
+    assert.equal(formatAmountNumeric(1234, 0, "en-US"), "1,234");
+    assert.equal(formatAmountNumeric(1234, 0, "de-DE"), "1.234");
   });
 
-  it("handles negative amounts", () => {
-    const out = formatAmountNumeric(-99.99);
-    assert.match(out, /99/);
+  it("preserves the minus sign on negative amounts", () => {
+    // Asserting `/99/` alone would silently pass if the sign were
+    // dropped (Codex review on #1318) — pin a locale + check the
+    // full string so a sign regression fails the test.
+    assert.equal(formatAmountNumeric(-99.99, 2, "en-US"), "-99.99");
   });
 
   it("handles zero", () => {
-    const out = formatAmountNumeric(0);
-    assert.match(out, /0/);
-    assert.match(out, /00/);
+    assert.equal(formatAmountNumeric(0, 2, "en-US"), "0.00");
   });
 
   it("respects an explicit locale when provided", () => {
     // en-US uses comma as the thousands separator + period as the
-    // decimal mark, regardless of the host's default locale, so we
-    // can pin the expected output. (de-DE swaps them — different
-    // host defaults must NOT bleed into a caller-pinned locale.)
+    // decimal mark; de-DE swaps them. The host's default locale must
+    // NOT bleed into a caller-pinned locale.
     assert.equal(formatAmountNumeric(1234.5, 2, "en-US"), "1,234.50");
     assert.equal(formatAmountNumeric(1234.5, 2, "de-DE"), "1.234,50");
   });
@@ -39,17 +43,20 @@ describe("formatAmountNumeric", () => {
 
 describe("formatAmount currency awareness", () => {
   it("returns a non-empty string for valid currency", () => {
-    const out = formatAmount(1130, "USD");
+    const out = formatAmount(1130, "USD", "en-US");
     assert.equal(typeof out, "string");
     assert.ok(out.length > 0);
   });
 
-  it("respects fractionDigitsFor on the fallback path", () => {
-    // JPY → 0 decimals. Even on the fallback path (e.g. unknown
-    // currency code), the helper should return whole numbers for JPY.
-    const jpy = formatAmount(1130, "JPY");
-    assert.match(jpy, /1[,.]?130|1130/);
-    assert.equal(jpy.includes(".00"), false);
+  it("renders JPY with 0 decimals on the happy path", () => {
+    // The previous version of this test claimed it exercised the
+    // `catch` fallback inside formatAmount, but JPY is a valid Intl
+    // currency code so the try path always succeeds (Codex review
+    // on #1318). Renamed + pinned to en-US so the assertion is
+    // robust regardless of host locale. Fallback-path coverage is
+    // intentionally out of scope: the catch arm is defensive code
+    // for partial-Intl runtimes that this codebase never targets.
+    assert.equal(formatAmount(1130, "JPY", "en-US"), "¥1,130");
   });
 
   it("fractionDigitsFor returns 0 for JPY, 2 for USD", () => {
