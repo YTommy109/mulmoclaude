@@ -8,8 +8,8 @@ import {
   CATEGORY_LABEL_KEYS,
   COLLAPSED_GROUPS_STORAGE_KEY,
   DEFAULT_CLOSED_CATEGORIES,
-  MC_BUILTIN_PREFIX,
   SKILL_CATEGORY_KEYS,
+  SYSTEM_SKILL_PREFIX,
   categorizeSkill,
   isSkillCategoryKey,
   loadCollapsedGroups,
@@ -50,9 +50,9 @@ describe("manageSkills categorizeSkill", () => {
     assert.equal(categorizeSkill({ name: "mc-foo", source: "user" }), "user");
   });
 
-  it("returns 'builtin' for project skills whose name begins with mc-", () => {
-    assert.equal(categorizeSkill({ name: "mc-foo", source: "project" }), "builtin");
-    assert.equal(categorizeSkill({ name: "mc-a-b-c", source: "project" }), "builtin");
+  it("returns 'system' for project skills whose name begins with mc-", () => {
+    assert.equal(categorizeSkill({ name: "mc-foo", source: "project" }), "system");
+    assert.equal(categorizeSkill({ name: "mc-a-b-c", source: "project" }), "system");
   });
 
   it("returns 'project' for project skills without the mc- prefix", () => {
@@ -60,16 +60,16 @@ describe("manageSkills categorizeSkill", () => {
     assert.equal(categorizeSkill({ name: "my-skill", source: "project" }), "project");
   });
 
-  it("treats names like 'mcfoo' (no dash) as project, not built-in", () => {
+  it("treats names like 'mcfoo' (no dash) as project, not system", () => {
     assert.equal(categorizeSkill({ name: "mcfoo", source: "project" }), "project");
   });
 
-  it("is case-sensitive: 'Mc-foo' is project, not built-in", () => {
+  it("is case-sensitive: 'Mc-foo' is project, not system", () => {
     assert.equal(categorizeSkill({ name: "Mc-foo", source: "project" }), "project");
   });
 
-  it("treats the bare prefix 'mc-' as built-in", () => {
-    assert.equal(categorizeSkill({ name: "mc-", source: "project" }), "builtin");
+  it("treats the bare prefix 'mc-' as system", () => {
+    assert.equal(categorizeSkill({ name: "mc-", source: "project" }), "system");
   });
 
   it("treats an empty name + project as project (no prefix match)", () => {
@@ -79,15 +79,16 @@ describe("manageSkills categorizeSkill", () => {
 
 describe("manageSkills isSkillCategoryKey", () => {
   it("accepts the three canonical keys", () => {
-    assert.equal(isSkillCategoryKey("builtin"), true);
+    assert.equal(isSkillCategoryKey("system"), true);
     assert.equal(isSkillCategoryKey("project"), true);
     assert.equal(isSkillCategoryKey("user"), true);
   });
 
   it("rejects unknown strings and non-string values", () => {
-    assert.equal(isSkillCategoryKey("Builtin"), false);
+    assert.equal(isSkillCategoryKey("System"), false);
     assert.equal(isSkillCategoryKey(""), false);
     assert.equal(isSkillCategoryKey("foo"), false);
+    assert.equal(isSkillCategoryKey("builtin"), false);
     assert.equal(isSkillCategoryKey(123), false);
     assert.equal(isSkillCategoryKey(null), false);
     assert.equal(isSkillCategoryKey(undefined), false);
@@ -115,18 +116,18 @@ describe("manageSkills loadCollapsedGroups", () => {
 
   it("restores the persisted set when JSON is valid and all keys are known", () => {
     const { map, storage } = makeStorageShim();
-    map.set(COLLAPSED_GROUPS_STORAGE_KEY, JSON.stringify(["builtin", "user"]));
+    map.set(COLLAPSED_GROUPS_STORAGE_KEY, JSON.stringify(["system", "user"]));
     globalRef.window = { localStorage: storage };
     const result = loadCollapsedGroups();
-    assert.deepEqual([...result].sort(), ["builtin", "user"]);
+    assert.deepEqual([...result].sort(), ["system", "user"]);
   });
 
   it("filters out unknown keys when the persisted JSON is mixed", () => {
     const { map, storage } = makeStorageShim();
-    map.set(COLLAPSED_GROUPS_STORAGE_KEY, JSON.stringify(["builtin", "wat", "user", 42]));
+    map.set(COLLAPSED_GROUPS_STORAGE_KEY, JSON.stringify(["system", "wat", "user", 42]));
     globalRef.window = { localStorage: storage };
     const result = loadCollapsedGroups();
-    assert.deepEqual([...result].sort(), ["builtin", "user"]);
+    assert.deepEqual([...result].sort(), ["system", "user"]);
   });
 
   it("returns an empty set when the persisted array is empty", () => {
@@ -147,7 +148,7 @@ describe("manageSkills loadCollapsedGroups", () => {
 
   it("falls back to defaults when the persisted JSON is not an array", () => {
     const { map, storage } = makeStorageShim();
-    map.set(COLLAPSED_GROUPS_STORAGE_KEY, JSON.stringify({ builtin: true }));
+    map.set(COLLAPSED_GROUPS_STORAGE_KEY, JSON.stringify({ system: true }));
     globalRef.window = { localStorage: storage };
     const result = loadCollapsedGroups();
     assert.deepEqual([...result].sort(), [...DEFAULT_CLOSED_CATEGORIES].sort());
@@ -162,12 +163,12 @@ describe("manageSkills persistCollapsedGroups", () => {
   it("writes a JSON array of category keys to localStorage", () => {
     const { map, storage } = makeStorageShim();
     globalRef.window = { localStorage: storage };
-    persistCollapsedGroups(new Set(["builtin", "user"]));
+    persistCollapsedGroups(new Set(["system", "user"]));
     const raw = map.get(COLLAPSED_GROUPS_STORAGE_KEY);
     assert.ok(raw, "expected localStorage to have a value at the key");
     const parsed: unknown = JSON.parse(raw);
     assert.ok(Array.isArray(parsed));
-    assert.deepEqual([...parsed].sort(), ["builtin", "user"]);
+    assert.deepEqual([...parsed].sort(), ["system", "user"]);
   });
 
   it("writes an empty array when the set is empty", () => {
@@ -180,12 +181,12 @@ describe("manageSkills persistCollapsedGroups", () => {
   it("swallows errors when localStorage.setItem throws (quota / private mode)", () => {
     const { storage } = makeStorageShim({ setItemThrows: true });
     globalRef.window = { localStorage: storage };
-    assert.doesNotThrow(() => persistCollapsedGroups(new Set(["builtin"])));
+    assert.doesNotThrow(() => persistCollapsedGroups(new Set(["system"])));
   });
 
   it("is a no-op when window is undefined", () => {
     delete globalRef.window;
-    assert.doesNotThrow(() => persistCollapsedGroups(new Set(["builtin"])));
+    assert.doesNotThrow(() => persistCollapsedGroups(new Set(["system"])));
   });
 });
 
@@ -200,20 +201,20 @@ describe("manageSkills pickInitialSelection", () => {
     assert.equal(pickInitialSelection([], new Set()), null);
   });
 
-  it("picks the first built-in skill when no groups are collapsed", () => {
+  it("picks the first system skill when no groups are collapsed", () => {
     assert.equal(pickInitialSelection(skills, new Set()), "mc-bundled");
   });
 
-  it("skips a collapsed built-in group and picks the first project skill", () => {
-    assert.equal(pickInitialSelection(skills, new Set(["builtin"])), "my-project");
+  it("skips a collapsed system group and picks the first project skill", () => {
+    assert.equal(pickInitialSelection(skills, new Set(["system"])), "my-project");
   });
 
-  it("skips both built-in and project groups when both are collapsed", () => {
-    assert.equal(pickInitialSelection(skills, new Set(["builtin", "project"])), "z-user");
+  it("skips both system and project groups when both are collapsed", () => {
+    assert.equal(pickInitialSelection(skills, new Set(["system", "project"])), "z-user");
   });
 
   it("falls back to the first skill in the list when all groups are collapsed", () => {
-    assert.equal(pickInitialSelection(skills, new Set(["builtin", "project", "user"])), "mc-bundled");
+    assert.equal(pickInitialSelection(skills, new Set(["system", "project", "user"])), "mc-bundled");
   });
 
   it("returns the only available category's first skill when others are empty", () => {
@@ -226,13 +227,13 @@ describe("manageSkills pickInitialSelection", () => {
       { name: "mc-a", source: "project" as const },
       { name: "u-a", source: "user" as const },
     ];
-    assert.equal(pickInitialSelection(noProject, new Set(["builtin"])), "u-a");
+    assert.equal(pickInitialSelection(noProject, new Set(["system"])), "u-a");
   });
 });
 
 describe("manageSkills category constants", () => {
   it("declares the three category keys in the expected order", () => {
-    assert.deepEqual([...SKILL_CATEGORY_KEYS], ["builtin", "project", "user"]);
+    assert.deepEqual([...SKILL_CATEGORY_KEYS], ["system", "project", "user"]);
   });
 
   it("maps every category to an i18n label key", () => {
@@ -244,10 +245,10 @@ describe("manageSkills category constants", () => {
 
   it("uses the documented localStorage key and mc- prefix", () => {
     assert.equal(COLLAPSED_GROUPS_STORAGE_KEY, "skills:groupCollapsed");
-    assert.equal(MC_BUILTIN_PREFIX, "mc-");
+    assert.equal(SYSTEM_SKILL_PREFIX, "mc-");
   });
 
-  it("closes built-in by default", () => {
-    assert.deepEqual([...DEFAULT_CLOSED_CATEGORIES], ["builtin"]);
+  it("closes the system category by default", () => {
+    assert.deepEqual([...DEFAULT_CLOSED_CATEGORIES], ["system"]);
   });
 });

@@ -1047,10 +1047,10 @@ const zhMessages = {
     errSaveFailed: "保存失败: {error}",
     errDeleteFailed: "删除失败",
     confirmDelete: '要删除技能 "{name}" 吗?将会移除 ~/mulmoclaude/.claude/skills/{name}/SKILL.md。',
-    categoryBuiltIn: "内置",
+    categorySystem: "系统",
     categoryProject: "项目",
     categoryUser: "用户",
-    categoryLegend: "内置: 随附 (mc- 前缀) · 项目: 你的 skill (可编辑) · 用户: ~/.claude/skills/ (全局)",
+    categoryLegend: "系统: 随附 (mc- 前缀) · 项目: 你的 skill (可编辑) · 用户: ~/.claude/skills/ (全局)",
   },
   pluginManageRoles: {
     heading: "自定义角色",

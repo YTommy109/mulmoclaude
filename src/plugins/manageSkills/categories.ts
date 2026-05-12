@@ -10,15 +10,20 @@ import type { SkillSummary } from "./index";
 // fixtures without padding placeholder descriptions everywhere.
 export type SkillIdentity = Pick<SkillSummary, "name" | "source">;
 
-export const SKILL_CATEGORY_KEYS = ["builtin", "project", "user"] as const;
+export const SKILL_CATEGORY_KEYS = ["system", "project", "user"] as const;
 export type SkillCategoryKey = (typeof SKILL_CATEGORY_KEYS)[number];
 
-export const MC_BUILTIN_PREFIX = "mc-";
+// `mc-` is the launcher-managed namespace (see
+// server/workspace/skills-preset.ts). Skills under this prefix are
+// shipped with mulmoclaude and overwritten on every boot, so the UI
+// treats them as the "system" category and gates editing accordingly.
+// Matches the wording used for system-origin tasks on /automations.
+export const SYSTEM_SKILL_PREFIX = "mc-";
 export const COLLAPSED_GROUPS_STORAGE_KEY = "skills:groupCollapsed";
-export const DEFAULT_CLOSED_CATEGORIES: readonly SkillCategoryKey[] = ["builtin"];
+export const DEFAULT_CLOSED_CATEGORIES: readonly SkillCategoryKey[] = ["system"];
 
 export const CATEGORY_LABEL_KEYS: Record<SkillCategoryKey, string> = {
-  builtin: "pluginManageSkills.categoryBuiltIn",
+  system: "pluginManageSkills.categorySystem",
   project: "pluginManageSkills.categoryProject",
   user: "pluginManageSkills.categoryUser",
 };
@@ -26,7 +31,7 @@ export const CATEGORY_LABEL_KEYS: Record<SkillCategoryKey, string> = {
 /** Group a skill into one of the three buckets shown in the sidebar. */
 export function categorizeSkill(skill: SkillIdentity): SkillCategoryKey {
   if (skill.source === "user") return "user";
-  if (skill.name.startsWith(MC_BUILTIN_PREFIX)) return "builtin";
+  if (skill.name.startsWith(SYSTEM_SKILL_PREFIX)) return "system";
   return "project";
 }
 

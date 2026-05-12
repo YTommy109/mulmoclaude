@@ -4,11 +4,11 @@
 
 `/skills` ページ ([src/plugins/manageSkills/View.vue](../src/plugins/manageSkills/View.vue)) は現状、全 skill を**アルファベット順フラットリスト**で表示している。実際には次の 3 種類が混在しており、ユーザーは「何が編集可能で、何が触らない方が良いか」をぱっと見で判別できない。
 
-1. **Project (Built-in)** — `mc-` プレフィックスを持つ project skill（mulmoclaude が同梱）
+1. **Project (System)** — `mc-` プレフィックスを持つ project skill（mulmoclaude が同梱）
 2. **Project (Yours)** — それ以外の project skill（ユーザーが作成、編集/削除可能）
 3. **User (Global)** — `~/.claude/skills/` 配下の user skill（編集不可）
 
-バックエンド (`server/workspace/skills/types.ts`) は `source: "user" | "project"` の 2 値しか返さない。Built-in / Yours の判別は **フロント側で `name` の `mc-` プレフィックスを見る**だけで完結する。
+バックエンド (`server/workspace/skills/types.ts`) は `source: "user" | "project"` の 2 値しか返さない。System / Yours の判別は **フロント側で `name` の `mc-` プレフィックスを見る**だけで完結する。ラベルの "System" は `/automations` の system-origin タスクと表記を揃えている。
 
 ## 仕様
 
@@ -16,11 +16,11 @@
 
 | キー | 条件 | 初期状態 |
 |---|---|---|
-| `builtin` | `source === "project"` && `name.startsWith("mc-")` | closed |
+| `system` | `source === "project"` && `name.startsWith("mc-")` | closed |
 | `project` | `source === "project"` && それ以外 | open |
 | `user` | `source === "user"` | open |
 
-セクション順は固定: `builtin` → `project` → `user`。
+セクション順は固定: `system` → `project` → `user`。
 
 各セクション内は `localeCompare` で名前順。
 
@@ -47,7 +47,7 @@
 ## 変更ファイル
 
 - `src/plugins/manageSkills/View.vue` — 唯一のロジック変更
-- `src/lang/{en,ja,zh,ko,es,pt-BR,fr,de}.ts` — 3 キー追加（`categoryBuiltIn` / `categoryProject` / `categoryUser`）
+- `src/lang/{en,ja,zh,ko,es,pt-BR,fr,de}.ts` — 4 キー追加（`categorySystem` / `categoryProject` / `categoryUser` / `categoryLegend`）
 - `docs/ui-cheatsheet.md` — `/skills` 節のレイアウト図を実装に追従させる（既存ブロックは旧 `<SkillsManager>` プロトタイプを示しており現状とズレている）
 
 ## テスト
@@ -58,5 +58,5 @@
 
 ## スコープ外（別 PR）
 
-- backend が `source: "builtin" | "project" | "user"` を返すように拡張する案 — 今回は不要（mc- 判定で十分かつフロント完結が望ましい）
+- backend が `source: "system" | "project" | "user"` を返すように拡張する案 — 今回は不要（mc- 判定で十分かつフロント完結が望ましい）
 - カテゴリのカスタム並び替え、検索/フィルタ

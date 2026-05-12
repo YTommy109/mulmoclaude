@@ -370,14 +370,15 @@ Two-pane layout (`<ManageSkillsView>`): left sidebar groups skills by
 category, right pane renders the selected skill's `SKILL.md`. Only
 **Project (Yours)** skills expose Edit/Delete; the other categories
 are read-only (Run only). Collapse state per group is persisted to
-`localStorage` (`skills:groupCollapsed`); `builtin` is closed by
-default since users rarely need to inspect bundled skills.
+`localStorage` (`skills:groupCollapsed`); `system` is closed by
+default since users rarely need to inspect bundled skills. The
+"system" wording mirrors the system-origin tasks on `/automations`.
 
-```
+```text
 ┌─[<ManageSkillsView>]───────────────────────────────────────────────┐
 │ Skills                              N available · click · Run = /…│
 │ ┌─Sidebar (w-64)──────────┬─Detail pane──────────────────────────┐ │
-│ │ ▶ BUILT-IN          12  │  <skill name>                         │ │
+│ │ ▶ SYSTEM            12  │  <skill name>                         │ │
 │ │ ▼ PROJECT            3  │  description                          │ │
 │ │ ├ [skill-item-foo]      │                            ✏ Edit  ✕ ⏵│ │
 │ │ ├ [skill-item-bar]      │                                       │ │
@@ -390,7 +391,7 @@ default since users rarely need to inspect bundled skills.
 
 Testids: `skill-group-{key}` / `skill-group-toggle-{key}` /
 `skill-group-count-{key}` for the three category headers
-(`builtin` / `project` / `user`); `skill-item-{name}` per row.
+(`system` / `project` / `user`); `skill-item-{name}` per row.
 
 ## /roles — role configuration
 

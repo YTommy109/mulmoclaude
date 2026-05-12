@@ -15,7 +15,7 @@
     </div>
 
     <div class="flex-1 min-h-0 flex overflow-hidden">
-      <!-- Left: skill list, grouped by category (built-in / project / user) -->
+      <!-- Left: skill list, grouped by category (system / project / user) -->
       <div class="w-64 shrink-0 border-r border-gray-100 overflow-y-auto bg-gray-50">
         <template v-for="group in skillGroups" :key="group.key">
           <div v-if="group.skills.length > 0" :data-testid="`skill-group-${group.key}`">
@@ -208,7 +208,7 @@ const props = defineProps<{
 const skills = ref<SkillSummary[]>(props.selectedResult?.data?.skills ?? []);
 
 // Collapsed-group state for the sidebar. Persisted to localStorage so
-// each user's preference (typically: built-in collapsed) survives reloads.
+// each user's preference (typically: system collapsed) survives reloads.
 // shallowRef because we always replace the Set wholesale (toggleGroup
 // builds a fresh Set), avoiding the deep-proxy that ref() would create.
 const collapsedGroups = shallowRef<Set<SkillCategoryKey>>(loadCollapsedGroups());
@@ -256,7 +256,7 @@ const renderedBody = computed(() => {
   return sanitizeMarkdownHtml(marked(body) as string);
 });
 
-// Edit/Delete gate. Built-in (`mc-` prefix) project skills are read-only
+// Edit/Delete gate. System (`mc-` prefix) project skills are read-only
 // because they ship with the app — editing them would mask a future
 // upstream update. Only user-authored project skills are mutable.
 const isSelectedEditable = computed(() => detail.value !== null && categorizeSkill(detail.value) === "project");

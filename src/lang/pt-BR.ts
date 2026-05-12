@@ -1055,10 +1055,10 @@ const ptBRMessages = {
     errSaveFailed: "Falha ao salvar: {error}",
     errDeleteFailed: "Falha ao excluir",
     confirmDelete: 'Excluir a skill "{name}"? Isso remove ~/mulmoclaude/.claude/skills/{name}/SKILL.md.',
-    categoryBuiltIn: "Integradas",
+    categorySystem: "Sistema",
     categoryProject: "Projeto",
     categoryUser: "Usuário",
-    categoryLegend: "Integradas: inclusas (prefixo mc-) · Projeto: suas skills (editáveis) · Usuário: ~/.claude/skills/ (globais)",
+    categoryLegend: "Sistema: inclusas (prefixo mc-) · Projeto: suas skills (editáveis) · Usuário: ~/.claude/skills/ (globais)",
   },
   pluginManageRoles: {
     heading: "Papéis personalizados",

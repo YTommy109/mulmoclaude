@@ -1055,10 +1055,10 @@ const jaMessages = {
     errSaveFailed: "保存失敗: {error}",
     errDeleteFailed: "削除に失敗しました",
     confirmDelete: "スキル「{name}」を削除しますか? ~/mulmoclaude/.claude/skills/{name}/SKILL.md が削除されます。",
-    categoryBuiltIn: "ビルトイン",
+    categorySystem: "システム",
     categoryProject: "プロジェクト",
     categoryUser: "ユーザー",
-    categoryLegend: "ビルトイン: 同梱 (mc- 接頭辞) · プロジェクト: あなたの skill (編集可) · ユーザー: ~/.claude/skills/ (グローバル)",
+    categoryLegend: "システム: 同梱 (mc- 接頭辞) · プロジェクト: あなたの skill (編集可) · ユーザー: ~/.claude/skills/ (グローバル)",
   },
   pluginManageRoles: {
     heading: "カスタムロール",

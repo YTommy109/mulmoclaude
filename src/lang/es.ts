@@ -1066,10 +1066,10 @@ const esMessages = {
     errSaveFailed: "Error al guardar: {error}",
     errDeleteFailed: "Error al eliminar",
     confirmDelete: '¿Eliminar la skill "{name}"? Esto borrará ~/mulmoclaude/.claude/skills/{name}/SKILL.md.',
-    categoryBuiltIn: "Integradas",
+    categorySystem: "Sistema",
     categoryProject: "Proyecto",
     categoryUser: "Usuario",
-    categoryLegend: "Integradas: incluidas (prefijo mc-) · Proyecto: tus skills (editables) · Usuario: ~/.claude/skills/ (globales)",
+    categoryLegend: "Sistema: incluidas (prefijo mc-) · Proyecto: tus skills (editables) · Usuario: ~/.claude/skills/ (globales)",
   },
   pluginManageRoles: {
     heading: "Roles personalizados",
