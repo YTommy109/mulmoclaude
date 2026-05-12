@@ -95,16 +95,26 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.text({ type: "application/json", limit: BODY_LIMIT }));
 
-// Webhook verification (GET)
+// Webhook verification (GET).
+//
+// Meta's verification flow sends `hub.mode=subscribe` + the shared
+// `hub.verify_token` + a one-time `hub.challenge` random ASCII
+// nonce that we must echo back verbatim. The default `res.send`
+// path returns `Content-Type: text/html`, which would let a
+// crafted `hub.challenge=<script>...</script>` reflect executable
+// HTML into the response (CodeQL `js/reflected-xss`). Force
+// `text/plain` AND narrow the query value to a string so an
+// `hub.challenge[]=...` array form also bounces safely.
 app.get("/webhook", (req: Request, res: Response) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
+  const rawChallenge = req.query["hub.challenge"];
+  const challenge = typeof rawChallenge === "string" ? rawChallenge : "";
   if (mode === "subscribe" && token === verifyToken) {
     console.log("[messenger] webhook verified");
-    res.status(200).send(challenge);
+    res.type("text/plain").status(200).send(challenge);
   } else {
-    res.status(403).send("Forbidden");
+    res.status(403).type("text/plain").send("Forbidden");
   }
 });
 
