@@ -7,20 +7,30 @@ import {
   deleteSession,
   getCurrentSessionId,
   placeProjectSkill,
+  readProjectSkillBody,
+  readSessionToolCalls,
   removeProjectSkill,
   selectRole,
   sendChatMessage,
+  snapshotProjectSkillSlugs,
+  stagingSkillSlugFromWriteCall,
+  startGuaranteedNewSession,
   startNewSession,
   waitForAssistantResponseComplete,
+  waitForAssistantTurn,
 } from "../fixtures/live-chat.ts";
 
 const L21_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const L22_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
+const L31_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
+const L32_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const SESSION_URL_PATTERN = /\/chat\/[0-9a-f-]+/;
 
-// Both scenarios talk to the live LLM (L-21: chart tool dispatch,
-// L-22: skill execution). They share no state — run in parallel
-// to cut wall time, mirroring the other category specs.
+// All four scenarios talk to the live LLM (L-21: chart tool dispatch,
+// L-22: skill execution, L-31: mc-manage-skills bridge dispatch
+// canary, L-32: end-to-end skill landing canary). They share no
+// state — run in parallel to cut wall time, mirroring the other
+// category specs.
 test.describe.configure({ mode: "parallel" });
 
 test.describe("skills (real LLM / static)", () => {
@@ -187,4 +197,149 @@ test.describe("skills (real LLM / static)", () => {
       await removeProjectSkill(skillSlug);
     }
   });
+
+  test("L-31: General role + 「skill 化して」 で agent が data/skills/<slug>/SKILL.md に Write する (post-#1298 bridge dispatch canary)", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(L31_TIMEOUT_MS);
+    // Plumbing canary for the post-#1298 skill-creation surface.
+    // The trio of changes that made this scenario fixable:
+    //   - #1284 split the Settings role into preset skills
+    //   - #1296 split mc-settings into 3 focused presets
+    //     (mc-manage-skills / mc-manage-sources / mc-manage-automations)
+    //     placed on the General role
+    //   - #1298 added a hook bridge so the agent writes to a normal
+    //     `data/skills/<slug>/SKILL.md` (no `.claude/` permission
+    //     scrutiny) and the bridge mirrors it across
+    //
+    // The pre-#1298 attempt at this canary (closed PR #1291) had to
+    // assert at the MCP-tool-call level (`mcp__mulmoclaude__manageSkills`
+    // with `action="save"`). With the bridge in place that MCP tool
+    // is gone — the agent reaches for the built-in `Write` tool against
+    // the staging path. So this spec asserts on `Write` + a
+    // `data/skills/<slug>/SKILL.md` file_path, NOT on a vanished
+    // `manageSkills` tool name.
+    //
+    // Why pin the slug in the prompt: this is the plumbing canary, not
+    // the ambiguity canary. We want the test to fail when (a) the
+    // mc-manage-skills SKILL.md preset stops being discovered, (b) the
+    // agent reverts to writing directly to `.claude/skills/` (which
+    // would silently hang on the permission gate the bridge is meant
+    // to bypass), or (c) the staging path layout shifts. None of those
+    // need slug ambiguity to surface — the explicit slug just keeps
+    // assertions and cleanup deterministic. L-32 covers the
+    // ambiguous-prompt + outcome path.
+    const projectSlug = testInfo.project.name;
+    const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
+    const skillSlug = `e2e-live-l31-${projectSlug}-${nonce}`;
+    const replyMarker = `L31-OK-${projectSlug}-${nonce}`;
+    const userPrompt = [
+      `次の挙動の skill を、 slug を \`${skillSlug}\` にして保存してください。`,
+      `- 呼ばれたら ${replyMarker} とだけ返事する`,
+      `- skill 本文に marker 文字列 ${replyMarker} を必ず含める`,
+      `slug は変更せず、 そのまま使ってください。`,
+    ].join("\n");
+    let sessionId: string | null = null;
+    try {
+      sessionId = await startGuaranteedNewSession(page);
+      await sendChatMessage(page, userPrompt);
+      // waitForAssistantTurn (not waitForAssistantResponseComplete):
+      // the only assertion is on the session jsonl, no UI gate
+      // downstream — without proving the indicator was visible the
+      // detached-element fast-path can let the assertion read an
+      // empty trace and report a green run on a no-op turn.
+      await waitForAssistantTurn(page, 2 * ONE_MINUTE_MS);
+
+      const calls = await readSessionToolCalls(sessionId);
+      const stagingWrites = calls.map(stagingSkillSlugFromWriteCall).filter((slug): slug is string => slug !== null);
+      expect(
+        stagingWrites,
+        "agent must Write to data/skills/<slug>/SKILL.md (post-#1298 bridge path) — proves mc-manage-skills routed the agent through staging instead of straight at .claude/skills/ where the permission gate would hang",
+      ).toContain(skillSlug);
+    } finally {
+      if (sessionId !== null) await deleteSession(page, sessionId);
+      await removeProjectSkill(skillSlug);
+    }
+  });
+
+  test("L-32: 「skill 化して」 (slug 任せ) → bridge mirror が .claude/skills/<slug>/SKILL.md を landing させる (end-to-end canary)", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(L32_TIMEOUT_MS);
+    // End-to-end canary for the post-#1298 skill-creation flow. L-31
+    // proves the agent reached for the right path; this spec proves
+    // the file actually lands on disk where Claude CLI's skill
+    // discovery scans (`.claude/skills/<slug>/SKILL.md`). A break
+    // anywhere along
+    //   discovery (mc-manage-skills surfaces) →
+    //   dispatch (agent picks the right tool) →
+    //   Write (staging file lands) →
+    //   bridge hook (mirror copy fires) →
+    //   refresh (server rescan picks it up)
+    // collapses into a missing canonical file or a missing marker.
+    //
+    // Slug picked by the agent (not the test) — this is the
+    // ambiguous-prompt branch. Identification of "this run's slug"
+    // goes through baseline-snapshot diff + marker-in-body check, so
+    // a parallel L-22 / L-31 / future test creating a sibling skill
+    // is filtered out by the marker requirement (one slug must NOT
+    // collide with another run's marker).
+    //
+    // Cleanup: any new slug whose body matches this run's marker is
+    // ours. The `finally` re-snapshots in case the assertion failed
+    // before assigning `createdSlugs` — leaving a stray `<slug>/`
+    // dir behind would leak across runs and pollute the discovery
+    // listing.
+    const projectSlug = testInfo.project.name;
+    const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
+    const replyMarker = `L32-OK-${projectSlug}-${nonce}`;
+    const userPrompt = [
+      `次の挙動の skill を作って保存してください。 slug は適切に決めてください。`,
+      `- 呼ばれたら ${replyMarker} とだけ返事する`,
+      `- skill 本文に marker 文字列 ${replyMarker} を必ず含める`,
+    ].join("\n");
+
+    const baselineSlugs = await snapshotProjectSkillSlugs();
+    let sessionId: string | null = null;
+    let createdSlugs: string[] = [];
+    try {
+      sessionId = await startGuaranteedNewSession(page);
+      await sendChatMessage(page, userPrompt);
+      // The assertion target is a filesystem outcome, so the strict
+      // gating helper is mandatory — see L-31 comment for why
+      // waitForAssistantResponseComplete would race past an empty
+      // workspace.
+      await waitForAssistantTurn(page, 2 * ONE_MINUTE_MS);
+
+      createdSlugs = await collectL32MarkedSlugs(baselineSlugs, replyMarker);
+      expect(
+        createdSlugs.length,
+        "at least one new dir under .claude/skills/<slug>/ must contain this run's marker — proves the bridge mirrored data/skills → .claude/skills (post-#1298 outcome canary)",
+      ).toBeGreaterThan(0);
+    } finally {
+      if (sessionId !== null) await deleteSession(page, sessionId);
+      // Re-resolve in case the assertion failed before assigning
+      // `createdSlugs` — a partial run still owns any dirs it left.
+      const slugsToRemove = createdSlugs.length > 0 ? createdSlugs : await collectL32MarkedSlugs(baselineSlugs, replyMarker);
+      for (const slug of slugsToRemove) {
+        await removeProjectSkill(slug);
+      }
+    }
+  });
 });
+
+// L-32 cleanup helper. Pulled out of the spec so the assertion site
+// and the `finally` site share one predicate; otherwise drift between
+// the two would silently leave skill dirs on disk after a failed run.
+async function collectL32MarkedSlugs(baselineSlugs: Set<string>, replyMarker: string): Promise<string[]> {
+  const after = await snapshotProjectSkillSlugs();
+  const candidates = [...after].filter((slug) => !baselineSlugs.has(slug));
+  const matches: string[] = [];
+  for (const slug of candidates) {
+    const body = await readProjectSkillBody(slug);
+    if (body !== null && body.includes(replyMarker)) {
+      matches.push(slug);
+    }
+  }
+  return matches;
+}

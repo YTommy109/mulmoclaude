@@ -3,7 +3,7 @@
 // install any API mocks — the real Claude API runs end-to-end. Use
 // these helpers from specs in `e2e-live/tests/`.
 
-import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +12,7 @@ import { type Download, type FrameLocator, type Page, expect } from "@playwright
 
 import { ONE_MINUTE_MS, ONE_SECOND_MS } from "../../server/utils/time.ts";
 import { isValidSlug } from "../../server/utils/slug.ts";
+import { isRecord } from "../../server/utils/types.ts";
 import { API_ROUTES } from "../../src/config/apiRoutes.ts";
 
 const FIXTURES_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -191,11 +192,159 @@ export async function placeProjectSkill(slug: string, description: string, body:
   await writeFile(target, content, "utf8");
 }
 
-/** Best-effort delete the seeded skill directory. */
+/**
+ * Best-effort delete the seeded skill directory. Removes both the
+ * canonical `.claude/skills/<slug>/` and the staging
+ * `data/skills/<slug>/` (the latter is a no-op when it does not
+ * exist — true for L-22-style direct seeds via {@link placeProjectSkill},
+ * non-trivial for L-31 / L-32 where the agent wrote to staging and
+ * the bridge mirrored it across).
+ */
 export async function removeProjectSkill(slug: string): Promise<void> {
   assertValidSkillSlug(slug);
-  const dir = resolveWorkspacePath(`.claude/skills/${slug}`);
-  await rm(dir, { recursive: true, force: true });
+  const canonicalDir = resolveWorkspacePath(`.claude/skills/${slug}`);
+  const stagingDir = resolveWorkspacePath(`data/skills/${slug}`);
+  await rm(canonicalDir, { recursive: true, force: true });
+  await rm(stagingDir, { recursive: true, force: true });
+}
+
+/**
+ * Built-in editor tool name as the SDK exposes it (no MCP prefix).
+ * Specs match against this when asserting that the agent reached for
+ * the filesystem editor — used by L-31 to verify the post-#1298
+ * skill-bridge dispatch shape (agent writes to `data/skills/...`,
+ * NOT to `.claude/skills/...`).
+ */
+export const WRITE_TOOL_NAME = "Write";
+
+// Path of an agent Write that targets a staging skill body. Anchored
+// to `/SKILL.md` (`<sep>data<sep>skills<sep><slug><sep>SKILL.md$`)
+// so a Write to `data/skills/<slug>/README.md` does NOT match — the
+// bridge only mirrors the canonical filename, and asserting on it is
+// what proves the bridge will fire. Slug pattern matches the bridge's
+// own `SLUG_RE`. Tolerates both POSIX and Windows separators since
+// path normalisation depends on how the SDK serialises the arg.
+// eslint-disable-next-line security/detect-unsafe-regex -- the slug clause is bounded by the path tail (slug ≤ 64 chars per server/utils/slug.ts) and the input is the agent-supplied file_path the Claude SDK already validated; no pathological backtracking surface.
+const STAGING_SKILL_WRITE_PATH_RE = /[/\\]data[/\\]skills[/\\]([a-z0-9]+(?:-[a-z0-9]+)*)[/\\]SKILL\.md$/;
+
+/**
+ * Extract the staging-skill slug from a `Write` tool call's
+ * `file_path` arg. Returns `null` when the call isn't a `Write`,
+ * the path doesn't sit under `data/skills/<slug>/SKILL.md`, or the
+ * slug fails the canonical kebab-case rule. Specs in L-31 use this
+ * to assert that mc-manage-skills routed the agent into the bridge
+ * staging path rather than into `.claude/skills/` (which would
+ * indicate the bridge SKILL.md was ignored — the regression #1298
+ * fixed).
+ */
+export function stagingSkillSlugFromWriteCall(call: ToolCallTraceRecord): string | null {
+  if (call.toolName !== WRITE_TOOL_NAME) return null;
+  if (!isRecord(call.args)) return null;
+  const filePath = call.args.file_path;
+  if (typeof filePath !== "string") return null;
+  const match = STAGING_SKILL_WRITE_PATH_RE.exec(filePath);
+  return match ? match[1] : null;
+}
+
+/**
+ * One `tool_call` record as persisted by `server/workspace/tool-trace`.
+ * Specs filter on `toolName` and pull selected fields from `args`
+ * (`file_path`, ...) — the trace shape is wider than this slice but
+ * the spec only needs the dispatch-level info.
+ */
+export interface ToolCallTraceRecord {
+  toolName: string;
+  args: unknown;
+}
+
+interface ToolCallJsonlLine {
+  type?: unknown;
+  toolName?: unknown;
+  args?: unknown;
+}
+
+function parseToolCallLine(line: string): ToolCallTraceRecord | null {
+  if (line.length === 0) return null;
+  let parsed: ToolCallJsonlLine;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  if (parsed.type !== "tool_call") return null;
+  if (typeof parsed.toolName !== "string") return null;
+  return { toolName: parsed.toolName, args: parsed.args };
+}
+
+function isENOENT(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && err.code === "ENOENT";
+}
+
+/**
+ * Read the per-session jsonl event log and return every `tool_call`
+ * record in dispatch order. Specs use this to assert the agent
+ * reached for a specific tool (or, conversely, that it did NOT reach
+ * for `Write` against `.claude/skills/`). The path mirrors
+ * `server/utils/files/session-io.ts → sessionJsonlAbsPath`
+ * (`<workspace>/conversations/chat/<id>.jsonl`); resolved through
+ * `resolveWorkspacePath` so a stale env override cannot escape the
+ * workspace root. Returns `[]` when the jsonl is missing — agent
+ * routes only flush the file once the first event is recorded, so
+ * an early read can race ahead of the first tool call. The caller
+ * is expected to gate this on {@link waitForAssistantTurn}.
+ */
+export async function readSessionToolCalls(sessionId: string): Promise<ToolCallTraceRecord[]> {
+  const jsonlPath = resolveWorkspacePath(`conversations/chat/${sessionId}.jsonl`);
+  let raw: string;
+  try {
+    raw = await readFile(jsonlPath, "utf8");
+  } catch (err) {
+    if (isENOENT(err)) return [];
+    throw err;
+  }
+  const calls: ToolCallTraceRecord[] = [];
+  for (const line of raw.split("\n")) {
+    const record = parseToolCallLine(line);
+    if (record !== null) calls.push(record);
+  }
+  return calls;
+}
+
+/**
+ * Snapshot the slug names currently sitting under
+ * `<workspace>/.claude/skills/`. Returned as a Set so a post-test
+ * delta filter is cheap; missing directory yields an empty set so a
+ * fresh workspace doesn't trip the helper. Used by L-32 to identify
+ * skill dirs that the test caused (Claude picks the slug) without
+ * stomping on a parallel run's seeded skills.
+ */
+export async function snapshotProjectSkillSlugs(): Promise<Set<string>> {
+  const skillsDir = resolveWorkspacePath(".claude/skills");
+  let entries: { name: string; isDirectory: () => boolean }[];
+  try {
+    entries = await readdir(skillsDir, { withFileTypes: true });
+  } catch (err) {
+    if (isENOENT(err)) return new Set();
+    throw err;
+  }
+  return new Set(entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name));
+}
+
+/**
+ * Read the SKILL.md body of the named project skill. Returns `null`
+ * when the file is absent (e.g. cleanup race in a parallel suite),
+ * so the caller can treat absence as "not ours" without distinguishing
+ * it from a read failure. We go through `resolveWorkspacePath` so a
+ * malformed slug cannot escape the workspace root.
+ */
+export async function readProjectSkillBody(slug: string): Promise<string | null> {
+  const target = resolveWorkspacePath(`.claude/skills/${slug}/SKILL.md`);
+  try {
+    return await readFile(target, "utf8");
+  } catch (err) {
+    if (isENOENT(err)) return null;
+    throw err;
+  }
 }
 
 const WIKI_PAGE_BODY_SELECTOR = '[data-testid="wiki-page-body"]';
@@ -466,10 +615,48 @@ export async function deleteSession(page: Page, sessionId: string): Promise<void
 
 const PRESENT_HTML_IFRAME_SELECTOR = '[data-testid="present-html-iframe"]';
 
+const SESSION_URL_PATTERN_FIXTURES = /\/chat\/[0-9a-f-]+/;
+
 /** Open the app root and start a fresh chat session. */
 export async function startNewSession(page: Page): Promise<void> {
   await page.goto("/");
   await page.getByTestId("new-session-btn").click();
+}
+
+/**
+ * Like {@link startNewSession} but waits until the URL settles on a
+ * `/chat/<id>` that differs from whatever the SPA was sitting on
+ * before the click, and returns the freshly-created session id.
+ *
+ * Why this exists: `page.goto("/")` triggers the SPA's
+ * "resume the most-recent session" redirect when one exists, so the
+ * URL can already match `/chat/<old-id>` before the click. A naive
+ * `await page.waitForURL(SESSION_URL_PATTERN)` after that passes
+ * immediately on the *stale* URL, and a subsequent
+ * `getCurrentSessionId(page)` returns the old session id — any
+ * follow-up assertion that reads tool-trace by session id then
+ * reads from the wrong file and sees zero matches. Specs that need
+ * the new session id (e.g. to read its `conversations/chat/<id>.jsonl`)
+ * should reach for this helper instead of pairing `startNewSession`
+ * with `waitForURL(SESSION_URL_PATTERN)` by hand. Specs that follow
+ * with `selectRole(...)` are not affected — `selectRole` spawns its
+ * own fresh session, and their second wait already filters out the
+ * old id.
+ */
+export async function startGuaranteedNewSession(page: Page): Promise<string> {
+  await page.goto("/");
+  const priorSessionId = getCurrentSessionId(page);
+  await page.getByTestId("new-session-btn").click();
+  if (priorSessionId === null) {
+    await page.waitForURL(SESSION_URL_PATTERN_FIXTURES);
+  } else {
+    await page.waitForURL((url) => SESSION_URL_PATTERN_FIXTURES.test(url.pathname) && !url.pathname.endsWith(priorSessionId));
+  }
+  const newSessionId = getCurrentSessionId(page);
+  if (newSessionId === null) {
+    throw new Error("startGuaranteedNewSession: URL did not settle on /chat/<id> after new-session-btn click");
+  }
+  return newSessionId;
 }
 
 /** Fill the chat input and click send. */
@@ -517,6 +704,35 @@ export async function waitForImgInPresentHtml(page: Page, imgSelector: string, t
  */
 export async function waitForAssistantResponseComplete(page: Page, timeoutMs: number = ONE_MINUTE_MS): Promise<void> {
   await expect(page.getByTestId("thinking-indicator")).toBeHidden({ timeout: timeoutMs });
+}
+
+const THINKING_INDICATOR_VISIBLE_TIMEOUT_MS = 30 * ONE_SECOND_MS;
+
+/**
+ * Stricter variant of {@link waitForAssistantResponseComplete} that
+ * additionally proves the agent actually started before waiting for
+ * it to finish. The default helper falls through immediately when
+ * `thinking-indicator` is still absent from the DOM (Playwright's
+ * `toBeHidden` treats a detached element as hidden) — fine for
+ * specs that have a UI-side gate of their own (`chart-card-0`,
+ * `text-response-assistant-body`) but a silent race for specs
+ * whose only assertion lives in the session jsonl or filesystem:
+ * `readSessionToolCalls` / `snapshotProjectSkillSlugs` runs before
+ * the agent has appended a single `tool_call` line, sees
+ * `length === 0` / no diff, and the spec fails even though the
+ * agent ran successfully a few hundred ms later.
+ *
+ * Use this instead of `waitForAssistantResponseComplete` whenever
+ * the assertion target is the tool-trace jsonl or another
+ * out-of-band signal and there is no fail-safe `toContainText`
+ * polling downstream that would mask the early-return.
+ */
+export async function waitForAssistantTurn(page: Page, timeoutMs: number = ONE_MINUTE_MS): Promise<void> {
+  const indicator = page.getByTestId("thinking-indicator");
+  await expect(indicator, "thinking-indicator must appear after sendChatMessage — proves the agent actually started").toBeVisible({
+    timeout: THINKING_INDICATOR_VISIBLE_TIMEOUT_MS,
+  });
+  await expect(indicator, "thinking-indicator must hide when the assistant turn ends").toBeHidden({ timeout: timeoutMs });
 }
 
 /**
