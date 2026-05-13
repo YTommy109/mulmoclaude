@@ -21,12 +21,12 @@ import { DEFAULT_ROLE_ID } from "../src/config/roles.js";
 import mulmoScriptRoutes from "./api/routes/mulmo-script.js";
 import wikiRoutes from "./api/routes/wiki.js";
 import wikiHistoryRoutes from "./api/routes/wiki/history.js";
-import { provisionWikiHistoryHook } from "./workspace/wiki-history/provision.js";
-import { provisionConfigRefreshHook } from "./workspace/config-refresh/provision.js";
+import { provisionDispatcherHook } from "./workspace/hooks/provision.js";
 import pdfRoutes from "./api/routes/pdf.js";
 import filesRoutes from "./api/routes/files.js";
 import configRoutes from "./api/routes/config.js";
 import configRefreshRoutes from "./api/routes/config-refresh.js";
+import hookLogRoutes from "./api/routes/hookLog.js";
 import skillsRoutes from "./api/routes/skills.js";
 import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
 import { loadRuntimePlugins } from "./plugins/runtime-loader.js";
@@ -83,6 +83,7 @@ import { bearerAuth } from "./api/auth/bearerAuth.js";
 import { deleteTokenFile, generateAndWriteToken, getCurrentToken } from "./api/auth/token.js";
 import { log } from "./system/logger/index.js";
 import { logBackgroundError } from "./utils/logBackgroundError.js";
+import { errorMessage } from "./utils/errors.js";
 import { registerScheduledSkills } from "./workspace/skills/scheduler.js";
 import { registerUserTasks } from "./workspace/skills/user-tasks.js";
 import { API_ROUTES } from "../src/config/apiRoutes.js";
@@ -141,7 +142,7 @@ runMemoryMigrationOnce(workspacePath)
 // every boot after the first is a no-op.
 migrateCookingRecipesFromPlugin().catch((err) => {
   log.warn("cooking-recipes", "migration from plugin failed; falling back to original plugin path", {
-    error: err instanceof Error ? err.message : String(err),
+    error: errorMessage(err),
   });
 });
 
@@ -565,6 +566,7 @@ app.use(pdfRoutes);
 app.use(filesRoutes);
 app.use(configRoutes);
 app.use(configRefreshRoutes);
+app.use(hookLogRoutes);
 app.use(skillsRoutes);
 app.use(runtimePluginRoutes);
 async function listSessionsForBridge(opts: { limit: number; offset: number }) {
@@ -1070,24 +1072,18 @@ process.on("SIGTERM", () => {
   sandboxEnabled = await setupSandbox();
   logMcpStatus();
 
-  // Provision the LLM-write hook in the workspace's
-  // `.claude/settings.json` (#763 PR 2). Idempotent — safe on every
-  // startup. Done BEFORE the agent ever spawns a claude CLI subprocess
-  // so the hook is in place from the first turn.
-  await provisionWikiHistoryHook().catch((err) => {
-    log.warn("wiki-history", "hook provisioning failed; LLM wiki edits will not be snapshotted this session", {
-      error: String(err),
-    });
-  });
-
-  // config-refresh auto-refresh hook (#1283, #1295). Installs a
-  // PostToolUse entry that fires POST /api/config/refresh after
-  // Write/Edit on SKILL.md or scheduler tasks.json so the
-  // `mc-manage-skills` and `mc-manage-automations` preset skills can
-  // drive workspace settings via plain file edits without leaving
-  // scheduled jobs stuck on the pre-edit definition.
-  await provisionConfigRefreshHook().catch((err) => {
-    log.warn("config-refresh", "hook provisioning failed; settings file edits will need a manual server restart this session", {
+  // Unified PostToolUse dispatcher (#763 PR 2, #1283, #1295). One
+  // entry in `<workspace>/.claude/settings.json` that fans out to:
+  //   - wiki-snapshot (page Writes → snapshot pipeline)
+  //   - config-refresh (SKILL.md / scheduler tasks.json / data/skills/*.md → POST /api/config/refresh)
+  //   - skill-bridge (data/skills/*.md ↔ .claude/skills/<slug>/SKILL.md)
+  //
+  // Done BEFORE the agent ever spawns a claude CLI subprocess so the
+  // hook is in place from the first turn. The provisioner also strips
+  // pre-unification entries (wikiHistory / configRefresh owner markers)
+  // so existing workspaces upgrade cleanly without double-firing.
+  await provisionDispatcherHook().catch((err) => {
+    log.warn("hooks", "dispatcher provisioning failed; PostToolUse side-effects (snapshots, refresh, skill bridge) will not run this session", {
       error: String(err),
     });
   });

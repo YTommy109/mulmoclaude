@@ -1,6 +1,6 @@
 ---
 name: mc-manage-sources
-description: Register, list, edit, or remove a news / RSS / GitHub / arXiv information source for the workspace. Use when the user wants to subscribe to a feed ("register an RSS feed", "AI 論文の arXiv 追加して"), stop following one, or see what's registered. Writes one markdown file per source at `<workspace>/sources/<slug>.md`; the source poller picks up changes on its next cycle.
+description: Register, list, edit, or remove a news / RSS / GitHub / arXiv information source for the workspace. Use when the user wants to subscribe to a feed ("register an RSS feed", "AI 論文の arXiv 追加して"), stop following one, or see what's registered. Writes one markdown file per source at `sources/<slug>.md` (cwd-relative — the agent already runs with cwd = workspace); the source poller picks up changes on its next cycle.
 ---
 
 # Information sources manager
@@ -10,8 +10,9 @@ this file in the workspace, it is overwritten on every server boot).
 
 Help the user curate the **information sources** the agent polls in the
 background — RSS feeds, GitHub releases / issues, arXiv queries. One file per
-source under `<workspace>/sources/`; the poller re-reads the directory on
-every cycle, so no refresh dance is needed.
+source under `sources/` (cwd-relative; the agent runs with cwd set to the
+workspace root, so every path in this file is plain cwd-relative); the poller
+re-reads the directory on every cycle, so no refresh dance is needed.
 
 End with a one-line confirmation ("Registered ai-news-rss." / "Stopped
 following old-feed.") so the user can verify without scrolling.
@@ -33,7 +34,7 @@ following old-feed.") so the user can verify without scrolling.
 hyphen-separated. Use a memorable handle (`ai-news-rss`, `pytorch-releases`,
 `arxiv-llm`) so the user can recognise it when listing.
 
-**Step 3 — Write `<workspace>/sources/<slug>.md`**:
+**Step 3 — Write `sources/<slug>.md`**:
 
 ```markdown
 ---
@@ -71,8 +72,8 @@ No hook fires — the source poller re-reads files each cycle.
 **Triggers**: "show my sources", "登録した source 全部", "what am I
 following?".
 
-List `<workspace>/sources/*.md` and present `title` + `fetcher_kind` +
-`schedule` for each in a compact form. Don't dump raw frontmatter unless the
+List `sources/*.md` and present `title` + `fetcher_kind` + `schedule` for
+each in a compact form. Don't dump raw frontmatter unless the
 user asks for a specific source's details.
 
 If the user filters by category ("tech のだけ"), filter the list before
@@ -93,7 +94,7 @@ user explicitly asked to change it. Confirm afterward.
 Only when the user explicitly asks. Quote the path:
 
 ```bash
-rm "<workspace>/sources/<slug>.md"
+rm "sources/<slug>.md"
 ```
 
 Confirm afterward.

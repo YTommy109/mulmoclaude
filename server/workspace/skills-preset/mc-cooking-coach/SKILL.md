@@ -15,9 +15,11 @@ keep it short and practical.
 
 ## Where things live
 
-Recipes are plain markdown files at `<workspace>/data/cooking/recipes/<slug>.md`.
-A `README.md` in the same directory is the catalogue — one bullet per recipe.
-You maintain both. The user should never need to know either path.
+Recipes are plain markdown files at `data/cooking/recipes/<slug>.md`
+(cwd-relative — the agent runs with cwd = workspace, so every path in this
+file is plain cwd-relative). A `README.md` in the same directory is the
+catalogue — one bullet per recipe. You maintain both. The user should never
+need to know either path.
 
 ## Workflow 1: save a new recipe
 
