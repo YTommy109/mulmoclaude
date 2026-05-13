@@ -27,19 +27,48 @@ function readEffortLevel(raw: string): unknown {
   return value.effortLevel;
 }
 
-// Restore (or delete) the user's pre-test settings file. Best-effort
-// so a cleanup hiccup never turns a passing assertion red — same
-// philosophy as deleteSession / restoreWikiIndex.
-async function restoreSettings(original: string | null): Promise<void> {
+// Parse the snapshot of the user's pre-test settings.json into a
+// mutable object we can layer our seed onto. Missing / malformed /
+// non-object inputs degrade to the minimal valid shape so the test
+// still has a deterministic seed — but a real well-formed file flows
+// through here unchanged, preserving every field the user owns
+// (codex iter-1 reduces seed blast radius from total-clobber to
+// `{ ...original, effortLevel }`).
+function parseOriginalOrDefaults(original: string | null): Record<string, unknown> {
+  if (original === null) return { extraAllowedTools: [] };
+  let parsed: unknown;
   try {
-    if (original === null) {
-      await removeFromWorkspace(SETTINGS_REL);
-      return;
-    }
-    await placeWorkspaceFile(SETTINGS_REL, original);
-  } catch (err) {
-    console.warn(`restoreSettings: failed to restore ${SETTINGS_REL}`, err);
+    parsed = JSON.parse(original);
+  } catch {
+    return { extraAllowedTools: [] };
   }
+  if (!isRecord(parsed)) return { extraAllowedTools: [] };
+  return { ...parsed };
+}
+
+// Build the seed payload by merging only `effortLevel` onto the
+// snapshot — every other user-owned field round-trips through the
+// test untouched. If the host process is SIGKILLed between seed and
+// finally, the residue on disk still contains the user's real data
+// rather than a synthetic minimal stub.
+function seedWithEffort(original: string | null, effortLevel: string): string {
+  const merged = parseOriginalOrDefaults(original);
+  merged.effortLevel = effortLevel;
+  return `${JSON.stringify(merged, null, 2)}\n`;
+}
+
+// Restore (or delete) the user's pre-test settings file. Unlike the
+// other live-chat cleanup helpers, this one MUST NOT swallow errors:
+// `config/settings.json` is real user data, not synthetic test
+// state, so a failed restore leaves the user's file corrupted /
+// missing. A loud failure beats a silent one — Codex iter-1 flagged
+// the prior console.warn path as a green-while-broken trap.
+async function restoreSettings(original: string | null): Promise<void> {
+  if (original === null) {
+    await removeFromWorkspace(SETTINGS_REL);
+    return;
+  }
+  await placeWorkspaceFile(SETTINGS_REL, original);
 }
 
 test.describe("settings (real disk / static)", () => {
@@ -67,8 +96,13 @@ test.describe("settings (real disk / static)", () => {
       // Establishes the load path independently from the save path
       // tested in Phase 2. A hand-edit of settings.json with
       // `effortLevel: "max"` must surface as the active selection
-      // when the Model tab mounts.
-      await placeWorkspaceFile(SETTINGS_REL, `${JSON.stringify({ extraAllowedTools: [], effortLevel: "max" }, null, 2)}\n`);
+      // when the Model tab mounts. `seedWithEffort` merges onto the
+      // snapshot rather than overwriting it so the user's other
+      // fields (googleMapsApiKey / photoExif / ...) round-trip
+      // through the test untouched, and a SIGKILL between here and
+      // `finally` would still leave real user data on disk instead
+      // of a synthetic minimal stub.
+      await placeWorkspaceFile(SETTINGS_REL, seedWithEffort(original, "max"));
 
       await page.goto("/");
       await page.getByTestId("settings-btn").click();
