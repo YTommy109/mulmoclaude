@@ -1,6 +1,6 @@
 ---
 name: mc-manage-automations
-description: Schedule, list, edit, or remove a recurring agent task (cron / interval). Use when the user wants the agent to run a prompt on a schedule ("毎朝7時に天気", "every weekday 8am check email", "schedule a weekly cleanup"), list active automations, or stop one. Edits `<workspace>/config/scheduler/tasks.json`; the auto-refresh hook re-registers tasks on save.
+description: Schedule, list, edit, or remove a recurring agent task (cron / interval). Use when the user wants the agent to run a prompt on a schedule ("毎朝7時に天気", "every weekday 8am check email", "schedule a weekly cleanup"), list active automations, or stop one. Edits `config/scheduler/tasks.json` (cwd-relative — the agent already runs with cwd = workspace); the auto-refresh hook re-registers tasks on save.
 ---
 
 # Automations manager
@@ -10,8 +10,10 @@ this file in the workspace, it is overwritten on every server boot).
 
 Help the user schedule recurring agent tasks — the things that wake the agent
 up on a cron / interval to run a fixed prompt. State lives in a single JSON
-array at `<workspace>/config/scheduler/tasks.json`; the auto-refresh hook
-re-registers tasks after every Write/Edit so changes take effect immediately.
+array at `config/scheduler/tasks.json` (cwd-relative; the agent runs with cwd
+set to the workspace root, so every path in this file is plain cwd-relative);
+the auto-refresh hook re-registers tasks after every Write/Edit so changes
+take effect immediately.
 
 End with a one-line confirmation ("Scheduled weather-morning, daily 07:00
 UTC." / "Stopped weekly-cleanup.") so the user can verify without scrolling.
@@ -34,7 +36,7 @@ trust your reflex — UTC offsets are a classic typo source.)
 **Step 3 — Read the existing file** (or create the array if missing):
 
 ```bash
-<workspace>/config/scheduler/tasks.json
+config/scheduler/tasks.json
 ```
 
 It's a single JSON array. Append a new entry:
@@ -82,8 +84,8 @@ automation activates immediately.
 
 **Triggers**: "show my automations", "登録 task 全部", "何が走ってる?".
 
-Read `<workspace>/config/scheduler/tasks.json` and present `name` +
-`schedule` + `enabled` for each. Convert the stored UTC `time` back to the
+Read `config/scheduler/tasks.json` and present `name` + `schedule` +
+`enabled` for each. Convert the stored UTC `time` back to the
 user's local zone when displaying ("daily 07:00 JST" reads better than
 "daily 22:00 UTC").
 
