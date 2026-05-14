@@ -320,7 +320,7 @@ Clicking a bell entry calls `router.push` with whatever its `action.target` reso
 
 | `target.view` | Identifier(s)                        | Resolves to URL                                       |
 | ------------- | ------------------------------------ | ----------------------------------------------------- |
-| `chat`        | `sessionId` (required), `resultUuid` | `/chat/:sessionId` (`?result=:resultUuid` if set)     |
+| `chat`        | `sessionId` (required)               | `/chat/:sessionId`                                    |
 | `todos`       | `itemId?`                            | `/todos` or `/todos/:itemId` (scrolls + flashes card) |
 | `calendar`    | _none_                               | `/calendar`                                           |
 | `automations` | `taskId?`                            | `/automations` or `/automations/:taskId`              |

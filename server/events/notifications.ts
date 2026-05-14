@@ -155,9 +155,7 @@ function buildChatTarget(target: Extract<NavigateTarget, { view: typeof NOTIFICA
   // redirect is worse UX than a non-clickable entry. Dot-segment
   // sessionId would normalize off /chat, so drop too.
   if (!target.sessionId || !isSafePathComponent(target.sessionId)) return undefined;
-  const sessionPath = `/${PAGE_ROUTES.chat}/${encodeURIComponent(target.sessionId)}`;
-  if (target.resultUuid) return `${sessionPath}?result=${encodeURIComponent(target.resultUuid)}`;
-  return sessionPath;
+  return `/${PAGE_ROUTES.chat}/${encodeURIComponent(target.sessionId)}`;
 }
 
 function buildFilesTarget(target: Extract<NavigateTarget, { view: typeof NOTIFICATION_VIEWS.files }>): string {
