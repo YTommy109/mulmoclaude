@@ -47,10 +47,12 @@ jobs:
           - wiki                     # 4 tests, no Claude needed
           - wiki-nav                 # 7 tests + L-15b (test.fail in CI)
           - workspace-link-routing   # L-23 / L-24 / linkify-codespan
-          - ui                       # L-19 / L-20 (L-18 needs tool dispatch)
+          - ui                       # L-18 / L-19 / L-20 (L-18 via plugin-dispatch)
           - roles                    # 4 turns via fake-echo
           - session                  # L-11 / L-12 (history-aware fake-echo)
-          - skills                   # L-22 only (slash-command → seeded skill body)
+          - skills                   # L-21 (presentChart) / L-22 (slash-command)
+          - mulmo-script-edit        # L-EDIT via plugin-dispatch
+          - media                    # L-01 only (L-02..L-05 need real LLM / external tools)
 
     steps:
       - uses: actions/checkout@v6

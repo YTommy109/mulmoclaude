@@ -36,10 +36,9 @@ test.describe.configure({ mode: "parallel" });
 
 test.describe("skills (real LLM / static)", () => {
   test("L-21: Office role + presentChart で deferred-tool dispatch が成功し chart-canvas が描画される", async ({ page }) => {
-    // Needs the presentChart tool handler to run server-side and
-    // produce the chart artifact. Fake-echo tool_call alone doesn't
-    // mount the View.
-    test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — needs server-side presentChart dispatch");
+    // fake-echo detects `presentChart`, parses `<Label> <value>`
+    // pairs, posts to /api/chart, and emits the artifact as the
+    // tool_call_result. View mounts from the saved chart.
     test.setTimeout(L21_TIMEOUT_MS);
     // Covers B-41: Claude CLI auto-flips into deferred-tools mode
     // when the registered tool count crosses its threshold (~18+),

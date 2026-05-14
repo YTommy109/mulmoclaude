@@ -88,8 +88,10 @@ test.describe.configure({ mode: "parallel" });
 
 test.describe("media (real LLM)", () => {
   test("L-01: presentHtml の <img src='../../../images/...'> が /artifacts/html 経由で描画される", async ({ page }) => {
-    // Needs presentHtml server-side handler to land the html artifact.
-    test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — needs server-side presentHtml dispatch");
+    // fake-echo detects `presentHtml`, extracts the embedded HTML
+    // body from the prompt, wraps it as a self-contained document,
+    // and posts to /api/html. The handler saves the artifact and
+    // the iframe loads from the resulting slug.
     test.setTimeout(L01_TIMEOUT_MS);
     // Spec-unique flat path — see comment in seedL01Fixture.
     const workspaceImageRel = "artifacts/images/e2e-live-l01.png";

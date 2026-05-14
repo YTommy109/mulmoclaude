@@ -20,10 +20,10 @@ test.describe.configure({ mode: "parallel" });
 
 test.describe("ui (real LLM / static)", () => {
   test("L-18: presentForm の i18n キーが raw 文字列として DOM に漏れない", async ({ page }) => {
-    // Needs the presentForm tool handler to run server-side and
-    // produce the form artifact. A bare fake tool_call event
-    // doesn't mount the View — leave to real Claude.
-    test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — needs server-side presentForm dispatch");
+    // fake-echo detects `presentForm` in the prompt + the `id='...'
+    // label='...'` shape, posts to /api/form (the same endpoint the
+    // MCP bridge uses for real Claude), and emits the result as the
+    // tool_call_result. The View mounts off the artifact.
     test.setTimeout(L18_TIMEOUT_MS);
     // Covers B-34: when presentForm was promoted from external
     // plugin to built-in, the i18n keys (pluginPresentForm.submit
