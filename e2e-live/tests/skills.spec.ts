@@ -36,6 +36,9 @@ test.describe.configure({ mode: "parallel" });
 
 test.describe("skills (real LLM / static)", () => {
   test("L-21: Office role + presentChart で deferred-tool dispatch が成功し chart-canvas が描画される", async ({ page }) => {
+    // fake-echo detects `presentChart`, parses `<Label> <value>`
+    // pairs, posts to /api/chart, and emits the artifact as the
+    // tool_call_result. View mounts from the saved chart.
     test.setTimeout(L21_TIMEOUT_MS);
     // Covers B-41: Claude CLI auto-flips into deferred-tools mode
     // when the registered tool count crosses its threshold (~18+),
@@ -202,6 +205,10 @@ test.describe("skills (real LLM / static)", () => {
   test("L-31: General role + 「skill 化して」 で agent が data/skills/<slug>/SKILL.md に Write する (post-#1298 bridge dispatch canary)", async ({
     page,
   }, testInfo) => {
+    // Needs the agent to actually Write SKILL.md to disk and the
+    // bridge mirror hook to fire. fake-echo doesn't do filesystem
+    // side-effects; real Claude only.
+    test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — needs Write tool + bridge hook");
     test.setTimeout(L31_TIMEOUT_MS);
     // Plumbing canary for the post-#1298 skill-creation surface.
     // The trio of changes that made this scenario fixable:
@@ -266,6 +273,9 @@ test.describe("skills (real LLM / static)", () => {
   test("L-32: 「skill 化して」 (slug 任せ) → bridge mirror landing → /skills 一覧に出現 → Run で marker echo (post-#1298 end-to-end canary)", async ({
     page,
   }, testInfo) => {
+    // Same as L-31 — requires the agent to land a real Write +
+    // bridge mirror hook firing. Fake-echo can't do the file landing.
+    test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — needs Write tool + bridge hook");
     test.setTimeout(L32_TIMEOUT_MS);
     // End-to-end canary for the post-#1298 skill-creation flow. L-31
     // proves the agent reached for the right path; this spec proves
