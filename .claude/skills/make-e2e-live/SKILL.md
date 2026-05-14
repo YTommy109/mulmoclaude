@@ -24,11 +24,19 @@ description: e2e-live スイートを継続メンテする。`plans/feat-e2e-liv
 2. `plans/survey-e2e-live-test-step-and-nonce.md` の以下:
    - 「調査タスク」 1〜6 の進捗（plan ファイル上のチェック有無）
    - 「各 spec の見立て」 表 — `test.step` 化 / `testInfo.title` nonce 化の横展開候補（PR #1347 で L-15b にのみ適用済、 他 spec への横展開が残 TODO）
-3. main を最新化:
+3. main が最新かを確認 → 必要な場合のみ最新化:
    ```bash
-   git checkout main && git pull --ff-only
+   # まず remote の最新を取り込む（fetch のみ、 作業ツリーは触らない）
+   git fetch origin main
+   # ローカル main が origin/main に対して何コミット遅れているか
+   git rev-list --count main..origin/main
    ```
-   SSH passphrase が必要な環境では Claude 側から pull できないので、 失敗したらユーザーに依頼する。
+   - 出力が `0` → 既に最新。 pull は不要、 そのまま次のステップへ
+   - 出力が `1` 以上 → 遅れているので最新化:
+     ```bash
+     git checkout main && git pull --ff-only
+     ```
+   SSH passphrase が必要な環境では Claude 側から fetch / pull が動かない場合があるので、 失敗したらユーザーに依頼する。
 4. 前回 e2e-live PR merge 以降の main の動きを確認:
    ```bash
    git log main --oneline --since="<前回 merge 日>"
