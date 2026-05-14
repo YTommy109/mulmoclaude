@@ -20,9 +20,14 @@
           v-for="skill in skills"
           :key="skill.name"
           :data-testid="`skill-item-${skill.name}`"
-          class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors"
+          class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors focus:outline-none focus:bg-white focus:border-l-2 focus:border-l-blue-400"
           :class="selectedName === skill.name && !selectedCatalog ? 'bg-white border-l-2 border-l-blue-500' : ''"
+          role="button"
+          tabindex="0"
+          :aria-pressed="selectedName === skill.name && !selectedCatalog"
           @click="selectActiveSkill(skill.name)"
+          @keydown.enter.prevent="selectActiveSkill(skill.name)"
+          @keydown.space.prevent="selectActiveSkill(skill.name)"
         >
           <div class="flex items-center gap-2">
             <div class="flex-1 min-w-0">
@@ -57,9 +62,14 @@
             v-for="entry in catalogPresets"
             :key="`catalog-preset-${entry.slug}`"
             :data-testid="`skill-catalog-item-${entry.slug}`"
-            class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors"
+            class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors focus:outline-none focus:bg-white focus:border-l-2 focus:border-l-blue-400"
             :class="selectedCatalog?.slug === entry.slug ? 'bg-white border-l-2 border-l-blue-500' : ''"
+            role="button"
+            tabindex="0"
+            :aria-pressed="selectedCatalog?.slug === entry.slug"
             @click="selectCatalogEntry(entry)"
+            @keydown.enter.prevent="selectCatalogEntry(entry)"
+            @keydown.space.prevent="selectCatalogEntry(entry)"
           >
             <div class="flex items-center gap-2">
               <div class="flex-1 min-w-0">
@@ -463,12 +473,21 @@ async function runOnceCatalogEntry(entry: CatalogEntry): Promise<void> {
   // clicks Run once). Falls back to a fresh fetch when the click
   // somehow lands without a prior selection (defensive — the right
   // pane is the only place Run once is exposed today).
-  const body = catalogDetail.value?.slug === entry.slug && catalogDetail.value !== null ? catalogDetail.value.body : (await fetchCatalogDetail(entry))?.body;
-  if (!body || !body.trim()) {
-    catalogError.value = t("pluginManageSkills.errCatalogRunOnceEmpty");
-    return;
+  //
+  // The shared in-flight gate is held for the whole flow so a
+  // rapid double-click can't enqueue two `startNewChat` calls
+  // and spawn duplicate sessions. (Codex review on PR #1374.)
+  catalogActioningSlug.value = entry.slug;
+  try {
+    const body = catalogDetail.value?.slug === entry.slug && catalogDetail.value !== null ? catalogDetail.value.body : (await fetchCatalogDetail(entry))?.body;
+    if (!body || !body.trim()) {
+      catalogError.value = t("pluginManageSkills.errCatalogRunOnceEmpty");
+      return;
+    }
+    catalogAppApi.startNewChat(body);
+  } finally {
+    catalogActioningSlug.value = null;
   }
-  catalogAppApi.startNewChat(body);
 }
 
 // Standalone mode: if no selectedResult was passed, fetch the skill
