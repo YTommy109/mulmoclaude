@@ -191,6 +191,47 @@ test.describe("presentMulmoScript plugin", () => {
   // per-test mock even though it passed in isolation), so the check
   // lives in manual testing rather than gating CI.
 
+  // Regression for #1197. Movie generation used to surface SSE
+  // errors via `alert()` — blocking, no retry, and once dismissed the
+  // canvas looked identical to a healthy idle state. The fix swaps to
+  // an inline error chip + Retry button between the chrome row and
+  // the Characters section. This test pins both the chip surface and
+  // the retry round-trip.
+  test("generateMovie error: SSE error event surfaces inline chip + retry button re-fires the request", async ({ page }) => {
+    const SSE_ERROR_MESSAGE = "Page.captureScreenshot timed out.";
+    let generateMovieCalls = 0;
+    await page.route(
+      (url) => url.pathname === "/api/mulmoScript/generate-movie",
+      (route) => {
+        generateMovieCalls++;
+        return route.fulfill({
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+          body: `data: {"type":"error","message":"${SSE_ERROR_MESSAGE}"}\n\n`,
+        });
+      },
+    );
+
+    await page.goto("/chat/mulmo-session");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+    await page.getByText(SCRIPT_TITLE).first().click();
+    await expect(page.getByRole("heading", { name: SCRIPT_TITLE, level: 2 })).toBeVisible();
+
+    // First attempt: chip should appear with the SSE-supplied message.
+    await page.getByTestId("mulmo-script-generate-movie-button").click();
+    const retryButton = page.getByTestId("mulmo-script-movie-retry-button");
+    await expect(retryButton).toBeVisible();
+    await expect(page.getByText("Movie generation failed")).toBeVisible();
+    await expect(page.getByText(SSE_ERROR_MESSAGE)).toBeVisible();
+    expect(generateMovieCalls).toBe(1);
+
+    // Retry: same endpoint is hit again, chip stays (same error replays).
+    await retryButton.click();
+    await expect(retryButton).toBeVisible();
+    await expect(page.getByText(SSE_ERROR_MESSAGE)).toBeVisible();
+    expect(generateMovieCalls).toBe(2);
+  });
+
   // Regression for #839 + the in-PR follow-up. The slide view must
   // light up the shared ThinkingIndicator while the active session
   // has a chat turn in flight — same signal the chat sidebar uses,
