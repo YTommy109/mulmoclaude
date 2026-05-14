@@ -298,6 +298,32 @@ describe("multi-day events (endDate)", () => {
     assert.equal(sanitizeProps(props).endDate, "2026-05-27");
   });
 
+  it("sanitizeProps coerces non-object input to an empty props object", () => {
+    // req.body.props is not runtime-validated upstream, so malformed
+    // payloads (number / null / string / array) must not throw.
+    assert.deepEqual(sanitizeProps(1), {});
+    assert.deepEqual(sanitizeProps("hello"), {});
+    assert.deepEqual(sanitizeProps(null), {});
+    assert.deepEqual(sanitizeProps(undefined), {});
+    assert.deepEqual(sanitizeProps([1, 2, 3]), {});
+    assert.deepEqual(sanitizeProps(true), {});
+  });
+
+  it("handleAdd does not crash on non-object props payload", () => {
+    const result = handleAdd([], { title: "x", props: 1 as unknown as Record<string, string> });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    assert.deepEqual(result.items[0]?.props, {});
+  });
+
+  it("handleReplace tolerates items whose props are non-object", () => {
+    const broken = { id: "a", title: "x", createdAt: 0, props: 1 as unknown as Record<string, string> };
+    const result = handleReplace([], { items: [broken] });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    assert.deepEqual(result.items[0]?.props, {});
+  });
+
   it("handleAdd persists a valid endDate", () => {
     const result = handleAdd([], { title: "Trip", props: { date: "2026-05-27", endDate: "2026-05-29" } });
     assert.equal(result.kind, "success");

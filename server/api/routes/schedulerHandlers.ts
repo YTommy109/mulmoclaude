@@ -39,12 +39,22 @@ function isoDate(value: unknown): string | null {
 // isn't ISO, or `endDate < date`. Single-day events (no `endDate`)
 // pass through unchanged. Returns a new object only when something
 // had to be removed.
-export function sanitizeProps(props: ScheduledItem["props"]): ScheduledItem["props"] {
-  if (!("endDate" in props)) return props;
-  const start = isoDate(props.date);
-  const end = isoDate(props.endDate);
-  if (start && end && end >= start) return props;
-  const next = { ...props };
+//
+// `req.body.props` is not runtime-validated upstream, so a payload
+// of `{ props: 1 }` or `{ props: null }` reaches us — accept
+// `unknown` and coerce non-object input to an empty props object
+// instead of letting `"endDate" in props` throw a TypeError that
+// the asyncHandler would surface as a 500.
+export function sanitizeProps(props: unknown): ScheduledItem["props"] {
+  if (typeof props !== "object" || props === null || Array.isArray(props)) {
+    return {};
+  }
+  const record = props as ScheduledItem["props"];
+  if (!("endDate" in record)) return record;
+  const start = isoDate(record.date);
+  const end = isoDate(record.endDate);
+  if (start && end && end >= start) return record;
+  const next = { ...record };
   Reflect.deleteProperty(next, "endDate");
   return next;
 }
