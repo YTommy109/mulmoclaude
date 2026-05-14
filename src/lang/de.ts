@@ -28,7 +28,7 @@ const deMessages = {
     },
   },
   chatInput: {
-    placeholder: "Aufgabe eingeben oder Datei ziehen / einfügen / anhängen…",
+    placeholder: "Nachricht an Claude…",
     send: "Senden",
     attachFile: "Datei anhängen",
     fileTooLarge: "Datei zu groß ({sizeMB} MB). Das Maximum beträgt 30 MB.",

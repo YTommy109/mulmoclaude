@@ -33,7 +33,7 @@ const zhMessages = {
     },
   },
   chatInput: {
-    placeholder: "输入任务,或拖放 / 粘贴 / 附加文件…",
+    placeholder: "向 Claude 发送消息…",
     send: "发送",
     attachFile: "附加文件",
     fileTooLarge: "文件过大（{sizeMB} MB）。上限为 30 MB。",
