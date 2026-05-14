@@ -1,0 +1,119 @@
+name: E2E Live (no LLM)
+
+# Runs the subset of e2e-live specs that DO NOT call the real Claude
+# API. Wiki page navigation, wiki rendering, and one workspace-link
+# routing case seed their state directly via the workspace API and
+# never send a chat message, so they exercise the real Vue/Express
+# stack without burning Claude tokens.
+#
+# Triggers:
+#   - `schedule`: weekly Monday 00:00 UTC (= 09:00 JST) regression
+#   - `workflow_dispatch`: manual run from the Actions tab
+#   - `pull_request`: only when this workflow file itself is touched,
+#     so the very PR that introduces it gets a smoke run (#1333
+#     follow-up). Normal PRs are unaffected.
+
+on:
+  schedule:
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/e2e_live_no_llm.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-live-no-llm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-live-no-llm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --network-timeout 120000
+
+      - name: Build internal packages (required by yarn dev)
+        run: yarn build:packages
+
+      - name: Install Playwright (chromium only)
+        run: npx playwright install chromium --with-deps
+
+      - name: Create workspace dir
+        # Server defaults to `$HOME/mulmoclaude`. Create it empty so
+        # the wiki/workspace fixtures can seed pages into it.
+        run: mkdir -p "$HOME/mulmoclaude"
+
+      - name: Start mulmoclaude dev server (background)
+        run: |
+          yarn dev > dev-server.log 2>&1 &
+          echo $! > dev-server.pid
+          echo "Started yarn dev with PID $(cat dev-server.pid)"
+
+      - name: Wait for Vite (5173) to be ready
+        # yarn dev launches both Express (3001) and Vite (5173).
+        # e2e-live's baseURL is 5173, so that's what we gate on.
+        run: |
+          for i in $(seq 1 90); do
+            if curl -fsS http://localhost:5173 > /dev/null 2>&1; then
+              echo "Vite ready after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Vite did not come up in 180s — dumping tail of dev-server.log"
+          tail -200 dev-server.log
+          exit 1
+
+      - name: Run Claude-free e2e-live specs
+        # Three spec files contain the LLM-free subset:
+        #   wiki.spec.ts                       — L-W-S-01/02/04/05
+        #   wiki-nav.spec.ts                   — L-14/15/16
+        #   workspace-link-routing.spec.ts     — L-24 only (L-23 needs LLM)
+        # The -g regex picks exactly those, excluding L-23.
+        run: |
+          npx playwright test \
+            --config e2e-live/playwright.config.ts \
+            wiki.spec.ts wiki-nav.spec.ts workspace-link-routing.spec.ts \
+            -g "L-W-S-|L-1[456]|L-24"
+        env:
+          E2E_LIVE_BASE_URL: http://localhost:5173
+          E2E_LIVE_WORKERS: "2"
+
+      - name: Stop dev server
+        if: always()
+        run: |
+          if [ -f dev-server.pid ]; then
+            kill "$(cat dev-server.pid)" 2>/dev/null || true
+            sleep 2
+            kill -9 "$(cat dev-server.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-live-no-llm
+          path: playwright-report-live/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload dev server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-server-log
+          path: dev-server.log
+          retention-days: 7
+          if-no-files-found: ignore
