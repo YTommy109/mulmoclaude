@@ -103,23 +103,34 @@ const __dirname = path.dirname(__filename);
 
 const debugMode = process.argv.includes("--debug");
 
-// Global crash safety net (#1364). Anything we don't catch locally
-// — a stray `throw` deep in a request handler, an EventEmitter
-// without a listener (spawn ENOENT was the canonical case), an
-// unrejected Promise — must never tear down the server process.
-// Production users keep tabs open for days; CI runs share one
-// process across many tests. We log loudly so the failure is
-// triagable, but always keep the loop running. Anything genuinely
-// fatal at boot time still calls process.exit() explicitly below.
+// Global crash diagnostics (#1364). These handlers log loudly so a
+// fatal failure is triagable, then EXIT — keeping the loop running
+// after an uncaught exception is process-unsafe per the Node docs
+// (invariants may already be broken). The launcher / supervisor
+// (Electron wrapper, systemd, etc.) is responsible for restart.
+//
+// The canonical failure this PR set out to fix — missing `claude`
+// on PATH crashing the server via spawn's `error` event — is now
+// caught at the local boundary in `server/agent/backend/claude-code.ts`
+// (an explicit `error` listener turns ENOENT into an AgentEvent).
+// These handlers are the BACKSTOP for anything we missed, not a
+// substitute for local error handling. (Codex review on #1364.)
+//
+// `process.exit(1)` is non-zero so supervisors that branch on exit
+// code treat the bounce as an error condition.
+const FATAL_EXIT_DELAY_MS = 100;
 process.on("uncaughtException", (err) => {
   log.error("uncaughtException", err instanceof Error ? err.message : String(err), {
     stack: err instanceof Error ? err.stack : undefined,
   });
+  // Tiny grace so the log line flushes to disk before we exit.
+  setTimeout(() => process.exit(1), FATAL_EXIT_DELAY_MS);
 });
 process.on("unhandledRejection", (reason) => {
   log.error("unhandledRejection", reason instanceof Error ? reason.message : String(reason), {
     stack: reason instanceof Error ? reason.stack : undefined,
   });
+  setTimeout(() => process.exit(1), FATAL_EXIT_DELAY_MS);
 });
 
 initWorkspace();
