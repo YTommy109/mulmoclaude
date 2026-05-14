@@ -136,7 +136,8 @@ git checkout -b feat/e2e-live-<topic>
   - 命名: `data-testid="<plugin>-<role>"` の kebab-case
   - **同 PR で `docs/ui-cheatsheet.md` の該当 ASCII ブロックを更新**（CLAUDE.md ルール）
   - 翻訳テキストや `iframe[sandbox]` 構造属性に依存しない（脆い）
-- 新規テスト追加時は `docs/e2e-live-testing.md` の skip 規約（`test.skip(process.env.E2E_LIVE_NO_LLM === "1", ...)`）と matrix 登録ルール（`.github/workflows/e2e_live_no_llm.yaml` の `matrix.spec:`）に従う
+- 新規テスト追加時は `docs/e2e-live-testing.md` の skip 規約に従う — Claude 必須テストには per-test で `test.skip(process.env.E2E_LIVE_NO_LLM === "1", ...)` を付ける
+- 新規 spec ファイル追加時は `.github/workflows/e2e_live_no_llm.yaml` の `matrix.spec:` への登録も併せて確認する（1 本でも fake-friendly なテストがあれば追加）
 
 ### コーディングルール（CLAUDE.md より）
 
