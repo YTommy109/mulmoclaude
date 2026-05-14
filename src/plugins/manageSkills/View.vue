@@ -21,15 +21,19 @@
           :key="skill.name"
           :data-testid="`skill-item-${skill.name}`"
           class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors"
-          :class="selectedName === skill.name ? 'bg-white border-l-2 border-l-blue-500' : ''"
-          @click="selectedName = skill.name"
+          :class="selectedName === skill.name && !selectedCatalog ? 'bg-white border-l-2 border-l-blue-500' : ''"
+          @click="selectActiveSkill(skill.name)"
         >
-          <div class="font-medium text-gray-800 truncate">{{ skill.name }}</div>
-          <div class="text-xs text-gray-500 truncate mt-0.5">
-            {{ skill.description }}
-          </div>
-          <div class="text-[10px] text-gray-400 uppercase mt-0.5">
-            {{ skill.source }}
+          <div class="flex items-center gap-2">
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-gray-800 truncate">{{ skill.name }}</div>
+              <div class="text-xs text-gray-500 truncate mt-0.5">
+                {{ skill.description }}
+              </div>
+            </div>
+            <span class="shrink-0 material-icons text-sm" :class="sourceMeta(skill.source).colour" :title="sourceMeta(skill.source).title" aria-hidden="true">{{
+              sourceMeta(skill.source).icon
+            }}</span>
           </div>
         </div>
         <i18n-t v-if="skills.length === 0" keypath="pluginManageSkills.emptyWithPath" tag="p" class="p-4 text-sm text-gray-400 italic">
@@ -38,11 +42,13 @@
           </template>
         </i18n-t>
 
-        <!-- Catalog: launcher-managed presets. #1335 PR-B introduced
-             the ★ Star action that copies an entry into
-             `.claude/skills/`. PR-B2 adds 📖 Preview (modal showing
-             the SKILL.md body) and ▶ Run once (opens a fresh chat
-             with the body as the user input, no star). -->
+        <!-- Catalog: launcher-managed presets. Rows behave like the
+             active list above — click selects an entry, which loads
+             its detail (description + body) into the right pane
+             along with ★ Star / ▶ Run once actions. Inline icon
+             buttons were removed; the right pane is now the single
+             place to read + act on a catalog entry. (#1335 PR-B2
+             follow-up.) -->
         <div v-if="catalogPresets.length > 0" class="border-t border-gray-200 mt-2">
           <div class="px-4 py-2 text-[11px] uppercase tracking-wide text-gray-500 font-semibold" data-testid="skill-catalog-section-heading">
             {{ t("pluginManageSkills.catalogPresetHeading") }}
@@ -51,91 +57,93 @@
             v-for="entry in catalogPresets"
             :key="`catalog-preset-${entry.slug}`"
             :data-testid="`skill-catalog-item-${entry.slug}`"
-            class="px-4 py-2 border-b border-gray-100 text-sm flex items-start gap-1"
+            class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors"
+            :class="selectedCatalog?.slug === entry.slug ? 'bg-white border-l-2 border-l-blue-500' : ''"
+            @click="selectCatalogEntry(entry)"
           >
-            <div class="flex-1 min-w-0">
-              <div class="font-medium text-gray-700 truncate">{{ entry.name }}</div>
-              <div class="text-xs text-gray-500 truncate mt-0.5">{{ entry.description }}</div>
+            <div class="flex items-center gap-2">
+              <div class="flex-1 min-w-0">
+                <div class="font-medium text-gray-700 truncate">{{ entry.name }}</div>
+                <div class="text-xs text-gray-500 truncate mt-0.5">{{ entry.description }}</div>
+              </div>
+              <span
+                v-if="entry.alreadyActive"
+                class="shrink-0 material-icons text-sm text-yellow-500"
+                :title="t('pluginManageSkills.catalogStarred')"
+                :data-testid="`skill-catalog-starred-indicator-${entry.slug}`"
+                aria-hidden="true"
+                >star</span
+              >
+              <span class="shrink-0 material-icons text-sm" :class="presetSourceMeta.colour" :title="presetSourceMeta.title" aria-hidden="true">{{
+                presetSourceMeta.icon
+              }}</span>
             </div>
-            <button
-              class="shrink-0 h-7 w-7 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:opacity-40"
-              :disabled="catalogActioningSlug === entry.slug"
-              :title="t('pluginManageSkills.catalogPreview')"
-              :data-testid="`skill-catalog-preview-btn-${entry.slug}`"
-              @click="previewCatalogEntry(entry)"
-            >
-              <span class="material-icons text-sm" aria-hidden="true">visibility</span>
-            </button>
-            <button
-              class="shrink-0 h-7 w-7 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:opacity-40"
-              :disabled="catalogActioningSlug === entry.slug"
-              :title="t('pluginManageSkills.catalogRunOnce')"
-              :data-testid="`skill-catalog-run-btn-${entry.slug}`"
-              @click="runOnceCatalogEntry(entry)"
-            >
-              <span class="material-icons text-sm" aria-hidden="true">play_arrow</span>
-            </button>
-            <button
-              v-if="entry.alreadyActive"
-              class="shrink-0 h-7 w-7 flex items-center justify-center rounded text-yellow-500 cursor-not-allowed"
-              :title="t('pluginManageSkills.catalogStarred')"
-              :data-testid="`skill-catalog-starred-${entry.slug}`"
-              disabled
-            >
-              <span class="material-icons text-sm" aria-hidden="true">star</span>
-            </button>
-            <button
-              v-else
-              class="shrink-0 h-7 w-7 flex items-center justify-center rounded text-gray-400 hover:text-yellow-500 hover:bg-gray-100 disabled:opacity-40"
-              :disabled="catalogActioningSlug === entry.slug"
-              :title="t('pluginManageSkills.catalogStar')"
-              :data-testid="`skill-catalog-star-btn-${entry.slug}`"
-              @click="starCatalogEntry(entry)"
-            >
-              <span class="material-icons text-sm" aria-hidden="true">star_border</span>
-            </button>
           </div>
           <div v-if="catalogError" class="px-4 py-2 text-xs text-red-600">{{ catalogError }}</div>
-        </div>
-
-        <!-- Preview modal (#1335 PR-B2). pointer-events-auto inner
-             panel so clicks on the panel itself don't dismiss; only
-             the backdrop closes. -->
-        <div
-          v-if="previewOpen"
-          class="fixed inset-0 z-30 flex items-center justify-center bg-black/40"
-          data-testid="skill-catalog-preview-modal"
-          @click.self="previewOpen = false"
-        >
-          <div class="bg-white rounded-lg shadow-xl max-w-2xl w-[90%] max-h-[80vh] flex flex-col">
-            <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-200">
-              <div class="min-w-0">
-                <div class="text-xs uppercase tracking-wide text-gray-400">{{ t("pluginManageSkills.catalogPreviewLabel") }}</div>
-                <h3 class="text-base font-semibold text-gray-800 truncate">{{ previewDetail?.slug ?? "" }}</h3>
-              </div>
-              <button
-                class="shrink-0 h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100"
-                :title="t('common.close')"
-                data-testid="skill-catalog-preview-close"
-                @click="previewOpen = false"
-              >
-                <span class="material-icons text-base" aria-hidden="true">close</span>
-              </button>
-            </div>
-            <div class="flex-1 overflow-y-auto p-4">
-              <p v-if="previewDetail" class="text-sm text-gray-600 mb-3">{{ previewDetail.description }}</p>
-              <!-- eslint-disable vue/no-v-html -- markdown sanitized via sanitizeMarkdownHtml; same trust chain as the existing skill detail body -->
-              <div v-if="previewDetail" class="prose prose-sm max-w-none text-gray-800" v-html="previewRenderedBody"></div>
-              <!-- eslint-enable vue/no-v-html -->
-              <div v-else class="text-sm text-gray-400 italic">{{ t("pluginManageSkills.loading") }}</div>
-            </div>
-          </div>
         </div>
       </div>
 
       <!-- Right: detail pane -->
       <div class="flex-1 min-w-0 overflow-y-auto">
-        <div v-if="!selected" class="p-6 text-sm text-gray-400 italic">{{ t("pluginManageSkills.selectHint") }}</div>
+        <!-- Catalog (preset) detail. Selecting a row from the
+             "Preset catalog" section in the left column routes
+             here. Shows description + body + Star / Run once
+             actions. (#1335 PR-B2 follow-up — replaces the inline
+             buttons and the Preview modal with a single right-pane
+             that mirrors the active-skill view.) -->
+        <div v-if="selectedCatalog" class="p-6" data-testid="skill-catalog-detail-pane">
+          <div class="flex items-start justify-between gap-4 mb-4">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="material-icons text-sm" :class="presetSourceMeta.colour" :title="presetSourceMeta.title" aria-hidden="true">{{
+                  presetSourceMeta.icon
+                }}</span>
+                <h3 class="text-xl font-semibold text-gray-800 truncate">{{ selectedCatalog.name }}</h3>
+              </div>
+              <p class="text-sm text-gray-600 mt-1">{{ selectedCatalog.description }}</p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <button
+                v-if="!selectedCatalog.alreadyActive"
+                class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-yellow-400 text-yellow-600 hover:bg-yellow-50 disabled:opacity-40"
+                :disabled="catalogActioningSlug === selectedCatalog.slug"
+                :title="t('pluginManageSkills.catalogStar')"
+                data-testid="skill-catalog-detail-star-btn"
+                @click="starCatalogEntry(selectedCatalog)"
+              >
+                <span class="material-icons text-sm" aria-hidden="true">star_border</span>
+                {{ t("pluginManageSkills.catalogStar") }}
+              </button>
+              <button
+                v-else
+                class="h-8 px-2.5 flex items-center gap-1 text-sm rounded text-yellow-500 cursor-not-allowed"
+                :title="t('pluginManageSkills.catalogStarred')"
+                data-testid="skill-catalog-detail-starred"
+                disabled
+              >
+                <span class="material-icons text-sm" aria-hidden="true">star</span>
+                {{ t("pluginManageSkills.catalogStarred") }}
+              </button>
+              <button
+                class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
+                :disabled="catalogActioningSlug === selectedCatalog.slug || !catalogDetail"
+                :title="t('pluginManageSkills.catalogRunOnce')"
+                data-testid="skill-catalog-detail-run-btn"
+                @click="runOnceCatalogEntry(selectedCatalog)"
+              >
+                <span class="material-icons text-sm" aria-hidden="true">play_arrow</span>
+                {{ t("pluginManageSkills.catalogRunOnce") }}
+              </button>
+            </div>
+          </div>
+          <div v-if="catalogDetailLoading" class="text-sm text-gray-400 italic">{{ t("pluginManageSkills.loading") }}</div>
+          <div v-else-if="catalogError" class="text-sm text-red-600">{{ catalogError }}</div>
+          <!-- eslint-disable vue/no-v-html -- markdown sanitized via sanitizeMarkdownHtml; same trust chain as the active-skill body below -->
+          <div v-else-if="catalogDetail" class="markdown-content text-gray-700" v-html="catalogRenderedBody"></div>
+          <!-- eslint-enable vue/no-v-html -->
+        </div>
+
+        <div v-else-if="!selected" class="p-6 text-sm text-gray-400 italic">{{ t("pluginManageSkills.selectHint") }}</div>
         <div v-else class="p-6">
           <div class="flex items-start justify-between gap-4 mb-4">
             <div class="min-w-0">
@@ -322,22 +330,53 @@ interface CatalogDetail {
 }
 const catalogPresets = ref<CatalogEntry[]>([]);
 const catalogError = ref<string | null>(null);
-// Single in-flight gate covers Star / Preview / Run once on the
-// same row so a slow request doesn't let the user fire a second
-// action while the first is mid-flight.
+// Single in-flight gate covers Star / Run once on the selected
+// entry so a slow request doesn't let the user fire a second
+// action mid-flight.
 const catalogActioningSlug = ref<string | null>(null);
-const previewOpen = ref(false);
-const previewDetail = ref<CatalogDetail | null>(null);
+// Right-pane selection for a catalog entry (mutually exclusive
+// with `selectedName` — picking one clears the other).
+const selectedCatalog = ref<CatalogEntry | null>(null);
+const catalogDetail = ref<CatalogDetail | null>(null);
+const catalogDetailLoading = ref(false);
 // `appApi` is also referenced lower down by the existing `runSkill`
 // (slash-command invocation for active skills); hoisting one
 // declaration so the catalog handlers don't need their own lookup.
 const catalogAppApi = useAppApi();
 
-const previewRenderedBody = computed(() => {
-  const body = previewDetail.value?.body;
+const catalogRenderedBody = computed(() => {
+  const body = catalogDetail.value?.body;
   if (!body) return "";
   return sanitizeMarkdownHtml(marked(body) as string);
 });
+
+// Visual key for the "scope" badge that appears in every row +
+// the right-pane header. Three scopes today:
+//   - user    `~/.claude/skills/`           — global across workspaces
+//   - project `<workspace>/.claude/skills/` — this workspace only
+//   - preset  catalog (not yet ★ Starred)   — launcher-managed
+// Icons + colours are deliberately monochromatic except for the
+// preset case where we hint "library / shelf" with the inventory
+// glyph. The yellow ★ for "starred" is rendered separately so the
+// scope badge stays semantically about provenance, not state.
+interface SourceMeta {
+  icon: string;
+  title: string;
+  colour: string;
+}
+
+function sourceMeta(source: "user" | "project"): SourceMeta {
+  if (source === "user") {
+    return { icon: "home", title: t("pluginManageSkills.sourceUserTitle"), colour: "text-blue-500" };
+  }
+  return { icon: "folder", title: t("pluginManageSkills.sourceProjectTitle"), colour: "text-green-600" };
+}
+
+const presetSourceMeta = computed<SourceMeta>(() => ({
+  icon: "inventory_2",
+  title: t("pluginManageSkills.sourcePresetTitle"),
+  colour: "text-gray-400",
+}));
 
 async function loadCatalog(): Promise<void> {
   const response = await apiGet<{ entries: CatalogEntry[] }>(endpoints.catalogList.url);
@@ -375,12 +414,17 @@ async function starCatalogEntry(entry: CatalogEntry): Promise<void> {
   // Refresh both lists so the row flips to "Starred" and the new
   // active entry shows up in the left column.
   await Promise.all([loadCatalog(), refreshActiveList()]);
+  // Reconcile the right-pane selection with the refreshed list so
+  // its `alreadyActive` flag reflects reality without forcing the
+  // user to re-click.
+  if (selectedCatalog.value?.slug === entry.slug) {
+    const updated = catalogPresets.value.find((candidate) => candidate.slug === entry.slug);
+    if (updated) selectedCatalog.value = updated;
+  }
 }
 
 async function fetchCatalogDetail(entry: CatalogEntry): Promise<CatalogDetail | null> {
-  catalogActioningSlug.value = entry.slug;
   const response = await apiGet<{ detail: CatalogDetail }>(endpoints.catalogPreview.url, { source: entry.source, slug: entry.slug });
-  catalogActioningSlug.value = null;
   if (!response.ok) {
     catalogError.value = t("pluginManageSkills.errCatalogPreviewFailed", { error: response.error });
     return null;
@@ -389,33 +433,42 @@ async function fetchCatalogDetail(entry: CatalogEntry): Promise<CatalogDetail | 
   return response.data.detail;
 }
 
-async function previewCatalogEntry(entry: CatalogEntry): Promise<void> {
-  // Open the modal immediately with a "loading" state, then fill in
-  // once the detail comes back. Saves the user a beat of dead UI on
-  // a slow connection.
-  previewDetail.value = null;
-  previewOpen.value = true;
+function selectActiveSkill(name: string): void {
+  // Active and catalog selections are mutually exclusive — picking
+  // one clears the other so the right pane has a single source of
+  // truth.
+  selectedCatalog.value = null;
+  catalogDetail.value = null;
+  selectedName.value = name;
+}
+
+async function selectCatalogEntry(entry: CatalogEntry): Promise<void> {
+  selectedName.value = null;
+  selectedCatalog.value = entry;
+  catalogDetail.value = null;
+  catalogDetailLoading.value = true;
+  const slugAtRequest = entry.slug;
   const fetched = await fetchCatalogDetail(entry);
-  if (fetched === null) {
-    previewOpen.value = false;
-    return;
-  }
-  previewDetail.value = fetched;
+  // Selection may have changed while the request was in flight —
+  // drop the response if so (same race-condition guard the active-
+  // skill detail watcher uses).
+  if (selectedCatalog.value?.slug !== slugAtRequest) return;
+  catalogDetailLoading.value = false;
+  if (fetched !== null) catalogDetail.value = fetched;
 }
 
 async function runOnceCatalogEntry(entry: CatalogEntry): Promise<void> {
-  // Fetch the SKILL.md body, then open a fresh chat with it as the
-  // first user message. The skill is NOT starred — no copy into
-  // `.claude/skills/`, no system-prompt entry — so the agent reacts
-  // to the body that turn only. Matches the issue's "▶ Run once"
-  // spec.
-  const fetched = await fetchCatalogDetail(entry);
-  if (fetched === null) return;
-  if (!fetched.body.trim()) {
+  // Use the already-fetched detail when the entry is the current
+  // right-pane selection (the common case — user reads body, then
+  // clicks Run once). Falls back to a fresh fetch when the click
+  // somehow lands without a prior selection (defensive — the right
+  // pane is the only place Run once is exposed today).
+  const body = catalogDetail.value?.slug === entry.slug && catalogDetail.value !== null ? catalogDetail.value.body : (await fetchCatalogDetail(entry))?.body;
+  if (!body || !body.trim()) {
     catalogError.value = t("pluginManageSkills.errCatalogRunOnceEmpty");
     return;
   }
-  catalogAppApi.startNewChat(fetched.body);
+  catalogAppApi.startNewChat(body);
 }
 
 // Standalone mode: if no selectedResult was passed, fetch the skill
