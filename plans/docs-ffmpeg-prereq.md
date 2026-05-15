@@ -18,13 +18,24 @@ Tracks: [#1049](https://github.com/receptron/mulmoclaude/issues/1049) — 依存
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------- |
 | **PR-A**  | README に Prerequisites を明記 (ffmpeg / Docker / claude CLI / Node)                                                                                                               | ✅ #1367                                                     |                 |
 | **PR-1a** | bundled system skill の配布機構 (`--plugin-dir` + `discoverSkills` 拡張)                                                                                                           |                                                              | ⏳              |
-| **PR-1b** | `/setup-prerequisites` skill 本体 (依存欠落チェック汎用フレーム)                                                                                                                   |                                                              | ⏳ — PR-1a 依存 |
+| **PR-1b** | `/check-prereqs` skill — **対話的な依存チェック**。probe → 「入れる/後で/入れない」分岐 → install ガイド → 再確認。下記 PR-1b ノート参照                                           |                                                              | ⏳ — PR-1a 依存 |
 | **PR-1c** | Settings タブの依存欠落表示 (Gemini タブ横展開)。**Gemini API key 等の「あったら便利系」も案内**                                                                                   |                                                              | ⏳              |
 | **PR-1d** | `npx` 利用者向けブラウザ onboarding                                                                                                                                                |                                                              | ⏳              |
 | **PR-1e** | `yarn dev` 開発者向け onboarding skill                                                                                                                                             | 🟡 一部 (`setup-mulmoclaude` の dependency check 拡張で先行) | 残りは ⏳       |
 | **PR-2**  | 各失敗経路 (動画 / PDF / 画像 / MCP / ブリッジ / scheduler) の Web UI 表面化 audit。**自動 disable と組み合わせて運用**                                                            |                                                              | ⏳              |
 | **PR-3**  | `UserFacingError` 型導入 (`message` / `cause` / `remediation` / `docsUrl`)。**Disabled feature の理由表示にも使用**                                                                |                                                              | ⏳              |
 | **PR-4**  | **依存欠落時の graceful degradation (capability gating)** — 起動時に `which` 等で依存を probe し、不足時は該当 feature を runtime disable + warn。落とさない。下記 PR-4 ノート参照 |                                                              | ⏳              |
+
+### PR-1b ノート (新 skill `/check-prereqs`)
+
+「主要な依存を集めて事前確認 → 不足を対話で 1 件ずつ案内」する独立 skill。Codex cross-review で分割推奨 (#1367 デザイン相談、`/tmp/codex-cross-review-local-docs-ffmpeg-prereq/design-skill-split.md`):
+
+- **発動経路 3 つ**: (1) ユーザーが直接呼ぶ pre-flight check、(2) `setup-mulmoclaude` の Step 3 から委譲、(3) PR-4 の bell 通知から「`/check-prereqs` 実行」誘導
+- **対話フロー**: 各依存に対して `probe → 結果表示 → (不足時) 入れる/後で/入れない 分岐 → install コマンド案内 (README から取得) → 再確認 → 次の依存へ`
+- **依存定義の所在**: 新 skill だけが「probe command / required-for / skippable rationale」を持つ。**インストールコマンドは README が SoT** という #1367 の原則は維持
+- **`setup-mulmoclaude` Step 3 の縮約 (重要)**: 現在の dependency check 表は「`/check-prereqs` を呼ぶ」だけの thin handoff に書き換える。同じ表を 2 箇所に持たない (Codex 指摘の「mixed concerns 回避」)
+- **mode 引数は不要**: skill 1 個 = 1 mode で十分。pre-flight 用途と setup フロー内呼び出しで挙動を変える必要は無い (どちらも同じ「対話的に依存を確認」が欲しい)
+- **配布**: 開発者向けは project-local `.claude/skills/check-prereqs/` で OK。npx 利用者にも届かせる場合は PR-1a (bundled system skill 機構) が前提
 
 ### PR-4 ノート (新規)
 
