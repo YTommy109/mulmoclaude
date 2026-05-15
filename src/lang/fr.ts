@@ -1091,11 +1091,12 @@ const frMessages = {
     sectionLegend:
       "Actives : chargées dans le prompt (Système = incluses mc- · Projet = modifiables · Utilisateur = ~/.claude/skills/). Catalogue : parcourez, ★ajoutez aux favoris ou ▶exécutez une fois sans alourdir le prompt.",
     catalogEmpty: "Aucune skill de préréglage disponible.",
-    catalogPresetHeading: "Préréglages MulmoClaude",
+    catalogPresetHeading: "Préréglages",
     catalogStar: "Favori",
     catalogStarred: "Favoris",
     catalogRunOnce: "Exécuter une fois",
     sourceUserTitle: "Skill utilisateur (~/.claude/skills/, disponible dans tous les espaces)",
+    sourceSystemTitle: "Skill système (incluse, préfixe mc- — lecture seule, écrasée par le launcher)",
     sourceProjectTitle: "Skill de projet (.claude/skills/ de l'espace, espace courant uniquement)",
     sourcePresetTitle: "Catalogue de préréglages — cliquez sur Favori pour activer dans cet espace",
     errCatalogListFailed: "Échec du chargement du catalogue : {error}",

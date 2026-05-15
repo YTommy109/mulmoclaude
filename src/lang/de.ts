@@ -1100,11 +1100,12 @@ const deMessages = {
     sectionLegend:
       "Aktiv: in den Prompt geladen (System = mc- mitgeliefert · Projekt = bearbeitbar · Benutzer = ~/.claude/skills/). Katalog: durchsuchen, ★markieren oder ▶einmal ausführen, ohne den Prompt aufzublähen.",
     catalogEmpty: "Keine Preset-Skills verfügbar.",
-    catalogPresetHeading: "MulmoClaude-Presets",
+    catalogPresetHeading: "Presets",
     catalogStar: "Markieren",
     catalogStarred: "Markiert",
     catalogRunOnce: "Einmalig ausführen",
     sourceUserTitle: "Benutzer-Skill (~/.claude/skills/, in allen Workspaces verfügbar)",
+    sourceSystemTitle: "System-Skill (mitgeliefert, mc- Präfix — schreibgeschützt, vom Launcher überschrieben)",
     sourceProjectTitle: "Projekt-Skill (.claude/skills/ des Workspaces, nur dieser Workspace)",
     sourcePresetTitle: "Preset-Katalog — Markieren anklicken, um in diesem Workspace zu aktivieren",
     errCatalogListFailed: "Katalog konnte nicht geladen werden: {error}",

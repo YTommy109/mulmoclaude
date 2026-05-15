@@ -57,13 +57,9 @@
                     {{ skill.description }}
                   </div>
                 </div>
-                <span
-                  class="shrink-0 material-icons text-sm"
-                  :class="sourceMeta(skill.source).colour"
-                  :title="sourceMeta(skill.source).title"
-                  aria-hidden="true"
-                  >{{ sourceMeta(skill.source).icon }}</span
-                >
+                <span class="shrink-0 material-icons text-sm" :class="skillBadge(skill).colour" :title="skillBadge(skill).title" aria-hidden="true">{{
+                  skillBadge(skill).icon
+                }}</span>
               </div>
             </div>
             <i18n-t v-if="activeSkills.length === 0" keypath="pluginManageSkills.emptyWithPath" tag="p" class="p-4 text-sm text-gray-400 italic">
@@ -423,10 +419,13 @@ const catalogRenderedBody = computed(() => {
   return sanitizeMarkdownHtml(marked(body) as string);
 });
 
-// Visual key for the "scope" badge that appears in every row +
-// the right-pane header. Three scopes today:
-//   - user    `~/.claude/skills/`           — global across workspaces
+// Visual key for the provenance badge on every active row + the
+// preset rows. Provenance is derived via categorizeSkill (NOT the raw
+// `source`, which can't express "system") so the badge stays
+// consistent with sectionLegend and the edit gate:
+//   - system  `mc-` bundled, read-only      — launcher-owned
 //   - project `<workspace>/.claude/skills/` — this workspace only
+//   - user    `~/.claude/skills/`           — global across workspaces
 //   - preset  catalog (not yet ★ Starred)   — launcher-managed
 // Icons + colours are deliberately monochromatic except for the
 // preset case where we hint "library / shelf" with the inventory
@@ -438,8 +437,12 @@ interface SourceMeta {
   colour: string;
 }
 
-function sourceMeta(source: "user" | "project"): SourceMeta {
-  if (source === "user") {
+function skillBadge(skill: SkillSummary): SourceMeta {
+  const provenance = categorizeSkill(skill);
+  if (provenance === "system") {
+    return { icon: "lock", title: t("pluginManageSkills.sourceSystemTitle"), colour: "text-gray-500" };
+  }
+  if (provenance === "user") {
     return { icon: "home", title: t("pluginManageSkills.sourceUserTitle"), colour: "text-blue-500" };
   }
   return { icon: "folder", title: t("pluginManageSkills.sourceProjectTitle"), colour: "text-green-600" };

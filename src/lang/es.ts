@@ -1097,11 +1097,12 @@ const esMessages = {
     sectionLegend:
       "Activas: cargadas en el prompt (Sistema = incluidas mc- · Proyecto = editables · Usuario = ~/.claude/skills/). Catálogo: explora, ★destaca o ▶ejecuta una vez sin inflar el prompt.",
     catalogEmpty: "No hay skills de preajuste disponibles.",
-    catalogPresetHeading: "Preajustes de MulmoClaude",
+    catalogPresetHeading: "Preajustes",
     catalogStar: "Destacar",
     catalogStarred: "Destacada",
     catalogRunOnce: "Ejecutar una vez",
     sourceUserTitle: "Skill de usuario (~/.claude/skills/, disponible en todos los espacios)",
+    sourceSystemTitle: "Skill de sistema (incluida, prefijo mc- — solo lectura, sobrescrita por el launcher)",
     sourceProjectTitle: "Skill del proyecto (.claude/skills/ del workspace, solo este espacio)",
     sourcePresetTitle: "Catálogo de preajustes — pulsa Destacar para activarla en este espacio",
     errCatalogListFailed: "Error al cargar el catálogo: {error}",

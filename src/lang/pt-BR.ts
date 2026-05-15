@@ -1086,11 +1086,12 @@ const ptBRMessages = {
     sectionLegend:
       "Ativas: carregadas no prompt (Sistema = inclusas mc- · Projeto = editáveis · Usuário = ~/.claude/skills/). Catálogo: explore, ★favorite ou ▶execute uma vez sem inflar o prompt.",
     catalogEmpty: "Nenhuma skill de preset disponível.",
-    catalogPresetHeading: "Presets do MulmoClaude",
+    catalogPresetHeading: "Presets",
     catalogStar: "Favoritar",
     catalogStarred: "Favoritada",
     catalogRunOnce: "Executar uma vez",
     sourceUserTitle: "Skill do usuário (~/.claude/skills/, disponível em todos os workspaces)",
+    sourceSystemTitle: "Skill de sistema (inclusa, prefixo mc- — somente leitura, sobrescrita pelo launcher)",
     sourceProjectTitle: "Skill do projeto (.claude/skills/ do workspace, apenas este workspace)",
     sourcePresetTitle: "Catálogo de presets — clique em Favoritar para ativar neste workspace",
     errCatalogListFailed: "Falha ao carregar o catálogo: {error}",

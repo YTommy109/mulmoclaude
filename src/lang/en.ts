@@ -1085,11 +1085,12 @@ const enMessages = {
     sectionLegend:
       "Active: loaded into the prompt (System = mc- bundled · Project = editable · User = ~/.claude/skills/). Catalog: browse, ★ star or ▶ run once without bloating the prompt.",
     catalogEmpty: "No preset skills available.",
-    catalogPresetHeading: "MulmoClaude presets",
+    catalogPresetHeading: "Presets",
     catalogStar: "Star",
     catalogStarred: "Starred",
     catalogRunOnce: "Run once",
     sourceUserTitle: "User skill (~/.claude/skills/, available in every workspace)",
+    sourceSystemTitle: "System skill (bundled, mc- prefix — read-only, overwritten by the launcher)",
     sourceProjectTitle: "Project skill (workspace .claude/skills/, this workspace only)",
     sourcePresetTitle: "Preset catalog — click Star to activate in this workspace",
     errCatalogListFailed: "Failed to load catalog: {error}",

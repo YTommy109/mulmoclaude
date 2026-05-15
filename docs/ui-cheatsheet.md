@@ -388,7 +388,7 @@ land with #1335 PR-C.
 │ │ ├ [skill-item-bar] 📁   │                            ✏ Edit  ✕ ⏵│ │
 │ │ └ [skill-item-baz] 📁   │  rendered SKILL.md (marked + sanitize)│ │
 │ │ ▼ CATALOG            4  │                                       │ │
-│ │   MulmoClaude presets   │  (catalog row → preset detail with    │ │
+│ │   Presets               │  (catalog row → preset detail with    │ │
 │ │ ├ [skill-catalog-…] ★   │   ★ Star / ▶ Run once)                │ │
 │ └─────────────────────────┴───────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────┘

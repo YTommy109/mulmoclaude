@@ -62,7 +62,7 @@
 - `src/lang/{en,ja,zh,ko,es,pt-BR,fr,de}.ts` — `categorySystem/Project/User`
   + `categoryLegend` を撤去し `sectionActive` / `sectionCatalog` /
   `sectionLegend` / `catalogEmpty` を 8 ロケール lockstep で追加。
-  `catalogPresetHeading` を "MulmoClaude presets" 相当に更新
+  `catalogPresetHeading` を "Presets"（Catalog セクション配下の小見出し）に更新
 - `test/plugins/manageSkills/test_categories.ts` — section API へ書き換え
   （`categorizeSkill` のエッジケースは維持）
 - `docs/ui-cheatsheet.md` — `/skills` 節を Active/Catalog 図に更新

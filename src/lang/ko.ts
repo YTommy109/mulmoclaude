@@ -1086,11 +1086,12 @@ const koMessages = {
     sectionLegend:
       "활성: 프롬프트에 로드됨 (시스템 = mc- 동봉 · 프로젝트 = 편집 가능 · 사용자 = ~/.claude/skills/). 카탈로그: 프롬프트를 키우지 않고 살펴보거나 ★별 표시 또는 ▶한 번만 실행할 수 있습니다.",
     catalogEmpty: "사용 가능한 프리셋 스킬이 없습니다.",
-    catalogPresetHeading: "MulmoClaude 프리셋",
+    catalogPresetHeading: "프리셋",
     catalogStar: "별 표시",
     catalogStarred: "별 표시됨",
     catalogRunOnce: "한 번만 실행",
     sourceUserTitle: "사용자 스킬 (~/.claude/skills/, 모든 워크스페이스 공통)",
+    sourceSystemTitle: "시스템 스킬 (동봉, mc- 접두사 — 읽기 전용, 런처 부팅 시 덮어씀)",
     sourceProjectTitle: "프로젝트 스킬 (워크스페이스 .claude/skills/, 이 워크스페이스 전용)",
     sourcePresetTitle: "프리셋 카탈로그 — 별 표시를 눌러 이 워크스페이스에 활성화",
     errCatalogListFailed: "카탈로그를 불러오지 못했습니다: {error}",
