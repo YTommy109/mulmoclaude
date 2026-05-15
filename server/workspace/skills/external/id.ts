@@ -98,9 +98,16 @@ export function deriveActiveId(url: string, skillFolder: string | null): string 
   return sanitise(`${parsed.owner}-${folderSafe}`);
 }
 
-/** Stable opaque hash of a URL for keying the scratch-clone cache. */
+/** Stable opaque hash of a URL for keying the scratch-clone cache.
+ *  Canonicalises first so the accepted variants of the same repo
+ *  (`/o/r`, `/o/r/`, `/o/r.git`, case differences) map to ONE cache
+ *  dir — otherwise a re-install via a different form would spawn a
+ *  duplicate clone and uninstall would only drop the last-recorded
+ *  variant. */
 export function urlCacheKey(url: string): string {
-  return createHash("sha256").update(url).digest("hex").slice(0, 16);
+  const parsed = parseGitHubHttpsUrl(url);
+  const canonical = parsed ? `https://github.com/${parsed.owner.toLowerCase()}/${parsed.repo.toLowerCase()}` : url;
+  return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
 }
 
 // Shape of a `deriveRepoId` output (`<owner>-<repo>` lowercased). The

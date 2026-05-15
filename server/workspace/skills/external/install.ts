@@ -16,7 +16,7 @@
 // star = fork, so users keep what they activated even after the
 // upstream repo is removed.
 
-import { cp, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { workspacePath } from "../../workspace.js";
@@ -71,9 +71,23 @@ async function isDirectory(absPath: string): Promise<boolean> {
   }
 }
 
-async function isFile(absPath: string): Promise<boolean> {
+// `lstat`-based checks for the UNTRUSTED scratch-clone tree. A
+// malicious external repo can ship symlinks (`SKILL.md` →
+// `/etc/passwd`, a skill dir → `/`); `stat` follows them, so
+// discovery/copy would read or duplicate host files. These reject
+// symlinks (and anything that isn't a plain dir / plain file). Our
+// own catalog dirs still use the `stat`-based helpers above.
+async function isRealDirectory(absPath: string): Promise<boolean> {
   try {
-    return (await stat(absPath)).isFile();
+    return (await lstat(absPath)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function isRealFile(absPath: string): Promise<boolean> {
+  try {
+    return (await lstat(absPath)).isFile();
   } catch {
     return false;
   }
@@ -81,7 +95,7 @@ async function isFile(absPath: string): Promise<boolean> {
 
 async function hasParseableSkill(skillDir: string): Promise<boolean> {
   const skillMd = path.join(skillDir, "SKILL.md");
-  if (!(await isFile(skillMd))) return false;
+  if (!(await isRealFile(skillMd))) return false;
   try {
     const raw = await readFile(skillMd, "utf-8");
     return parseSkillFrontmatter(raw) !== null;
@@ -99,7 +113,7 @@ async function hasParseableSkill(skillDir: string): Promise<boolean> {
 async function discoverSkills(cacheDir: string, subpath: string | undefined): Promise<DiscoveredSkill[]> {
   if (subpath) {
     const scanRoot = path.join(cacheDir, subpath);
-    if (!(await isDirectory(scanRoot))) return [];
+    if (!(await isRealDirectory(scanRoot))) return [];
     return await scanOneLevel(scanRoot);
   }
   if (await hasParseableSkill(cacheDir)) {
@@ -119,7 +133,7 @@ async function scanOneLevel(scanRoot: string): Promise<DiscoveredSkill[]> {
   for (const entry of entries) {
     if (entry.startsWith(".")) continue;
     const candidate = path.join(scanRoot, entry);
-    if (!(await isDirectory(candidate))) continue;
+    if (!(await isRealDirectory(candidate))) continue;
     if (!(await hasParseableSkill(candidate))) continue;
     out.push({ folder: entry, sourceDir: candidate });
   }
@@ -152,16 +166,19 @@ async function writeMetadata(metadataPath: string, payload: Omit<InstallResult, 
  *  directly under the repo dir; nothing nests. */
 async function copyIntoCatalog(skill: DiscoveredSkill, repoDir: string): Promise<void> {
   if (skill.folder === ".") {
-    // Copy the contents of sourceDir to repoDir without nesting,
-    // but skip `.git/` and our own metadata sentinel.
-    await copyDirContents(skill.sourceDir, repoDir, [".git", SOURCE_METADATA_FILE]);
+    await copyTreeNoSymlinks(skill.sourceDir, repoDir, [".git", SOURCE_METADATA_FILE]);
     return;
   }
-  const dest = path.join(repoDir, skill.folder);
-  await cp(skill.sourceDir, dest, { recursive: true, force: true });
+  await copyTreeNoSymlinks(skill.sourceDir, path.join(repoDir, skill.folder), [".git", SOURCE_METADATA_FILE]);
 }
 
-async function copyDirContents(srcDir: string, destDir: string, skip: readonly string[]): Promise<void> {
+/** Recursively copy `srcDir` → `destDir`, copying ONLY plain dirs and
+ *  plain files. `Dirent` predicates use `lstat` semantics, so a
+ *  symlink entry is neither `isDirectory()` nor `isFile()` and is
+ *  silently skipped — an external repo can't smuggle a `SKILL.md` →
+ *  `/etc/passwd` (or a dir symlink) into the catalog / active layer.
+ *  `node:fs cp` with `recursive` would dereference such links. */
+async function copyTreeNoSymlinks(srcDir: string, destDir: string, skip: readonly string[]): Promise<void> {
   await mkdir(destDir, { recursive: true });
   const entries = await readdir(srcDir, { withFileTypes: true });
   for (const entry of entries) {
@@ -169,10 +186,11 @@ async function copyDirContents(srcDir: string, destDir: string, skip: readonly s
     const src = path.join(srcDir, entry.name);
     const dst = path.join(destDir, entry.name);
     if (entry.isDirectory()) {
-      await cp(src, dst, { recursive: true, force: true });
+      await copyTreeNoSymlinks(src, dst, skip);
     } else if (entry.isFile()) {
-      await cp(src, dst, { force: true });
+      await copyFile(src, dst);
     }
+    // Symlinks / sockets / FIFOs intentionally skipped.
   }
 }
 
@@ -208,6 +226,17 @@ export async function installExternalRepo(opts: InstallRepoOptions, deps: Extern
   }
 
   const skills = await discoverSkills(clone.cacheDir, subpath);
+
+  // Bail BEFORE touching the catalog. Wiping + recreating + writing
+  // `.source.json` first meant a zero-skill fetch returned 422 while
+  // `GET /external/repos` still listed the repo and the previous
+  // catalog contents were already destroyed. Leaving a prior good
+  // install intact on a transient empty fetch is the safer outcome.
+  if (skills.length === 0) {
+    log.warn("skills-external", "install found no skills; catalog left untouched", { repoId, url: opts.url, subpath });
+    return { kind: "no-skills", repoId, sha: clone.sha };
+  }
+
   const { repoDir, metadataPath } = pathsForRepo(workspaceRoot, repoId);
   // Wipe the previous catalog tree for this repoId so a re-install
   // starts clean (removed skills don't linger). Cache dir is kept
@@ -236,11 +265,6 @@ export async function installExternalRepo(opts: InstallRepoOptions, deps: Extern
     sha: clone.sha,
     installedAt,
   });
-
-  if (skills.length === 0) {
-    log.warn("skills-external", "install completed with no skills discovered", { repoId, url: opts.url, subpath });
-    return { kind: "no-skills", repoId, sha: clone.sha };
-  }
 
   log.info("skills-external", "installed repo", { repoId, sha: clone.sha, skillCount: skills.length });
   return { kind: "installed", detail };

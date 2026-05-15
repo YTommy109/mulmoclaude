@@ -63,20 +63,32 @@ export interface CloneDeps {
   runGit?: RunGit;
 }
 
-/** First-time scratch-dir setup: `git init`, remote, and (when a
- *  subpath is requested) sparse-checkout config. No-op once `.git/`
- *  exists. Caller guarantees `subpath` is already sanitised. */
-async function initScratchDir(cacheDir: string, opts: CloneOptions, runGit: RunGit): Promise<void> {
+/** One-time repo creation: `git init` + `remote add`. No-op once
+ *  `.git/` exists (re-installs reuse the existing clone). */
+async function initRepoOnce(cacheDir: string, url: string, runGit: RunGit): Promise<void> {
   if (existsSync(path.join(cacheDir, ".git"))) return;
   await runGit(["init", cacheDir]);
-  await runGit(["-C", cacheDir, "remote", "add", "origin", opts.url]);
-  if (!opts.subpath) return;
+  await runGit(["-C", cacheDir, "remote", "add", "origin", url]);
+}
+
+/** Apply sparse-checkout config to match the CURRENT request — runs
+ *  on every call, not just first init. Without this, re-installing
+ *  the same URL with a different (or absent) `subpath` would keep the
+ *  stale pattern from the first install, so `git checkout` stays
+ *  constrained and discovery wrongly reports `no-skills`. Caller
+ *  guarantees `subpath` is already sanitised. */
+async function applySparseCheckout(cacheDir: string, subpath: string | undefined, runGit: RunGit): Promise<void> {
+  if (!subpath) {
+    // Lift any constraint left by a previous subpath install.
+    await runGit(["-C", cacheDir, "config", "core.sparseCheckout", "false"]);
+    return;
+  }
   await runGit(["-C", cacheDir, "config", "core.sparseCheckout", "true"]);
   // sparse-checkout pattern is one entry per line; we want the
   // entire subpath subtree.
   const sparseFile = path.join(cacheDir, ".git", "info", "sparse-checkout");
   await mkdir(path.dirname(sparseFile), { recursive: true });
-  await writeFile(sparseFile, `${opts.subpath}/*\n`);
+  await writeFile(sparseFile, `${subpath}/*\n`);
 }
 
 /** Fetch `ref` at depth 1, check it out, and return the resolved
@@ -110,7 +122,8 @@ export async function cloneOrUpdate(opts: CloneOptions, deps: CloneDeps = {}): P
   const cacheDir = path.join(cacheRoot, urlCacheKey(opts.url));
 
   await mkdir(cacheDir, { recursive: true });
-  await initScratchDir(cacheDir, opts, runGit);
+  await initRepoOnce(cacheDir, opts.url, runGit);
+  await applySparseCheckout(cacheDir, opts.subpath, runGit);
   const sha = await fetchAndResolveSha(cacheDir, opts.ref ?? "HEAD", runGit);
   return { cacheDir, sha };
 }

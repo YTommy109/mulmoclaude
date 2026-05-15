@@ -15,7 +15,7 @@
 
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -210,6 +210,91 @@ describe("installExternalRepo", () => {
     assert.equal(second.kind, "installed");
     assert.equal(existsSync(path.join(repoDir, "a", "SKILL.md")), true);
     assert.equal(existsSync(path.join(repoDir, "b")), false);
+  });
+
+  it("no-skills does NOT mutate the catalog (no .source.json, prior install survives)", async () => {
+    const url = "https://github.com/foo/sometimes-empty";
+    const cacheDir = path.join(cacheRoot, urlCacheKey(url));
+    let pass = 0;
+    const runGit: RunGit = async (args) => {
+      const list = [...args];
+      if (list[0] === "init" && typeof list[1] === "string") {
+        mkdirSync(path.join(list[1], ".git"), { recursive: true });
+      }
+      if (list.includes("checkout")) {
+        rmSync(cacheDir, { recursive: true, force: true });
+        mkdirSync(cacheDir, { recursive: true });
+        // eslint-disable-next-line security/detect-possible-timing-attacks -- iteration counter, not a secret
+        if (pass === 0) seedSkill(path.join(cacheDir, "a"), "---\ndescription: a\n---\nbody");
+        pass += 1;
+      }
+      if (list.includes("rev-parse")) return { stdout: `${FAKE_SHA}\n`, stderr: "" };
+      return { stdout: "", stderr: "" };
+    };
+
+    const first = await installExternalRepo({ url }, { workspaceRoot: workdir, cacheRoot, runGit });
+    assert.equal(first.kind, "installed");
+    const repoDir = path.join(workdir, "data/skills/catalog/external/foo-sometimes-empty");
+    assert.equal(existsSync(path.join(repoDir, "a", "SKILL.md")), true);
+
+    // Second fetch yields nothing — must NOT wipe the prior install.
+    const second = await installExternalRepo({ url }, { workspaceRoot: workdir, cacheRoot, runGit });
+    assert.equal(second.kind, "no-skills");
+    assert.equal(existsSync(path.join(repoDir, "a", "SKILL.md")), true);
+    const repos = await listInstalledRepos({ workspaceRoot: workdir });
+    assert.equal(repos.length, 1);
+  });
+
+  it("does not write .source.json on a first install that finds no skills", async () => {
+    const url = "https://github.com/foo/empty2";
+    const cacheDir = path.join(cacheRoot, urlCacheKey(url));
+    const runGit: RunGit = async (args) => {
+      const list = [...args];
+      if (list[0] === "init" && typeof list[1] === "string") {
+        mkdirSync(path.join(list[1], ".git"), { recursive: true });
+      }
+      if (list.includes("checkout")) mkdirSync(cacheDir, { recursive: true });
+      if (list.includes("rev-parse")) return { stdout: `${FAKE_SHA}\n`, stderr: "" };
+      return { stdout: "", stderr: "" };
+    };
+    const result = await installExternalRepo({ url }, { workspaceRoot: workdir, cacheRoot, runGit });
+    assert.equal(result.kind, "no-skills");
+    const repoDir = path.join(workdir, "data/skills/catalog/external/foo-empty2");
+    assert.equal(existsSync(path.join(repoDir, ".source.json")), false);
+    assert.deepEqual(await listInstalledRepos({ workspaceRoot: workdir }), []);
+  });
+
+  it("ignores a symlinked SKILL.md and a symlinked skill dir (untrusted repo)", async () => {
+    const url = "https://github.com/foo/evil";
+    const cacheDir = path.join(cacheRoot, urlCacheKey(url));
+    const secretDir = mkdtempSync(path.join(tmpdir(), "ext-secret-"));
+    writeFileSync(path.join(secretDir, "SKILL.md"), "---\ndescription: exfiltrated\n---\nsecret");
+    const runGit: RunGit = async (args) => {
+      const list = [...args];
+      if (list[0] === "init" && typeof list[1] === "string") {
+        mkdirSync(path.join(list[1], ".git"), { recursive: true });
+      }
+      if (list.includes("checkout")) {
+        mkdirSync(path.join(cacheDir, "good"), { recursive: true });
+        writeFileSync(path.join(cacheDir, "good", "SKILL.md"), "---\ndescription: ok\n---\nbody");
+        // Attack 1: a skill dir that is actually a symlink to a host dir.
+        symlinkSync(secretDir, path.join(cacheDir, "linkdir"), "dir");
+        // Attack 2: a real dir whose SKILL.md is a symlink to a host file.
+        mkdirSync(path.join(cacheDir, "linkfile"), { recursive: true });
+        symlinkSync(path.join(secretDir, "SKILL.md"), path.join(cacheDir, "linkfile", "SKILL.md"));
+      }
+      if (list.includes("rev-parse")) return { stdout: `${FAKE_SHA}\n`, stderr: "" };
+      return { stdout: "", stderr: "" };
+    };
+
+    const result = await installExternalRepo({ url }, { workspaceRoot: workdir, cacheRoot, runGit });
+    assert.equal(result.kind, "installed");
+    if (result.kind === "installed") assert.equal(result.detail.skillCount, 1);
+    const repoDir = path.join(workdir, "data/skills/catalog/external/foo-evil");
+    assert.equal(existsSync(path.join(repoDir, "good", "SKILL.md")), true);
+    assert.equal(existsSync(path.join(repoDir, "linkdir")), false);
+    assert.equal(existsSync(path.join(repoDir, "linkfile")), false);
+    rmSync(secretDir, { recursive: true, force: true });
   });
 });
 
