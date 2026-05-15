@@ -28,7 +28,7 @@ const frMessages = {
     },
   },
   chatInput: {
-    placeholder: "Saisissez une tâche, ou glissez / collez / joignez un fichier…",
+    placeholder: "Message à Claude…",
     send: "Envoyer",
     attachFile: "Joindre un fichier",
     fileTooLarge: "Fichier trop volumineux ({sizeMB} Mo). La limite est de 30 Mo.",

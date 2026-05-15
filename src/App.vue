@@ -158,8 +158,20 @@
             <div v-else-if="selectedResult" class="h-full overflow-auto p-6">
               <pre class="text-sm text-gray-700 whitespace-pre-wrap">{{ JSON.stringify(selectedResult, null, 2) }}</pre>
             </div>
-            <div v-else class="flex items-center justify-center h-full text-gray-600">
-              <p>{{ t("app.startConversation") }}</p>
+            <div v-else class="flex flex-col items-center justify-center h-full px-6 text-center">
+              <span class="material-icons text-5xl text-gray-400 mb-2" aria-hidden="true">{{ sessionRoleIcon }}</span>
+              <p class="text-lg font-medium text-gray-700 mb-4">{{ sessionRoleName }}</p>
+              <div v-if="sessionRoleQueries.length > 0" class="flex flex-wrap gap-2 justify-center max-w-xl">
+                <button
+                  v-for="query in sessionRoleQueries"
+                  :key="query"
+                  class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full px-4 py-2 border border-gray-300 transition-colors"
+                  @click="sendMessage(query)"
+                >
+                  {{ query }}
+                </button>
+              </div>
+              <p v-else class="text-sm text-gray-500">{{ t("app.startConversation") }}</p>
             </div>
           </template>
           <StackView

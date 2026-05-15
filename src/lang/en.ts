@@ -50,7 +50,7 @@ const enMessages = {
     },
   },
   chatInput: {
-    placeholder: "Type a task, or drop / paste / attach a file…",
+    placeholder: "Message Claude…",
     send: "Send",
     attachFile: "Attach file",
     fileTooLarge: "File too large ({sizeMB} MB). Maximum is 30 MB.",

@@ -33,7 +33,7 @@ const esMessages = {
     },
   },
   chatInput: {
-    placeholder: "Escribe una tarea, o arrastra / pega / adjunta un archivo…",
+    placeholder: "Mensaje para Claude…",
     send: "Enviar",
     attachFile: "Adjuntar archivo",
     fileTooLarge: "El archivo es demasiado grande ({sizeMB} MB). El máximo es 30 MB.",
