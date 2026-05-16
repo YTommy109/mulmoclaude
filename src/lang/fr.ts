@@ -286,6 +286,7 @@ const frMessages = {
     pdfPreview: "Aperçu PDF",
     parseError: "erreur d'analyse",
     editJson: "Modifier le JSON",
+    jsonEditorLabel: "Éditeur JSON",
   },
   filesView: {
     chatPlaceholder: "Posez une question sur ce fichier…",

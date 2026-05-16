@@ -134,6 +134,7 @@
           <textarea
             v-if="jsonEditing"
             v-model="jsonDraft"
+            :aria-label="t('fileContentRenderer.jsonEditorLabel')"
             data-testid="files-json-editor"
             class="flex-1 min-h-0 m-4 px-3 py-2 text-xs font-mono border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-800 resize-none"
             spellcheck="false"
