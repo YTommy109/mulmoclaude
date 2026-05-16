@@ -406,7 +406,9 @@ already-starred skills in Active (star = fork).
 Testids: `skill-section-{key}` / `skill-section-toggle-{key}` /
 `skill-section-count-{key}` for the two section headers
 (`active` / `catalog`); `skill-item-{name}` per active row;
-`skill-catalog-item-{slug}` per catalog row (preset + external);
+`skill-catalog-item-{id}` per catalog row — `id` = preset slug, or
+`{repoId}/{skillFolder}` for external (stable identity, not the lossy
+derived slug);
 `skill-catalog-empty` when the catalog has no presets;
 `skill-catalog-repo-{repoId}` / `skill-catalog-repo-toggle-{repoId}` /
 `skill-catalog-repo-uninstall-{repoId}` per external-repo subgroup;

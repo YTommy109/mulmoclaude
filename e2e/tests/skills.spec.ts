@@ -505,14 +505,14 @@ test.describe("manageSkills plugin — external catalog (#1383 PR-C2)", () => {
     const repo = page.getByTestId("skill-catalog-repo-anthropics-skills");
     await expect(repo).toBeVisible();
     // Both external entries visible while expanded.
-    await expect(page.getByTestId("skill-catalog-item-anthropics-pdf")).toBeVisible();
-    await expect(page.getByTestId("skill-catalog-item-anthropics-xlsx")).toBeVisible();
+    await expect(page.getByTestId("skill-catalog-item-anthropics-skills/pdf")).toBeVisible();
+    await expect(page.getByTestId("skill-catalog-item-anthropics-skills/xlsx")).toBeVisible();
     // Starred external entry shows the ★ indicator.
-    await expect(page.getByTestId("skill-catalog-starred-indicator-anthropics-xlsx")).toBeVisible();
+    await expect(page.getByTestId("skill-catalog-starred-indicator-anthropics-skills/xlsx")).toBeVisible();
 
     // Collapse the repo → rows hidden.
     await page.getByTestId("skill-catalog-repo-toggle-anthropics-skills").click();
-    await expect(page.getByTestId("skill-catalog-item-anthropics-pdf")).toBeHidden();
+    await expect(page.getByTestId("skill-catalog-item-anthropics-skills/pdf")).toBeHidden();
 
     await expect(page.getByTestId("skill-catalog-add-repo")).toBeVisible();
   });
@@ -524,7 +524,7 @@ test.describe("manageSkills plugin — external catalog (#1383 PR-C2)", () => {
     await expect(page.getByText("MulmoClaude")).toBeVisible();
     await page.getByText("2 skills").first().click();
 
-    await page.getByTestId("skill-catalog-item-anthropics-pdf").click();
+    await page.getByTestId("skill-catalog-item-anthropics-skills/pdf").click();
     await expect(page.getByTestId("skill-catalog-detail-pane")).toContainText("Fill PDFs");
     await page.getByTestId("skill-catalog-detail-star-btn").click();
 

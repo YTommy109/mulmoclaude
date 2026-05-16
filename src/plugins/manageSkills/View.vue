@@ -87,7 +87,9 @@
               <span class="material-icons text-base">{{ isSectionOpen("catalog") ? "expand_more" : "chevron_right" }}</span>
               {{ t("pluginManageSkills.sectionCatalog") }}
             </span>
-            <span data-testid="skill-section-count-catalog" class="text-gray-400 font-normal normal-case">{{ catalogPresets.length }}</span>
+            <span data-testid="skill-section-count-catalog" class="text-gray-400 font-normal normal-case">{{
+              catalogPresets.length + catalogExternal.length
+            }}</span>
           </button>
           <div v-show="isSectionOpen('catalog')" id="skill-section-panel-catalog" role="group">
             <div class="px-4 py-2 text-[11px] uppercase tracking-wide text-gray-500 font-semibold" data-testid="skill-catalog-section-heading">
@@ -95,13 +97,13 @@
             </div>
             <div
               v-for="entry in catalogPresets"
-              :key="`catalog-preset-${entry.slug}`"
-              :data-testid="`skill-catalog-item-${entry.slug}`"
+              :key="`catalog-preset-${entryKey(entry)}`"
+              :data-testid="`skill-catalog-item-${entryKey(entry)}`"
               class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors focus:outline-none focus:bg-white focus:border-l-2 focus:border-l-blue-400"
-              :class="selectedCatalog?.slug === entry.slug ? 'bg-white border-l-2 border-l-blue-500' : ''"
+              :class="selectedCatalogKey === entryKey(entry) ? 'bg-white border-l-2 border-l-blue-500' : ''"
               role="button"
               tabindex="0"
-              :aria-pressed="selectedCatalog?.slug === entry.slug"
+              :aria-pressed="selectedCatalogKey === entryKey(entry)"
               @click="selectCatalogEntry(entry)"
               @keydown.enter.prevent="selectCatalogEntry(entry)"
               @keydown.space.prevent="selectCatalogEntry(entry)"
@@ -115,7 +117,7 @@
                   v-if="entry.alreadyActive"
                   class="shrink-0 material-icons text-sm text-yellow-500"
                   :title="t('pluginManageSkills.catalogStarred')"
-                  :data-testid="`skill-catalog-starred-indicator-${entry.slug}`"
+                  :data-testid="`skill-catalog-starred-indicator-${entryKey(entry)}`"
                   aria-hidden="true"
                   >star</span
                 >
@@ -164,13 +166,13 @@
               <div v-show="isRepoOpen(group.repo.repoId)" role="group">
                 <div
                   v-for="entry in group.entries"
-                  :key="`catalog-ext-${entry.slug}`"
-                  :data-testid="`skill-catalog-item-${entry.slug}`"
+                  :key="`catalog-ext-${entryKey(entry)}`"
+                  :data-testid="`skill-catalog-item-${entryKey(entry)}`"
                   class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors focus:outline-none focus:bg-white focus:border-l-2 focus:border-l-blue-400"
-                  :class="selectedCatalog?.slug === entry.slug ? 'bg-white border-l-2 border-l-blue-500' : ''"
+                  :class="selectedCatalogKey === entryKey(entry) ? 'bg-white border-l-2 border-l-blue-500' : ''"
                   role="button"
                   tabindex="0"
-                  :aria-pressed="selectedCatalog?.slug === entry.slug"
+                  :aria-pressed="selectedCatalogKey === entryKey(entry)"
                   @click="selectCatalogEntry(entry)"
                   @keydown.enter.prevent="selectCatalogEntry(entry)"
                   @keydown.space.prevent="selectCatalogEntry(entry)"
@@ -184,7 +186,7 @@
                       v-if="entry.alreadyActive"
                       class="shrink-0 material-icons text-sm text-yellow-500"
                       :title="t('pluginManageSkills.catalogStarred')"
-                      :data-testid="`skill-catalog-starred-indicator-${entry.slug}`"
+                      :data-testid="`skill-catalog-starred-indicator-${entryKey(entry)}`"
                       aria-hidden="true"
                       >star</span
                     >
@@ -235,7 +237,7 @@
               <button
                 v-if="!selectedCatalog.alreadyActive"
                 class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-yellow-400 text-yellow-600 hover:bg-yellow-50 disabled:opacity-40"
-                :disabled="catalogActioningSlug === selectedCatalog.slug"
+                :disabled="catalogActioningKey === selectedCatalogKey"
                 :title="t('pluginManageSkills.catalogStar')"
                 data-testid="skill-catalog-detail-star-btn"
                 @click="starCatalogEntry(selectedCatalog)"
@@ -255,7 +257,7 @@
               </button>
               <button
                 class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
-                :disabled="catalogActioningSlug === selectedCatalog.slug || !catalogDetail"
+                :disabled="catalogActioningKey === selectedCatalogKey || !catalogDetail"
                 :title="t('pluginManageSkills.catalogRunOnce')"
                 data-testid="skill-catalog-detail-run-btn"
                 @click="runOnceCatalogEntry(selectedCatalog)"
@@ -544,7 +546,7 @@ const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
 
 // Catalog state (#1335 PR-B). Loaded on mount + after a successful
 // star so the row updates from "★ Star" → "★ Starred".
-// `catalogActioningSlug` (declared below) disables the button
+// `catalogActioningKey` (declared below) disables the button
 // mid-request to prevent double-clicks across Star / Run once.
 type CatalogSource = "preset" | "external";
 interface CatalogEntry {
@@ -598,7 +600,7 @@ const uninstallingRepoId = ref<string | null>(null);
 // Single in-flight gate covers Star / Run once on the selected
 // entry so a slow request doesn't let the user fire a second
 // action mid-flight.
-const catalogActioningSlug = ref<string | null>(null);
+const catalogActioningKey = ref<string | null>(null);
 // Right-pane selection for a catalog entry (mutually exclusive
 // with `selectedName` — picking one clears the other).
 const selectedCatalog = ref<CatalogEntry | null>(null);
@@ -660,6 +662,21 @@ function catalogActionParams(entry: CatalogEntry): Record<string, string> {
   return { source: entry.source, slug: entry.slug };
 }
 
+// Stable UI identity. External `slug` is the backend-derived
+// `<owner>-<skillFolder>` activeId — lossy + owner-prefixed, so two
+// external entries can collide (dup Vue keys / testids, wrong row
+// highlighted, shared in-flight lock, stale preview guard passing for
+// the wrong item). `(repoId, skillFolder)` is the unique stable key;
+// presets keep their already-unique slug.
+function entryKey(entry: CatalogEntry): string {
+  if (entry.source === "external" && entry.repoId && entry.skillFolder) {
+    return `${entry.repoId}/${entry.skillFolder}`;
+  }
+  return entry.slug;
+}
+
+const selectedCatalogKey = computed(() => (selectedCatalog.value ? entryKey(selectedCatalog.value) : null));
+
 // Visual key for the provenance badge on every active row + the
 // preset rows. Provenance is derived via categorizeSkill (NOT the raw
 // `source`, which can't express "system") so the badge stays
@@ -708,7 +725,7 @@ watch(
     selectedCatalog.value = null;
     catalogDetail.value = null;
     catalogDetailLoading.value = false;
-    catalogActioningSlug.value = null;
+    catalogActioningKey.value = null;
     catalogError.value = null;
     addRepoOpen.value = false;
     addRepoError.value = null;
@@ -806,9 +823,9 @@ async function refreshActiveList(): Promise<void> {
 
 async function starCatalogEntry(entry: CatalogEntry): Promise<void> {
   if (entry.alreadyActive) return;
-  catalogActioningSlug.value = entry.slug;
+  catalogActioningKey.value = entryKey(entry);
   const response = await apiPost<{ starred: true; slug: string }>(endpoints.catalogStar.url, catalogActionParams(entry));
-  catalogActioningSlug.value = null;
+  catalogActioningKey.value = null;
   if (!response.ok) {
     catalogError.value = t("pluginManageSkills.errCatalogStarFailed", { error: response.error });
     return;
@@ -820,9 +837,9 @@ async function starCatalogEntry(entry: CatalogEntry): Promise<void> {
   // Reconcile the right-pane selection with the refreshed list so
   // its `alreadyActive` flag reflects reality without forcing the
   // user to re-click.
-  if (selectedCatalog.value?.slug === entry.slug) {
+  if (selectedCatalog.value && entryKey(selectedCatalog.value) === entryKey(entry)) {
     const pool = entry.source === "external" ? catalogExternal.value : catalogPresets.value;
-    const updated = pool.find((candidate) => candidate.slug === entry.slug);
+    const updated = pool.find((candidate) => entryKey(candidate) === entryKey(entry));
     if (updated) selectedCatalog.value = updated;
   }
 }
@@ -851,12 +868,13 @@ async function selectCatalogEntry(entry: CatalogEntry): Promise<void> {
   selectedCatalog.value = entry;
   catalogDetail.value = null;
   catalogDetailLoading.value = true;
-  const slugAtRequest = entry.slug;
+  const keyAtRequest = entryKey(entry);
   const fetched = await fetchCatalogDetail(entry);
   // Selection may have changed while the request was in flight —
   // drop the response if so (same race-condition guard the active-
-  // skill detail watcher uses).
-  if (selectedCatalog.value?.slug !== slugAtRequest) return;
+  // skill detail watcher uses). Identity is the (repoId, skillFolder)
+  // composite for external entries, not the lossy slug.
+  if (!selectedCatalog.value || entryKey(selectedCatalog.value) !== keyAtRequest) return;
   catalogDetailLoading.value = false;
   if (fetched !== null) catalogDetail.value = fetched;
 }
@@ -871,16 +889,17 @@ async function runOnceCatalogEntry(entry: CatalogEntry): Promise<void> {
   // The shared in-flight gate is held for the whole flow so a
   // rapid double-click can't enqueue two `startNewChat` calls
   // and spawn duplicate sessions. (Codex review on PR #1374.)
-  catalogActioningSlug.value = entry.slug;
+  catalogActioningKey.value = entryKey(entry);
   try {
-    const body = catalogDetail.value?.slug === entry.slug && catalogDetail.value !== null ? catalogDetail.value.body : (await fetchCatalogDetail(entry))?.body;
+    const isSelectedEntry = selectedCatalog.value !== null && entryKey(selectedCatalog.value) === entryKey(entry) && catalogDetail.value !== null;
+    const body = isSelectedEntry && catalogDetail.value !== null ? catalogDetail.value.body : (await fetchCatalogDetail(entry))?.body;
     if (!body || !body.trim()) {
       catalogError.value = t("pluginManageSkills.errCatalogRunOnceEmpty");
       return;
     }
     catalogAppApi.startNewChat(body);
   } finally {
-    catalogActioningSlug.value = null;
+    catalogActioningKey.value = null;
   }
 }
 
