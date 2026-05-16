@@ -83,9 +83,16 @@ test.describe("wiki image coverage (real workspace)", () => {
       const sourceSrcset = await page.evaluate(
         () => document.querySelector(".wiki-content picture source, .markdown-content picture source, picture source")?.getAttribute("srcset") ?? "",
       );
+      // The wiki markdown surface resolves a workspace-relative
+      // `../../../artifacts/images/X` to the absolute static-mount
+      // form `/artifacts/images/X` (same target the L-W-S-01 `src`
+      // uses). The #1275 win is that the srcset URL is rewritten at
+      // all (was left as the broken `../../../` relative path) with
+      // its 1x/2x descriptors preserved — not the specific target.
       expect(sourceSrcset, "the <source srcset> URL must be rewritten off the raw ../../../ path").not.toContain("../../../");
-      expect(sourceSrcset, "the <source srcset> must point at the raw-file API surface").toContain("/api/files/raw");
-      expect(sourceSrcset, "descriptors must be preserved").toMatch(/\b2x\b/);
+      expect(sourceSrcset, "the rewritten srcset must resolve to the workspace image").toContain(`artifacts/images/${filename}`);
+      expect(sourceSrcset, "1x descriptor must be preserved").toMatch(/\b1x\b/);
+      expect(sourceSrcset, "2x descriptor must be preserved").toMatch(/\b2x\b/);
     } finally {
       await removeWikiPage(slug);
       await removeFromWorkspace(workspaceImageRel);
