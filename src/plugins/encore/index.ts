@@ -1,10 +1,21 @@
 // Encore plugin registration — built-in, single MCP tool
-// (`manageEncore`) + a transient click-handler View at `/encore`.
+// (`manageEncore`) + a transient chat-on-mount View at `/encore`.
 //
-// The Vue View dispatches `resolveNotification` on mount and
-// redirects to the seeded chat (Step 5). The MCP-side `execute`
-// posts to /api/encore (apiNamespace from META) so the LLM-facing
-// MCP bridge and any in-page dispatch share one server handler.
+// The View has one job: when the user clicks an Encore bell entry,
+// they land on /encore?pendingId=<uuid>, the View mounts, dispatches
+// `resolveNotification` (which calls chat.start server-side), and
+// redirects to /chat/<chatId>. The user never actually sees the
+// page beyond a ~300ms "Starting chat…" line. This defers chat
+// creation to the user's click — the tick never calls chat.start
+// directly, so no abandoned chats appear in the sidebar.
+//
+// Notification clearing is the LLM's job in the resulting chat
+// (calls markStepDone with the pendingId; handler reads the
+// pending-clear ticket and clears the bell).
+//
+// The MCP-side `execute` posts to /api/encore (apiNamespace from
+// META) so the LLM-facing MCP bridge and the in-page dispatch
+// share one server handler.
 //
 // See plans/feat-encore-as-builtin.md for the build plan and
 // plans/feat-encore-plugin.md for the DSL spec / design decisions.

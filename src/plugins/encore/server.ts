@@ -6,7 +6,9 @@
 //   Step 2: DSL + paths + io (the validator + on-disk shape)
 //   Step 3: setup / amendDefinition / query / appendNote
 //   Step 4: tick + markStepDone / markTargetSkipped / recordValues / snooze
-//   Step 5: resolveNotification (click-handler page)
+//   Step 5: resolveNotification (the on-mount dispatch from the
+//           /encore chat-on-mount page — starts the chat
+//           server-side and returns navigateTo: /chat/<chatId>)
 //
 // The Express route handler in `server/api/routes/encore.ts` calls
 // `dispatch(body)` here; in turn, `dispatch` switches on `body.kind`

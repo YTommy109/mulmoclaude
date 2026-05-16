@@ -235,18 +235,19 @@
             Debug plugin is not loaded. Make sure @mulmoclaude/debug-plugin is built and registered as a preset.
           </div>
           <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
-          <!-- Encore click-handler page. Mounted when a user clicks
-               an Encore bell notification (navigateTarget:
-               /encore?pendingId=<uuid>). The View itself has no UI —
-               it dispatches resolveNotification and redirects. Same
-               literal-fallback policy as debug above; the page is
-               transient (~300ms before redirect) so its strings stay
-               out of the 8-locale i18n bundle. -->
+          <!-- Encore chat-on-mount page. The tick never calls
+               chat.start; instead its notifications point here
+               (/encore?pendingId=<uuid>). When the user clicks the
+               bell, the View mounts, dispatches resolveNotification
+               (which starts the chat server-side), and redirects to
+               /chat/<chatId>. The user never sees this page —
+               transient (~300ms). Same literal-fallback policy as
+               debug above; the page's strings stay out of the
+               8-locale i18n bundle since the user can't read them in
+               normal use. -->
           <component :is="encoreViewComponent" v-else-if="currentPage === 'encore' && encoreViewComponent" />
-          <!-- eslint-disable @intlify/vue-i18n/no-raw-text -- encore click-handler is a transient redirect page, not a user-facing surface. -->
-          <div v-else-if="currentPage === 'encore'" class="h-full flex items-center justify-center text-sm text-gray-500">
-            Encore is not loaded.
-          </div>
+          <!-- eslint-disable @intlify/vue-i18n/no-raw-text -- encore chat-on-mount page is a transient redirect, not a user-facing surface. -->
+          <div v-else-if="currentPage === 'encore'" class="h-full flex items-center justify-center text-sm text-gray-500">Encore is not loaded.</div>
           <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
         </div>
 
@@ -687,7 +688,7 @@ const selectedResult = computed(() => toolResults.value.find((result) => result.
 const debugViewComponent = computed(() => getPlugin("manageDebug")?.viewComponent ?? null);
 
 // Encore plugin View — built-in plugin under src/plugins/encore/.
-// Mounted at /encore as a click-handler for notification bell entries
+// Mounted at /encore — the chat-on-mount page after a notification-bell click
 // (View.vue dispatches resolveNotification on mount and redirects).
 const encoreViewComponent = computed(() => getPlugin("manageEncore")?.viewComponent ?? null);
 

@@ -34,8 +34,7 @@ const toolDefinition: ToolDefinition = {
     "appendNote to write free-form notes onto an obligation or cycle body; " +
     "snooze to defer a notification. " +
     "Read `helps/encore-dsl.md` for the full DSL grammar and three worked examples (monthly-payments, real-estate-tax, annual-physical).",
-  description:
-    "Manage recurring obligations defined in the Encore DSL — payments and services with cadence, targets, steps, and firing plans.",
+  description: "Manage recurring obligations defined in the Encore DSL — payments and services with cadence, targets, steps, and firing plans.",
   parameters: {
     type: "object",
     properties: {

@@ -9,7 +9,7 @@
 `feat-encore-plugin.md` answered "what should Encore *be*". This doc answers "how does it slot into the host as a built-in plugin". The two are deliberately separate:
 
 - **`feat-encore-plugin.md`** is the DSL specification — schema, cadence math, at-expression grammar, tick semantics, MCP tool surface, three named scenarios. That document is reference material; this build implements it.
-- **This doc** is the integration plan — directory layout under `src/plugins/encore/`, host-API call sites (typed, not cast), the codegen-driven barrel discovery, the click-handler page route, the help-file sync, the test layout. None of which requires re-deciding the DSL.
+- **This doc** is the integration plan — directory layout under `src/plugins/encore/`, host-API call sites (typed, not cast), the codegen-driven barrel discovery, the **chat-on-mount page route** (the bell's `navigateTarget` lands here; the page calls `chat.start()` on mount and immediately redirects to `/chat/<chatId>` — the user never actually sees the page), the help-file sync, the test layout. None of which requires re-deciding the DSL.
 
 The runtime-plugin codebase is the *reference implementation*: when in doubt about how a particular mechanism worked (`withLock` mutex, pending-clear ticket shape, escalation severity diff via `lastPublishedSeverity`), we re-read that code as documentation. We do not copy files.
 
@@ -38,7 +38,7 @@ src/plugins/encore/
 ├── lock.ts              ← Per-plugin mutex: withLock + tickUnlocked / kickTickLocked split
 ├── notifier.ts          ← Thin closure wrapper around host notifier exposing only encore-scoped publish/clear (lifecycle derived from severity here)
 ├── paths.ts             ← Workspace path helpers (obligationDir, obligationIndexPath, cycleFilePath, pendingClearPath)
-├── View.vue             ← The click-handler page at /encore (on-mount dispatch of resolveNotification, redirect to /chat/<chatId>, orphan fallback)
+├── View.vue             ← Chat-on-mount page at /encore. The tick never calls chat.start() — instead it points its notification at this route. When the user clicks the bell, the View mounts, calls resolveNotification (which calls chat.start server-side), and immediately redirects to /chat/<chatId>. The user never sees the page itself; it's transient (~300ms). Notification clearing happens later in the resulting chat when the LLM calls markStepDone, NOT here.
 └── dsl/
     ├── schema.ts        ← Zod schema, discriminated union on type=payment|service, IDENTIFIER vs KEBAB regex split
     ├── cadence.ts       ← Annual / biannual / monthly / weekly / daily cycle math (cycle id, deadline, start)
@@ -111,7 +111,7 @@ Sized as one reviewable landing — pieces don't compose meaningfully on their o
 | 4. Tick + bundling + escalation | Implement `lock.ts`, `notifier.ts` (scoped wrapper), `tick.ts`. Register hourly tick from `server/events/encore-boot.ts`. Wire `kickTickLocked` into every state-mutating handler |
 | 5. Click-handler page | `View.vue` at `/encore`. Add `/encore` route + page key. Implement `handleResolveNotification` with orphan-clear path. End-to-end: create obligation → tick fires → click bell → chat opens with seed |
 | 6. Tests | Mirror runtime branch's `test/plugins/test_encore_storage.ts` (storage smoke / query / resolveNotification / concurrent mutations) as `test/plugins/test_encore_builtin.ts`. Add a tick-firing unit test (mock now, advance through `firingPlan` phases, assert single bundled publish + correct escalation) — the runtime version skipped this because the live testing surfaced everything; from-scratch we should have it |
-| 7. Docs | `docs/developer.md` plugin-development section gets Encore as the canonical example of "built-in plugin with MCP tool + click-handler page + mutex". `docs/plugin-runtime.md` unchanged (it documents runtime plugins, not built-ins). Update this plan doc's status banner to "landed on `<branch-name>`" once the PR opens |
+| 7. Docs | `docs/developer.md` plugin-development section gets Encore as the canonical example of "built-in plugin with MCP tool + chat-on-mount page + mutex". `docs/plugin-runtime.md` unchanged (it documents runtime plugins, not built-ins). Update this plan doc's status banner to "landed on `<branch-name>`" once the PR opens |
 
 Each step should leave `yarn typecheck` / `yarn lint` / `yarn build` clean (per CLAUDE.md's "after modifying any source code" rule).
 

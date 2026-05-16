@@ -19,8 +19,10 @@ export const META = definePluginMeta({
     /** POST /api/encore — single dispatch with `kind` discriminator
      *  (setup / amendDefinition / markStepDone / markTargetSkipped /
      *  recordValues / query / appendNote / snooze / resolveNotification).
-     *  Both the MCP bridge and the click-handler page (`View.vue`)
-     *  POST here; the server splits by `kind`. */
+     *  Both the MCP bridge and the chat-on-mount page (`View.vue`,
+     *  which dispatches `resolveNotification` on mount to start
+     *  the chat server-side) POST here; the server splits by
+     *  `kind`. */
     dispatch: { method: "POST", path: "" },
   },
   mcpDispatch: "dispatch",

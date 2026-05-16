@@ -28,32 +28,28 @@ interface EncoreErrorResponse {
 bindRoute(
   router,
   API_ROUTES.encore.dispatch,
-  asyncHandler<Request<object, unknown, EncoreDispatchBody>, Response<unknown | EncoreErrorResponse>>(
-    "encore",
-    "encore dispatch failed",
-    async (req, res) => {
-      const { body } = req;
-      if (!body || typeof body !== "object" || typeof body.kind !== "string") {
-        log.warn("encore", "POST dispatch: invalid body");
-        res.status(400).json({ error: "request body must be an object with a string `kind` field" });
+  asyncHandler<Request<object, unknown, EncoreDispatchBody>, Response<unknown | EncoreErrorResponse>>("encore", "encore dispatch failed", async (req, res) => {
+    const { body } = req;
+    if (!body || typeof body !== "object" || typeof body.kind !== "string") {
+      log.warn("encore", "POST dispatch: invalid body");
+      res.status(400).json({ error: "request body must be an object with a string `kind` field" });
+      return;
+    }
+    const { kind } = body;
+    log.info("encore", "POST dispatch: start", { kind });
+    try {
+      const result = await dispatch(body);
+      log.info("encore", "POST dispatch: ok", { kind, ok: result.ok });
+      res.json(result);
+    } catch (err) {
+      if (err instanceof EncoreError) {
+        log.warn("encore", "POST dispatch: error", { kind, status: err.status, message: err.message });
+        res.status(err.status).json({ error: err.message, details: err.details });
         return;
       }
-      const { kind } = body;
-      log.info("encore", "POST dispatch: start", { kind });
-      try {
-        const result = await dispatch(body);
-        log.info("encore", "POST dispatch: ok", { kind, ok: result.ok });
-        res.json(result);
-      } catch (err) {
-        if (err instanceof EncoreError) {
-          log.warn("encore", "POST dispatch: error", { kind, status: err.status, message: err.message });
-          res.status(err.status).json({ error: err.message, details: err.details });
-          return;
-        }
-        throw err;
-      }
-    },
-  ),
+      throw err;
+    }
+  }),
 );
 
 export default router;
