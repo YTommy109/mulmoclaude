@@ -7,7 +7,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { transformResolvableUrlsInHtml, RESOLVABLE_TAG_ATTRS } from "../../../src/utils/image/htmlSrcAttrs";
+import { transformResolvableUrlsInHtml, rewriteSrcset, RESOLVABLE_TAG_ATTRS, SRCSET_TAG_ATTRS } from "../../../src/utils/image/htmlSrcAttrs";
 
 // `transform` that wraps every value with `R(...)` so substitutions
 // are visible at a glance and unchanged input is obvious.
@@ -46,13 +46,71 @@ describe("transformResolvableUrlsInHtml — tag coverage", () => {
     assert.equal(transformResolvableUrlsInHtml(html, tag), html);
   });
 
-  it("walks a <picture> with <source> + inner <img>", () => {
+  it("walks a <picture> with <source srcset> + inner <img> (#1275)", () => {
     const html = '<picture><source srcset="hi.webp" type="image/webp"><source src="m.webp"><img src="lo.png" alt="x"></picture>';
     const out = transformResolvableUrlsInHtml(html, tag);
-    // <source srcset> deferred — only `src` rewrites for now
-    assert.match(out, /<source srcset="hi\.webp"/);
+    // <source srcset> now rewritten (was deferred pre-#1275)
+    assert.match(out, /<source srcset="R\(hi\.webp\)"/);
     assert.match(out, /<source src="R\(m\.webp\)"/);
     assert.match(out, /<img src="R\(lo\.png\)"/);
+  });
+});
+
+describe("srcset rewriting (#1275)", () => {
+  it("rewrites a single-candidate <img srcset>", () => {
+    assert.equal(transformResolvableUrlsInHtml('<img srcset="a.png">', tag), '<img srcset="R(a.png)">');
+  });
+
+  it("rewrites every URL in a descriptor list, preserving descriptors", () => {
+    const out = transformResolvableUrlsInHtml('<img src="a.png" srcset="a.png 1x, a@2x.png 2x, a@3x.png 3x">', tag);
+    assert.match(out, /src="R\(a\.png\)"/);
+    assert.match(out, /srcset="R\(a\.png\) 1x, R\(a@2x\.png\) 2x, R\(a@3x\.png\) 3x"/);
+  });
+
+  it("handles width descriptors (480w) and irregular whitespace", () => {
+    const out = transformResolvableUrlsInHtml('<img srcset="  s.jpg 480w ,  m.jpg 800w ">', tag);
+    assert.equal(out, '<img srcset="R(s.jpg) 480w, R(m.jpg) 800w">');
+  });
+
+  it("rewrites <source srcset> inside <picture>", () => {
+    const out = transformResolvableUrlsInHtml('<source srcset="hi.webp 2x" type="image/webp">', tag);
+    assert.equal(out, '<source srcset="R(hi.webp) 2x" type="image/webp">');
+  });
+
+  it("leaves the attribute verbatim when no candidate is transformed (null)", () => {
+    const html = '<img srcset="ext.png 1x, ext@2x.png 2x">';
+    assert.equal(
+      transformResolvableUrlsInHtml(html, () => null),
+      html,
+    );
+  });
+
+  it("does NOT add srcset rewriting to <video> / <audio> (not in SRCSET_TAG_ATTRS)", () => {
+    const html = '<video srcset="x.mp4 1x"></video>';
+    // video is in the outer regex but srcset isn't a video attr;
+    // value left verbatim.
+    assert.equal(transformResolvableUrlsInHtml(html, tag), html);
+  });
+
+  it("rewriteSrcset is pure and standalone", () => {
+    assert.equal(
+      rewriteSrcset("a 1x, b 2x", (url) => `[${url}]`),
+      "[a] 1x, [b] 2x",
+    );
+    assert.equal(
+      rewriteSrcset("solo", (url) => `[${url}]`),
+      "[solo]",
+    );
+    assert.equal(
+      rewriteSrcset("keep 1x", () => null),
+      "keep 1x",
+    );
+  });
+
+  it("SRCSET_TAG_ATTRS keys are a subset of the outer-regex tag set", () => {
+    for (const tagName of Object.keys(SRCSET_TAG_ATTRS)) {
+      assert.ok(tagName in RESOLVABLE_TAG_ATTRS, `${tagName} must already be matched by the outer tag regex`);
+    }
   });
 });
 

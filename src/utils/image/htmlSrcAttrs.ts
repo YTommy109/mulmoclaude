@@ -11,17 +11,16 @@
 // other doesn't. Single helper here, two callers, one tag list — the
 // drift becomes structurally impossible (#1011 Stage B).
 //
-// `srcset` (comma-separated descriptor list) and SVG `<image href>` /
-// CSS `url()` are deliberately out of scope — see the deferred-list
-// comment on `RESOLVABLE_TAG_ATTRS` below.
+// `srcset` is handled by a dedicated split/rewrite pass (it's a
+// comma-separated `url descriptor` list, not a single URL) — see
+// `SRCSET_TAG_ATTRS` + `rewriteSrcset` below. SVG `<image href>` /
+// CSS `url()` remain out of scope — see the deferred-list comment
+// on `RESOLVABLE_TAG_ATTRS` below.
 
 // Tag (lowercased) → URL-bearing attribute(s). Adding a row here
 // extends both Markdown and PDF surfaces simultaneously.
 //
 // Deferred (NOT here):
-//   - `srcset` on `<img>` / `<source>` — comma-separated list with
-//     descriptors (`url 1x, url2 2x`), needs a separate split/rewrite
-//     pass. Tracked under #1011 Stage B follow-up.
 //   - SVG `<image href>` — gap table item #9, low priority per plan
 //     §修正提案 P3-A.
 //   - CSS `url()` in `style=` attributes — gap table item #8, same
@@ -32,6 +31,41 @@ export const RESOLVABLE_TAG_ATTRS: Readonly<Record<string, readonly string[]>> =
   video: ["poster", "src"],
   audio: ["src"],
 };
+
+// `srcset`-bearing attributes (comma-separated `url descriptor`
+// list). Parsed/rewritten by `rewriteSrcset`, NOT the single-URL
+// path. Tag set is a subset of `RESOLVABLE_TAG_ATTRS`'s keys so the
+// outer tag regex already matches them — no alternation change
+// needed (#1275, deferred from #1011 Stage B).
+export const SRCSET_TAG_ATTRS: Readonly<Record<string, readonly string[]>> = {
+  img: ["srcset"],
+  source: ["srcset"],
+};
+
+// Rewrite the URL portion of every candidate in a `srcset` value,
+// preserving descriptors (`1x` / `2x` / `480w`) and leaving the
+// `transform`-returned-null candidates verbatim.
+//
+// Grammar (HTML spec): candidates are comma-separated; within a
+// candidate the URL is the first token and an optional descriptor
+// follows after whitespace. URLs containing commas must be
+// percent-encoded per spec, so a plain comma split is correct for
+// conformant input. Pure string ops — no regex, ReDoS-safe.
+export function rewriteSrcset(value: string, transform: (url: string) => string | null): string {
+  return value
+    .split(",")
+    .map((candidate) => {
+      const trimmed = candidate.trim();
+      if (!trimmed) return candidate;
+      const firstSpace = trimmed.search(/\s/);
+      const url = firstSpace === -1 ? trimmed : trimmed.slice(0, firstSpace);
+      const descriptor = firstSpace === -1 ? "" : trimmed.slice(firstSpace).trim();
+      const replaced = transform(url);
+      const finalUrl = replaced === null ? url : replaced;
+      return descriptor ? `${finalUrl} ${descriptor}` : finalUrl;
+    })
+    .join(", ");
+}
 
 // Outer regex: scan any tag whose name appears in `RESOLVABLE_TAG_ATTRS`,
 // respecting quoted attribute values so `>` inside e.g. `alt="x>y"`
@@ -95,13 +129,20 @@ export function transformResolvableUrlsInHtml(html: string, transform: (url: str
   return html.replace(RESOLVABLE_TAG_OUTER_RE, (tag) => {
     const tagNameMatch = TAG_NAME_RE.exec(tag);
     if (!tagNameMatch) return tag;
-    const resolvableAttrs = RESOLVABLE_TAG_ATTRS[tagNameMatch[1].toLowerCase()];
-    if (!resolvableAttrs) return tag;
-    return tag.replace(ATTR_ITER_RE, (...captures: unknown[]) => replaceAttrIfResolvable(captures, resolvableAttrs, transform));
+    const tagName = tagNameMatch[1].toLowerCase();
+    const resolvableAttrs = RESOLVABLE_TAG_ATTRS[tagName];
+    const srcsetAttrs = SRCSET_TAG_ATTRS[tagName];
+    if (!resolvableAttrs && !srcsetAttrs) return tag;
+    return tag.replace(ATTR_ITER_RE, (...captures: unknown[]) => replaceAttrIfResolvable(captures, resolvableAttrs ?? [], srcsetAttrs ?? [], transform));
   });
 }
 
-function replaceAttrIfResolvable(captures: unknown[], resolvableAttrs: readonly string[], transform: (url: string) => string | null): string {
+function replaceAttrIfResolvable(
+  captures: unknown[],
+  resolvableAttrs: readonly string[],
+  srcsetAttrs: readonly string[],
+  transform: (url: string) => string | null,
+): string {
   const [full, leading, name, eqWithSpaces, , doubleQuoted, singleQuoted, bare] = captures as [
     string,
     string,
@@ -112,11 +153,17 @@ function replaceAttrIfResolvable(captures: unknown[], resolvableAttrs: readonly 
     string | undefined,
     string | undefined,
   ];
-  if (!eqWithSpaces || !resolvableAttrs.includes(name.toLowerCase())) return full;
+  if (!eqWithSpaces) return full;
+  const lowerName = name.toLowerCase();
+  const isSrcset = srcsetAttrs.includes(lowerName);
+  if (!isSrcset && !resolvableAttrs.includes(lowerName)) return full;
   const value = (doubleQuoted ?? singleQuoted ?? bare ?? "").trim();
   if (!value) return full;
-  const replacement = transform(value);
-  if (replacement === null) return full;
+  const replacement = isSrcset ? rewriteSrcset(value, transform) : transform(value);
+  // Single-URL: null means "leave verbatim". srcset: rewriteSrcset
+  // always returns a string (per-candidate nulls handled inside),
+  // and a no-op rewrite equal to the original is also left verbatim.
+  if (replacement === null || replacement === value) return full;
   const quote = doubleQuoted !== undefined ? '"' : singleQuoted !== undefined ? "'" : '"';
   return `${leading}${name}${eqWithSpaces}${quote}${replacement}${quote}`;
 }
