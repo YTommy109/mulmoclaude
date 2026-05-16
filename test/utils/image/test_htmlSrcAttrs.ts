@@ -92,6 +92,47 @@ describe("srcset rewriting (#1275)", () => {
     assert.equal(transformResolvableUrlsInHtml(html, tag), html);
   });
 
+  it("preserves a data: URI candidate (internal commas are NOT split — Codex review)", () => {
+    const dataUri = "data:image/png;base64,iVBORw0KGgoAAAA==";
+    const out = transformResolvableUrlsInHtml(`<img srcset="${dataUri} 1x, local.png 2x">`, tag);
+    // data: candidate stays one token (its base64 comma intact);
+    // only the local candidate's URL is wrapped.
+    assert.equal(out, `<img srcset="R(${dataUri}) 1x, R(local.png) 2x">`);
+  });
+
+  it("data: candidate left verbatim when transform returns null for it", () => {
+    const dataUri = "data:image/png;base64,AAAA,BBBB==";
+    const out = transformResolvableUrlsInHtml(`<img srcset="${dataUri} 2x, keep.png 1x">`, (url) => (url.startsWith("data:") ? null : `R(${url})`));
+    assert.equal(out, `<img srcset="${dataUri} 2x, R(keep.png) 1x">`);
+  });
+
+  it("no-op rewrite preserves the author's whitespace verbatim (CodeRabbit review)", () => {
+    // Irregular spacing + every candidate untouched (transform → null):
+    // the attribute must come back byte-identical, not re-normalised.
+    const html = '<img srcset="a.png   1x ,b.png    2x">';
+    assert.equal(
+      transformResolvableUrlsInHtml(html, () => null),
+      html,
+    );
+  });
+
+  it("rewriteSrcset returns the original string verbatim on a pure no-op", () => {
+    const raw = "a.png   1x ,b.png    2x";
+    assert.equal(
+      rewriteSrcset(raw, () => null),
+      raw,
+    );
+    assert.equal(
+      rewriteSrcset(raw, (url) => url),
+      raw,
+    );
+  });
+
+  it("rewriteSrcset splits data: URIs correctly when standalone", () => {
+    const out = rewriteSrcset("data:image/gif;base64,R0lGOD,AAAA 1x, b.png 2x", (url) => `[${url}]`);
+    assert.equal(out, "[data:image/gif;base64,R0lGOD,AAAA] 1x, [b.png] 2x");
+  });
+
   it("rewriteSrcset is pure and standalone", () => {
     assert.equal(
       rewriteSrcset("a 1x, b 2x", (url) => `[${url}]`),

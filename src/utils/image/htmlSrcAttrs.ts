@@ -42,29 +42,86 @@ export const SRCSET_TAG_ATTRS: Readonly<Record<string, readonly string[]>> = {
   source: ["srcset"],
 };
 
+function isSrcsetWs(char: string): boolean {
+  return char === " " || char === "\t" || char === "\n" || char === "\f" || char === "\r";
+}
+
+interface SrcsetCandidate {
+  url: string;
+  descriptor: string;
+}
+
+function stripTrailingCommas(token: string): string {
+  let end = token.length;
+  while (end > 0 && token[end - 1] === ",") end--;
+  return token.slice(0, end);
+}
+
+function skipWsAndCommas(input: string, from: number): number {
+  let pos = from;
+  while (pos < input.length && (isSrcsetWs(input[pos]) || input[pos] === ",")) pos++;
+  return pos;
+}
+
+// Read one `{ url, descriptor }` candidate starting at `from`.
+// Returns the candidate (or null when only whitespace remained) and
+// the position to resume from.
+function readCandidate(input: string, from: number): { candidate: SrcsetCandidate | null; next: number } {
+  let pos = from;
+  const urlStart = pos;
+  while (pos < input.length && !isSrcsetWs(input[pos])) pos++;
+  const rawUrl = input.slice(urlStart, pos);
+  const url = stripTrailingCommas(rawUrl);
+  if (url.length !== rawUrl.length) {
+    // Trailing comma(s) on the URL run → candidate separator, no
+    // descriptor. (`data:` internal commas are not trailing, so
+    // they stay part of the URL.)
+    return { candidate: url ? { url, descriptor: "" } : null, next: pos };
+  }
+  while (pos < input.length && isSrcsetWs(input[pos])) pos++;
+  const descStart = pos;
+  while (pos < input.length && input[pos] !== ",") pos++;
+  const descriptor = input.slice(descStart, pos).trim();
+  if (pos < input.length && input[pos] === ",") pos++;
+  return { candidate: url ? { url, descriptor } : null, next: pos };
+}
+
+// Split a `srcset` value into candidates per the WHATWG "parse a
+// srcset attribute" boundary rules. A naive `split(",")` corrupts
+// `data:` URIs (their base64 payload contains commas); the spec
+// collects the URL as a run of non-whitespace and treats only
+// *trailing* commas on that run as separators (Codex review). Pure
+// scan, no regex → ReDoS-safe.
+function splitSrcsetCandidates(input: string): SrcsetCandidate[] {
+  const candidates: SrcsetCandidate[] = [];
+  let pos = 0;
+  while (pos < input.length) {
+    pos = skipWsAndCommas(input, pos);
+    if (pos >= input.length) break;
+    const { candidate, next } = readCandidate(input, pos);
+    pos = next;
+    if (candidate) candidates.push(candidate);
+  }
+  return candidates;
+}
+
 // Rewrite the URL portion of every candidate in a `srcset` value,
-// preserving descriptors (`1x` / `2x` / `480w`) and leaving the
-// `transform`-returned-null candidates verbatim.
-//
-// Grammar (HTML spec): candidates are comma-separated; within a
-// candidate the URL is the first token and an optional descriptor
-// follows after whitespace. URLs containing commas must be
-// percent-encoded per spec, so a plain comma split is correct for
-// conformant input. Pure string ops — no regex, ReDoS-safe.
+// preserving descriptors (`1x` / `2x` / `480w`). If no candidate's
+// URL is actually changed (every `transform` returned `null` or the
+// same string), the ORIGINAL value is returned byte-verbatim so a
+// no-op never normalises the author's whitespace (CodeRabbit
+// review). Boundary parsing is `data:`-URI-safe (see
+// `splitSrcsetCandidates`).
 export function rewriteSrcset(value: string, transform: (url: string) => string | null): string {
-  return value
-    .split(",")
-    .map((candidate) => {
-      const trimmed = candidate.trim();
-      if (!trimmed) return candidate;
-      const firstSpace = trimmed.search(/\s/);
-      const url = firstSpace === -1 ? trimmed : trimmed.slice(0, firstSpace);
-      const descriptor = firstSpace === -1 ? "" : trimmed.slice(firstSpace).trim();
-      const replaced = transform(url);
-      const finalUrl = replaced === null ? url : replaced;
-      return descriptor ? `${finalUrl} ${descriptor}` : finalUrl;
-    })
-    .join(", ");
+  const candidates = splitSrcsetCandidates(value);
+  if (candidates.length === 0) return value;
+  let changed = false;
+  const rendered = candidates.map(({ url, descriptor }) => {
+    const replaced = transform(url);
+    const finalUrl = replaced === null || replaced === url ? url : ((changed = true), replaced);
+    return descriptor ? `${finalUrl} ${descriptor}` : finalUrl;
+  });
+  return changed ? rendered.join(", ") : value;
 }
 
 // Outer regex: scan any tag whose name appears in `RESOLVABLE_TAG_ATTRS`,
