@@ -289,6 +289,8 @@ const jaMessages = {
     htmlPreview: "HTML プレビュー",
     pdfPreview: "PDF プレビュー",
     parseError: "パースエラー",
+    editJson: "JSON を編集",
+    jsonEditorLabel: "JSON エディタ",
   },
   filesView: {
     chatPlaceholder: "このファイルについて質問…",

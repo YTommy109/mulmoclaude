@@ -283,6 +283,8 @@ const zhMessages = {
     htmlPreview: "HTML 预览",
     pdfPreview: "PDF 预览",
     parseError: "解析错误",
+    editJson: "编辑 JSON",
+    jsonEditorLabel: "JSON 编辑器",
   },
   filesView: {
     chatPlaceholder: "询问关于此文件的问题…",
