@@ -80,6 +80,11 @@ const esMessages = {
     intraBody:
       'Los plugins "{first}" y "{second}" registran ambos el {dimension} "{key}". "{first}" lo reclamó primero, por lo que el registro de "{second}" se ignora.',
   },
+  optionalDeps: {
+    title: "Dependencia opcional no disponible",
+    notFound: "No se encontró {command} — las funciones relacionadas se han desactivado. Instálalo y reinicia para habilitarlas.",
+    notResponding: "{command} está instalado pero no responde — las funciones relacionadas se han desactivado. Inícialo y reinicia para habilitarlas.",
+  },
   pluginErrorBoundary: {
     title: "El plugin {pkg} se ha bloqueado",
     subtitle: "El plugin no se pudo renderizar. El error se ha registrado en la consola.",

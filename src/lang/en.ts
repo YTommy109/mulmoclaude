@@ -96,6 +96,11 @@ const enMessages = {
     hostBody: 'Plugin "{plugin}" tried to register the {label} key "{key}" but it is reserved by the host. The plugin\'s entry has been dropped.',
     intraBody: 'Plugins "{first}" and "{second}" both register {dimension} "{key}". "{first}" claimed it first, so "{second}"\'s registration is ignored.',
   },
+  optionalDeps: {
+    title: "Optional dependency unavailable",
+    notFound: "{command} not found — related features are disabled. Install it and restart to enable them.",
+    notResponding: "{command} is installed but not responding — related features are disabled. Start it and restart to enable them.",
+  },
   pluginErrorBoundary: {
     title: "Plugin {pkg} crashed",
     subtitle: "The plugin failed to render. The error has been logged to the console.",

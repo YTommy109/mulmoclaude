@@ -46,6 +46,7 @@ import { capturePhotoLocation } from "./workspace/photo-locations/index.js";
 import { createJournalRouter } from "./api/routes/journal.js";
 import { createTranslationRouter } from "./api/routes/translation.js";
 import { announcePluginMetaDiagnostics } from "./plugins/diagnostics.js";
+import { announceOptionalDeps } from "./system/announceOptionalDeps.js";
 import { createChatService } from "@mulmobridge/chat-service";
 import { readSessionJsonl } from "./utils/files/session-io.js";
 import { onSessionEvent, initSessionStore } from "./events/session-store/index.js";
@@ -883,6 +884,12 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // collision detected at module load via log.warn + a system
   // notification.
   await announcePluginMetaDiagnostics();
+
+  // --- Optional host-dependency probe (#1385) ---
+  // Probes docker / ffmpeg / … once, warns (log + bell) for any
+  // missing one so a feature degrading is visible instead of a
+  // later opaque crash. Never throws.
+  await announceOptionalDeps();
 
   // --- Chat socket transport (Phase A of #268) ---
   chatService.attachSocket(httpServer);

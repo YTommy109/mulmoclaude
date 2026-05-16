@@ -41,18 +41,26 @@ function assertClaudeFiles(): void {
   }
 }
 
-export async function isDockerAvailable(): Promise<boolean> {
-  if (env.disableSandbox) return false;
-  if (_dockerEnabled !== null) return _dockerEnabled;
-  assertClaudeFiles();
+/** Pure daemon-liveness probe: `docker ps -q` succeeds only when the
+ *  client is installed AND the daemon is reachable. No config or
+ *  caching concerns — the optional-deps registry owns the PATH check
+ *  and caching; this is just the liveness half. */
+export async function isDockerLive(): Promise<boolean> {
   try {
     await execFileAsync("docker", ["ps", "-q"], {
       timeout: SUBPROCESS_PROBE_TIMEOUT_MS,
     });
-    _dockerEnabled = true;
+    return true;
   } catch {
-    _dockerEnabled = false;
+    return false;
   }
+}
+
+export async function isDockerAvailable(): Promise<boolean> {
+  if (env.disableSandbox) return false;
+  if (_dockerEnabled !== null) return _dockerEnabled;
+  assertClaudeFiles();
+  _dockerEnabled = await isDockerLive();
   return _dockerEnabled;
 }
 

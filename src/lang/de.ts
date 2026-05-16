@@ -76,6 +76,12 @@ const deMessages = {
     intraBody:
       "Die Plugins „{first}“ und „{second}“ registrieren beide {dimension} „{key}“. „{first}“ hat ihn zuerst beansprucht, daher wird die Registrierung von „{second}“ ignoriert.",
   },
+  optionalDeps: {
+    title: "Optionale Abhängigkeit nicht verfügbar",
+    notFound: "{command} nicht gefunden — zugehörige Funktionen wurden deaktiviert. Installieren Sie es und starten Sie neu, um sie zu aktivieren.",
+    notResponding:
+      "{command} ist installiert, antwortet aber nicht — zugehörige Funktionen wurden deaktiviert. Starten Sie es und starten Sie neu, um sie zu aktivieren.",
+  },
   pluginErrorBoundary: {
     title: "Plugin {pkg} ist abgestürzt",
     subtitle: "Das Plugin konnte nicht gerendert werden. Der Fehler wurde in der Konsole protokolliert.",

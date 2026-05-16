@@ -80,6 +80,11 @@ export interface PluginMeta {
    *  live as separate named exports in the plugin's `meta.ts`
    *  because their signatures are plugin-specific. */
   readonly staticChannels?: Readonly<Record<string, string>>;
+  /** Optional host binaries this plugin's features need (ids from
+   *  the optional-deps registry, e.g. `["ffmpeg"]`). When any is
+   *  missing the host warns the user once and the plugin's
+   *  dependency-bound features degrade gracefully — see #1385. */
+  readonly requires?: readonly string[];
 }
 
 /** Substitute `:param` placeholders in a route URL with caller-

@@ -75,6 +75,11 @@ const frMessages = {
     intraBody:
       "Les plugins « {first} » et « {second} » enregistrent tous deux le {dimension} « {key} ». « {first} » l'a réclamé en premier, donc l'enregistrement de « {second} » est ignoré.",
   },
+  optionalDeps: {
+    title: "Dépendance optionnelle indisponible",
+    notFound: "{command} introuvable — les fonctionnalités associées ont été désactivées. Installez-le et redémarrez pour les activer.",
+    notResponding: "{command} est installé mais ne répond pas — les fonctionnalités associées ont été désactivées. Démarrez-le et redémarrez pour les activer.",
+  },
   pluginErrorBoundary: {
     title: "Le plugin {pkg} a planté",
     subtitle: "Le plugin n'a pas pu être affiché. L'erreur a été consignée dans la console.",
