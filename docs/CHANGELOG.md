@@ -10,6 +10,60 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ---
 
+## [0.6.3] - 2026-05-16
+
+Three-day patch centred on the **external skill catalog** (a multi-PR `#1383` / `#1335` track), an **MCP reliability trio**, and **graceful degradation when optional host tools are missing**. Skills are now browsable / star-able / preview-able from a hierarchical catalog that can pull from external Git repos. MCP servers get boot-time preflight, a runtime failure monitor, and catalog-derived error hints. Missing `ffmpeg` / `docker` no longer crash startup — the app degrades and tells you which features are off.
+
+### Highlights
+
+#### External skill catalog (#1383 / #1335)
+- Skills are split into **catalog** (browsable, not in the system prompt) vs **active** (loaded). Star to activate; Preview and Run-once before committing.
+- Catalog can pull skills from **external Git repos** (backend C1, hierarchical UI C2, per-repo Update button C3). Recommended presets seeded, including `obra/superpowers`.
+- `/skills` legend now shows inline category icons; nested preset scanning.
+
+#### MCP reliability trio
+- **Boot-time preflight (#1352)** — catalog-backed MCP servers with missing required config are skipped with a warning instead of spawning a subprocess that fails every call silently.
+- **Runtime failure monitor (#1353)** — a server that fails repeatedly raises a bell notification.
+- **Error hint chip (#1354)** — MCP tool errors in the right sidebar carry a catalog-derived "how to fix" hint.
+
+#### Graceful degradation for optional host dependencies (#1385)
+- Missing `ffmpeg` / `docker` / other optional host tools degrade gracefully (clear notification + affected-feature list) instead of hard-exiting at startup.
+- New `--disable-sandbox` flag plus bundled boolean CLI flags (#1089 / #1397).
+
+#### Multi-day calendar events (#1368)
+- Calendar now renders events that span multiple days.
+
+#### Role-aware empty state
+- A fresh chat shows clickable starter queries tailored to the active role.
+
+#### Investor role gains X (Twitter) access
+- `searchX` / `readXPost` added to the Investor role.
+
+### Added
+- External skill catalog: catalog/active split, Star, Preview, Run-once, external Git repo install + update (#1383, #1335).
+- MCP boot preflight (#1352), runtime failure monitor (#1353), error-hint chip (#1354).
+- Optional-dependency graceful degradation + `--disable-sandbox` / bundled boolean CLI flags (#1385, #1089, #1397).
+- Multi-day calendar events (#1368).
+- Role-aware empty state with clickable starter queries.
+- `searchX` / `readXPost` for the Investor role.
+- `liveIsRunning` session predicate (#1195).
+- Scheduled Claude-free e2e-live workflow (daily 03:00 JST) + expanded fake-echo scenario coverage.
+
+### Changed
+- Dropped `?result=` URL persistence — sessions default to the latest result on load.
+- `helps` model names aligned with the `presentMulmoScript` canonical structure (#1009).
+- `auth-token` persistence across server restarts documented (#1351); ffmpeg prerequisite documented.
+
+### Fixed
+- `presentMulmoScript`: silent beats now advance by duration during Play (#1073); inline error chip + retry on movie-generation failure (#1197).
+- `StackView`: `flex-1` neutralisation scoped to vertical flex only (#1277).
+- CodeRabbit sweep follow-up — starter-query key collision, magic-number / hardcoded-path cleanup, and a pre-existing `@types/which` typecheck break on `main` (#1379 / #1364 / #1371).
+
+### Security
+- MCP boot preflight (#1352) stops half-configured catalog servers from spawning subprocesses that would otherwise fail every tool call silently (401 / missing-credentials), reducing the chance of a misconfigured server being mistaken for a working one.
+
+---
+
 ## [0.6.2] - 2026-05-13
 
 Three-day patch focused on **Settings UX**, **agent control surface**, and **bridge security hardening**. The Settings modal is now a grouped sidebar (4 categories) and exposes a new **Model** tab for tuning Claude's reasoning effort. New built-in plugins (`presentSVG`, `edgar`) and an **Investor** role land alongside a re-shaped preset-skill system (`mc-settings`, `mc-cooking-coach`). All 6 webhook bridges grow rate limiting + trust-proxy hardening, and several reflected-XSS paths are closed.

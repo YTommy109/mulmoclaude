@@ -171,6 +171,7 @@ const enMessages = {
   },
   settingsModal: {
     title: "Settings",
+    version: "MulmoClaude v{version}",
     tabs: {
       gemini: "Gemini API Key",
       tools: "Allowed Tools",
@@ -1112,6 +1113,7 @@ const enMessages = {
     catalogAddRepoSuggestions: "Suggested repositories",
     catalogUninstallRepo: "Uninstall repository",
     catalogUpdateRepo: "Update repository (re-fetch latest)",
+    catalogRepoOpenLink: "Open repository on GitHub (new tab)",
     catalogUninstallConfirm: "Uninstall this repository? Skills you already starred stay in your active list.",
     catalogRepoInstalling: "Installing…",
     catalogRepoEmpty: "No skills found in this repository.",

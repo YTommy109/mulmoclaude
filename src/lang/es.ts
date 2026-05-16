@@ -155,6 +155,7 @@ const esMessages = {
   },
   settingsModal: {
     title: "Ajustes",
+    version: "MulmoClaude v{version}",
     tabs: {
       gemini: "Clave API de Gemini",
       tools: "Herramientas permitidas",
@@ -1124,6 +1125,7 @@ const esMessages = {
     catalogAddRepoSuggestions: "Repositorios sugeridos",
     catalogUninstallRepo: "Desinstalar repositorio",
     catalogUpdateRepo: "Actualizar repositorio (volver a obtener lo último)",
+    catalogRepoOpenLink: "Abrir el repositorio en GitHub (nueva pestaña)",
     catalogUninstallConfirm: "¿Desinstalar este repositorio? Las skills que ya marcaste con estrella permanecen en tu lista activa.",
     catalogRepoInstalling: "Instalando…",
     catalogRepoEmpty: "No se encontraron skills en este repositorio.",
