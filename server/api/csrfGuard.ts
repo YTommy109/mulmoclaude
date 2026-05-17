@@ -38,6 +38,14 @@ const LOCALHOST_HOSTNAMES: ReadonlySet<string> = new Set([
   "::1",
 ]);
 
+// Browsers send `Origin: null` for opaque contexts — sandboxed
+// iframes, file:// pages, data: URLs, some cross-origin redirects.
+// None of those are trustworthy origins, so we reject the literal
+// "null" string unconditionally, even if the operator typoed it
+// into the trusted-origins allowlist (defense-in-depth: an opt-in
+// allowlist should never become a downgrade vector).
+const NULL_ORIGIN_LITERAL = "null";
+
 // Decide whether an Origin header value points at the same
 // machine. Accepts scheme + hostname + optional port; rejects
 // `null`, empty, malformed, subdomain-lookalikes, non-loopback
@@ -63,10 +71,16 @@ export function isLocalhostOrigin(origin: string): boolean {
 // startup-time validator because that would turn a typo into a
 // boot-blocking error.
 //
+// Hardening: the literal string "null" is rejected unconditionally,
+// even if listed. Sandboxed / file:// / data: pages all surface as
+// `Origin: null` and allowlisting that would let any opaque context
+// reach state-changing endpoints.
+//
 // Exported alongside `isLocalhostOrigin` so unit tests can pin the
 // pure check without spinning up Express.
 export function isTrustedOrigin(origin: string, trustedOrigins: readonly string[]): boolean {
   if (!origin) return false;
+  if (origin === NULL_ORIGIN_LITERAL) return false;
   return trustedOrigins.includes(origin);
 }
 
@@ -78,37 +92,40 @@ export function isAllowedOrigin(origin: string, trustedOrigins: readonly string[
   return isLocalhostOrigin(origin) || isTrustedOrigin(origin, trustedOrigins);
 }
 
-// Express middleware. Safe-method requests (GET / HEAD / OPTIONS)
-// pass through unchecked — they have no side effects per RFC 9110,
-// and OPTIONS is required for CORS preflights anyway (even though
-// we no longer advertise CORS, browsers still issue the preflight
-// before some requests). Non-safe requests need an Origin header
-// that resolves to localhost / trusted-list OR no Origin header at
-// all.
-export function requireSameOrigin(req: Request, res: Response, next: NextFunction): void {
-  if (SAFE_METHODS.has(req.method)) {
-    next();
-    return;
-  }
-  const { origin } = req.headers;
-  if (typeof origin !== "string") {
-    // Missing Origin: non-browser caller (curl, MCP, Node HTTP
-    // libraries). Trusted because the server binds to 127.0.0.1.
-    next();
-    return;
-  }
-  if (isAllowedOrigin(origin, env.trustedOrigins)) {
-    next();
-    return;
-  }
-  // Security-relevant event: an upstream caller just hit us from
-  // off-localhost with a state-changing method. Log it at warn so
-  // operators see it in both the console and the rotating file
-  // log even if the attack is otherwise silent on the wire.
-  log.warn("csrf", "rejected cross-origin request", {
-    origin,
-    method: req.method,
-    path: req.path,
-  });
-  forbidden(res, "Forbidden: cross-origin request rejected");
+// Factory: build an Express middleware bound to a specific
+// trusted-origins list. The exported `requireSameOrigin` is the
+// env-bound instance; tests use this factory to drive the middleware
+// with arbitrary allowlists without re-importing the env module.
+export function requireSameOriginWith(trustedOrigins: readonly string[]) {
+  return function requireSameOrigin(req: Request, res: Response, next: NextFunction): void {
+    if (SAFE_METHODS.has(req.method)) {
+      next();
+      return;
+    }
+    const { origin } = req.headers;
+    if (typeof origin !== "string") {
+      // Missing Origin: non-browser caller (curl, MCP, Node HTTP
+      // libraries). Trusted because the server binds to 127.0.0.1.
+      next();
+      return;
+    }
+    if (isAllowedOrigin(origin, trustedOrigins)) {
+      next();
+      return;
+    }
+    // Security-relevant event: an upstream caller just hit us from
+    // off-localhost with a state-changing method. Log it at warn so
+    // operators see it in both the console and the rotating file
+    // log even if the attack is otherwise silent on the wire.
+    log.warn("csrf", "rejected cross-origin request", {
+      origin,
+      method: req.method,
+      path: req.path,
+    });
+    forbidden(res, "Forbidden: cross-origin request rejected");
+  };
 }
+
+// Env-bound middleware: the instance Express actually `app.use`s.
+// Picks up `MULMOCLAUDE_TRUSTED_ORIGINS` once at module load.
+export const requireSameOrigin = requireSameOriginWith(env.trustedOrigins);

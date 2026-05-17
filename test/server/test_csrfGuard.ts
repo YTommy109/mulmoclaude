@@ -9,7 +9,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { Request, Response, NextFunction } from "express";
-import { isAllowedOrigin, isLocalhostOrigin, isTrustedOrigin, requireSameOrigin } from "../../server/api/csrfGuard.js";
+import { isAllowedOrigin, isLocalhostOrigin, isTrustedOrigin, requireSameOrigin, requireSameOriginWith } from "../../server/api/csrfGuard.js";
 
 // --- isLocalhostOrigin: the pure check --------------------------
 
@@ -302,13 +302,14 @@ describe("isTrustedOrigin — verbatim allowlist match", () => {
     assert.equal(isTrustedOrigin("http://192.168.1.42:5173", ["http://192.168.1.42:5173/"]), false);
   });
 
-  it("rejects empty / null-string Origins regardless of list", () => {
+  it("rejects empty and `null` Origins regardless of list", () => {
+    // Defense-in-depth: even if an operator typoed `null` into the
+    // allowlist, we reject it. Browsers send `Origin: null` for
+    // opaque contexts (sandboxed iframes, file://, data:); honoring
+    // that string would turn the opt-in allowlist into a downgrade
+    // vector. See `NULL_ORIGIN_LITERAL` in server/api/csrfGuard.ts.
     assert.equal(isTrustedOrigin("", trusted), false);
-    assert.equal(isTrustedOrigin("null", [...trusted, "null"]), true);
-    // Note: even if a misguided operator lists the literal string
-    // "null" in MULMOCLAUDE_TRUSTED_ORIGINS, the middleware would
-    // still allow it — that's the user's explicit choice. We do
-    // NOT special-case the string here; the docs warn against it.
+    assert.equal(isTrustedOrigin("null", [...trusted, "null"]), false);
   });
 
   it("treats an empty allowlist as a no-op", () => {
@@ -345,5 +346,111 @@ describe("isAllowedOrigin — composes localhost + trusted", () => {
     // (e.g. rejecting subdomain-lookalikes at env-parse time) shows
     // up as a deliberate test update rather than a silent regression.
     assert.equal(isAllowedOrigin("http://localhost.evil.com", ["http://localhost.evil.com"]), true);
+  });
+
+  it("still rejects `null` Origin even when listed", () => {
+    // `isAllowedOrigin` composes localhost + trusted, so the
+    // unconditional `null` reject in `isTrustedOrigin` propagates.
+    // `null` is also not a valid loopback per `isLocalhostOrigin`,
+    // so neither branch admits it.
+    assert.equal(isAllowedOrigin("null", ["null"]), false);
+  });
+});
+
+// --- requireSameOriginWith: factory + middleware integration -----
+
+// The exported `requireSameOrigin` binds to `env.trustedOrigins` at
+// module load (which is frozen and parsed once). The factory lets
+// us exercise the middleware path with arbitrary allowlists, which
+// is the actual wiring used by Express.
+
+function runWith(trustedOrigins: readonly string[], req: FakeReq, res: FakeRes): { nextCalled: boolean; statusCode: number; body: unknown } {
+  let nextCalled = false;
+  const next: NextFunction = () => {
+    nextCalled = true;
+  };
+  const middleware = requireSameOriginWith(trustedOrigins);
+  middleware(req as unknown as Request, res as unknown as Response, next);
+  return {
+    nextCalled,
+    statusCode: res.statusCode,
+    body: res.body,
+  };
+}
+
+describe("requireSameOriginWith — trusted-origins allowlist wiring", () => {
+  const LAN_IPAD = "http://192.168.1.42:5173";
+  const trusted = [LAN_IPAD] as const;
+
+  it("permits POST from a listed LAN origin", () => {
+    const { nextCalled, statusCode } = runWith(trusted, makeReq("POST", LAN_IPAD), makeRes());
+    assert.equal(nextCalled, true);
+    assert.equal(statusCode, 200);
+  });
+
+  it("still permits POST from localhost regardless of list contents", () => {
+    const { nextCalled } = runWith(trusted, makeReq("POST", "http://localhost:5173"), makeRes());
+    assert.equal(nextCalled, true);
+  });
+
+  it("blocks POST from an Origin that is NOT in the list", () => {
+    const { nextCalled, statusCode } = runWith(trusted, makeReq("POST", "http://192.168.1.99:5173"), makeRes());
+    assert.equal(nextCalled, false);
+    assert.equal(statusCode, 403);
+  });
+
+  it("blocks POST from `null` Origin even when listed", () => {
+    // Hardening invariant: an opaque-context request must NEVER be
+    // admitted, regardless of operator misconfiguration.
+    const { nextCalled, statusCode } = runWith(["null"], makeReq("POST", "null"), makeRes());
+    assert.equal(nextCalled, false);
+    assert.equal(statusCode, 403);
+  });
+
+  it("permits POST with NO Origin header regardless of list", () => {
+    // Missing Origin = non-browser caller. Unchanged from the
+    // pre-allowlist behaviour, but pinned here so a future refactor
+    // can't silently regress it.
+    const { nextCalled } = runWith(trusted, makeReq("POST"), makeRes());
+    assert.equal(nextCalled, true);
+  });
+
+  it("lets GET through regardless of list (safe method)", () => {
+    const { nextCalled } = runWith([], makeReq("GET", "http://evil.example"), makeRes());
+    assert.equal(nextCalled, true);
+  });
+
+  it("empty allowlist preserves the original localhost-only behaviour", () => {
+    // Regression guard: the default env (no `MULMOCLAUDE_TRUSTED_ORIGINS`
+    // set) must behave identically to the pre-allowlist middleware.
+    assert.equal(runWith([], makeReq("POST", "http://localhost:5173"), makeRes()).nextCalled, true);
+    assert.equal(runWith([], makeReq("POST", "http://192.168.1.42:5173"), makeRes()).nextCalled, false);
+  });
+});
+
+describe("requireSameOrigin (env-bound export) — smoke test", () => {
+  // We can't easily mutate `env.trustedOrigins` between tests (it's
+  // frozen at module load), so we only smoke-test that the default
+  // export is the same shape as the factory output. The actual
+  // env-parsing logic is covered in test/server/test_env.ts and the
+  // composition is covered by the factory tests above.
+
+  it("is a function with the (req, res, next) middleware shape", () => {
+    assert.equal(typeof requireSameOrigin, "function");
+    assert.equal(requireSameOrigin.length, 3);
+  });
+
+  it("default-bound instance still rejects a foreign POST", () => {
+    // With `MULMOCLAUDE_TRUSTED_ORIGINS` unset in the test process,
+    // this exercises the production wire-up — anything off-localhost
+    // is blocked, just like before the allowlist was introduced.
+    const res = makeRes();
+    let nextCalled = false;
+    const next: NextFunction = () => {
+      nextCalled = true;
+    };
+    requireSameOrigin(makeReq("POST", "http://evil.example") as unknown as Request, res as unknown as Response, next);
+    assert.equal(nextCalled, false);
+    assert.equal(res.statusCode, 403);
   });
 });

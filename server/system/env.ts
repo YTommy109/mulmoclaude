@@ -128,7 +128,10 @@ export const env = Object.freeze({
   // LAN-IP Origin and the localhost-only check would otherwise fail.
   // Values are matched verbatim against the request `Origin` header
   // (scheme + host + port, no trailing slash). Comma-separated for
-  // multiple entries.
+  // multiple entries. The literal string `null` is rejected even if
+  // listed — browsers send it for sandboxed iframes / file:// /
+  // data: pages, none of which are trustworthy origins. See
+  // `NULL_ORIGIN_LITERAL` in server/api/csrfGuard.ts.
   trustedOrigins: asCsv(process.env.MULMOCLAUDE_TRUSTED_ORIGINS),
 
   // MCP subprocess: set by the parent server when spawning
