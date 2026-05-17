@@ -28,3 +28,9 @@ export const TOPIC_MEMORY_MANAGEMENT = load("memory-management-topic.md");
 export const ATOMIC_MEMORY_MANAGEMENT = load("memory-management-atomic.md");
 export const NEWS_CONCIERGE_PROMPT = load("news-concierge.md");
 export const SANDBOX_TOOLS_HINT = load("sandbox-tools.md");
+
+// Static blocks emitted behind a runtime guard (the guard / message
+// wrapping stays in prompt.ts; only the prose lives here). No trailing
+// newline — these reproduce `[…].join("\n")` outputs verbatim.
+export const JOURNAL_POINTER = load("journal-pointer.md");
+export const SOURCES_CONTEXT = load("sources-context.md");

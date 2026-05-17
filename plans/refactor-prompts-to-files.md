@@ -34,11 +34,36 @@ its exported symbols and logic.
 | `NEWS_CONCIERGE_PROMPT` | ~419–442 | `server/prompts/system/news-concierge.md` |
 | `SANDBOX_TOOLS_HINT` | ~593–602 | `server/prompts/system/sandbox-tools.md` |
 
+### Added in the same PR (guard-then-static-block functions)
+
+Follow-up to the user's request to continue in this PR. Two more
+**fully-static** blocks that were emitted behind a runtime guard —
+the guard / message-wrap stays in the function, only the prose moves:
+
+| Source (`server/agent/prompt.ts`) | New file |
+|---|---|
+| `prependJournalPointer` `<journal-context>` block | `server/prompts/system/journal-pointer.md` |
+| `buildSourcesContext` return body | `server/prompts/system/sources-context.md` |
+
+Both have **no trailing newline** (they reproduce `[…].join("\n")`
+output verbatim). `prependJournalPointer` becomes
+`[JOURNAL_POINTER, "", message].join("\n")`; `buildSourcesContext`
+returns `SOURCES_CONTEXT` after its `existsSync` guards. Byte-identity
+vs the pre-refactor output verified directly.
+
 ### Out of scope
 
 - Interpolated hints (`MCP_PREFIX_HINT`, timezone hint, date line):
   1–3 lines each, `${}` interpolation belongs next to the logic —
   **stay in code**.
+- Single-sentence static fragments inside `buildMemoryContext`
+  (the `config/helps/index.md` pointer line) and `buildWikiContext`
+  (3 mutually-exclusive guard-branch sentences, one branch is
+  `${summary}`-dynamic). Extracting a one-sentence fragment to its
+  own `.md` makes the code *harder* to follow (open a file to read a
+  sentence) and would fragment `buildWikiContext` into tiny files
+  plus a leftover dynamic branch — net-negative for the
+  maintainability goal. **Deliberately left inline.**
 - `server/workspace/helps/*.md` — workspace seed template, leave as-is.
 - `server/workspace/skills-preset/**` — workspace seed template,
   leave as-is.
