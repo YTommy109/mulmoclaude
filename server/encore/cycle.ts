@@ -209,7 +209,10 @@ function normaliseOneRecord(raw: Record<string, unknown>): TargetRecord {
 function normaliseRecords(raw: Record<string, unknown>): Record<string, TargetRecord> {
   const out: Record<string, TargetRecord> = {};
   for (const [targetId, value] of Object.entries(raw)) {
-    if (!value || typeof value !== "object") continue;
+    // `typeof [] === "object"` would otherwise accept a malformed
+    // `records.<targetId>: []` and normalise it to `{}`, silently
+    // swallowing the malformed shape. Reject arrays here.
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
     out[targetId] = normaliseOneRecord(value as Record<string, unknown>);
   }
   return out;
