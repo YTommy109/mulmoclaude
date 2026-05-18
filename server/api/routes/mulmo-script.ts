@@ -27,7 +27,8 @@ import { mulmoScriptSchema, type MulmoBeat, type MulmoImagePromptMedia } from "@
 import { slugify } from "../../utils/slug.js";
 import { resolveWithinRoot } from "../../utils/files/safe.js";
 import { errorMessage } from "../../utils/errors.js";
-import { badRequest, notFound, serverError } from "../../utils/httpError.js";
+import { badRequest, notFound, sendError, serverError } from "../../utils/httpError.js";
+import { depStatus } from "../../system/optionalDeps.js";
 import { getOptionalStringQuery, getSessionQuery } from "../../utils/request.js";
 import { log } from "../../system/logger/index.js";
 import { validateUpdateBeatBody, validateUpdateScriptBody } from "./mulmoScriptValidate.js";
@@ -37,6 +38,20 @@ import { publishGeneration } from "../../events/session-store/index.js";
 import { GENERATION_KINDS } from "../../../src/types/events.js";
 
 const router = Router();
+
+// mulmocast shells out to ffmpeg for movie / beat rendering. When
+// ffmpeg is absent the optional-deps probe (#1385) marks it
+// unavailable; intercept here with a clear 503 instead of letting
+// the library throw an opaque spawn ENOENT mid-stream. `undefined`
+// means the boot probe hasn't completed — assume available so a
+// brief startup window never blocks a render.
+function ffmpegUnavailable(res: Response): boolean {
+  if (depStatus("ffmpeg")?.available === false) {
+    sendError(res, 503, "ffmpeg is not installed — movie and beat rendering are unavailable. Install ffmpeg and restart the server.");
+    return true;
+  }
+  return false;
+}
 const storiesDir = path.resolve(WORKSPACE_PATHS.stories);
 
 // The downloadMovie handler expects "stories/<rel>" (historical
@@ -591,6 +606,7 @@ bindRoute(router, API_ROUTES.mulmoScript.renderBeat, async (req: Request<object,
     badRequest(res, "filePath and beatIndex are required");
     return;
   }
+  if (ffmpegUnavailable(res)) return;
 
   const key = String(beatIndex);
   publishGeneration(chatSessionId, GENERATION_KINDS.beatImage, filePath, key, false);
@@ -692,6 +708,8 @@ bindRoute(router, API_ROUTES.mulmoScript.generateMovie, async (req: Request<obje
     badRequest(res, "filePath is required");
     return;
   }
+
+  if (ffmpegUnavailable(res)) return;
 
   const absoluteFilePath = resolveStoryPath(filePath, res);
   if (!absoluteFilePath) return;

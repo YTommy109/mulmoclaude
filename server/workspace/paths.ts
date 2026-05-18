@@ -12,10 +12,9 @@
 //   artifacts/       LLM-generated (charts, html, images, documents,
 //                    spreadsheets, stories, news)
 //
-// Existing workspaces need the one-shot `scripts/migrate-workspace-284.ts`
-// script run before first startup with this code. `server/workspace.ts`
-// detects the pre-migration layout at boot and aborts with a pointer
-// to the script.
+// Pre-#284 workspaces (with `chat/`, `summaries/`, `memory.md` at the
+// root) continue to boot — the modern layout above is what new
+// installs use, but the older directory names are still accepted.
 //
 // When adding a new top-level directory: add the name to the
 // `WORKSPACE_DIRS` record below. The absolute path is derived
@@ -154,6 +153,16 @@ const HOST_WORKSPACE_DIRS = {
   // so server code references it through `WORKSPACE_PATHS.claudeSkills`
   // instead of inlining the string.
   claudeSkills: ".claude/skills",
+  // Skill catalog root (#1335). Holds preset skills shipped with the
+  // launcher (`catalog/preset/`) and — in later PRs — git-synced
+  // Anthropic skills (`catalog/anthropic/`) and community URL-install
+  // entries (`catalog/community/`). Entries here are catalog-only:
+  // visible to UI / tooling but NOT discovered by Claude Code's
+  // slash-command resolver. An entry becomes active by being copied
+  // (or symlinked) into `.claude/skills/`. The catalog vs active
+  // split keeps unused skills out of the system prompt.
+  skillsCatalog: "data/skills/catalog",
+  skillsCatalogPreset: "data/skills/catalog/preset",
   // Nested subdirs inside a top-level grouping. Kept here (rather
   // than module-local constants) when multiple modules need to
   // reference the same nested path — e.g. wiki/pages/ is used by

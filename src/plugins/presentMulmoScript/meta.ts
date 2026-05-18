@@ -49,4 +49,8 @@ export const META = definePluginMeta({
     downloadMovie: { method: "GET", path: "/download-movie" },
   },
   mcpDispatch: "save",
+  // mulmocast shells out to ffmpeg for movie/beat rendering. Without
+  // it the editor still works but render/generate-movie degrades —
+  // the host warns once at boot (#1385).
+  requires: ["ffmpeg"],
 });

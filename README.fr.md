@@ -36,7 +36,15 @@ yarn dev
 
 Ouvrez [http://localhost:5173](http://localhost:5173). C'est tout — commencez à discuter.
 
-> **Prérequis** : Node.js 20+, [Claude Code CLI](https://claude.ai/code) installé et authentifié.
+### Prérequis
+
+- **Node.js 20+** — environnement d'exécution
+- **[Claude Code CLI](https://claude.ai/code)** — installé et authentifié. Exécutez `claude` une fois pour terminer l'OAuth
+- **ffmpeg** — requis pour la génération de vidéos. À ignorer si vous ne générez pas de vidéos
+  - macOS : `brew install ffmpeg`
+  - Linux : `apt install ffmpeg`
+  - Windows : `winget install Gyan.FFmpeg`
+- **Docker Desktop** (optionnel mais recommandé) — active le mode bac à sable. Voir [Installer Docker Desktop](#installer-docker-desktop) ci-dessous
 
 > **Langue de l'interface** : 8 langues sont prises en charge (anglais, japonais, chinois, coréen, espagnol, portugais (BR), français, allemand). Par défaut, la langue est détectée automatiquement à partir de la langue du navigateur / du système d'exploitation. Pour l'indiquer explicitement, définissez `VITE_LOCALE=fr` dans `.env`. La locale est choisie au moment de la compilation / du développement ; redémarrez `yarn dev` après l'avoir modifiée. Consultez [`docs/developer.md`](docs/developer.md#i18n-vue-i18n) pour savoir comment ajouter des chaînes de caractères.
 
@@ -156,7 +164,7 @@ Lorsque le bac à sable Docker est actif sur macOS, les identifiants sont géré
 
 Si Docker n'est pas installé, l'application affiche un bandeau d'avertissement et continue de fonctionner sans isolation.
 
-> **Mode débogage** : pour exécuter sans le bac à sable même si Docker est installé, définissez `DISABLE_SANDBOX=1` avant de démarrer le serveur.
+> **Mode débogage** : pour exécuter sans le bac à sable même si Docker est installé, définissez `DISABLE_SANDBOX=1` avant de démarrer le serveur, ou passez le drapeau CLI `--disable-sandbox` (`yarn dev --disable-sandbox` / `npx mulmoclaude --disable-sandbox` ; fonctionne sous Windows PowerShell).
 >
 > **Historique des appels d'outils** : définissez `PERSIST_TOOL_CALLS=1` pour enregistrer aussi les événements `tool_call` (avec leurs `args`) dans le jsonl de session aux côtés de `tool_result`. Désactivé par défaut car les `args` peuvent être volumineux et contenir des octets de charge utile (images en base64, JSON MulmoScript) que vous ne souhaitez pas écrire sur disque ; utile pour déboguer après un rafraîchissement de page ou un redémarrage du serveur. Voir [issue #1096](https://github.com/receptron/mulmoclaude/issues/1096).
 
@@ -224,7 +232,12 @@ Le **mode bac à sable Docker** par défaut de MulmoClaude isole Claude Code dan
 1. **Désactiver le bac à sable pour cette session** :
 
    ```bash
+   # env-var form (any shell supporting VAR=value)
    DISABLE_SANDBOX=1 yarn dev
+
+   # or the equivalent --disable-sandbox CLI flag (Windows PowerShell / npx / IDE run configs)
+   yarn dev --disable-sandbox
+   npx mulmoclaude --disable-sandbox
    ```
 
    La CLI Claude s'exécute avec votre véritable `~/.claude/` et tout se résout nativement. Utilisez ceci lorsque vous avez confiance dans les prompts que vous êtes sur le point d'envoyer — le bac à sable reste la valeur par défaut recommandée pour un travail non fiable / exploratoire.
@@ -516,7 +529,7 @@ Toutes les données sont stockées sous forme de fichiers en clair dans le répe
                          images/, news/, spreadsheets/, stories/
 ```
 
-Consultez [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) pour la référence complète. Les espaces de travail antérieurs à #284 doivent exécuter la migration ponctuelle (`yarn tsx scripts/migrate-workspace-284.ts --dry-run` → `--execute`) une seule fois avant que le serveur ne démarre.
+Consultez [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) pour la référence complète.
 
 ### Explorateur de tâches
 

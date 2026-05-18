@@ -158,8 +158,20 @@
             <div v-else-if="selectedResult" class="h-full overflow-auto p-6">
               <pre class="text-sm text-gray-700 whitespace-pre-wrap">{{ JSON.stringify(selectedResult, null, 2) }}</pre>
             </div>
-            <div v-else class="flex items-center justify-center h-full text-gray-600">
-              <p>{{ t("app.startConversation") }}</p>
+            <div v-else class="flex flex-col items-center justify-center h-full px-6 text-center">
+              <span class="material-icons text-5xl text-gray-400 mb-2" aria-hidden="true">{{ sessionRoleIcon }}</span>
+              <p class="text-lg font-medium text-gray-700 mb-4">{{ sessionRoleName }}</p>
+              <div v-if="sessionRoleQueries.length > 0" class="flex flex-wrap gap-2 justify-center max-w-xl">
+                <button
+                  v-for="(query, queryIdx) in sessionRoleQueries"
+                  :key="`${queryIdx}-${query}`"
+                  class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full px-4 py-2 border border-gray-300 transition-colors"
+                  @click="sendMessage(query)"
+                >
+                  {{ query }}
+                </button>
+              </div>
+              <p v-else class="text-sm text-gray-500">{{ t("app.startConversation") }}</p>
             </div>
           </template>
           <StackView
@@ -222,6 +234,20 @@
           <div v-else-if="currentPage === 'debug'" class="h-full flex items-center justify-center text-sm text-gray-500">
             Debug plugin is not loaded. Make sure @mulmoclaude/debug-plugin is built and registered as a preset.
           </div>
+          <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
+          <!-- Encore chat-on-mount page. The tick never calls
+               chat.start; instead its notifications point here
+               (/encore?pendingId=<uuid>). When the user clicks the
+               bell, the View mounts, dispatches resolveNotification
+               (which starts the chat server-side), and redirects to
+               /chat/<chatId>. The user never sees this page —
+               transient (~300ms). Same literal-fallback policy as
+               debug above; the page's strings stay out of the
+               8-locale i18n bundle since the user can't read them in
+               normal use. -->
+          <component :is="encoreViewComponent" v-else-if="currentPage === 'encore' && encoreViewComponent" />
+          <!-- eslint-disable @intlify/vue-i18n/no-raw-text -- encore chat-on-mount page is a transient redirect, not a user-facing surface. -->
+          <div v-else-if="currentPage === 'encore'" class="h-full flex items-center justify-center text-sm text-gray-500">Encore is not loaded.</div>
           <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
         </div>
 
@@ -328,7 +354,6 @@ import { useGlobalImageErrorRepair } from "./composables/useImageErrorRepair";
 import { useMergedSessions } from "./composables/useMergedSessions";
 import { useLayoutMode } from "./composables/useLayoutMode";
 import { useSidePanelVisible } from "./composables/useSidePanelVisible";
-import { useSelectedResult } from "./composables/useSelectedResult";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
 import { useCurrentRole } from "./composables/useCurrentRole";
@@ -443,10 +468,11 @@ const { geminiAvailable, sandboxEnabled, cpuLoadRatio, fetchHealth } = useHealth
 const { activeSession, toolResults, sidebarResults, isRunning, activeSessionRunning, statusMessage, toolCallHistory, activeSessionCount, unreadCount } =
   useSessionDerived({ sessionMap, currentSessionId, sessions });
 
-const { selectedResultUuid } = useSelectedResult({
-  activeSession,
-  sessionMap,
-  currentSessionId,
+const selectedResultUuid = computed<string | null>({
+  get: () => activeSession.value?.selectedResultUuid ?? null,
+  set: (val) => {
+    if (activeSession.value) activeSession.value.selectedResultUuid = val;
+  },
 });
 
 // Display name and icon of the role the active session was created
@@ -661,6 +687,11 @@ const selectedResult = computed(() => toolResults.value.find((result) => result.
 // the /debug branch in the template lights up without a refresh.
 const debugViewComponent = computed(() => getPlugin("manageDebug")?.viewComponent ?? null);
 
+// Encore plugin View — built-in plugin under src/plugins/encore/.
+// Mounted at /encore — the chat-on-mount page after a notification-bell click
+// (View.vue dispatches resolveNotification on mount and redirects).
+const encoreViewComponent = computed(() => getPlugin(TOOL_NAMES.manageEncore)?.viewComponent ?? null);
+
 // Google Maps API key from `AppSettings.googleMapsApiKey`. Fetched
 // once on mount and refreshed whenever Settings reports a save.
 //
@@ -855,7 +886,6 @@ async function loadSession(sessionId: string) {
     id: sessionId,
     entries: response.data,
     defaultRoleId: roles.value[0]?.id ?? "",
-    urlResult: typeof route.query.result === "string" ? route.query.result : null,
     serverSummary: sessions.value.find((summary) => summary.id === sessionId),
     nowIso: new Date().toISOString(),
   });
