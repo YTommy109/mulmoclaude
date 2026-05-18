@@ -66,14 +66,33 @@ const toolDefinition: ToolDefinition = {
         enum: [...LLM_ENCORE_KINDS],
         description: "Which Encore action to perform.",
       },
+      // Per-field type hints stay sparse — the handler validates the
+      // rest of the args per-kind with Zod (see
+      // server/encore/dispatch.ts), and a strict JSON-schema validator
+      // can't express cross-field rules anyway. We declare ONLY the
+      // fields where the LLM most often produces a structurally wrong
+      // shape (and the resulting Zod error reads as a "schema problem"
+      // that the LLM tends to loop on rather than self-correct).
+      //
+      // `values` (markStepDone / recordValues): the LLM commonly
+      // JSON.stringify's it or wraps a single field-map in an array
+      // (`"[{\"laps\": 0}]"`). Declaring `type: "object"` gives the LLM
+      // a strong "this is an object literal" hint at compose time.
+      values: {
+        type: "object",
+        description:
+          'Flat field-map keyed by field name — e.g. `{"amount": 5000, "paidOn": "2026-05-16"}`. ' +
+          "Do NOT pass a JSON-encoded string. Do NOT wrap in an array. Do NOT nest by targetId. " +
+          "One call per target; the `values` are for that single target.",
+        additionalProperties: true,
+      },
     },
     required: ["kind"],
-    // The handler validates the rest of the args per-kind with Zod
-    // (see server/encore/dispatch.ts). Keeping the top-level schema
-    // minimal lets Claude compose any shape and surface structural
-    // errors via the help-file-pointer messages, rather than fighting
-    // a strict JSON-schema validator that doesn't know about
-    // cross-field rules.
+    // The remaining args (`obligationId` / `cycleId` / `targetId` /
+    // `stepId` / `pendingId` / `body` / `range`) are short strings
+    // or scalars the LLM gets right most of the time; documenting
+    // them in the help file is cheaper than a JSON-schema constraint
+    // that doesn't know which fields apply per kind.
     additionalProperties: true,
   },
 };
