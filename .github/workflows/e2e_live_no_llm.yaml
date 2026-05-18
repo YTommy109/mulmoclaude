@@ -84,6 +84,8 @@ jobs:
           # (server/agent/backend/fake-echo.ts), lazy-loaded via
           # dynamic import so production never touches this code.
           MULMOCLAUDE_FAKE_AGENT: "1"
+          # Override exe.dev fork default (8000) to upstream standard
+          VITE_PORT: "5173"
         run: |
           yarn dev > dev-server.log 2>&1 &
           echo $! > dev-server.pid
