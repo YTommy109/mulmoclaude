@@ -366,18 +366,60 @@ The preview pane reuses plugin views — clicking a `config/scheduler/items.json
 
 ## /skills — workspace skills list
 
-```
-┌─[<SkillsManager>]──────────────────────────────────────────────────┐
-│ Add skill form (modal)                                             │
-│                                                                    │
-│ ┌─Skill row──────────────────────────────────────────────────────┐ │
-│ │  📜 daily-briefing-finance                                     │ │
-│ │      "Fetch top 3 articles, cluster, write briefing"           │ │
-│ │                                              ⏵ run  ✏ edit  ✕ │ │
-│ └────────────────────────────────────────────────────────────────┘ │
-│ ...                                                                │
+Two-pane layout (`<ManageSkillsView>`): left sidebar = two collapsible
+sections, **Active** (skills in `.claude/skills/`, discovered by Claude
+Code and loaded into the prompt) and **Catalog** (launcher-managed
+presets the user can browse / ★ star / ▶ run once without bloating the
+prompt). Right pane renders the selected skill's `SKILL.md` (active) or
+the preset/external detail with Star / Run once actions (catalog).
+Within Active, provenance (System `mc-` bundled / Project / User) is a
+per-row badge, not its own group; only **Project** skills expose
+Edit/Delete, the rest are read-only. Collapse state per section is
+persisted to `localStorage` (`skills:sectionCollapsed`); both sections
+open by default. The Catalog section nests, under the **Presets**
+sub-list, one collapsible subgroup per installed **external repo**
+(#1383 PR-C) — repo header has a count + uninstall button, per-repo
+collapse persisted to `skills:repoCollapsed`. A **+ Add skill
+repository** button opens a modal (GitHub URL + optional subpath, plus
+one-click seed suggestions). External rows behave like preset rows
+(select → right pane Star / Run once); uninstalling a repo keeps any
+already-starred skills in Active (star = fork).
+
+```text
+┌─[<ManageSkillsView>]───────────────────────────────────────────────┐
+│ Skills                              N available · click · Run = /…│
+│ ┌─Sidebar (w-64)──────────┬─Detail pane──────────────────────────┐ │
+│ │ ▼ ACTIVE            11  │  <skill name>                         │ │
+│ │ ├ [skill-item-foo] 🏠   │  description                          │ │
+│ │ ├ [skill-item-bar] 📁   │                            ✏ Edit  ✕ ⏵│ │
+│ │ └ [skill-item-baz] 📁   │  rendered SKILL.md (marked + sanitize)│ │
+│ │ ▼ CATALOG            4  │                                       │ │
+│ │   Presets               │  (catalog row → preset/external detail│ │
+│ │ ├ [skill-catalog-…] ★   │   with ★ Star / ▶ Run once)           │ │
+│ │ ▼ owner/repo (n) [⟳][🗑] │                                       │ │
+│ │ ├ [skill-catalog-…] ☁   │                                       │ │
+│ │ [+ Add skill repository]│                                       │ │
+│ └─────────────────────────┴───────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────┘
 ```
+
+Testids: `skill-section-{key}` / `skill-section-toggle-{key}` /
+`skill-section-count-{key}` for the two section headers
+(`active` / `catalog`); `skill-item-{name}` per active row;
+`skill-catalog-item-{id}` per catalog row — `id` = preset slug, or
+`{repoId}/{skillFolder}` for external (stable identity, not the lossy
+derived slug);
+`skill-catalog-empty` when the catalog has no presets;
+`skill-catalog-repo-{repoId}` / `skill-catalog-repo-toggle-{repoId}` /
+`skill-catalog-repo-update-{repoId}` (re-fetch upstream) /
+`skill-catalog-repo-uninstall-{repoId}` per external-repo subgroup;
+`skill-catalog-add-repo` + `skill-add-repo-modal` /
+`skill-add-repo-url` / `skill-add-repo-subpath` /
+`skill-add-repo-submit` / `skill-add-repo-error` /
+`skill-add-repo-suggestion-{url}` (click = prefill the URL/subpath
+form + expand its description, NOT install) /
+`skill-add-repo-suggestion-link-{url}` (opens the repo on GitHub in a
+new tab) for the add-repo modal.
 
 ## /roles — role configuration
 

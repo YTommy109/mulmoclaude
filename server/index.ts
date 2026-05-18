@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import agentRoutes, { startChat } from "./api/routes/agent.js";
 import accountingRoutes from "./api/routes/accounting.js";
+import encoreRoutes from "./api/routes/encore.js";
 import photoLocationsRoutes from "./api/routes/photo-locations.js";
 import schedulerRoutes from "./api/routes/scheduler.js";
 import sessionsRoutes, { loadAllSessions } from "./api/routes/sessions.js";
@@ -36,8 +37,9 @@ import { loadPresetPlugins } from "./plugins/preset-loader.js";
 import { registerRuntimePlugins } from "./plugins/runtime-registry.js";
 import { makePluginRuntime } from "./plugins/runtime.js";
 import { MCP_PLUGIN_NAMES } from "./agent/plugin-names.js";
-import { createNotificationsRouter } from "./api/routes/notifications.js";
-import { startLegacyAdapters } from "./notifier/legacy-adapters.js";
+import { setActiveBackend } from "./agent/backend/index.js";
+import { fakeEchoBackend } from "./agent/backend/fake-echo.js";
+import { startMacosReminderAdapter } from "./notifier/macosReminderAdapter.js";
 import notifierRoutes from "./api/routes/notifier.js";
 import { initNotifier } from "./notifier/engine.js";
 import { registerSaveAttachmentHook } from "./utils/files/attachment-store.js";
@@ -45,6 +47,8 @@ import { capturePhotoLocation } from "./workspace/photo-locations/index.js";
 import { createJournalRouter } from "./api/routes/journal.js";
 import { createTranslationRouter } from "./api/routes/translation.js";
 import { announcePluginMetaDiagnostics } from "./plugins/diagnostics.js";
+import { announceOptionalDeps } from "./system/announceOptionalDeps.js";
+import { APP_VERSION } from "./system/appVersion.js";
 import { createChatService } from "@mulmobridge/chat-service";
 import { readSessionJsonl } from "./utils/files/session-io.js";
 import { onSessionEvent, initSessionStore } from "./events/session-store/index.js";
@@ -56,6 +60,8 @@ import { WORKSPACE_PATHS } from "./workspace/paths.js";
 import { serverError } from "./utils/httpError.js";
 import { makeUuid } from "./utils/id.js";
 import { mcpToolsRouter, mcpTools, isMcpToolEnabled } from "./agent/mcp-tools/index.js";
+import { preflightUserServers, logPreflightResult } from "./agent/mcpPreflight.js";
+import { loadMcpConfig } from "./system/config.js";
 import { initWorkspace, workspacePath } from "./workspace/workspace.js";
 import { runMemoryMigrationOnce } from "./workspace/memory/run.js";
 import { runTopicMigrationOnce } from "./workspace/memory/topic-run.js";
@@ -86,12 +92,13 @@ import { logBackgroundError } from "./utils/logBackgroundError.js";
 import { errorMessage } from "./utils/errors.js";
 import { registerScheduledSkills } from "./workspace/skills/scheduler.js";
 import { registerUserTasks } from "./workspace/skills/user-tasks.js";
+import { registerEncoreTick } from "./encore/boot.js";
 import { API_ROUTES } from "../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../src/types/events.js";
 import { SESSION_ORIGINS } from "../src/types/session.js";
 import { buildHtmlPreviewCsp } from "../src/utils/html/previewCsp.js";
 import { readAndInjectHtmlArtifact } from "./utils/html/htmlArtifactSplicer.js";
-import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS, STARTUP_FAILURE_FORCE_EXIT_MS } from "./utils/time.js";
+import { ONE_SECOND_MS, ONE_MINUTE_MS, ONE_HOUR_MS, STARTUP_FAILURE_FORCE_EXIT_MS, FATAL_LOG_FLUSH_MS } from "./utils/time.js";
 import { isPortFree, findAvailablePort, MAX_PORT_PROBES } from "./utils/port.mjs";
 import { SCHEDULE_TYPES, MISSED_RUN_POLICIES } from "@receptron/task-scheduler";
 
@@ -101,6 +108,46 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const debugMode = process.argv.includes("--debug");
+
+// Global crash diagnostics (#1364). These handlers log loudly so a
+// fatal failure is triagable, then EXIT — keeping the loop running
+// after an uncaught exception is process-unsafe per the Node docs
+// (invariants may already be broken). The launcher / supervisor
+// (Electron wrapper, systemd, etc.) is responsible for restart.
+//
+// The canonical failure this PR set out to fix — missing `claude`
+// on PATH crashing the server via spawn's `error` event — is now
+// caught at the local boundary in `server/agent/backend/claude-code.ts`
+// (an explicit `error` listener turns ENOENT into an AgentEvent).
+// These handlers are the BACKSTOP for anything we missed, not a
+// substitute for local error handling. (Codex review on #1364.)
+//
+// `process.exit(1)` is non-zero so supervisors that branch on exit
+// code treat the bounce as an error condition.
+process.on("uncaughtException", (err) => {
+  log.error("uncaughtException", err instanceof Error ? err.message : String(err), {
+    stack: err instanceof Error ? err.stack : undefined,
+  });
+  // Tiny grace so the log line flushes to disk before we exit.
+  setTimeout(() => process.exit(1), FATAL_LOG_FLUSH_MS);
+});
+process.on("unhandledRejection", (reason) => {
+  log.error("unhandledRejection", reason instanceof Error ? reason.message : String(reason), {
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+  setTimeout(() => process.exit(1), FATAL_LOG_FLUSH_MS);
+});
+
+// Test-seam: CI runs without a Claude CLI / API key set the
+// MULMOCLAUDE_FAKE_AGENT env var, which swaps in an echo-stub
+// backend so the chat flow still completes. Decided once at boot;
+// the orchestrator reads the active backend with zero per-call
+// overhead. Production callers never trip this branch (no runtime
+// import-time cost beyond the small fake-echo module itself).
+if (process.env.MULMOCLAUDE_FAKE_AGENT === "1") {
+  setActiveBackend(fakeEchoBackend);
+  log.info("agent", "MULMOCLAUDE_FAKE_AGENT=1 — active backend = fake-echo");
+}
 
 initWorkspace();
 
@@ -210,7 +257,16 @@ app.use("/api", (req, res, next) => {
     next();
     return;
   }
-  if (req.method === "GET" && RUNTIME_PLUGIN_ASSET_PATH_RE.test(req.path)) {
+  if ((req.method === "GET" || req.method === "HEAD") && RUNTIME_PLUGIN_ASSET_PATH_RE.test(req.path)) {
+    // HEAD is bypassed for the same reason as GET: the frontend
+    // runtime-plugin loader HEAD-probes `dist/vue.js` to distinguish
+    // "no Vue bundle (404, server-only plugin)" from real load
+    // failures before `import()`-ing the asset (#1273 follow-up).
+    // That probe is a raw `fetch`, not the bearer-attaching `apiGet`,
+    // and the actual `import()` itself can't attach Authorization
+    // either — so the auth-bypass must cover both verbs or every
+    // runtime plugin's Vue View silently downgrades to a
+    // definition-only entry (401 → "unexpected status" → no view).
     next();
     return;
   }
@@ -513,6 +569,7 @@ app.get(API_ROUTES.health, (_req: Request, res: Response) => {
   const cores = cpus().length;
   res.json({
     status: "OK",
+    version: APP_VERSION,
     geminiAvailable: isGeminiAvailable(),
     sandboxEnabled,
     cpu: { load1, cores },
@@ -540,6 +597,7 @@ app.get(API_ROUTES.sandbox, (_req: Request, res: Response) => {
 // the `/api` literal into each `router.post(API_ROUTES.…)` call.
 app.use(agentRoutes);
 app.use(accountingRoutes);
+app.use(encoreRoutes);
 app.use(photoLocationsRoutes);
 // todosRoutes removed (#1145) — todo is now a runtime plugin
 // (`@mulmoclaude/todo-plugin`); the dispatch route is generated by
@@ -644,7 +702,6 @@ app.use(chatService.router);
 // `startRuntimeServices` has it. Calls that arrive before fill-in
 // (impossible in practice — the HTTP server isn't listening yet)
 // would no-op on publish but still queue the bridge push.
-app.use(createNotificationsRouter());
 app.use(notifierRoutes);
 app.use(createJournalRouter());
 app.use(createTranslationRouter());
@@ -759,6 +816,29 @@ function logMcpStatus(): void {
     const names = disabledMcpTools.map((toolDef) => `${toolDef.definition.name} (${(toolDef.requiredEnv ?? []).join(", ")})`).join(", ");
     log.info("mcp", "Unavailable (missing env)", { tools: names });
   }
+  logExternalMcpPreflight();
+}
+
+// External MCP servers (the `mcp.json` ones — Notion / GitHub /…)
+// get a separate preflight pass that mirrors the built-in
+// `Available / Unavailable` summary above. Servers with catalog
+// entries whose `required: true` fields are unset are excluded from
+// the config handed to Claude Code (filtered inside
+// `prepareUserServers`); this boot-time log gives the operator one
+// clear startup signal (#1352).
+function logExternalMcpPreflight(): void {
+  try {
+    const userMcpRaw = loadMcpConfig().mcpServers;
+    const preflight = preflightUserServers(userMcpRaw);
+    logPreflightResult(preflight, "boot");
+  } catch (err) {
+    // Best-effort: a broken mcp.json shouldn't take down boot. The
+    // per-agent-run path will still attempt the preflight and surface
+    // any genuine issue when the user actually starts a chat.
+    log.warn("mcp", "preflight at boot failed; will retry per-agent-run", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 function maybeForceJournalRun(): void {
@@ -798,11 +878,9 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // is forwarded in here so the rest of `startRuntimeServices` can
   // share the same instance.
 
-  // --- Legacy adapters (bridge + macOS Reminder push) ---
-  // Subscribe in-process to the engine so any `notifier.publish` —
-  // legacy wrapper or plugin-runtime — triggers the same fan-out the
-  // legacy `publishNotification()` did inline before PR 4.
-  startLegacyAdapters({ pushToBridge: chatService.pushToBridge });
+  // macOS Reminder adapter wiring lives in the `app.listen` callback,
+  // alongside `initNotifier`, so it's subscribed before the first
+  // await opens a publish-can-fire-but-no-one's-listening window.
 
   // --- Plugin META aggregator diagnostics ---
   // After the notifier engine is initialized so the wrapper has a
@@ -810,6 +888,12 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // collision detected at module load via log.warn + a system
   // notification.
   await announcePluginMetaDiagnostics();
+
+  // --- Optional host-dependency probe (#1385) ---
+  // Probes docker / ffmpeg / … once, warns (log + bell) for any
+  // missing one so a feature degrading is visible instead of a
+  // later opaque crash. Never throws.
+  await announceOptionalDeps();
 
   // --- Chat socket transport (Phase A of #268) ---
   chatService.attachSocket(httpServer);
@@ -1018,6 +1102,8 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
     })
     .catch(logBackgroundError("user-tasks", "failed to register user tasks"));
 
+  registerEncoreTick(taskManager);
+
   taskManager.start();
 
   maybeForceJournalRun();
@@ -1114,6 +1200,14 @@ process.on("SIGTERM", () => {
     initNotifier({
       publish: (channel, payload) => earlyPubsub.publish(channel, payload),
     });
+    // Subscribe the macOS Reminder side-channel BEFORE the first
+    // await below — `initNotifier` opens the engine to publishes,
+    // and any boot-time diagnostic that lands during the
+    // `.server-port` write / `startRuntimeServices` setup would
+    // otherwise miss the Reminder fan-out (CodeRabbit review on
+    // PR #1358). The adapter is sync + no-op outside darwin, so
+    // wiring it here costs nothing.
+    startMacosReminderAdapter();
 
     // Publish the actually-bound port so the hook script can
     // address us — the requested PORT may have walked forward

@@ -36,7 +36,15 @@ yarn dev
 
 Öffnen Sie [http://localhost:5173](http://localhost:5173). Das war's — beginnen Sie mit dem Chat.
 
-> **Voraussetzungen**: Node.js 20+, [Claude Code CLI](https://claude.ai/code) installiert und authentifiziert.
+### Voraussetzungen
+
+- **Node.js 20+** — Laufzeitumgebung
+- **[Claude Code CLI](https://claude.ai/code)** — installiert und authentifiziert. Führen Sie `claude` einmal aus, um das OAuth abzuschließen
+- **ffmpeg** — für die Videogenerierung erforderlich. Kann übersprungen werden, wenn Sie keine Videos erzeugen
+  - macOS: `brew install ffmpeg`
+  - Linux: `apt install ffmpeg`
+  - Windows: `winget install Gyan.FFmpeg`
+- **Docker Desktop** (optional, aber empfohlen) — aktiviert den Sandbox-Modus. Siehe [Docker Desktop installieren](#docker-desktop-installieren) unten
 
 > **UI-Sprache**: 8 Sprachen werden unterstützt (Englisch, Japanisch, Chinesisch, Koreanisch, Spanisch, Portugiesisch (BR), Französisch, Deutsch). Standardmäßig wird die Sprache automatisch aus der Browser- / Betriebssystemsprache erkannt. Um sie explizit festzulegen, setzen Sie `VITE_LOCALE=de` in `.env`. Die Locale wird zur Build-/Dev-Zeit ausgewählt; starten Sie `yarn dev` nach einer Änderung neu. Siehe [`docs/developer.md`](docs/developer.md#i18n-vue-i18n) zum Hinzufügen von Strings.
 
@@ -154,7 +162,7 @@ Wenn die Docker-Sandbox auf macOS aktiv ist, werden Anmeldeinformationen automat
 
 Wenn Docker nicht installiert ist, zeigt die App einen Warnhinweis an und funktioniert weiterhin ohne Sandboxing.
 
-> **Debug-Modus**: Um auch bei installiertem Docker ohne Sandbox zu laufen, setzen Sie `DISABLE_SANDBOX=1` vor dem Start des Servers.
+> **Debug-Modus**: Um auch bei installiertem Docker ohne Sandbox zu laufen, setzen Sie `DISABLE_SANDBOX=1` vor dem Start des Servers, oder übergeben Sie das CLI-Flag `--disable-sandbox` (`yarn dev --disable-sandbox` / `npx mulmoclaude --disable-sandbox`; funktioniert unter Windows PowerShell).
 >
 > **Tool-Call-Historie**: Setzen Sie `PERSIST_TOOL_CALLS=1`, damit `tool_call`-Ereignisse (inklusive `args`) zusätzlich zu `tool_result` im Sitzungs-jsonl protokolliert werden. Standardmäßig aus, weil `args` sehr groß werden und Payload-Bytes (Base64-Bilder, MulmoScript-JSON) enthalten können, die Sie nicht auf der Festplatte erwarten würden; nützlich zum Debuggen nach einem Seitenrefresh oder Server-Neustart. Siehe [Issue #1096](https://github.com/receptron/mulmoclaude/issues/1096).
 
@@ -225,7 +233,12 @@ Der Standard-**Docker-Sandbox-Modus** von MulmoClaude isoliert Claude Code aus S
 1. **Deaktivieren Sie die Sandbox für diese Sitzung**:
 
    ```bash
+   # env-var form (any shell supporting VAR=value)
    DISABLE_SANDBOX=1 yarn dev
+
+   # or the equivalent --disable-sandbox CLI flag (Windows PowerShell / npx / IDE run configs)
+   yarn dev --disable-sandbox
+   npx mulmoclaude --disable-sandbox
    ```
 
    Die Claude CLI läuft mit Ihrem echten `~/.claude/` und alles wird nativ aufgelöst. Nutzen Sie dies, wenn Sie den Prompts vertrauen, die Sie senden werden — die Sandbox bleibt der empfohlene Standard für nicht vertrauenswürdige / exploratorische Arbeit.
@@ -517,7 +530,7 @@ Alle Daten werden als einfache Dateien im Workspace-Verzeichnis gespeichert, gru
                          images/, news/, spreadsheets/, stories/
 ```
 
-Siehe [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) für die vollständige Referenz. Workspaces vor #284 müssen einmalig die Migration (`yarn tsx scripts/migrate-workspace-284.ts --dry-run` → `--execute`) ausführen, bevor der Server startet.
+Siehe [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) für die vollständige Referenz.
 
 ### Todo-Explorer
 
