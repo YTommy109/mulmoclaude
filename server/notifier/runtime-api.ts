@@ -17,7 +17,7 @@
 // into gui-chat-protocol so the cast goes away.
 
 import type { PluginRuntime } from "gui-chat-protocol";
-import type { NotifierLifecycle, NotifierSeverity } from "./types.js";
+import type { NotifierEntry, NotifierLifecycle, NotifierSeverity } from "./types.js";
 import type { TasksRuntimeApi } from "../plugins/runtime-tasks-api.js";
 import type { ChatRuntimeApi } from "../plugins/runtime-chat-api.js";
 
@@ -88,6 +88,19 @@ export interface NotifierRuntimeApi {
    *  plugin's id (e.g. via a future leak) silently can't dismiss it.
    *  Internally backed by `engine.clearForPlugin(pluginPkg, id)`. */
   clear: (id: string) => Promise<void>;
+  /** Point lookup for an active entry the caller owns. Returns the
+   *  entry, or `undefined` when the id is unknown OR belongs to
+   *  another plugin (same isolation contract as `clear`).
+   *
+   *  Use this to detect ghost-bell ids — entries the plugin
+   *  published whose bell was dismissed via the bell UI or wiped
+   *  by a crash. A reconciler that calls `update` on a ghost id
+   *  gets a silent no-op back (the bell is gone, the patch has
+   *  nothing to land on), so without this check the plugin's
+   *  ticket store would falsely converge to "in sync" and the bell
+   *  would never come back. Encore's reconciler relies on the
+   *  engine equivalent (`engine.get`) for the same purpose. */
+  get: (id: string) => Promise<NotifierEntry | undefined>;
 }
 
 /** The runtime shape MulmoClaude actually provides — the

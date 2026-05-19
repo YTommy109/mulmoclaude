@@ -638,6 +638,44 @@ describe("Todo plugin — priority-alert notifications", () => {
     assert.equal(after[0].title, beforeEntry.title, "idempotent reconcile must not rewrite the title");
   });
 
+  it("ghost-bell recovery: out-of-band clear → next mutation re-publishes a fresh entry", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    // Regression for the Codex CHANGES REQUESTED ghost-id finding.
+    // Simulates the user dismissing the bell via the bell UI: we
+    // call `engine.clear` directly to wipe the active entry while
+    // leaving the plugin's ticket file untouched. The next
+    // reconcile (triggered by any mutation) must detect the ghost
+    // via `notifier.get`, drop the stale ticket, and re-publish a
+    // fresh entry from Phase 2. Without the get-based check, the
+    // bell would stay gone forever — `notifier.update` would
+    // silently no-op on the dead id and the ticket would lie about
+    // being in sync.
+    const plugin = await load();
+    await plugin.execute({}, { kind: "itemCreate", text: "Ghost recovery", priority: "urgent" });
+    const [seed] = await notifierEngine.listFor(PKG_NAME);
+    assert.ok(seed);
+    const seedId = seed.id;
+
+    // Dismiss the bell out-of-band, matching what the bell UI's
+    // "clear" button does (engine-level clear, not plugin-routed).
+    const { clear: hostClear } = await import("../../server/notifier/engine.js");
+    await hostClear(seedId);
+    assert.equal((await notifierEngine.listFor(PKG_NAME)).length, 0, "bell must be gone after out-of-band clear");
+
+    // Any subsequent reconcile pass should rebuild. Trigger one
+    // via a no-op-ish mutation (label change) that flows through
+    // handleUi → reconcileNotifications.
+    await plugin.execute({}, { kind: "itemPatch", id: seed.pluginData && (seed.pluginData as { todoId?: string }).todoId, labels: ["alive"] });
+
+    const after = await notifierEngine.listFor(PKG_NAME);
+    assert.equal(after.length, 1, "ghost-recovery must re-publish exactly one fresh bell");
+    assert.notEqual(after[0].id, seedId, "the new entry must have a fresh notificationId");
+    assert.equal(after[0].title, "Ghost recovery");
+  });
+
   it("oversize note is clamped to the engine's body cap (no silent validation rejection)", async (ctx) => {
     if (!existsSync(PLUGIN_DIST_INDEX)) {
       ctx.skip("dist not built");

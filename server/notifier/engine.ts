@@ -459,6 +459,25 @@ export async function updateForPlugin<TPluginData = unknown>(
   });
 }
 
+/** Plugin-scoped point lookup. Returns the entry by id, but only if
+ *  it belongs to the caller's plugin; otherwise undefined. Used by
+ *  runtime plugins to detect ghost-bell ids (entry was dismissed
+ *  out-of-band via the bell UI or wiped by a crash) so the
+ *  reconciler can fall back to a fresh publish instead of
+ *  rewriting a ticket as if a silent-no-op update succeeded.
+ *
+ *  Cross-plugin reads return undefined for isolation — same
+ *  property as `clearForPlugin` / `updateForPlugin`. The plugin
+ *  can't distinguish "id never existed" from "belongs to another
+ *  plugin" from the caller side, which is the intended behaviour. */
+export async function getForPlugin(pluginPkg: string, entryId: string): Promise<NotifierEntry | undefined> {
+  const state = await loadActive(activeFilePath);
+  const entry = state.entries[entryId];
+  if (!entry) return undefined;
+  if (entry.pluginPkg !== pluginPkg) return undefined;
+  return entry;
+}
+
 /** Plugin-scoped clear. Same as `clear` but no-ops if the entry's
  *  `pluginPkg` doesn't match the caller's. Used by the per-plugin
  *  `runtime.notifier.clear` so a plugin can't dismiss another

@@ -9,6 +9,7 @@ import {
   cancel,
   clearForPlugin,
   updateForPlugin,
+  getForPlugin,
   get,
   listFor,
   listAll,
@@ -721,5 +722,38 @@ describe("updateForPlugin (in-place state refresh)", () => {
     const [terminal] = await listHistory();
     assert.equal(terminal.id, id);
     assert.equal(terminal.title, "t2", "history records the LAST seen title before clear");
+  });
+});
+
+describe("getForPlugin (scoped point lookup)", () => {
+  it("returns the entry when caller owns it", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "mine" });
+    const entry = await getForPlugin("@scope/owner", id);
+    assert.ok(entry);
+    assert.equal(entry.id, id);
+    assert.equal(entry.title, "mine");
+  });
+
+  it("returns undefined for an unknown id (ghost bell)", async () => {
+    const entry = await getForPlugin("@scope/owner", "00000000-0000-0000-0000-000000000000");
+    assert.equal(entry, undefined);
+  });
+
+  it("returns undefined when the entry belongs to another plugin (isolation)", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/a", severity: "info", title: "ours" });
+    // Probe from another plugin — must not be readable, same shape
+    // as clearForPlugin/updateForPlugin isolation.
+    const fromStranger = await getForPlugin("@scope/b", id);
+    assert.equal(fromStranger, undefined, "cross-plugin lookups must come back as undefined");
+    // Owner can still see it.
+    const fromOwner = await getForPlugin("@scope/a", id);
+    assert.ok(fromOwner, "owner read must succeed");
+  });
+
+  it("returns undefined for an entry that was just cleared (ghost detection works post-clear)", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "doomed" });
+    assert.ok(await getForPlugin("@scope/owner", id), "alive before clear");
+    await clearForPlugin("@scope/owner", id);
+    assert.equal(await getForPlugin("@scope/owner", id), undefined, "absent after clear");
   });
 });

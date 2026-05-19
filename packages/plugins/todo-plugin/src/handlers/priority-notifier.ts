@@ -27,12 +27,12 @@
 //     here: the user resolved the obligation and the audit trail
 //     reads as "you completed this".
 //
-// Ghost-ticket recovery (host bell deleted out-of-band while ticket
-// survives) is NOT implemented: Encore uses `engine.get(id)` for
-// that, which a runtime plugin can't reach. If the user dismisses
-// via the bell UI, the next reconcile sees no drift and leaves the
-// (now phantom) ticket alone. To force a re-publish: toggle the
-// item's priority off and back on.
+// Ghost-ticket recovery: when the host bell is deleted out-of-band
+// while the ticket survives (user dismissed via bell UI, crash
+// truncated active.json), the reconciler calls `notifier.get` on
+// the recorded notificationId, finds nothing, drops the ticket,
+// and lets Phase 2 republish a fresh entry. Same pattern Encore
+// uses via `engine.get` (`server/encore/notifier.ts:bellExists`).
 
 import type { FileOps } from "gui-chat-protocol";
 import type { TodoItem, TodoPriority } from "../types";
@@ -74,6 +74,13 @@ export interface PriorityNotifierApi {
     },
   ): Promise<void>;
   clear(id: string): Promise<void>;
+  /** Returns a truthy entry when the bell still exists and belongs
+   *  to this plugin, otherwise undefined. Used for ghost-bell
+   *  detection: a ticket whose `notificationId` no longer resolves
+   *  here means the bell was wiped (user dismissed via UI, crash
+   *  truncated active.json) and reconcile should re-publish rather
+   *  than `update` (which would silently no-op). */
+  get(id: string): Promise<unknown | undefined>;
 }
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -240,20 +247,23 @@ async function safeUpdate(
   try {
     await notifier.update(notificationId, patch);
     // `notifier.update` is silent on three engine-level no-ops:
-    //   1. unknown id (ghost bell — user dismissed via UI),
-    //   2. cross-plugin id (structurally impossible here — every id
-    //      we hold came from our own `notifier.publish`),
-    //   3. merged-shape validation failure (engine's
-    //      `validatePublishInput` rejects it).
-    // (1) is the documented ghost-bell limitation: we can't detect
-    // it without `engine.get` and we don't ship that on the
-    // runtime API. (2) can't happen by construction. (3) cannot
-    // happen either: title is clamped to TITLE_MAX, body to
-    // BODY_MAX, severity is always urgent/nudge, navigateTarget
-    // is the constant "/todos", and lifecycle is action — every
-    // field is constructed to pass validation. So a non-throwing
-    // call means the bell was updated (or it was a ghost-bell
-    // no-op which we accept).
+    //   1. unknown id (ghost bell),
+    //   2. cross-plugin id,
+    //   3. merged-shape validation failure.
+    // Each is either caught upstream or structurally impossible by
+    // the time we reach this call:
+    //   - (1) is filtered by the `notifier.get` ghost-check in
+    //     `reconcilePriorityNotifications` BEFORE this function is
+    //     invoked, so the entry was alive at check-time. A TOCTOU
+    //     race could in theory dismiss it between check and update;
+    //     the worst case is the next reconcile catches it and
+    //     drops the now-ghost ticket for Phase-2 republish.
+    //   - (2) can't happen by construction: every id we hold came
+    //     from our own `notifier.publish`.
+    //   - (3) can't happen either: title is clamped to TITLE_MAX,
+    //     body to BODY_MAX, severity is always urgent/nudge,
+    //     navigateTarget is "/todos", and lifecycle is action.
+    // So a non-throwing call means the bell really did update.
     return true;
   } catch (err) {
     // Caller MUST consult the return value — committing a ticket
@@ -313,6 +323,22 @@ export async function reconcilePriorityNotifications(items: TodoItem[], notifier
         delete ticketsFile.tickets[todoId];
         dirty = true;
       }
+      continue;
+    }
+
+    // Ghost-bell check: if the host no longer has this entry (user
+    // dismissed via the bell UI, or a crash wiped active.json),
+    // `notifier.update` would silently no-op and our ticket would
+    // converge to a fake "in-sync" state — the bell would never
+    // come back. Drop the ticket here so Phase 2's "publish for
+    // unticketed notifiable item" branch re-fires fresh, same
+    // shape Encore uses (`server/encore/reconcile.ts`'s
+    // `refreshGhostTicket`). Codex CHANGES REQUESTED, PR #1451.
+    const bellAlive = (await notifier.get(ticket.notificationId)) !== undefined;
+    if (!bellAlive) {
+      log?.warn("priority reconcile: ghost ticket dropped; Phase 2 will re-publish", { notificationId: ticket.notificationId, todoId });
+      delete ticketsFile.tickets[todoId];
+      dirty = true;
       continue;
     }
 
