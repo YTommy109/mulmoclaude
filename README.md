@@ -8,6 +8,8 @@
 
 **English** · [日本語](README.ja.md) · [简体中文](README.zh.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Português (BR)](README.pt-BR.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
 
+> **[How AI-Native Applications Should Be Built](MANIFEST.md)** — the architecture, UX, and protocol thesis behind MulmoClaude.
+
 GUI-chat with Claude Code — long-term memory, rich visual output, sandboxed execution, and remote access from anywhere.
 
 **Long-term memory**: a built-in personal wiki — inspired by Andrej Karpathy's idea of giving an LLM a notebook that grows over time — gives Claude **persistent knowledge** that builds with every conversation.
