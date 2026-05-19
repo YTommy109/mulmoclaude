@@ -1,4 +1,4 @@
-import { dirname, join } from "path";
+import { basename, dirname, join } from "path";
 import { homedir, tmpdir } from "os";
 import { createRequire } from "node:module";
 import type { Role } from "../../src/config/roles.js";
@@ -408,11 +408,12 @@ export interface McpConfigPaths {
   argPath: string;
 }
 
-// `sessionId` reaches a filesystem path here. Strip anything that
-// isn't a plain id char so a crafted value can't inject `../` or a
-// path separator and escape the session dir (CodeQL js/path-injection).
+// `sessionId` reaches a filesystem path here. `basename` strips any
+// directory components (the recognised path-traversal barrier — a
+// crafted `../../x` collapses to `x`); the char-strip then removes
+// any residual non-id chars (CodeQL js/path-injection).
 function safeSessionSegment(sessionId: string): string {
-  return sessionId.replace(/[^A-Za-z0-9_-]/g, "_");
+  return basename(sessionId).replace(/[^A-Za-z0-9_-]/g, "_");
 }
 
 export function resolveMcpConfigPaths(opts: { workspacePath: string; sessionId: string; useDocker: boolean }): McpConfigPaths {

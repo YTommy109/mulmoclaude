@@ -199,12 +199,13 @@ describe("resolveMcpConfigPaths", () => {
     const evil = "../../etc/pwn";
     for (const useDocker of [true, false]) {
       const paths = resolveMcpConfigPaths({ workspacePath: "/ws", sessionId: evil, useDocker });
-      // No traversal / separators survive into either derived path.
+      // basename collapses the traversal to "pwn"; nothing of the
+      // crafted prefix survives into either derived path.
       for (const derivedPath of [paths.hostPath, paths.argPath]) {
         assert.ok(!derivedPath.includes(".."), `traversal leaked into ${derivedPath}`);
-        assert.ok(!derivedPath.includes(`mcp-${evil}`), `raw sessionId leaked into ${derivedPath}`);
+        assert.ok(!derivedPath.includes("etc"), `path component leaked into ${derivedPath}`);
+        assert.ok(derivedPath.includes("mcp-pwn.json"), `expected sanitized segment, got ${derivedPath}`);
       }
-      assert.ok(paths.hostPath.includes("etc_pwn"), "expected separators replaced in segment");
     }
   });
 });
