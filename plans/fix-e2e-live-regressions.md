@@ -160,12 +160,13 @@ PR #1430 でロール分割が入ったが、 `mc-manage-skills` は skill prese
 - [x] worktree 作成 + deps install
 - [x] 初版 plans コミット (`797c7d04`)
 - [x] codex-cross-review iter-1 (plans) — 3 findings 適用 (`9ff8834d`)
-- [x] L-ERR fix — `startGuaranteedNewSession` 置換 (`24abb8e6`)
+- [x] L-ERR race fix — `startGuaranteedNewSession` 置換 (`24abb8e6`)
 - [x] L-15b fix — testLabel lowercase (`1481a204`)
 - [x] (誤判断) `--disallowedTools Skill` を commit → 真の原因は逆向きだったため revert (`d227f9f7`, `e7553ef5`)
 - [x] main を merge — PR #1445 (`9c024d01`) の **正しい修正** (`Skill` を allowedTools に追加) を取り込み
+- [x] L-ERR fake-echo gate — `E2E_LIVE_NO_LLM !== "1"` で skip (`5c558ed6`)
+- [x] L-22 は main の修正で real Claude 経由 pass を実機で確認済
 - [x] local checks (yarn install / typecheck / lint / test) — 全 pass
-- [ ] yarn dev 再起動 + L-22 を実機で再走させて main の修正で通ることを確認
-- [ ] L-ERR の取り扱い相談 (fake-echo 専用設計 vs real-Claude 通せ、 はユーザー判断)
+- [ ] codex-cross-review (最終ブランチ状態に対して)
 - [ ] PR 作成 (push 後 `gh pr create`)
 - [ ] 2nd PR (L-SETTINGS-EFFORT, L-31) スコープ精査と修正
