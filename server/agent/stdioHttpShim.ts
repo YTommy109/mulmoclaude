@@ -24,6 +24,7 @@ import type { Readable } from "node:stream";
 
 import { findAvailablePort } from "../utils/port.mjs";
 import { log } from "../system/logger/index.js";
+import { ONE_SECOND_MS } from "../utils/time.js";
 import type { McpStdioSpec } from "../system/config.js";
 
 export interface ShimHandle {
@@ -34,16 +35,25 @@ export interface ShimHandle {
 }
 
 const SHIM_PORT_RANGE_START = 39_100;
-const SHIM_READY_TIMEOUT_MS = 15_000;
-const SHIM_READY_POLL_MS = 250;
+const SHIM_READY_TIMEOUT_MS = 15 * ONE_SECOND_MS;
+const SHIM_READY_POLL_MS = ONE_SECOND_MS / 4;
 
-function buildStdioCommand(spec: McpStdioSpec): string {
-  // supergateway takes the child as a single `--stdio "<cmd args>"`
-  // string. Spec command/args are operator-controlled (allow-listed
-  // upstream in isMcpStdioSpec) so a plain space-join is acceptable;
-  // quote args containing whitespace defensively.
-  const parts = [spec.command, ...(spec.args ?? [])];
-  return parts.map((part) => (/\s/.test(part) ? JSON.stringify(part) : part)).join(" ");
+// POSIX single-quote escaping. supergateway runs the `--stdio` value
+// through `spawn(..., { shell: true })`, so the string is parsed by a
+// shell — whitespace-only quoting would let metacharacters
+// (`$ ; | & ( )`, backticks, quotes) be expanded and diverge from the
+// non-shim `spawn(command, args)` path. Wrapping every token in single
+// quotes (and `'\''`-escaping embedded single quotes) neutralises ALL
+// shell metacharacters, which matters because this path runs
+// UNSANDBOXED on the host. (POSIX sh assumed: the Docker-shim path
+// only runs where the host can spawn Docker.)
+function shellQuote(token: string): string {
+  const escaped = token.replace(/'/g, "'\\''");
+  return `'${escaped}'`;
+}
+
+export function buildStdioCommand(spec: McpStdioSpec): string {
+  return [spec.command, ...(spec.args ?? [])].map(shellQuote).join(" ");
 }
 
 async function waitUntilListening(child: ChildProcess, port: number): Promise<boolean> {
