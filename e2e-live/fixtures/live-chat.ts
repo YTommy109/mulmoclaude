@@ -1125,3 +1125,143 @@ export async function readMovieDownload(download: Download): Promise<Buffer> {
   }
   return buf;
 }
+
+// ── Docker sandbox state probes ─────────────────────────────────────
+
+/**
+ * Snapshot of GET /api/sandbox. The server returns `{}` when the
+ * Docker sandbox is disabled (`DISABLE_SANDBOX=1` or Docker not
+ * reachable), and `{ sshAgent, mounts }` when enabled — see
+ * `server/api/sandboxStatus.ts`. `getSandboxStatus` returns `null` for
+ * the disabled case so docker-only specs can branch with a single
+ * equality check.
+ */
+export interface SandboxStatusSnapshot {
+  /** True iff the host SSH agent socket is forwarded into the container. */
+  sshAgent: boolean;
+  /** Allowlisted config mount names that successfully attached (e.g. `["gh"]`). */
+  mounts: string[];
+}
+
+interface SandboxProbe {
+  ok: boolean;
+  body?: Record<string, unknown>;
+  reason?: string;
+}
+
+/**
+ * Fetch the sandbox-auth snapshot the SPA's LockStatusPopup consumes.
+ * Returns `null` when the server reports the sandbox is disabled (body
+ * is the empty object `{}`), letting docker-only specs `test.skip` on
+ * a single nullish check. Throws on transport / decode failures rather
+ * than masking them as "disabled" — a network blip should fail the
+ * test loudly, not silently send it down the skip path.
+ */
+export async function getSandboxStatus(page: Page): Promise<SandboxStatusSnapshot | null> {
+  const route = API_ROUTES.sandbox;
+  const probe: SandboxProbe = await page.evaluate(async (sandboxUrl) => {
+    const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
+    const token = meta?.getAttribute("content") ?? "";
+    try {
+      const res = await fetch(sandboxUrl, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        return { ok: false, reason: `GET ${sandboxUrl} returned HTTP ${res.status} ${res.statusText}` };
+      }
+      const body = (await res.json()) as Record<string, unknown>;
+      return { ok: true, body };
+    } catch (err) {
+      return { ok: false, reason: `GET ${sandboxUrl} threw: ${err instanceof Error ? err.message : String(err)}` };
+    }
+  }, route);
+  if (!probe.ok || probe.body === undefined) {
+    throw new Error(`getSandboxStatus: ${probe.reason ?? "unknown error"}`);
+  }
+  return parseSandboxBody(probe.body);
+}
+
+function parseSandboxBody(body: Record<string, unknown>): SandboxStatusSnapshot | null {
+  // Server contract: `{}` ⇒ disabled, `{ sshAgent, mounts }` ⇒ enabled.
+  // Treat any body lacking BOTH fields as the disabled signal, but a
+  // body carrying ONE of them malformed is an unexpected payload we
+  // surface loudly so a future server-side schema change can't silently
+  // false-pass the skip gate.
+  const hasSsh = "sshAgent" in body;
+  const hasMounts = "mounts" in body;
+  if (!hasSsh && !hasMounts) return null;
+  const { sshAgent, mounts } = body;
+  if (typeof sshAgent !== "boolean" || !Array.isArray(mounts)) {
+    throw new Error(`getSandboxStatus: unexpected payload ${JSON.stringify(body)}`);
+  }
+  const cleanMounts: string[] = [];
+  for (const item of mounts) {
+    if (typeof item !== "string") throw new Error(`getSandboxStatus: mounts contains non-string ${JSON.stringify(item)}`);
+    cleanMounts.push(item);
+  }
+  return { sshAgent, mounts: cleanMounts };
+}
+
+// ── MCP tool catalog probes ─────────────────────────────────────────
+
+/**
+ * One row from GET /api/mcp-tools — the catalog the SPA settings panel
+ * uses to surface which built-in MCP tools (`readXPost`, `searchX`,
+ * `notify`) are wired up. `enabled` reflects host-side `requiredEnv`
+ * presence (see `isMcpToolEnabled` in `server/agent/mcp-tools/index.ts`).
+ */
+export interface McpToolSnapshot {
+  name: string;
+  enabled: boolean;
+  requiredEnv: string[];
+}
+
+interface McpToolsListProbe {
+  ok: boolean;
+  rows?: unknown[];
+  reason?: string;
+}
+
+/**
+ * Fetch the live MCP tool catalog with `enabled` flags. L-23 uses this
+ * to confirm the X bridge tools surface as enabled when the user has
+ * `X_BEARER_TOKEN` set — that's the host-side env reachability check
+ * (B-01's modern incarnation, now that MCP tools run in-process on the
+ * host server rather than inside the Docker container).
+ */
+export async function getMcpToolsList(page: Page): Promise<McpToolSnapshot[]> {
+  const route = API_ROUTES.mcpTools.list;
+  const probe: McpToolsListProbe = await page.evaluate(async (listUrl) => {
+    const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
+    const token = meta?.getAttribute("content") ?? "";
+    try {
+      const res = await fetch(listUrl, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        return { ok: false, reason: `GET ${listUrl} returned HTTP ${res.status} ${res.statusText}` };
+      }
+      const data = (await res.json()) as unknown;
+      if (!Array.isArray(data)) {
+        return { ok: false, reason: `GET ${listUrl} returned non-array payload` };
+      }
+      return { ok: true, rows: data };
+    } catch (err) {
+      return { ok: false, reason: `GET ${listUrl} threw: ${err instanceof Error ? err.message : String(err)}` };
+    }
+  }, route);
+  if (!probe.ok || probe.rows === undefined) {
+    throw new Error(`getMcpToolsList: ${probe.reason ?? "unknown error"}`);
+  }
+  return probe.rows.map((row, idx) => parseMcpToolRow(row, idx));
+}
+
+function parseMcpToolRow(row: unknown, idx: number): McpToolSnapshot {
+  if (!isRecord(row)) throw new Error(`mcpToolsList[${idx}] is not an object`);
+  const { name, enabled, requiredEnv } = row;
+  if (typeof name !== "string") throw new Error(`mcpToolsList[${idx}].name is not a string`);
+  if (typeof enabled !== "boolean") throw new Error(`mcpToolsList[${idx}].enabled is not a boolean`);
+  if (!Array.isArray(requiredEnv)) throw new Error(`mcpToolsList[${idx}].requiredEnv is not an array`);
+  const cleanRequiredEnv: string[] = [];
+  for (const item of requiredEnv) {
+    if (typeof item !== "string") throw new Error(`mcpToolsList[${idx}].requiredEnv contains non-string ${JSON.stringify(item)}`);
+    cleanRequiredEnv.push(item);
+  }
+  return { name, enabled, requiredEnv: cleanRequiredEnv };
+}
