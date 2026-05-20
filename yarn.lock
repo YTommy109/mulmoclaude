@@ -3229,7 +3229,7 @@ botframework-streaming@4.23.3:
 
 brace-expansion@^1.1.7:
   version "1.1.14"
-  resolved "https://registry.yarnpkg.com/brace-expansion/-/brace-expansion-1.1.14.tgz#d9de602370d91347cd9ddad1224d4fd701eb348b"
+  resolved "https://npm.flatt.tech/brace-expansion/-/brace-expansion-1.1.14.tgz#d9de602370d91347cd9ddad1224d4fd701eb348b"
   integrity sha512-MWPGfDxnyzKU7rNOW9SP/c50vi3xrmrua/+6hfPbCS2ABNWfx24vPidzvC7krjU/RTo235sV776ymlsMtGKj8g==
   dependencies:
     balanced-match "^1.0.0"
@@ -3237,15 +3237,15 @@ brace-expansion@^1.1.7:
 
 brace-expansion@^2.0.1, brace-expansion@^2.0.2:
   version "2.1.0"
-  resolved "https://registry.yarnpkg.com/brace-expansion/-/brace-expansion-2.1.0.tgz#4f41a41190216ee36067ec381526fe9539c4f0ae"
+  resolved "https://npm.flatt.tech/brace-expansion/-/brace-expansion-2.1.0.tgz#4f41a41190216ee36067ec381526fe9539c4f0ae"
   integrity sha512-TN1kCZAgdgweJhWWpgKYrQaMNHcDULHkWwQIspdtjV4Y5aurRdZpjAqn6yX3FPqTA9ngHCc4hJxMAMgGfve85w==
   dependencies:
     balanced-match "^1.0.0"
 
 brace-expansion@^5.0.5:
-  version "5.0.5"
-  resolved "https://registry.yarnpkg.com/brace-expansion/-/brace-expansion-5.0.5.tgz#dcc3a37116b79f3e1b46db994ced5d570e930fdb"
-  integrity sha512-VZznLgtwhn+Mact9tfiwx64fA9erHH/MCXEUfB/0bX/6Fz6ny5EGTXYltMocqg4xFAQZtnO3DHWWXi8RiuN7cQ==
+  version "5.0.6"
+  resolved "https://npm.flatt.tech/brace-expansion/-/brace-expansion-5.0.6.tgz#ec68fe0a641a29d8711579caf641d05bae1f2285"
+  integrity sha512-kLpxurY4Z4r9sgMsyG0Z9uzsBlgiU/EFKhj/h91/8yHu0edo7XuixOIH3VcJ8kkxs6/jPzoI6U9Vj3WqbMQ94g==
   dependencies:
     balanced-match "^4.0.2"
 
@@ -3955,7 +3955,7 @@ end-of-stream@^1.1.0, end-of-stream@^1.4.1:
 
 engine.io-client@~6.6.1:
   version "6.6.4"
-  resolved "https://registry.yarnpkg.com/engine.io-client/-/engine.io-client-6.6.4.tgz#a04998787dd342b543eec5d4452da7bb540e7ff8"
+  resolved "https://npm.flatt.tech/engine.io-client/-/engine.io-client-6.6.4.tgz#a04998787dd342b543eec5d4452da7bb540e7ff8"
   integrity sha512-+kjUJnZGwzewFDw951CDWcwj35vMNf2fcj7xQWOctq1F2i1jkDdVvdFG9kM/BEChymCH36KgjnW0NsL58JYRxw==
   dependencies:
     "@socket.io/component-emitter" "~3.1.0"
@@ -3966,13 +3966,13 @@ engine.io-client@~6.6.1:
 
 engine.io-parser@~5.2.1:
   version "5.2.3"
-  resolved "https://registry.yarnpkg.com/engine.io-parser/-/engine.io-parser-5.2.3.tgz#00dc5b97b1f233a23c9398d0209504cf5f94d92f"
+  resolved "https://npm.flatt.tech/engine.io-parser/-/engine.io-parser-5.2.3.tgz#00dc5b97b1f233a23c9398d0209504cf5f94d92f"
   integrity sha512-HqD3yTBfnBxIrbnM1DoD6Pcq8NECnh8d4As1Qgh0z5Gg3jRRIqijury0CL3ghu/edArpUYiYqQiDUQBIs4np3Q==
 
 engine.io@~6.6.0:
-  version "6.6.6"
-  resolved "https://registry.yarnpkg.com/engine.io/-/engine.io-6.6.6.tgz#9942111e7a4dc31f057e73470d7b7fcc7f74c390"
-  integrity sha512-U2SN0w3OpjFRVlrc17E6TMDmH58Xl9rai1MblNjAdwWp07Kk+llmzX0hjDpQdrDGzwmvOtgM5yI+meYX6iZ2xA==
+  version "6.6.7"
+  resolved "https://npm.flatt.tech/engine.io/-/engine.io-6.6.7.tgz#60efa5b5b67167cdf93d64430c40a68bae9e4f21"
+  integrity sha512-DgOngfDKM2EviOH3Mr9m7ks1q8roetLy/IMmYthAYzbpInMbYc/GS+fWFA3rl1gvwKVsQrVV61fo5emD1y3OJQ==
   dependencies:
     "@types/cors" "^2.8.12"
     "@types/node" ">=10.0.0"
@@ -3986,26 +3986,26 @@ engine.io@~6.6.0:
     ws "~8.18.3"
 
 enhanced-resolve@^5.21.0:
-  version "5.21.2"
-  resolved "https://registry.yarnpkg.com/enhanced-resolve/-/enhanced-resolve-5.21.2.tgz#ddbedd0c7f14c3c51adfc24f5a14d76a83395442"
-  integrity sha512-xe9vQb5kReirPUxgQrXA3ihgbCqssmTiM7cOZ+Gzu+VeGWgpV98lLZvp0dl4yriyAePcewxGUs9UpKD8PET9KQ==
+  version "5.21.5"
+  resolved "https://npm.flatt.tech/enhanced-resolve/-/enhanced-resolve-5.21.5.tgz#8f80167d009d8f01267ad61035e59fe5c94ac3a6"
+  integrity sha512-mLCNbrQli11K1ySUmuNt4ZUB3OpGIDq4q2vTBTf5cL2lpsRjI9QKqSD0ndjW8FyvcW/Jj46gMe9syyHAsvMa/A==
   dependencies:
     graceful-fs "^4.2.4"
     tapable "^2.3.3"
 
 entities@^4.2.0, entities@^4.4.0, entities@^4.5.0:
   version "4.5.0"
-  resolved "https://registry.yarnpkg.com/entities/-/entities-4.5.0.tgz#5d268ea5e7113ec74c4d033b79ea5a35a488fb48"
+  resolved "https://npm.flatt.tech/entities/-/entities-4.5.0.tgz#5d268ea5e7113ec74c4d033b79ea5a35a488fb48"
   integrity sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw==
 
 entities@^6.0.0:
   version "6.0.1"
-  resolved "https://registry.yarnpkg.com/entities/-/entities-6.0.1.tgz#c28c34a43379ca7f61d074130b2f5f7020a30694"
+  resolved "https://npm.flatt.tech/entities/-/entities-6.0.1.tgz#c28c34a43379ca7f61d074130b2f5f7020a30694"
   integrity sha512-aN97NXWF6AWBTahfVOIrB/NShkzi5H7F9r1s9mD3cDj4Ko5f2qhhVoYMibXF7GlLveb/D2ioWay8lxI97Ven3g==
 
 entities@^7.0.1:
   version "7.0.1"
-  resolved "https://registry.yarnpkg.com/entities/-/entities-7.0.1.tgz#26e8a88889db63417dcb9a1e79a3f1bc92b5976b"
+  resolved "https://npm.flatt.tech/entities/-/entities-7.0.1.tgz#26e8a88889db63417dcb9a1e79a3f1bc92b5976b"
   integrity sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA==
 
 entities@^8.0.0:
@@ -6280,7 +6280,7 @@ mimic-function@^5.0.0:
 
 miniflare@4.20260518.0:
   version "4.20260518.0"
-  resolved "https://npm.flatt.tech/miniflare/-/miniflare-4.20260518.0.tgz#a5d5dad617132f6f0e4660a136b7a8a0fa59aa5b"
+  resolved "https://registry.yarnpkg.com/miniflare/-/miniflare-4.20260518.0.tgz#a5d5dad617132f6f0e4660a136b7a8a0fa59aa5b"
   integrity sha512-jbvp43zWa66tuQ+P7bl7s25VJWzGMv4mVhxEEZEEATPvuqAQhGn2wj3rQViVZkZZBZmXQtZ5ZV5kX9VtmWGzuA==
   dependencies:
     "@cspotcode/source-map-support" "0.8.1"
@@ -6292,57 +6292,57 @@ miniflare@4.20260518.0:
 
 minimatch@^10.2.2, minimatch@^10.2.4, minimatch@^10.2.5:
   version "10.2.5"
-  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-10.2.5.tgz#bd48687a0be38ed2961399105600f832095861d1"
+  resolved "https://npm.flatt.tech/minimatch/-/minimatch-10.2.5.tgz#bd48687a0be38ed2961399105600f832095861d1"
   integrity sha512-MULkVLfKGYDFYejP07QOurDLLQpcjk7Fw+7jXS2R2czRQzR56yHRveU5NDJEOviH+hETZKSkIk5c+T23GjFUMg==
   dependencies:
     brace-expansion "^5.0.5"
 
 minimatch@^3.1.2, minimatch@^3.1.5:
   version "3.1.5"
-  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-3.1.5.tgz#580c88f8d5445f2bd6aa8f3cadefa0de79fbd69e"
+  resolved "https://npm.flatt.tech/minimatch/-/minimatch-3.1.5.tgz#580c88f8d5445f2bd6aa8f3cadefa0de79fbd69e"
   integrity sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w==
   dependencies:
     brace-expansion "^1.1.7"
 
 minimatch@^5.1.0:
   version "5.1.9"
-  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-5.1.9.tgz#1293ef15db0098b394540e8f9f744f9fda8dee4b"
+  resolved "https://npm.flatt.tech/minimatch/-/minimatch-5.1.9.tgz#1293ef15db0098b394540e8f9f744f9fda8dee4b"
   integrity sha512-7o1wEA2RyMP7Iu7GNba9vc0RWWGACJOCZBJX2GJWip0ikV+wcOsgVuY9uE8CPiyQhkGFSlhuSkZPavN7u1c2Fw==
   dependencies:
     brace-expansion "^2.0.1"
 
 minimatch@^9.0.4:
   version "9.0.9"
-  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-9.0.9.tgz#9b0cb9fcb78087f6fd7eababe2511c4d3d60574e"
+  resolved "https://npm.flatt.tech/minimatch/-/minimatch-9.0.9.tgz#9b0cb9fcb78087f6fd7eababe2511c4d3d60574e"
   integrity sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg==
   dependencies:
     brace-expansion "^2.0.2"
 
 minimist@^1.2.0, minimist@^1.2.6:
   version "1.2.8"
-  resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.8.tgz#c1a464e7693302e082a075cee0c057741ac4772c"
+  resolved "https://npm.flatt.tech/minimist/-/minimist-1.2.8.tgz#c1a464e7693302e082a075cee0c057741ac4772c"
   integrity sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==
 
 "minipass@^5.0.0 || ^6.0.2 || ^7.0.0", minipass@^7.0.4, minipass@^7.1.2:
   version "7.1.3"
-  resolved "https://registry.yarnpkg.com/minipass/-/minipass-7.1.3.tgz#79389b4eb1bb2d003a9bba87d492f2bd37bdc65b"
+  resolved "https://npm.flatt.tech/minipass/-/minipass-7.1.3.tgz#79389b4eb1bb2d003a9bba87d492f2bd37bdc65b"
   integrity sha512-tEBHqDnIoM/1rXME1zgka9g6Q2lcoCkxHLuc7ODJ5BxbP5d4c2Z5cGgtXAku59200Cx7diuHTOYfSBD8n6mm8A==
 
 minizlib@^3.1.0:
   version "3.1.0"
-  resolved "https://registry.yarnpkg.com/minizlib/-/minizlib-3.1.0.tgz#6ad76c3a8f10227c9b51d1c9ac8e30b27f5a251c"
+  resolved "https://npm.flatt.tech/minizlib/-/minizlib-3.1.0.tgz#6ad76c3a8f10227c9b51d1c9ac8e30b27f5a251c"
   integrity sha512-KZxYo1BUkWD2TVFLr0MQoM8vUUigWD3LlD83a/75BqC+4qE0Hb1Vo5v1FgcfaNXvfXzr+5EhQ6ing/CaBijTlw==
   dependencies:
     minipass "^7.1.2"
 
 mitt@^3.0.1:
   version "3.0.1"
-  resolved "https://registry.yarnpkg.com/mitt/-/mitt-3.0.1.tgz#ea36cf0cc30403601ae074c8f77b7092cdab36d1"
+  resolved "https://npm.flatt.tech/mitt/-/mitt-3.0.1.tgz#ea36cf0cc30403601ae074c8f77b7092cdab36d1"
   integrity sha512-vKivATfr97l2/QBCYAkXYDbrIWPM2IIKEl7YPhjCvKlG3kE2gm+uBo6nEXK3M5/Ffh/FLpKExzOQ3JJoJGFKBw==
 
 mlly@^1.7.4, mlly@^1.8.0:
   version "1.8.2"
-  resolved "https://registry.yarnpkg.com/mlly/-/mlly-1.8.2.tgz#e7f7919a82d13b174405613117249a3f449d78bb"
+  resolved "https://npm.flatt.tech/mlly/-/mlly-1.8.2.tgz#e7f7919a82d13b174405613117249a3f449d78bb"
   integrity sha512-d+ObxMQFmbt10sretNDytwt85VrbkhhUA/JBGm1MPaWJ65Cl4wOgLaB1NYvJSZ0Ef03MMEU/0xpPMXUIQ29UfA==
   dependencies:
     acorn "^8.16.0"
@@ -7707,7 +7707,7 @@ smart-buffer@^4.2.0:
 
 socket.io-adapter@~2.5.2:
   version "2.5.6"
-  resolved "https://registry.yarnpkg.com/socket.io-adapter/-/socket.io-adapter-2.5.6.tgz#c697f609d36a676a46749782274607d8df52c1d8"
+  resolved "https://npm.flatt.tech/socket.io-adapter/-/socket.io-adapter-2.5.6.tgz#c697f609d36a676a46749782274607d8df52c1d8"
   integrity sha512-DkkO/dz7MGln0dHn5bmN3pPy+JmywNICWrJqVWiVOyvXjWQFIv9c2h24JrQLLFJ2aQVQf/Cvl1vblnd4r2apLQ==
   dependencies:
     debug "~4.4.1"
@@ -7715,7 +7715,7 @@ socket.io-adapter@~2.5.2:
 
 socket.io-client@^4.0.0, socket.io-client@^4.8.3:
   version "4.8.3"
-  resolved "https://registry.yarnpkg.com/socket.io-client/-/socket.io-client-4.8.3.tgz#62717edd46a318c918125b57e92dc7f8bb71c34c"
+  resolved "https://npm.flatt.tech/socket.io-client/-/socket.io-client-4.8.3.tgz#62717edd46a318c918125b57e92dc7f8bb71c34c"
   integrity sha512-uP0bpjWrjQmUt5DTHq9RuoCBdFJF10cdX9X+a368j/Ft0wmaVgxlrjvK3kjvgCODOMMOz9lcaRzxmso0bTWZ/g==
   dependencies:
     "@socket.io/component-emitter" "~3.1.0"
@@ -7725,7 +7725,7 @@ socket.io-client@^4.0.0, socket.io-client@^4.8.3:
 
 socket.io-parser@~4.2.4:
   version "4.2.6"
-  resolved "https://registry.yarnpkg.com/socket.io-parser/-/socket.io-parser-4.2.6.tgz#19156bf179af3931abd05260cfb1491822578a6f"
+  resolved "https://npm.flatt.tech/socket.io-parser/-/socket.io-parser-4.2.6.tgz#19156bf179af3931abd05260cfb1491822578a6f"
   integrity sha512-asJqbVBDsBCJx0pTqw3WfesSY0iRX+2xzWEWzrpcH7L6fLzrhyF8WPI8UaeM4YCuDfpwA/cgsdugMsmtz8EJeg==
   dependencies:
     "@socket.io/component-emitter" "~3.1.0"
@@ -7733,7 +7733,7 @@ socket.io-parser@~4.2.4:
 
 socket.io@^4.8.3:
   version "4.8.3"
-  resolved "https://registry.yarnpkg.com/socket.io/-/socket.io-4.8.3.tgz#ca6ba1431c69532e1e0a6f496deebeb601dbc4df"
+  resolved "https://npm.flatt.tech/socket.io/-/socket.io-4.8.3.tgz#ca6ba1431c69532e1e0a6f496deebeb601dbc4df"
   integrity sha512-2Dd78bqzzjE6KPkD5fHZmDAKRNe3J15q+YHDrIsy9WEkqttc7GY+kT9OBLSMaPbQaEd0x1BjcmtMtXkfpc+T5A==
   dependencies:
     accepts "~1.3.4"
@@ -7744,10 +7744,18 @@ socket.io@^4.8.3:
     socket.io-adapter "~2.5.2"
     socket.io-parser "~4.2.4"
 
-socks@2.8.8, socks@^2.8.3:
+socks@2.8.8:
   version "2.8.8"
-  resolved "https://registry.yarnpkg.com/socks/-/socks-2.8.8.tgz#23bef6d02748eac847ad75610deb6c472554c67a"
+  resolved "https://npm.flatt.tech/socks/-/socks-2.8.8.tgz#23bef6d02748eac847ad75610deb6c472554c67a"
   integrity sha512-NlGELfPrgX2f1TAAcz0WawlLn+0r3FyhhCRpFFK2CemXenPYvzMWWZINv3eDNo9ucdwme7oCHRY0Jnbs4aIkog==
+  dependencies:
+    ip-address "^10.1.1"
+    smart-buffer "^4.2.0"
+
+socks@^2.8.3:
+  version "2.8.9"
+  resolved "https://npm.flatt.tech/socks/-/socks-2.8.9.tgz#aa5f130ca0f88a43fa44faf4869c50d22aa27752"
+  integrity sha512-LJhUYUvItdQ0LkJTmPeaEObWXAqFyfmP85x0tch/ez9cahmhlBBLbIqDFnvBnUJGagb0JbIQrkBs1wJ+yRYpEw==
   dependencies:
     ip-address "^10.1.1"
     smart-buffer "^4.2.0"
@@ -8777,7 +8785,7 @@ workerd@1.20260518.1:
 
 wrangler@^4.93.0:
   version "4.93.0"
-  resolved "https://npm.flatt.tech/wrangler/-/wrangler-4.93.0.tgz#f8c3f6cc92bca388aa4c7c418e6d6d2bb6ce628a"
+  resolved "https://registry.yarnpkg.com/wrangler/-/wrangler-4.93.0.tgz#f8c3f6cc92bca388aa4c7c418e6d6d2bb6ce628a"
   integrity sha512-qNsPr0oWRTc85SG7s1MjX+mWNTvkNV1zEQvRpTsV6eo8uqtvZoEAq8t8strQi9TtrDP3BOsxmy+N/G3ML6hH2w==
   dependencies:
     "@cloudflare/kv-asset-handler" "0.5.0"
@@ -8843,22 +8851,22 @@ wrappy@1:
 
 ws@8.18.0:
   version "8.18.0"
-  resolved "https://registry.yarnpkg.com/ws/-/ws-8.18.0.tgz#0d7505a6eafe2b0e712d232b42279f53bc289bbc"
+  resolved "https://npm.flatt.tech/ws/-/ws-8.18.0.tgz#0d7505a6eafe2b0e712d232b42279f53bc289bbc"
   integrity sha512-8VbfWfHLbbwu3+N6OKsOMpBdT4kXPDDB9cJk2bJ6mh9ucxdlnNvH1e+roYkKmN9Nxw2yjz7VzeO9oOz2zJ04Pw==
 
 ws@^7.5.10:
   version "7.5.10"
-  resolved "https://registry.yarnpkg.com/ws/-/ws-7.5.10.tgz#58b5c20dc281633f6c19113f39b349bd8bd558d9"
+  resolved "https://npm.flatt.tech/ws/-/ws-7.5.10.tgz#58b5c20dc281633f6c19113f39b349bd8bd558d9"
   integrity sha512-+dbF1tHwZpXcbOJdVOkzLDxZP1ailvSxM6ZweXTegylPny803bFhA+vqBYw4s31NSAk4S2Qz+AKXK9a4wkdjcQ==
 
 ws@^8, ws@^8.17.0, ws@^8.18.0, ws@^8.20.0, ws@^8.20.1:
   version "8.20.1"
-  resolved "https://registry.yarnpkg.com/ws/-/ws-8.20.1.tgz#91a9ae2b312ccf98e0a85ec499b48cef45ab0ddb"
+  resolved "https://npm.flatt.tech/ws/-/ws-8.20.1.tgz#91a9ae2b312ccf98e0a85ec499b48cef45ab0ddb"
   integrity sha512-It4dO0K5v//JtTXuPkfEOaI3uUN87iYPnqo/ZzqCoG3g8uhA66QUMs/SrM0YK7/NAu+r4LMh/9dq2A7k+rHs+w==
 
 ws@~8.18.3:
   version "8.18.3"
-  resolved "https://registry.yarnpkg.com/ws/-/ws-8.18.3.tgz#b56b88abffde62791c639170400c93dcb0c95472"
+  resolved "https://npm.flatt.tech/ws/-/ws-8.18.3.tgz#b56b88abffde62791c639170400c93dcb0c95472"
   integrity sha512-PEIGCY5tSlUt50cqyMXfCzX+oOPqN0vuGqWzbcJ2xvnkzkq46oOpz7dQaTDBdfICb4N14+GARUDw2XV2N4tvzg==
 
 wsl-utils@^0.1.0:
