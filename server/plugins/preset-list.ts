@@ -33,6 +33,9 @@ export const PRESET_PLUGINS: readonly PresetPlugin[] = [
   // checkout. Owns `manageTodoList` end-to-end now that the static
   // entry under `src/plugins/todo/` has been removed.
   { packageName: "@mulmoclaude/todo-plugin" },
+  // #1464 — Solopreneur OS Worklog plugin (Manual Mode v1.0).
+  // Owns `manageWorklog` MCP tool and the weekly rollup / candidate boards.
+  { packageName: "@mulmoclaude/worklog" },
   // #1162 — Spotify integration (Liked Songs / playlists / recently
   // played). PR 1 ships OAuth + token persistence; PR 2 adds the
   // listening-data kinds and the Vue View. Loaded the same way as

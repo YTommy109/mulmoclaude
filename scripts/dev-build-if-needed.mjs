@@ -59,7 +59,8 @@ function discoverPluginDirs(repoRoot) {
     }
     const { name, scripts } = parsed ?? {};
     if (typeof name !== "string") continue;
-    if (!name.startsWith("@mulmoclaude/") || !name.endsWith("-plugin")) continue;
+    if (!name.startsWith("@mulmoclaude/")) continue;
+    if (!name.endsWith("-plugin") && name !== "@mulmoclaude/worklog") continue;
     if (!scripts || typeof scripts.build !== "string") continue;
     found.push(`packages/plugins/${entry.name}`);
   }
