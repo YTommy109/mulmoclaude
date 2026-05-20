@@ -1126,6 +1126,45 @@ export async function readMovieDownload(download: Download): Promise<Buffer> {
   return buf;
 }
 
+// ── Shared in-page authed JSON fetch ────────────────────────────────
+
+/**
+ * Discriminated probe result for an `<meta name="mulmoclaude-auth">`
+ * authed GET. Carrying the failure reason on the `ok: false` branch
+ * lets the caller format a single self-describing error message
+ * without an additional layer of branching. Body is `unknown` so each
+ * caller validates / narrows it via its own parser — keeps this
+ * helper a transport-only primitive.
+ */
+type AuthedJsonProbe = { ok: true; body: unknown } | { ok: false; reason: string };
+
+/**
+ * Run an authed JSON GET inside the page context and return the
+ * decoded body. Shared by every helper that hits an internal API the
+ * SPA itself proxies — `getSandboxStatus`, `getMcpToolsList`, etc.
+ * (CodeRabbit + Sourcery review on PR #1462). Each wrapper stays a
+ * thin route + parser; the probe orchestration lives here once.
+ *
+ * Returns a discriminated union so transport / non-2xx / decode
+ * failures surface as `ok: false` with a descriptive reason rather
+ * than masked as a missing body — the caller decides whether to
+ * throw, skip, or retry.
+ */
+async function fetchAuthedJsonViaPage(page: Page, url: string): Promise<AuthedJsonProbe> {
+  return await page.evaluate(async (target): Promise<AuthedJsonProbe> => {
+    const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
+    const token = meta?.getAttribute("content") ?? "";
+    try {
+      const res = await fetch(target, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return { ok: false, reason: `GET ${target} returned HTTP ${res.status} ${res.statusText}` };
+      const body = (await res.json()) as unknown;
+      return { ok: true, body };
+    } catch (err) {
+      return { ok: false, reason: `GET ${target} threw: ${err instanceof Error ? err.message : String(err)}` };
+    }
+  }, url);
+}
+
 // ── Docker sandbox state probes ─────────────────────────────────────
 
 /**
@@ -1143,12 +1182,6 @@ export interface SandboxStatusSnapshot {
   mounts: string[];
 }
 
-interface SandboxProbe {
-  ok: boolean;
-  body?: Record<string, unknown>;
-  reason?: string;
-}
-
 /**
  * Fetch the sandbox-auth snapshot the SPA's LockStatusPopup consumes.
  * Returns `null` when the server reports the sandbox is disabled (body
@@ -1158,24 +1191,9 @@ interface SandboxProbe {
  * test loudly, not silently send it down the skip path.
  */
 export async function getSandboxStatus(page: Page): Promise<SandboxStatusSnapshot | null> {
-  const route = API_ROUTES.sandbox;
-  const probe: SandboxProbe = await page.evaluate(async (sandboxUrl) => {
-    const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
-    const token = meta?.getAttribute("content") ?? "";
-    try {
-      const res = await fetch(sandboxUrl, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) {
-        return { ok: false, reason: `GET ${sandboxUrl} returned HTTP ${res.status} ${res.statusText}` };
-      }
-      const body = (await res.json()) as Record<string, unknown>;
-      return { ok: true, body };
-    } catch (err) {
-      return { ok: false, reason: `GET ${sandboxUrl} threw: ${err instanceof Error ? err.message : String(err)}` };
-    }
-  }, route);
-  if (!probe.ok || probe.body === undefined) {
-    throw new Error(`getSandboxStatus: ${probe.reason ?? "unknown error"}`);
-  }
+  const probe = await fetchAuthedJsonViaPage(page, API_ROUTES.sandbox);
+  if (!probe.ok) throw new Error(`getSandboxStatus: ${probe.reason}`);
+  if (!isRecord(probe.body)) throw new Error(`getSandboxStatus: unexpected payload ${JSON.stringify(probe.body)}`);
   return parseSandboxBody(probe.body);
 }
 
@@ -1214,12 +1232,6 @@ export interface McpToolSnapshot {
   requiredEnv: string[];
 }
 
-interface McpToolsListProbe {
-  ok: boolean;
-  rows?: unknown[];
-  reason?: string;
-}
-
 /**
  * Fetch the live MCP tool catalog with `enabled` flags. L-23 uses this
  * to confirm the X bridge tools surface as enabled when the user has
@@ -1228,28 +1240,10 @@ interface McpToolsListProbe {
  * host server rather than inside the Docker container).
  */
 export async function getMcpToolsList(page: Page): Promise<McpToolSnapshot[]> {
-  const route = API_ROUTES.mcpTools.list;
-  const probe: McpToolsListProbe = await page.evaluate(async (listUrl) => {
-    const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
-    const token = meta?.getAttribute("content") ?? "";
-    try {
-      const res = await fetch(listUrl, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) {
-        return { ok: false, reason: `GET ${listUrl} returned HTTP ${res.status} ${res.statusText}` };
-      }
-      const data = (await res.json()) as unknown;
-      if (!Array.isArray(data)) {
-        return { ok: false, reason: `GET ${listUrl} returned non-array payload` };
-      }
-      return { ok: true, rows: data };
-    } catch (err) {
-      return { ok: false, reason: `GET ${listUrl} threw: ${err instanceof Error ? err.message : String(err)}` };
-    }
-  }, route);
-  if (!probe.ok || probe.rows === undefined) {
-    throw new Error(`getMcpToolsList: ${probe.reason ?? "unknown error"}`);
-  }
-  return probe.rows.map((row, idx) => parseMcpToolRow(row, idx));
+  const probe = await fetchAuthedJsonViaPage(page, API_ROUTES.mcpTools.list);
+  if (!probe.ok) throw new Error(`getMcpToolsList: ${probe.reason}`);
+  if (!Array.isArray(probe.body)) throw new Error(`getMcpToolsList: ${API_ROUTES.mcpTools.list} returned non-array payload`);
+  return probe.body.map((row, idx) => parseMcpToolRow(row, idx));
 }
 
 function parseMcpToolRow(row: unknown, idx: number): McpToolSnapshot {
@@ -1264,4 +1258,23 @@ function parseMcpToolRow(row: unknown, idx: number): McpToolSnapshot {
     cleanRequiredEnv.push(item);
   }
   return { name, enabled, requiredEnv: cleanRequiredEnv };
+}
+
+// ── Tool call arg extractors ────────────────────────────────────────
+
+/**
+ * Extract the `command` arg from a `Bash` tool call's args. Returns
+ * `null` when the call isn't a Bash dispatch or the args don't carry
+ * a string command — L-28 uses this to assert the agent actually ran
+ * `gh auth status` rather than synthesizing the "Logged in to
+ * github.com" string from prior knowledge (Codex iter-1 review on
+ * PR #1462: the model can produce plausible CLI output without ever
+ * invoking the tool, so anchoring the assertion to a real `Bash`
+ * tool_call closes that false-pass path).
+ */
+export function bashCommandFromCall(call: ToolCallTraceRecord): string | null {
+  if (call.toolName !== "Bash") return null;
+  if (!isRecord(call.args)) return null;
+  const { command } = call.args;
+  return typeof command === "string" ? command : null;
 }

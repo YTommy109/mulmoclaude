@@ -20,20 +20,39 @@
 //   set still skips loudly rather than spinning the LLM.
 
 import { randomUUID } from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { type Page, expect, test } from "@playwright/test";
+import { config as loadDotenv } from "dotenv";
 
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
 import {
+  bashCommandFromCall,
   deleteSession,
   getCurrentSessionId,
   getMcpToolsList,
   getSandboxStatus,
+  readSessionToolCalls,
   type SandboxStatusSnapshot,
   sendChatMessage,
   startNewSession,
   waitForAssistantResponseComplete,
+  waitForAssistantTurn,
 } from "../fixtures/live-chat.ts";
+
+// Mirror the host server's dotenv load so the spec process can read
+// the same `X_BEARER_TOKEN` (and any future docker-relevant env) the
+// server saw at boot. `server/index.ts:1` calls `import "dotenv/config"`
+// from the repo root cwd; yarn / node don't auto-load .env, so the
+// spec runner would otherwise read `process.env` without the .env
+// overlay and L-23's precondition would mis-skip on hosts that do
+// have the credential. Sourcery review on PR #1462 surfaced this:
+// gating the assertion on the very flag we're validating silently
+// hid catalog bugs, so we now gate on the host-side env directly.
+const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(SPEC_DIR, "..", "..");
+loadDotenv({ path: path.join(REPO_ROOT, ".env") });
 
 // Docker-only tests dispatch real CLI work through the sandbox
 // container (`gh auth status`, agent resume, etc.) which is slower
@@ -75,19 +94,21 @@ test.describe("docker sandbox (real workspace)", () => {
     test.setTimeout(MCP_CATALOG_TIMEOUT_MS);
     await requireDockerSandbox(page);
 
-    // Pre-condition: the user actually has X creds wired up. When the
-    // host has no `X_BEARER_TOKEN`, the catalog correctly reports
-    // `enabled: false` and asserting on `enabled: true` would be a
-    // misconfiguration false-positive (the bug B-01 fixed was about
-    // the env *not propagating into the sandbox*, not about asserting
-    // creds exist). Skip with a message naming the env var so the
-    // developer sees why the docker spec didn't run.
+    // Sourcery review iter-1 (PR #1462): the precondition must be
+    // independent of the `enabled` flag we're asserting on. Skipping
+    // on `!xPost.enabled` would silently hide a catalog bug that
+    // reported `enabled: false` despite the env being set. Probe
+    // `process.env.X_BEARER_TOKEN` directly — dotenv at the top of
+    // this file loads the same `.env` the host server reads at boot,
+    // so this gate mirrors the host's env reachability without
+    // shadowing the assertion target.
+    test.skip(!process.env.X_BEARER_TOKEN, "`X_BEARER_TOKEN` is not configured in the workspace .env — L-23 has nothing to assert without the credential.");
+
     const tools = await getMcpToolsList(page);
     const xPost = tools.find((tool) => tool.name === "readXPost");
     expect(xPost, "MCP catalog must include readXPost").toBeDefined();
     if (xPost === undefined) throw new Error("unreachable after expect");
     expect(xPost.requiredEnv, "readXPost should still gate on X_BEARER_TOKEN").toContain("X_BEARER_TOKEN");
-    test.skip(!xPost.enabled, "X_BEARER_TOKEN is not configured on the host — L-23 cannot prove docker env propagation without the credential.");
 
     // B-01 core: `readXPost` enabled ⇒ the host server process saw
     // `X_BEARER_TOKEN` AND the Docker sandbox is on. The B-01 era
@@ -168,36 +189,82 @@ test.describe("docker sandbox (real workspace)", () => {
       "Sandbox has no gh credential bridge — set SANDBOX_MOUNT_CONFIGS=gh and/or SANDBOX_SSH_AGENT_FORWARD=1 and restart `yarn dev` to run L-28.",
     );
 
-    // The agent should `Bash`-call `gh auth status` and surface the
-    // output. Asking for verbatim quoting is the most stable shape to
-    // assert on — `gh auth status` writes "✓ Logged in to github.com"
-    // on success, and the assistant body's `toContainText` survives
-    // arbitrary surrounding narration. If the host gh credential is
-    // mounted but unauthenticated, gh prints "You are not logged into
-    // any GitHub hosts" — that's the negative shape we don't want.
+    // The agent must actually invoke `Bash` — without the tool_call
+    // assertion (added in iter-1 for Codex), the model would
+    // synthesize "Logged in to github.com" from prior knowledge and
+    // the text body alone would false-pass. The container hostname
+    // (random per-run docker id) is genuinely unpredictable from
+    // training data, so making it part of the requested output forces
+    // a real `Bash` invocation. We then chain `gh auth status` after
+    // it in the same Bash call so both run together; the assertion
+    // matches on either form.
     const nonce = randomUUID().slice(0, 6);
     const prompt = [
-      `L-28 sandbox gh-auth canary (${nonce}).`,
-      "Use the Bash tool to run `gh auth status` (no arguments).",
-      "Then quote gh's stdout and stderr verbatim in your reply.",
-      "Do not narrate around the quote.",
+      `Probe id ${nonce}. Use the Bash tool to run this exact one-liner inside the sandbox:`,
+      `cat /etc/hostname && echo --- && gh auth status`,
+      `In your reply, copy the tool's verbatim stdout, then on a new line write "PROBE_DONE_${nonce}".`,
+      `The hostname value is a random Docker container ID you cannot know without executing the tool.`,
+      `Do not narrate around the output.`,
     ].join(" ");
     let sessionId: string | null = null;
     try {
       await startNewSession(page);
       await sendChatMessage(page, prompt);
-      await waitForAssistantResponseComplete(page);
+      // `waitForAssistantTurn` (strict variant) waits for the
+      // thinking-indicator to first appear then go hidden. The plain
+      // `waitForAssistantResponseComplete` falls through immediately
+      // when the indicator isn't yet mounted — that masks a race for
+      // jsonl-based assertions: `readSessionToolCalls` would see
+      // `length === 0` before the agent appended its first
+      // `tool_call` line and L-28 would mis-report a missing Bash
+      // dispatch as the iter-1 false-pass guard catching a regression
+      // when in fact the test was just early. See the docstring on
+      // `waitForAssistantTurn` in `live-chat.ts` for the same pattern
+      // applied to L-31 / L-32.
+      await waitForAssistantTurn(page);
       sessionId = getCurrentSessionId(page);
+      expect(sessionId, "session id must be present after the gh-auth turn").not.toBeNull();
+      if (sessionId === null) throw new Error("unreachable after expect");
 
-      // Anchor every assertion to the most recent assistant turn's
-      // markdown body — `[data-testid="text-response-assistant-body"]`
+      // Codex review iter-1 (PR #1462): the LLM can synthesize "Logged
+      // in to github.com" from prior knowledge / instruction-following
+      // even if it never invoked the Bash tool. Anchoring only to the
+      // assistant body would silently green a regression where the
+      // credential bridge broke. Pin the assertion to the agent's
+      // `tool_call` jsonl first — a `Bash` call whose `command` arg
+      // includes `gh auth status` is the only proof that the agent
+      // actually probed the container's gh state.
+      const toolCalls = await readSessionToolCalls(sessionId);
+      const ghAuthCalls = toolCalls.filter((call) => {
+        const command = bashCommandFromCall(call);
+        return command !== null && /\bgh\s+auth\s+status\b/.test(command);
+      });
+      // Dump the actual dispatched tool names + bash commands when
+      // the assertion misses — without this the trace just shows
+      // "Received: 0" and triage is blind. The summary is bounded
+      // (slice first 8 calls + first 80 chars of each bash command)
+      // so a long agent loop doesn't drown the report.
+      const summary = toolCalls
+        .slice(0, 8)
+        .map((call) => {
+          const cmd = bashCommandFromCall(call);
+          return cmd === null ? call.toolName : `${call.toolName}(${cmd.slice(0, 80)})`;
+        })
+        .join(", ");
+      expect(
+        ghAuthCalls.length,
+        `agent must have dispatched at least one \`Bash\` call running \`gh auth status\`. Observed ${toolCalls.length} tool_call event(s): [${summary}]`,
+      ).toBeGreaterThan(0);
+
+      // Anchor every text assertion to the most recent assistant
+      // turn's markdown body — `[data-testid="text-response-assistant-body"]`
       // is set in `textResponse/View.vue` only when `isAssistant=true`,
       // so user prompts and `session-item-<id>` sidebar history
       // previews are excluded by construction. `.last()` keeps the
       // locator strict-mode safe in stack layout (one assistant body
       // in the default single layout, but L-28 has no reason to assume
       // either) and pins to THIS turn, not any prior "Logged in" text
-      // that might live in a reused workspace's sidebar (Codex iter-1).
+      // that might live in a reused workspace's sidebar.
       const latestAssistantBody = page.getByTestId("text-response-assistant-body").last();
       await expect(latestAssistantBody, "agent must have produced an assistant reply for L-28").toBeVisible({ timeout: ONE_MINUTE_MS });
       // Positive: gh's success message has stayed stable across recent
