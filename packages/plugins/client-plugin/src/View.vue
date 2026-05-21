@@ -804,12 +804,15 @@ function updateCandidateTags(cand: ClientCandidate, csv: string) {
 
 async function approveClientCandidate(cand: ClientCandidate) {
   const name = cand.data.name;
-  if (!(await openConfirm({
-    title: t("approve"),
-    message: format(t("confirmApprove"), { name }),
-    confirmText: t("approve"),
-    variant: "success",
-  }))) return;
+  if (
+    !(await openConfirm({
+      title: t("approve"),
+      message: format(t("confirmApprove"), { name }),
+      confirmText: t("approve"),
+      variant: "success",
+    }))
+  )
+    return;
 
   approving.value[cand.candidateId] = true;
   errorMsg.value = "";
@@ -855,12 +858,15 @@ async function approveClientCandidate(cand: ClientCandidate) {
 
 async function approveProjectCandidate(cand: ProjectCandidate) {
   const name = cand.data.name;
-  if (!(await openConfirm({
-    title: t("approve"),
-    message: format(t("confirmApprove"), { name }),
-    confirmText: t("approve"),
-    variant: "success",
-  }))) return;
+  if (
+    !(await openConfirm({
+      title: t("approve"),
+      message: format(t("confirmApprove"), { name }),
+      confirmText: t("approve"),
+      variant: "success",
+    }))
+  )
+    return;
 
   approving.value[cand.candidateId] = true;
   errorMsg.value = "";
@@ -885,12 +891,15 @@ async function approveProjectCandidate(cand: ProjectCandidate) {
 }
 
 async function deleteCandidate(candidateId: string, name: string) {
-  if (!(await openConfirm({
-    title: t("reject"),
-    message: format(t("confirmDeleteCandidate"), { name }),
-    confirmText: t("reject"),
-    variant: "danger",
-  }))) return;
+  if (
+    !(await openConfirm({
+      title: t("reject"),
+      message: format(t("confirmDeleteCandidate"), { name }),
+      confirmText: t("reject"),
+      variant: "danger",
+    }))
+  )
+    return;
 
   deletingCand.value[candidateId] = true;
   errorMsg.value = "";
@@ -934,12 +943,15 @@ async function approveProjectCandidateDirect(cand: ProjectCandidate) {
 }
 
 async function deleteCandidateDirect(candidateId: string, name: string) {
-  if (!(await openConfirm({
-    title: t("reject"),
-    message: format(t("confirmDeleteCandidate"), { name }),
-    confirmText: t("reject"),
-    variant: "danger",
-  }))) return;
+  if (
+    !(await openConfirm({
+      title: t("reject"),
+      message: format(t("confirmDeleteCandidate"), { name }),
+      confirmText: t("reject"),
+      variant: "danger",
+    }))
+  )
+    return;
   try {
     await dispatch({ action: "deleteCandidate", candidateId });
     await refreshAll();

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // End-to-end integration test for the Client plugin.
 // Loads the workspace-built `dist/index.js` through the real
 // runtime loader with a real `makePluginRuntime`, then exercises the

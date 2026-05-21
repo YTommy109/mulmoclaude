@@ -752,12 +752,14 @@ async function saveEditCommitted(id: string) {
 }
 
 async function deleteCommitted(id: string) {
-  if (await openConfirm({
-    title: t.value.delete,
-    message: t.value.confirmDelete,
-    confirmText: t.value.delete,
-    variant: "danger",
-  })) {
+  if (
+    await openConfirm({
+      title: t.value.delete,
+      message: t.value.confirmDelete,
+      confirmText: t.value.delete,
+      variant: "danger",
+    })
+  ) {
     const result = await dispatch<RefreshResponse>({
       kind: "committedDelete",
       id,

@@ -112,12 +112,15 @@ watch(
 async function deleteRecipe(): Promise<void> {
   if (!detail.value) return;
   const { slug, title } = detail.value;
-  if (!(await openConfirm({
-    title: t.value.delete || "Delete",
-    message: format(t.value.confirmDelete, { title }),
-    confirmText: t.value.delete || "Delete",
-    variant: "danger",
-  }))) return;
+  if (
+    !(await openConfirm({
+      title: t.value.delete || "Delete",
+      message: format(t.value.confirmDelete, { title }),
+      confirmText: t.value.delete || "Delete",
+      variant: "danger",
+    }))
+  )
+    return;
   deleting.value = true;
   try {
     await dispatch({ kind: "delete", slug });

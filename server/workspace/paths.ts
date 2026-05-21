@@ -69,26 +69,24 @@ type PluginWorkspaceDirsMap<T extends BuiltInPluginMetas> = UnionToIntersection<
 export const isTestEnv =
   process.env.NODE_ENV === "test" ||
   process.execArgv.includes("--test") ||
-  process.argv.some(arg => arg.includes("test")) ||
+  process.argv.some((arg) => arg.includes("test")) ||
   typeof process.env.NODE_TEST_CONTEXT !== "undefined";
 
 // Detect if process.env.HOME has been overridden (a common pattern in workspace/IO integration tests to isolate runs)
-let realUserHome = "";
-try {
-  realUserHome = userInfo().homedir;
-} catch {
-  realUserHome = homedir();
-}
+const realUserHome = (() => {
+  try {
+    return userInfo().homedir;
+  } catch {
+    return homedir();
+  }
+})();
 const isHomeOverridden = homedir() !== realUserHome;
 
 // Workspace root. Configurable via environment variable or isolated
 // inside a temporary directory under test environments (unless process.env.HOME
 // is already overridden to isolate the test, in which case we preserve the overridden homedir).
 export const workspacePath =
-  process.env.MULMOCLAUDE_WORKSPACE_PATH ||
-  (isTestEnv && !isHomeOverridden
-    ? path.join(tmpdir(), "mulmoclaude-test")
-    : path.join(homedir(), "mulmoclaude"));
+  process.env.MULMOCLAUDE_WORKSPACE_PATH || (isTestEnv && !isHomeOverridden ? path.join(tmpdir(), "mulmoclaude-test") : path.join(homedir(), "mulmoclaude"));
 
 // Workspace-relative paths. Keys are the stable code-side identifiers
 // (e.g. `markdowns` — unchanged for call-site compatibility); values

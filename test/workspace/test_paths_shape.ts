@@ -11,11 +11,9 @@ describe("workspacePath", () => {
     const isTestEnv =
       process.env.NODE_ENV === "test" ||
       process.execArgv.includes("--test") ||
-      process.argv.some(arg => arg.includes("test")) ||
+      process.argv.some((arg) => arg.includes("test")) ||
       typeof process.env.NODE_TEST_CONTEXT !== "undefined";
-    const expected =
-      process.env.MULMOCLAUDE_WORKSPACE_PATH ||
-      (isTestEnv ? path.join(tmpdir(), "mulmoclaude-test") : expectedWorkspacePath);
+    const expected = process.env.MULMOCLAUDE_WORKSPACE_PATH || (isTestEnv ? path.join(tmpdir(), "mulmoclaude-test") : expectedWorkspacePath);
     assert.equal(workspacePath, expected);
   });
 });
