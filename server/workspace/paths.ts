@@ -100,6 +100,7 @@ const HOST_WORKSPACE_DIRS = {
   // own `files.data` scope at `data/plugins/%40mulmoclaude%2Ftodo-plugin/`.
   calendar: "data/calendar",
   contacts: "data/contacts",
+  clients: "data/clients",
   scheduler: "data/scheduler",
   sources: "data/sources",
   translation: "data/translation",
@@ -249,6 +250,7 @@ export const EAGER_WORKSPACE_DIRS: readonly WorkspaceDirKey[] = [
   "chat",
   "calendar",
   "contacts",
+  "clients",
   "scheduler",
   "roles",
   "stories",
