@@ -371,15 +371,19 @@ export function stagingSkillSlugFromWriteCall(call: ToolCallTraceRecord): string
  * One `tool_call` record as persisted by `server/workspace/tool-trace`.
  * Specs filter on `toolName` and pull selected fields from `args`
  * (`file_path`, ...) — the trace shape is wider than this slice but
- * the spec only needs the dispatch-level info.
+ * the spec only needs the dispatch-level info. `toolUseId` carries the
+ * per-invocation key so callers can pair a `tool_call` with the
+ * matching `tool_call_result` returned by `readSessionToolResults`.
  */
 export interface ToolCallTraceRecord {
+  toolUseId: string;
   toolName: string;
   args: unknown;
 }
 
 interface ToolCallJsonlLine {
   type?: unknown;
+  toolUseId?: unknown;
   toolName?: unknown;
   args?: unknown;
 }
@@ -393,8 +397,9 @@ function parseToolCallLine(line: string): ToolCallTraceRecord | null {
     return null;
   }
   if (parsed.type !== "tool_call") return null;
+  if (typeof parsed.toolUseId !== "string") return null;
   if (typeof parsed.toolName !== "string") return null;
-  return { toolName: parsed.toolName, args: parsed.args };
+  return { toolUseId: parsed.toolUseId, toolName: parsed.toolName, args: parsed.args };
 }
 
 /**
@@ -421,6 +426,72 @@ export async function readSessionToolCalls(sessionId: string): Promise<ToolCallT
     if (record !== null) calls.push(record);
   }
   return calls;
+}
+
+/**
+ * One `tool_call_result` record as persisted alongside `tool_call`
+ * events (see `server/workspace/tool-trace/index.ts:handleToolCallResult`).
+ * Pair with the originating call via {@link ToolCallTraceRecord.toolUseId}.
+ *
+ * The server classifier writes either `content` (inline, ≤ 4096 chars
+ * per `MAX_INLINE_CONTENT_CHARS`) or `contentRef` (pointer to a file
+ * on disk for larger / special results) — never both. `content` is
+ * `null` when the result was spilled to a file and `contentRef`
+ * carries the path; specs that need the body for assertions should
+ * `expect(content).not.toBeNull()` to fail loudly if a future tool
+ * starts producing oversized output that breaks their assumption.
+ */
+export interface ToolCallResultRecord {
+  toolUseId: string;
+  toolName: string;
+  /** Inline body when the result fit under the inline threshold. */
+  content: string | null;
+  /** Pointer to a workspace-relative path when the result was spilled out-of-band. */
+  contentRef: string | null;
+}
+
+interface ToolCallResultJsonlLine {
+  type?: unknown;
+  toolUseId?: unknown;
+  toolName?: unknown;
+  content?: unknown;
+  contentRef?: unknown;
+}
+
+function parseToolCallResultLine(line: string): ToolCallResultRecord | null {
+  if (line.length === 0) return null;
+  let parsed: ToolCallResultJsonlLine;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  if (parsed.type !== "tool_call_result") return null;
+  if (typeof parsed.toolUseId !== "string") return null;
+  if (typeof parsed.toolName !== "string") return null;
+  const content = typeof parsed.content === "string" ? parsed.content : null;
+  const contentRef = typeof parsed.contentRef === "string" ? parsed.contentRef : null;
+  return { toolUseId: parsed.toolUseId, toolName: parsed.toolName, content, contentRef };
+}
+
+/**
+ * Read every `tool_call_result` record from the per-session jsonl in
+ * write order. Specs use this together with {@link readSessionToolCalls}
+ * to assert not just that a tool was dispatched but that the result
+ * carries the expected payload — L-28 (PR #1462 Codex iter-2) anchors
+ * the gh-auth success/failure decision on the real `Bash` result body
+ * so the LLM cannot hallucinate "Logged in to github.com" into the
+ * assistant body after a failed credential bridge.
+ */
+export async function readSessionToolResults(sessionId: string): Promise<ToolCallResultRecord[]> {
+  const raw = await readSessionJsonl(sessionId, workspaceRoot());
+  if (raw === null) return [];
+  const results: ToolCallResultRecord[] = [];
+  for (const line of raw.split("\n")) {
+    const record = parseToolCallResultLine(line);
+    if (record !== null) results.push(record);
+  }
+  return results;
 }
 
 /**

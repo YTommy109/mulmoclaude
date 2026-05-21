@@ -34,6 +34,7 @@ import {
   getMcpToolsList,
   getSandboxStatus,
   readSessionToolCalls,
+  readSessionToolResults,
   type SandboxStatusSnapshot,
   sendChatMessage,
   startNewSession,
@@ -256,33 +257,68 @@ test.describe("docker sandbox (real workspace)", () => {
         `agent must have dispatched at least one \`Bash\` call running \`gh auth status\`. Observed ${toolCalls.length} tool_call event(s): [${summary}]`,
       ).toBeGreaterThan(0);
 
-      // Anchor every text assertion to the most recent assistant
-      // turn's markdown body — `[data-testid="text-response-assistant-body"]`
-      // is set in `textResponse/View.vue` only when `isAssistant=true`,
-      // so user prompts and `session-item-<id>` sidebar history
-      // previews are excluded by construction. `.last()` keeps the
-      // locator strict-mode safe in stack layout (one assistant body
-      // in the default single layout, but L-28 has no reason to assume
-      // either) and pins to THIS turn, not any prior "Logged in" text
-      // that might live in a reused workspace's sidebar.
+      // Codex review iter-2 (PR #1462): even with the dispatch check
+      // above, success/failure was previously decided from the
+      // assistant body — a model that ran Bash but then paraphrased
+      // the output could still false-pass when the credential bridge
+      // actually broke. Anchor the decision to the **real tool output
+      // body** by pairing each `gh auth status` Bash dispatch with
+      // its `tool_call_result` via `toolUseId`. The result content is
+      // gh's verbatim stdout/stderr from inside the sandbox — the
+      // only signal that proves the credential reached the container.
+      const ghAuthCallIds = new Set(ghAuthCalls.map((call) => call.toolUseId));
+      const allResults = await readSessionToolResults(sessionId);
+      const ghAuthResults = allResults.filter((result) => ghAuthCallIds.has(result.toolUseId));
+      expect(
+        ghAuthResults.length,
+        `each \`gh auth status\` Bash call must have produced a tool_call_result (got ${ghAuthResults.length} for ${ghAuthCallIds.size} call(s))`,
+      ).toBe(ghAuthCallIds.size);
+      // gh's stdout is comfortably under the 4096-char inline
+      // threshold (MAX_INLINE_CONTENT_CHARS in tool-trace/classify.ts),
+      // so `content` should always carry the body. A `contentRef`-
+      // only result would mean the classifier started spilling small
+      // outputs to disk and the spec needs to read that file too —
+      // surface that loudly rather than silently masking the body.
+      const ghAuthBodies: string[] = [];
+      for (const result of ghAuthResults) {
+        expect(
+          result.content,
+          `\`gh auth status\` tool_call_result must carry inline content; got contentRef-only result ${JSON.stringify(result)}`,
+        ).not.toBeNull();
+        if (result.content !== null) ghAuthBodies.push(result.content);
+      }
+      // gh's success message has stayed stable across recent versions
+      // ("✓ Logged in to github.com account <name> ..."), so the
+      // substring match holds even when the gh version inside the
+      // container differs from the host's.
+      const hasLogin = ghAuthBodies.some((body) => /Logged in to github\.com/i.test(body));
+      expect(
+        hasLogin,
+        `at least one \`gh auth status\` tool_call_result must contain "Logged in to github.com" (real gh stdout, not assistant rendering). Bodies: ${JSON.stringify(ghAuthBodies.map((body) => body.slice(0, 200)))}`,
+      ).toBe(true);
+      // B-06 regression shape: credential isolation would surface
+      // gh's "not logged into any hosts" line in the real tool body
+      // (wording varies between gh versions — older drops "GitHub",
+      // newer keeps it).
+      const hasNegative = ghAuthBodies.some((body) => /not logged into any (?:GitHub )?hosts/i.test(body));
+      expect(
+        hasNegative,
+        `\`gh auth status\` tool_call_result must not contain "not logged into any hosts" (credential bridge regression). Bodies: ${JSON.stringify(ghAuthBodies.map((body) => body.slice(0, 200)))}`,
+      ).toBe(false);
+
+      // Sanity: the assistant body still surfaces gh's success line
+      // — kept as a UI rendering check (the SPA must show the result,
+      // not just receive it on the SSE stream). NOT the load-bearing
+      // assertion any more; the load-bearing check is the
+      // `tool_call_result` body above (Codex iter-2). Anchored to
+      // `[data-testid="text-response-assistant-body"]` so a stale
+      // "Logged in" preview from a reused workspace's sidebar can't
+      // false-green this either.
       const latestAssistantBody = page.getByTestId("text-response-assistant-body").last();
       await expect(latestAssistantBody, "agent must have produced an assistant reply for L-28").toBeVisible({ timeout: ONE_MINUTE_MS });
-      // Positive: gh's success message has stayed stable across recent
-      // versions ("✓ Logged in to github.com account <name> ..."),
-      // so the substring match holds even if the gh version inside the
-      // container differs from the host's.
-      await expect(latestAssistantBody, "gh auth status output must indicate the user is logged in to github.com").toContainText(/Logged in to github\.com/i, {
+      await expect(latestAssistantBody, "assistant body must echo gh's success line (UI rendering sanity)").toContainText(/Logged in to github\.com/i, {
         timeout: ONE_MINUTE_MS,
       });
-      // Negative: B-06 regression shape — credential isolation would
-      // surface gh's "not logged into any hosts" line (the wording
-      // varies between gh versions: older drops "GitHub", newer keeps
-      // it, both end with `hosts`). The regex accepts either, but the
-      // check is now scoped to the same assistant body so a stale
-      // sidebar entry containing the negative phrase can't trip it.
-      await expect(latestAssistantBody, "agent must not report a missing gh login when the credential is mounted").not.toContainText(
-        /not logged into any (?:GitHub )?hosts/i,
-      );
     } finally {
       if (sessionId !== null) await deleteSession(page, sessionId);
     }
