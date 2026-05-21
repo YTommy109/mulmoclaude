@@ -35,7 +35,17 @@ export default definePlugin((runtime) => {
   const { pubsub, files, log } = runtime;
   const writeMutex = new WriteMutex();
 
-  // LLM / MCP action path
+  // LLM / MCP action path.
+  //
+  // `approve` is intentionally NOT in this switch. Promoting a
+  // candidate to a committed entry must be a deliberate click in the
+  // Review Board UI, not the LLM's read of "looks good" in chat —
+  // verbal approval is too easy to misinterpret as a commit signal,
+  // and the candidate flow exists specifically to guard that boundary.
+  // `handleApprove` is still imported for the UI dispatch path below
+  // (`candidateApprove` kind). `edit` / `delete` ARE exposed because
+  // they operate on already-approved entries, where the human-in-the-
+  // loop gate has already been crossed.
   async function handleLlm(args: LlmArgs) {
     const { action, ...input } = args;
     log.info("dispatch llm worklog", { action });
@@ -51,19 +61,6 @@ export default definePlugin((runtime) => {
             message: res.message,
             jsonData: res.jsonData,
             instructions: "Show the new worklog candidate in the Review Board.",
-          };
-        });
-      }
-      case "approve": {
-        return writeMutex.run(async () => {
-          const res = await handleApprove(files.data, input);
-          if (res.kind === "error") return { error: res.error, status: res.status };
-          pubsub.publish("changed", { reason: "llm-approve" });
-          return {
-            data: res.data,
-            message: res.message,
-            jsonData: res.jsonData,
-            instructions: "Show the approved entry in the worklog list.",
           };
         });
       }

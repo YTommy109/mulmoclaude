@@ -5,13 +5,14 @@ export const TOOL_DEFINITION = {
   type: "function" as const,
   name: "manageWorklog" as const,
   prompt: "When users mention tracking their time, logging work, or viewing their work summaries, use manageWorklog.",
-  description: "Manage worklog entries — log hours manually (create candidate), approve candidates, list committed logs, edit logs, or delete logs.",
+  description:
+    "Manage worklog entries — log hours manually (create candidate), list committed logs, edit logs, or delete logs. Candidates are approved via the Review Board UI, not by this tool.",
   parameters: {
     type: "object" as const,
     properties: {
       action: {
         type: "string",
-        enum: ["create", "approve", "list", "edit", "delete", "present"],
+        enum: ["create", "list", "edit", "delete", "present"],
         description: "The action to perform on the worklog database.",
       },
       clientId: {
@@ -37,10 +38,6 @@ export const TOOL_DEFINITION = {
       billable: {
         type: "boolean",
         description: "Whether the logged hours are billable. Default is true.",
-      },
-      candidateId: {
-        type: "string",
-        description: "For 'approve': The unique candidate file ID or entry ID to approve.",
       },
       worklogId: {
         type: "string",

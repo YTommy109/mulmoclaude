@@ -35,7 +35,7 @@ export const PRESET_PLUGINS: readonly PresetPlugin[] = [
   { packageName: "@mulmoclaude/todo-plugin" },
   // #1464 — Solopreneur OS Worklog plugin (Manual Mode v1.0).
   // Owns `manageWorklog` MCP tool and the weekly rollup / candidate boards.
-  { packageName: "@mulmoclaude/worklog" },
+  { packageName: "@mulmoclaude/worklog-plugin" },
   // Solopreneur OS Client plugin (Manual Mode v1.0).
   // Identity layer mapping clients, contacts, rates, and projects.
   { packageName: "@mulmoclaude/client-plugin" },

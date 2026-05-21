@@ -18,10 +18,10 @@ import type { IPubSub } from "../../server/events/pub-sub/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PLUGIN_DIR = path.resolve(__dirname, "../../packages/plugins/worklog");
+const PLUGIN_DIR = path.resolve(__dirname, "../../packages/plugins/worklog-plugin");
 const PLUGIN_DIST_INDEX = path.join(PLUGIN_DIR, "dist", "index.js");
 
-const PKG_NAME = "@mulmoclaude/worklog";
+const PKG_NAME = "@mulmoclaude/worklog-plugin";
 const VERSION = "0.1.0";
 
 function makeRecordingPubSub(): { pubsub: IPubSub; published: { channel: string; data: unknown }[] } {
@@ -146,13 +146,22 @@ describe("Worklog plugin — end-to-end integration through the loader", () => {
     assert.equal(uiRes.data.candidates[0].id, candidateId);
     assert.equal(uiRes.data.candidates[0].clientId, "Acme Corp");
 
-    // 4. Approve the candidate (action: "approve").
-    res = (await plugin.execute({}, { action: "approve", candidateId })) as WorklogActionResult;
-    assert.ok(!res.error, `Approve failed: ${res.error}`);
-    assert.ok(res.jsonData?.worklogId);
-    const { worklogId } = res.jsonData;
+    // 4a. LLM cannot directly approve — the candidate-flow gate
+    // requires a UI click in the Review Board. The action enum in
+    // definition.ts does not list "approve", so the switch falls
+    // through to the default branch.
+    const llmApproveAttempt = (await plugin.execute({}, { action: "approve", candidateId })) as WorklogActionResult;
+    assert.ok(llmApproveAttempt.error, "LLM-direct approve must be rejected");
+    assert.equal(llmApproveAttempt.status, 400);
+    assert.equal(published.length, 1, "Rejected approve must not publish a change event");
 
-    assert.equal(published.length, 2, "Should publish again on approve");
+    // 4b. Approve via the UI dispatch path (kind: "candidateApprove").
+    const approveRes = (await plugin.execute({}, { kind: "candidateApprove", id: candidateId })) as unknown as ListAllResult;
+    assert.equal(approveRes.data.candidates.length, 0, "candidate should be consumed on approve");
+    assert.equal(approveRes.data.committed.length, 1, "approve should commit one entry");
+    const worklogId = approveRes.data.committed[0].id;
+
+    assert.equal(published.length, 2, "UI approve should publish exactly one change event");
     assert.equal(published[1].channel, `plugin:${PKG_NAME}:changed`);
 
     // 5. UI listAll shows no candidates, and 1 committed entry.
