@@ -117,11 +117,60 @@ e2e-live/
 | `docker-only` | Docker サンドボックス起動状態でしか発生しないバグの検証 |
 | `manual-l4` | 自動化困難（OS 依存等）、人手チェックリストへ |
 
+## シナリオ一覧 (索引)
+
+全シナリオ ID + タイトル + 状態の俯瞰用。 実装済シナリオの **初期設計仕様** は [`plans/done/feat-e2e-live-history.md`](done/feat-e2e-live-history.md) の 「設計仕様 archive」、 **実装結果の詳細** (採用 assertion / helper / 罠) は 「実装ステータス」 表もしくは spec ファイル本体が正規ソース。 未実装シナリオの設計詳細は次セクション 「未実装シナリオ詳細」 を参照。
+
+| ID | カテゴリ | タイトル | 状態 |
+|---|---|---|---|
+| L-01 | media | presentHtml の画像が描画される ★最重要 | ✅ |
+| L-02 | media | Markdown 応答を PDF DL | ✅ |
+| L-03 | media | mulmoScript 生成 → 動画 DL 成功 | ✅ |
+| L-04 | media | mulmoScript animation:true で映像生成失敗しない | ✅ |
+| L-05 | media | generateImage プラグインで実画像が返る | ✅ |
+| L-06 | roles | General ロールで sample query → 完走 | ✅ |
+| L-07 | roles | Office ロールで sample query → 完走 | ✅ |
+| L-08 | roles | Tutor ロールで sample query → 完走 | ✅ |
+| L-09 | roles | Storyteller ロールで sample query → 完走 | ✅ |
+| L-10 | roles | Gemini key 未設定でも General が disabled にならない | 未実装 |
+| L-11 | session | 新規セッション → 1 ターン → reload → 履歴復元 | ✅ |
+| L-12 | session | 古いセッションを resume → LLM が文脈保持 | ✅ |
+| L-13 | session | サーバ再起動後も bridge が再接続できる | 未実装 |
+| L-14 | wiki | Wiki ページ生成 → 内部リンクを踏める | ✅ |
+| L-15 | wiki | 日本語タイトルの Wiki ページ → URL slug が壊れない | ✅ |
+| L-16 | wiki | Wiki index から各ページへのリンクが機能 | ✅ |
+| L-WIKI-PIPE | wiki | `[[slug\|alias]]` クリック後 URL 清浄性 | ✅ |
+| L-WIKI-LINT-PIPE-CLEAN | wiki | lint レポートで `[[slug\|alias]]` が broken link に出ない | ✅ |
+| L-WIKI-LINT-EMPTY-TARGET | wiki | lint レポートで bare `[[Japanese]]` が "empty target" 診断 | ✅ |
+| L-WIKI-LINT-BROKEN | wiki | lint レポートで `[[bogus-slug]]` が broken link 診断 | ✅ |
+| L-WIKI-LINT-ORPHAN | wiki | lint レポートで index 不在 page が orphan 診断 | ✅ |
+| L-WIKI-LINT-MISSING | wiki | lint レポートで index 参照不在 file が missing 診断 | ✅ |
+| L-WIKI-LINT-TAG-DRIFT | wiki | lint レポートで frontmatter / index tag drift 診断 | ✅ |
+| L-17 | ui | bridge メッセージ受信 → 通知が二重表示されない | 未実装 |
+| L-18 | ui | presentForm 表示時に i18n キーが直接出ない | ✅ |
+| L-19 | ui | stack-rehydrate on reload (元 Tool Call History reload を発展) | ✅ |
+| L-20 | ui | Files view `/files?path=` → `/files/` rewrite | ✅ |
+| L-21 | skills | chart deferred-tool dispatch | ✅ |
+| L-22 | skills | 自作 skill end-to-end 実行 (B-08) | ✅ |
+| L-23 | docker | X MCP が Docker 内で .env から key を読める | ✅ |
+| L-24 | docker | `yarn sandbox:login` 前に image build (plan 再定義要) | 未実装 |
+| L-25 | docker | sandbox 内ファイル所有者 non-root (Linux のみ) | manual-l4 |
+| L-26 | docker | Docker sandbox 上で session resume できる | ✅ |
+| L-27 | docker | Mac keychain credential 渡し (macOS のみ) | manual-l4 |
+| L-28 | docker | Docker 内で git/gh 認証通る | ✅ |
+| L-29 | docker | Docker 環境で MCP server crash しない | 対象外推奨 |
+| L-30 | docker | skill symlink が Docker 内で dangling にならない | 未実装 |
+| L-31 | skills | mc-manage-skills bridge dispatch canary (post-#1298) | ✅ |
+| L-32 | skills | end-to-end skill landing + Run canary (post-#1298) | ✅ |
+| L-EDIT | mulmo | beat 編集永続化 (#1074) | ✅ |
+| L-LINKIFY-CODESPAN | wiki/files | inline-code workspace path auto-linkify (#1300) | ✅ |
+| L-SETTINGS-EFFORT | settings | Settings → Model effortLevel 双方向同期 (#1323) | ✅ |
+| L-SETTINGS-EFFORT-SPAWN | settings | settings.json → claude `--effort` 引数到達 (#1323) | ✅ |
+| L-W-S-03 | wiki | `<picture><source srcset>` rewriter (#1275) | ✅ |
+
 ## 未実装シナリオ詳細
 
-> 実装済シナリオ (L-01〜L-09 のうち L-10 以外、 L-11〜L-12、 L-14〜L-16 + L-WIKI-* 4 件、 L-18〜L-22、 L-23 / L-26 / L-28、 加えて後付け追加した L-31 / L-32 / L-EDIT / L-LINKIFY-CODESPAN / L-SETTINGS-EFFORT* / L-W-S-03) の初期設計仕様は [`plans/done/feat-e2e-live-history.md`](done/feat-e2e-live-history.md) の 「設計仕様 archive (実装済シナリオ、 plan 起票時 2026-04-29 の初期設計)」 を参照。
-> 実装結果の詳細 (採用した assertion / helper / 罠回避) は本体の 「実装ステータス」 表の備考、 もしくは各 spec ファイルが正規ソース。
-> ここには 「未実装 + manual-l4 + 対象外推奨」 = 8 件のみ残す。 各シナリオの現在の評価は 「未実装シナリオの再評価 (2026-05-23)」 を参照。
+> 「未実装 + manual-l4 + 対象外推奨」 = 8 件のみ。 各シナリオの現在の評価は 「未実装シナリオの再評価 (2026-05-23)」、 次に着手する順は 「実装順 (2026-05-23 時点)」 を参照。 実装済シナリオの初期設計仕様は [`plans/done/feat-e2e-live-history.md`](done/feat-e2e-live-history.md) の 「設計仕様 archive」 を参照。
 
 凡例:
 - 重要度: **S** = 致命級, **A** = 高, **B** = 中
@@ -253,6 +302,34 @@ e2e-live/
 | **L-27** Mac Keychain credential expire | manual-l4 | 同上 |
 | **L-29** MCP server Docker crash (B-07) | **対象外推奨** | PR #429 で fix 済、 現コードで crash 再現不能。 既存 unit test (`test/agent/test_agent_config.ts` の `buildDockerSpawnArgs` 11 cases) で構造的退行は cover 済。 「tautology spec」 (修正済 PR の再発検出だけを書く) は機能別 unit test の責務、 e2e-live に乗せる価値が薄い。 実装ステータス表からは 「対象外」 ラベルで除外することを推奨 (上記 「機能別 unit test / mock e2e との分担」 の e2e-live 除外基準と整合) |
 | **L-30** skill + symlink dangling | **実装可能** | 「環境を壊さず再現する設計指針」 階層 1 で局所再現可。 共有 workspace の `.claude/skills/<test-nonce>` を broken symlink で seed → sandbox 起動状態で `/api/config/refresh` 後に対象 slug が skill list に出ないことを assert → finally で symlink 削除。 host `~/.claude/skills/` は触らない |
+
+## 実装順 (2026-05-23 時点)
+
+未実装シナリオ + 反映候補 PR を **重要度 (= 必要度) ベース** で並べた次に着手するロードマップ。 同重要度内では infra 依存が少ない順 (= 早く 1 PR で完結する順) で配置するが、 「楽な順」 ではなく 「壊れた時の影響が大きい順」 が第一軸。
+
+### Phase 1: 即着手可能 (高重要度 + 1 PR 完結)
+
+1. **L-30 skill symlink dangling (B-08、 docker)** — 重要度 **A**、 階層 1 (spec scope の broken symlink seed) で局所再現可、 ユーザー環境を一切触らない。 docker sandbox の挙動 / boot path 周辺が #1462 (docker e2e-live) / #1480 (backend-offline banner) で頻繁に動いている時期なので、 docker 系シナリオで唯一 e2e-live 化可能な L-30 の net を早く獲得する価値が大きい
+2. **encore plugin dispatch canary (#1437 / #1440 / #1441 / #1443)** — 重要度 **A**、 L-21 (chart) shape を copy するだけ。 新 plugin の deferred-tool dispatch が壊れると plugin View 全消失する退行に直結。 runtime plugin が増えるトレンドで net 強化の効果が最大
+
+### Phase 2: 前提 PR + 本体 PR (中〜高重要度、 要 infra 整備)
+
+3. **L-17 二重通知 (B-50)** — 重要度 **B** だがユーザー報告が継続。 (a) `server/api/routes/notifier.ts` に env-gated test inject endpoint を追加する source PR → (b) spec PR の 2 段。 PR #1451 (notifier-update-op) で notifier 拡張済の今、 inject 経路を端的に復活させやすい
+4. **L-10 Gemini key 未設定 / L-13 bridge 再接続** — 共通の前提 (test 専用 dev server 起動 infra、 案 C 拡張) を立てる別 PR が先。 infra PR は中規模、 立てば後続 (L-10 / L-13) を同 PR or 連続 PR で拾える
+
+### Phase 3: 中重要度 (個別、 1 PR 完結)
+
+5. **mc-cooking-coach preset skill canary (#1287)** — 重要度 **B**、 L-32 shape を copy。 preset skill の chain net を密にする
+6. **solopreneur runtime plugins (client / worklog / plans、 #1471 / #1464 / #1465 / #1475)** — 重要度 **B**、 plugin 数増加トレンドの先頭で 1 plugin (client 推奨) でまず 1 PR 書き、 helper 抽出 / parameterized 化の機会を見極める
+
+### Phase 4: 再評価 / drop
+
+7. **L-24 sandbox:login image 不在 (B-02)** — plan の理解が現実装と乖離 (現 `yarn sandbox:login` は keychain export スクリプト)。 シナリオ再定義 PR が先。 着手保留
+8. **L-29 MCP server crash (B-07)** — 対象外推奨。 unit test (`test/agent/test_agent_config.ts` の `buildDockerSpawnArgs`) で構造的退行は cover 済、 e2e-live への移植は tautology spec
+
+### docker 系の優先度
+
+「docker 系は早い方が良い？」 の問いには **L-30 を Phase 1 に置く** ことで応えている。 docker 系で残る他 2 件 (L-24 / L-29) は再定義 / drop になるため、 e2e-live で着手できる docker シナリオは **L-30 が唯一かつ最大の ROI**。 docker sandbox boot path 周辺は最近 (#1462 / #1480 等) で頻繁に動いているので、 net の厚みを早く積む方が安全。
 
 ## 実装の詳細
 
