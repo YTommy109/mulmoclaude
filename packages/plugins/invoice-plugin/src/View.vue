@@ -1231,9 +1231,18 @@ async function downloadInvoicePdf() {
   let url: string | null = null;
   const filename = `${recordId.value}.pdf`;
   try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    
+    // Read auth token from meta tag for authentication bypass protection
+    const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
+    const token = meta?.getAttribute("content");
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const response = await fetch("/api/pdf/markdown", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         markdown: rawInvoiceMarkdown.value,
         filename,
