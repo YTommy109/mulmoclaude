@@ -53,7 +53,7 @@ import { useI18n } from "vue-i18n";
 import { useConfirm } from "../composables/useConfirm";
 
 const { confirmState, handleConfirm } = useConfirm();
-const { locale } = useI18n();
+const { t } = useI18n();
 
 const confirmBtn = ref<HTMLButtonElement | null>(null);
 const cancelBtn = ref<HTMLButtonElement | null>(null);
@@ -64,68 +64,15 @@ const iconName = computed(() => {
   return "info";
 });
 
-const defaultTitle = computed(() => {
-  switch (locale.value) {
-    case "ja":
-      return "確認";
-    case "ko":
-      return "확인";
-    case "zh":
-      return "确认";
-    case "es":
-      return "Confirmar";
-    case "de":
-      return "Bestätigen";
-    case "fr":
-      return "Confirmer";
-    case "pt-BR":
-      return "Confirmar";
-    default:
-      return "Confirm";
-  }
-});
-
-const defaultConfirmText = computed(() => {
-  switch (locale.value) {
-    case "ja":
-      return "実行";
-    case "ko":
-      return "확인";
-    case "zh":
-      return "确定";
-    case "es":
-      return "Aceptar";
-    case "de":
-      return "Bestätigen";
-    case "fr":
-      return "Confirmer";
-    case "pt-BR":
-      return "Confirmar";
-    default:
-      return "Confirm";
-  }
-});
-
-const defaultCancelText = computed(() => {
-  switch (locale.value) {
-    case "ja":
-      return "キャンセル";
-    case "ko":
-      return "취소";
-    case "zh":
-      return "取消";
-    case "es":
-      return "Cancelar";
-    case "de":
-      return "Abbrechen";
-    case "fr":
-      return "Annuler";
-    case "pt-BR":
-      return "Cancelar";
-    default:
-      return "Cancel";
-  }
-});
+// Defensive fallbacks for callers that omit title / confirmText /
+// cancelText. The host translates per-call via the i18n bundle
+// (`confirmModal.*` namespace in `src/lang/*.ts`) rather than the
+// locale-switch the plugin-side shared component still uses; once
+// the host/plugin runtime split is reconciled we can drop the dual
+// implementation entirely.
+const defaultTitle = computed(() => t("confirmModal.defaultTitle"));
+const defaultConfirmText = computed(() => t("confirmModal.defaultConfirm"));
+const defaultCancelText = computed(() => t("confirmModal.defaultCancel"));
 
 function onKeyDown(event: KeyboardEvent): void {
   if (!confirmState.value.isOpen) return;

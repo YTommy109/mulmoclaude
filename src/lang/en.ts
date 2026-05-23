@@ -1322,6 +1322,15 @@ const enMessages = {
     appNotFound: "App not found",
     loadFailed: "Failed to load",
     requiredField: "This field is required",
+    source: {
+      user: "User",
+      project: "Project",
+    },
+  },
+  confirmModal: {
+    defaultTitle: "Confirm",
+    defaultConfirm: "Confirm",
+    defaultCancel: "Cancel",
   },
 };
 

@@ -1335,6 +1335,15 @@ const esMessages = {
     appNotFound: "App no encontrada",
     loadFailed: "Error al cargar",
     requiredField: "Este campo es obligatorio",
+    source: {
+      user: "Usuario",
+      project: "Proyecto",
+    },
+  },
+  confirmModal: {
+    defaultTitle: "Confirmar",
+    defaultConfirm: "Aceptar",
+    defaultCancel: "Cancelar",
   },
 };
 

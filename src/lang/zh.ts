@@ -1312,6 +1312,15 @@ const zhMessages = {
     appNotFound: "未找到应用",
     loadFailed: "加载失败",
     requiredField: "此字段为必填项",
+    source: {
+      user: "用户",
+      project: "项目",
+    },
+  },
+  confirmModal: {
+    defaultTitle: "确认",
+    defaultConfirm: "确定",
+    defaultCancel: "取消",
   },
 };
 

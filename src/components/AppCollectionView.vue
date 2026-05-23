@@ -85,7 +85,7 @@
           </h2>
           <button
             type="button"
-            class="h-7 w-7 flex items-center justify-center rounded text-gray-400 hover:bg-gray-100"
+            class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:bg-gray-100"
             :aria-label="t('common.close')"
             data-testid="apps-editor-close"
             @click="closeEditor"
@@ -310,6 +310,11 @@ function draftToRecord(state: EditState, schema: AppSchema): AppItem {
 
 async function saveEditor(): Promise<void> {
   if (!app.value || !editing.value) return;
+  // Snapshot mutable refs before any await — route changes during
+  // the save (e.g. user navigates away) can null `app.value` and
+  // would throw on the post-await `loadApp(app.value.slug)`.
+  const { slug, schema } = app.value;
+  const draft = editing.value;
   saveError.value = null;
 
   // Client-side required-field check — server doesn't enforce. Skip
@@ -318,33 +323,37 @@ async function saveEditor(): Promise<void> {
   // documented "blank → server-generated id" flow even for schemas
   // (like mc-clients) that mark the primary field `required: true`
   // for the edit-form-displays-it-as-a-real-field reason.
-  for (const [key, field] of Object.entries(app.value.schema.fields)) {
+  for (const [key, field] of Object.entries(schema.fields)) {
     if (!field.required) continue;
-    if (editing.value.mode === "create" && field.primary === true) continue;
-    if (!editing.value.draft[key]) {
+    if (draft.mode === "create" && field.primary === true) continue;
+    if (!draft.draft[key]) {
       saveError.value = `${field.label}: ${t("appsView.requiredField")}`;
       return;
     }
   }
 
   saving.value = true;
-  const record = draftToRecord(editing.value, app.value.schema);
-  const isCreate = editing.value.mode === "create";
+  const record = draftToRecord(draft, schema);
+  const isCreate = draft.mode === "create";
   const result = isCreate
-    ? await apiPost<ItemMutationResponse>(itemsUrl(app.value.slug), record)
-    : await apiPut<ItemMutationResponse>(itemUrl(app.value.slug, editing.value.originalId ?? ""), record);
+    ? await apiPost<ItemMutationResponse>(itemsUrl(slug), record)
+    : await apiPut<ItemMutationResponse>(itemUrl(slug, draft.originalId ?? ""), record);
   saving.value = false;
   if (!result.ok) {
     saveError.value = result.error;
     return;
   }
   closeEditor();
-  await loadApp(app.value.slug);
+  await loadApp(slug);
 }
 
 async function confirmDelete(item: AppItem): Promise<void> {
   if (!app.value) return;
-  const idRaw = item[app.value.schema.primaryKey];
+  // Snapshot before any await (see saveEditor) — confirm dialog
+  // awaits user input, plenty of time for the route to change.
+  const { slug } = app.value;
+  const { primaryKey } = app.value.schema;
+  const idRaw = item[primaryKey];
   const itemId = typeof idRaw === "string" ? idRaw : String(idRaw ?? "");
   if (!itemId) return;
   const ok = await openConfirm({
@@ -354,12 +363,12 @@ async function confirmDelete(item: AppItem): Promise<void> {
     variant: "danger",
   });
   if (!ok) return;
-  const result = await apiDelete(itemUrl(app.value.slug, itemId));
+  const result = await apiDelete(itemUrl(slug, itemId));
   if (!result.ok) {
     loadError.value = result.error;
     return;
   }
-  await loadApp(app.value.slug);
+  await loadApp(slug);
 }
 
 function goBack(): void {

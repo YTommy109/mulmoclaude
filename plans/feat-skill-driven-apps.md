@@ -159,7 +159,7 @@ After `yarn build`:
 3. **Role**: select "Account beta" → prompt
    `"Add a client: Acme Corp, billing@acme.example"` → verify
    `data/clients/items/<id>.json` is created with the right shape
-4. **View**: navigate to `/apps/clients` — verify Acme appears in the table
+4. **View**: navigate to `/apps/mc-clients` — verify Acme appears in the table
 5. **Edit**: click the row → modify email → save → verify file updates
 6. **Delete**: click delete in modal → verify file removed
 7. **Add via UI** (not just via Claude): click "+" → fill form → verify file

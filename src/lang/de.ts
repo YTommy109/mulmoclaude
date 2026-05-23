@@ -1340,6 +1340,15 @@ const deMessages = {
     appNotFound: "App nicht gefunden",
     loadFailed: "Laden fehlgeschlagen",
     requiredField: "Dieses Feld ist erforderlich",
+    source: {
+      user: "Benutzer",
+      project: "Projekt",
+    },
+  },
+  confirmModal: {
+    defaultTitle: "Bestätigen",
+    defaultConfirm: "Bestätigen",
+    defaultCancel: "Abbrechen",
   },
 };
 

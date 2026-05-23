@@ -3,6 +3,7 @@
 // `js/path-injection` sanitiser recognises our taint-launder.
 
 import path from "node:path";
+import { realpathSync } from "node:fs";
 import { workspacePath } from "../workspace.js";
 
 export const SCHEMA_FILE = "schema.json";
@@ -26,18 +27,72 @@ export function safeSlugName(slug: string): string | null {
   return basename;
 }
 
+/** Realpath the closest existing ancestor of `absPath` and return it.
+ *  Returns null if no ancestor exists or if the realpath call fails
+ *  for a non-ENOENT reason (permissions, etc.). Used by
+ *  `containedPath` to defend against symlinks pointing outside the
+ *  workspace even when the leaf hasn't been created yet. */
+function realpathClosestAncestor(absPath: string): string | null {
+  let cursor = absPath;
+  while (cursor !== path.dirname(cursor)) {
+    try {
+      return realpathSync(cursor);
+    } catch (err) {
+      const error = err as { code?: string };
+      if (error.code === "ENOENT") {
+        cursor = path.dirname(cursor);
+        continue;
+      }
+      return null;
+    }
+  }
+  return null;
+}
+
+/** True iff the realpath'd closest existing ancestor of `absPath`
+ *  resolves under `rootPath`'s realpath. Pure helper, takes both
+ *  paths explicitly so tests can drive it against a `mkdtempSync`
+ *  root without touching the user's workspace. Defends against the
+ *  data dir or any ancestor being a symlink to a directory outside
+ *  the workspace — lexical-only checks (`path.resolve` + prefix
+ *  match) would miss this case, which is the class of bug the rest
+ *  of this codebase uses realpath-based containment to avoid (see
+ *  `server/utils/files/safe.ts#resolveWithinRoot`). */
+export function isContainedInRoot(absPath: string, rootPath: string): boolean {
+  let rootReal: string;
+  try {
+    rootReal = realpathSync(rootPath);
+  } catch {
+    return false;
+  }
+  const ancestorReal = realpathClosestAncestor(absPath);
+  if (ancestorReal === null) return false;
+  if (ancestorReal === rootReal) return true;
+  return ancestorReal.startsWith(rootReal + path.sep);
+}
+
+/** Workspace-bound convenience over `isContainedInRoot`. Production
+ *  callers use this; the tests exercise the pure helper. */
+export function isContainedInWorkspace(absPath: string): boolean {
+  return isContainedInRoot(absPath, workspacePath);
+}
+
 /** Resolve a schema-declared dataPath against the workspace root,
- *  refusing anything that escapes (absolute paths, `..`-segments,
- *  empty string). Returns the absolute path on success, null on
- *  refusal. Does NOT require the directory to exist — the caller may
- *  create it on first write. */
+ *  refusing anything that escapes — absolute paths, `..`-segments,
+ *  empty string, or symlinks pointing outside the workspace.
+ *  Returns the absolute path on success, null on refusal. Does NOT
+ *  require the directory to exist; the caller may create it on first
+ *  write. The realpath containment check covers the symlink case at
+ *  discovery time; io operations re-check before each write via
+ *  `isContainedInWorkspace` to defend against symlinks introduced
+ *  between discovery and use. */
 export function resolveDataDir(dataPath: string): string | null {
   if (typeof dataPath !== "string" || dataPath.length === 0) return null;
   if (path.isAbsolute(dataPath)) return null;
   const normalized = path.normalize(dataPath);
   if (normalized.startsWith("..") || normalized.includes(`${path.sep}..${path.sep}`)) return null;
   const resolved = path.resolve(workspacePath, normalized);
-  if (resolved !== workspacePath && !resolved.startsWith(workspacePath + path.sep)) return null;
+  if (!isContainedInWorkspace(resolved)) return null;
   return resolved;
 }
 

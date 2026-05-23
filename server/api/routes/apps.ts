@@ -12,7 +12,7 @@ import { Router, Request, Response } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { discoverApps, generateItemId, deleteItem, listItems, loadApp, toDetail, toSummary, writeItem } from "../../workspace/apps/index.js";
 import type { AppDetail, AppItem, AppSummary } from "../../workspace/apps/index.js";
-import { badRequest, notFound, conflict, serverError } from "../../utils/httpError.js";
+import { badRequest, notFound, conflict, forbidden, serverError } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
 import { log } from "../../system/logger/index.js";
 
@@ -90,6 +90,10 @@ router.post(API_ROUTES.apps.items, async (req: Request<{ slug: string }>, res: R
       badRequest(res, `invalid item id: ${result.itemId}`);
       return;
     }
+    if (result.kind === "path-escape") {
+      forbidden(res, `data directory for app '${app.slug}' escapes the workspace`);
+      return;
+    }
     if (result.kind === "conflict") {
       conflict(res, `item '${result.itemId}' already exists`);
       return;
@@ -123,6 +127,10 @@ router.put(API_ROUTES.apps.item, async (req: Request<{ slug: string; itemId: str
       badRequest(res, `invalid item id: ${result.itemId}`);
       return;
     }
+    if (result.kind === "path-escape") {
+      forbidden(res, `data directory for app '${app.slug}' escapes the workspace`);
+      return;
+    }
     if (result.kind === "conflict") {
       // refuseOverwrite was false — this branch is unreachable, but
       // typescript needs the exhaustive switch.
@@ -147,6 +155,10 @@ router.delete(API_ROUTES.apps.item, async (req: Request<{ slug: string; itemId: 
     const result = await deleteItem(app.dataDir, req.params.itemId);
     if (result.kind === "invalid-id") {
       badRequest(res, `invalid item id: ${result.itemId}`);
+      return;
+    }
+    if (result.kind === "path-escape") {
+      forbidden(res, `data directory for app '${app.slug}' escapes the workspace`);
       return;
     }
     if (result.kind === "not-found") {

@@ -40,6 +40,12 @@ export function useConfirm() {
   function openConfirm(options: ConfirmOptions | string): Promise<boolean> {
     const opts = typeof options === "string" ? { message: options } : options;
     return new Promise<boolean>((resolve) => {
+      // If a previous confirm is still pending, settle it as
+      // "cancelled" before replacing the state. Without this the
+      // earlier `Promise<boolean>` would hang forever and any
+      // caller `await`ing it would deadlock.
+      const previous = confirmState.value.resolve;
+      if (previous) previous(false);
       confirmState.value = {
         isOpen: true,
         title: opts.title || "",

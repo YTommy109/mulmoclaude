@@ -1329,6 +1329,15 @@ const frMessages = {
     appNotFound: "App introuvable",
     loadFailed: "Échec du chargement",
     requiredField: "Ce champ est obligatoire",
+    source: {
+      user: "Utilisateur",
+      project: "Projet",
+    },
+  },
+  confirmModal: {
+    defaultTitle: "Confirmer",
+    defaultConfirm: "Confirmer",
+    defaultCancel: "Annuler",
   },
 };
 

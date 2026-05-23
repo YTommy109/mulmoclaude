@@ -1322,6 +1322,15 @@ const koMessages = {
     appNotFound: "앱을 찾을 수 없습니다",
     loadFailed: "불러오기에 실패했습니다",
     requiredField: "이 필드는 필수입니다",
+    source: {
+      user: "사용자",
+      project: "프로젝트",
+    },
+  },
+  confirmModal: {
+    defaultTitle: "확인",
+    defaultConfirm: "확인",
+    defaultCancel: "취소",
   },
 };
 

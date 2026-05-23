@@ -23,7 +23,7 @@
             <span class="material-icons text-blue-600">{{ app.icon }}</span>
             <span class="flex-1 min-w-0">
               <span class="block font-medium text-gray-900 truncate">{{ app.title }}</span>
-              <span class="block text-[11px] uppercase tracking-wide text-gray-400">{{ app.source }} · {{ app.slug }}</span>
+              <span class="block text-[11px] uppercase tracking-wide text-gray-400">{{ t(`appsView.source.${app.source}`) }} · {{ app.slug }}</span>
             </span>
             <span class="material-icons text-gray-400 text-base">chevron_right</span>
           </button>

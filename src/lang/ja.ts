@@ -1319,6 +1319,15 @@ const jaMessages = {
     appNotFound: "アプリが見つかりません",
     loadFailed: "読み込みに失敗しました",
     requiredField: "この項目は必須です",
+    source: {
+      user: "ユーザー",
+      project: "プロジェクト",
+    },
+  },
+  confirmModal: {
+    defaultTitle: "確認",
+    defaultConfirm: "実行",
+    defaultCancel: "キャンセル",
   },
 };
 
