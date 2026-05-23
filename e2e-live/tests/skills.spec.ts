@@ -158,6 +158,18 @@ test.describe("skills (real LLM / static)", () => {
     const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
     const displayName = `L-21B Encore canary ${nonce}`;
     const expectedSlug = `l-21b-encore-canary-${nonce}`;
+    // `schedule:9999-12-31` (far future) keeps the firingPlan inert so
+    // the setup-time `reconcileCycleNotifications` (server/encore/handlers/setup.ts)
+    // sees no due phase, never calls `fireGroup`, and never writes a
+    // `tickets/<pendingId>.json` or publishes a bell entry. Without
+    // this guard, a `cycle-start` phase fires immediately on setup
+    // and the resulting ticket is left behind by cleanup: the next
+    // tick's `sweepStuckTickets` SKIPS tickets pointing at the
+    // removed obligation (server/encore/tick.ts:140), and
+    // `pruneOrphanTickets` only collects them after a 30-day age
+    // threshold — that's a real leak window across spec runs. The
+    // schema's `min(1)` on firingPlan still has to be satisfied, so
+    // a single far-future phase is the minimum-bell-impact choice.
     const dsl = {
       version: 1,
       displayName,
@@ -169,7 +181,7 @@ test.describe("skills (real LLM / static)", () => {
           id: "note",
           displayName: "Note",
           deadline: "cycle-deadline",
-          firingPlan: [{ at: "cycle-start", severity: "info" }],
+          firingPlan: [{ at: "schedule:9999-12-31", severity: "info" }],
           fields: ["note"],
         },
       ],

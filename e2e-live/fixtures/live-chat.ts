@@ -253,29 +253,80 @@ export async function removeProjectSkill(slug: string): Promise<void> {
 const ENCORE_OBLIGATION_ID_RE = /^[a-z][a-z0-9-]*$/;
 
 /**
- * Best-effort fs-level delete of an Encore obligation directory at
- * `<workspace>/data/plugins/encore/obligations/<obligationId>/`.
- * Recursive because the dir contains `index.md` plus one cycle file
- * per period (`<cycleId>.md`).
+ * Best-effort fs-level delete of an Encore obligation. Removes the
+ * obligation directory at
+ * `<workspace>/data/plugins/encore/obligations/<obligationId>/`
+ * (recursive — `index.md` plus one `<cycleId>.md` per period) AND
+ * sweeps any `data/plugins/encore/tickets/*.json` whose
+ * `obligationId` field matches.
  *
  * Why fs-level: the encore dispatcher has no "delete obligation"
  * verb on the wire (the user-facing path is retire-by-amend, which
  * leaves files behind). For e2e-live teardown we want the test's
- * seeded obligation gone from disk so the dashboard row and any
- * leftover bell don't bleed into the next run.
+ * seeded obligation gone from disk so the dashboard row, residual
+ * tickets, and bell entries can't bleed into the next run.
  *
- * Orphan tickets at `data/plugins/encore/tickets/*.json` that point
- * at the deleted obligation are NOT touched here — the next encore
- * tick (`server/encore/tick.ts` → `sweepStuckTickets`) reconciles
- * them away. Keeping cleanup narrow means the helper can't
- * accidentally clobber an unrelated obligation's tickets.
+ * Why sweep tickets here (vs. leaving them to a future encore tick):
+ * `sweepStuckTickets` in `server/encore/tick.ts:140` deliberately
+ * SKIPS tickets whose obligation directory no longer exists, and
+ * `pruneOrphanTickets` only collects them after a 30-day age
+ * threshold. So a setup that fires a `cycle-start` phase on the
+ * initial reconcile would leave the ticket behind across spec runs.
+ * Sweeping here keeps cleanup deterministic.
+ *
+ * What's NOT cleaned: host notifier bell entries (tracked by the
+ * host engine in a separate store, addressed by `notificationId`
+ * from the ticket). Tests that genuinely fire bells should clean the
+ * notifier engine explicitly; canaries that only assert View mounts
+ * should pick a firingPlan shape that does not fire on the initial
+ * reconcile (e.g. a far-future `schedule:` phase) — that is the
+ * cheaper invariant to maintain.
  */
 export async function removeEncoreObligation(obligationId: string): Promise<void> {
   if (!ENCORE_OBLIGATION_ID_RE.test(obligationId)) {
     throw new Error(`removeEncoreObligation: invalid obligationId ${JSON.stringify(obligationId)} — must match ${ENCORE_OBLIGATION_ID_RE.source}`);
   }
-  const target = resolveWorkspacePath(`data/plugins/encore/obligations/${obligationId}`);
-  await rm(target, { recursive: true, force: true });
+  const obligationDir = resolveWorkspacePath(`data/plugins/encore/obligations/${obligationId}`);
+  await rm(obligationDir, { recursive: true, force: true });
+  await sweepEncoreTicketsFor(obligationId);
+}
+
+/**
+ * Best-effort delete of every `data/plugins/encore/tickets/*.json`
+ * whose `obligationId` field matches. Called by
+ * {@link removeEncoreObligation}; not exported because the obligation
+ * dir + ticket sweep belong together — callers want
+ * "delete this obligation everywhere on disk", not "scan tickets in
+ * isolation". A malformed / partially-written ticket is logged and
+ * dropped (the file would not contribute to a future reconcile
+ * either way).
+ */
+async function sweepEncoreTicketsFor(obligationId: string): Promise<void> {
+  const ticketsDir = resolveWorkspacePath("data/plugins/encore/tickets");
+  let entries: string[];
+  try {
+    entries = await readdir(ticketsDir);
+  } catch (err) {
+    // No tickets dir at all (workspace never wrote one) → nothing
+    // to sweep. Any other readdir error is logged; cleanup is
+    // best-effort by contract.
+    if (isErrorWithCode(err) && err.code === "ENOENT") return;
+    console.warn(`sweepEncoreTicketsFor: readdir ${ticketsDir} failed`, err);
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.endsWith(".json")) continue;
+    const filePath = path.join(ticketsDir, entry);
+    try {
+      const raw = await readFile(filePath, "utf8");
+      const parsed: unknown = JSON.parse(raw);
+      if (isRecord(parsed) && parsed.obligationId === obligationId) {
+        await rm(filePath, { force: true });
+      }
+    } catch (err) {
+      console.warn(`sweepEncoreTicketsFor: skipping ${filePath}`, err);
+    }
+  }
 }
 
 /**
