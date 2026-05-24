@@ -68,6 +68,8 @@ const frMessages = {
     clearAll: "Tout effacer",
     dismiss: "Ignorer",
     cancel: "Annuler",
+    showMore: "Voir plus ({count})",
+    showLess: "Réduire",
   },
   pluginDiagnostics: {
     title: "Problème de configuration du plugin",
@@ -76,9 +78,20 @@ const frMessages = {
       "Les plugins « {first} » et « {second} » enregistrent tous deux le {dimension} « {key} ». « {first} » l'a réclamé en premier, donc l'enregistrement de « {second} » est ignoré.",
   },
   optionalDeps: {
+    // `title` générique conservé pour la compatibilité avec les
+    // entrées d'historique persistées avant la séparation par motif ;
+    // les nouvelles utilisent `titleNotFound` / `titleNotResponding`.
     title: "Dépendance optionnelle indisponible",
-    notFound: "{command} introuvable — les fonctionnalités associées ont été désactivées. Installez-le et redémarrez pour les activer.",
-    notResponding: "{command} est installé mais ne répond pas — les fonctionnalités associées ont été désactivées. Démarrez-le et redémarrez pour les activer.",
+    titleNotFound: "{command} n'est pas installé",
+    titleNotResponding: "{command} n'est pas en cours d'exécution",
+    notFound: "{command} introuvable — les fonctionnalités associées ont été désactivées. Installez {command} et redémarrez MulmoClaude pour les activer.",
+    notResponding:
+      "{command} est installé mais n'est pas en cours d'exécution — les fonctionnalités associées ont été désactivées. Démarrez {command} et redémarrez MulmoClaude pour les activer.",
+  },
+  backendOffline: {
+    title: "Impossible de joindre le backend",
+    body: "Le serveur MulmoClaude n'est peut-être pas démarré. Vérifiez le serveur de développement, puis réessayez.",
+    retry: "Réessayer",
   },
   pluginErrorBoundary: {
     title: "Le plugin {pkg} a planté",
@@ -104,6 +117,8 @@ const frMessages = {
     availableTools: "Outils disponibles",
     toggleToolDescription: "Basculer la description de l'outil",
     toolCallHistory: "Historique des appels d'outils",
+    copyHistory: "Copier l'historique des appels d'outils",
+    copiedHistory: "Copié !",
     noToolCalls: "Aucun appel d'outil pour le moment",
     arguments: "Arguments",
     error: "Erreur",
@@ -263,15 +278,44 @@ const frMessages = {
     errLabelConflict: 'L\'étiquette "{label}" existe déjà',
   },
   pluginLauncher: {
-    todos: { label: "Tâches", title: "Ouvrir les tâches" },
-    calendar: { label: "Calendrier", title: "Ouvrir le calendrier" },
-    automations: { label: "Actions", title: "Ouvrir les actions" },
-    wiki: { label: "Wiki", title: "Ouvrir le wiki" },
-    sources: { label: "Sources", title: "Ouvrir les sources d'information" },
-    news: { label: "Actualités", title: "Ouvrir le lecteur d'actualités" },
-    skills: { label: "Skills", title: "Ouvrir les skills" },
-    roles: { label: "Rôles", title: "Ouvrir les rôles" },
-    files: { label: "Fichiers", title: "Ouvrir les fichiers du workspace" },
+    todos: { label: "Tâches" },
+    calendar: { label: "Calendrier" },
+    automations: { label: "Actions" },
+    encore: { label: "Encore" },
+    wiki: { label: "Wiki" },
+    apps: { label: "Apps" },
+    sources: { label: "Sources" },
+    news: { label: "Actualités" },
+    skills: { label: "Skills" },
+    roles: { label: "Rôles" },
+    files: { label: "Fichiers" },
+  },
+  encoreDashboard: {
+    title: "Encore",
+    subtitle: "Obligations récurrentes suivies par Encore.",
+    loading: "Chargement des obligations…",
+    errorPrefix: "Impossible de charger les obligations : ",
+    empty: "Aucune obligation pour le moment. Demandez dans le chat pour en configurer une.",
+    noCycles: "Aucun cycle enregistré pour le moment.",
+    cyclesSuffix: "cycles",
+    targetCount: "{count} cible | {count} cibles",
+    cycleClosed: "Clos",
+    chatButtonTitle: "Discuter de cette obligation dans un nouveau chat",
+    bellButtonTitle: "Discuter de ce cycle",
+    addButtonLabel: "Ajouter",
+    unexpectedResponse: "Encore a renvoyé une réponse inattendue.",
+    status: {
+      active: "Active",
+      paused: "En pause",
+      retired: "Retirée",
+    },
+    cadence: {
+      daily: "Quotidienne",
+      weekly: "Hebdomadaire",
+      monthly: "Mensuelle",
+      biannual: "Semestrielle",
+      annual: "Annuelle",
+    },
   },
   fileContentHeader: {
     showRendered: "Afficher le Markdown rendu",
@@ -287,6 +331,9 @@ const frMessages = {
     parseError: "erreur d'analyse",
     editJson: "Modifier le JSON",
     jsonEditorLabel: "Éditeur JSON",
+    invalidJson: "JSON invalide",
+    undo: "Annuler",
+    redo: "Rétablir",
   },
   filesView: {
     chatPlaceholder: "Posez une question sur ce fichier…",
@@ -401,6 +448,9 @@ const frMessages = {
     urlLabel: "URL :",
     commandLabel: "Commande :",
     dockerStdioUnsupported: "⚠ Ne s'exécutera pas lorsque le sandbox Docker est activé.",
+    dockerStdioHostExecActive: "⚠ S'exécute sur l'hôte : ce serveur sort du sandbox Docker.",
+    dockerStdioHostExecOptIn:
+      "Exécuter quand même sur l'hôte (avancé). Ce serveur s'exécute hors du sandbox Docker via une passerelle HTTP locale et peut accéder à votre machine.",
     learnMore: "En savoir plus",
     addServerButton: "+ Ajouter un serveur MCP",
     nameLabel: "Nom",
@@ -877,8 +927,9 @@ const frMessages = {
   },
   todoKanban: {
     rename: "Renommer",
-    alreadyDoneColumn: "Déjà la colonne des terminées",
     markAsDoneColumn: "Définir comme colonne des terminées",
+    removeAllItems: "Supprimer tous les éléments",
+    removeAllItemsConfirm: "Supprimer les {count} éléments de « {column} » ? Cette action est irréversible.",
     deleteColumn: "Supprimer la colonne",
     columnActions: "Actions de colonne",
     addCard: "+ Ajouter une carte",
@@ -1267,6 +1318,26 @@ const frMessages = {
     // style tandis que le texte reste traduisible.
     explanation:
       "Noms d'outils supplémentaires à transmettre à Claude via {allowedTools}. Un par ligne. Utile pour les serveurs MCP intégrés à Claude Code comme Gmail / Google Agenda après authentification via {claudeMcp}.",
+  },
+  appsView: {
+    title: "Apps",
+    backToIndex: "Retour aux apps",
+    indexEmpty: "Aucune app installée. Mettez une étoile sur une compétence avec un schema depuis la page Skills pour la voir ici.",
+    editItem: "Modifier",
+    confirmDelete: "Supprimer cet élément ? Cette action est irréversible.",
+    itemsEmpty: "Aucun élément pour l'instant. Cliquez sur + pour en ajouter un.",
+    appNotFound: "App introuvable",
+    loadFailed: "Échec du chargement",
+    requiredField: "Ce champ est obligatoire",
+    source: {
+      user: "Utilisateur",
+      project: "Projet",
+    },
+  },
+  confirmModal: {
+    defaultTitle: "Confirmer",
+    defaultConfirm: "Confirmer",
+    defaultCancel: "Annuler",
   },
 };
 

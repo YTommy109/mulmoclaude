@@ -59,7 +59,7 @@ jobs:
       fail-fast: false
       matrix:
         node-version: [22.x, 24.x]
-        os: [ubuntu-latest, windows-2022, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
     - uses: actions/checkout@v6
       with:
@@ -84,7 +84,7 @@ jobs:
     # tree (yarn install fills in the diff) instead of a cold cache.
     - name: Cache node_modules (Windows)
       if: runner.os == 'Windows'
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: node_modules
         key: win-node-modules-${{ matrix.node-version }}-${{ hashFiles('yarn.lock') }}
@@ -99,7 +99,7 @@ jobs:
     # version because emitted JS can differ across them.
     - name: Cache packages/dist
       id: pkg-dist-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           packages/*/dist
@@ -118,17 +118,28 @@ jobs:
     # drift inside `node_modules` or the dist artifact.
     - run: yarn run plugins:codegen:check
     - run: yarn run build
-    # Bundle integrity: `yarn build` regenerates committed
-    # esbuild artifacts (currently `server/workspace/wiki-history/
-    # hook/snapshot.mjs`). If a developer changed the TS source but
-    # forgot to commit the new bundle, this fails — without the
-    # check a stale bundle would silently land on main. Limited to
-    # the build outputs we know about so edits to other generated
-    # files (e.g. dist/, packages/*/dist) don't false-positive.
-    # (Codex review iter-1 #955.)
-    - name: Verify built hook bundle is up-to-date
-      run: git diff --exit-code -- server/workspace/wiki-history/hook/snapshot.mjs
+    # Bundle integrity: `yarn build` regenerates committed esbuild
+    # artifacts (`server/workspace/wiki-history/hook/snapshot.mjs`
+    # and `server/build/dispatcher.mjs`). If a developer changed the
+    # TS source but forgot to commit the new bundle, this fails —
+    # without the check a stale bundle would silently land on main.
+    # Limited to the build outputs we know about so edits to other
+    # generated files (e.g. dist/, packages/*/dist) don't
+    # false-positive. The dispatcher bundle is sourcemap-free so its
+    # output is deterministic across rebuilds — this gate would have
+    # flapped on the old inline-sourcemap output. (Codex review
+    # iter-1 #955.)
+    - name: Verify built hook bundles are up-to-date
+      run: git diff --exit-code -- server/workspace/wiki-history/hook/snapshot.mjs server/build/dispatcher.mjs
     - run: yarn run test:coverage
+    # Subprocess-mode env-bound smoke for `requireSameOrigin` (#1463).
+    # The main `test:coverage` glob exercises the env-UNSET path; this
+    # step re-runs the same spec with `MULMOCLAUDE_TRUSTED_ORIGINS` set
+    # so the EXPORTED middleware is exercised against a listed LAN
+    # origin. Catches a typo like `requireSameOriginWith([])` at the
+    # export site that the in-process suite cannot see (Node's ESM
+    # resolver caches `env.ts` on first import).
+    - run: yarn run test:csrf-wiring
 
   # Single Yarn 4 cell — Yarn 1 stays the primary tool for the lint_test
   # matrix, but this guards against duplicate-workspace-name (Yarn 4 is
@@ -207,7 +218,7 @@ jobs:
     # finishes building first warms the cache for the other.
     - name: Cache packages/dist
       id: pkg-dist-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           packages/*/dist

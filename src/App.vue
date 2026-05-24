@@ -1,5 +1,9 @@
 <template>
   <div class="flex flex-col fixed inset-0 bg-gray-900 text-white">
+    <!-- Backend-offline banner (#1479) — pinned above the top bar so
+         it's the first thing the user sees when the server isn't
+         reachable. Self-hiding when fetchHealth succeeds. -->
+    <BackendOfflineBanner :on-retry="fetchHealth" />
     <!-- Global top bar — shown in every view mode -->
     <div class="shrink-0 bg-white text-gray-900">
       <!-- Row 1: title + plugin launcher -->
@@ -217,6 +221,13 @@
           <RolesView v-else-if="currentPage === 'roles'" />
           <SourcesView v-else-if="currentPage === 'sources'" />
           <NewsView v-else-if="currentPage === 'news'" />
+          <!-- Schema-driven apps. The route is `/apps/:slug?`; with
+               a slug we mount the CollectionView, without one we
+               mount the index. Both are host components (no
+               PluginScopedRoot needed) — they call the host's
+               /api/apps endpoints directly. -->
+          <AppCollectionView v-else-if="currentPage === 'apps' && route.params.slug" :key="String(route.params.slug)" />
+          <AppsIndexView v-else-if="currentPage === 'apps'" />
           <!-- Debug page (encore plan PR 1 follow-up). The View ships
                inside the @mulmoclaude/debug-plugin runtime package; we
                look it up by tool name and render the registered
@@ -235,16 +246,15 @@
             Debug plugin is not loaded. Make sure @mulmoclaude/debug-plugin is built and registered as a preset.
           </div>
           <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
-          <!-- Encore chat-on-mount page. The tick never calls
-               chat.start; instead its notifications point here
-               (/encore?pendingId=<uuid>). When the user clicks the
-               bell, the View mounts, dispatches resolveNotification
-               (which starts the chat server-side), and redirects to
-               /chat/<chatId>. The user never sees this page —
-               transient (~300ms). Same literal-fallback policy as
-               debug above; the page's strings stay out of the
-               8-locale i18n bundle since the user can't read them in
-               normal use. -->
+          <!-- Encore page. The View branches on `?pendingId`:
+               - With pendingId: chat-on-mount redirect (transient,
+                 ~300ms) for notification clicks — the tick publishes
+                 `/encore?pendingId=<uuid>` URLs and the View
+                 dispatches resolveNotification then full-navigates
+                 to /chat/<chatId>.
+               - Without pendingId: read-only dashboard of active
+                 obligations and their cycle history, reachable from
+                 the top-bar launcher. -->
           <component :is="encoreViewComponent" v-else-if="currentPage === 'encore' && encoreViewComponent" />
           <!-- eslint-disable @intlify/vue-i18n/no-raw-text -- encore chat-on-mount page is a transient redirect, not a user-facing surface. -->
           <div v-else-if="currentPage === 'encore'" class="h-full flex items-center justify-center text-sm text-gray-500">Encore is not loaded.</div>
@@ -305,6 +315,7 @@ import { useI18n } from "vue-i18n";
 import { v4 as uuidv4 } from "uuid";
 import { getPlugin } from "./tools";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
+import BackendOfflineBanner from "./components/BackendOfflineBanner.vue";
 import RightSidebar from "./components/RightSidebar.vue";
 import SidebarHeader from "./components/SidebarHeader.vue";
 import SessionHeaderControls from "./components/SessionHeaderControls.vue";
@@ -327,6 +338,8 @@ import SkillsView from "./plugins/manageSkills/View.vue";
 import RolesView from "./components/RolesView.vue";
 import SourcesView from "./components/SourcesView.vue";
 import NewsView from "./components/NewsView.vue";
+import AppsIndexView from "./components/AppsIndexView.vue";
+import AppCollectionView from "./components/AppCollectionView.vue";
 import PluginScopedRoot from "./components/PluginScopedRoot.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import { PAGE_ROUTES, type PageRouteName } from "./router";

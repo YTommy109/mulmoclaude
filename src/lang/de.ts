@@ -68,6 +68,8 @@ const deMessages = {
     clearAll: "Alle löschen",
     dismiss: "Verwerfen",
     cancel: "Abbrechen",
+    showMore: "Mehr anzeigen ({count})",
+    showLess: "Weniger anzeigen",
   },
   pluginDiagnostics: {
     title: "Plugin-Konfigurationsproblem",
@@ -77,10 +79,21 @@ const deMessages = {
       "Die Plugins „{first}“ und „{second}“ registrieren beide {dimension} „{key}“. „{first}“ hat ihn zuerst beansprucht, daher wird die Registrierung von „{second}“ ignoriert.",
   },
   optionalDeps: {
+    // Generischer `title` aus Abwärtskompatibilität für persistierte
+    // History-Einträge vor der Aufteilung nach Grund; neue Pfade
+    // verwenden `titleNotFound` / `titleNotResponding`.
     title: "Optionale Abhängigkeit nicht verfügbar",
-    notFound: "{command} nicht gefunden — zugehörige Funktionen wurden deaktiviert. Installieren Sie es und starten Sie neu, um sie zu aktivieren.",
+    titleNotFound: "{command} ist nicht installiert",
+    titleNotResponding: "{command} läuft nicht",
+    notFound:
+      "{command} nicht gefunden — zugehörige Funktionen wurden deaktiviert. Installieren Sie {command} und starten Sie MulmoClaude neu, um sie zu aktivieren.",
     notResponding:
-      "{command} ist installiert, antwortet aber nicht — zugehörige Funktionen wurden deaktiviert. Starten Sie es und starten Sie neu, um sie zu aktivieren.",
+      "{command} ist installiert, läuft aber nicht — zugehörige Funktionen wurden deaktiviert. Starten Sie {command} und starten Sie MulmoClaude neu, um sie zu aktivieren.",
+  },
+  backendOffline: {
+    title: "Backend nicht erreichbar",
+    body: "Der MulmoClaude-Server läuft möglicherweise nicht. Prüfe den Dev-Server und versuche es erneut.",
+    retry: "Erneut versuchen",
   },
   pluginErrorBoundary: {
     title: "Plugin {pkg} ist abgestürzt",
@@ -106,6 +119,8 @@ const deMessages = {
     availableTools: "Verfügbare Tools",
     toggleToolDescription: "Tool-Beschreibung umschalten",
     toolCallHistory: "Tool-Aufrufverlauf",
+    copyHistory: "Tool-Aufrufverlauf kopieren",
+    copiedHistory: "Kopiert!",
     noToolCalls: "Noch keine Tool-Aufrufe",
     arguments: "Argumente",
     error: "Fehler",
@@ -266,15 +281,44 @@ const deMessages = {
     errLabelConflict: 'Label "{label}" existiert bereits',
   },
   pluginLauncher: {
-    todos: { label: "To-dos", title: "To-dos öffnen" },
-    calendar: { label: "Kalender", title: "Kalender öffnen" },
-    automations: { label: "Aktionen", title: "Aktionen öffnen" },
-    wiki: { label: "Wiki", title: "Wiki öffnen" },
-    sources: { label: "Quellen", title: "Informationsquellen öffnen" },
-    news: { label: "Nachrichten", title: "Nachrichten-Viewer öffnen" },
-    skills: { label: "Skills", title: "Skills öffnen" },
-    roles: { label: "Rollen", title: "Rollen öffnen" },
-    files: { label: "Dateien", title: "Workspace-Dateien öffnen" },
+    todos: { label: "To-dos" },
+    calendar: { label: "Kalender" },
+    automations: { label: "Aktionen" },
+    encore: { label: "Encore" },
+    wiki: { label: "Wiki" },
+    apps: { label: "Apps" },
+    sources: { label: "Quellen" },
+    news: { label: "Nachrichten" },
+    skills: { label: "Skills" },
+    roles: { label: "Rollen" },
+    files: { label: "Dateien" },
+  },
+  encoreDashboard: {
+    title: "Encore",
+    subtitle: "Wiederkehrende Verpflichtungen, die Encore verfolgt.",
+    loading: "Verpflichtungen werden geladen…",
+    errorPrefix: "Verpflichtungen konnten nicht geladen werden: ",
+    empty: "Noch keine Verpflichtungen. Frage im Chat nach, um eine einzurichten.",
+    noCycles: "Noch keine Zyklen erfasst.",
+    cyclesSuffix: "Zyklen",
+    targetCount: "{count} Ziel | {count} Ziele",
+    cycleClosed: "Erledigt",
+    chatButtonTitle: "Diese Verpflichtung in einem neuen Chat besprechen",
+    bellButtonTitle: "Diesen Zyklus besprechen",
+    addButtonLabel: "Hinzufügen",
+    unexpectedResponse: "Encore hat eine unerwartete Antwort zurückgegeben.",
+    status: {
+      active: "Aktiv",
+      paused: "Pausiert",
+      retired: "Beendet",
+    },
+    cadence: {
+      daily: "Täglich",
+      weekly: "Wöchentlich",
+      monthly: "Monatlich",
+      biannual: "Halbjährlich",
+      annual: "Jährlich",
+    },
   },
   fileContentHeader: {
     showRendered: "Gerendertes Markdown anzeigen",
@@ -290,6 +334,9 @@ const deMessages = {
     parseError: "Parse-Fehler",
     editJson: "JSON bearbeiten",
     jsonEditorLabel: "JSON-Editor",
+    invalidJson: "Ungültiges JSON",
+    undo: "Rückgängig",
+    redo: "Wiederholen",
   },
   filesView: {
     chatPlaceholder: "Frage zu dieser Datei stellen…",
@@ -410,6 +457,9 @@ const deMessages = {
     urlLabel: "URL:",
     commandLabel: "Befehl:",
     dockerStdioUnsupported: "⚠ Wird nicht ausgeführt, solange die Docker-Sandbox aktiv ist.",
+    dockerStdioHostExecActive: "⚠ Läuft auf dem Host — dieser Server verlässt die Docker-Sandbox.",
+    dockerStdioHostExecOptIn:
+      "Trotzdem auf dem Host ausführen (fortgeschritten). Dieser Server läuft über ein lokales HTTP-Gateway außerhalb der Docker-Sandbox und kann auf Ihren Rechner zugreifen.",
     learnMore: "Mehr erfahren",
     addServerButton: "+ MCP-Server hinzufügen",
     nameLabel: "Name",
@@ -886,8 +936,9 @@ const deMessages = {
   },
   todoKanban: {
     rename: "Umbenennen",
-    alreadyDoneColumn: 'Bereits Spalte „Erledigt"',
-    markAsDoneColumn: 'Als Spalte „Erledigt" markieren',
+    markAsDoneColumn: "Als Spalte „Erledigt“ markieren",
+    removeAllItems: "Alle Elemente entfernen",
+    removeAllItemsConfirm: "Alle {count} Elemente in „{column}“ entfernen? Diese Aktion kann nicht rückgängig gemacht werden.",
     deleteColumn: "Spalte löschen",
     columnActions: "Spaltenaktionen",
     addCard: "+ Karte hinzufügen",
@@ -1278,6 +1329,26 @@ const deMessages = {
     // behalten, während der Text übersetzbar ist.
     explanation:
       "Zusätzliche Tool-Namen, die Claude über {allowedTools} übergeben werden sollen. Einer pro Zeile. Nützlich für in Claude Code integrierte MCP-Server wie Gmail / Google Kalender, nachdem Sie sich über {claudeMcp} authentifiziert haben.",
+  },
+  appsView: {
+    title: "Apps",
+    backToIndex: "Zurück zu Apps",
+    indexEmpty: "Keine Apps installiert. Markiere auf der Skills-Seite eine Skill mit Schema, um sie hier zu sehen.",
+    editItem: "Bearbeiten",
+    confirmDelete: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.",
+    itemsEmpty: "Noch keine Einträge. Klicke auf +, um einen hinzuzufügen.",
+    appNotFound: "App nicht gefunden",
+    loadFailed: "Laden fehlgeschlagen",
+    requiredField: "Dieses Feld ist erforderlich",
+    source: {
+      user: "Benutzer",
+      project: "Projekt",
+    },
+  },
+  confirmModal: {
+    defaultTitle: "Bestätigen",
+    defaultConfirm: "Bestätigen",
+    defaultCancel: "Abbrechen",
   },
 };
 

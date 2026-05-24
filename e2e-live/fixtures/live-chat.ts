@@ -371,15 +371,19 @@ export function stagingSkillSlugFromWriteCall(call: ToolCallTraceRecord): string
  * One `tool_call` record as persisted by `server/workspace/tool-trace`.
  * Specs filter on `toolName` and pull selected fields from `args`
  * (`file_path`, ...) — the trace shape is wider than this slice but
- * the spec only needs the dispatch-level info.
+ * the spec only needs the dispatch-level info. `toolUseId` carries the
+ * per-invocation key so callers can pair a `tool_call` with the
+ * matching `tool_call_result` returned by `readSessionToolResults`.
  */
 export interface ToolCallTraceRecord {
+  toolUseId: string;
   toolName: string;
   args: unknown;
 }
 
 interface ToolCallJsonlLine {
   type?: unknown;
+  toolUseId?: unknown;
   toolName?: unknown;
   args?: unknown;
 }
@@ -393,8 +397,9 @@ function parseToolCallLine(line: string): ToolCallTraceRecord | null {
     return null;
   }
   if (parsed.type !== "tool_call") return null;
+  if (typeof parsed.toolUseId !== "string") return null;
   if (typeof parsed.toolName !== "string") return null;
-  return { toolName: parsed.toolName, args: parsed.args };
+  return { toolUseId: parsed.toolUseId, toolName: parsed.toolName, args: parsed.args };
 }
 
 /**
@@ -421,6 +426,77 @@ export async function readSessionToolCalls(sessionId: string): Promise<ToolCallT
     if (record !== null) calls.push(record);
   }
   return calls;
+}
+
+/**
+ * One `tool_call_result` record as persisted alongside `tool_call`
+ * events (see `server/workspace/tool-trace/index.ts:handleToolCallResult`).
+ * Pair with the originating call via {@link ToolCallTraceRecord.toolUseId}.
+ *
+ * The server classifier writes either `content` (inline, ≤ 4096 chars
+ * per `MAX_INLINE_CONTENT_CHARS`) or `contentRef` (pointer to a file
+ * on disk for larger / special results) — never both. `content` is
+ * `null` when the result was spilled to a file and `contentRef`
+ * carries the path; specs that need the body for assertions should
+ * `expect(content).not.toBeNull()` to fail loudly if a future tool
+ * starts producing oversized output that breaks their assumption.
+ */
+export interface ToolCallResultRecord {
+  toolUseId: string;
+  toolName: string;
+  /** Inline body when the result fit under the inline threshold. */
+  content: string | null;
+  /** Pointer to a workspace-relative path when the result was spilled out-of-band. */
+  contentRef: string | null;
+}
+
+interface ToolCallResultJsonlLine {
+  type?: unknown;
+  toolUseId?: unknown;
+  toolName?: unknown;
+  content?: unknown;
+  contentRef?: unknown;
+}
+
+function parseToolCallResultLine(line: string): ToolCallResultRecord | null {
+  if (line.length === 0) return null;
+  let parsed: ToolCallResultJsonlLine;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  if (parsed.type !== "tool_call_result") return null;
+  if (typeof parsed.toolUseId !== "string") return null;
+  if (typeof parsed.toolName !== "string") return null;
+  const content = typeof parsed.content === "string" ? parsed.content : null;
+  const contentRef = typeof parsed.contentRef === "string" ? parsed.contentRef : null;
+  // Server contract from `server/workspace/tool-trace/index.ts`
+  // writes exactly one of `content` / `contentRef` per row. Reject
+  // rows that carry both or neither so a future schema drift can't
+  // pose as a valid result downstream (CodeRabbit review on PR #1462).
+  if ((content === null) === (contentRef === null)) return null;
+  return { toolUseId: parsed.toolUseId, toolName: parsed.toolName, content, contentRef };
+}
+
+/**
+ * Read every `tool_call_result` record from the per-session jsonl in
+ * write order. Specs use this together with {@link readSessionToolCalls}
+ * to assert not just that a tool was dispatched but that the result
+ * carries the expected payload — L-28 (PR #1462 Codex iter-2) anchors
+ * the gh-auth success/failure decision on the real `Bash` result body
+ * so the LLM cannot hallucinate "Logged in to github.com" into the
+ * assistant body after a failed credential bridge.
+ */
+export async function readSessionToolResults(sessionId: string): Promise<ToolCallResultRecord[]> {
+  const raw = await readSessionJsonl(sessionId, workspaceRoot());
+  if (raw === null) return [];
+  const results: ToolCallResultRecord[] = [];
+  for (const line of raw.split("\n")) {
+    const record = parseToolCallResultLine(line);
+    if (record !== null) results.push(record);
+  }
+  return results;
 }
 
 /**
@@ -481,6 +557,38 @@ const WIKI_PAGE_BODY_SELECTOR = '[data-testid="wiki-page-body"]';
  */
 export async function navigateToWikiPage(page: Page, slug: string): Promise<void> {
   await page.goto(`/wiki/pages/${encodeURIComponent(slug)}`);
+}
+
+/**
+ * Generic "the SPA landed on the wiki page for `slug` and the body
+ * hydrated with `marker`" assertion. Collapses the three boilerplate
+ * checks every wiki-navigation spec repeats:
+ *
+ *   1. URL pathname ends with `/wiki/pages/<encoded-slug>` — the SPA
+ *      router pushed the expected path. The predicate compares the
+ *      encoded suffix as a literal string, side-stepping the
+ *      `encodeURIComponent` regex-safety pitfall (encodeURIComponent
+ *      preserves `.`, `(`, `)`, `*`, all of which are regex
+ *      metacharacters — splicing the encoded slug into a `RegExp`
+ *      would silently overmatch for any caller whose slug includes
+ *      those chars).
+ *   2. `WIKI_PAGE_BODY_SELECTOR` contains `marker` — the page body
+ *      actually rendered (vs. an empty shell or a 404 view).
+ *   3. URL does NOT match `/chat` — sentinel for the B-23 / B-24
+ *      regression shape where the catch-all router swallowed
+ *      `/wiki/pages/<slug>` and bounced to the chat surface.
+ *
+ * Per-test sentinels that are NOT generic (e.g. L-15b's #1194
+ * collision negative `not.toContainText(sourceMarker)`, L-WIKI-PIPE's
+ * `not.toHaveURL(/%7C/)` alias-leak guard) stay inline at the call
+ * site so the spec narrative around those bugs is readable — this
+ * helper only owns the three checks every wiki landing test shares.
+ */
+export async function expectWikiPageBody(page: Page, slug: string, marker: string): Promise<void> {
+  const expectedPathSuffix = `/wiki/pages/${encodeURIComponent(slug)}`;
+  await expect(page).toHaveURL((url) => url.pathname.endsWith(expectedPathSuffix));
+  await expect(page.locator(WIKI_PAGE_BODY_SELECTOR)).toContainText(marker);
+  await expect(page).not.toHaveURL(/\/chat/);
 }
 
 /**
@@ -1124,4 +1232,157 @@ export async function readMovieDownload(download: Download): Promise<Buffer> {
     throw new Error(`Downloaded file is not an MP4 (expected 'ftyp' at offset 4, got hex: ${head})`);
   }
   return buf;
+}
+
+// ── Shared in-page authed JSON fetch ────────────────────────────────
+
+/**
+ * Discriminated probe result for an `<meta name="mulmoclaude-auth">`
+ * authed GET. Carrying the failure reason on the `ok: false` branch
+ * lets the caller format a single self-describing error message
+ * without an additional layer of branching. Body is `unknown` so each
+ * caller validates / narrows it via its own parser — keeps this
+ * helper a transport-only primitive.
+ */
+type AuthedJsonProbe = { ok: true; body: unknown } | { ok: false; reason: string };
+
+/**
+ * Run an authed JSON GET inside the page context and return the
+ * decoded body. Shared by every helper that hits an internal API the
+ * SPA itself proxies — `getSandboxStatus`, `getMcpToolsList`, etc.
+ * (CodeRabbit + Sourcery review on PR #1462). Each wrapper stays a
+ * thin route + parser; the probe orchestration lives here once.
+ *
+ * Returns a discriminated union so transport / non-2xx / decode
+ * failures surface as `ok: false` with a descriptive reason rather
+ * than masked as a missing body — the caller decides whether to
+ * throw, skip, or retry.
+ */
+async function fetchAuthedJsonViaPage(page: Page, url: string): Promise<AuthedJsonProbe> {
+  return await page.evaluate(async (target): Promise<AuthedJsonProbe> => {
+    const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
+    const token = meta?.getAttribute("content") ?? "";
+    try {
+      const res = await fetch(target, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return { ok: false, reason: `GET ${target} returned HTTP ${res.status} ${res.statusText}` };
+      const body = (await res.json()) as unknown;
+      return { ok: true, body };
+    } catch (err) {
+      return { ok: false, reason: `GET ${target} threw: ${err instanceof Error ? err.message : String(err)}` };
+    }
+  }, url);
+}
+
+// ── Docker sandbox state probes ─────────────────────────────────────
+
+/**
+ * Snapshot of GET /api/sandbox. The server returns `{}` when the
+ * Docker sandbox is disabled (`DISABLE_SANDBOX=1` or Docker not
+ * reachable), and `{ sshAgent, mounts }` when enabled — see
+ * `server/api/sandboxStatus.ts`. `getSandboxStatus` returns `null` for
+ * the disabled case so docker-only specs can branch with a single
+ * equality check.
+ */
+export interface SandboxStatusSnapshot {
+  /** True iff the host SSH agent socket is forwarded into the container. */
+  sshAgent: boolean;
+  /** Allowlisted config mount names that successfully attached (e.g. `["gh"]`). */
+  mounts: string[];
+}
+
+/**
+ * Fetch the sandbox-auth snapshot the SPA's LockStatusPopup consumes.
+ * Returns `null` when the server reports the sandbox is disabled (body
+ * is the empty object `{}`), letting docker-only specs `test.skip` on
+ * a single nullish check. Throws on transport / decode failures rather
+ * than masking them as "disabled" — a network blip should fail the
+ * test loudly, not silently send it down the skip path.
+ */
+export async function getSandboxStatus(page: Page): Promise<SandboxStatusSnapshot | null> {
+  const probe = await fetchAuthedJsonViaPage(page, API_ROUTES.sandbox);
+  if (!probe.ok) throw new Error(`getSandboxStatus: ${probe.reason}`);
+  if (!isRecord(probe.body)) throw new Error(`getSandboxStatus: unexpected payload ${JSON.stringify(probe.body)}`);
+  return parseSandboxBody(probe.body);
+}
+
+function parseSandboxBody(body: Record<string, unknown>): SandboxStatusSnapshot | null {
+  // Server contract: `{}` ⇒ disabled, `{ sshAgent, mounts }` ⇒ enabled.
+  // Treat any body lacking BOTH fields as the disabled signal, but a
+  // body carrying ONE of them malformed is an unexpected payload we
+  // surface loudly so a future server-side schema change can't silently
+  // false-pass the skip gate.
+  const hasSsh = "sshAgent" in body;
+  const hasMounts = "mounts" in body;
+  if (!hasSsh && !hasMounts) return null;
+  const { sshAgent, mounts } = body;
+  if (typeof sshAgent !== "boolean" || !Array.isArray(mounts)) {
+    throw new Error(`getSandboxStatus: unexpected payload ${JSON.stringify(body)}`);
+  }
+  const cleanMounts: string[] = [];
+  for (const item of mounts) {
+    if (typeof item !== "string") throw new Error(`getSandboxStatus: mounts contains non-string ${JSON.stringify(item)}`);
+    cleanMounts.push(item);
+  }
+  return { sshAgent, mounts: cleanMounts };
+}
+
+// ── MCP tool catalog probes ─────────────────────────────────────────
+
+/**
+ * One row from GET /api/mcp-tools — the catalog the SPA settings panel
+ * uses to surface which built-in MCP tools (`readXPost`, `searchX`,
+ * `notify`) are wired up. `enabled` reflects host-side `requiredEnv`
+ * presence (see `isMcpToolEnabled` in `server/agent/mcp-tools/index.ts`).
+ */
+export interface McpToolSnapshot {
+  name: string;
+  enabled: boolean;
+  requiredEnv: string[];
+}
+
+/**
+ * Fetch the live MCP tool catalog with `enabled` flags. L-23 uses this
+ * to confirm the X bridge tools surface as enabled when the user has
+ * `X_BEARER_TOKEN` set — that's the host-side env reachability check
+ * (B-01's modern incarnation, now that MCP tools run in-process on the
+ * host server rather than inside the Docker container).
+ */
+export async function getMcpToolsList(page: Page): Promise<McpToolSnapshot[]> {
+  const probe = await fetchAuthedJsonViaPage(page, API_ROUTES.mcpTools.list);
+  if (!probe.ok) throw new Error(`getMcpToolsList: ${probe.reason}`);
+  if (!Array.isArray(probe.body)) throw new Error(`getMcpToolsList: ${API_ROUTES.mcpTools.list} returned non-array payload`);
+  return probe.body.map((row, idx) => parseMcpToolRow(row, idx));
+}
+
+function parseMcpToolRow(row: unknown, idx: number): McpToolSnapshot {
+  if (!isRecord(row)) throw new Error(`mcpToolsList[${idx}] is not an object`);
+  const { name, enabled, requiredEnv } = row;
+  if (typeof name !== "string") throw new Error(`mcpToolsList[${idx}].name is not a string`);
+  if (typeof enabled !== "boolean") throw new Error(`mcpToolsList[${idx}].enabled is not a boolean`);
+  if (!Array.isArray(requiredEnv)) throw new Error(`mcpToolsList[${idx}].requiredEnv is not an array`);
+  const cleanRequiredEnv: string[] = [];
+  for (const item of requiredEnv) {
+    if (typeof item !== "string") throw new Error(`mcpToolsList[${idx}].requiredEnv contains non-string ${JSON.stringify(item)}`);
+    cleanRequiredEnv.push(item);
+  }
+  return { name, enabled, requiredEnv: cleanRequiredEnv };
+}
+
+// ── Tool call arg extractors ────────────────────────────────────────
+
+/**
+ * Extract the `command` arg from a `Bash` tool call's args. Returns
+ * `null` when the call isn't a Bash dispatch or the args don't carry
+ * a string command — L-28 uses this to assert the agent actually ran
+ * `gh auth status` rather than synthesizing the "Logged in to
+ * github.com" string from prior knowledge (Codex iter-1 review on
+ * PR #1462: the model can produce plausible CLI output without ever
+ * invoking the tool, so anchoring the assertion to a real `Bash`
+ * tool_call closes that false-pass path).
+ */
+export function bashCommandFromCall(call: ToolCallTraceRecord): string | null {
+  if (call.toolName !== "Bash") return null;
+  if (!isRecord(call.args)) return null;
+  const { command } = call.args;
+  return typeof command === "string" ? command : null;
 }
