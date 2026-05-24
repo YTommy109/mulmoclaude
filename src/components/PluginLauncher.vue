@@ -78,7 +78,7 @@ const TARGETS: PluginLauncherTarget[] = [
   // Schema-driven collections launcher — opens the collections
   // index, from which the user picks one. The index lists every
   // starred skill that ships a sibling `schema.json`. See
-  // plans/feat-skill-driven-apps.md (the original "apps" name
+  // plans/done/feat-skill-driven-apps.md (the original "apps" name
   // was renamed to "collections" because each entry is really a
   // schema-defined record collection, not an app).
   { key: "collections", kind: "view", icon: "apps" },

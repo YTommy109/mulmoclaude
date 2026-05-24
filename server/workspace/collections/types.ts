@@ -7,8 +7,8 @@
 // Field types for v0 — keep this list narrow and grow it only when a
 // real collection needs the new type. v0 supports flat records only;
 // nested tables / cross-collection refs / derived fields / actions are
-// deferred to follow-ups (see plans/feat-skill-driven-apps.md and
-// plans/feat-skill-driven-apps-worklog.md — historical names predate
+// deferred to follow-ups (see plans/done/feat-skill-driven-apps.md and
+// plans/done/feat-skill-driven-apps-worklog.md — historical names predate
 // the rename).
 
 export type CollectionFieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown";

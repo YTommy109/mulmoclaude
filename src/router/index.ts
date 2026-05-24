@@ -82,7 +82,7 @@ const routes: RouteRecordRaw[] = [
   //     active obligations + cycle history. Reached from the
   //     top-bar launcher. See plans/done/feat-encore-as-builtin.md.
   { path: "/encore", name: PAGE_ROUTES.encore, component: Stub },
-  // Schema-driven collections (see plans/feat-skill-driven-apps.md
+  // Schema-driven collections (see plans/done/feat-skill-driven-apps.md
   // — historical name predates the apps→collections rename).
   // `/collections` lists every discovered collection;
   // `/collections/:slug` opens that collection's <CollectionView>.

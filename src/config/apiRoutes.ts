@@ -217,7 +217,7 @@ const HOST_API_ROUTES = {
     manage: "/api/roles/manage",
   },
 
-  // Schema-driven collections (see plans/feat-skill-driven-apps.md
+  // Schema-driven collections (see plans/done/feat-skill-driven-apps.md
   // — historical name predates the rename). One "collection" is a
   // skill that ships a `schema.json` alongside its `SKILL.md`; the
   // host renders its records via `<CollectionView>`.

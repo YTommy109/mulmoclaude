@@ -364,7 +364,7 @@ export const ROLES: Role[] = [
   // `files.data` scope to the new path.
 
   // Account beta — PoC for the schema-driven collection architecture
-  // (see plans/feat-skill-driven-apps.md — historical name predates
+  // (see plans/done/feat-skill-driven-apps.md — historical name predates
   // the apps→collections rename). The `mc-clients` and `mc-worklog`
   // preset skills ship a `schema.json` alongside their `SKILL.md`;
   // once starred, the host renders their records via <CollectionView>
