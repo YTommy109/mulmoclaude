@@ -385,12 +385,11 @@ test.describe("docker sandbox (real workspace)", () => {
     // browser projects don't collide on the same slot.
     const fixture = buildL30Fixture(testInfo);
 
-    let symlinkSeeded = false;
     try {
-      symlinkSeeded = await seedL30FixtureOrSkip(fixture);
+      await seedL30FixtureOrSkip(fixture);
       await assertSkillsDiscoveryState(page, fixture);
     } finally {
-      await cleanupL30Fixture(fixture, symlinkSeeded);
+      await cleanupL30Fixture(fixture);
     }
   });
 });
@@ -451,15 +450,22 @@ function buildL30Fixture(testInfo: TestInfo): L30Fixture {
 }
 
 /**
- * Seed both halves of the L-30 fixture. Returns `true` when the
- * broken symlink slot landed, so `cleanupL30Fixture` knows whether to
- * call `removeBrokenSymlinkSkill` (which would otherwise `lstat` a
- * path that was never created). On a host that refuses the `symlink`
- * syscall (Windows w/o Developer Mode, read-only bind mounts) this
- * calls `test.skip` and never returns — the unreachable `throw` after
- * the skip is purely for TypeScript narrowing.
+ * Seed both halves of the L-30 fixture. On a host that refuses the
+ * `symlink` syscall (Windows w/o Developer Mode, read-only bind
+ * mounts) this calls `test.skip` and never returns — the unreachable
+ * `throw` after the skip is purely for TypeScript narrowing.
+ *
+ * Cleanup safety: this helper deliberately does NOT track which of
+ * the two seeds landed. If `placeBrokenSymlinkSkill` succeeded but
+ * `placeProjectSkill` then threw, the caller still calls
+ * `cleanupL30Fixture` in its `finally` — both `removeBrokenSymlinkSkill`
+ * (lstat-guarded, ENOENT-tolerant) and `removeProjectSkill` (recursive
+ * rm with `force: true`) are idempotent on a missing slot, so always
+ * calling them is the simpler shape (Codex GHA + CodeRabbit iter-2:
+ * the earlier `symlinkSeeded` flag never made it back to the caller
+ * when seeding partially failed, leaking the dangling slot).
  */
-async function seedL30FixtureOrSkip(fixture: L30Fixture): Promise<boolean> {
+async function seedL30FixtureOrSkip(fixture: L30Fixture): Promise<void> {
   try {
     await placeBrokenSymlinkSkill(fixture.danglingSlug, fixture.missingTarget);
   } catch (err) {
@@ -470,21 +476,31 @@ async function seedL30FixtureOrSkip(fixture: L30Fixture): Promise<boolean> {
     throw err;
   }
   await placeProjectSkill(fixture.siblingSlug, fixture.siblingDescription, fixture.siblingMarker);
-  return true;
 }
 
 /**
- * Two-layer discovery assertion: pin the server contract first via
- * `/api/skills`, then verify the SPA rendering matches. Splitting the
- * checks this way means a manageSkills view-template regression that
- * hid the sibling row (or surfaced a broken-link placeholder) cannot
- * mask a server-path break and vice versa (Codex iter-1).
+ * Two-layer discovery assertion orchestrator: pin the server contract
+ * first via `/api/skills`, then verify the SPA rendering matches.
+ * Splitting the checks this way means a manageSkills view-template
+ * regression that hid the sibling row (or surfaced a broken-link
+ * placeholder) cannot mask a server-path break and vice versa
+ * (Codex iter-1). Each layer lives in its own helper to honour the
+ * CLAUDE.md "functions under 20 lines" rule (CodeRabbit iter-2).
  */
 async function assertSkillsDiscoveryState(page: Page, fixture: L30Fixture): Promise<void> {
-  // (a-api) `expect.poll` waits out the small window between
-  // `placeProjectSkill` returning and the discovery loop's next call
-  // observing the new file (no cache per `discovery.ts`, but the
-  // call itself races with our write).
+  await assertSkillsDiscoveryApiState(page, fixture);
+  await assertSkillsDiscoveryUiState(page, fixture);
+}
+
+/**
+ * (a-api) `expect.poll` waits out the small window between
+ * `placeProjectSkill` returning and the discovery loop's next call
+ * observing the new file (no cache per `discovery.ts`, but the call
+ * itself races with our write). Asserts the sibling is listed AND the
+ * dangling slot is omitted in the same poll sample so neither leg can
+ * transiently mask the other.
+ */
+async function assertSkillsDiscoveryApiState(page: Page, fixture: L30Fixture): Promise<void> {
   await expect
     .poll(
       async () => {
@@ -498,26 +514,33 @@ async function assertSkillsDiscoveryState(page: Page, fixture: L30Fixture): Prom
       },
     )
     .toEqual({ hasSibling: true, hasDangling: false });
+}
 
+/**
+ * (a-ui) Rendering sanity: with the API state above already green,
+ * this only fails on a client-side regression in
+ * `manageSkills/View.vue` (e.g. row template stopped honoring
+ * `skill.name`). (b) `toHaveCount(0)` for the dangling slot retries
+ * against Playwright's auto-waiting harness so an in-flight render
+ * that hasn't yet populated rows is given time before failing.
+ */
+async function assertSkillsDiscoveryUiState(page: Page, fixture: L30Fixture): Promise<void> {
   await page.goto("/skills");
-
-  // (a-ui) Rendering sanity: with (a-api) above already green, this
-  // only fails on a client-side regression in `manageSkills/View.vue`
-  // (e.g. row template stopped honoring `skill.name`).
   const siblingRow = page.getByTestId(`skill-item-${fixture.siblingSlug}`);
   await expect(siblingRow, "valid sibling skill must surface in /skills — proves discovery survived the dangling symlink").toBeVisible({
     timeout: ONE_MINUTE_MS,
   });
-
-  // (b) Dangling slot is silently skipped at the UI layer too:
-  // `toHaveCount(0)` retries against Playwright's auto-waiting harness
-  // so an in-flight render that hasn't yet populated rows is given
-  // time before failing.
   const danglingRow = page.getByTestId(`skill-item-${fixture.danglingSlug}`);
   await expect(danglingRow, "dangling symlink slot must not surface as a skill row").toHaveCount(0);
 }
 
-async function cleanupL30Fixture(fixture: L30Fixture, symlinkSeeded: boolean): Promise<void> {
-  if (symlinkSeeded) await removeBrokenSymlinkSkill(fixture.danglingSlug);
+/**
+ * Always-on cleanup. Both helpers are idempotent on a missing slot,
+ * so it's safe to call this even when one or both of the seeds never
+ * landed — that's how we close the partial-seed leak path Codex GHA
+ * and CodeRabbit flagged in iter-2.
+ */
+async function cleanupL30Fixture(fixture: L30Fixture): Promise<void> {
+  await removeBrokenSymlinkSkill(fixture.danglingSlug);
   await removeProjectSkill(fixture.siblingSlug);
 }
