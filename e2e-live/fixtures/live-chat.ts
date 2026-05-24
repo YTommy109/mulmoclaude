@@ -1424,7 +1424,13 @@ export async function listSkillsViaApi(page: Page): Promise<SkillListEntry[]> {
   return skills.map((row, idx) => parseSkillListRow(row, idx));
 }
 
-function parseSkillListRow(row: unknown, idx: number): SkillListEntry {
+/**
+ * Pure parser for one `/api/skills` row. Exported so unit tests can
+ * exercise the validation contract directly (CodeRabbit iter-1 review
+ * — keeps "pure logic in exported helpers for testability" per
+ * CLAUDE.md, without routing through Playwright / page plumbing).
+ */
+export function parseSkillListRow(row: unknown, idx: number): SkillListEntry {
   if (!isRecord(row)) throw new Error(`skillsList[${idx}] is not an object`);
   const { name } = row;
   if (typeof name !== "string") throw new Error(`skillsList[${idx}].name is not a string`);

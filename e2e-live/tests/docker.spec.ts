@@ -27,7 +27,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { type Page, expect, test } from "@playwright/test";
+import { type Page, type TestInfo, expect, test } from "@playwright/test";
 import { config as loadDotenv } from "dotenv";
 
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
@@ -379,89 +379,145 @@ test.describe("docker sandbox (real workspace)", () => {
     // removed via `removeBrokenSymlinkSkill` (lstat-guarded against an
     // unlikely race where a parallel run replaced the link with a real
     // dir) and the sibling via `removeProjectSkill` (recursive rm of
-    // its dir). Worker-scoped slug via `testInfo.project.name + nonce`
-    // so parallel browser projects don't collide on the same slot.
-    const projectSlug = testInfo.project.name;
-    const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
-    const danglingSlug = `e2e-live-l30-dangling-${projectSlug}-${nonce}`;
-    const siblingSlug = `e2e-live-l30-sibling-${projectSlug}-${nonce}`;
-    const siblingDescription = `L-30 sibling skill ${nonce}`;
+    // its dir). Slug derived from `testInfo.project.name` (sanitized
+    // via `slugifyForProjectScope` to survive future project entries
+    // that aren't already kebab-case) + a per-run nonce, so parallel
+    // browser projects don't collide on the same slot.
+    const fixture = buildL30Fixture(testInfo);
+
+    let symlinkSeeded = false;
+    try {
+      symlinkSeeded = await seedL30FixtureOrSkip(fixture);
+      await assertSkillsDiscoveryState(page, fixture);
+    } finally {
+      await cleanupL30Fixture(fixture, symlinkSeeded);
+    }
+  });
+});
+
+// ── L-30 helpers ────────────────────────────────────────────────────
+
+interface L30Fixture {
+  danglingSlug: string;
+  siblingSlug: string;
+  siblingDescription: string;
+  siblingMarker: string;
+  missingTarget: string;
+}
+
+/**
+ * Lower-case the input, replace every non-`[a-z0-9]` run with `-`,
+ * collapse repeated separators, and trim leading/trailing hyphens.
+ * Used to make Playwright project names safe for `isValidSlug`
+ * (`server/utils/slug.ts`) before we embed them in `.claude/skills/`
+ * directory names — current projects (`chromium`) already satisfy the
+ * rule, but a future addition like `Chromium HiDPI` would otherwise
+ * make L-30 fail in `placeProjectSkill` before ever reaching the
+ * resilience assertions (CodeRabbit iter-1 review, comment 387).
+ */
+function slugifyForProjectScope(raw: string): string {
+  // Collapse non-alphanumeric runs with a regex (single greedy
+  // quantifier on a character class, no backtracking risk), then trim
+  // leading/trailing hyphens with a manual loop — `sonarjs/slow-regex`
+  // flags even `^-+` / `-+$` patterns despite their anchor bound, so
+  // the repo convention (`server/utils/slug.ts:disambiguateSlug`) is to
+  // sidestep the rule with a linear scan rather than per-line suppress.
+  const collapsed = raw.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  let start = 0;
+  while (start < collapsed.length && collapsed[start] === "-") start++;
+  let end = collapsed.length;
+  while (end > start && collapsed[end - 1] === "-") end--;
+  return collapsed.slice(start, end);
+}
+
+function buildL30Fixture(testInfo: TestInfo): L30Fixture {
+  const projectSlug = slugifyForProjectScope(testInfo.project.name);
+  const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
+  return {
+    danglingSlug: `e2e-live-l30-dangling-${projectSlug}-${nonce}`,
+    siblingSlug: `e2e-live-l30-sibling-${projectSlug}-${nonce}`,
+    siblingDescription: `L-30 sibling skill ${nonce}`,
     // Marker only has to make the sibling SKILL.md distinguishable
     // from a real user-authored skill; we don't run the skill, so the
     // body just needs to satisfy the frontmatter+body shape that
     // `placeProjectSkill` produces and `parseSkillFrontmatter` reads.
-    const siblingMarker = `L30-SIBLING-${nonce}`;
+    siblingMarker: `L30-SIBLING-${nonce}`,
     // Nonce-stamped under the OS tmpdir so the target is guaranteed
     // absent (no real file at that path) and parallel runs cannot
     // collide on the same fake target. The directory is never created
     // — that's the whole point of the test.
-    const missingTarget = path.join(tmpdir(), `mulmoclaude-e2e-l30-missing-${nonce}`);
+    missingTarget: path.join(tmpdir(), `mulmoclaude-e2e-l30-missing-${nonce}`),
+  };
+}
 
-    let symlinkSeeded = false;
-    try {
-      try {
-        await placeBrokenSymlinkSkill(danglingSlug, missingTarget);
-        symlinkSeeded = true;
-      } catch (err) {
-        // Codex iter-1 review: skip rather than red when the host
-        // refuses the symlink syscall (Windows w/o Developer Mode,
-        // some bind-mounted FS). The cleanup path below short-
-        // circuits via `symlinkSeeded` so we don't `lstat` a path
-        // we never created.
-        if (isErrorWithCode(err) && SYMLINK_UNSUPPORTED_CODES.has(err.code ?? "")) {
-          test.skip(true, `host filesystem refused the symlink syscall (${err.code}) — L-30 cannot seed its broken-symlink fixture on this host.`);
-          throw err; // unreachable after test.skip but TypeScript can't see that
-        }
-        throw err;
-      }
-      await placeProjectSkill(siblingSlug, siblingDescription, siblingMarker);
-
-      // (a-api) Server-side discovery contract: `/api/skills` lists
-      // the valid sibling AND omits the dangling slot, both in one
-      // response. Pin this BEFORE the UI assertion so a rendering
-      // bug that hid the sibling row (or surfaced a broken-link
-      // placeholder) can't mask the server contract. Codex iter-1
-      // review: the original UI-only canary missed shape regressions
-      // that pass through to the listing route but render oddly.
-      // `expect.poll` waits out the small window between
-      // `placeProjectSkill` returning and the discovery loop's next
-      // call observing the new file (no cache per `discovery.ts`,
-      // but the call itself races with our write).
-      await expect
-        .poll(
-          async () => {
-            const skills = await listSkillsViaApi(page);
-            const names = new Set(skills.map((row) => row.name));
-            return { hasSibling: names.has(siblingSlug), hasDangling: names.has(danglingSlug) };
-          },
-          {
-            message: "GET /api/skills must list the valid sibling and omit the dangling-symlink slot",
-            timeout: ONE_MINUTE_MS,
-          },
-        )
-        .toEqual({ hasSibling: true, hasDangling: false });
-
-      await page.goto("/skills");
-
-      // (a-ui) Rendering sanity: the listing the SPA fetches lands
-      // a visible row for the sibling. With (a-api) above already
-      // green, this only fails on a client-side regression in
-      // `manageSkills/View.vue` (e.g. row template stopped honoring
-      // `skill.name`).
-      const siblingRow = page.getByTestId(`skill-item-${siblingSlug}`);
-      await expect(siblingRow, "valid sibling skill must surface in /skills — proves discovery survived the dangling symlink").toBeVisible({
-        timeout: ONE_MINUTE_MS,
-      });
-
-      // (b) Dangling slot is silently skipped at the UI layer too:
-      // no row, no error surface. `toHaveCount(0)` retries against
-      // Playwright's auto-waiting harness so an in-flight render
-      // that hasn't yet populated rows is given time before failing.
-      const danglingRow = page.getByTestId(`skill-item-${danglingSlug}`);
-      await expect(danglingRow, "dangling symlink slot must not surface as a skill row").toHaveCount(0);
-    } finally {
-      if (symlinkSeeded) await removeBrokenSymlinkSkill(danglingSlug);
-      await removeProjectSkill(siblingSlug);
+/**
+ * Seed both halves of the L-30 fixture. Returns `true` when the
+ * broken symlink slot landed, so `cleanupL30Fixture` knows whether to
+ * call `removeBrokenSymlinkSkill` (which would otherwise `lstat` a
+ * path that was never created). On a host that refuses the `symlink`
+ * syscall (Windows w/o Developer Mode, read-only bind mounts) this
+ * calls `test.skip` and never returns — the unreachable `throw` after
+ * the skip is purely for TypeScript narrowing.
+ */
+async function seedL30FixtureOrSkip(fixture: L30Fixture): Promise<boolean> {
+  try {
+    await placeBrokenSymlinkSkill(fixture.danglingSlug, fixture.missingTarget);
+  } catch (err) {
+    if (isErrorWithCode(err) && SYMLINK_UNSUPPORTED_CODES.has(err.code ?? "")) {
+      test.skip(true, `host filesystem refused the symlink syscall (${err.code}) — L-30 cannot seed its broken-symlink fixture on this host.`);
+      throw err;
     }
+    throw err;
+  }
+  await placeProjectSkill(fixture.siblingSlug, fixture.siblingDescription, fixture.siblingMarker);
+  return true;
+}
+
+/**
+ * Two-layer discovery assertion: pin the server contract first via
+ * `/api/skills`, then verify the SPA rendering matches. Splitting the
+ * checks this way means a manageSkills view-template regression that
+ * hid the sibling row (or surfaced a broken-link placeholder) cannot
+ * mask a server-path break and vice versa (Codex iter-1).
+ */
+async function assertSkillsDiscoveryState(page: Page, fixture: L30Fixture): Promise<void> {
+  // (a-api) `expect.poll` waits out the small window between
+  // `placeProjectSkill` returning and the discovery loop's next call
+  // observing the new file (no cache per `discovery.ts`, but the
+  // call itself races with our write).
+  await expect
+    .poll(
+      async () => {
+        const skills = await listSkillsViaApi(page);
+        const names = new Set(skills.map((row) => row.name));
+        return { hasSibling: names.has(fixture.siblingSlug), hasDangling: names.has(fixture.danglingSlug) };
+      },
+      {
+        message: "GET /api/skills must list the valid sibling and omit the dangling-symlink slot",
+        timeout: ONE_MINUTE_MS,
+      },
+    )
+    .toEqual({ hasSibling: true, hasDangling: false });
+
+  await page.goto("/skills");
+
+  // (a-ui) Rendering sanity: with (a-api) above already green, this
+  // only fails on a client-side regression in `manageSkills/View.vue`
+  // (e.g. row template stopped honoring `skill.name`).
+  const siblingRow = page.getByTestId(`skill-item-${fixture.siblingSlug}`);
+  await expect(siblingRow, "valid sibling skill must surface in /skills — proves discovery survived the dangling symlink").toBeVisible({
+    timeout: ONE_MINUTE_MS,
   });
-});
+
+  // (b) Dangling slot is silently skipped at the UI layer too:
+  // `toHaveCount(0)` retries against Playwright's auto-waiting harness
+  // so an in-flight render that hasn't yet populated rows is given
+  // time before failing.
+  const danglingRow = page.getByTestId(`skill-item-${fixture.danglingSlug}`);
+  await expect(danglingRow, "dangling symlink slot must not surface as a skill row").toHaveCount(0);
+}
+
+async function cleanupL30Fixture(fixture: L30Fixture, symlinkSeeded: boolean): Promise<void> {
+  if (symlinkSeeded) await removeBrokenSymlinkSkill(fixture.danglingSlug);
+  await removeProjectSkill(fixture.siblingSlug);
+}
