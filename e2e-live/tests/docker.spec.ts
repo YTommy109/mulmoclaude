@@ -1,4 +1,4 @@
-// Docker-sandbox-only e2e-live scenarios (L-23 / L-26 / L-28).
+// Docker-sandbox-only e2e-live scenarios (L-23 / L-26 / L-28 / L-30).
 //
 // Every test here gates on `getSandboxStatus(page) !== null` because
 // the assertions only make sense when the dev server was booted with
@@ -12,6 +12,9 @@
 //   - L-26 / L-28 dispatch through the agent → Docker container →
 //     real CLI (`gh auth status` etc.). fake-echo can't fabricate a
 //     `Bash` tool result.
+//   - L-30 itself does not need the LLM (host-side discovery only),
+//     but the sandbox-enabled gate it shares with the rest of the
+//     file means it cannot run in the fake-echo CI matrix anyway.
 // → The spec file is intentionally NOT registered in
 //   `.github/workflows/e2e_live_no_llm.yaml`'s matrix (see
 //   `docs/e2e-live-testing.md` — "Skipping the right way" / "CI
@@ -20,6 +23,7 @@
 //   set still skips loudly rather than spinning the LLM.
 
 import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,8 +37,12 @@ import {
   getCurrentSessionId,
   getMcpToolsList,
   getSandboxStatus,
+  placeBrokenSymlinkSkill,
+  placeProjectSkill,
   readSessionToolCalls,
   readSessionToolResults,
+  removeBrokenSymlinkSkill,
+  removeProjectSkill,
   type SandboxStatusSnapshot,
   sendChatMessage,
   startNewSession,
@@ -321,6 +329,84 @@ test.describe("docker sandbox (real workspace)", () => {
       });
     } finally {
       if (sessionId !== null) await deleteSession(page, sessionId);
+    }
+  });
+
+  test("L-30: dangling symlink under .claude/skills/<slug> is silently skipped, valid sibling still surfaces (B-08 discovery resilience)", async ({
+    page,
+  }, testInfo) => {
+    // L-30 itself does not invoke the LLM — discovery is host-side
+    // (`server/workspace/skills/discovery.ts:collectSkillsFromDir`)
+    // and `/api/skills` is served from the Express process regardless
+    // of which agent backend runs. The skip mirrors the file-level
+    // E2E_LIVE_NO_LLM stance so an ad-hoc developer invocation with
+    // the env set still aborts loudly rather than half-running this
+    // file's tests in different modes.
+    test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — docker.spec.ts is excluded from the fake-echo matrix wholesale.");
+    test.setTimeout(MCP_CATALOG_TIMEOUT_MS);
+    await requireDockerSandbox(page);
+
+    // B-08 shape: a `<workspace>/.claude/skills/<slug>` symlink whose
+    // target is missing inside the sandbox (the report originated with
+    // host-relative `~/ss/llm/skills/...` links bind-mounted into a
+    // container) used to throw out of the discovery loop and drop the
+    // entire skill list. The fix in `collectSkillsFromDir` swallows the
+    // per-entry `stat()` failure and `continue`s — so a dangling
+    // symlink should silently disappear without taking siblings with
+    // it. This canary seeds both shapes (one broken, one valid) and
+    // asserts the sibling still surfaces in `/skills` while the
+    // dangling slot never does.
+    //
+    // No LLM, no agent turn — pure filesystem + `/api/skills` round
+    // trip via the same UI path L-22 uses (`/skills` → `skill-item-*`
+    // testid). Wall time is whatever `/skills` takes to hydrate.
+    //
+    // Cleanup: per-finally rm on both seeds. The broken symlink is
+    // removed via `removeBrokenSymlinkSkill` (lstat-guarded against an
+    // unlikely race where a parallel run replaced the link with a real
+    // dir) and the sibling via `removeProjectSkill` (recursive rm of
+    // its dir). Worker-scoped slug via `testInfo.project.name + nonce`
+    // so parallel browser projects don't collide on the same slot.
+    const projectSlug = testInfo.project.name;
+    const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
+    const danglingSlug = `e2e-live-l30-dangling-${projectSlug}-${nonce}`;
+    const siblingSlug = `e2e-live-l30-sibling-${projectSlug}-${nonce}`;
+    const siblingDescription = `L-30 sibling skill ${nonce}`;
+    // Marker only has to make the sibling SKILL.md distinguishable
+    // from a real user-authored skill; we don't run the skill, so the
+    // body just needs to satisfy the frontmatter+body shape that
+    // `placeProjectSkill` produces and `parseSkillFrontmatter` reads.
+    const siblingMarker = `L30-SIBLING-${nonce}`;
+    // Nonce-stamped under the OS tmpdir so the target is guaranteed
+    // absent (no real file at that path) and parallel runs cannot
+    // collide on the same fake target. The directory is never created
+    // — that's the whole point of the test.
+    const missingTarget = path.join(tmpdir(), `mulmoclaude-e2e-l30-missing-${nonce}`);
+
+    try {
+      await placeBrokenSymlinkSkill(danglingSlug, missingTarget);
+      await placeProjectSkill(siblingSlug, siblingDescription, siblingMarker);
+
+      await page.goto("/skills");
+
+      // (a) Discovery survived the broken entry: the valid sibling
+      // appears in `/skills`. Without this assertion the dangling
+      // check would silently pass on a regression that crashed the
+      // whole loop (no rows at all → both rows absent).
+      const siblingRow = page.getByTestId(`skill-item-${siblingSlug}`);
+      await expect(siblingRow, "valid sibling skill must surface in /skills — proves discovery survived the dangling symlink").toBeVisible({
+        timeout: ONE_MINUTE_MS,
+      });
+
+      // (b) Dangling slot was silently skipped: no row, no error
+      // surface. `toHaveCount(0)` retries against Playwright's auto-
+      // waiting harness so an in-flight render that hasn't yet
+      // populated rows is given time before failing.
+      const danglingRow = page.getByTestId(`skill-item-${danglingSlug}`);
+      await expect(danglingRow, "dangling symlink slot must not surface as a skill row").toHaveCount(0);
+    } finally {
+      await removeBrokenSymlinkSkill(danglingSlug);
+      await removeProjectSkill(siblingSlug);
     }
   });
 });

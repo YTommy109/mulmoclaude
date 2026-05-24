@@ -3,7 +3,7 @@
 // install any API mocks — the real Claude API runs end-to-end. Use
 // these helpers from specs in `e2e-live/tests/`.
 
-import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -241,6 +241,48 @@ export async function removeProjectSkill(slug: string): Promise<void> {
   const stagingDir = resolveWorkspacePath(`data/skills/${slug}`);
   await rm(canonicalDir, { recursive: true, force: true });
   await rm(stagingDir, { recursive: true, force: true });
+}
+
+/**
+ * Seed a project-skill slot whose entry is a symlink pointing at a
+ * non-existent path. The discovery loop in
+ * `server/workspace/skills/discovery.ts:collectSkillsFromDir` calls
+ * `stat()` (not `lstat`) on every entry so a real symlink is
+ * transparently followed; when the target is missing `stat()` throws
+ * ENOENT and the entry is skipped. L-30 (B-08) drives that branch
+ * end-to-end to prove a dangling symlink (e.g. a host-relative
+ * `~/ss/llm/skills/...` link that disappears inside the sandbox)
+ * cannot crash discovery for the sibling skills sitting alongside it.
+ *
+ * Caller picks `target` (no implicit `/tmp` use) so the test can
+ * choose a path that's guaranteed missing even with parallel runs
+ * (e.g. nonce-stamped under `os.tmpdir()`). Slug must satisfy
+ * `isValidSlug` for the same reasons as {@link placeProjectSkill}.
+ */
+export async function placeBrokenSymlinkSkill(slug: string, target: string): Promise<void> {
+  assertValidSkillSlug(slug);
+  const linkPath = resolveWorkspacePath(`.claude/skills/${slug}`);
+  await mkdir(path.dirname(linkPath), { recursive: true });
+  await symlink(target, linkPath);
+}
+
+/**
+ * Best-effort delete for {@link placeBrokenSymlinkSkill}. Uses `lstat`
+ * to confirm the slot is still a symlink before `rm`-ing it — guards
+ * against an unlikely race where a parallel run replaced the link with
+ * a real dir we shouldn't touch. Silent no-op when the slot is gone.
+ */
+export async function removeBrokenSymlinkSkill(slug: string): Promise<void> {
+  assertValidSkillSlug(slug);
+  const linkPath = resolveWorkspacePath(`.claude/skills/${slug}`);
+  try {
+    const stat = await lstat(linkPath);
+    if (!stat.isSymbolicLink()) return;
+  } catch (err) {
+    if (isErrorWithCode(err) && err.code === "ENOENT") return;
+    throw err;
+  }
+  await rm(linkPath, { force: true });
 }
 
 /**
