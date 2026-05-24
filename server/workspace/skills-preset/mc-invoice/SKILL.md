@@ -107,6 +107,21 @@ fields you weren't asked to change.
 **Delete**: confirm with the user once if the request is ambiguous, then
 remove the file.
 
+## Linking to an invoice in chat
+
+When you reference a specific invoice in your reply, link to the collection
+view — NOT the raw JSON file path:
+
+- Do: `[INV-2026-0002](/collections/mc-invoice?highlight=INV-2026-0002)`
+- Don't: `[INV-2026-0002](data/invoice/items/INV-2026-0002.json)` — that opens
+  the raw file in the Files view instead of the rendered table.
+
+Always include the `?highlight=<id>` query. Today it just opens the table; a
+later host update will use it to scroll to and highlight the matching row, and
+existing links will start working automatically. The "see the list at
+/collections/mc-invoice" pointer is also fine for a general (non-specific)
+reference.
+
 ## When to ask vs. when to act
 
 If the user gives you clear info ("invoice Acme $5000 for May consulting"),

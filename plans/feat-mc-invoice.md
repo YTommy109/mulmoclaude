@@ -83,6 +83,15 @@ component.
 
 ## Out of scope (explicit defer to follow-up)
 
+- **`?highlight=<id>` scroll/ping handler** — the mc-* SKILL.md
+  files now instruct Claude to link records as
+  `/collections/<slug>?highlight=<id>` (so chat links open the
+  rendered collection table rather than the raw JSON file). The
+  query param is currently inert: CollectionView opens the table
+  but doesn't yet scroll-to / visually flag the matching row. A
+  follow-up should read `route.query.highlight`, scroll the row
+  into view, and pulse it. Once shipped, every already-emitted
+  link starts working with no skill change.
 - **`actions`** field type — explicit "Mark Sent" / "Mark Paid" /
   "Export PDF" buttons. v0 user changes status via the enum
   dropdown in the edit form. Manual but works.
