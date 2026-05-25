@@ -120,11 +120,13 @@ const CollectionSchemaZ = z
     singleton: z.string().trim().min(1).optional(),
     fields: z.record(z.string(), FieldSpecSchema),
   })
-  // The singleton value becomes a filename (`<id>.json`), so reject
-  // path separators / dot-segments up front rather than relying solely
-  // on the write-path sanitiser.
-  .refine((schema) => schema.singleton === undefined || (!/[\\/]/.test(schema.singleton) && schema.singleton !== "." && schema.singleton !== ".."), {
-    message: "schema `singleton` must be a plain id with no path separators or dot-segments",
+  // The singleton value becomes a record id (and thus a `<id>.json`
+  // filename), so it must satisfy the SAME `safeSlugName` rule the
+  // write path enforces — otherwise the create form would lock the
+  // primary key to a value the POST route then rejects as an invalid
+  // item id, making the collection impossible to initialize (Codex P1).
+  .refine((schema) => schema.singleton === undefined || safeSlugName(schema.singleton) !== null, {
+    message: "schema `singleton` must be a valid item id (alphanumeric / hyphen / underscore, no path separators)",
     path: ["singleton"],
   });
 
