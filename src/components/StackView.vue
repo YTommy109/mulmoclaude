@@ -27,23 +27,24 @@
     </div>
     <div v-else ref="containerRef" class="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3" data-testid="stack-scroll">
       <div
-        v-for="result in toolResults"
-        :key="result.uuid"
-        :ref="(element) => setItemRef(result.uuid, element as HTMLElement | null)"
+        v-for="item in displayItems"
+        :key="item.key"
+        :ref="(element) => setItemRefForMembers(item.members, element as HTMLElement | null)"
         class="bg-white rounded-lg border transition-colors"
-        :class="result.uuid === selectedResultUuid ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'"
+        :class="item.members.some((m) => m.uuid === selectedResultUuid) ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'"
       >
         <button
           class="w-full flex items-center gap-2 px-3 py-2 border-b border-gray-100 text-left hover:bg-gray-50"
-          :title="result.title || result.toolName"
-          @click="emit('select', result.uuid)"
+          :title="item.head.title || item.head.toolName"
+          @click="emit('select', item.head.uuid)"
         >
-          <span class="material-icons text-sm text-gray-400">{{ iconFor(result.toolName) }}</span>
-          <span class="text-sm font-medium text-gray-800 truncate">{{ result.title || result.toolName }}</span>
-          <span v-if="resultTimestamps.get(result.uuid)" class="text-[10px] text-gray-400 shrink-0">{{
-            formatSmartTime(resultTimestamps.get(result.uuid)!)
+          <span class="material-icons text-sm text-gray-400">{{ iconFor(item.head.toolName) }}</span>
+          <span class="text-sm font-medium text-gray-800 truncate">{{ item.head.title || item.head.toolName }}</span>
+          <span v-if="item.isMapGroup && item.members.length > 1" class="text-[10px] text-gray-400 shrink-0">{{ `${item.members.length}×` }}</span>
+          <span v-if="resultTimestamps.get(item.head.uuid)" class="text-[10px] text-gray-400 shrink-0">{{
+            formatSmartTime(resultTimestamps.get(item.head.uuid)!)
           }}</span>
-          <span class="font-mono text-xs text-gray-400 shrink-0">{{ result.toolName }}</span>
+          <span class="font-mono text-xs text-gray-400 shrink-0">{{ item.head.toolName }}</span>
         </button>
         <!-- text-response: render the message as Markdown via the
            underlying plugin View. The .stack-text-response class below
@@ -56,8 +57,8 @@
            "open external links in a new tab" click handler. Attach
            the same handler here via @click.capture so cross-origin
            links in assistant Markdown don't navigate the SPA away. -->
-        <div v-if="isTextResponse(result)" class="stack-text-response" @click.capture="handleExternalLinkClick">
-          <TextResponseOriginalView :selected-result="result" />
+        <div v-if="isTextResponse(item.head)" class="stack-text-response" @click.capture="handleExternalLinkClick">
+          <TextResponseOriginalView :selected-result="item.head" />
         </div>
         <!-- Document-like plugins: let the content flow at its natural
            height by overriding the plugin's internal h-full / overflow
@@ -65,33 +66,36 @@
            plugins that embed iframes (e.g. presentHtml) we also size
            each iframe to its content after load. -->
         <div
-          v-else-if="isStackNatural(result.toolName)"
-          :ref="(element) => setNaturalWrapperRef(result.uuid, element as HTMLElement | null)"
+          v-else-if="isStackNatural(item.head.toolName)"
+          :ref="(element) => setNaturalWrapperRef(item.head.uuid, element as HTMLElement | null)"
           class="stack-natural"
         >
           <component
-            :is="getPlugin(result.toolName)?.viewComponent"
-            v-if="getPlugin(result.toolName)?.viewComponent"
-            :key="`${result.uuid}-${googleMapKeyFor(result.toolName) ?? ''}`"
-            :selected-result="result"
+            :is="getPlugin(item.head.toolName)?.viewComponent"
+            v-if="getPlugin(item.head.toolName)?.viewComponent"
+            :key="`${item.key}-${googleMapKeyFor(item.head.toolName) ?? ''}`"
+            :selected-result="item.head"
             :send-text-message="sendTextMessage"
-            :google-map-key="googleMapKeyFor(result.toolName)"
+            :google-map-key="googleMapKeyFor(item.head.toolName)"
             @update-result="(r: ToolResultComplete) => emit('updateResult', r)"
           />
         </div>
         <!-- Other plugins: fixed height wrapper so plugins that rely on
-           h-full continue to render properly. -->
+           h-full continue to render properly. Map groups pass the
+           ordered `results` so the View replays the whole group onto
+           one map; everything else uses the single `selected-result`. -->
         <div v-else :style="{ height: PLUGIN_HEIGHT }">
           <component
-            :is="getPlugin(result.toolName)?.viewComponent"
-            v-if="getPlugin(result.toolName)?.viewComponent"
-            :key="`${result.uuid}-${googleMapKeyFor(result.toolName) ?? ''}`"
-            :selected-result="result"
+            :is="getPlugin(item.head.toolName)?.viewComponent"
+            v-if="getPlugin(item.head.toolName)?.viewComponent"
+            :key="`${item.key}-${googleMapKeyFor(item.head.toolName) ?? ''}`"
+            :selected-result="item.head"
+            :results="item.isMapGroup ? item.members : undefined"
             :send-text-message="sendTextMessage"
-            :google-map-key="googleMapKeyFor(result.toolName)"
+            :google-map-key="googleMapKeyFor(item.head.toolName)"
             @update-result="(r: ToolResultComplete) => emit('updateResult', r)"
           />
-          <pre v-else class="h-full overflow-auto p-4 text-xs text-gray-500 whitespace-pre-wrap">{{ JSON.stringify(result, null, 2) }}</pre>
+          <pre v-else class="h-full overflow-auto p-4 text-xs text-gray-500 whitespace-pre-wrap">{{ JSON.stringify(item.head, null, 2) }}</pre>
         </div>
       </div>
     </div>
@@ -200,6 +204,56 @@ function setNaturalWrapperRef(uuid: string, element: HTMLElement | null): void {
   } else {
     naturalWrapperRefs.delete(uuid);
   }
+}
+
+// One rendered card per display item. A `mapControl` result carrying
+// a `groupId` collapses with every other result of the same groupId
+// into ONE card (positioned at the group's first occurrence), so the
+// markers / routes accumulate on one shared map instead of spawning a
+// card per call. `members` holds the group's results in order;
+// `head` is the latest one (drives the header + legacy View fields).
+// Non-grouped results stay as singletons (members = [head]).
+interface DisplayItem {
+  key: string;
+  head: ToolResultComplete;
+  members: ToolResultComplete[];
+  isMapGroup: boolean;
+}
+
+function groupIdOf(result: ToolResultComplete): string | null {
+  if (result.toolName !== TOOL_NAMES.mapControl) return null;
+  const { data } = result;
+  if (!isRecord(data)) return null;
+  const { groupId } = data;
+  return typeof groupId === "string" && groupId.length > 0 ? groupId : null;
+}
+
+const displayItems = computed<DisplayItem[]>(() => {
+  const items: DisplayItem[] = [];
+  const groupIndexById = new Map<string, number>();
+  for (const result of props.toolResults) {
+    const groupId = groupIdOf(result);
+    if (groupId !== null) {
+      const existingIndex = groupIndexById.get(groupId);
+      if (existingIndex !== undefined) {
+        items[existingIndex].members.push(result);
+        items[existingIndex].head = result; // latest call drives the header
+        continue;
+      }
+      groupIndexById.set(groupId, items.length);
+      items.push({ key: `mapgroup:${groupId}`, head: result, members: [result], isMapGroup: true });
+    } else {
+      items.push({ key: result.uuid, head: result, members: [result], isMapGroup: false });
+    }
+  }
+  return items;
+});
+
+// Register the group card element under EVERY member uuid so the
+// scroll-spy and scroll-to-selection logic (which key on individual
+// result uuids) resolve any member to this one card.
+function setItemRefForMembers(members: ToolResultComplete[], element: HTMLElement | null): void {
+  for (const member of members) setItemRef(member.uuid, element);
 }
 
 // Sandboxed iframes inside stack-natural plugins (e.g. presentHtml)
