@@ -31,7 +31,7 @@
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { type Dirent, existsSync } from "node:fs";
-import { copyFile, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readdir, realpath, rm, stat } from "node:fs/promises";
 import { createServer } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
@@ -138,35 +138,103 @@ async function probeFreePort(): Promise<number> {
 
 /**
  * Walk `dir` and record every entry's `mtimeMs` into `into` keyed by
- * absolute path. Recurses into subdirectories. ENOENT (file
- * disappeared between readdir and stat — common race when an
- * external process is concurrently mutating the tree) is treated as
- * "skip this entry" rather than aborting the walk, otherwise a
- * baseline snapshot taken while the user has `yarn dev` running
- * would intermittently throw.
+ * absolute path. Recurses into subdirectories AND symlinked
+ * directories — Codex review iter-2 on PR #1506 caught that gating
+ * recursion on `entry.isDirectory()` (Dirent type, set by readdir's
+ * `lstat`-equivalent) returns `false` for symlink-to-dir entries,
+ * which would let in-place rewrites under a symlinked subtree of
+ * `~/.claude/skills/` or `~/mulmoclaude/` evade detection. Switching
+ * to `stat(full).isDirectory()` follows the symlink target.
+ *
+ * Cycle protection is **ancestor-based, not global**. We carry a Set
+ * of `realpath`s of the directory chain we are currently inside; if
+ * a child resolves to an ancestor real-path, that's a true cycle
+ * and we stop. Two *sibling* aliases of the same real directory
+ * (`a -> /x` and `b -> /x` both reachable from the snapshot root)
+ * are NOT collapsed — both alias paths get their own subtree
+ * recorded, which matters because the absolute-path keys we store
+ * in the drift map must be stable across baseline and current
+ * walks. Codex review iter-3 caught that a global dev:ino dedupe
+ * caused readdir-order-dependent false drift when two aliases
+ * pointed to the same inode.
+ *
+ * `MAX_WALK_DEPTH` is a belt-and-braces guard against pathological
+ * symlink chains that the realpath check might somehow miss (e.g.
+ * filesystem mount cycles on Linux). 64 levels is well past
+ * anything realistic for `~/.claude/skills/` or `~/mulmoclaude/`.
+ *
+ * Permission errors (`EACCES` / `EPERM`) are tolerated alongside
+ * ENOENT: a symlink that points into a restricted tree (`/etc`,
+ * another user's home, an unreadable mount) returns the error from
+ * `readdir`/`stat`. We skip the subtree and continue rather than
+ * aborting the whole walk. **Blind spot**: contents of those
+ * subtrees are opaque in BOTH the baseline and the post-test
+ * snapshot, so drift inside them is undetectable by design. POSIX
+ * write permission is independent of read permission, so an
+ * unreadable subtree can still legitimately be a contamination
+ * target for our spawned subprocess if its mode allows writes
+ * without reads (rare in practice but not impossible). The
+ * tradeoff is deliberate — for L-FRESH-BOOT's target environments
+ * (CI runners with clean homes; local dev-server-off runs) this
+ * blind spot is vanishingly small, and the alternative (hard-fail
+ * on every restricted symlink) would make the assertion useless
+ * on a normal developer machine. ENOENT separately covers the
+ * common race with concurrent external mutation (the developer's
+ * own `yarn dev`, editor autosave) which would otherwise abort
+ * the whole walk.
  */
-async function walkMtimeTree(dir: string, into: Map<string, number>): Promise<void> {
+const MAX_WALK_DEPTH = 64;
+
+function isToleratedFsError(err: unknown): boolean {
+  if (!isErrorWithCode(err)) return false;
+  return err.code === "ENOENT" || err.code === "EACCES" || err.code === "EPERM";
+}
+
+async function readEntries(dir: string): Promise<Dirent[] | null> {
   // Explicit `Dirent[]` (Dirent<string>) so TypeScript picks the
   // string-name overload — `Awaited<ReturnType<typeof readdir>>`
   // collapses through every overload and `entry.name` widens to
   // `string | Buffer`, which then refuses `path.join`.
-  let entries: Dirent[];
   try {
-    entries = await readdir(dir, { withFileTypes: true });
+    return await readdir(dir, { withFileTypes: true });
   } catch (err) {
-    if (isErrorWithCode(err) && err.code === "ENOENT") return;
+    if (isToleratedFsError(err)) return null;
     throw err;
   }
+}
+
+async function visitEntry(full: string, into: Map<string, number>, ancestorRealPaths: ReadonlySet<string>, depth: number): Promise<void> {
+  const stats = await stat(full);
+  into.set(full, stats.mtimeMs);
+  if (!stats.isDirectory()) return;
+  const realFull = await safeRealpath(full);
+  if (realFull !== null && ancestorRealPaths.has(realFull)) return;
+  const nextAncestors = new Set(ancestorRealPaths);
+  if (realFull !== null) nextAncestors.add(realFull);
+  await walkMtimeTree(full, into, nextAncestors, depth + 1);
+}
+
+async function walkMtimeTree(dir: string, into: Map<string, number>, ancestorRealPaths: ReadonlySet<string>, depth: number): Promise<void> {
+  if (depth > MAX_WALK_DEPTH) return;
+  const entries = await readEntries(dir);
+  if (entries === null) return;
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
     try {
-      const stats = await stat(full);
-      into.set(full, stats.mtimeMs);
-      if (entry.isDirectory()) await walkMtimeTree(full, into);
+      await visitEntry(full, into, ancestorRealPaths, depth);
     } catch (err) {
-      if (isErrorWithCode(err) && err.code === "ENOENT") continue;
+      if (isToleratedFsError(err)) continue;
       throw err;
     }
+  }
+}
+
+async function safeRealpath(target: string): Promise<string | null> {
+  try {
+    return await realpath(target);
+  } catch (err) {
+    if (isToleratedFsError(err)) return null;
+    throw err;
   }
 }
 
@@ -192,7 +260,15 @@ export async function snapshotHostFs(root: string): Promise<HostFsBaseline> {
     }
     throw err;
   }
-  await walkMtimeTree(root, entries);
+  // Seed the ancestor real-path chain with the root so a child
+  // symlink that points back at the root (or one of its ancestors)
+  // is detected as a true cycle on the first hop. The walk itself
+  // appends each descendant dir's real-path as it recurses, and
+  // pops back to the parent's set on the recursion unwind (each
+  // call gets its own derived Set).
+  const rootReal = await safeRealpath(root);
+  const ancestors = new Set<string>(rootReal === null ? [] : [rootReal]);
+  await walkMtimeTree(root, entries, ancestors, 0);
   return { root, existed, entries };
 }
 
