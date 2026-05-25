@@ -257,12 +257,16 @@ function sanitizeForPrompt(value: string): string {
   return current.replace(/`/g, "'").replace(/\$\{/g, "\\${");
 }
 
-/** Recursively sanitize every string in a JSON-ish value. */
+/** Recursively sanitize every string in a JSON-ish value — both
+ *  object KEYS and values. Records accept arbitrary JSON keys (API /
+ *  file edit / import), so a crafted key like
+ *  `"</record_data_json>…"` would otherwise be emitted verbatim and
+ *  break the data-boundary framing (Codex P1 on #1511). */
 function sanitizeDeep(value: unknown): unknown {
   if (typeof value === "string") return sanitizeForPrompt(value);
   if (Array.isArray(value)) return value.map(sanitizeDeep);
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, val]) => [key, sanitizeDeep(val)]));
+    return Object.fromEntries(Object.entries(value).map(([key, val]) => [sanitizeForPrompt(key), sanitizeDeep(val)]));
   }
   return value;
 }

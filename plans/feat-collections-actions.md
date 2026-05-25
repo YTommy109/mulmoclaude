@@ -1,7 +1,7 @@
 # Plan: `actions` — schema-declared record actions for collections
 
 Follow-up to the collections primitives shipped in
-[plans/done/feat-skill-driven-apps.md] (fields), `feat-collections-ref-field`
+[plans/done/feat-skill-driven-apps.md](done/feat-skill-driven-apps.md) (fields), `feat-collections-ref-field`
 (`ref`), and `feat-collections-embed` (`embed` + `singleton`). Adds a
 generic **`actions`** declaration so a collection's read-only detail view
 can offer per-record buttons that kick off work — the first kind being
@@ -81,7 +81,7 @@ directives, never persisted, never validated against record data.
   traversal (same containment check used for `schema.json` and item files).
 - **`server/api/routes/collections.ts`** — a new generic endpoint:
 
-  ```
+  ```text
   POST /api/collections/:slug/items/:itemId/actions/:actionId
     → 200 { prompt: string, role: string }
     → 404 unknown slug / item / action
