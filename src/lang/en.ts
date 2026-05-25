@@ -90,6 +90,8 @@ const enMessages = {
     clearAll: "Clear",
     dismiss: "Dismiss",
     cancel: "Cancel",
+    showMore: "Show more ({count})",
+    showLess: "Show less",
   },
   pluginDiagnostics: {
     title: "Plugin configuration issue",
@@ -97,9 +99,19 @@ const enMessages = {
     intraBody: 'Plugins "{first}" and "{second}" both register {dimension} "{key}". "{first}" claimed it first, so "{second}"\'s registration is ignored.',
   },
   optionalDeps: {
+    // Generic `title` kept for backward compatibility with persisted
+    // history entries published before the reason-aware split below;
+    // new code paths use `titleNotFound` / `titleNotResponding`.
     title: "Optional dependency unavailable",
-    notFound: "{command} not found — related features are disabled. Install it and restart to enable them.",
-    notResponding: "{command} is installed but not responding — related features are disabled. Start it and restart to enable them.",
+    titleNotFound: "{command} not installed",
+    titleNotResponding: "{command} not running",
+    notFound: "{command} not found — related features are disabled. Install {command} and restart MulmoClaude to enable them.",
+    notResponding: "{command} is installed but not running — related features are disabled. Start {command} and restart MulmoClaude to enable them.",
+  },
+  backendOffline: {
+    title: "Can't reach the backend",
+    body: "The MulmoClaude server may not be running. Check the dev server, then retry.",
+    retry: "Retry",
   },
   pluginErrorBoundary: {
     title: "Plugin {pkg} crashed",
@@ -125,6 +137,8 @@ const enMessages = {
     availableTools: "Available Tools",
     toggleToolDescription: "Toggle tool description",
     toolCallHistory: "Tool Call History",
+    copyHistory: "Copy tool call history",
+    copiedHistory: "Copied!",
     noToolCalls: "No tool calls yet",
     arguments: "Arguments",
     error: "Error",
@@ -283,15 +297,44 @@ const enMessages = {
     errLabelConflict: 'Label "{label}" already exists',
   },
   pluginLauncher: {
-    todos: { label: "Todos", title: "Open todos" },
-    calendar: { label: "Calendar", title: "Open calendar" },
-    automations: { label: "Actions", title: "Open actions" },
-    wiki: { label: "Wiki", title: "Open wiki" },
-    sources: { label: "Sources", title: "Open information sources" },
-    news: { label: "News", title: "Open news viewer" },
-    skills: { label: "Skills", title: "Open skills" },
-    roles: { label: "Roles", title: "Open roles" },
-    files: { label: "Files", title: "Open workspace files" },
+    todos: { label: "Todos" },
+    calendar: { label: "Calendar" },
+    automations: { label: "Actions" },
+    encore: { label: "Encore" },
+    wiki: { label: "Wiki" },
+    apps: { label: "Apps" },
+    sources: { label: "Sources" },
+    news: { label: "News" },
+    skills: { label: "Skills" },
+    roles: { label: "Roles" },
+    files: { label: "Files" },
+  },
+  encoreDashboard: {
+    title: "Encore",
+    subtitle: "Recurring obligations Encore is tracking.",
+    loading: "Loading obligations…",
+    errorPrefix: "Couldn't load obligations: ",
+    empty: "No obligations yet. Ask in chat to set one up.",
+    noCycles: "No cycles recorded yet.",
+    cyclesSuffix: "cycles",
+    targetCount: "{count} target | {count} targets",
+    cycleClosed: "Closed",
+    chatButtonTitle: "Discuss this obligation in a new chat",
+    bellButtonTitle: "Discuss this cycle",
+    addButtonLabel: "Add",
+    unexpectedResponse: "Encore returned an unexpected response.",
+    status: {
+      active: "Active",
+      paused: "Paused",
+      retired: "Retired",
+    },
+    cadence: {
+      daily: "Daily",
+      weekly: "Weekly",
+      monthly: "Monthly",
+      biannual: "Biannual",
+      annual: "Annual",
+    },
   },
   fileContentHeader: {
     showRendered: "Show rendered Markdown",
@@ -307,6 +350,9 @@ const enMessages = {
     parseError: "parse error",
     editJson: "Edit JSON",
     jsonEditorLabel: "JSON editor",
+    invalidJson: "Invalid JSON",
+    undo: "Undo",
+    redo: "Redo",
   },
   filesView: {
     chatPlaceholder: "Ask about this file…",
@@ -425,6 +471,9 @@ const enMessages = {
     urlLabel: "URL:",
     commandLabel: "Command:",
     dockerStdioUnsupported: "⚠ Won't run while the Docker sandbox is enabled.",
+    dockerStdioHostExecActive: "⚠ Runs on the host — this server escapes the Docker sandbox.",
+    dockerStdioHostExecOptIn:
+      "Run on the host anyway (advanced). This server runs outside the Docker sandbox via a local HTTP gateway and can access your machine.",
     learnMore: "Learn more",
     addServerButton: "+ Add MCP Server",
     nameLabel: "Name",
@@ -869,8 +918,9 @@ const enMessages = {
   },
   todoKanban: {
     rename: "Rename",
-    alreadyDoneColumn: "Already done column",
     markAsDoneColumn: "Mark as done column",
+    removeAllItems: "Remove all items",
+    removeAllItemsConfirm: 'Remove all {count} item(s) in "{column}"? This cannot be undone.',
     deleteColumn: "Delete column",
     columnActions: "Column actions",
     addCard: "+ Add card",
@@ -1261,6 +1311,26 @@ const enMessages = {
     // is translatable.
     explanation:
       "Extra tool names to pass to Claude via {allowedTools}. One per line. Useful for built-in Claude Code MCP servers like Gmail / Google Calendar after you have authenticated via {claudeMcp}.",
+  },
+  appsView: {
+    title: "Apps",
+    backToIndex: "Back to apps",
+    indexEmpty: "No apps installed. Star a skill that ships a schema from the Skills page to see it here.",
+    editItem: "Edit",
+    confirmDelete: "Delete this item? This cannot be undone.",
+    itemsEmpty: "No items yet. Click + to add one.",
+    appNotFound: "App not found",
+    loadFailed: "Failed to load",
+    requiredField: "This field is required",
+    source: {
+      user: "User",
+      project: "Project",
+    },
+  },
+  confirmModal: {
+    defaultTitle: "Confirm",
+    defaultConfirm: "Confirm",
+    defaultCancel: "Cancel",
   },
 };
 

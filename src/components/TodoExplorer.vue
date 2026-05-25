@@ -95,6 +95,7 @@
           @rename-column="onRenameColumn"
           @delete-column="onDeleteColumn"
           @mark-done="onMarkDone"
+          @remove-all-items="onRemoveAllItemsInColumn"
           @reorder-columns="onReorderColumns"
         />
         <TodoTableView
@@ -399,6 +400,25 @@ function onDeleteColumn(columnId: string): void {
 
 function onMarkDone(columnId: string): void {
   void patchColumn(columnId, { isDone: true });
+}
+
+async function onRemoveAllItemsInColumn(columnId: string): Promise<void> {
+  const col = columns.value.find((column) => column.id === columnId);
+  // Defense-in-depth: the menu entry is rendered only on done
+  // columns, but a programmatic caller could still hit this with any
+  // column id. Bulk delete is destructive, so refuse outside the
+  // done-column contract. (CodeRabbit follow-up on #1452.)
+  if (!col || !col.isDone) return;
+  // Items without an explicit status render in the first column in
+  // the kanban view, so apply the same fallback here.
+  const fallbackColumnId = columns.value[0]?.id;
+  const idsToDelete = items.value.filter((item) => (item.status ?? fallbackColumnId) === columnId).map((item) => item.id);
+  if (idsToDelete.length === 0) return;
+  const confirmed = window.confirm(t("todoKanban.removeAllItemsConfirm", { column: col.label, count: idsToDelete.length }));
+  if (!confirmed) return;
+  for (const itemId of idsToDelete) {
+    await deleteItem(itemId);
+  }
 }
 
 function onReorderColumns(ids: string[]): void {

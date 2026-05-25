@@ -75,6 +75,8 @@ const koMessages = {
     clearAll: "모두 지우기",
     dismiss: "닫기",
     cancel: "취소",
+    showMore: "더 보기 ({count})",
+    showLess: "접기",
   },
   pluginDiagnostics: {
     title: "플러그인 구성 문제",
@@ -84,9 +86,19 @@ const koMessages = {
       '플러그인 "{first}"과(와) "{second}"이(가) 동일한 {dimension} "{key}"을(를) 등록합니다. "{first}"이(가) 먼저 등록했으므로 "{second}"의 등록은 무시됩니다.',
   },
   optionalDeps: {
+    // 영구 저장된 기존 히스토리 항목과의 호환을 위해 일반적인 `title` 키는
+    // 그대로 둔다. 새 발화는 `titleNotFound` / `titleNotResponding` 사용.
     title: "선택적 의존성을 사용할 수 없습니다",
-    notFound: "{command}을(를) 찾을 수 없습니다 — 관련 기능이 비활성화되었습니다. 설치 후 재시작하면 활성화됩니다.",
-    notResponding: "{command}이(가) 설치되어 있지만 응답하지 않습니다 — 관련 기능이 비활성화되었습니다. 시작한 후 재시작하면 활성화됩니다.",
+    titleNotFound: "{command}이(가) 설치되어 있지 않습니다",
+    titleNotResponding: "{command}이(가) 실행 중이 아닙니다",
+    notFound: "{command}을(를) 찾을 수 없습니다 — 관련 기능이 비활성화되었습니다. {command}을(를) 설치한 후 MulmoClaude를 재시작하면 활성화됩니다.",
+    notResponding:
+      "{command}은(는) 설치되어 있지만 실행 중이 아닙니다 — 관련 기능이 비활성화되었습니다. {command}을(를) 시작한 후 MulmoClaude를 재시작하면 활성화됩니다.",
+  },
+  backendOffline: {
+    title: "백엔드에 연결할 수 없습니다",
+    body: "MulmoClaude 서버가 실행 중이 아닐 수 있습니다. 개발 서버를 확인한 후 다시 시도하세요.",
+    retry: "다시 시도",
   },
   pluginErrorBoundary: {
     title: "플러그인 {pkg}이(가) 충돌했습니다",
@@ -112,6 +124,8 @@ const koMessages = {
     availableTools: "사용 가능한 도구",
     toggleToolDescription: "도구 설명 토글",
     toolCallHistory: "도구 호출 기록",
+    copyHistory: "도구 호출 기록 복사",
+    copiedHistory: "복사됨!",
     noToolCalls: "아직 도구 호출이 없습니다",
     arguments: "인자",
     error: "오류",
@@ -268,15 +282,44 @@ const koMessages = {
     errLabelConflict: '라벨 "{label}" 은(는) 이미 사용 중입니다',
   },
   pluginLauncher: {
-    todos: { label: "할 일", title: "할 일 열기" },
-    calendar: { label: "캘린더", title: "캘린더 열기" },
-    automations: { label: "자동화", title: "자동화 열기" },
-    wiki: { label: "위키", title: "위키 열기" },
-    sources: { label: "소스", title: "정보 소스 열기" },
-    news: { label: "뉴스", title: "뉴스 뷰어 열기" },
-    skills: { label: "스킬", title: "스킬 열기" },
-    roles: { label: "역할", title: "역할 열기" },
-    files: { label: "파일", title: "워크스페이스 파일 열기" },
+    todos: { label: "할 일" },
+    calendar: { label: "캘린더" },
+    automations: { label: "자동화" },
+    encore: { label: "Encore" },
+    wiki: { label: "위키" },
+    apps: { label: "앱" },
+    sources: { label: "소스" },
+    news: { label: "뉴스" },
+    skills: { label: "스킬" },
+    roles: { label: "역할" },
+    files: { label: "파일" },
+  },
+  encoreDashboard: {
+    title: "Encore",
+    subtitle: "Encore가 추적 중인 정기 의무 목록입니다.",
+    loading: "의무 불러오는 중…",
+    errorPrefix: "의무를 불러올 수 없습니다: ",
+    empty: "아직 등록된 의무가 없습니다. 채팅에서 설정을 요청하세요.",
+    noCycles: "기록된 주기가 없습니다.",
+    cyclesSuffix: "주기",
+    targetCount: "대상 {count}개",
+    cycleClosed: "완료",
+    chatButtonTitle: "이 의무를 새 채팅에서 논의하기",
+    bellButtonTitle: "이 주기 논의하기",
+    addButtonLabel: "추가",
+    unexpectedResponse: "Encore가 예기치 않은 응답을 반환했습니다.",
+    status: {
+      active: "활성",
+      paused: "일시 중지",
+      retired: "종료",
+    },
+    cadence: {
+      daily: "매일",
+      weekly: "매주",
+      monthly: "매월",
+      biannual: "반기",
+      annual: "매년",
+    },
   },
   fileContentHeader: {
     showRendered: "렌더링된 Markdown 표시",
@@ -292,6 +335,9 @@ const koMessages = {
     parseError: "파싱 오류",
     editJson: "JSON 편집",
     jsonEditorLabel: "JSON 편집기",
+    invalidJson: "잘못된 JSON",
+    undo: "실행 취소",
+    redo: "다시 실행",
   },
   filesView: {
     chatPlaceholder: "이 파일에 대해 질문하세요…",
@@ -401,6 +447,9 @@ const koMessages = {
     urlLabel: "URL:",
     commandLabel: "명령:",
     dockerStdioUnsupported: "⚠ Docker 샌드박스가 켜져 있는 동안에는 실행되지 않습니다.",
+    dockerStdioHostExecActive: "⚠ 호스트에서 실행됩니다 — 이 서버는 Docker 샌드박스를 벗어납니다.",
+    dockerStdioHostExecOptIn:
+      "그래도 호스트에서 실행(고급). 이 서버는 로컬 HTTP 게이트웨이를 통해 Docker 샌드박스 밖에서 실행되며 컴퓨터에 접근할 수 있습니다.",
     learnMore: "자세히 보기",
     addServerButton: "+ MCP 서버 추가",
     nameLabel: "이름",
@@ -870,8 +919,9 @@ const koMessages = {
   },
   todoKanban: {
     rename: "이름 바꾸기",
-    alreadyDoneColumn: "이미 완료 칼럼",
     markAsDoneColumn: "완료 칼럼으로 설정",
+    removeAllItems: "모든 항목 삭제",
+    removeAllItemsConfirm: '"{column}"의 모든 항목 {count}개를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.',
     deleteColumn: "칼럼 삭제",
     columnActions: "칼럼 작업",
     addCard: "+ 카드 추가",
@@ -1261,6 +1311,26 @@ const koMessages = {
     // `<code>` 태그는 스타일을 유지하면서 본문은 번역 가능합니다.
     explanation:
       "{allowedTools} 를 통해 Claude 에 전달할 추가 도구 이름. 한 줄에 하나씩. {claudeMcp} 로 인증을 완료한 후 Claude Code 내장 MCP 서버 (Gmail / Google 캘린더 등) 를 사용할 때 유용합니다.",
+  },
+  appsView: {
+    title: "앱",
+    backToIndex: "앱 목록으로 돌아가기",
+    indexEmpty: "설치된 앱이 없습니다. Skills 페이지에서 스키마를 포함한 스킬에 별표를 추가하면 여기에 표시됩니다.",
+    editItem: "편집",
+    confirmDelete: "이 항목을 삭제하시겠습니까? 되돌릴 수 없습니다.",
+    itemsEmpty: "아직 항목이 없습니다. + 를 눌러 추가하세요.",
+    appNotFound: "앱을 찾을 수 없습니다",
+    loadFailed: "불러오기에 실패했습니다",
+    requiredField: "이 필드는 필수입니다",
+    source: {
+      user: "사용자",
+      project: "프로젝트",
+    },
+  },
+  confirmModal: {
+    defaultTitle: "확인",
+    defaultConfirm: "확인",
+    defaultCancel: "취소",
   },
 };
 

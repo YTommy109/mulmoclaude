@@ -68,6 +68,8 @@ const ptBRMessages = {
     clearAll: "Limpar",
     dismiss: "Dispensar",
     cancel: "Cancelar",
+    showMore: "Mostrar mais ({count})",
+    showLess: "Mostrar menos",
   },
   pluginDiagnostics: {
     title: "Problema de configuração do plugin",
@@ -76,9 +78,20 @@ const ptBRMessages = {
       'Os plugins "{first}" e "{second}" registram o mesmo {dimension} "{key}". "{first}" o reivindicou primeiro, portanto o registro de "{second}" é ignorado.',
   },
   optionalDeps: {
+    // `title` genérico mantido para compatibilidade com entradas do
+    // histórico persistidas antes da divisão por motivo; as novas
+    // usam `titleNotFound` / `titleNotResponding`.
     title: "Dependência opcional indisponível",
-    notFound: "{command} não encontrado — recursos relacionados foram desativados. Instale-o e reinicie para habilitá-los.",
-    notResponding: "{command} está instalado mas não responde — recursos relacionados foram desativados. Inicie-o e reinicie para habilitá-los.",
+    titleNotFound: "{command} não está instalado",
+    titleNotResponding: "{command} não está em execução",
+    notFound: "{command} não encontrado — recursos relacionados foram desativados. Instale {command} e reinicie o MulmoClaude para habilitá-los.",
+    notResponding:
+      "{command} está instalado mas não está em execução — recursos relacionados foram desativados. Inicie {command} e reinicie o MulmoClaude para habilitá-los.",
+  },
+  backendOffline: {
+    title: "Não foi possível conectar ao backend",
+    body: "O servidor do MulmoClaude pode não estar em execução. Verifique o servidor de desenvolvimento e tente novamente.",
+    retry: "Tentar novamente",
   },
   pluginErrorBoundary: {
     title: "O plugin {pkg} travou",
@@ -104,6 +117,8 @@ const ptBRMessages = {
     availableTools: "Ferramentas disponíveis",
     toggleToolDescription: "Alternar descrição da ferramenta",
     toolCallHistory: "Histórico de chamadas de ferramentas",
+    copyHistory: "Copiar histórico de chamadas de ferramentas",
+    copiedHistory: "Copiado!",
     noToolCalls: "Ainda não há chamadas de ferramentas",
     arguments: "Argumentos",
     error: "Erro",
@@ -262,15 +277,44 @@ const ptBRMessages = {
     errLabelConflict: 'Rótulo "{label}" já existe',
   },
   pluginLauncher: {
-    todos: { label: "Tarefas", title: "Abrir tarefas" },
-    calendar: { label: "Calendário", title: "Abrir calendário" },
-    automations: { label: "Ações", title: "Abrir ações" },
-    wiki: { label: "Wiki", title: "Abrir wiki" },
-    sources: { label: "Fontes", title: "Abrir fontes de informação" },
-    news: { label: "Notícias", title: "Abrir o leitor de notícias" },
-    skills: { label: "Skills", title: "Abrir skills" },
-    roles: { label: "Papéis", title: "Abrir papéis" },
-    files: { label: "Arquivos", title: "Abrir arquivos do workspace" },
+    todos: { label: "Tarefas" },
+    calendar: { label: "Calendário" },
+    automations: { label: "Ações" },
+    encore: { label: "Encore" },
+    wiki: { label: "Wiki" },
+    apps: { label: "Aplicativos" },
+    sources: { label: "Fontes" },
+    news: { label: "Notícias" },
+    skills: { label: "Skills" },
+    roles: { label: "Papéis" },
+    files: { label: "Arquivos" },
+  },
+  encoreDashboard: {
+    title: "Encore",
+    subtitle: "Obrigações recorrentes que o Encore está acompanhando.",
+    loading: "Carregando obrigações…",
+    errorPrefix: "Não foi possível carregar as obrigações: ",
+    empty: "Ainda não há obrigações. Peça no chat para configurar uma.",
+    noCycles: "Nenhum ciclo registrado ainda.",
+    cyclesSuffix: "ciclos",
+    targetCount: "{count} alvo | {count} alvos",
+    cycleClosed: "Concluído",
+    chatButtonTitle: "Conversar sobre esta obrigação em um novo chat",
+    bellButtonTitle: "Conversar sobre este ciclo",
+    addButtonLabel: "Adicionar",
+    unexpectedResponse: "O Encore retornou uma resposta inesperada.",
+    status: {
+      active: "Ativa",
+      paused: "Pausada",
+      retired: "Encerrada",
+    },
+    cadence: {
+      daily: "Diária",
+      weekly: "Semanal",
+      monthly: "Mensal",
+      biannual: "Semestral",
+      annual: "Anual",
+    },
   },
   fileContentHeader: {
     showRendered: "Mostrar Markdown renderizado",
@@ -286,6 +330,9 @@ const ptBRMessages = {
     parseError: "erro de análise",
     editJson: "Editar JSON",
     jsonEditorLabel: "Editor JSON",
+    invalidJson: "JSON inválido",
+    undo: "Desfazer",
+    redo: "Refazer",
   },
   filesView: {
     chatPlaceholder: "Pergunte sobre este arquivo…",
@@ -400,6 +447,9 @@ const ptBRMessages = {
     urlLabel: "URL:",
     commandLabel: "Comando:",
     dockerStdioUnsupported: "⚠ Não será executado enquanto o sandbox do Docker estiver ativado.",
+    dockerStdioHostExecActive: "⚠ Executa no host: este servidor sai do sandbox do Docker.",
+    dockerStdioHostExecOptIn:
+      "Executar no host mesmo assim (avançado). Este servidor é executado fora do sandbox do Docker por meio de um gateway HTTP local e pode acessar sua máquina.",
     learnMore: "Saiba mais",
     addServerButton: "+ Adicionar servidor MCP",
     nameLabel: "Nome",
@@ -873,8 +923,9 @@ const ptBRMessages = {
   },
   todoKanban: {
     rename: "Renomear",
-    alreadyDoneColumn: "Já é a coluna de concluídas",
     markAsDoneColumn: "Definir como coluna de concluídas",
+    removeAllItems: "Remover todos os itens",
+    removeAllItemsConfirm: 'Remover todos os {count} itens em "{column}"? Esta ação não pode ser desfeita.',
     deleteColumn: "Excluir coluna",
     columnActions: "Ações da coluna",
     addCard: "+ Adicionar cartão",
@@ -1262,6 +1313,26 @@ const ptBRMessages = {
     // enquanto o texto é traduzível.
     explanation:
       "Nomes adicionais de ferramentas a serem passados ao Claude via {allowedTools}. Um por linha. Útil para servidores MCP integrados ao Claude Code como Gmail / Google Calendar após autenticar via {claudeMcp}.",
+  },
+  appsView: {
+    title: "Aplicativos",
+    backToIndex: "Voltar para aplicativos",
+    indexEmpty: "Nenhum aplicativo instalado. Marque com estrela uma skill que inclua um schema na página Skills para vê-la aqui.",
+    editItem: "Editar",
+    confirmDelete: "Excluir este item? Esta ação não pode ser desfeita.",
+    itemsEmpty: "Ainda não há itens. Clique em + para adicionar um.",
+    appNotFound: "Aplicativo não encontrado",
+    loadFailed: "Falha ao carregar",
+    requiredField: "Este campo é obrigatório",
+    source: {
+      user: "Usuário",
+      project: "Projeto",
+    },
+  },
+  confirmModal: {
+    defaultTitle: "Confirmar",
+    defaultConfirm: "Confirmar",
+    defaultCancel: "Cancelar",
   },
 };
 
