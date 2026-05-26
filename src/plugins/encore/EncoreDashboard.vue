@@ -440,9 +440,12 @@ function recordedValuesForTarget(state: CycleState, targetId: string): RecordedV
                 }}</span>
                 <span v-if="field.placeholder" class="text-[11px] text-gray-400 italic truncate max-w-[16rem]">{{ field.placeholder }}</span>
                 <span v-if="field.options && field.options.length > 0" class="flex flex-wrap gap-1">
-                  <span v-for="opt in field.options" :key="opt" class="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-50 text-[11px] text-blue-600">{{
-                    opt
-                  }}</span>
+                  <span
+                    v-for="(opt, idx) in field.options"
+                    :key="`${field.name}-${idx}`"
+                    class="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-50 text-[11px] text-blue-600"
+                    >{{ opt }}</span
+                  >
                 </span>
               </li>
             </ul>
