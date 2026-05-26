@@ -142,13 +142,21 @@ function errorMessage(err, fallback) {
   return String(err);
 }
 
+// server/workspace/collections/templatePath.ts
+var TEMPLATES_PREFIX = "templates/";
+function isSafeTemplatePath(value) {
+  if (value.length === 0 || value.includes("\\") || value.startsWith("/")) return false;
+  return value.split("/").every((seg) => seg.length > 0 && seg !== "." && seg !== ".." && /^[A-Za-z0-9._-]+$/.test(seg));
+}
+function isSafeActionTemplatePath(value) {
+  return value.startsWith(TEMPLATES_PREFIX) && isSafeTemplatePath(value);
+}
+
 // server/workspace/hooks/handlers/skillBridge.ts
 var DATA_SKILLS_DIR = path3.join("data", "skills");
 var CLAUDE_SKILLS_DIR = path3.join(".claude", "skills");
 var SKILL_FILENAME = "SKILL.md";
 var SCHEMA_FILENAME = "schema.json";
-var TEMPLATES_DIR = "templates";
-var SAFE_TEMPLATE_RE = /^[A-Za-z0-9_-][A-Za-z0-9._-]*\.md$/;
 var SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 var RM_RE = /^\s*rm\s+((?:-[a-zA-Z]+\s+)+)['"]?data\/skills\/([a-z0-9-]+)\/?['"]?\s*$/;
 var RECURSIVE_FLAG_RE = /[rR]/;
@@ -162,10 +170,7 @@ function isAllowlisted(relSegments) {
   if (relSegments.length === 1) {
     return relSegments[0] === SKILL_FILENAME || relSegments[0] === SCHEMA_FILENAME;
   }
-  if (relSegments.length === 2 && relSegments[0] === TEMPLATES_DIR) {
-    return SAFE_TEMPLATE_RE.test(relSegments[1]);
-  }
-  return false;
+  return isSafeActionTemplatePath(relSegments.join("/"));
 }
 function bridgeTargetFromDataPath(filePath) {
   const root = workspaceRoot();

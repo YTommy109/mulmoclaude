@@ -41,14 +41,33 @@ describe("bridgeTargetFromDataPath", () => {
     assert.deepEqual(bridgeTargetFromDataPath("/ws/data/skills/swimming/schema.json"), { slug: "swimming", relSegments: ["schema.json"] });
   });
 
-  it("matches data/skills/<slug>/templates/<name>.md", () => {
-    // Action templates referenced by a schema's `actions` must
-    // cross too — a single `templates/` segment, `.md` only.
+  it("matches any safe action-template path under templates/ (matches the schema validator)", () => {
+    // Action templates referenced by a schema's `actions` must cross.
+    // The accepted set is exactly what `isSafeActionTemplatePath`
+    // allows (the same predicate discovery validates against): a safe
+    // path under `templates/`, nesting + any extension permitted — so
+    // a valid schema can never reference a template the bridge drops.
     setWorkspace("/ws");
     assert.deepEqual(bridgeTargetFromDataPath("/ws/data/skills/invoice/templates/journal-sale.md"), {
       slug: "invoice",
       relSegments: ["templates", "journal-sale.md"],
     });
+    assert.deepEqual(
+      bridgeTargetFromDataPath("/ws/data/skills/invoice/templates/mail/welcome.md"),
+      {
+        slug: "invoice",
+        relSegments: ["templates", "mail", "welcome.md"],
+      },
+      "nested template path",
+    );
+    assert.deepEqual(
+      bridgeTargetFromDataPath("/ws/data/skills/foo/templates/report.txt"),
+      {
+        slug: "foo",
+        relSegments: ["templates", "report.txt"],
+      },
+      "non-.md extension allowed",
+    );
   });
 
   it("rejects non-staging paths", () => {
@@ -69,12 +88,11 @@ describe("bridgeTargetFromDataPath", () => {
     assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo/assets/img.png"), null);
   });
 
-  it("rejects templates that aren't a single safe *.md basename", () => {
+  it("rejects template-like paths that aren't under templates/ or that traverse", () => {
     setWorkspace("/ws");
-    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo/templates/x.txt"), null, "non-.md rejected");
-    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo/templates/.hidden.md"), null, "hidden file rejected");
-    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo/templates/sub/x.md"), null, "nested deeper rejected");
     assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo/assets/x.md"), null, "non-templates subdir rejected");
+    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo/prompts/x.md"), null, "must be under templates/, not a sibling dir");
+    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo/templates/../escape.md"), null, "traversal rejected");
   });
 
   it("rejects flat <slug>.md (the old layout)", () => {

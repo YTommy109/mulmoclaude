@@ -23,12 +23,17 @@
 //
 // What crosses the gate — a FIXED ALLOWLIST, not the whole dir:
 //
-//   SKILL.md         the skill body Claude CLI reads
-//   schema.json      the collection definition (a "collection skill"
-//                    is a skill dir that ships a schema.json; without
-//                    it the collection never registers)
-//   templates/<x>.md action templates a schema's `actions` reference
-//                    by path (one `templates/` segment, `.md` only)
+//   SKILL.md          the skill body Claude CLI reads
+//   schema.json       the collection definition (a "collection skill"
+//                     is a skill dir that ships a schema.json; without
+//                     it the collection never registers)
+//   templates/<path>  action templates a schema's `actions` reference
+//                     by path. The accepted set is exactly what the
+//                     schema validator allows (`isSafeActionTemplatePath`
+//                     in collections/templatePath.ts) — a safe path
+//                     under `templates/`, nesting allowed — so a valid
+//                     schema can never reference a template the bridge
+//                     drops.
 //
 // Everything else (README.md, assets/, arbitrary nesting) stays
 // staging-side — same publish-boundary intent as the original
@@ -58,20 +63,12 @@ import type { HookPayload } from "../shared/stdin.js";
 import { extractCommand, extractFilePath, extractToolName } from "../shared/stdin.js";
 import { workspaceRoot } from "../shared/workspace.js";
 import { errorMessage } from "../../../utils/errors.js";
+import { isSafeActionTemplatePath } from "../../collections/templatePath.js";
 
 const DATA_SKILLS_DIR = path.join("data", "skills");
 const CLAUDE_SKILLS_DIR = path.join(".claude", "skills");
 const SKILL_FILENAME = "SKILL.md";
 const SCHEMA_FILENAME = "schema.json";
-const TEMPLATES_DIR = "templates";
-
-// A `templates/` entry must be a plain `*.md` basename: starts with
-// an alphanumeric / `_` / `-` (so hidden files and `..md` are out),
-// no path separators (the `<slug>/templates/<name>` shape already
-// guarantees a single segment), `.md` extension. Mirrors the
-// safe-name discipline `discovery.ts#isSafeTemplatePath` applies to
-// the schema's action `template` paths.
-const SAFE_TEMPLATE_RE = /^[A-Za-z0-9_-][A-Za-z0-9._-]*\.md$/;
 
 // Slugs follow Claude Code's skill-name convention: lowercase ASCII
 // letters / digits with single-hyphen separators. Matching is
@@ -130,19 +127,19 @@ export interface BridgeTarget {
 }
 
 // Decide whether a path below the slug dir is on the allowlist.
-//   <slug>/SKILL.md        → yes
-//   <slug>/schema.json     → yes
-//   <slug>/templates/<x>.md → yes (safe basename only)
-// everything else (README.md, assets/, deeper nesting, non-.md
-// templates) → no.
+//   <slug>/SKILL.md           → yes
+//   <slug>/schema.json        → yes
+//   <slug>/templates/<path>   → yes iff it's a safe action-template
+//                               path (same predicate the schema
+//                               validator uses, so what a schema can
+//                               declare is exactly what crosses)
+// everything else (README.md, assets/, any non-`templates/` sibling)
+// → no.
 function isAllowlisted(relSegments: string[]): boolean {
   if (relSegments.length === 1) {
     return relSegments[0] === SKILL_FILENAME || relSegments[0] === SCHEMA_FILENAME;
   }
-  if (relSegments.length === 2 && relSegments[0] === TEMPLATES_DIR) {
-    return SAFE_TEMPLATE_RE.test(relSegments[1]);
-  }
-  return false;
+  return isSafeActionTemplatePath(relSegments.join("/"));
 }
 
 // Resolve a Write/Edit path to the staging file it mirrors, or null
