@@ -728,13 +728,12 @@ if (env.isProduction) {
   // the file and substitutes the bearer token placeholder on each
   // request — see the wildcard fallback below.
   //
-  // `resolveClientDir` picks `<__dirname>/../client/` by default
-  // (the prepared-package layout `bin/prepare-dist.js` produces)
-  // and falls over to `MULMOCLAUDE_CLIENT_DIR` when the env is set
-  // — fresh-user smoke specs spawn `tsx server/index.ts` straight
-  // from source (no prepare-dist copy step) and point the env at
-  // `<repo-root>/dist/client/`. See server/utils/clientDir.ts for
-  // the unit-tested resolver.
+  // Default `<__dirname>/../client/` is the layout
+  // `packages/mulmoclaude/bin/prepare-dist.js` produces when packaging
+  // the tarball. Fresh-user smoke specs spawn `tsx server/index.ts`
+  // straight from source (no prepare-dist copy step) and override via
+  // `MULMOCLAUDE_CLIENT_DIR=<repo-root>/dist/client/`. Empty string
+  // env falls back to the default via `||` (empty is falsy).
   const clientDir = resolveClientDir(process.env.MULMOCLAUDE_CLIENT_DIR, path.join(__dirname, "../client"));
   app.use(express.static(clientDir, { index: false }));
   const indexHtmlPath = path.join(clientDir, "index.html");
