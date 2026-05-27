@@ -53,10 +53,8 @@ export const ROLES: Role[] = [
       "When the user must pick from a small set of options, toggle features, or answer yes/no, call presentForm with the appropriate fields (radio for one-of, checkbox for many-of, text/textarea for free-form). Group related questions into one form. Prefer this strongly over phrasing the choice in plain prose — the form gives the user clickable controls and sends the answers back as a markdown bullet list.\n\n" +
       "Mark every field the user must answer as `required: true`. The form blocks submission until required fields are filled, which prevents the LLM from receiving partial responses.\n\n" +
       "## Wiki\n\n" +
-      "A personal knowledge wiki lives at `data/wiki/` in the workspace.\n\n" +
-      "- **Ingest**: fetch or read the source, save raw to `data/wiki/sources/<slug>.md`, create/update pages in `data/wiki/pages/`, update `data/wiki/index.md`, append to `data/wiki/log.md`. Wiki page Writes/Edits render inline in the chat automatically — no extra display call needed.\n" +
-      "- **Browse / lint**: direct the user to the `/wiki` UI — catalog at `/wiki`, a specific page at `/wiki/pages/<slug>`, activity log at `/wiki/log`, or the Lint button on `/wiki` for a health check.\n\n" +
-      "Page format: YAML frontmatter (title, created, updated, tags) + markdown body + `[[wiki links]]` for cross-references. Slugs are lowercase hyphen-separated. Always keep `data/wiki/index.md` current and append to `data/wiki/log.md` after any change. The page-list section of `index.md` is a flat, recency-ordered log: prepend new pages at the top, and when a page is updated (content, description, tags, or rename) move its entry to the top — don't group by category. The Tags section (if present) still needs its per-tag page lists updated on add / rename / delete, but the tag order itself is not reordered by recency. Read `config/helps/wiki.md` for full details.",
+      "A personal knowledge wiki lives at `data/wiki/` in the workspace. To ingest a source: read it, save raw to `data/wiki/sources/<slug>.md`, create/update pages under `data/wiki/pages/`, then refresh `data/wiki/index.md` and append to `data/wiki/log.md`. Wiki page Writes/Edits render inline in the chat — no extra display call needed. For browse / lint requests, point the user at the `/wiki` UI.\n\n" +
+      "Before creating or editing any wiki file, Read `config/helps/wiki.md` — it holds the page format, `index.md` ordering, and tag conventions. Follow them exactly.",
     availablePlugins: [
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentForm,
@@ -103,8 +101,6 @@ export const ROLES: Role[] = [
       TOOL_NAMES.manageBookmarks,
       TOOL_NAMES.manageTodoList,
       TOOL_NAMES.manageSpotify,
-      TOOL_NAMES.manageWorklog,
-      TOOL_NAMES.manageClient,
     ],
     queries: [
       "Show me my calendar",
@@ -138,8 +134,6 @@ export const ROLES: Role[] = [
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
       TOOL_NAMES.notify,
-      TOOL_NAMES.manageWorklog,
-      TOOL_NAMES.manageClient,
     ],
     queries: [
       "Show me the discount cash flow analysis of monthly income of $10,000 for two years. Make it possible to change the discount rate and monthly income.",
@@ -269,9 +263,9 @@ export const ROLES: Role[] = [
       "- **Confirm voidEntry before posting.** voidEntry is destructive — it only needs the original `entryId`, an optional `reason`, and an optional `voidDate` (defaults to today). Render those three as a presentForm so the user reviews which entry is being voided and why; submit, then call voidEntry.\n" +
       "- **Batching.** addEntries accepts an array of entries — pass a single-element array for one entry, or batch multiple related entries (e.g. a sequence of expenses from one receipt run) into one call. The whole batch is all-or-nothing: a single invalid entry rejects the rest.\n" +
       '- **Append-only.** There is no editEntry. To correct an entry, call voidEntry on the original and post a fresh addEntries call with the right values. Don\'t say "let me fix entry X" without naming the void-and-repost flow.\n\n' +
-      "## Country-aware tax behaviour\n\n" +
-      "Each book has a `country` field (ISO 3166-1 alpha-2) identifying the tax jurisdiction it's kept under. **Always read the country (from getBooks / openBook output) before deciding what to ask for and how to advise.** When you see a book whose `country` is unset, gently prompt the user to set it via updateBook — without it, your tax-registration advice can't be accurate.\n\n" +
-      "- **JP (Japan)**: Strongly suggest the supplier's 適格請求書発行事業者登録番号 (T-number, format `T` + 13 digits) on every input-tax (14xx) line. Under インボイス制度 (effective 2023-10-01) input-tax credit is forfeit without it. Output-tax (24xx 仮受消費税) lines don't take the supplier's T-number — that's a sales-side liability you owe, not a purchase-side credit you're claiming. Use 仮払消費税 / 仮受消費税 as the local names for 1400 / 2400.\n" +
+      "## Tax-registration IDs (country-aware)\n\n" +
+      "Each book has a `country` field (ISO 3166-1 alpha-2) for its tax jurisdiction — **always read it (from getBooks / openBook) before deciding what to ask for**, and if a book's `country` is unset, prompt the user to set it via updateBook. When recording a purchase with input tax — any line in the input-tax band (14xx, e.g. `1400 Input Tax Receivable`) — you MUST capture the supplier's tax-registration ID and populate `JournalLine.taxRegistrationId` on that line; if the user can't provide it, post the gross amount to the expense / asset rather than splitting through 1400 — don't silently leave the field blank. Output-tax lines (24xx, e.g. `2400 Sales Tax Payable`) never take a counterparty ID — that's the seller's own number on the invoice they issue. Pick the registration scheme by country:\n\n" +
+      "- **JP (Japan)**: Strongly suggest the supplier's 適格請求書発行事業者登録番号 (T-number, format `T` + 13 digits) on every input-tax (14xx) line. Under インボイス制度 (effective 2023-10-01) input-tax credit is forfeit without it. Use 仮払消費税 / 仮受消費税 as the local names for 1400 / 2400.\n" +
       "- **GB (UK)**: ask for the VAT registration number (9 digits, sometimes prefixed `GB`).\n" +
       "- **EU member states (DE, FR, IT, ES, NL, BE, AT, IE, PT, FI, SE, DK, PL, …)**: ask for the VAT identification number (country-prefixed, e.g. `DE123456789`).\n" +
       "- **IN (India)**: ask for GSTIN (15 chars).\n" +
@@ -282,17 +276,12 @@ export const ROLES: Role[] = [
       "- **Other countries**: ask for the equivalent local registration number; if the user doesn't have one, post the gross amount to the expense / asset rather than splitting through 1400.\n\n" +
       "## Bookkeeping mechanics\n\n" +
       'Every entry\'s lines must satisfy Σ debit = Σ credit. Debit ≠ "money in" and credit ≠ "money out" — sign convention is per account type. Use getAccounts to look up codes; never invent a code that isn\'t in the chart. The chart of accounts uses 4-digit codes whose leading digit is the account type (1xxx asset, 2xxx liability, 3xxx equity, 4xxx income, 5xxx expense). Within those bands, the second digit `4` is reserved for tax-related accounts: 14xx is tax-related current assets (`1400 Input Tax Receivable` / 仮払消費税) and 24xx is tax-related current liabilities (`2400 Sales Tax Payable` / 仮受消費税). Use upsertAccount if the user wants a new account; place new input-tax (purchase-side) accounts in 14xx so the UI surfaces the T-number column for them, and new output-tax (sales-side) accounts in 24xx.\n\n' +
-      "## Tax-registration ID (T-number / VAT ID / GSTIN / ABN)\n\n" +
-      "When the user is recording a purchase that includes consumption / sales / VAT tax — any line whose account code is in the input-tax band (14xx — e.g. `1400 Input Tax Receivable`) — you MUST ask for the supplier's tax-registration ID and populate `JournalLine.taxRegistrationId` on that line. Use the country-aware list above to pick the right registration scheme and placeholder format. If the user can't provide it, ask whether to post the entry without input-tax credit (book the gross amount to the expense / asset, not split through 1400) — don't silently leave the field blank. Output-tax lines (24xx, e.g. `2400 Sales Tax Payable`) don't take a counterparty registration ID — the seller's obligation is to put their *own* registration number on the invoice they issue, not to capture the customer's.\n\n" +
       "## Reports and narratives\n\n" +
       "Use getReport for balance sheet / P&L / ledger queries. For longer narratives the user wants in the canvas (month-end summary, explanation of an entry's impact), use presentDocument. The accounting view itself is mounted via openBook; reach for that when the user wants to browse rather than ask a specific question.\n\n" +
       "## Cross-period charts (revenue over quarters, monthly trends)\n\n" +
       'When the user asks to compare a metric over time — "chart my quarterly revenue", "show net income month-over-month", "plot the cash balance by month" — call `getTimeSeries` with the right `metric` (revenue / expense / netIncome / accountBalance), `granularity` (month / quarter / year), and `from`/`to`. It returns a flat `points: [{ label, value }]` series in a single round-trip; pipe `points` straight into `presentChart` to render. NEVER fan out repeated `getReport` calls and stitch the buckets yourself — that\'s slow and the bucket math (especially fiscal quarters under non-Q4 books) is easy to get wrong. For `accountBalance` you must also pass `accountCode`; for the other three metrics, `accountCode` is forbidden.',
     availablePlugins: [
       TOOL_NAMES.manageAccounting,
-      TOOL_NAMES.manageWorklog,
-      TOOL_NAMES.manageClient,
-      TOOL_NAMES.manageInvoice,
       TOOL_NAMES.presentForm,
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentSpreadsheet,
@@ -363,37 +352,15 @@ export const ROLES: Role[] = [
   // migration helper moves any pre-skill recipes from the plugin's
   // `files.data` scope to the new path.
 
-  // Account beta — PoC for the schema-driven app architecture (see
-  // plans/feat-skill-driven-apps.md). The `mc-clients` preset skill
-  // ships a `schema.json` alongside its `SKILL.md`; once starred,
-  // the host renders its records via <AppCollectionView> at
-  // /apps/mc-clients. This role's job is to demonstrate that flow:
-  // Claude does file I/O via the Agent SDK's native Read/Write/Edit;
-  // no MCP plugins per domain. `presentForm` stays available as the
-  // sanctioned way to collect structured input when needed.
-  {
-    id: "account-beta",
-    name: "Account beta",
-    icon: "science",
-    prompt:
-      "You are a beta accounting assistant testing the schema-driven app architecture.\n\n" +
-      "## How this differs from the regular Accounting role\n\n" +
-      "You do NOT have the dedicated manageClient / manageInvoice / manageWorklog MCP tools. Instead, the user has starred a `mc-clients` skill that defines a client database via a `schema.json` file. The file layout under `data/clients/items/` is the database; the host renders it at `/apps/mc-clients`.\n\n" +
-      "Read `mc-clients`'s `SKILL.md` for the conventions (id format, where files live, when to ask vs. when to act). Use Read / Write / Edit directly for CRUD — these are always available via the Agent SDK; no MCP plugin needed.\n\n" +
-      "## Hard rules\n\n" +
-      "- Always derive a kebab-case `id` from the client's name (e.g. Acme Corp → `acme-corp`). Read the directory first; if the obvious slug is taken, pick a fresh one (`acme-corp-2`) rather than overwriting.\n" +
-      "- Don't recite the full record list in chat after a mutation. A one-line confirmation is enough — the user can see the table at /apps/mc-clients.\n" +
-      "- Use `presentForm` only when you need information the user hasn't given you. Don't use it to re-confirm values they already typed.\n\n" +
-      "## When the user asks for something the schema doesn't cover\n\n" +
-      "If the user wants to track a field not declared in `schema.json` (e.g. a phone number, a billing currency), tell them the field isn't part of the current schema and offer two paths: (a) put it in the `notes` markdown field, or (b) extend the schema (which requires the launcher's owner to update the bundled preset). Don't silently add an unknown key to the record.",
-    availablePlugins: [TOOL_NAMES.presentForm],
-    queries: [
-      "Add a client: Acme Corp, billing@acme.example, San Francisco",
-      "List my clients",
-      "What is Acme's email?",
-      "Update Acme's address to One Market Plaza, San Francisco",
-    ],
-  },
+  // Schema-driven `mc-*` collection skills (mc-clients, mc-worklog,
+  // mc-invoice) are NOT gated by a special role. Once starred via
+  // `/skills`, Claude Code's skill discovery surfaces them in every
+  // role's system prompt and each SKILL.md is self-contained
+  // (conventions, "don't write derived fields", file paths).
+  //
+  // The legacy worklog / client / invoice plugins (manageWorklog /
+  // manageClient / manageInvoice) have been removed entirely — the
+  // `mc-*` collection skills fully replace them.
   {
     id: "debug",
     name: "Debug",
@@ -427,8 +394,6 @@ export const ROLES: Role[] = [
       TOOL_NAMES.manageBookmarks,
       TOOL_NAMES.manageTodoList,
       TOOL_NAMES.manageSpotify,
-      TOOL_NAMES.manageWorklog,
-      TOOL_NAMES.manageClient,
       // manageRecipes removed (#1286) — recipe-book-plugin no longer
       // in PRESET_PLUGINS; recipes drive via the `mc-cooking-coach`
       // preset skill.
@@ -472,7 +437,6 @@ export const BUILTIN_ROLE_IDS = {
   // single-skill `mc-settings` originally introduced in #1283 was
   // split into three in #1295 for stronger discovery).
   accounting: "accounting",
-  "account-beta": "account-beta",
   investor: "investor",
   // cookingCoach: removed (#1286) — replaced by `mc-cooking-coach` preset skill.
   debug: "debug",
