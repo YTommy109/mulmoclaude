@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full bg-white flex flex-col">
+  <div class="h-full bg-white flex flex-col" data-testid="todo-view-root">
     <!-- API error banner — surfaces POST /api/todos failures so a
          silent add/remove/toggle becomes diagnosable. -->
     <div v-if="todoApiError" class="px-4 py-2 bg-red-50 border-b border-red-200 text-sm text-red-700" role="alert" data-testid="todo-api-error">
