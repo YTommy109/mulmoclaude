@@ -23,7 +23,21 @@
          the container's `pb-4` padding can't combine into a stray
          scrollbar. A sibling `flex-1` slot centers cleanly. -->
     <div v-if="toolResults.length === 0" class="flex-1 flex items-center justify-center text-gray-400 text-sm" data-testid="stack-empty">
-      {{ t("common.noResultsYet") }}
+      <!-- Mirror PageChatComposer's empty-state UX in single layout:
+           role.queries become clickable suggestions so a fresh stack
+           chat isn't a blank "no results yet" wall. -->
+      <div v-if="queries && queries.length > 0 && sendTextMessage" class="w-full max-w-2xl px-4 flex flex-col gap-1.5">
+        <button
+          v-for="query in queries"
+          :key="query"
+          class="text-left text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded px-3 py-1.5 border border-gray-300 transition-colors"
+          data-testid="stack-empty-query"
+          @click="sendTextMessage(query)"
+        >
+          {{ query }}
+        </button>
+      </div>
+      <template v-else>{{ t("common.noResultsYet") }}</template>
     </div>
     <div v-else ref="containerRef" class="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3" data-testid="stack-scroll">
       <div
@@ -161,6 +175,10 @@ const props = defineProps<{
   selectedResultUuid: string | null;
   resultTimestamps: Map<string, number>;
   sendTextMessage?: (text: string) => void;
+  /** Role's sample queries (already translated). Rendered as
+   *  click-to-send suggestions in the empty state so a fresh stack
+   *  chat matches the single-layout PageChatComposer experience. */
+  queries?: readonly string[];
   sessionRoleName?: string;
   sessionRoleIcon?: string;
   layoutMode: LayoutMode;
