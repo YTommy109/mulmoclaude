@@ -28,7 +28,6 @@ import {
   deleteSession,
   fetchAuthedJsonViaPage,
   getCurrentSessionId,
-  listNotifierEntries,
   sendChatMessage,
   startNewSession,
   waitForAssistantResponseComplete,
@@ -80,9 +79,16 @@ test.describe("happy-tour (capability sweep)", () => {
       const probe = await fetchAuthedJsonViaPage(page, API_ROUTES.plugins.runtimeList);
       expect(probe.ok, probe.ok ? "" : `runtime list probe failed: ${probe.reason}`).toBe(true);
       if (!probe.ok) throw new Error(`unreachable after expect: ${probe.reason}`);
-      // `requireDevOnly: true` because the dev checkout (`yarn dev`)
-      // has all four presets resolvable via yarn-workspace symlinks.
-      // A published-tarball doctor harness will flip this to false.
+      // `requireDevOnly: true` against `yarn dev`: all four presets
+      // resolve via yarn-workspace symlinks, so we hard-require them.
+      // CAVEAT — this catches the *shape* of the 2026-05-25 bundle
+      // drop (preset entry disappears from the runtime registry), not
+      // the published-tarball composition itself. The full tarball-
+      // mode catch requires reusing `assertRuntimePluginsRegistered`
+      // (with `requireDevOnly: false`) from a doctor CLI / pre-release
+      // smoke harness running against `npx mulmoclaude@<tarball>`;
+      // that wiring is the planned reuse target for `health-checks.ts`
+      // and is not in this PR.
       const result = assertRuntimePluginsRegistered(probe.body, true);
       expect(result.ok, result.ok ? "" : result.reason).toBe(true);
     });
@@ -147,39 +153,38 @@ test.describe("happy-tour (capability sweep)", () => {
       await expect(page.getByTestId("sources-view-root"), "sources view root must render under /sources").toBeVisible({ timeout: VIEW_MOUNT_TIMEOUT_MS });
     });
 
-    await test.step("12. NotificationBell に startup-time の警告 entry が無い", async () => {
-      // `/api/plugins/diagnostics` is the structured source for boot
-      // collisions (step 3 already asserted empty). This step looks
-      // at the live notifier ledger to catch the *secondary* class
-      // of startup warnings — anything a preset / host module
-      // published via `publishNotification(...)` during boot. We
-      // filter by severity to ignore informational fyi entries the
-      // user may have accumulated in their workspace already.
-      const entries = await listNotifierEntries(page);
-      const startupWarnings = entries.filter((entry) => entry.severity === "urgent");
-      expect(startupWarnings, `unexpected urgent notifier entries (startup-time warnings): ${JSON.stringify(startupWarnings)}`).toHaveLength(0);
-    });
+    // Step 12 from the plan ("NotificationBell に startup-time WARN が無い")
+    // is covered structurally by step 3 — `/api/plugins/diagnostics`
+    // is the canonical source the bell *reads from* for boot-time
+    // collisions, so duplicating the check via the live notifier
+    // ledger would be redundant *and* unreliable (the ledger is a
+    // shared user surface; pre-existing urgent entries from
+    // Encore / ghost-bell publishers would false-positive the
+    // assertion, and a true startup-time WARN published at non-
+    // urgent severity would be missed). If a future regression
+    // class needs a notifier-side canary, the L-17 baseline-diff
+    // shape is the right pattern, not a global severity filter.
   });
 });
 
 /**
- * The chat-turn leg of step 5. Kept under 20 lines so the spec's
- * top-level reads as a top-down checklist; the cleanup `try/finally`
- * has its own scope so the session id capture is impossible to leak
- * even if the assertion throws mid-turn.
+ * The chat-turn leg of step 5. The session id is captured the moment
+ * `/chat/<id>` settles — *before* the marker assertion — so a marker
+ * timeout still cleans the session up (Codex iter-1: the prior order
+ * leaked sessions on assertion failure).
  */
 async function runSingleTurnSmoke(page: Page): Promise<void> {
   let sessionIdForCleanup: string | null = null;
   try {
     await startNewSession(page);
     await sendChatMessage(page, SINGLE_WORD_PROMPT);
+    await page.waitForURL(SESSION_URL_PATTERN, { timeout: ONE_MINUTE_MS });
+    sessionIdForCleanup = getCurrentSessionId(page);
     await expect(
       page.getByTestId("text-response-assistant-body").last(),
       "assistant body must echo the marker — proves the boot → agent → response loop is alive",
     ).toContainText("hellotour", { timeout: SINGLE_TURN_TIMEOUT_MS });
     await waitForAssistantResponseComplete(page);
-    await page.waitForURL(SESSION_URL_PATTERN, { timeout: ONE_MINUTE_MS });
-    sessionIdForCleanup = getCurrentSessionId(page);
   } finally {
     if (sessionIdForCleanup !== null) await deleteSession(page, sessionIdForCleanup);
   }
