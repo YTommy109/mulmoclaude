@@ -29,7 +29,7 @@ import configRoutes from "./api/routes/config.js";
 import configRefreshRoutes from "./api/routes/config-refresh.js";
 import hookLogRoutes from "./api/routes/hookLog.js";
 import skillsRoutes from "./api/routes/skills.js";
-import appsRoutes from "./api/routes/apps.js";
+import collectionsRoutes from "./api/routes/collections.js";
 import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
 import { loadRuntimePlugins } from "./plugins/runtime-loader.js";
 import { evaluateDevPluginGate, loadDevPlugins, parseDevPluginsEnv } from "./plugins/dev-loader.js";
@@ -58,6 +58,7 @@ import { initAccountingEventPublisher } from "./accounting/eventPublisher.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";
 import { discoverSkills } from "./workspace/skills/index.js";
 import { WORKSPACE_PATHS } from "./workspace/paths.js";
+import { resolveClientDir } from "./utils/clientDir.js";
 import { serverError } from "./utils/httpError.js";
 import { makeUuid } from "./utils/id.js";
 import { mcpToolsRouter, mcpTools, isMcpToolEnabled } from "./agent/mcp-tools/index.js";
@@ -67,7 +68,6 @@ import { initWorkspace, workspacePath } from "./workspace/workspace.js";
 import { runMemoryMigrationOnce } from "./workspace/memory/run.js";
 import { runTopicMigrationOnce } from "./workspace/memory/topic-run.js";
 import { migrateCookingRecipesFromPlugin } from "./workspace/cooking-recipes/migrate.js";
-import { migrateWorklogPackageRename } from "./plugins/migrate-worklog-rename.js";
 import { env, isGeminiAvailable } from "./system/env.js";
 import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import { existsSync, readFileSync } from "fs";
@@ -191,16 +191,6 @@ runMemoryMigrationOnce(workspacePath)
 // every boot after the first is a no-op.
 migrateCookingRecipesFromPlugin().catch((err) => {
   log.warn("cooking-recipes", "migration from plugin failed; falling back to original plugin path", {
-    error: errorMessage(err),
-  });
-});
-
-// Worklog package rename — `@mulmoclaude/worklog` → `@mulmoclaude/worklog-plugin`
-// (post-PR-#1465 cleanup). Atomic `rename` of the encodeURIComponent-keyed
-// data + config directories so existing entries survive the package
-// rename. Idempotent (legacy gone = nothing to do).
-migrateWorklogPackageRename().catch((err) => {
-  log.warn("worklog-rename", "migration failed; existing worklog data may be temporarily invisible", {
     error: errorMessage(err),
   });
 });
@@ -638,7 +628,7 @@ app.use(configRoutes);
 app.use(configRefreshRoutes);
 app.use(hookLogRoutes);
 app.use(skillsRoutes);
-app.use(appsRoutes);
+app.use(collectionsRoutes);
 app.use(runtimePluginRoutes);
 async function listSessionsForBridge(opts: { limit: number; offset: number }) {
   const rows = await loadAllSessions();
@@ -726,8 +716,16 @@ if (env.isProduction) {
   // with the built index.html. We need our own handler that reads
   // the file and substitutes the bearer token placeholder on each
   // request — see the wildcard fallback below.
-  app.use(express.static(path.join(__dirname, "../client"), { index: false }));
-  const indexHtmlPath = path.join(__dirname, "../client/index.html");
+  //
+  // Default `<__dirname>/../client/` is the layout
+  // `packages/mulmoclaude/bin/prepare-dist.js` produces when packaging
+  // the tarball. Fresh-user smoke specs spawn `tsx server/index.ts`
+  // straight from source (no prepare-dist copy step) and override via
+  // `MULMOCLAUDE_CLIENT_DIR=<repo-root>/dist/client/`. Empty string
+  // env falls back to the default via `||` (empty is falsy).
+  const clientDir = resolveClientDir(process.env.MULMOCLAUDE_CLIENT_DIR, path.join(__dirname, "../client"));
+  app.use(express.static(clientDir, { index: false }));
+  const indexHtmlPath = path.join(clientDir, "index.html");
   app.get("/{*splat}", (_req: Request, res: Response) => {
     let html: string;
     try {
