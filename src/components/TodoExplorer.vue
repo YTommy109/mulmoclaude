@@ -76,7 +76,7 @@
     </div>
 
     <!-- Error banner -->
-    <div v-if="error" class="px-4 py-2 text-xs text-red-600 bg-red-50 border-b border-red-100 shrink-0">
+    <div v-if="error" class="px-4 py-2 text-xs text-red-600 bg-red-50 border-b border-red-100 shrink-0" role="alert" data-testid="todo-api-error">
       {{ error }}
     </div>
 
