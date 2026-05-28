@@ -182,7 +182,7 @@ const { handleMarkdownLinkClick } = useMarkdownLinkHandler(selectedPath, {
 // see plans/done/feat-files-path-url.md.
 watch(
   () => readPathMatch(route.params.pathMatch),
-  async (newPath) => {
+  (newPath) => {
     if (!isValidFilePath(newPath)) {
       if (selectedPath.value !== null) {
         selectedPath.value = null;
@@ -193,14 +193,20 @@ watch(
     if (newPath !== selectedPath.value) {
       selectedPath.value = newPath;
       loadContent(newPath);
-      // Mirror the onMounted deep-link path: in-app navigation between
-      // files (markdown link → another /files/<path>) doesn't remount
-      // FilesView, so without this the new file's ancestors may stay
-      // collapsed and the row never enters the DOM for scroll.
-      await ensureAncestorsLoaded(newPath);
     }
   },
 );
+
+// Keep the tree expanded down to the active selection regardless of
+// how the selection changed (URL bar, back/forward, selectFile from a
+// markdown link). selectFile() updates selectedPath synchronously
+// before pushing the route, so a guard on the route watcher would
+// miss in-app file→file navigation — we watch the source of truth
+// directly. Idempotent: loadDirChildren and expand() both short-circuit
+// when the cache/expand-state already has the ancestor.
+watch(selectedPath, (newPath) => {
+  if (newPath) ensureAncestorsLoaded(newPath);
+});
 
 // Reveal the selected file row in the tree pane. The tree grows
 // incrementally on deep-link mount: ensureAncestorsLoaded fetches the
