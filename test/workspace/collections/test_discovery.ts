@@ -860,6 +860,54 @@ describe("discoverCollections — actions", () => {
   });
 });
 
+describe("discoverCollections — field visibility (`when`)", () => {
+  it("accepts a field with a valid `when` predicate naming a sibling field", async () => {
+    writeSkill("test-field-when", {
+      title: "Restaurants",
+      icon: "restaurant",
+      dataPath: "data/restaurants/items",
+      primaryKey: "name",
+      fields: {
+        name: { type: "string", label: "Name", primary: true, required: true },
+        visited: { type: "boolean", label: "Visited" },
+        rating: { type: "number", label: "Rating", when: { field: "visited", in: ["true"] } },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.deepEqual(collections[0]?.schema.fields.rating?.when, { field: "visited", in: ["true"] });
+  });
+
+  it("rejects a field whose `when.field` names a non-existent field", async () => {
+    writeSkill("test-field-when-missing", {
+      title: "X",
+      icon: "warning",
+      dataPath: "data/fieldwhenmiss/items",
+      primaryKey: "name",
+      fields: {
+        name: { type: "string", label: "Name", primary: true, required: true },
+        rating: { type: "number", label: "Rating", when: { field: "visted", in: ["true"] } }, // typo: no `visted` field
+      },
+    });
+    assert.equal((await listCollections()).length, 0, "a field whose when.field points at a missing field must be skipped");
+  });
+
+  it("rejects a field `when` whose `in` is empty", async () => {
+    writeSkill("test-field-when-emptyin", {
+      title: "X",
+      icon: "warning",
+      dataPath: "data/fieldwhenei/items",
+      primaryKey: "name",
+      fields: {
+        name: { type: "string", label: "Name", primary: true, required: true },
+        visited: { type: "boolean", label: "Visited" },
+        rating: { type: "number", label: "Rating", when: { field: "visited", in: [] } },
+      },
+    });
+    assert.equal((await listCollections()).length, 0);
+  });
+});
+
 describe("discoverCollections — workspaceRoot propagation", () => {
   it("roots each app's dataDir at the supplied workspaceRoot, not the live workspace", async () => {
     // Regression for PR #1489 Codex P1: discovery used to pass

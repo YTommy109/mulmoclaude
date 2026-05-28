@@ -39,17 +39,22 @@ export type CollectionSource = "user" | "project";
  *  another schema-shape change. */
 export type CollectionActionKind = "chat";
 
-/** Optional visibility predicate for an action: the button renders
- *  only when the open record's `field` (stringified) is one of `in`.
- *  Generic and domain-free — the host evaluates it against the record
- *  with no knowledge of what the field means. Absent ⇒ always shown. */
-export interface CollectionActionWhen {
-  /** Top-level record field key whose value gates the button. */
+/** Optional visibility predicate: the target (an action button or a
+ *  field) renders only when the open record's `field` (stringified) is
+ *  one of `in`. Generic and domain-free — the host evaluates it against
+ *  the record with no knowledge of what the field means. Absent ⇒
+ *  always shown. */
+export interface CollectionWhen {
+  /** Top-level record field key whose value gates visibility. */
   field: string;
-  /** Allowed values; the button shows when `String(record[field])` is
+  /** Allowed values; the target shows when `String(record[field])` is
    *  one of these. Non-empty. */
   in: string[];
 }
+
+/** @deprecated Name retained for back-compat; use {@link CollectionWhen}.
+ *  Both actions and fields share the same predicate shape. */
+export type CollectionActionWhen = CollectionWhen;
 
 /** A schema-declared, per-record action rendered as a button in the
  *  read-only detail view. Pure UI/behaviour directive — never stored,
@@ -71,9 +76,9 @@ export interface CollectionAction {
    *  text becomes the seed prompt body (e.g. `templates/invoice.md`). */
   template: string;
   /** Optional visibility predicate; the button renders only when the
-   *  open record matches (see CollectionActionWhen). Absent ⇒ always
+   *  open record matches (see CollectionWhen). Absent ⇒ always
    *  shown. */
-  when?: CollectionActionWhen;
+  when?: CollectionWhen;
 }
 
 export interface CollectionFieldSpec {
@@ -134,6 +139,15 @@ export interface CollectionFieldSpec {
    *  value should be rendered as (e.g. `"money"` so $1,234.56 is
    *  formatted). Defaults to `"number"`. */
   display?: CollectionFieldType;
+  /** Optional visibility predicate: this field renders only when the
+   *  record matches (e.g. hide a `rating` field until `visited` is
+   *  `true` via `{ field: "visited", in: ["true"] }`). Applies to the
+   *  list cell (blank when hidden), the edit form (hidden live as the
+   *  gating field changes), and the detail view. Purely presentational
+   *  — a hidden field's stored value is never cleared. `when.field`
+   *  must name another top-level field. Absent ⇒ always shown. Only
+   *  honoured on top-level fields, not inside a `table`'s `of`. */
+  when?: CollectionWhen;
 }
 
 export interface CollectionSchema {

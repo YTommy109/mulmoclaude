@@ -139,6 +139,28 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
   details off the attached image and write its path into the image field.
   Write the bare workspace-relative path — never an `/api/files/raw?...` URL.
 
+### Conditional field visibility (`when`)
+
+Any field may carry an optional `when: { field, in: [...] }` predicate to hide
+itself until another field on the same record matches — the same shape used to
+gate `actions`. The field shows only when `String(record[when.field])` is one of
+`in`; absent ⇒ always shown. `when.field` MUST name another top-level field
+(validated on discovery).
+
+```json
+"visited":    { "type": "boolean", "label": "Visited" },
+"rating":     { "type": "number",  "label": "Rating", "when": { "field": "visited", "in": ["true"] } }
+```
+
+Here `rating` stays hidden until `visited` is checked (booleans stringify, so
+match `"true"` / `"false"`). The gate applies everywhere the field renders: the
+list cell goes **blank**, the edit-form input hides/shows **live** as the gating
+field changes, and the detail view omits it. It is **purely presentational** —
+a hidden field's stored value is never cleared, so re-matching the gate restores
+it. Use it for fields that only make sense in a given state (a rating before
+you've visited, a shipped-date before an order ships). Only honoured on
+top-level fields, not inside a `table`'s `of`.
+
 ### Derived-formula syntax
 
 A tiny expression evaluated against the record (pure evaluator, no `eval`;
