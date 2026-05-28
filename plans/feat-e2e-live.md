@@ -1013,12 +1013,25 @@ active な未着手 / 関心事項:
 - [ ] **PR template に下層 gate を追加** — `.github/PULL_REQUEST_TEMPLATE.md` に 「このバグの再発防止 test を最も下のレイヤに置きましたか / e2e-live に置く場合、 unit / mock e2e で取れない理由を 1 行で明記しましたか」 の checkbox を追加。 e2e-live がバグ ID の墓場になるのを構造的に防ぐ
 - [ ] **`/audit-e2e-live` skill 構想** — 既存 L-XX (特にバグ軸) を半年ごとに棚卸し、 下層で同等 cover ができたシナリオを e2e-live から外す proposal を出す skill。 `audit-unclosed-issues` skill の運用 shape を踏襲。 着手は wall-time budget 運用が回り始めてから (圧力が発生してから)
 - [ ] **`deleteSession` の general-session false-warning を抑える** — `setupRoleSession` (live-chat.ts) は general role の session を 1 つ作って即 role 切替するため、 general 側 session は **1 ターンも chat を打たない** まま捨てられる。 `/api/sessions` は session jsonl が disk に flush されてから出てくるので、 chat 0 ターンの general session は disk に書かれず list に永久に出てこない → finally の `deleteSession` → `waitForSessionIdle` が 30s タイムアウトして 「best-effort cleanup skipped: ... not yet visible in /api/sessions list」 を毎 run 7 spec 分 log に流す (skills.spec.ts L-21 / L-21B / plugin-dispatch.spec.ts 全部で発生)。 test 結果は ✅ (deleteSession は throw せず skip) だが trace / 出力の S/N 比を下げているので false-positive とみなせる。 対処案: (a) `setupRoleSession` 側で chat 0 ターンの session id は cleanup list に積まない (general 側は selectRole で残らないので push しない)、 (b) `deleteSession` 側で `waitForSessionIdle` の timeout を per-call で短く (5s 程度) して試す、 (c) `/api/sessions` に出ない session の DELETE は 404 を許容して `waitForSessionIdle` 自体を skip。 (a) が最も筋が良い (cleanup する必要が無いので積まない)。 既存 spec (skills.spec.ts L-21 等) も同じ shape なので live-chat.ts の `setupRoleSession` を直せば全 spec で benefit。 本 PR scope 外、 別 follow-up
-- [ ] **L-TOPBAR-OPS / L-LAUNCHER-OPS toolbar 全 icon の純粋 UI 操作網羅** — `L-HAPPY-TOUR` が cover しているのは 「plugin route 遷移 → view mount + error banner 無し」 までで、 toolbar に並ぶ 全 icon の **click → 反応 → 状態変化** までは見ていない。 対象は 2 グループ:
-  - **L-TOPBAR-OPS top-chrome icons** (chat 画面の上部 chrome): 🔒 lock (toggle) / 🔔 notifications (ベル → NotificationBell ポップアップ → entry 表示 / dismiss) / 📅 today (Today's journal モーダル) / ⚙️ settings (Settings モーダル → tab 切替 / config 書き換え)。 各 icon × happy path で 4 spec
-  - **L-LAUNCHER-OPS launcher icons** (左サイドの plugin button 群): ✅ todos / 📅 calendar / 🕐 actions / 🗓️ encore / 📖 wiki / ▦ collections / 📡 sources / 📰 news / 🧠 skills / 👤 roles / 📁 files の **各 view 内で button を click して create / edit / delete を回す**。 1 plugin × 1 happy path で 11 spec
-  - 共通: `L-DISPATCH-*` 系が LLM 経由の dispatch を見るのに対し、 これは **ユーザーが手で button を押す path** を独立に net する。 e2e (`e2e/`) の方が本来 host だが、 e2e は mock 環境で server 副作用が無く 「filesystem に書かれた → reload で復元」 の end-to-end までは見れないので、 「UI 操作 → server (real workspace) → reload で残る」 の合成は e2e-live でしか取れない
-  - testid 大量追加が前提 (todo の add input / item / delete button / lock button の toggle 状態 / settings tab 各種 / 等)
-  - 中〜大規模、 phase 分割推奨: **phase 0** L-TOPBAR-OPS 4 spec (1 PR、 top chrome は plugin より小さい) → **phase A** L-LAUNCHER-OPS 主要 3 plugin (todos / calendar / encore) → **phase B** wiki / sources / news → **phase C** collections / skills / roles / files。 各 phase 1 PR
+- [ ] **L-JOURNEY-* 主要ユーザー journey が end-to-end で動くこと** — `L-HAPPY-TOUR` は plugin route の mount sanity (壊れていない) までで、 「機能が **実際に動く** (setup → 副作用 → 反映が観測可能)」 までは見ていない。 各 plugin / 機能 ごとに代表的な user journey を 1 本 ずつ net する。 必要に応じて LLM 経由 / UI 操作 / 両方を組合せる (どちらでも end-to-end で 「動いた」 と言えればよい)。 現状の cover と未 cover の対応表:
+
+  | 機能 | 既存 cover | journey TODO |
+  |---|---|---|
+  | encore | L-21B (defineEncore 1 ターン dispatch のみ、 on-disk artefact 確認まで) | **L-JOURNEY-ENCORE** setup → 期限到来 → 通知発火 → dashboard で表示 → 完了報告 の lifecycle |
+  | collections | なし (happy-tour で `/collections` mount のみ) | **L-JOURNEY-COLLECTION** 新規スキーマ定義 → item 追加 → list 表示 → edit → delete |
+  | sources (情報ソース) | なし (`/sources` mount のみ) | **L-JOURNEY-SOURCE** RSS feed URL 登録 → fetch → wiki / news への取込確認 |
+  | news | なし (`/news` mount のみ) | **L-JOURNEY-NEWS** source 経由 (or 直接 URL) → news fetch → /news で記事 visible |
+  | skill | ✅ L-22 / L-31 / L-32 / L-33 / L-33B (登録 / discovery / run / preset chain / catalog→star) | (主要 path は cover 済、 追加は様子見) |
+  | roles | なし | **L-JOURNEY-ROLE** custom role を `manageRoles` or `/roles` UI で作成 → role-selector に出現 → 切替 → そのrole で 1 ターン送信 |
+  | todo | L-DISPATCH-TODO (add+delete 経由) | **L-JOURNEY-TODO** UI から add → check → uncheck → edit → delete → reload で空 (L-LAUNCHER-OPS と同等) |
+  | calendar | L-DISPATCH-CAL (add+delete) | **L-JOURNEY-CAL** UI add → grid で visible → edit (multi-day 化) → delete |
+  | accounting | L-DISPATCH-ACCT (createBook+deleteBook) | **L-JOURNEY-ACCT** createBook → addEntries (借方/貸方) → getReport で BS/PL → voidEntry → 反映確認 (L-DISPATCH-ACCT-LIFECYCLE と同 spec で良い) |
+  | wiki | L-14 / L-15 / L-16 / L-WIKI-* (内部リンク / 非ASCII / lint 系) ✅ | (主要 path cover 済) |
+  | sandbox / docker | L-23 / L-26 / L-28 / L-30 ✅ | (主要 path cover 済) |
+
+  共通方針: 各 spec は 「**この機能を初めて使うユーザーが ✅ 動いたと感じる**」 最小経路を 1 本選び、 testid 追加 + chat / UI 操作の組合せで end-to-end を net する。 中〜大規模、 機能ごとに 1 PR を推奨 (1 PR で全部入れない)。 phase 分割は重要度順: **(1)** L-JOURNEY-SOURCE + L-JOURNEY-NEWS (情報取込 path 全体)、 **(2)** L-JOURNEY-ENCORE (再発通知の lifecycle)、 **(3)** L-JOURNEY-COLLECTION + L-JOURNEY-ROLE (拡張系)、 **(4)** L-JOURNEY-TODO / -CAL / -ACCT (これは L-LAUNCHER-OPS / L-DISPATCH-*-LIFECYCLE と内容が重なるので統合 PR で良い)
+
+  なお top-chrome の 🔒 lock / 🔔 notifications / 📅 today / ⚙️ settings は別軸の 「**L-TOPBAR-OPS**」 として独立に扱う (toolbar のうち plugin で無いもの、 4 spec で 1 PR)
 - [ ] **L-DISPATCH-* の深堀り follow-up 群** — `plugin-dispatch.spec.ts` (本 PR) は各 plugin が 1 ターン dispatch 経路に乗ることだけを net しており、 view 描画 / 主要 action の網羅は意図的に未着手 (L-21 / L-21B と同型の「canary」 として scope を絞った)。 ユーザーが運用中に気づいた抜けに沿って follow-up PR を切る:
   - [ ] **L-DISPATCH-VIEW** view 描画 end-to-end: 各 plugin で add turn → 該当 route (`/todos` / `/calendar` / `/accounting`) または chat-inline view に navigate → marker text が visible、 cleanup turn 後 → marker hidden / `toHaveCount(0)`。 前提: todo / markdown / spreadsheet に top-level `data-testid` を新設 (`todo-plugin-view` / `present-document-view` / `present-spreadsheet-view`)、 ui-cheatsheet 更新。 artifact 系 4 plugin (md / xls / svg / html) は chat inline の tool-result View を assertion target にする (route が無い)。 7 spec × +2 navigate で中規模、 別 PR 推奨
   - [ ] **L-DISPATCH-TODO-LIFECYCLE** todo の主要 action 網羅 (check / uncheck / update / clear_completed / add_label / remove_label / list_labels)。 3〜5 spec、 各 1 nonce-stamped todo に対し action を順次 dispatch して args.action + 結果データを assert
