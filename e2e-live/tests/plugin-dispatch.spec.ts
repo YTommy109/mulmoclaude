@@ -263,8 +263,8 @@ test.describe("plugin dispatch (real LLM, one-turn canaries)", () => {
       toolName: "presentSpreadsheet",
       marker,
       prompt: [
-        `Use the \`presentSpreadsheet\` tool to render one sheet named '${marker}' with header [Month, Sales] and one row [Jan, 100].`,
-        "Do not use any other tool. Do not narrate the result.",
+        `You MUST call the \`presentSpreadsheet\` tool. Pass one sheet named EXACTLY '${marker}' (verbatim) with header [Month, Sales] and one row [Jan, 100].`,
+        "Do not compose the table in text. Do not use presentChart, presentDocument, or any other tool. Do not narrate the result.",
       ].join(" "),
       // presentSpreadsheet has no delete tool — see L-DISPATCH-MD note.
     });
