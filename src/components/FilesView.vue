@@ -182,7 +182,7 @@ const { handleMarkdownLinkClick } = useMarkdownLinkHandler(selectedPath, {
 // see plans/done/feat-files-path-url.md.
 watch(
   () => readPathMatch(route.params.pathMatch),
-  (newPath) => {
+  async (newPath) => {
     if (!isValidFilePath(newPath)) {
       if (selectedPath.value !== null) {
         selectedPath.value = null;
@@ -193,6 +193,11 @@ watch(
     if (newPath !== selectedPath.value) {
       selectedPath.value = newPath;
       loadContent(newPath);
+      // Mirror the onMounted deep-link path: in-app navigation between
+      // files (markdown link → another /files/<path>) doesn't remount
+      // FilesView, so without this the new file's ancestors may stay
+      // collapsed and the row never enters the DOM for scroll.
+      await ensureAncestorsLoaded(newPath);
     }
   },
 );
