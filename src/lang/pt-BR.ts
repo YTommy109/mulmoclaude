@@ -1359,7 +1359,6 @@ const ptBRMessages = {
     clearSearch: "Limpar busca",
     openCollection: "Abrir {title}",
     createTitle: "Adicionar novo",
-    editTitle: "Editar registro",
     derivedLabel: "Derivado",
     embedMissingTitle: "Referência incorporada ausente",
     chat: "Chat",

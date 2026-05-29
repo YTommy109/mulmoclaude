@@ -1643,12 +1643,14 @@ function cancelEditor(): void {
   }
 }
 
-/** Scroll a row's expansion panel into view after it opens (e.g. a newly
- *  created record that landed off-screen). Best-effort — no-op if the
- *  element isn't in the DOM yet. */
-function scrollRowIntoView(itemId: string): void {
+/** Scroll the open expansion panel into view after it opens (e.g. a newly
+ *  created record that landed off-screen). Only one panel is open at a
+ *  time, so a fixed prefix selector finds it — no record id is
+ *  interpolated into the selector (avoids CSS injection / `SyntaxError`
+ *  from ids containing selector-special chars). Best-effort. */
+function scrollOpenPanelIntoView(): void {
   void nextTick(() => {
-    const row = document.querySelector(`[data-testid="collections-expansion-${itemId}"]`);
+    const row = document.querySelector('[data-testid^="collections-expansion-"]');
     if (row) row.scrollIntoView({ behavior: "smooth", block: "nearest" });
   });
 }
@@ -2020,7 +2022,7 @@ async function saveEditor(): Promise<void> {
   const saved = findItemById(savedId);
   if (saved) {
     showDetail(saved);
-    scrollRowIntoView(savedId);
+    scrollOpenPanelIntoView();
   }
 }
 

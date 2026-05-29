@@ -1356,7 +1356,6 @@ const enMessages = {
     clearSearch: "Clear search",
     openCollection: "Open {title}",
     createTitle: "Add new",
-    editTitle: "Edit record",
     derivedLabel: "Derived",
     embedMissingTitle: "Embedded reference missing",
     chat: "Chat",

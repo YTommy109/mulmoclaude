@@ -1370,7 +1370,6 @@ const esMessages = {
     clearSearch: "Borrar búsqueda",
     openCollection: "Abrir {title}",
     createTitle: "Añadir nuevo",
-    editTitle: "Editar registro",
     derivedLabel: "Derivado",
     embedMissingTitle: "Falta la referencia incrustada",
     chat: "Chat",

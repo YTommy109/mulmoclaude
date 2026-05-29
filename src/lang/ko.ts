@@ -1356,7 +1356,6 @@ const koMessages = {
     clearSearch: "검색 지우기",
     openCollection: "{title} 열기",
     createTitle: "새로 추가",
-    editTitle: "레코드 편집",
     derivedLabel: "파생",
     embedMissingTitle: "임베드된 참조 없음",
     chat: "채팅",

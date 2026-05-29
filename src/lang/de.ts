@@ -1375,7 +1375,6 @@ const deMessages = {
     clearSearch: "Suche zurücksetzen",
     openCollection: "{title} öffnen",
     createTitle: "Neu hinzufügen",
-    editTitle: "Datensatz bearbeiten",
     derivedLabel: "Abgeleitet",
     embedMissingTitle: "Eingebettete Referenz fehlt",
     chat: "Chat",

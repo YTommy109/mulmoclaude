@@ -1364,7 +1364,6 @@ const frMessages = {
     clearSearch: "Effacer la recherche",
     openCollection: "Ouvrir {title}",
     createTitle: "Ajouter",
-    editTitle: "Modifier l'enregistrement",
     derivedLabel: "Calculé",
     embedMissingTitle: "Référence intégrée manquante",
     chat: "Discussion",

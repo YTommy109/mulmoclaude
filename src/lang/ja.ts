@@ -1353,7 +1353,6 @@ const jaMessages = {
     clearSearch: "検索をクリア",
     openCollection: "{title} を開く",
     createTitle: "新規追加",
-    editTitle: "レコードを編集",
     derivedLabel: "計算値",
     embedMissingTitle: "埋め込み参照が見つかりません",
     chat: "チャット",

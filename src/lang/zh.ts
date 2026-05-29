@@ -1346,7 +1346,6 @@ const zhMessages = {
     clearSearch: "清除搜索",
     openCollection: "打开 {title}",
     createTitle: "新增",
-    editTitle: "编辑记录",
     derivedLabel: "派生",
     embedMissingTitle: "缺少嵌入引用",
     chat: "对话",
