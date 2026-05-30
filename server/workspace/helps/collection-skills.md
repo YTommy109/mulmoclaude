@@ -76,7 +76,10 @@ description: A personal recipe box. Use whenever the user asks to add, list,
 ## What to do
 **Add / List / Update / Delete** — derive an id, Read/Write/Edit the JSON.
 List the directory first and pick a fresh slug rather than overwriting.
-Don't recite the whole table in chat — point the user at the collection view.
+Don't recite the whole table in chat. After adding or updating a record,
+call `presentCollection` (with the collection slug and the record's id) to
+show it inline; for a plain "show/list" request, call `presentCollection`
+with just the slug.
 ```
 
 Write the `description` so it tells *you* (in a future session) exactly when to
@@ -97,12 +100,15 @@ skipped, never crashes the host):
 | `singleton` | Optional. When set, at most one record exists, pinned to this exact id (e.g. `me`). Host pre-fills + locks the create form and hides Add once it exists. |
 | `fields` | Ordered map of field-name → field spec. **Insertion order = column order** in the table. Required. |
 | `actions` | Optional array of per-record buttons (see below). |
+| `completionField` | Optional. Name of the field whose value marks an item as "done" — when set, item-create fires a bell notification that clears once the field reaches one of `completionDoneValues`. Must name a real field in `fields`. Paired with `completionDoneValues` (both set, or both omitted). |
+| `completionDoneValues` | Optional. Non-empty array of values that count as "done" for `completionField` (e.g. `["Done"]`, `["paid", "void"]`). Compared as strings. |
+| `displayField` | Optional. Name of a field whose value is shown as the human-readable label in the completion notification's title (e.g. `Contacts: Jane Doe` instead of the opaque primaryKey). Must name a real field in `fields`. Falls back to the primaryKey value when unset or when the record's value is empty. |
 
 ### Field types
 
 `string` · `text` (multi-line) · `email` · `number` · `date` (`YYYY-MM-DD`) ·
 `boolean` · `markdown` · `money` · `enum` · `ref` · `embed` · `table` ·
-`derived`
+`derived` · `image`
 
 Every field spec needs a `type` and a `label`. Extra keys by type:
 
@@ -113,6 +119,9 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
 - **`ref`** — `to: "<target-slug>"`. Stores the target record's primary-key
   slug; host renders a clickable link + a dropdown picker populated from the
   target collection. Example: `{ "type": "ref", "to": "mc-clients", "label": "Client" }`.
+  A `derived` field on the same record can also **dereference** a `ref` to read
+  a numeric column off the record it points at — see the cross-collection
+  formula syntax below.
 - **`embed`** — `to: "<target-slug>"`, `id: "<record-id>"`. Pulls a *fixed*
   record from another collection into the read-only detail view (display-only,
   **nothing is stored** on this record). Example: an invoice embedding the
@@ -124,6 +133,36 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
   `money` / `string` / `date`) and `currency`. **Read-only, host-computed** —
   you NEVER write derived values into the JSON; the host recomputes them on
   every render and the form refuses to persist them.
+- **`image`** — stores a **workspace-relative image path** as a plain string
+  (e.g. `data/attachments/2026/05/<id>.jpg` — the exact path from an
+  `[Attached file: ...]` marker when the user attaches a photo). The host
+  renders it as an `<img>` in the **detail view** (it is intentionally not a
+  list-table column — a per-row image fetch is too expensive for a large
+  collection). No extra keys. Great for photos like a business card: read the
+  details off the attached image and write its path into the image field.
+  Write the bare workspace-relative path — never an `/api/files/raw?...` URL.
+
+### Conditional field visibility (`when`)
+
+Any field may carry an optional `when: { field, in: [...] }` predicate to hide
+itself until another field on the same record matches — the same shape used to
+gate `actions`. The field shows only when `String(record[when.field])` is one of
+`in`; absent ⇒ always shown. `when.field` MUST name another top-level field
+(validated on discovery).
+
+```json
+"visited":    { "type": "boolean", "label": "Visited" },
+"rating":     { "type": "number",  "label": "Rating", "when": { "field": "visited", "in": ["true"] } }
+```
+
+Here `rating` stays hidden until `visited` is checked (booleans stringify, so
+match `"true"` / `"false"`). The gate applies everywhere the field renders: the
+list cell goes **blank**, the edit-form input hides/shows **live** as the gating
+field changes, and the detail view omits it. It is **purely presentational** —
+a hidden field's stored value is never cleared, so re-matching the gate restores
+it. Use it for fields that only make sense in a given state (a rating before
+you've visited, a shipped-date before an order ships). Only honoured on
+top-level fields, not inside a `table`'s `of`.
 
 ### Derived-formula syntax
 
@@ -134,9 +173,57 @@ returns `null` on any failure). Supported:
 - identifier references to **top-level** fields (`subtotal * taxRate`)
 - `sum(tableField[].col)` — sum a column across table rows
 - `sum(tableField[].col * tableField[].col)` — sum a per-row product
+- `<refField>.<col>` — **dereference a `ref` field** and read a numeric column
+  off the record it points at (a live cross-collection lookup)
 
 Example: `subtotal` = `sum(lineItems[].quantity * lineItems[].rate)`,
 `tax` = `subtotal * taxRate`, `total` = `subtotal + tax`.
+
+#### Cross-collection lookups (`<refField>.<col>`)
+
+When a field is a `ref` to another collection, a `derived` formula can reach
+into the referenced record and pull a numeric column out of it. This lets one
+collection compute against data **owned by another** without copying that data.
+
+Canonical use — a portfolio that values holdings against a separate price list:
+
+```jsonc
+// my-portfolio/schema.json  (one record per holding)
+"fields": {
+  "ticker": { "type": "ref", "to": "stock-quotes", "label": "Stock" },  // stores e.g. "AAPL"
+  "shares": { "type": "number", "label": "Shares" },
+  "value":  { "type": "derived", "formula": "shares * ticker.price",     // ← reads price from the quotes row
+              "display": "money", "currency": "USD", "label": "Value" }
+}
+```
+
+Here `ticker.price` resolves the `ticker` ref to its `stock-quotes` record and
+reads that record's `price`. `price` lives **only** in `stock-quotes`; the
+portfolio never stores a copy, so a quote refresh in `stock-quotes` is the
+single source of truth for every holding's value.
+
+Rules and limits:
+
+- The left side must be a `ref` field **on this same record**; the right side is
+  a single column name. Only the `<field>.<col>` shape — no `a.b.c` chains, no
+  dereferencing inside `sum(...)`.
+- The referenced column must hold a number (or a numeric string). A missing
+  column, a non-numeric value, or a **dangling ref** (the slug points at a row
+  that doesn't exist) makes the whole formula fail soft to an em-dash (`—`),
+  same as any other formula error.
+- The referenced column may itself be a **`derived`** field in the target
+  collection (the host computes the target's own derived fields before the
+  lookup) — *as long as* that target formula is target-local. A target derived
+  field that in turn derefs a **third** collection won't resolve (only one hop
+  is loaded) and reads as `—`.
+- The target collection is loaded **when the page opens**. If a value changes in
+  the target while the viewing collection is already open (e.g. you refresh a
+  price in `stock-quotes` in another tab), the derived value updates on the next
+  reload — not instantly across tabs.
+- It's still per-record: each holding computes `shares * ticker.price` from its
+  own `ticker`/`shares`. To total the portfolio, add a one-record summary
+  collection or read the values off the list view — there is no cross-row sum
+  over a joined column.
 
 ### Actions (per-record buttons)
 
@@ -165,6 +252,56 @@ journals, drafting an email) gets delegated to natural language.
   re-checks it server-side, so a button gated on `status: paid` can't be invoked
   for a draft. Omit `when` ⇒ always shown.
 - You do **not** trigger actions yourself; point the user at the button.
+
+### Completion tracking (bell notifications)
+
+Declare `completionField` + `completionDoneValues` at the top level of the
+schema to wire a record's lifecycle into the bell:
+
+```json
+{
+  "title": "Todos",
+  "icon": "check_circle",
+  "dataPath": "data/todos/items",
+  "primaryKey": "id",
+  "fields": {
+    "id":     { "type": "string", "label": "ID", "primary": true, "required": true },
+    "title":  { "type": "string", "label": "Title", "required": true },
+    "status": { "type": "enum", "values": ["Todo", "Doing", "Done"], "label": "Status", "required": true }
+  },
+  "completionField": "status",
+  "completionDoneValues": ["Done"],
+  "displayField": "title"
+}
+```
+
+Behaviour:
+
+- **On create** the host fires a bell notification (titled
+  `<schema.title>: <label>`, where `<label>` is the record's `displayField`
+  value when declared — falling back to the primaryKey `<id>` otherwise;
+  click-navigates to `/collections/<slug>?selected=<id>` so the item's detail
+  opens) — unless the new record is **born done** (its `completionField` value
+  is already in `completionDoneValues`), in which case nothing fires. The entry
+  is published with `lifecycle: "action"` so it persists prominently in the
+  bell until the obligation resolves.
+- **On update** the host clears the notification when `completionField`
+  transitions **into** a done value. Un-completing (Done → Todo) does NOT
+  re-fire; firing is bound to create, by design.
+- **On delete** the host clears any matching notification so a removed record
+  can't leak a stale entry.
+
+The pair is bundled — declaring one without the other fails schema validation.
+`completionField` must name a real field; a typo is rejected at load. Works
+with any field type whose stringified value is comparable (`enum`, `string`,
+`boolean`, …) — e.g. `completionField: "status"` + `completionDoneValues:
+["paid", "void"]` on an invoice, or `completionField: "shipped"` +
+`completionDoneValues: ["true"]` on an order.
+
+Set `displayField` to make the bell title readable: with `displayField:
+"title"` the notification reads `Todos: Buy milk` instead of `Todos: t-0042`.
+It must name a real field; an empty value on a given record falls back to the
+primaryKey for that record.
 
 ## Records — one JSON object per file
 

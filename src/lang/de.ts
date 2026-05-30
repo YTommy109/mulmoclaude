@@ -116,6 +116,9 @@ const deMessages = {
     copiedMarkdown: "Kopiert!",
   },
   rightSidebar: {
+    permalink: "Permalink zur ausgewählten Nachricht",
+    copyPermalink: "Permalink zur ausgewählten Nachricht kopieren",
+    copiedPermalink: "Kopiert!",
     toggleSystemPrompt: "System-Prompt umschalten",
     systemPrompt: "System-Prompt",
     availableTools: "Verfügbare Tools",
@@ -632,6 +635,7 @@ const deMessages = {
     goToday: "Zu Heute",
     next: "Weiter",
     deleteItem: "Eintrag löschen",
+    deleteConfirm: "„{title}“ löschen?",
     closeEditor: "Editor schließen",
     apiError: "⚠ Scheduler-Aktualisierung fehlgeschlagen: {error}",
     tabCalendar: "Kalender",
@@ -909,6 +913,7 @@ const deMessages = {
   },
   todoExplorer: {
     heading: "To-do",
+    deleteConfirm: "„{text}“ löschen?",
     doneRatio: "{done}/{total} erledigt",
     addButton: "+ Hinzufügen",
     addColumnButton: "+ Spalte",
@@ -1017,6 +1022,11 @@ const deMessages = {
     charactersCountNoMax: "{current} Zeichen",
     submit: "Senden",
     progress: "{filled} von {total} Pflichtfeldern ausgefüllt",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "Sammlung",
+    itemLabel: "Eintrag: {id}",
+    listLabel: "Alle Datensätze",
   },
   pluginPresentHtml: {
     saveAsPdf: "Als PDF speichern (öffnet Druckdialog)",
@@ -1344,6 +1354,9 @@ const deMessages = {
       "Zusätzliche Tool-Namen, die Claude über {allowedTools} übergeben werden sollen. Einer pro Zeile. Nützlich für in Claude Code integrierte MCP-Server wie Gmail / Google Kalender, nachdem Sie sich über {claudeMcp} authentifiziert haben.",
   },
   collectionsView: {
+    addCollectionLabel: "Sammlung",
+    addCollectionPrompt:
+      "Hilf mir, eine neue Sammlung zu erstellen. Lies zuerst `config/helps/collection-skills.md` für die Konventionen schemabasierter Sammlungen. Verwende dann das Tool `presentForm` (nutze nicht AskUserQuestion), um mich zu fragen, welche Art von Daten ich verfolgen möchte, und erstelle die schema.json und SKILL.md aus meinen Antworten.",
     title: "Sammlungen",
     backToIndex: "Zurück zu Sammlungen",
     indexEmpty: "Keine Sammlungen installiert. Markiere auf der Skills-Seite eine Skill mit Schema, um sie hier zu sehen.",
@@ -1367,9 +1380,12 @@ const deMessages = {
     clearSearch: "Suche zurücksetzen",
     openCollection: "{title} öffnen",
     createTitle: "Neu hinzufügen",
-    editTitle: "Datensatz bearbeiten",
     derivedLabel: "Abgeleitet",
     embedMissingTitle: "Eingebettete Referenz fehlt",
+    chat: "Chat",
+    chatTitle: "Chat starten",
+    chatPlaceholder: "Beschreibe, was du mit dieser Sammlung tun möchtest…",
+    chatStart: "Chat starten",
     source: {
       user: "Benutzer",
       project: "Projekt",

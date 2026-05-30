@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full bg-white flex flex-col">
+  <div class="h-full bg-white flex flex-col" data-testid="todo-view-root">
     <!-- Header -->
     <div class="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
       <div class="flex items-center gap-2 min-w-0">
@@ -76,7 +76,7 @@
     </div>
 
     <!-- Error banner -->
-    <div v-if="error" class="px-4 py-2 text-xs text-red-600 bg-red-50 border-b border-red-100 shrink-0">
+    <div v-if="error" class="px-4 py-2 text-xs text-red-600 bg-red-50 border-b border-red-100 shrink-0" role="alert" data-testid="todo-api-error">
       {{ error }}
     </div>
 
@@ -161,6 +161,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { scrollIntoViewByTestId } from "../utils/dom/scrollIntoViewByTestId";
+import { confirmItemDelete } from "../utils/confirmDelete";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TodoData, TodoItem, CreateItemInput, PatchItemInput, TodoViewMode as ViewMode } from "@mulmoclaude/todo-plugin/shared";
 import { TODO_VIEW, TODO_VIEW_MODES as VIEW_MODES, colorForLabel, filterByLabels, listLabelsWithCount } from "@mulmoclaude/todo-plugin/shared";
@@ -338,8 +339,7 @@ function onPatchItem(itemId: string, input: PatchItemInput): void {
 function confirmAndDelete(itemId: string): boolean {
   const item = items.value.find((i) => i.id === itemId);
   if (!item) return false;
-  const confirmed = window.confirm(`Delete "${item.text}"?`);
-  if (!confirmed) return false;
+  if (!confirmItemDelete(t("todoExplorer.deleteConfirm", { text: item.text }))) return false;
   void deleteItem(itemId);
   return true;
 }
