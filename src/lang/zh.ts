@@ -116,6 +116,9 @@ const zhMessages = {
     copiedMarkdown: "已复制",
   },
   rightSidebar: {
+    permalink: "选中消息的固定链接",
+    copyPermalink: "复制选中消息的固定链接",
+    copiedPermalink: "已复制!",
     toggleSystemPrompt: "切换系统提示词",
     systemPrompt: "系统提示词",
     availableTools: "可用工具",
@@ -610,6 +613,7 @@ const zhMessages = {
     goToday: "跳到今天",
     next: "下一个",
     deleteItem: "删除项目",
+    deleteConfirm: "删除「{title}」？",
     closeEditor: "关闭编辑器",
     apiError: "⚠ 更新调度器失败: {error}",
     tabCalendar: "日历",
@@ -882,6 +886,7 @@ const zhMessages = {
   },
   todoExplorer: {
     heading: "待办",
+    deleteConfirm: "删除「{text}」？",
     doneRatio: "{done}/{total} 完成",
     addButton: "+ 添加",
     addColumnButton: "+ 列",
@@ -989,6 +994,11 @@ const zhMessages = {
     charactersCountNoMax: "{current} 字符",
     submit: "提交",
     progress: "已填写 {filled} / {total} 个必填字段",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "集合",
+    itemLabel: "项目：{id}",
+    listLabel: "全部记录",
   },
   pluginPresentHtml: {
     saveAsPdf: "另存为 PDF(打开打印对话框)",
@@ -1341,9 +1351,12 @@ const zhMessages = {
     clearSearch: "清除搜索",
     openCollection: "打开 {title}",
     createTitle: "新增",
-    editTitle: "编辑记录",
     derivedLabel: "派生",
     embedMissingTitle: "缺少嵌入引用",
+    chat: "对话",
+    chatTitle: "开始对话",
+    chatPlaceholder: "描述你想对这个集合做什么…",
+    chatStart: "开始对话",
     source: {
       user: "用户",
       project: "项目",

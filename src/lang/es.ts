@@ -119,6 +119,9 @@ const esMessages = {
     copiedMarkdown: "¡Copiado!",
   },
   rightSidebar: {
+    permalink: "Enlace al mensaje seleccionado",
+    copyPermalink: "Copiar enlace al mensaje seleccionado",
+    copiedPermalink: "¡Copiado!",
     toggleSystemPrompt: "Alternar system prompt",
     systemPrompt: "System Prompt",
     availableTools: "Herramientas disponibles",
@@ -629,6 +632,7 @@ const esMessages = {
     goToday: "Ir a hoy",
     next: "Siguiente",
     deleteItem: "Eliminar elemento",
+    deleteConfirm: '¿Eliminar "{title}"?',
     closeEditor: "Cerrar editor",
     apiError: "⚠ Error al actualizar el programador: {error}",
     tabCalendar: "Calendario",
@@ -904,6 +908,7 @@ const esMessages = {
   },
   todoExplorer: {
     heading: "Tareas",
+    deleteConfirm: '¿Eliminar "{text}"?',
     doneRatio: "{done}/{total} hechas",
     addButton: "+ Añadir",
     addColumnButton: "+ Columna",
@@ -1011,6 +1016,11 @@ const esMessages = {
     charactersCountNoMax: "{current} caracteres",
     submit: "Enviar",
     progress: "{filled} de {total} campos obligatorios completados",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "Colección",
+    itemLabel: "Elemento: {id}",
+    listLabel: "Todos los registros",
   },
   pluginPresentHtml: {
     saveAsPdf: "Guardar como PDF (abre el diálogo de impresión)",
@@ -1365,9 +1375,12 @@ const esMessages = {
     clearSearch: "Borrar búsqueda",
     openCollection: "Abrir {title}",
     createTitle: "Añadir nuevo",
-    editTitle: "Editar registro",
     derivedLabel: "Derivado",
     embedMissingTitle: "Falta la referencia incrustada",
+    chat: "Chat",
+    chatTitle: "Iniciar un chat",
+    chatPlaceholder: "Describe qué quieres hacer con esta colección…",
+    chatStart: "Iniciar chat",
     source: {
       user: "Usuario",
       project: "Proyecto",

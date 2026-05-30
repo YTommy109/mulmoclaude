@@ -161,6 +161,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { scrollIntoViewByTestId } from "../utils/dom/scrollIntoViewByTestId";
+import { confirmItemDelete } from "../utils/confirmDelete";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { TodoData, TodoItem, CreateItemInput, PatchItemInput, TodoViewMode as ViewMode } from "@mulmoclaude/todo-plugin/shared";
 import { TODO_VIEW, TODO_VIEW_MODES as VIEW_MODES, colorForLabel, filterByLabels, listLabelsWithCount } from "@mulmoclaude/todo-plugin/shared";
@@ -338,8 +339,7 @@ function onPatchItem(itemId: string, input: PatchItemInput): void {
 function confirmAndDelete(itemId: string): boolean {
   const item = items.value.find((i) => i.id === itemId);
   if (!item) return false;
-  const confirmed = window.confirm(`Delete "${item.text}"?`);
-  if (!confirmed) return false;
+  if (!confirmItemDelete(t("todoExplorer.deleteConfirm", { text: item.text }))) return false;
   void deleteItem(itemId);
   return true;
 }

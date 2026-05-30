@@ -114,6 +114,9 @@ const frMessages = {
     copiedMarkdown: "Copié !",
   },
   rightSidebar: {
+    permalink: "Lien vers le message sélectionné",
+    copyPermalink: "Copier le lien vers le message sélectionné",
+    copiedPermalink: "Copié !",
     toggleSystemPrompt: "Basculer le system prompt",
     systemPrompt: "System Prompt",
     availableTools: "Outils disponibles",
@@ -623,6 +626,7 @@ const frMessages = {
     goToday: "Aller à aujourd'hui",
     next: "Suivant",
     deleteItem: "Supprimer l'élément",
+    deleteConfirm: "Supprimer « {title} » ?",
     closeEditor: "Fermer l'éditeur",
     apiError: "⚠ Échec de la mise à jour du planificateur : {error}",
     tabCalendar: "Calendrier",
@@ -900,6 +904,7 @@ const frMessages = {
   },
   todoExplorer: {
     heading: "Tâches",
+    deleteConfirm: "Supprimer « {text} » ?",
     doneRatio: "{done}/{total} faites",
     addButton: "+ Ajouter",
     addColumnButton: "+ Colonne",
@@ -1007,6 +1012,11 @@ const frMessages = {
     charactersCountNoMax: "{current} caractères",
     submit: "Envoyer",
     progress: "{filled} sur {total} champs obligatoires remplis",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "Collection",
+    itemLabel: "Élément : {id}",
+    listLabel: "Tous les enregistrements",
   },
   pluginPresentHtml: {
     saveAsPdf: "Enregistrer en PDF (ouvre la boîte de dialogue d'impression)",
@@ -1359,9 +1369,12 @@ const frMessages = {
     clearSearch: "Effacer la recherche",
     openCollection: "Ouvrir {title}",
     createTitle: "Ajouter",
-    editTitle: "Modifier l'enregistrement",
     derivedLabel: "Calculé",
     embedMissingTitle: "Référence intégrée manquante",
+    chat: "Discussion",
+    chatTitle: "Démarrer une discussion",
+    chatPlaceholder: "Décrivez ce que vous voulez faire avec cette collection…",
+    chatStart: "Démarrer la discussion",
     source: {
       user: "Utilisateur",
       project: "Projet",

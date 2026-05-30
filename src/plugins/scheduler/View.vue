@@ -66,6 +66,7 @@
               class="h-8 w-8 flex items-center justify-center"
               :class="viewMode === mode.key ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
               :title="mode.label"
+              :data-testid="`scheduler-view-mode-${mode.key}`"
               @click="viewMode = mode.key"
             >
               <span class="material-icons text-sm">{{ mode.icon }}</span>
@@ -103,6 +104,7 @@
             <button
               class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 text-xs px-1 mt-0.5 shrink-0"
               :title="t('pluginScheduler.deleteItem')"
+              :data-testid="`scheduler-item-delete-${item.id}`"
               @click.stop="remove(item)"
             >
               ✕
@@ -256,6 +258,7 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { SchedulerData, ScheduledItem } from "./index";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { apiPost } from "../../utils/api";
+import { confirmItemDelete } from "../../utils/confirmDelete";
 import { pluginEndpoints } from "../api";
 import type { SchedulerEndpoints } from "./automationsDefinition";
 import TasksTab from "./TasksTab.vue";
@@ -589,6 +592,7 @@ async function callApi(body: Record<string, unknown>): Promise<boolean> {
 }
 
 async function remove(item: ScheduledItem): Promise<void> {
+  if (!confirmItemDelete(t("pluginScheduler.deleteConfirm", { title: item.title }))) return;
   if (selectedId.value === item.id) selectedId.value = null;
   await callApi({ action: "delete", id: item.id });
 }

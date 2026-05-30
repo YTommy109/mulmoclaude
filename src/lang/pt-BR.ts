@@ -114,6 +114,9 @@ const ptBRMessages = {
     copiedMarkdown: "Copiado!",
   },
   rightSidebar: {
+    permalink: "Link para a mensagem selecionada",
+    copyPermalink: "Copiar link para a mensagem selecionada",
+    copiedPermalink: "Copiado!",
     toggleSystemPrompt: "Alternar system prompt",
     systemPrompt: "System Prompt",
     availableTools: "Ferramentas disponíveis",
@@ -622,6 +625,7 @@ const ptBRMessages = {
     goToday: "Ir para hoje",
     next: "Próximo",
     deleteItem: "Excluir item",
+    deleteConfirm: 'Excluir "{title}"?',
     closeEditor: "Fechar editor",
     apiError: "⚠ Falha ao atualizar o agendador: {error}",
     tabCalendar: "Calendário",
@@ -896,6 +900,7 @@ const ptBRMessages = {
   },
   todoExplorer: {
     heading: "Tarefas",
+    deleteConfirm: 'Excluir "{text}"?',
     doneRatio: "{done}/{total} feitas",
     addButton: "+ Adicionar",
     addColumnButton: "+ Coluna",
@@ -1003,6 +1008,11 @@ const ptBRMessages = {
     charactersCountNoMax: "{current} caracteres",
     submit: "Enviar",
     progress: "{filled} de {total} campos obrigatórios preenchidos",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "Coleção",
+    itemLabel: "Item: {id}",
+    listLabel: "Todos os registros",
   },
   pluginPresentHtml: {
     saveAsPdf: "Salvar como PDF (abre o diálogo de impressão)",
@@ -1354,9 +1364,12 @@ const ptBRMessages = {
     clearSearch: "Limpar busca",
     openCollection: "Abrir {title}",
     createTitle: "Adicionar novo",
-    editTitle: "Editar registro",
     derivedLabel: "Derivado",
     embedMissingTitle: "Referência incorporada ausente",
+    chat: "Chat",
+    chatTitle: "Iniciar um chat",
+    chatPlaceholder: "Descreva o que você quer fazer com esta coleção…",
+    chatStart: "Iniciar chat",
     source: {
       user: "Usuário",
       project: "Projeto",

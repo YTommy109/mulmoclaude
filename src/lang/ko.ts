@@ -121,6 +121,9 @@ const koMessages = {
     copiedMarkdown: "복사됨",
   },
   rightSidebar: {
+    permalink: "선택된 메시지의 고유 링크",
+    copyPermalink: "선택된 메시지의 고유 링크 복사",
+    copiedPermalink: "복사됨!",
     toggleSystemPrompt: "시스템 프롬프트 토글",
     systemPrompt: "시스템 프롬프트",
     availableTools: "사용 가능한 도구",
@@ -619,6 +622,7 @@ const koMessages = {
     goToday: "오늘로 이동",
     next: "다음",
     deleteItem: "항목 삭제",
+    deleteConfirm: '"{title}"을(를) 삭제하시겠습니까?',
     closeEditor: "에디터 닫기",
     apiError: "⚠ 스케줄러 업데이트 실패: {error}",
     tabCalendar: "달력",
@@ -892,6 +896,7 @@ const koMessages = {
   },
   todoExplorer: {
     heading: "할 일",
+    deleteConfirm: '"{text}"을(를) 삭제하시겠습니까?',
     doneRatio: "{done}/{total} 완료",
     addButton: "+ 추가",
     addColumnButton: "+ 칼럼",
@@ -999,6 +1004,11 @@ const koMessages = {
     charactersCountNoMax: "{current} 자",
     submit: "제출",
     progress: "필수 항목 {total}개 중 {filled}개 입력됨",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "컬렉션",
+    itemLabel: "항목: {id}",
+    listLabel: "모든 레코드",
   },
   pluginPresentHtml: {
     saveAsPdf: "PDF 로 저장 (인쇄 대화 상자 열기)",
@@ -1351,9 +1361,12 @@ const koMessages = {
     clearSearch: "검색 지우기",
     openCollection: "{title} 열기",
     createTitle: "새로 추가",
-    editTitle: "레코드 편집",
     derivedLabel: "파생",
     embedMissingTitle: "임베드된 참조 없음",
+    chat: "채팅",
+    chatTitle: "채팅 시작",
+    chatPlaceholder: "이 컬렉션으로 하고 싶은 작업을 설명하세요…",
+    chatStart: "채팅 시작",
     source: {
       user: "사용자",
       project: "프로젝트",

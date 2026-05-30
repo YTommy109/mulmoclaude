@@ -116,6 +116,9 @@ const deMessages = {
     copiedMarkdown: "Kopiert!",
   },
   rightSidebar: {
+    permalink: "Permalink zur ausgewählten Nachricht",
+    copyPermalink: "Permalink zur ausgewählten Nachricht kopieren",
+    copiedPermalink: "Kopiert!",
     toggleSystemPrompt: "System-Prompt umschalten",
     systemPrompt: "System-Prompt",
     availableTools: "Verfügbare Tools",
@@ -632,6 +635,7 @@ const deMessages = {
     goToday: "Zu Heute",
     next: "Weiter",
     deleteItem: "Eintrag löschen",
+    deleteConfirm: "„{title}“ löschen?",
     closeEditor: "Editor schließen",
     apiError: "⚠ Scheduler-Aktualisierung fehlgeschlagen: {error}",
     tabCalendar: "Kalender",
@@ -909,6 +913,7 @@ const deMessages = {
   },
   todoExplorer: {
     heading: "To-do",
+    deleteConfirm: "„{text}“ löschen?",
     doneRatio: "{done}/{total} erledigt",
     addButton: "+ Hinzufügen",
     addColumnButton: "+ Spalte",
@@ -1017,6 +1022,11 @@ const deMessages = {
     charactersCountNoMax: "{current} Zeichen",
     submit: "Senden",
     progress: "{filled} von {total} Pflichtfeldern ausgefüllt",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "Sammlung",
+    itemLabel: "Eintrag: {id}",
+    listLabel: "Alle Datensätze",
   },
   pluginPresentHtml: {
     saveAsPdf: "Als PDF speichern (öffnet Druckdialog)",
@@ -1370,9 +1380,12 @@ const deMessages = {
     clearSearch: "Suche zurücksetzen",
     openCollection: "{title} öffnen",
     createTitle: "Neu hinzufügen",
-    editTitle: "Datensatz bearbeiten",
     derivedLabel: "Abgeleitet",
     embedMissingTitle: "Eingebettete Referenz fehlt",
+    chat: "Chat",
+    chatTitle: "Chat starten",
+    chatPlaceholder: "Beschreibe, was du mit dieser Sammlung tun möchtest…",
+    chatStart: "Chat starten",
     source: {
       user: "Benutzer",
       project: "Projekt",

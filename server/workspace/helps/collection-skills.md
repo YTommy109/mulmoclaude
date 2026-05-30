@@ -76,7 +76,10 @@ description: A personal recipe box. Use whenever the user asks to add, list,
 ## What to do
 **Add / List / Update / Delete** — derive an id, Read/Write/Edit the JSON.
 List the directory first and pick a fresh slug rather than overwriting.
-Don't recite the whole table in chat — point the user at the collection view.
+Don't recite the whole table in chat. After adding or updating a record,
+call `presentCollection` (with the collection slug and the record's id) to
+show it inline; for a plain "show/list" request, call `presentCollection`
+with just the slug.
 ```
 
 Write the `description` so it tells *you* (in a future session) exactly when to

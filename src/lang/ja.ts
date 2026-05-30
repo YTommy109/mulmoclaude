@@ -119,6 +119,9 @@ const jaMessages = {
     copiedMarkdown: "コピーしました",
   },
   rightSidebar: {
+    permalink: "選択中メッセージへのリンク",
+    copyPermalink: "選択中メッセージへのリンクをコピー",
+    copiedPermalink: "コピーしました!",
     toggleSystemPrompt: "システムプロンプトの表示切替",
     systemPrompt: "システムプロンプト",
     availableTools: "利用可能ツール",
@@ -617,6 +620,7 @@ const jaMessages = {
     goToday: "今日へ移動",
     next: "次へ",
     deleteItem: "項目を削除",
+    deleteConfirm: "「{title}」を削除しますか？",
     closeEditor: "エディタを閉じる",
     apiError: "⚠ スケジューラの更新に失敗: {error}",
     tabCalendar: "カレンダー",
@@ -891,6 +895,7 @@ const jaMessages = {
   },
   todoExplorer: {
     heading: "Todo",
+    deleteConfirm: "「{text}」を削除しますか？",
     doneRatio: "{done}/{total} 完了",
     addButton: "+ 追加",
     addColumnButton: "+ 列",
@@ -998,6 +1003,11 @@ const jaMessages = {
     charactersCountNoMax: "{current} 文字",
     submit: "送信",
     progress: "必須項目 {total} 件中 {filled} 件入力済み",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "コレクション",
+    itemLabel: "項目: {id}",
+    listLabel: "すべてのレコード",
   },
   pluginPresentHtml: {
     saveAsPdf: "PDF として保存（印刷ダイアログを開きます）",
@@ -1348,9 +1358,12 @@ const jaMessages = {
     clearSearch: "検索をクリア",
     openCollection: "{title} を開く",
     createTitle: "新規追加",
-    editTitle: "レコードを編集",
     derivedLabel: "計算値",
     embedMissingTitle: "埋め込み参照が見つかりません",
+    chat: "チャット",
+    chatTitle: "チャットを開始",
+    chatPlaceholder: "このコレクションで行いたいことを入力してください…",
+    chatStart: "チャットを開始",
     source: {
       user: "ユーザー",
       project: "プロジェクト",
