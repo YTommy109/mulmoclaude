@@ -391,6 +391,6 @@ schema doesn't try. The button hands off to an `office`-role chat seeded from
 agent with tools) exactly where the DSL runs out. Business logic as prose, behind
 a declarative door.
 
-> The on-disk plumbing behind all three collection artifacts (staging vs.
-> mirror, discovery, the REST surface, delete/restore) is documented separately
-> in [`collections-architecture.md`](./collections-architecture.md).
+> The Collections idea is developed at length — applications as data, the
+> schema as a user-authored harness, Claude as the runtime — in
+> [`collections-architecture.md`](./collections-architecture.md).
