@@ -331,16 +331,22 @@ archive/<date>-<uuid>/
 **`RESTORE.md`** is written *for an LLM to execute*, not just for a human to
 read. It records the slug and the original `dataPath`, then the procedure:
 
-1. Recreate `data/skills/<slug>/` from `skill/` — writing those files (via the
-   normal `mc-manage-skills` staging path) re-fires the skill-bridge hook, which
-   mirrors them back into `.claude/skills/<slug>/` and re-registers the
-   collection.
-2. Restore `records/` into the original `dataPath` (default `data/<slug>/items/`).
+1. Recreate `data/skills/<slug>/` from `skill/` **using the Write tool** — the
+   skill-bridge hook only fires on Write/Edit, so it then mirrors those files
+   into `.claude/skills/<slug>/` and re-registers the collection. The doc
+   explicitly forbids `cp` / `mv` / shell redirects here: those land the files
+   in staging without ever triggering the mirror, leaving the collection
+   invisible (the failure mode that motivated this wording).
+2. Copy `records/` into the original `dataPath` (default `data/<slug>/items/`).
+   The records are plain data files, not bridged, so they must be `cp`-ed —
+   the Write-tool rule from step 1 is scoped to the skill files only, so the
+   (potentially many) records are copied, not Written one by one.
 3. Confirm the collection reappears at `/collections/<slug>`.
 
-Restoring through the staging path (not by hand-writing `.claude/skills/`)
-keeps the source → mirror invariant intact and avoids the `.claude/` permission
-gate — the same reason deletes route through `data/skills/` in the first place.
+Restoring the skill through the staging path with Write (not by hand-writing
+`.claude/skills/`) keeps the source → mirror invariant intact and avoids the
+`.claude/` permission gate — the same reason deletes route through
+`data/skills/` in the first place.
 
 ### Two implementation cautions
 
