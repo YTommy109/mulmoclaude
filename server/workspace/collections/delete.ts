@@ -31,7 +31,25 @@ export type DeleteCollectionResult =
   | { kind: "ok"; slug: string; archivePath: string }
   | { kind: "user-scope"; slug: string }
   | { kind: "preset"; slug: string }
+  | { kind: "unsafe-data-path"; slug: string }
   | { kind: "path-escape"; slug: string };
+
+type DeleteRefusal = Exclude<DeleteCollectionResult, { kind: "ok" }>;
+
+/** Human-readable reason for a non-`ok` delete result. Exported so the
+ *  route maps `kind` → message without inlining the switch (keeps the
+ *  handler short and the mapping unit-testable). The `Record` is
+ *  exhaustive — a new refusal kind won't compile until it's added. */
+export function deleteCollectionRefusalMessage(result: DeleteRefusal): string {
+  const { slug } = result;
+  const messages: Record<DeleteRefusal["kind"], string> = {
+    "user-scope": `collection '${slug}' is user-scope (~/.claude/skills/) and is read-only from MulmoClaude`,
+    preset: `collection '${slug}' is a preset (mc-*) and re-seeds on restart; unstar it from the catalog instead`,
+    "unsafe-data-path": `collection '${slug}' declares a dataPath outside its own data/${slug}/ subtree; refusing to delete`,
+    "path-escape": `a directory for collection '${slug}' escapes the workspace`,
+  };
+  return messages[result.kind];
+}
 
 export interface DeleteCollectionOptions {
   /** Override the workspace root for containment checks + archive
@@ -67,6 +85,19 @@ function todayStamp(): string {
  *  workspace root — guards against a symlinked ancestor escaping it. */
 function deleteTargets(collection: LoadedCollection, workspaceRoot: string): string[] {
   return [stagingSkillDir(workspaceRoot, collection.slug), collection.skillDir, collection.dataDir];
+}
+
+/** A deletable collection's records must live in its OWN `data/<slug>/`
+ *  subtree. `resolveDataDir` only proves the path stays inside the
+ *  workspace, so a malformed or hostile schema could point `dataPath`
+ *  at a shared root (`data`, `data/skills`, another collection) and
+ *  turn the recursive records removal into a workspace-wide wipe whose
+ *  archive only captures this one collection. Refuse unless the path is
+ *  the per-collection root or a descendant of it. */
+function isDataPathSafe(dataPath: string, slug: string): boolean {
+  const normalized = path.normalize(dataPath);
+  const root = path.join("data", slug);
+  return normalized === root || normalized.startsWith(root + path.sep);
 }
 
 function buildRestoreDoc(collection: LoadedCollection): string {
@@ -132,6 +163,10 @@ export async function deleteCollection(collection: LoadedCollection, opts: Delet
   const workspaceRoot = opts.workspaceRoot ?? workspacePath;
   if (collection.source === "user") return { kind: "user-scope", slug };
   if (isPresetSlug(slug)) return { kind: "preset", slug };
+  if (!isDataPathSafe(collection.schema.dataPath, slug)) {
+    log.warn("collections", "deleteCollection refused: dataPath is not under the per-collection root", { slug, dataPath: collection.schema.dataPath });
+    return { kind: "unsafe-data-path", slug };
+  }
   if (deleteTargets(collection, workspaceRoot).some((target) => !isContainedInRoot(target, workspaceRoot))) {
     log.warn("collections", "deleteCollection refused: a target escapes the workspace", { slug });
     return { kind: "path-escape", slug };

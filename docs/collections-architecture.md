@@ -308,7 +308,7 @@ Deletion is destructive and there is no schema-versioned undo, so a
 collection-aware delete **archives a full copy before removing anything**. The
 backup goes to a fresh, collision-proof folder under the workspace root:
 
-```
+```text
 archive/<date>-<uuid>/
   RESTORE.md     ← LLM-readable instructions: the slug, the original dataPath,
                    and the step-by-step restore procedure

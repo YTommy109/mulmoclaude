@@ -87,4 +87,18 @@ describe("deleteCollection", () => {
     assert.equal(result.kind, "preset");
     assert.equal(existsSync(path.join(workdir, ".claude", "skills", "mc-invoice")), true, "mirror must survive a refused delete");
   });
+
+  it("refuses a dataPath outside the per-collection subtree and deletes nothing", async () => {
+    // A hostile/malformed schema points dataPath at the shared `data`
+    // root; a recursive delete there would wipe every collection. The
+    // guard must refuse BEFORE any archive/removal runs.
+    const collection = seedCollection("restaurants", "project");
+    const hostile: LoadedCollection = { ...collection, schema: { ...collection.schema, dataPath: "data" } };
+    const result = await deleteCollection(hostile, { workspaceRoot: workdir });
+    assert.equal(result.kind, "unsafe-data-path");
+    assert.equal(existsSync(path.join(workdir, "data", "skills", "restaurants")), true, "staging must survive");
+    assert.equal(existsSync(path.join(workdir, ".claude", "skills", "restaurants")), true, "mirror must survive");
+    assert.equal(existsSync(path.join(workdir, "data", "restaurants", "items")), true, "records must survive");
+    assert.equal(existsSync(path.join(workdir, "archive")), false, "no archive should be written on refusal");
+  });
 });

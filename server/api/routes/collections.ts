@@ -15,6 +15,7 @@ import {
   discoverCollections,
   generateItemId,
   deleteCollection,
+  deleteCollectionRefusalMessage,
   deleteItem,
   listItems,
   loadCollection,
@@ -104,16 +105,8 @@ router.delete(API_ROUTES.collections.detail, async (req: Request<{ slug: string 
   }
   try {
     const result = await deleteCollection(collection);
-    if (result.kind === "user-scope") {
-      forbidden(res, `collection '${result.slug}' is user-scope (~/.claude/skills/) and is read-only from MulmoClaude`);
-      return;
-    }
-    if (result.kind === "preset") {
-      forbidden(res, `collection '${result.slug}' is a preset (mc-*) and re-seeds on restart; unstar it from the catalog instead`);
-      return;
-    }
-    if (result.kind === "path-escape") {
-      forbidden(res, `a directory for collection '${result.slug}' escapes the workspace`);
+    if (result.kind !== "ok") {
+      forbidden(res, deleteCollectionRefusalMessage(result));
       return;
     }
     log.info("collections", "collection deleted", { slug: result.slug, archivePath: result.archivePath });
