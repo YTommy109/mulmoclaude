@@ -24,8 +24,17 @@ import { EncoreError, loadDsl, type EncoreDispatchResult } from "./shared.js";
 export const StartObligationChatArgs = z.object({
   kind: z.literal("startObligationChat"),
   obligationId: z.string().min(1),
+  // Locale-aware seed prompt composed by the dashboard via vue-i18n
+  // (`encoreDashboard.seedPrompts.obligation`, with displayName +
+  // obligationId interpolated). Sent only for non-English locales; for
+  // `en` (and any caller that omits it) we fall back to the English
+  // builder below so the `en` path stays server-authoritative (#1545).
+  seedPrompt: z.string().min(1).optional(),
 });
 
+// Canonical English seed. `src/lang/en.ts` carries a matching template
+// (`{displayName}` / `{obligationId}` placeholders) as the i18n source
+// of truth for the 7 translations.
 function buildSeedPrompt(obligationId: string, displayName: string): string {
   // Mention the obligationId explicitly so the LLM can call
   // `manageEncore({ kind: "query", obligationId })` to read the
@@ -41,7 +50,7 @@ export async function handleStartObligationChat(args: z.infer<typeof StartObliga
 
   const chatSessionId = randomUUID();
   const result = await startChat({
-    message: buildSeedPrompt(args.obligationId, dsl.displayName),
+    message: args.seedPrompt ?? buildSeedPrompt(args.obligationId, dsl.displayName),
     roleId: ENCORE_SEED_ROLE_ID,
     chatSessionId,
     origin: `${PLUGIN_SESSION_ORIGIN_PREFIX}${ENCORE_PLUGIN_PKG}`,
