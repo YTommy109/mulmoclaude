@@ -1010,6 +1010,19 @@ describe("discoverCollections — triggerField + spawn validation", () => {
     writeSkill("test-spawn-last", recurringSchema({ spawn: { every: { unit: "month", interval: 1, dayOfMonth: "last" } } }));
     assert.equal((await listCollections()).length, 1);
   });
+
+  it("rejects a default-when spawn that `set`s the completion field to a done value (would respawn forever)", async () => {
+    writeSkill("test-spawn-respawn-set", recurringSchema({ spawn: { every: { unit: "month", interval: 1 }, set: { status: "paid" } } }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a spawn that carries its own predicate field (successor inherits the matching value)", async () => {
+    writeSkill(
+      "test-spawn-carry-pred",
+      recurringSchema({ spawn: { when: { field: "status", in: ["paid"] }, every: { unit: "month", interval: 1 }, carry: ["status"] } }),
+    );
+    assert.equal((await listCollections()).length, 0);
+  });
 });
 
 describe("loadCollection", () => {

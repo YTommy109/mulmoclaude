@@ -241,6 +241,17 @@ describe("maybeSpawnSuccessor", () => {
     assert.equal(await readItem(dataDir, "rent-20260710", { workspaceRoot: workdir }), null);
   });
 
+  it("refuses a successor that would be born matching its own predicate (runaway guard)", async () => {
+    // `set` seeds the successor's status to a done/matching value, so it
+    // would respawn on its first reconcile — the guard must skip it.
+    const schema = spawnSchema({
+      spawn: { when: { field: "status", in: ["paid"] }, every: { unit: "month", interval: 1, dayOfMonth: 10 }, carry: ["amount"], set: { status: "paid" } },
+    });
+    const source = { id: "rent-20260610", dueOn: "2026-06-10", amount: 1500, status: "paid" };
+    await maybeSpawnSuccessor("rent", schema, dataDir, source, "rent-20260610", { workspaceRoot: workdir });
+    assert.equal(await readItem(dataDir, "rent-20260710", { workspaceRoot: workdir }), null);
+  });
+
   it("defaults the predicate to the completion-done condition when `when` is omitted", async () => {
     const schema = spawnSchema({ spawn: { every: { unit: "month", interval: 1, dayOfMonth: 10 }, carry: ["amount"], set: { status: "pending" } } });
     const source = { id: "rent-20260610", dueOn: "2026-06-10", amount: 1500, status: "paid" };

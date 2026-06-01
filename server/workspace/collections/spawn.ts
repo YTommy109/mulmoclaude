@@ -186,6 +186,19 @@ export async function maybeSpawnSuccessor(
     log.warn("collections", "spawn skipped: source trigger date unparseable", { slug, sourceId, triggerField: schema.triggerField });
     return;
   }
+  // Runaway guard: a successor born already matching its own `when` would
+  // re-spawn on its first reconcile (and so on) — an unbounded chain. A
+  // well-formed schema sets the successor to a non-matching state (e.g.
+  // `set: { status: "pending" }`); refuse + warn if it doesn't. Discovery
+  // also rejects this statically, so this is belt-and-suspenders.
+  if (matchesWhen(spawn.when, schema, computed.record)) {
+    log.warn("collections", "spawn skipped: successor would be born matching its own predicate (unbounded respawn)", {
+      slug,
+      sourceId,
+      successorId: computed.id,
+    });
+    return;
+  }
   try {
     const result = await writeItem(dataDir, computed.id, computed.record, { ...ioOpts, refuseOverwrite: true });
     if (result.kind === "ok") {

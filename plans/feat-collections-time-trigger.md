@@ -40,13 +40,13 @@ records.
 Today the firing rule (`server/workspace/collections/notifications.ts:8-12`)
 is a pure function of the record on disk:
 
-```
+```text
 bell exists  ⟺  completionField set ∧ file exists ∧ value ∉ completionDoneValues
 ```
 
 Add **one clause and one input** (`now`):
 
-```
+```text
 bell exists  ⟺  completionField set ∧ file exists ∧ value ∉ completionDoneValues
                  ∧ (triggerField unset  ∨  now ≥ record[triggerField])      ← new
 ```
@@ -218,7 +218,7 @@ it won't spawn again until *it* is paid.
 `successorId = <stem>-<YYYYMMDD of next trigger>` where `<stem>` is the
 source primaryKey with a trailing `-\d{8}` stripped if present:
 
-```
+```text
 rent           → rent-20260610            (first spawn)
 rent-20260610  → rent-20260710            (stem "rent" preserved thereafter)
 ```
@@ -234,10 +234,11 @@ The correctness centre of this part — "10th of every month regardless of
 month length", and the harder day ≥ 29 case.
 
 `advanceTriggerDate(sourceDate, every)` operates on the **civil (year,
-month, day) triple in the workspace timezone** — *never* by adding
-milliseconds (30 days ≠ one month; instant/DST math corrupts civil dates):
+month, day) triple** — *never* by adding milliseconds (30 days ≠ one month;
+instant/DST math corrupts civil dates). Day/week adds use UTC epoch
+arithmetic (DST-immune), reading back only the civil Y/M/D:
 
-```
+```text
 unit "day":   civil-add interval days
 unit "week":  civil-add interval*7 days
 unit "month"/"year":
@@ -304,14 +305,20 @@ Re-reconcile of the source ⇒ successor now exists ⇒ no-op.
 ## Granularity & timezone (applies to both parts)
 
 `date` fields are date-only. v1 ships **date-granularity**: a stored
-`YYYY-MM-DD` is interpreted as **the start of that day in the workspace
-timezone**, for both the trigger gate and the spawn arithmetic. Pin the
-timezone to the *existing* source the app already uses (reuse whatever
-Encore's `at-resolver` / locale config uses — do **not** invent a second
-source); write the assumption into a comment at `parseTriggerTime` /
-`advanceTriggerDate`. **Deferred:** time-of-day precision (a `datetime`
-field type) — a parser-only follow-up; the predicate, tick, and spawn logic
-don't change when it lands.
+`YYYY-MM-DD` is compared as a civil date against today in the **server's
+local timezone** (the process clock — `now.getFullYear()/getMonth()/
+getDate()`), for both the trigger gate and the spawn arithmetic.
+
+> **Resolved during implementation:** there is *no* separate "workspace
+> timezone" source to reuse — Encore and the rest of the app just use the
+> process clock (`new Date()` / `toISOString()`). So the gate uses
+> server-local civil-date comparison, which sidesteps instant/TZ math
+> entirely. The assumption is documented in `spawn.ts` (`isTriggerDue`).
+> The help doc and this plan both say "server's local timezone".
+
+**Deferred:** time-of-day precision (a `datetime` field type) — a
+parser-only follow-up; the predicate, tick, and spawn logic don't change
+when it lands.
 
 ## Files touched
 

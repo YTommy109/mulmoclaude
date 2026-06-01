@@ -211,6 +211,27 @@ function collectCurrencyFieldRefs(fields: Record<string, FieldLike>): string[] {
   return refs;
 }
 
+// True iff a `spawn`'s successor will NOT be born already matching its own
+// predicate (and would therefore re-spawn forever). The effective predicate
+// is `spawn.when` when present, else the completion-done pair. The successor's
+// value for the predicate field is `set[field]` if set, else the carried
+// source value (which matched when the spawn fired) if carried, else absent.
+function spawnSuccessorStartsInert(schema: {
+  spawn?: { when?: { field: string; in: readonly string[] }; carry?: readonly string[]; set?: Record<string, unknown> };
+  completionField?: string;
+  completionDoneValues?: readonly string[];
+}): boolean {
+  const { spawn } = schema;
+  if (!spawn) return true;
+  const field = spawn.when?.field ?? schema.completionField;
+  const values = spawn.when?.in ?? schema.completionDoneValues;
+  if (!field || !values) return true; // predicate not evaluable — other refines cover this
+  if (spawn.set && Object.prototype.hasOwnProperty.call(spawn.set, field)) {
+    return !values.includes(String(spawn.set[field])); // `set` wins over `carry`
+  }
+  return !(spawn.carry ?? []).includes(field); // carried ⇒ inherits the matching value
+}
+
 const CollectionSchemaZ = z
   .object({
     title: z.string().min(1),
@@ -333,6 +354,19 @@ const CollectionSchemaZ = z
   })
   .refine((schema) => (schema.spawn?.carry ?? []).every((name) => schema.fields[name] !== undefined), {
     message: "every `spawn.carry` entry must name a top-level field declared in `fields`",
+    path: ["spawn"],
+  })
+  // A successor must NOT be born already matching its own spawn predicate
+  // — it would re-spawn on its first reconcile, fanning out into an
+  // unbounded chain of records. The predicate field/values are `spawn.when`
+  // when given, else the completion-done pair (the default predicate). The
+  // successor's value for that field is `set[field]` if set, else the
+  // carried source value (which matched, by definition, when the spawn
+  // fired) if carried, else absent (safe). Reject the first two when they
+  // land on a matching value.
+  .refine((schema) => spawnSuccessorStartsInert(schema), {
+    message:
+      "`spawn` must leave the successor in a non-matching state (e.g. `set` the status to a pending value); seeding the predicate field to a matching value via `set`/`carry` would respawn forever",
     path: ["spawn"],
   });
 
