@@ -208,18 +208,30 @@ test.describe("L-JOURNEY-* (real LLM add → View reflection → lifecycle)", ()
     const marker = makeMarker("L-JOURNEY-ROLE");
     const role = customRoleFixture(marker);
     const sessions: string[] = [];
+    // Unlike the shared-array DBs the other journeys touch (calendar /
+    // todo / accounting items.json), a role is its own file
+    // (config/roles/<id>.json) keyed by an id we chose — so a leaked
+    // role both pollutes the live selector AND can be pruned race-free
+    // by id. Track create/delete so `finally` cleans up a role left by
+    // an early failure (CodeRabbit).
+    let roleCreated = false;
+    let roleDeleted = false;
     try {
       // Load the app first so the authed POST has the SPA's bearer-token
       // meta tag and a same-origin base — page.evaluate(fetch) on the
       // initial about:blank would have neither.
       await page.goto("/");
       await createCustomRole(page, role);
+      roleCreated = true;
 
       // setupRoleSession switches the chat to the custom role: it
       // clicks role-option-<id> (which throws if the new role never
       // surfaced in the live selector) and asserts the role chip's
       // data-role — so this one call IS the "custom role reflected in
-      // the selector AND selectable" net.
+      // the selector AND selectable" net. Its startGuaranteedNewSession
+      // does a full page.goto("/") AFTER the create above, which
+      // re-mounts useRoles() and re-fetches the list (so the new role is
+      // in the dropdown); selectRole then auto-waits for role-option-<id>.
       await setupRoleSession(page, role.id, sessions);
 
       // The real LLM turn under a WORKSPACE-defined role — the coverage
@@ -233,8 +245,18 @@ test.describe("L-JOURNEY-* (real LLM add → View reflection → lifecycle)", ()
       // transient chrome, so GET /api/roles is the deterministic check
       // (same rationale as L-JOURNEY-ACCT confirming on the DB file).
       await deleteCustomRole(page, role.id);
+      roleDeleted = true;
       await assertRoleAbsentFromApi(page, role.id);
     } finally {
+      // Race-free per-file prune of a role left by an early failure: the
+      // delete is scoped to our unique id, so it can't clobber a
+      // parallel spec (unlike the shared-array DBs the other journeys
+      // deliberately leave to the session-only convention).
+      if (roleCreated && !roleDeleted && !page.isClosed()) {
+        await deleteCustomRole(page, role.id).catch((err) => {
+          console.warn(`L-JOURNEY-ROLE: best-effort role cleanup skipped for ${role.id}`, err);
+        });
+      }
       for (const sid of sessions) await deleteSession(page, sid);
     }
   });
