@@ -184,6 +184,7 @@
             :selected-result-uuid="selectedResultUuid"
             :result-timestamps="activeSession?.resultTimestamps ?? new Map()"
             :send-text-message="sendMessage"
+            :queries="sessionRoleQueries"
             :session-role-name="sessionRoleName"
             :session-role-icon="sessionRoleIcon"
             :layout-mode="layoutMode"
@@ -294,6 +295,8 @@
         :available-tools="availableTools"
         :role-prompt="sessionRole.prompt"
         :tool-descriptions="toolDescriptions"
+        :session-id="activeSession?.id ?? null"
+        :selected-result-uuid="selectedResultUuid"
       />
     </div>
 

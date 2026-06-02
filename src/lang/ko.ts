@@ -121,6 +121,9 @@ const koMessages = {
     copiedMarkdown: "복사됨",
   },
   rightSidebar: {
+    permalink: "선택된 메시지의 고유 링크",
+    copyPermalink: "선택된 메시지의 고유 링크 복사",
+    copiedPermalink: "복사됨!",
     toggleSystemPrompt: "시스템 프롬프트 토글",
     systemPrompt: "시스템 프롬프트",
     availableTools: "사용 가능한 도구",
@@ -619,6 +622,7 @@ const koMessages = {
     goToday: "오늘로 이동",
     next: "다음",
     deleteItem: "항목 삭제",
+    deleteConfirm: '"{title}"을(를) 삭제하시겠습니까?',
     closeEditor: "에디터 닫기",
     apiError: "⚠ 스케줄러 업데이트 실패: {error}",
     tabCalendar: "달력",
@@ -892,6 +896,7 @@ const koMessages = {
   },
   todoExplorer: {
     heading: "할 일",
+    deleteConfirm: '"{text}"을(를) 삭제하시겠습니까?',
     doneRatio: "{done}/{total} 완료",
     addButton: "+ 추가",
     addColumnButton: "+ 칼럼",
@@ -999,6 +1004,11 @@ const koMessages = {
     charactersCountNoMax: "{current} 자",
     submit: "제출",
     progress: "필수 항목 {total}개 중 {filled}개 입력됨",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "컬렉션",
+    itemLabel: "항목: {id}",
+    listLabel: "모든 레코드",
   },
   pluginPresentHtml: {
     saveAsPdf: "PDF 로 저장 (인쇄 대화 상자 열기)",
@@ -1325,6 +1335,9 @@ const koMessages = {
       "{allowedTools} 를 통해 Claude 에 전달할 추가 도구 이름. 한 줄에 하나씩. {claudeMcp} 로 인증을 완료한 후 Claude Code 내장 MCP 서버 (Gmail / Google 캘린더 등) 를 사용할 때 유용합니다.",
   },
   collectionsView: {
+    addCollectionLabel: "컬렉션",
+    addCollectionPrompt:
+      "새 컬렉션을 만들고 싶어요. 먼저 `config/helps/collection-skills.md`를 읽고 스키마 기반 컬렉션 규칙을 확인하세요. 그런 다음 `presentForm` 도구를 사용해(AskUserQuestion은 사용하지 말고) 어떤 데이터를 관리하고 싶은지 물어보고, 제 답변을 바탕으로 schema.json과 SKILL.md를 작성해 주세요.",
     title: "컬렉션",
     backToIndex: "컬렉션 목록으로 돌아가기",
     indexEmpty: "설치된 컬렉션이 없습니다. Skills 페이지에서 스키마를 포함한 스킬에 별표를 추가하면 여기에 표시됩니다.",
@@ -1348,9 +1361,12 @@ const koMessages = {
     clearSearch: "검색 지우기",
     openCollection: "{title} 열기",
     createTitle: "새로 추가",
-    editTitle: "레코드 편집",
     derivedLabel: "파생",
     embedMissingTitle: "임베드된 참조 없음",
+    chat: "채팅",
+    chatTitle: "채팅 시작",
+    chatPlaceholder: "이 컬렉션으로 하고 싶은 작업을 설명하세요…",
+    chatStart: "채팅 시작",
     source: {
       user: "사용자",
       project: "프로젝트",

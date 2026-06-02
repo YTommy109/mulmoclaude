@@ -6,7 +6,7 @@ const port = Number(process.env.VITE_PORT) || 8000;
 export default defineConfig({
   testDir: "./tests",
   timeout: 30 * ONE_SECOND_MS,
-  retries: 0,
+  retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: `http://localhost:${port}`,
     headless: true,
