@@ -123,16 +123,23 @@ test.describe("fresh-user smoke (real LLM)", () => {
       // class of bugs where the user's real workspace gets
       // silently mutated across CI runs.
       //
-      // This check is only SOUND when this spec runs in isolation.
-      // Under the default parallel suite (`E2E_LIVE_WORKERS` > 1) the
-      // sibling specs legitimately write to the SAME host workspace
-      // (`~/mulmoclaude/` sessions, artifacts, `.claude/skills/`,
-      // server logs) through the main dev server during this window,
-      // so the mtime snapshot cannot attribute that drift to THIS
-      // isolated server and false-fails. Enforce only with a single
-      // worker (or an explicit opt-in); otherwise record the skip as
-      // an annotation so a deliberate `--workers=1` run still catches
-      // a real leak.
+      // This check is only SOUND when no host-mutating sibling spec
+      // runs concurrently. Under the default parallel full suite
+      // (`E2E_LIVE_WORKERS` > 1) the siblings legitimately write to the
+      // SAME host workspace (`~/mulmoclaude/` sessions, artifacts,
+      // `.claude/skills/`, server logs) through the main dev server
+      // during this window, so the mtime snapshot cannot attribute that
+      // drift to THIS isolated server and false-fails.
+      //
+      // Enforce when EITHER signal says no concurrent host-writer:
+      //   - `workers === 1`: the run is serial, so no sibling overlaps
+      //     this window (covers a `--workers=1` full-suite run).
+      //   - `E2E_LIVE_FRESH_BOOT_STRICT=1`: explicit opt-in. The
+      //     dedicated `yarn test:e2e:live:fresh-boot` script sets this
+      //     because it selects ONLY fresh-boot specs — no host-writing
+      //     siblings — so the leak check stays exercised there even
+      //     though `workers` keeps its parallel default.
+      // Otherwise annotate the skip so the gap is visible in the report.
       const enforceHostUntouched = testInfo.config.workers === 1 || process.env.E2E_LIVE_FRESH_BOOT_STRICT === "1";
       if (enforceHostUntouched) {
         await assertHostUntouched(server.hostBaselines);

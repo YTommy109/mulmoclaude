@@ -65,8 +65,10 @@
 
 ## レビューで確認したい点
 
-- L-FRESH-BOOT のゲートにより、既定の並列 full-suite では汚染検査が実行されない
-  （= 隔離リークの自動検出が `--workers=1` 実行に依存する）。この coverage の
-  トレードオフが許容範囲か、専用の単体実行ジョブを足すべきか。
+- L-FRESH-BOOT のゲートにより、既定の並列 full-suite では汚染検査が skip される。
+  ただし専用スクリプト `yarn test:e2e:live:fresh-boot` は `E2E_LIVE_FRESH_BOOT_STRICT=1`
+  を立てる（fresh-boot specs のみ選択＝host を書く兄弟がいないので強制が健全）ため、
+  単体実行では汚染検査が引き続き効く。`--workers=1` の full-suite 実行でも効く。
+  この coverage 配分が許容範囲か（full 並列だけ skip）を確認したい。
 - L-31 ヘルパーが `server/agent/config.ts` の `CONTAINER_WORKSPACE_PATH` を import
   することで、中央 fixture の読み込みグラフに `config.ts` が加わる点の是非。

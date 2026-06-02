@@ -47,4 +47,13 @@ describe("stagingSkillSlugFromWritePath", () => {
     const tooLong = "a".repeat(121);
     assert.equal(stagingSkillSlugFromWritePath(`${HOST_ROOT}/data/skills/${tooLong}/SKILL.md`, HOST_ROOT), null);
   });
+
+  it("returns null for a backslash-separated path on a POSIX host (native separators only)", () => {
+    // The `[/\\]` regex tolerance lets this match the SHAPE, but path.resolve
+    // keeps backslashes literal on POSIX so it equals neither expected root —
+    // backslash-form paths deliberately fall through to null (we never run a
+    // Windows agent in this suite). Pins the documented separator behavior.
+    const backslashPath = `\\home\\node\\mulmoclaude\\data\\skills\\${SLUG}\\SKILL.md`;
+    assert.equal(stagingSkillSlugFromWritePath(backslashPath, HOST_ROOT), null);
+  });
 });

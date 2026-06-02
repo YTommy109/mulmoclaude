@@ -37,6 +37,17 @@ export const STAGING_SKILL_WRITE_PATH_RE = /(?:^|[/\\])data[/\\]skills[/\\]([a-z
  * correct staging dir. Accepting either root fixes that while still
  * rejecting a write that lands outside both known workspace roots
  * (the false-positive guard the host-only check was originally for).
+ *
+ * Separators: only NATIVE forward-slash paths are matched as hits.
+ * The Claude SDK serialises `file_path` with the agent host's
+ * separator and this suite only ever runs the agent on Linux (Docker
+ * sandbox) or macOS, so `/` is the sole form seen in practice. The
+ * regex's `[/\\]` tolerance lets a backslash-form path match the
+ * shape, but `path.resolve` on a POSIX host keeps the backslashes
+ * literal so it won't equal either expected root — i.e. backslash
+ * paths deliberately fall through to `null` (pinned by a unit test)
+ * rather than being silently normalised for a Windows agent we never
+ * run.
  */
 export function stagingSkillSlugFromWritePath(filePath: string, hostWorkspaceRoot: string): string | null {
   const match = STAGING_SKILL_WRITE_PATH_RE.exec(filePath);
