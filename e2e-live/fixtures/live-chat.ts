@@ -1218,20 +1218,29 @@ export async function selectRole(page: Page, roleId: string): Promise<void> {
 /**
  * Start a fresh General-role session, switch to `roleId` (which the
  * chat page handles by spawning a second session — see
- * App.vue#onRoleChange), and push BOTH session ids onto the caller's
- * cleanup array as they appear so a mid-helper throw still drains
- * the General-side session in `finally`. Returns the role-switched
- * session id (the one the spec sends prompts at).
+ * App.vue#onRoleChange). Only the role-switched session id is pushed
+ * onto the caller's cleanup array. Returns the role-switched session
+ * id (the one the spec sends prompts at).
  *
  * Uses `startGuaranteedNewSession` rather than `startNewSession` +
  * `waitForURL(SESSION_URL_PATTERN)` to close the stale-session race
  * documented at {@link startGuaranteedNewSession}: in a populated
  * workspace the SPA's bootstrap can resume into `/chat/<existing>`,
- * and capturing that id into the cleanup list would `deleteSession`
- * pre-existing user data on test exit. The role-switched id is
- * still fresh-by-construction (selectRole always spawns a new chat
- * on the chat page), but the General-side baseline must be the one
- * we just created — never a resumed pre-test session.
+ * and treating that id as a fresh baseline would let a subsequent
+ * `selectRole` short-circuit (same role → no new session spawned).
+ * The role-switched id is still fresh-by-construction (selectRole
+ * always spawns a new chat on the chat page), but the General-side
+ * baseline must be the one we just created — never a resumed
+ * pre-test session.
+ *
+ * The General-side baseline session is intentionally NOT pushed onto
+ * the cleanup array: no chat turn is ever sent against it, so the
+ * server never flushes a jsonl record and `/api/sessions` never
+ * lists it. `deleteSession` against an unlisted id stalls inside
+ * `waitForSessionIdle` until the 30s `toPass` budget expires and
+ * emits a "not yet visible in /api/sessions list — retrying" warn
+ * for every spec that uses this helper. Skipping the push removes
+ * that noise without changing any on-disk state.
  *
  * Lifted from `skills.spec.ts` (L-21B) when `plugin-dispatch.spec.ts`
  * needed the same dance for 7 plugin canaries; keeping it in
@@ -1240,7 +1249,6 @@ export async function selectRole(page: Page, roleId: string): Promise<void> {
  */
 export async function setupRoleSession(page: Page, roleId: string, sessionsToCleanup: string[]): Promise<string> {
   const generalSessionId = await startGuaranteedNewSession(page);
-  sessionsToCleanup.push(generalSessionId);
   await selectRole(page, roleId);
   await page.waitForURL((url) => SESSION_URL_PATTERN.test(url.pathname) && !url.pathname.endsWith(generalSessionId));
   const roleSessionId = getCurrentSessionId(page);
@@ -1523,6 +1531,36 @@ export async function fetchAuthedJsonViaPage(page: Page, url: string): Promise<A
       return { ok: false, reason: `GET ${target} threw: ${err instanceof Error ? err.message : String(err)}` };
     }
   }, url);
+}
+
+/**
+ * Authed JSON POST counterpart to {@link fetchAuthedJsonViaPage}. Runs
+ * inside the page context so it reuses the SPA's bearer token (the
+ * `<meta name="mulmoclaude-auth">` tag) and same-origin base URL — for
+ * specs that drive a host mutation endpoint the UI itself proxies
+ * (e.g. POST /api/roles/manage) as deterministic setup / teardown
+ * instead of through a brittle multi-field form.
+ */
+export async function postAuthedJsonViaPage(page: Page, url: string, body: unknown): Promise<AuthedJsonProbe> {
+  return await page.evaluate(
+    async ({ target, payload }): Promise<AuthedJsonProbe> => {
+      const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
+      const token = meta?.getAttribute("content") ?? "";
+      try {
+        const res = await fetch(target, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) return { ok: false, reason: `POST ${target} returned HTTP ${res.status} ${res.statusText}` };
+        const decoded = (await res.json()) as unknown;
+        return { ok: true, body: decoded };
+      } catch (err) {
+        return { ok: false, reason: `POST ${target} threw: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    },
+    { target: url, payload: body },
+  );
 }
 
 // ── Docker sandbox state probes ─────────────────────────────────────

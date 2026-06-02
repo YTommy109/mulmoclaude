@@ -313,6 +313,10 @@ const esMessages = {
     cycleClosed: "Cerrado",
     chatButtonTitle: "Hablar sobre esta obligación en un chat nuevo",
     bellButtonTitle: "Hablar sobre este ciclo",
+    retireButtonTitle: "Retirar",
+    reactivateButtonTitle: "Reactivar",
+    deleteButtonTitle: "Eliminar",
+    deleteConfirmMessage: '¿Eliminar "{displayName}"? Se quitarán de forma permanente la obligación y todo su historial registrado, y no se podrá deshacer.',
     addButtonLabel: "Añadir",
     unexpectedResponse: "Encore devolvió una respuesta inesperada.",
     fieldsHeading: "Campos recogidos en cada ciclo",
@@ -328,6 +332,12 @@ const esMessages = {
       monthly: "Mensual",
       biannual: "Semestral",
       annual: "Anual",
+    },
+    seedPrompts: {
+      setup:
+        "Quiero configurar una nueva obligación recurrente en Encore. Guíame sobre qué seguir (tipo, periodicidad, objetivos, campos) y luego redacta el DSL y llama a defineEncore cuando esté listo.",
+      obligation:
+        'Quiero hablar sobre mi obligación "{displayName}" (obligationId: {obligationId}). Primero consulta su estado actual y luego pregúntame qué me gustaría hacer.',
     },
   },
   fileContentHeader: {
@@ -1358,6 +1368,8 @@ const esMessages = {
     editItem: "Editar",
     openItem: "Abrir {id}",
     confirmDelete: "¿Eliminar este elemento? Esta acción no se puede deshacer.",
+    deleteCollection: "Eliminar colección",
+    confirmDeleteCollection: '¿Eliminar toda la colección "{title}", incluidos todos sus registros? Antes se archiva una copia de seguridad restaurable.',
     itemsEmpty: "Aún no hay elementos. Pulsa + para añadir uno.",
     notFound: "Colección no encontrada",
     loadFailed: "Error al cargar",

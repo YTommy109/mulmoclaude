@@ -306,6 +306,10 @@ const ptBRMessages = {
     cycleClosed: "Concluído",
     chatButtonTitle: "Conversar sobre esta obrigação em um novo chat",
     bellButtonTitle: "Conversar sobre este ciclo",
+    retireButtonTitle: "Encerrar",
+    reactivateButtonTitle: "Reativar",
+    deleteButtonTitle: "Excluir",
+    deleteConfirmMessage: 'Excluir "{displayName}"? A obrigação e todo o histórico registrado serão removidos permanentemente e não poderão ser desfeitos.',
     addButtonLabel: "Adicionar",
     unexpectedResponse: "O Encore retornou uma resposta inesperada.",
     fieldsHeading: "Campos coletados a cada ciclo",
@@ -321,6 +325,12 @@ const ptBRMessages = {
       monthly: "Mensal",
       biannual: "Semestral",
       annual: "Anual",
+    },
+    seedPrompts: {
+      setup:
+        "Quero configurar uma nova obrigação recorrente no Encore. Oriente-me sobre o que acompanhar (tipo, periodicidade, alvos, campos) e depois componha o DSL e chame defineEncore quando estiver pronto.",
+      obligation:
+        'Quero conversar sobre a minha obrigação "{displayName}" (obligationId: {obligationId}). Primeiro consulte o estado atual dela e depois pergunte o que eu gostaria de fazer.',
     },
   },
   fileContentHeader: {
@@ -1347,6 +1357,8 @@ const ptBRMessages = {
     editItem: "Editar",
     openItem: "Abrir {id}",
     confirmDelete: "Excluir este item? Esta ação não pode ser desfeita.",
+    deleteCollection: "Excluir coleção",
+    confirmDeleteCollection: 'Excluir toda a coleção "{title}", incluindo todos os seus registros? Um backup restaurável é arquivado antes.',
     itemsEmpty: "Ainda não há itens. Clique em + para adicionar um.",
     notFound: "Coleção não encontrada",
     loadFailed: "Falha ao carregar",
