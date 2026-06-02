@@ -311,6 +311,10 @@ const koMessages = {
     cycleClosed: "완료",
     chatButtonTitle: "이 의무를 새 채팅에서 논의하기",
     bellButtonTitle: "이 주기 논의하기",
+    retireButtonTitle: "종료하기",
+    reactivateButtonTitle: "다시 활성화",
+    deleteButtonTitle: "삭제",
+    deleteConfirmMessage: '"{displayName}"을(를) 삭제하시겠어요? 이 의무와 기록된 모든 이력이 영구적으로 삭제되며 되돌릴 수 없습니다.',
     addButtonLabel: "추가",
     unexpectedResponse: "Encore가 예기치 않은 응답을 반환했습니다.",
     fieldsHeading: "주기마다 기록하는 항목",
@@ -326,6 +330,12 @@ const koMessages = {
       monthly: "매월",
       biannual: "반기",
       annual: "매년",
+    },
+    seedPrompts: {
+      setup:
+        "Encore에서 새로운 정기 의무를 설정하고 싶습니다. 무엇을 추적할지(종류, 주기, 대상, 항목)를 차근차근 안내해 주시고, 준비되면 DSL을 작성한 뒤 defineEncore를 호출해 주세요.",
+      obligation:
+        '제 "{displayName}" 의무(obligationId: {obligationId})에 대해 이야기하고 싶습니다. 먼저 현재 상태를 조회한 다음, 제가 무엇을 하고 싶은지 물어봐 주세요.',
     },
   },
   fileContentHeader: {
@@ -1344,6 +1354,8 @@ const koMessages = {
     editItem: "편집",
     openItem: "{id} 열기",
     confirmDelete: "이 항목을 삭제하시겠습니까? 되돌릴 수 없습니다.",
+    deleteCollection: "컬렉션 삭제",
+    confirmDeleteCollection: '"{title}" 컬렉션과 모든 레코드를 삭제하시겠습니까? 삭제 전에 복원 가능한 백업이 보관됩니다.',
     itemsEmpty: "아직 항목이 없습니다. + 를 눌러 추가하세요.",
     notFound: "컬렉션을 찾을 수 없습니다",
     loadFailed: "불러오기에 실패했습니다",

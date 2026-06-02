@@ -307,6 +307,11 @@ const frMessages = {
     cycleClosed: "Clos",
     chatButtonTitle: "Discuter de cette obligation dans un nouveau chat",
     bellButtonTitle: "Discuter de ce cycle",
+    retireButtonTitle: "Retirer",
+    reactivateButtonTitle: "Réactiver",
+    deleteButtonTitle: "Supprimer",
+    deleteConfirmMessage:
+      'Supprimer "{displayName}" ? L\'obligation et tout son historique enregistré seront définitivement supprimés et cette action est irréversible.',
     addButtonLabel: "Ajouter",
     unexpectedResponse: "Encore a renvoyé une réponse inattendue.",
     fieldsHeading: "Champs collectés à chaque cycle",
@@ -322,6 +327,12 @@ const frMessages = {
       monthly: "Mensuelle",
       biannual: "Semestrielle",
       annual: "Annuelle",
+    },
+    seedPrompts: {
+      setup:
+        "Je souhaite configurer une nouvelle obligation récurrente dans Encore. Guidez-moi sur ce qu'il faut suivre (type, périodicité, cibles, champs), puis composez le DSL et appelez defineEncore une fois prêt.",
+      obligation:
+        'Je voudrais parler de mon obligation "{displayName}" (obligationId: {obligationId}). Interrogez d\'abord son état actuel, puis demandez-moi ce que je voudrais faire.',
     },
   },
   fileContentHeader: {
@@ -1352,6 +1363,9 @@ const frMessages = {
     editItem: "Modifier",
     openItem: "Ouvrir {id}",
     confirmDelete: "Supprimer cet élément ? Cette action est irréversible.",
+    deleteCollection: "Supprimer la collection",
+    confirmDeleteCollection:
+      "Supprimer toute la collection « {title} », y compris tous ses enregistrements ? Une sauvegarde restaurable est archivée au préalable.",
     itemsEmpty: "Aucun élément pour l'instant. Cliquez sur + pour en ajouter un.",
     notFound: "Collection introuvable",
     loadFailed: "Échec du chargement",

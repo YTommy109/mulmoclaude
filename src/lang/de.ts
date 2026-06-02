@@ -310,6 +310,11 @@ const deMessages = {
     cycleClosed: "Erledigt",
     chatButtonTitle: "Diese Verpflichtung in einem neuen Chat besprechen",
     bellButtonTitle: "Diesen Zyklus besprechen",
+    retireButtonTitle: "Beenden",
+    reactivateButtonTitle: "Reaktivieren",
+    deleteButtonTitle: "Löschen",
+    deleteConfirmMessage:
+      '"{displayName}" löschen? Die Verpflichtung und ihr gesamter aufgezeichneter Verlauf werden dauerhaft entfernt und können nicht wiederhergestellt werden.',
     addButtonLabel: "Hinzufügen",
     unexpectedResponse: "Encore hat eine unerwartete Antwort zurückgegeben.",
     fieldsHeading: "Pro Zyklus erfasste Felder",
@@ -325,6 +330,12 @@ const deMessages = {
       monthly: "Monatlich",
       biannual: "Halbjährlich",
       annual: "Jährlich",
+    },
+    seedPrompts: {
+      setup:
+        "Ich möchte in Encore eine neue wiederkehrende Verpflichtung einrichten. Führe mich durch, was verfolgt werden soll (Art, Rhythmus, Ziele, Felder), und erstelle dann das DSL und rufe defineEncore auf, wenn es so weit ist.",
+      obligation:
+        'Ich möchte über meine Verpflichtung "{displayName}" (obligationId: {obligationId}) sprechen. Frage zuerst ihren aktuellen Status ab und frage mich dann, was ich tun möchte.',
     },
   },
   fileContentHeader: {
@@ -1363,6 +1374,8 @@ const deMessages = {
     editItem: "Bearbeiten",
     openItem: "{id} öffnen",
     confirmDelete: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.",
+    deleteCollection: "Sammlung löschen",
+    confirmDeleteCollection: "Die gesamte Sammlung „{title}“ einschließlich aller Datensätze löschen? Zuvor wird eine wiederherstellbare Sicherung archiviert.",
     itemsEmpty: "Noch keine Einträge. Klicke auf +, um einen hinzuzufügen.",
     notFound: "Sammlung nicht gefunden",
     loadFailed: "Laden fehlgeschlagen",

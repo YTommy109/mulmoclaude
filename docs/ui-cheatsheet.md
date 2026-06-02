@@ -143,14 +143,16 @@ Stable hooks for tests / chat references when a tool result is selected on the r
 ┌─[<CalendarView> mounts <SchedulerView force-tab="calendar"> — [scheduler-view-root]]─┐
 │                                                                       │
 │  ┌─Header───────────────────────────────────────────────────────────┐ │
-│  │  📅 Calendar  N items     ◀ Today ▶   month ▼   week  list      │ │
+│  │  📅 Calendar  N items     ◀ Today ▶   [scheduler-view-mode-     │ │
+│  │                                         {month,week,list}]       │ │
 │  └──────────────────────────────────────────────────────────────────┘ │
 │                                                                       │
 │  ┌─Grid (month/week) or List───────────────────────────────────────┐ │
 │  │  Mo  Tu  We  Th  Fr  Sa  Su                                     │ │
 │  │  …                                                              │ │
-│  │  [scheduler-item-<id>]   "Team meeting" · 10:00                  │ │
-│  │                          (drag to move; click → edit form)      │ │
+│  │  [scheduler-event-item]  "Team meeting" · 10:00  ✕              │ │
+│  │   (list-view row; click → edit form;  ↑ [scheduler-item-        │ │
+│  │    delete-<id>] on hover)                                        │ │
 │  │  ...                                                             │ │
 │  └──────────────────────────────────────────────────────────────────┘ │
 │                                                                       │
@@ -358,6 +360,12 @@ Clicking a list row marks it read (badge decrements). The "Mark all read" button
 │ └─────────────┘ └───────────┘ └─────────────┘ └─────────────┘      │
 │                                                                    │
 │ Drag cards across columns to change state.                         │
+│                                                                    │
+│ Add dialog (TodoAddDialog):                                        │
+│  [todo-add-dialog-text]   [todo-add-dialog-submit]                 │
+│                                                                    │
+│ Edit dialog (TodoEditDialog) — opens on card click:                │
+│  [todo-edit-dialog-delete]                                         │
 └────────────────────────────────────────────────────────────────────┘
 ```
 

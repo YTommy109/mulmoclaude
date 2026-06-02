@@ -47,6 +47,18 @@
         <span class="material-icons text-sm">add</span>
         <span>{{ t("common.add") }}</span>
       </button>
+
+      <button
+        v-if="canDeleteCollection && !embedded"
+        type="button"
+        class="h-8 w-8 flex items-center justify-center rounded border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 transition-colors"
+        :title="t('collectionsView.deleteCollection')"
+        :aria-label="t('collectionsView.deleteCollection')"
+        data-testid="collections-delete"
+        @click="confirmCollectionDelete"
+      >
+        <span class="material-icons text-sm">delete_forever</span>
+      </button>
     </header>
 
     <!-- Search Toolbar -->
@@ -922,10 +934,16 @@ interface EditState {
  *  `presentCollection` chat card mounts this component and drives both
  *  from the tool result). In standalone route mode (the
  *  `/collections/:slug` page) both are undefined and the component reads
- *  `route.params.slug` / `route.query.selected` as before. */
+ *  `route.params.slug` / `route.query.selected` as before.
+ *
+ *  `sendTextMessage` is forwarded ONLY by the chat card — its presence
+ *  is our "rendered inside a chat" signal. When set, chat-triggering
+ *  actions send into the current session instead of spawning a new
+ *  chat (see `runAction` / `submitChat`). */
 const props = defineProps<{
   slug?: string;
   selected?: string;
+  sendTextMessage?: (text?: string) => void;
 }>();
 
 const emit = defineEmits<{
@@ -1116,6 +1134,14 @@ async function runAction(action: CollectionAction): Promise<void> {
     actionError.value = result.error;
     return;
   }
+  // In a chat card we have a channel into the current session — send
+  // the seed prompt there rather than spawning a new chat. Standalone
+  // route mode has no such channel, so start a fresh chat in the
+  // action's role (which carries the tools the action needs).
+  if (props.sendTextMessage) {
+    props.sendTextMessage(result.data.prompt);
+    return;
+  }
   appApi.startNewChat(result.data.prompt, result.data.role);
 }
 
@@ -1138,7 +1164,13 @@ function submitChat(): void {
   const message = chatMessage.value.trim();
   if (!message) return;
   closeChat();
-  appApi.startNewChat(`/${collection.value.slug} ${message}`, BUILTIN_ROLE_IDS.general);
+  const text = `/${collection.value.slug} ${message}`;
+  // Chat card → send into the current session; standalone → new chat.
+  if (props.sendTextMessage) {
+    props.sendTextMessage(text);
+    return;
+  }
+  appApi.startNewChat(text, BUILTIN_ROLE_IDS.general);
 }
 
 async function loadCollection(slug: string): Promise<void> {
@@ -1361,6 +1393,16 @@ const isSingleton = computed<boolean>(() => Boolean(collection.value?.schema.sin
 const canCreate = computed<boolean>(() => {
   if (!collection.value) return false;
   return !(isSingleton.value && items.value.length > 0);
+});
+
+// A collection is deletable only when it's project-scope AND not a
+// preset (`mc-*`) — mirrors the server-side rule in
+// `deleteCollection`. User-scope skills are read-only from MulmoClaude;
+// presets re-seed on restart so deleting them is futile.
+const canDeleteCollection = computed<boolean>(() => {
+  const current = collection.value;
+  if (!current) return false;
+  return current.source === "project" && !current.slug.startsWith("mc-");
 });
 
 function inputTypeFor(type: FieldType): string {
@@ -2048,6 +2090,30 @@ async function confirmDelete(item: CollectionItem): Promise<void> {
     return;
   }
   await loadCollection(slug);
+}
+
+// Delete the whole collection (skill + records), not just one item.
+// The server archives a restorable copy first; on success we leave the
+// now-gone collection's route for the index.
+async function confirmCollectionDelete(): Promise<void> {
+  const current = collection.value;
+  if (!current) return;
+  // Snapshot before the await — the confirm dialog yields control and
+  // the route could change underneath us (see confirmDelete).
+  const { slug, title } = current;
+  const ok = await openConfirm({
+    message: t("collectionsView.confirmDeleteCollection", { title }),
+    confirmText: t("common.remove"),
+    cancelText: t("common.cancel"),
+    variant: "danger",
+  });
+  if (!ok) return;
+  const result = await apiDelete(detailUrl(slug));
+  if (!result.ok) {
+    loadError.value = result.error;
+    return;
+  }
+  router.push({ name: PAGE_ROUTES.collections, params: {} }).catch(() => {});
 }
 
 function goBack(): void {

@@ -309,6 +309,10 @@ const jaMessages = {
     cycleClosed: "完了",
     chatButtonTitle: "この義務について新しいチャットで相談する",
     bellButtonTitle: "このサイクルについて相談する",
+    retireButtonTitle: "終了する",
+    reactivateButtonTitle: "再開する",
+    deleteButtonTitle: "削除",
+    deleteConfirmMessage: "「{displayName}」を削除しますか？この義務と記録されたすべての履歴が完全に削除され、元に戻せません。",
     addButtonLabel: "追加",
     unexpectedResponse: "アンコール から予期しない応答が返されました。",
     fieldsHeading: "サイクルごとに記録する項目",
@@ -324,6 +328,12 @@ const jaMessages = {
       monthly: "毎月",
       biannual: "半年ごと",
       annual: "毎年",
+    },
+    seedPrompts: {
+      setup:
+        "Encore で繰り返し発生する新しい義務を設定したいです。何を追跡するか（種類・周期・対象・項目）を順番に教えてください。準備ができたら DSL を組み立てて defineEncore を呼んでください。",
+      obligation:
+        "「{displayName}」という義務（obligationId: {obligationId}）について相談したいです。まず現在の状態を確認してから、私が何をしたいか聞いてください。",
     },
   },
   fileContentHeader: {
@@ -1341,6 +1351,8 @@ const jaMessages = {
     editItem: "編集",
     openItem: "{id} を開く",
     confirmDelete: "この項目を削除しますか？元に戻せません。",
+    deleteCollection: "コレクションを削除",
+    confirmDeleteCollection: "コレクション「{title}」とそのすべてのレコードを削除しますか？削除前に復元可能なバックアップが保存されます。",
     itemsEmpty: "まだ項目がありません。+ を押して追加してください。",
     notFound: "コレクションが見つかりません",
     loadFailed: "読み込みに失敗しました",

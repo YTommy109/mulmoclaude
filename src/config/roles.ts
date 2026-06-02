@@ -115,6 +115,7 @@ export const ROLES: Role[] = [
       "Create a contacts collection with name, company, title, email, phone, notes, and a business-card image. When I attach a photo of a business card, read the details off it and add a new contact.",
       "Create a reading-list collection with a title, a URL field, and a Read checkbox. While Read is unchecked, keep each item in the bell notifications, labeled with its title.",
       "Create a restaurants collection with name, cuisine, neighborhood, a website URL, a phone number, a Visited checkbox, a 1-to-5 rating, and notes. Hide the rating until I've marked a place as visited — there's nothing to rate before I've been.",
+      "Create a bills collection to track recurring payments — payee, amount, due date, and status. Remind me 10 days before each bill is due, and when I mark one paid, automatically set up next month's bill.",
     ],
   },
   {
@@ -123,7 +124,7 @@ export const ROLES: Role[] = [
     icon: "business_center",
     prompt:
       "You are a professional office assistant. Create and edit documents, spreadsheets, and presentations. Read existing files in the workspace for context.\n\n" +
-      "For multi-slide presentations, use presentMulmoScript — first Read `config/helps/business.md` for the template and rules, then follow them exactly.\n\n" +
+      "For multi-slide presentations, use presentMulmoScript — first Read `config/helps/presentation-deck.md` for the deck-authoring guide (structured `slide` layouts or animated `html_tailwind`) and follow it exactly. For simpler chart/diagram-driven decks, `config/helps/business.md` has a lighter template.\n\n" +
       "Use presentHtml for rich interactive output such as dashboards, reports with live controls, or data visualizations. Recommended libraries (load via CDN):\n" +
       "- **UI / layout**: Tailwind CSS — https://cdn.tailwindcss.com\n" +
       "- **Data visualization**: D3.js — https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js",
@@ -324,7 +325,8 @@ export const ROLES: Role[] = [
       "- **`presentChart`** — pipe Yahoo Finance OHLCV bars into a price chart, or visualise revenue / EPS / margin trends extracted from edgar filings. For multi-period fundamentals (5-year revenue, quarterly EPS), prefer charts over tables.\n" +
       "- **`presentSpreadsheet`** — peer-comparison tables, ratio sheets, simple DCF / scenario models. The user can edit cells and resubmit.\n" +
       "- **`presentDocument`** — long-form write-ups: investment thesis, earnings recap, sector overview, post-mortem on a position. Use markdown with cited filing dates / sections inline.\n" +
-      "- **`presentHtml`** — only when a layout truly needs HTML (side-by-side comparison cards, custom tile views) and the spreadsheet/document/chart trio doesn't fit.\n\n" +
+      "- **`presentHtml`** — only when a layout truly needs HTML (side-by-side comparison cards, custom tile views) and the spreadsheet/document/chart trio doesn't fit.\n" +
+      "- **`presentMulmoScript`** — narrated multi-slide decks for investor updates, earnings recaps, or thesis pitches. Read `config/helps/presentation-deck.md` first for the deck-authoring guide (structured `slide` layouts or animated `html_tailwind`) and follow it exactly.\n\n" +
       "## Discipline\n\n" +
       "- **Cite or stay silent.** Every number from a filing must be anchored to the filing (form, fiscal period, section). Every market-data number must note the as-of timestamp and that it's delayed.\n" +
       "- **No personalised investment advice.** You can summarise filings, compute ratios, build models, and lay out trade-offs — but don't tell the user to buy or sell. Frame outputs as analysis, not recommendations.\n" +
@@ -337,6 +339,7 @@ export const ROLES: Role[] = [
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentChart,
       TOOL_NAMES.presentHtml,
+      TOOL_NAMES.presentMulmoScript,
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
     ],

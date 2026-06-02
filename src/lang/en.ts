@@ -326,6 +326,10 @@ const enMessages = {
     cycleClosed: "Closed",
     chatButtonTitle: "Discuss this obligation in a new chat",
     bellButtonTitle: "Discuss this cycle",
+    retireButtonTitle: "Retire",
+    reactivateButtonTitle: "Reactivate",
+    deleteButtonTitle: "Delete",
+    deleteConfirmMessage: 'Delete "{displayName}"? This permanently removes the obligation and all its recorded history, and can\'t be undone.',
     addButtonLabel: "Add",
     unexpectedResponse: "Encore returned an unexpected response.",
     fieldsHeading: "Fields collected each cycle",
@@ -341,6 +345,12 @@ const enMessages = {
       monthly: "Monthly",
       biannual: "Biannual",
       annual: "Annual",
+    },
+    seedPrompts: {
+      setup:
+        "I'd like to set up a new recurring obligation in Encore. Please walk me through what to track (kind, cadence, targets, fields), then compose the DSL and call defineEncore when ready.",
+      obligation:
+        "Let's talk about my \"{displayName}\" obligation (obligationId: {obligationId}). Please query its current state first, then ask me what I'd like to do.",
     },
   },
   fileContentHeader: {
@@ -1344,6 +1354,8 @@ const enMessages = {
     editItem: "Edit",
     openItem: "Open {id}",
     confirmDelete: "Delete this item? This cannot be undone.",
+    deleteCollection: "Delete collection",
+    confirmDeleteCollection: 'Delete the entire "{title}" collection, including all its records? A restorable backup is archived first.',
     itemsEmpty: "No items yet. Click + to add one.",
     notFound: "Collection not found",
     loadFailed: "Failed to load",
