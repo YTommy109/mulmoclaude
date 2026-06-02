@@ -20,7 +20,7 @@
 // the Options API `this.$t`. CLAUDE.md mandates Composition API.
 
 import { createI18n } from "vue-i18n";
-import { messages, isSupportedLocale, resolveLocale, type Locale, type LocaleMessages } from "../lang";
+import { messages, resolveLocale, type Locale, type LocaleMessages } from "../lang";
 
 // Schema generic on createI18n — this is what makes `t("common.save")`
 // calls across the whole app compile-time checked (the module
@@ -33,10 +33,12 @@ type MessageSchema = LocaleMessages;
 const DEFAULT_LOCALE: Locale = "en";
 
 function detectLocale(): Locale {
-  // 1. explicit env override
+  // 1. explicit env override (resolved through the same path as browser tags
+  //    so that VITE_LOCALE=pt maps to pt-BR, same as a browser reporting "pt")
   const envLocale = import.meta.env.VITE_LOCALE;
-  if (typeof envLocale === "string" && isSupportedLocale(envLocale)) {
-    return envLocale;
+  if (typeof envLocale === "string") {
+    const resolved = resolveLocale(envLocale);
+    if (resolved) return resolved;
   }
 
   // 2. browser / OS preference list
