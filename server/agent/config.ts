@@ -12,12 +12,8 @@ import { isImageMime, isNativeAttachmentMime } from "@mulmobridge/client";
 import { convertAttachment } from "./attachmentConverter.js";
 import { log } from "../system/logger/index.js";
 import { preflightUserServers, logPreflightResult } from "./mcpPreflight.js";
-import { CONTAINER_WORKSPACE_PATH } from "./containerWorkspace.js";
 
-// Re-exported so existing importers keep getting it from here, while the
-// literal lives in the dependency-free `./containerWorkspace.ts` (lets
-// lightweight callers import it without config.ts's heavy module graph).
-export { CONTAINER_WORKSPACE_PATH };
+export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
 // `Skill` is the tool Claude Code uses to execute a discovered
 // `.claude/skills/<name>/SKILL.md`. Because `--allowedTools` is passed
