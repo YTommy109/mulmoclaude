@@ -1363,6 +1363,10 @@ const esMessages = {
     calendarToday: "Hoy",
     calendarNoDate: "Sin fecha",
     calendarCreateOn: "Crear el {date}",
+    viewKanban: "Kanban",
+    kanbanFieldLabel: "Campo de agrupación Kanban",
+    kanbanUncategorized: "Sin categoría",
+    kanbanOpenCard: "Abrir {label}",
     source: {
       user: "Usuario",
       project: "Proyecto",

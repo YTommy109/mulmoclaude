@@ -1349,6 +1349,10 @@ const koMessages = {
     calendarToday: "오늘",
     calendarNoDate: "날짜 없음",
     calendarCreateOn: "{date}에 생성",
+    viewKanban: "칸반",
+    kanbanFieldLabel: "칸반 그룹 필드",
+    kanbanUncategorized: "미분류",
+    kanbanOpenCard: "{label} 열기",
     source: {
       user: "사용자",
       project: "프로젝트",

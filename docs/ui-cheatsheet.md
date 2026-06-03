@@ -399,7 +399,7 @@ The preview pane reuses plugin views — clicking a `config/scheduler/items.json
 
 ```
 ┌─[<CollectionView> — /collections/:slug]────────────────────────────────┐
-│ Toolbar: [Table | Calendar] toggle · search · [+ add]                   │
+│ Toolbar: [Table | Calendar | Kanban] toggle · search · [+ add]          │
 │                                                                         │
 │ [collections-inline-error] (banner, only after a failed inline write)   │
 │ ┌─Table──────────────────────────────────────────────────────────────┐ │
@@ -415,6 +415,8 @@ The preview pane reuses plugin views — clicking a `config/scheduler/items.json
 ```
 
 `boolean` columns render an inline checkbox and `enum` columns an inline `<select>` directly in the table cell — changing one writes the value straight to the record (`PUT .../items/:id`, optimistic + rollback on failure) without opening the detail panel. The controls use `@click.stop` so the cell click never bubbles into the row's `openView`. All other field types (and the full edit form) still go through the row → `[collections-detail]` → Edit → Save flow.
+
+The **Calendar** toggle (`[collection-view-toggle-calendar]`) appears only when the schema has a `date` field; the **Kanban** toggle (`[collection-view-toggle-kanban]`) only when it has an `enum` field. `<CollectionKanbanView>` groups records into columns by the chosen enum field (declared `values` order + a trailing **Uncategorized** column for empty/unknown values), with a `[collection-kanban-field]` selector when >1 enum field exists. Dragging a card (`[collection-kanban-card-<id>]`) between columns writes the group field via the same inline-edit PUT (no column drag, no within-column ordering); a card whose group field is hidden by a `when` predicate is omitted from the board. Card click opens the same detail panel below the board.
 
 ## /skills — workspace skills list
 

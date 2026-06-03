@@ -82,6 +82,11 @@ export interface CollectionSchema {
   /** Name of a second `date` field marking the END of a multi-day span
    *  on the calendar. Requires `calendarField`. */
   calendarEndField?: string;
+  /** Name of an `enum` field grouping records into columns on the optional
+   *  Kanban board. When unset, the toggle still appears if any `enum` field
+   *  exists (the first one, in declaration order, is the default and is
+   *  switchable in-view). */
+  kanbanField?: string;
 }
 
 export interface CollectionDetail {

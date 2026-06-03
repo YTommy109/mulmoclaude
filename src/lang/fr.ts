@@ -1358,6 +1358,10 @@ const frMessages = {
     calendarToday: "Aujourd'hui",
     calendarNoDate: "Sans date",
     calendarCreateOn: "Créer le {date}",
+    viewKanban: "Kanban",
+    kanbanFieldLabel: "Champ de regroupement Kanban",
+    kanbanUncategorized: "Non classé",
+    kanbanOpenCard: "Ouvrir {label}",
     source: {
       user: "Utilisateur",
       project: "Projet",

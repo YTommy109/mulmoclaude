@@ -1352,6 +1352,10 @@ const ptBRMessages = {
     calendarToday: "Hoje",
     calendarNoDate: "Sem data",
     calendarCreateOn: "Criar em {date}",
+    viewKanban: "Kanban",
+    kanbanFieldLabel: "Campo de agrupamento do Kanban",
+    kanbanUncategorized: "Sem categoria",
+    kanbanOpenCard: "Abrir {label}",
     source: {
       user: "Usuário",
       project: "Projeto",

@@ -64,7 +64,10 @@
     <!-- Search Toolbar. Shown when there are items to search OR when the
          calendar toggle is available — the toggle must reach an empty
          date-bearing collection so its empty-day create affordance works. -->
-    <div v-if="collection && (items.length > 0 || hasCalendar)" class="px-6 py-3 bg-white border-b border-slate-100 flex items-center justify-between gap-4">
+    <div
+      v-if="collection && (items.length > 0 || hasCalendar || hasKanban)"
+      class="px-6 py-3 bg-white border-b border-slate-100 flex items-center justify-between gap-4"
+    >
       <div v-if="items.length > 0" class="relative flex-1 max-w-md">
         <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
           <span class="material-icons text-lg">search</span>
@@ -87,14 +90,15 @@
         </button>
       </div>
       <div class="flex items-center gap-2">
-        <!-- View toggle: table ↔ calendar. Shown only when the schema has a
-             `date` field; local UI state, never persisted. -->
-        <div v-if="hasCalendar" class="flex gap-0.5" role="group" :aria-label="t('collectionsView.viewToggle')">
+        <!-- View toggle: table ↔ calendar ↔ kanban. Calendar shows only when
+             the schema has a `date` field, kanban only with an `enum` field;
+             local UI state, never persisted. -->
+        <div v-if="hasCalendar || hasKanban" class="flex gap-0.5" role="group" :aria-label="t('collectionsView.viewToggle')">
           <button
             type="button"
             class="h-8 px-2.5 flex items-center gap-1 rounded text-xs font-bold transition-colors"
-            :class="!calendarActive ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'"
-            :aria-pressed="!calendarActive"
+            :class="activeView === 'table' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'"
+            :aria-pressed="activeView === 'table'"
             data-testid="collection-view-toggle-table"
             @click="setView('table')"
           >
@@ -102,15 +106,28 @@
             <span>{{ t("collectionsView.viewTable") }}</span>
           </button>
           <button
+            v-if="hasCalendar"
             type="button"
             class="h-8 px-2.5 flex items-center gap-1 rounded text-xs font-bold transition-colors"
-            :class="calendarActive ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'"
-            :aria-pressed="calendarActive"
+            :class="activeView === 'calendar' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'"
+            :aria-pressed="activeView === 'calendar'"
             data-testid="collection-view-toggle-calendar"
             @click="setView('calendar')"
           >
             <span class="material-icons text-sm">calendar_month</span>
             <span>{{ t("collectionsView.viewCalendar") }}</span>
+          </button>
+          <button
+            v-if="hasKanban"
+            type="button"
+            class="h-8 px-2.5 flex items-center gap-1 rounded text-xs font-bold transition-colors"
+            :class="activeView === 'kanban' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'"
+            :aria-pressed="activeView === 'kanban'"
+            data-testid="collection-view-toggle-kanban"
+            @click="setView('kanban')"
+          >
+            <span class="material-icons text-sm">view_kanban</span>
+            <span>{{ t("collectionsView.viewKanban") }}</span>
           </button>
         </div>
         <!-- Which date field anchors the grid (only when >1 date field). -->
@@ -123,6 +140,17 @@
           @change="anchorOverride = ($event.target as HTMLSelectElement).value"
         >
           <option v-for="key in dateFields" :key="key" :value="key">{{ collection?.schema.fields[key]?.label ?? key }}</option>
+        </select>
+        <!-- Which enum field groups the board (only when >1 enum field). -->
+        <select
+          v-if="kanbanActive && enumFields.length > 1"
+          :value="kanbanGroupField"
+          class="h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 focus:outline-none focus:border-indigo-500 cursor-pointer"
+          :aria-label="t('collectionsView.kanbanFieldLabel')"
+          data-testid="collection-kanban-field"
+          @change="kanbanOverride = ($event.target as HTMLSelectElement).value"
+        >
+          <option v-for="key in enumFields" :key="key" :value="key">{{ collection?.schema.fields[key]?.label ?? key }}</option>
         </select>
         <div v-if="items.length > 0" class="text-[10px] text-slate-400 font-bold uppercase tracking-wider select-none">
           {{ t("collectionsView.searchSummary", { shown: filteredItems.length, total: items.length }) }}
@@ -163,6 +191,50 @@
           v-if="viewing || editing"
           class="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden"
           data-testid="collections-calendar-panel"
+        >
+          <CollectionRecordPanel
+            v-model:editing="editing"
+            :collection="collection"
+            :viewing="viewing"
+            :saving="saving"
+            :save-error="saveError"
+            :action-error="actionError"
+            :action-pending="actionPending"
+            :visible-actions="visibleActions"
+            :live-record="liveRecord"
+            :live-derived="liveDerived"
+            :view-title="viewTitle"
+            :is-singleton="isSingleton"
+            :render="render"
+            :locale="locale"
+            @submit="saveEditor"
+            @cancel="cancelEditor"
+            @edit="editFromView"
+            @close="closeView"
+            @delete="viewing && confirmDelete(viewing)"
+            @run-action="runAction"
+          />
+        </div>
+      </div>
+
+      <!-- Kanban body: an alternative to the table for enum-bearing
+           collections. The board groups records into columns by the chosen
+           enum field; dragging a card between columns writes that field. -->
+      <div v-else-if="kanbanActive" class="h-full flex flex-col">
+        <div class="flex-1 min-h-0 px-3 py-2">
+          <CollectionKanbanView
+            :schema="collection.schema"
+            :items="filteredItems"
+            :group-field="kanbanGroupField"
+            :selected="viewing ? String(viewing[collection.schema.primaryKey] ?? '') : undefined"
+            @select="onCalendarSelect"
+            @move="onKanbanMove"
+          />
+        </div>
+        <div
+          v-if="viewing || editing"
+          class="m-3 mt-0 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden shrink-0"
+          data-testid="collections-kanban-panel"
         >
           <CollectionRecordPanel
             v-model:editing="editing"
@@ -459,6 +531,7 @@ import { BUILTIN_ROLE_IDS } from "../config/roles";
 import ConfirmModal from "./ConfirmModal.vue";
 import CollectionRecordPanel from "./CollectionRecordPanel.vue";
 import CollectionCalendarView from "./CollectionCalendarView.vue";
+import CollectionKanbanView from "./CollectionKanbanView.vue";
 import { useConfirm } from "../composables/useConfirm";
 import { useAppApi } from "../composables/useAppApi";
 import { actionVisible, fieldVisible } from "../utils/collections/actionVisible";
@@ -489,10 +562,12 @@ const props = defineProps<{
   slug?: string;
   selected?: string;
   sendTextMessage?: (text?: string) => void;
-  /** Embedded mode only: initial view / anchor restored from the card's
-   *  persisted `viewState` so a switch to calendar survives a remount. */
-  initialView?: "table" | "calendar";
+  /** Embedded mode only: initial view / anchor / group restored from the
+   *  card's persisted `viewState` so a switch to calendar or kanban
+   *  survives a remount. */
+  initialView?: "table" | "calendar" | "kanban";
   initialAnchorField?: string;
+  initialGroupField?: string;
 }>();
 
 const emit = defineEmits<{
@@ -500,9 +575,10 @@ const emit = defineEmits<{
    *  The card persists this in its tool-result `viewState` so the open
    *  item survives a re-render. */
   select: [id: string | null];
-  /** Embedded mode only: the view mode / calendar anchor changed. The
-   *  card persists these alongside `selected` so the calendar sticks. */
-  viewStateChange: [state: { view: "table" | "calendar"; anchorField: string }];
+  /** Embedded mode only: the view mode / calendar anchor / kanban group
+   *  changed. The card persists these alongside `selected` so the calendar
+   *  and kanban stick. */
+  viewStateChange: [state: { view: "table" | "calendar" | "kanban"; anchorField: string; groupField: string }];
 }>();
 
 const { t, locale } = useI18n();
@@ -820,12 +896,13 @@ const canDeleteCollection = computed<boolean>(() => {
   return current.source === "project" && !current.slug.startsWith("mc-");
 });
 
-// ── View mode (table | calendar) ──────────────────────────────────
+// ── View mode (table | calendar | kanban) ─────────────────────────
 // Local UI state only — NEVER persisted to schema. The user toggles it;
 // the host never flips it programmatically. The calendar is offered only
-// when the schema has a `date` field, so date-less collections and the
-// initial load are unchanged (default "table").
-type CollectionViewMode = "table" | "calendar";
+// when the schema has a `date` field and the kanban only when it has an
+// `enum` field, so plain collections and the initial load are unchanged
+// (default "table").
+type CollectionViewMode = "table" | "calendar" | "kanban";
 const view = ref<CollectionViewMode>(props.initialView ?? "table");
 
 /** `date` fields in declaration order — the calendar can anchor on any. */
@@ -840,9 +917,43 @@ const dateFields = computed<string[]>(() =>
 /** Whether the table ↔ calendar toggle is offered. */
 const hasCalendar = computed<boolean>(() => dateFields.value.length > 0);
 
-/** True when the calendar is the active body (guards against a stale
- *  `view = "calendar"` lingering after switching to a date-less one). */
-const calendarActive = computed<boolean>(() => view.value === "calendar" && hasCalendar.value);
+/** `enum` fields in declaration order — the kanban can group on any. */
+const enumFields = computed<string[]>(() =>
+  collection.value
+    ? Object.entries(collection.value.schema.fields)
+        .filter(([, field]) => field.type === "enum")
+        .map(([key]) => key)
+    : [],
+);
+
+/** Whether the kanban toggle is offered (needs an `enum` field to group on). */
+const hasKanban = computed<boolean>(() => enumFields.value.length > 0);
+
+/** The effective view, collapsing any stale mode whose enabling field
+ *  vanished (e.g. `view = "kanban"` after switching to an enum-less
+ *  collection) back to "table". Single source of truth for the toggle and
+ *  the body branches. */
+const activeView = computed<CollectionViewMode>(() => {
+  if (view.value === "calendar" && hasCalendar.value) return "calendar";
+  if (view.value === "kanban" && hasKanban.value) return "kanban";
+  return "table";
+});
+
+/** True when the calendar is the active body. */
+const calendarActive = computed<boolean>(() => activeView.value === "calendar");
+
+/** True when the kanban is the active body. */
+const kanbanActive = computed<boolean>(() => activeView.value === "kanban");
+
+// In-view override for which enum field groups the board; null ⇒ the schema
+// hint, else the first enum field.
+const kanbanOverride = ref<string | null>(props.initialGroupField ?? null);
+const kanbanGroupField = computed<string>(() => {
+  if (kanbanOverride.value && enumFields.value.includes(kanbanOverride.value)) return kanbanOverride.value;
+  const hint = collection.value?.schema.kanbanField;
+  if (hint && enumFields.value.includes(hint)) return hint;
+  return enumFields.value[0] ?? "";
+});
 
 // In-view override for which date field anchors the grid; null ⇒ the
 // schema hint, else the first date field.
@@ -1211,9 +1322,9 @@ function createOnDate(iso: string): void {
   if (editing.value && anchor) editing.value.text[anchor] = iso;
 }
 
-/** Calendar chip click → open that record's detail below the grid (or
- *  close when the calendar reports a deselect). Unlike `openView`, this
- *  never toggles — a second click on the same chip keeps it open. */
+/** Calendar chip / kanban card click → open that record's detail below the
+ *  grid (or close when a deselect is reported). Unlike `openView`, this
+ *  never toggles — a second click on the same record keeps it open. */
 function onCalendarSelect(itemId: string | null): void {
   if (!itemId) {
     closeView();
@@ -1225,6 +1336,17 @@ function onCalendarSelect(itemId: string | null): void {
   showDetail(item);
 }
 
+/** Kanban card dropped in a column → set the record's group field to the
+ *  column value (the empty string clears it for the Uncategorized column).
+ *  Reuses the inline-edit path (optimistic write + PUT + rollback). */
+function onKanbanMove(itemId: string, value: string): void {
+  const item = findItemById(itemId);
+  const key = kanbanGroupField.value;
+  const field = collection.value?.schema.fields[key];
+  if (!item || !field) return;
+  void commitInlineEdit(item, key, field, value);
+}
+
 watch(
   activeSlug,
   (slug, prevSlug) => {
@@ -1234,6 +1356,7 @@ watch(
     if (prevSlug !== undefined && slug !== prevSlug) {
       view.value = "table";
       anchorOverride.value = null;
+      kanbanOverride.value = null;
     }
     if (slug) {
       loadCollection(slug);
@@ -1251,8 +1374,8 @@ watch(
 
 // Embedded mode: report view/anchor changes so the chat card persists them
 // in `viewState` (alongside `selected`). No-op in standalone route mode.
-watch([view, calendarAnchorField], () => {
-  if (embedded.value) emit("viewStateChange", { view: view.value, anchorField: calendarAnchorField.value });
+watch([view, calendarAnchorField, kanbanGroupField], () => {
+  if (embedded.value) emit("viewStateChange", { view: view.value, anchorField: calendarAnchorField.value, groupField: kanbanGroupField.value });
 });
 
 // React to the active selection changing while already on this

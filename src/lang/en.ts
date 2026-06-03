@@ -1349,6 +1349,10 @@ const enMessages = {
     calendarToday: "Today",
     calendarNoDate: "No date",
     calendarCreateOn: "Create on {date}",
+    viewKanban: "Kanban",
+    kanbanFieldLabel: "Kanban group field",
+    kanbanUncategorized: "Uncategorized",
+    kanbanOpenCard: "Open {label}",
     source: {
       user: "User",
       project: "Project",

@@ -259,6 +259,14 @@ export interface CollectionSchema {
    *  date inclusive. Requires `calendarField`. Must name a real `date`
    *  field. Absent ⇒ single-day placement. */
   calendarEndField?: string;
+  /** Name of an `enum` field that groups records into columns on the
+   *  optional Kanban board: each record lands in the column matching its
+   *  value, with empty/unknown values collected in an "Uncategorized"
+   *  column. When unset, the Kanban toggle still appears if the schema has
+   *  any `enum` field (the first one, in declaration order, is used by
+   *  default and is switchable in-view). Set this to pin a specific group
+   *  field. Must name a real `enum` field. */
+  kanbanField?: string;
 }
 
 export interface CollectionSummary {

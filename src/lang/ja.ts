@@ -1346,6 +1346,10 @@ const jaMessages = {
     calendarToday: "今日",
     calendarNoDate: "日付なし",
     calendarCreateOn: "{date} に作成",
+    viewKanban: "カンバン",
+    kanbanFieldLabel: "カンバンのグループフィールド",
+    kanbanUncategorized: "未分類",
+    kanbanOpenCard: "{label} を開く",
     source: {
       user: "ユーザー",
       project: "プロジェクト",

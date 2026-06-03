@@ -1339,6 +1339,10 @@ const zhMessages = {
     calendarToday: "今天",
     calendarNoDate: "无日期",
     calendarCreateOn: "在 {date} 创建",
+    viewKanban: "看板",
+    kanbanFieldLabel: "看板分组字段",
+    kanbanUncategorized: "未分类",
+    kanbanOpenCard: "打开 {label}",
     source: {
       user: "用户",
       project: "项目",

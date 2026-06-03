@@ -1368,6 +1368,10 @@ const deMessages = {
     calendarToday: "Heute",
     calendarNoDate: "Kein Datum",
     calendarCreateOn: "Am {date} erstellen",
+    viewKanban: "Kanban",
+    kanbanFieldLabel: "Kanban-Gruppierungsfeld",
+    kanbanUncategorized: "Nicht kategorisiert",
+    kanbanOpenCard: "{label} öffnen",
     source: {
       user: "Benutzer",
       project: "Projekt",

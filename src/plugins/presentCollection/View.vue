@@ -6,6 +6,7 @@
       :selected="selected"
       :initial-view="viewState?.view"
       :initial-anchor-field="viewState?.anchorField"
+      :initial-group-field="viewState?.groupField"
       :send-text-message="sendTextMessage"
       @select="onSelect"
       @view-state-change="onViewStateChange"
@@ -25,8 +26,9 @@ import type { PresentCollectionData } from "./types";
  *  keep the table↔calendar choice and calendar anchor sticky. */
 interface PresentCollectionViewState {
   selected?: string | null;
-  view?: "table" | "calendar";
+  view?: "table" | "calendar" | "kanban";
   anchorField?: string;
+  groupField?: string;
 }
 
 const props = defineProps<{
@@ -63,11 +65,14 @@ function onSelect(itemId: string | null): void {
   emit("updateResult", { ...props.selectedResult, viewState: { ...viewState.value, selected: itemId } });
 }
 
-function onViewStateChange(state: { view: "table" | "calendar"; anchorField: string }): void {
+function onViewStateChange(state: { view: "table" | "calendar" | "kanban"; anchorField: string; groupField: string }): void {
   if (!props.selectedResult) return;
-  // Skip redundant writes (the anchor settling on load fires this once).
+  // Skip redundant writes (the anchor/group settling on load fires this once).
   const current = viewState.value;
-  if (current?.view === state.view && current?.anchorField === state.anchorField) return;
-  emit("updateResult", { ...props.selectedResult, viewState: { ...current, view: state.view, anchorField: state.anchorField } });
+  if (current?.view === state.view && current?.anchorField === state.anchorField && current?.groupField === state.groupField) return;
+  emit("updateResult", {
+    ...props.selectedResult,
+    viewState: { ...current, view: state.view, anchorField: state.anchorField, groupField: state.groupField },
+  });
 }
 </script>
