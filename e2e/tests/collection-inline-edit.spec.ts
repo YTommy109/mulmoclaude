@@ -123,4 +123,35 @@ test.describe("collection inline cell editing", () => {
     await expect(page.getByTestId("collections-inline-error")).toBeVisible();
     await expect(checkbox).not.toBeChecked();
   });
+
+  test("a row's inline controls are gated while its save is in flight", async ({ page }) => {
+    // Hold the PUT response so the save stays in flight; this is the
+    // window where a second same-row edit could otherwise race.
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(
+      (url) => url.pathname.startsWith("/api/collections/daily-routine/items/"),
+      async (route) => {
+        if (route.request().method() !== "PUT") return route.fallback();
+        await gate;
+        const itemId = decodeURIComponent(route.request().url().split("/items/").pop() ?? "");
+        return route.fulfill({ json: { itemId, item: JSON.parse(route.request().postData() ?? "{}") } });
+      },
+    );
+    await page.goto("/collections/daily-routine");
+    const checkbox = page.getByTestId("collections-inline-bool-yoga-jun-03");
+    const select = page.getByTestId("collections-inline-enum-status-jun-03");
+    await checkbox.check();
+    // Both inline controls in the SAME row are disabled while the PUT is
+    // pending — no second full-record PUT can be issued to race the first.
+    await expect(checkbox).toBeDisabled();
+    await expect(select).toBeDisabled();
+    // A different row stays editable (the gate is per-row).
+    await expect(page.getByTestId("collections-inline-bool-yoga-jun-04")).toBeEnabled();
+    release();
+    await expect(checkbox).toBeEnabled();
+    await expect(select).toBeEnabled();
+  });
 });

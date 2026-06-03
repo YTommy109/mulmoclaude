@@ -258,7 +258,8 @@
                       v-if="field.type === 'boolean'"
                       type="checkbox"
                       :checked="item[key] === true"
-                      class="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20 cursor-pointer align-middle"
+                      :disabled="isRowInlineSaving(item)"
+                      class="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20 cursor-pointer align-middle disabled:opacity-50 disabled:cursor-not-allowed"
                       :data-testid="`collections-inline-bool-${key}-${item[collection.schema.primaryKey]}`"
                       :aria-label="field.label"
                       @click.stop
@@ -282,7 +283,8 @@
                     <select
                       v-else-if="field.type === 'enum' && Array.isArray(field.values) && field.values.length > 0"
                       :value="item[key] == null ? '' : String(item[key])"
-                      class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer"
+                      :disabled="isRowInlineSaving(item)"
+                      class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       :data-testid="`collections-inline-enum-${key}-${item[collection.schema.primaryKey]}`"
                       :aria-label="field.label"
                       @click.stop
@@ -552,6 +554,12 @@ const inlineError = ref<string | null>(null);
  *  placeholder option in their inline dropdown — a cell that already
  *  has a value can't be blanked inline (use the edit form for that). */
 const enumOriginallyEmpty = ref<Set<string>>(new Set());
+/** Rows with an inline cell save in flight (by `rowId`). While a row is
+ *  here its inline controls are disabled, so two quick edits to the same
+ *  row can't race two full-record PUTs — an older PUT landing last would
+ *  otherwise clobber the newer field on disk while the UI shows the
+ *  newer optimistic value (Codex PR #1599 P2). */
+const inlineSavingRows = ref<Set<string>>(new Set());
 const actionPending = ref(false);
 const actionError = ref<string | null>(null);
 const chatOpen = ref(false);
@@ -1109,19 +1117,28 @@ function applyInlineValue(item: CollectionItem, key: string, value: unknown): vo
   item[key] = value;
 }
 
+/** True while this row has an inline cell save in flight — its inline
+ *  controls render disabled to serialize edits (one PUT per row). */
+function isRowInlineSaving(item: CollectionItem): boolean {
+  return inlineSavingRows.value.has(rowId(item));
+}
+
 /** Inline table-cell edit (boolean checkbox / enum dropdown): optimistic
- *  update, then PUT the full record. On failure, roll the cell back and
- *  surface the error. Bypasses the detail/edit panel entirely. */
+ *  update, then PUT the full record. Gated per row so a second edit can't
+ *  race the in-flight one. On failure, roll the cell back and surface the
+ *  error. Bypasses the detail/edit panel entirely. */
 async function commitInlineEdit(item: CollectionItem, key: string, field: FieldSpec, raw: boolean | string): Promise<void> {
   if (!collection.value) return;
   const { slug } = collection.value;
   const itemId = rowId(item);
-  if (!itemId) return;
+  if (!itemId || inlineSavingRows.value.has(itemId)) return;
   const previous = item[key];
   const coerced = coerceInlineValue(field, raw);
   applyInlineValue(item, key, coerced);
   inlineError.value = null;
+  inlineSavingRows.value.add(itemId);
   const result = await apiPut<ItemMutationResponse>(itemUrl(slug, itemId), buildUpdatedRecord(item, key, coerced));
+  inlineSavingRows.value.delete(itemId);
   if (!result.ok) {
     applyInlineValue(item, key, previous);
     inlineError.value = result.error;
@@ -1224,6 +1241,7 @@ watch(
       collection.value = null;
       items.value = [];
       enumOriginallyEmpty.value = new Set();
+      inlineSavingRows.value = new Set();
       searchQuery.value = ""; // Reset search query
       loading.value = false;
     }
