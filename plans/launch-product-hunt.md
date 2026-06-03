@@ -314,7 +314,7 @@ Three videos — each serves a different channel. **Always record silent first; 
 - **00:01 PT** — Publish on PH. First comment goes up within 90 seconds.
 - **00:05 PT** — Tweet thread (7 tweets: ask→app hook, 4 messages, anti-wrapper, CTA). Pin the tweet.
 - **00:10 PT** — LinkedIn, Mastodon, Bluesky cross-post (adapted, not copy-pasted)
-- **01:00 PT** — HN "Show HN: MulmoClaude — visual GUI + personal wiki for Claude Code"
+- **01:00 PT** — HN "Show HN: MulmoClaude – build apps by asking; a schema is the harness, Claude is the runtime" (the §8 title)
 - **06:00 PT** — Reddit r/ClaudeAI post (value-first, not launch-y — "I built this, here's the wiki memory idea, here's the code")
 - **09:00 PT / 12:00 PT / 15:00 PT / 18:00 PT** — Respond to **every** PH comment within 30 minutes. Non-negotiable.
 - **17:00 PT** — Mid-day check: if we're not top-10, ship the Telegram bridge demo video as a fresh post and tag @ProductHunt.
