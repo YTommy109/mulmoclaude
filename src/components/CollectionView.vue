@@ -902,11 +902,17 @@ async function loadCollection(slug: string): Promise<void> {
  *  and it'd be identical in every row). The detail modal and the edit
  *  form iterate the full `schema.fields` so embeds render there too. */
 // Fields shown as columns in the list table. Excludes `embed`
-// (display-only fixed record, no per-record value) and `image` — a
+// (display-only fixed record, no per-record value), `image` — a
 // per-row <img> fetches one file each, too expensive for a collection
-// with many records, and the image is shown in the detail view anyway.
+// with many records, and the image is shown in the detail view anyway —
+// and the primary key (an id is plumbing, not data: it identifies the
+// row via data-testid / ref links but doesn't earn a column).
 const listColumnFields = computed<[string, FieldSpec][]>(() =>
-  collection.value ? Object.entries(collection.value.schema.fields).filter(([, field]) => field.type !== "embed" && field.type !== "image") : [],
+  collection.value
+    ? Object.entries(collection.value.schema.fields).filter(
+        ([key, field]) => field.type !== "embed" && field.type !== "image" && key !== collection.value?.schema.primaryKey,
+      )
+    : [],
 );
 
 /** True when the current collection declares `schema.singleton` —
@@ -1177,7 +1183,12 @@ function syncViewToSelected(): void {
     viewing.value = null;
     return;
   }
-  viewing.value = findItemById(selected) ?? null;
+  const match = findItemById(selected) ?? null;
+  viewing.value = match;
+  // A deep link / notification can target a row that loaded off-screen
+  // (long collection). Bring the now-open record into view — the save
+  // path already does this; the `?selected=` path must too.
+  if (match) scrollOpenPanelIntoView();
 }
 
 /** Title for the open-mode header: the record's primary-key value

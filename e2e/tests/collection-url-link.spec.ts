@@ -72,12 +72,13 @@ test.describe("collection URL links", () => {
 
   test("detail view renders an http(s) URL value as a new-tab link", async ({ page }) => {
     await page.goto("/collections/reading-list");
-    // Click the ID cell rather than the row's geometric center — the
-    // center may land on the URL link cell, whose `@click.stop` would
-    // (correctly) block the row's openView handler. This test is about
-    // the detail-side rendering; the click-boundary itself is pinned
-    // by the next test below.
-    await page.getByTestId("collections-row-anthropic-blog").getByText("anthropic-blog").click();
+    // Click the plain-text `notes` cell rather than the row's geometric
+    // center — the center may land on the URL link cell, whose
+    // `@click.stop` would (correctly) block the row's openView handler.
+    // (The id column is hidden, so we can't click that.) This test is
+    // about the detail-side rendering; the click-boundary itself is
+    // pinned by the next test below.
+    await page.getByTestId("collections-row-anthropic-blog").getByText("Skim the latest post").click();
     await expect(page.getByTestId("collections-detail")).toBeVisible();
     const link = page.getByTestId("collections-detail-url-url");
     await expect(link).toBeVisible();
