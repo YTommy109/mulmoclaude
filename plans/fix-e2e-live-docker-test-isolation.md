@@ -70,5 +70,8 @@
   を立てる（fresh-boot specs のみ選択＝host を書く兄弟がいないので強制が健全）ため、
   単体実行では汚染検査が引き続き効く。`--workers=1` の full-suite 実行でも効く。
   この coverage 配分が許容範囲か（full 並列だけ skip）を確認したい。
-- L-31 ヘルパーが `server/agent/config.ts` の `CONTAINER_WORKSPACE_PATH` を import
-  することで、中央 fixture の読み込みグラフに `config.ts` が加わる点の是非。
+- 本 PR は **test ファイルのみ**（`server/` 非変更）。sandbox mount パス
+  `/home/node/mulmoclaude` は `server/agent/config.ts` の `CONTAINER_WORKSPACE_PATH`
+  と同値だが、テスト fixture 内にローカル定数として複製している（`config.ts` を
+  import すると重い依存グラフを引き込みユニットテストが壊れるため）。この重複が
+  許容範囲か（将来 config.ts 側が変わったら追従が必要）を確認したい。

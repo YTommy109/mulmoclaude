@@ -4,8 +4,14 @@
 
 import path from "node:path";
 
-import { CONTAINER_WORKSPACE_PATH } from "../../server/agent/containerWorkspace.ts";
 import { isValidSlug } from "../../server/utils/slug.ts";
+
+// Absolute path the host workspace is bind-mounted at inside the Docker
+// sandbox. Mirrors `CONTAINER_WORKSPACE_PATH` in `server/agent/config.ts`;
+// kept as a local literal (not imported) so this test fixture stays free
+// of config.ts's heavy module graph (@mulmobridge/*, mcp shim, …) — which
+// would otherwise break the unit test in a freshly-installed worktree.
+const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
 /**
  * Tail-anchored matcher for a staging-skill `SKILL.md` write. The
