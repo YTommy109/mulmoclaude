@@ -836,6 +836,79 @@ function jsonSyntaxError(relPath: string, content: string): string | null {
 // (per `classify`) are editable — binary, image, audio, etc. are
 // refused so the endpoint can't be used to ship arbitrary uploads.
 // The file must already exist; creating new files is out of scope.
+// Resolve a path for a file we expect to NOT exist yet (POST create).
+// `resolveExistingTextFile` requires existence and bails with 404 for
+// new files, which is exactly the create case — so this helper does
+// the workspace-containment check without touching disk, then the
+// caller checks non-existence separately.
+function resolveNewFilePath(relPathRaw: string): { ok: true; absPath: string } | { ok: false; status: 400; message: string } {
+  const normalised = path.normalize(relPathRaw);
+  if (path.isAbsolute(normalised)) return { ok: false, status: 400, message: "Path must be workspace-relative" };
+  const candidate = path.resolve(workspaceReal, normalised);
+  const relativeFromWorkspace = path.relative(workspaceReal, candidate);
+  const escapesSyntactically = relativeFromWorkspace === ".." || relativeFromWorkspace.startsWith(`..${path.sep}`);
+  if (escapesSyntactically) return { ok: false, status: 400, message: "Path outside workspace" };
+  // Sensitive-path block: PUT inherits this via resolveSafe (which
+  // calls realpathSync, refused for non-existent paths) — for create
+  // we have to apply isSensitivePath explicitly. Without this guard,
+  // a malicious client could POST `.env` and write workspace secrets.
+  if (isSensitivePath(relativeFromWorkspace)) return { ok: false, status: 400, message: "Path not allowed" };
+  if (classify(candidate) !== "text") return { ok: false, status: 400, message: "File type not editable" };
+  return { ok: true, absPath: candidate };
+}
+
+// Create a new text file. Refuses to overwrite — that's PUT's job and
+// requires a separate explicit-overwrite UX. Used by the File
+// Explorer's "New file" context menu (#1598) where the client already
+// passes a slug for a file it believes doesn't exist; we re-check
+// here to close the TOCTOU window between two tabs.
+router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteContentRequest>, res: Response<WriteContentResponse | ErrorResponse>) => {
+  const validation = validatePutContentRequest(req.body);
+  if (!validation.ok) {
+    log.warn("files", validation.logMsg, validation.logExtra);
+    badRequest(res, validation.message);
+    return;
+  }
+  const { relPath, content, bytes: contentBytes } = validation;
+  log.info("files", "POST create: start", { pathPreview: previewSnippet(relPath), bytes: contentBytes });
+
+  const resolved = resolveNewFilePath(relPath);
+  if (!resolved.ok) {
+    badRequest(res, resolved.message);
+    return;
+  }
+  const existing = await statSafeAsync(resolved.absPath);
+  if (existing) {
+    log.warn("files", "POST create: conflict", { pathPreview: previewSnippet(relPath) });
+    sendError(res, 409, "File already exists");
+    return;
+  }
+  const jsonError = jsonSyntaxError(relPath, content);
+  if (jsonError !== null) {
+    log.warn("files", "POST create: invalid JSON", { pathPreview: previewSnippet(relPath) });
+    badRequest(res, jsonError);
+    return;
+  }
+  try {
+    await writeFileContent(resolved.absPath, content);
+  } catch (err) {
+    log.error("files", "POST create: write threw", { pathPreview: previewSnippet(relPath), error: errorMessage(err) });
+    serverError(res, "Failed to create file");
+    return;
+  }
+  const fresh = await statSafeAsync(resolved.absPath);
+  log.info("files", "POST create: ok", {
+    pathPreview: previewSnippet(relPath),
+    bytes: fresh?.size ?? contentBytes,
+  });
+  void publishFileChange(relPath);
+  res.json({
+    path: relPath,
+    size: fresh?.size ?? contentBytes,
+    modifiedMs: fresh?.mtimeMs ?? Date.now(),
+  });
+});
+
 router.put(API_ROUTES.files.content, async (req: Request<object, unknown, WriteContentRequest>, res: Response<WriteContentResponse | ErrorResponse>) => {
   const validation = validatePutContentRequest(req.body);
   if (!validation.ok) {

@@ -76,7 +76,7 @@ import { useMarkdownMode } from "../composables/useMarkdownMode";
 import { useFileSortMode } from "../composables/useFileSortMode";
 import { useContentDisplay } from "../composables/useContentDisplay";
 import { useMarkdownLinkHandler } from "../composables/useMarkdownLinkHandler";
-import { apiPut } from "../utils/api";
+import { apiPost, apiPut } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
 import { toSchedulerResult } from "../utils/filesPreview/schedulerPreview";
 import { toTodoExplorerResult } from "../utils/filesPreview/todoPreview";
@@ -159,20 +159,30 @@ watch(content, () => {
 async function handleCreateFile(args: { folder: string; filename: string; resolve: (ok: boolean, error?: string) => void }): Promise<void> {
   const { folder, filename, resolve } = args;
   const targetPath = folder ? `${folder}/${filename}` : filename;
-  // Conflict check via the local cache — avoids a round-trip and
-  // matches what the user sees on screen. The PUT itself doesn't
-  // refuse overwrites today, so this is the only barrier.
+  // Client-side conflict pre-check via the local cache — cheap and
+  // matches what the user sees. The server's create endpoint also
+  // refuses on conflict (#1598), so a tab racing with another that
+  // already won would still get a 409 below — this just turns the
+  // common case into a localised inline error without a round-trip.
   const cached = childrenByPath.value.get(folder);
   if (Array.isArray(cached) && cached.some((child) => child.name === filename)) {
     resolve(false, t("fileTree.newFileError.exists", { filename }));
     return;
   }
-  const result = await apiPut<{ path: string; size: number; modifiedMs: number }>(API_ROUTES.files.content, {
+  const result = await apiPost<{ path: string; size: number; modifiedMs: number }>(API_ROUTES.files.create, {
     path: targetPath,
     content: "",
   });
   if (!result.ok) {
-    resolve(false, result.error);
+    // Map HTTP status to a localised message so the inline error
+    // matches the rest of the menu's language. 409 = a race lost
+    // to another tab/agent that just created the same file.
+    if (result.status === 409) {
+      resolve(false, t("fileTree.newFileError.exists", { filename }));
+      await reloadDirChildren(folder);
+      return;
+    }
+    resolve(false, t("fileTree.newFileError.saveFailed"));
     return;
   }
   resolve(true);
