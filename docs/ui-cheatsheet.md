@@ -395,6 +395,31 @@ Clicking a list row marks it read (badge decrements). The "Mark all read" button
 
 The preview pane reuses plugin views — clicking a `config/scheduler/items.json` mounts `<CalendarView>` via `toSchedulerResult`. System-managed files (`config/*.json`, `data/wiki/*.md`, `conversations/memory.md`, …) get a `[system-file-banner]` above the body explaining what the file is, who writes it, and whether hand-edits survive (descriptors live in `src/config/systemFileDescriptors.ts`; #832).
 
+## /collections — schema-driven record tables
+
+```
+┌─[<CollectionView> — /collections/:slug]────────────────────────────────┐
+│ Toolbar: [collection-view-toggle-table | -calendar | -kanban] · search  │
+│                                                                         │
+│ [collections-inline-error] (banner, only after a failed inline write)   │
+│ ┌─Table──────────────────────────────────────────────────────────────┐ │
+│ │ ID        │ Yoga                  │ Status                          │ │
+│ │ [collections-row-<id>] (whole row click → detail panel)            │ │
+│ │  jun-03   │ ☑ [collections-      │ ▾ [collections-                 │ │
+│ │           │   inline-bool-       │   inline-enum-                  │ │
+│ │           │   <key>-<id>]        │   <key>-<id>]                   │ │
+│ └────────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+│ Row click expands [collections-detail] (read-only → Edit → Save).       │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+`boolean` columns render an inline checkbox and `enum` columns an inline `<select>` directly in the table cell — changing one writes the value straight to the record (`PUT .../items/:id`, optimistic + rollback on failure) without opening the detail panel. The controls use `@click.stop` so the cell click never bubbles into the row's `openView`. All other field types (and the full edit form) still go through the row → `[collections-detail]` → Edit → Save flow.
+
+The **Calendar** toggle (`[collection-view-toggle-calendar]`) appears only when the schema has a `date` field; the **Kanban** toggle (`[collection-view-toggle-kanban]`) only when it has an `enum` field. `<CollectionKanbanView>` groups records into columns by the chosen enum field (declared `values` order + a trailing **Uncategorized** column for empty/unknown values — omitted when the chosen enum is declared `required`), with a `[collection-kanban-field]` selector when >1 enum field exists. Dragging a card (`[collection-kanban-card-<id>]`) between columns writes the group field via the same inline-edit PUT (no column drag, no within-column ordering); a card whose group field is hidden by a `when` predicate is omitted from the board. Card click opens the same detail panel below the board.
+
+A `toggle` field is a checkbox that **projects** an `enum` field (stores nothing itself): checked when the enum equals its `onValue`, toggling writes `onValue`/`offValue` back to that enum. It renders inline in the table (`[collections-inline-toggle-<key>-<id>]`) and on the kanban card (`[collection-kanban-toggle-<id>]`, shown when it projects the board's group field — checking it also moves the card). This is how a todo-style "done" checkbox fronts a kanban `status` while keeping the enum as the single source of truth.
+
 ## /skills — workspace skills list
 
 Two-pane layout (`<ManageSkillsView>`): left sidebar = two collapsible
