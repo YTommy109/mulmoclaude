@@ -1025,6 +1025,189 @@ describe("discoverCollections — triggerField + spawn validation", () => {
   });
 });
 
+describe("discoverCollections — calendarField + calendarEndField validation", () => {
+  // A collection with two date fields, cloned + mutated per case.
+  function calendarSchema(extra: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      title: "Events",
+      icon: "event",
+      dataPath: "data/events/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        name: { type: "string", label: "Name", required: true },
+        on: { type: "date", label: "Date", required: true },
+        until: { type: "date", label: "End" },
+      },
+      ...extra,
+    };
+  }
+
+  it("accepts a schema with no calendar keys (toggle auto-derives from the date field)", async () => {
+    writeSkill("test-cal-none", calendarSchema());
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("accepts a valid calendarField + calendarEndField", async () => {
+    writeSkill("test-cal-ok", calendarSchema({ calendarField: "on", calendarEndField: "until" }));
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("accepts calendarField alone", async () => {
+    writeSkill("test-cal-anchor-only", calendarSchema({ calendarField: "on" }));
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("rejects calendarField naming a non-date field", async () => {
+    writeSkill("test-cal-non-date", calendarSchema({ calendarField: "name" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects calendarField naming a missing field", async () => {
+    writeSkill("test-cal-missing", calendarSchema({ calendarField: "nope" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects calendarEndField without calendarField", async () => {
+    writeSkill("test-cal-end-no-anchor", calendarSchema({ calendarEndField: "until" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects calendarEndField naming a non-date field", async () => {
+    writeSkill("test-cal-end-non-date", calendarSchema({ calendarField: "on", calendarEndField: "name" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+});
+
+describe("discoverCollections — kanbanField validation", () => {
+  // A collection with an enum field, cloned + mutated per case.
+  function kanbanSchema(extra: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      title: "Tasks",
+      icon: "checklist",
+      dataPath: "data/tasks/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        name: { type: "string", label: "Name", required: true },
+        status: { type: "enum", label: "Status", values: ["Todo", "Done"] },
+      },
+      ...extra,
+    };
+  }
+
+  it("accepts a schema with no kanbanField (toggle auto-derives from the enum field)", async () => {
+    writeSkill("test-kanban-none", kanbanSchema());
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("accepts a valid kanbanField and preserves it through parsing", async () => {
+    writeSkill("test-kanban-ok", kanbanSchema({ kanbanField: "status" }));
+    const collection = await loadCollection("test-kanban-ok", { workspaceRoot: workdir, userSkillsDir: emptyUserDir });
+    assert.equal(collection?.schema.kanbanField, "status");
+  });
+
+  it("rejects kanbanField naming a non-enum field", async () => {
+    writeSkill("test-kanban-non-enum", kanbanSchema({ kanbanField: "name" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects kanbanField naming a missing field", async () => {
+    writeSkill("test-kanban-missing", kanbanSchema({ kanbanField: "nope" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+});
+
+describe("discoverCollections — toggle field validation", () => {
+  // A collection with an enum `status` field and a `done` toggle projecting
+  // it, cloned + mutated per case.
+  function toggleSchema(doneField: Record<string, unknown>): Record<string, unknown> {
+    return {
+      title: "Tasks",
+      icon: "checklist",
+      dataPath: "data/tasks/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        name: { type: "string", label: "Name", required: true },
+        status: { type: "enum", label: "Status", values: ["Todo", "Done"] },
+        done: { type: "toggle", label: "Done", ...doneField },
+      },
+    };
+  }
+
+  it("accepts a valid toggle and preserves it through parsing", async () => {
+    writeSkill("test-toggle-ok", toggleSchema({ field: "status", onValue: "Done", offValue: "Todo" }));
+    const collection = await loadCollection("test-toggle-ok", { workspaceRoot: workdir, userSkillsDir: emptyUserDir });
+    assert.equal(collection?.schema.fields.done?.type, "toggle");
+    assert.equal(collection?.schema.fields.done?.field, "status");
+    assert.equal(collection?.schema.fields.done?.onValue, "Done");
+  });
+
+  it("rejects a toggle missing field/onValue/offValue", async () => {
+    writeSkill("test-toggle-incomplete", toggleSchema({ field: "status" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a toggle whose field names a non-enum field", async () => {
+    writeSkill("test-toggle-non-enum", toggleSchema({ field: "name", onValue: "Done", offValue: "Todo" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a toggle whose field names a missing field", async () => {
+    writeSkill("test-toggle-missing-field", toggleSchema({ field: "nope", onValue: "Done", offValue: "Todo" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a toggle whose onValue is not one of the enum's values", async () => {
+    writeSkill("test-toggle-bad-value", toggleSchema({ field: "status", onValue: "Finished", offValue: "Todo" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a toggle whose offValue is not one of the enum's values", async () => {
+    writeSkill("test-toggle-bad-off-value", toggleSchema({ field: "status", onValue: "Done", offValue: "Finished" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+});
+
+describe("discoverCollections — notifyWhen validation", () => {
+  function notifySchema(extra: Record<string, unknown>): Record<string, unknown> {
+    return {
+      title: "Todos",
+      icon: "check_circle",
+      dataPath: "data/todos/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        priority: { type: "enum", label: "Priority", values: ["low", "high"] },
+        status: { type: "enum", label: "Status", values: ["Todo", "Done"], required: true },
+      },
+      completionField: "status",
+      completionDoneValues: ["Done"],
+      ...extra,
+    };
+  }
+
+  it("accepts a valid notifyWhen and preserves it through parsing", async () => {
+    writeSkill("test-notify-ok", notifySchema({ notifyWhen: { field: "priority", in: ["high"] } }));
+    const collection = await loadCollection("test-notify-ok", { workspaceRoot: workdir, userSkillsDir: emptyUserDir });
+    assert.deepEqual(collection?.schema.notifyWhen, { field: "priority", in: ["high"] });
+  });
+
+  it("rejects notifyWhen without completionField", async () => {
+    writeSkill(
+      "test-notify-no-completion",
+      notifySchema({ completionField: undefined, completionDoneValues: undefined, notifyWhen: { field: "priority", in: ["high"] } }),
+    );
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects notifyWhen naming a missing field", async () => {
+    writeSkill("test-notify-missing-field", notifySchema({ notifyWhen: { field: "nope", in: ["high"] } }));
+    assert.equal((await listCollections()).length, 0);
+  });
+});
+
 describe("loadCollection", () => {
   it("returns the named project-scope collection", async () => {
     writeSkill("test-load", {

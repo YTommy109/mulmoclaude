@@ -113,7 +113,7 @@ const SubFieldSpecSchema = z
 
 const FieldSpecSchema = z
   .object({
-    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref", "money", "enum", "table", "derived", "embed", "image"]),
+    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref", "money", "enum", "table", "derived", "embed", "image", "toggle"]),
     label: z.string().min(1),
     primary: z.boolean().optional(),
     required: z.boolean().optional(),
@@ -122,6 +122,12 @@ const FieldSpecSchema = z
     currency: z.string().trim().min(1).optional(),
     currencyField: z.string().trim().min(1).optional(),
     values: z.array(z.string().trim().min(1)).min(1).optional(),
+    // `toggle` projection: the enum field it fronts + the checked/unchecked
+    // values written to it. Validated against the target enum's `values` by
+    // a schema-level refine below.
+    field: z.string().trim().min(1).optional(),
+    onValue: z.string().trim().min(1).optional(),
+    offValue: z.string().trim().min(1).optional(),
     of: z.record(z.string(), SubFieldSpecSchema).optional(),
     formula: z.string().trim().min(1).optional(),
     /** Inner type to render a derived value as (e.g. `"money"`).
@@ -147,7 +153,16 @@ const FieldSpecSchema = z
   .refine((spec) => spec.type !== "derived" || (typeof spec.formula === "string" && spec.formula.length > 0), {
     message: "fields with type 'derived' must declare a non-empty `formula` (see src/utils/collections/derivedFormula.ts)",
     path: ["formula"],
-  });
+  })
+  .refine(
+    (spec) =>
+      spec.type !== "toggle" ||
+      (typeof spec.field === "string" && spec.field.length > 0 && typeof spec.onValue === "string" && typeof spec.offValue === "string"),
+    {
+      message: "fields with type 'toggle' must declare `field` (the enum field to project), `onValue`, and `offValue`",
+      path: ["field"],
+    },
+  );
 
 // A schema-declared record action. Domain-free: the host validates the
 // shape; the meaning (which role, which template) is data.
@@ -211,6 +226,23 @@ function collectCurrencyFieldRefs(fields: Record<string, FieldLike>): string[] {
   return refs;
 }
 
+// True iff every `toggle` field is a valid projection: its `field` names a
+// top-level `enum`, and both `onValue` and `offValue` are members of that
+// enum's closed `values` set.
+function everyToggleProjectsValidEnum(
+  fields: Record<string, { type: string; field?: string; onValue?: string; offValue?: string; values?: readonly string[] }>,
+): boolean {
+  for (const spec of Object.values(fields)) {
+    if (spec.type !== "toggle") continue;
+    const target = spec.field === undefined ? undefined : fields[spec.field];
+    if (!target || target.type !== "enum" || target.values === undefined) return false;
+    const allowed = new Set(target.values);
+    if (spec.onValue === undefined || !allowed.has(spec.onValue)) return false;
+    if (spec.offValue === undefined || !allowed.has(spec.offValue)) return false;
+  }
+  return true;
+}
+
 // True iff a `spawn`'s successor will NOT be born already matching its own
 // predicate (and would therefore re-spawn forever). The effective predicate
 // is `spawn.when` when present, else the completion-done pair. The successor's
@@ -267,6 +299,23 @@ const CollectionSchemaZ = z
     triggerLeadDays: z.number().int().min(0).optional(),
     // Host-driven recurrence; requires `triggerField`. See SpawnSchema.
     spawn: SpawnSchema.optional(),
+    // Calendar view anchor: names a `date` field whose value places each
+    // record on a month grid. Validated to name a real `date` field by a
+    // refine below. Optional — the toggle auto-derives from any `date`
+    // field when this is unset.
+    calendarField: z.string().trim().min(1).optional(),
+    // Multi-day span end: a second `date` field the calendar record spans
+    // to. Requires `calendarField`; validated to name a real `date` field.
+    calendarEndField: z.string().trim().min(1).optional(),
+    // Kanban board group: names an `enum` field whose value buckets each
+    // record into a column. Validated to name a real `enum` field by a
+    // refine below. Optional — the toggle auto-derives from any `enum`
+    // field when this is unset.
+    kanbanField: z.string().trim().min(1).optional(),
+    // Completion-bell gate: only notify for records matching this predicate
+    // (e.g. high-priority todos). Reuses the `when` shape; requires
+    // `completionField`; field validated to exist by refines below.
+    notifyWhen: WhenSchema.optional(),
   })
   // The singleton value becomes a record id (and thus a `<id>.json`
   // filename), so it must satisfy the SAME `safeSlugName` rule the
@@ -368,6 +417,49 @@ const CollectionSchemaZ = z
     message:
       "`spawn` must leave the successor in a non-matching state (e.g. `set` the status to a pending value); seeding the predicate field to a matching value via `set`/`carry` would respawn forever",
     path: ["spawn"],
+  })
+  // `calendarField` must name a real `date` field — the calendar view
+  // parses its value as `YYYY-MM-DD` to place records on the month grid;
+  // any other type can't be put on a calendar.
+  .refine((schema) => schema.calendarField === undefined || schema.fields[schema.calendarField]?.type === "date", {
+    message: "schema `calendarField` must name a top-level `date` field declared in `fields`",
+    path: ["calendarField"],
+  })
+  // `calendarEndField` marks the end of a multi-day span, so it only means
+  // something alongside a start anchor.
+  .refine((schema) => schema.calendarEndField === undefined || schema.calendarField !== undefined, {
+    message: "schema `calendarEndField` requires `calendarField` (it marks the end of the span that starts at `calendarField`)",
+    path: ["calendarEndField"],
+  })
+  // `calendarEndField` must also name a real `date` field — same parse.
+  .refine((schema) => schema.calendarEndField === undefined || schema.fields[schema.calendarEndField]?.type === "date", {
+    message: "schema `calendarEndField` must name a top-level `date` field declared in `fields`",
+    path: ["calendarEndField"],
+  })
+  // `kanbanField` must name a real `enum` field — the board groups records
+  // into one column per declared enum value; any other type has no closed
+  // set of columns to group by.
+  .refine((schema) => schema.kanbanField === undefined || schema.fields[schema.kanbanField]?.type === "enum", {
+    message: "schema `kanbanField` must name a top-level `enum` field declared in `fields`",
+    path: ["kanbanField"],
+  })
+  // A `toggle` field projects an `enum` field: its `field` must name a real
+  // top-level enum, and `onValue` / `offValue` must be members of that
+  // enum's `values` — otherwise toggling would write a value outside the
+  // closed set (and never appear "checked").
+  .refine((schema) => everyToggleProjectsValidEnum(schema.fields), {
+    message: "a `toggle` field's `field` must name a top-level `enum` field, and its `onValue`/`offValue` must be values of that enum",
+    path: ["fields"],
+  })
+  // `notifyWhen` narrows the completion bell, so it only means something with
+  // completion tracking, and its `field` must name a real top-level field.
+  .refine((schema) => schema.notifyWhen === undefined || schema.completionField !== undefined, {
+    message: "schema `notifyWhen` requires `completionField` (it narrows that bell)",
+    path: ["notifyWhen"],
+  })
+  .refine((schema) => schema.notifyWhen === undefined || schema.fields[schema.notifyWhen.field] !== undefined, {
+    message: "schema `notifyWhen.field` must name a top-level field declared in `fields`",
+    path: ["notifyWhen"],
   });
 
 interface LoadedCollection {
