@@ -99,21 +99,16 @@ export const ROLES: Role[] = [
       // installed runtime plugins (`~/mulmoclaude/plugins/*`) are
       // added to roles via Settings → Roles.
       TOOL_NAMES.manageBookmarks,
-      TOOL_NAMES.manageTodoList,
       TOOL_NAMES.manageSpotify,
     ],
     queries: [
-      "Show me my calendar",
-      "Show my todo list",
-      "What recurring obligations do I have?",
-      "Add a bookmark for this URL",
-      "Where are the photos I took last weekend?",
-      "Play some focus music on Spotify",
-      "Remind me to call mom this evening",
+      "Set up a todo list. First read `config/helps/todo-collection.md` and follow it exactly to author the todos collection — do not redesign the schema or ask me design questions.",
       "Create a contacts collection with name, company, title, email, phone, notes, and a business-card image. When I attach a photo of a business card, read the details off it and add a new contact.",
       "Create a reading-list collection with a title, a URL field, and a Read checkbox. While Read is unchecked, keep each item in the bell notifications, labeled with its title.",
       "Create a restaurants collection with name, cuisine, neighborhood, a website URL, a phone number, a Visited checkbox, a 1-to-5 rating, and notes. Hide the rating until I've marked a place as visited — there's nothing to rate before I've been.",
       "Create a bills collection to track recurring payments — payee, amount, due date, and status. Remind me 10 days before each bill is due, and when I mark one paid, automatically set up next month's bill.",
+      "Set up client and time tracking for my consulting work. First read `config/helps/billing-clients-worklog.md` and follow it exactly to author the clients and worklog collections — do not redesign the schemas or ask me design questions.",
+      "Set up invoicing for my business. First read `config/helps/billing-invoice.md` and follow it exactly to author the invoice and profile collections — do not redesign the schemas or ask me design questions.",
     ],
   },
   {
@@ -213,6 +208,7 @@ export const ROLES: Role[] = [
       TOOL_NAMES.generateImage,
       TOOL_NAMES.presentHtml,
       TOOL_NAMES.presentChart,
+      TOOL_NAMES.presentCollection,
       TOOL_NAMES.manageSkills,
     ],
     queries: [
@@ -221,6 +217,7 @@ export const ROLES: Role[] = [
       "Explain how sorting algorithms compare visually",
       "Help me understand fractions and decimals",
       "Teach me about the water cycle",
+      "I want to build my vocabulary in a new language — ask me which language I'm learning and my current level, then read config/helps/vocabulary.md, set up a vocabulary collection, and fill it with fifty words and sample sentences appropriate for my level to track my progress",
     ],
   },
   {
@@ -338,6 +335,7 @@ export const ROLES: Role[] = [
       TOOL_NAMES.presentChart,
       TOOL_NAMES.presentHtml,
       TOOL_NAMES.presentMulmoScript,
+      TOOL_NAMES.presentCollection,
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
     ],
@@ -348,8 +346,7 @@ export const ROLES: Role[] = [
       "What did TSLA say about FSD revenue in their latest 10-Q?",
       "Show insider transactions filed by META officers in the last 90 days",
       "Build a peer-comparison table for the top 5 US semiconductor companies",
-      "Create a stock quote collection for me, which has ticker symbol, company name, latest stock price, P/E ratio and dividend yield. Then, acquire the data for mag7 stocks and add them to that collection",
-      "Create a my-portfolio collection, which calculates the value of each holding by referencing the data in the stock quote collection. I have 100 shares of Apple and 200 shares of Tesla.",
+      "Set up a stock portfolio tracker — a stock-quotes watchlist plus a portfolio that values my holdings against it. First read `config/helps/portfolio-tracker.md` and follow it exactly to author both collections — do not redesign the schemas or ask me design questions.",
     ],
   },
   // The `cookingCoach` built-in role was removed (#1286). Recipe
@@ -403,7 +400,6 @@ export const ROLES: Role[] = [
       // by `availablePlugins` (see `general` role's note); listing
       // them here keeps the debug role's "kitchen sink" promise.
       TOOL_NAMES.manageBookmarks,
-      TOOL_NAMES.manageTodoList,
       TOOL_NAMES.manageSpotify,
       // manageRecipes removed (#1286) — recipe-book-plugin no longer
       // in PRESET_PLUGINS; recipes drive via the `mc-cooking-coach`

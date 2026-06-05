@@ -37,10 +37,12 @@ const zhMessages = {
   chatInput: {
     placeholder: "向 Claude 发送消息…",
     send: "发送",
+    stop: "停止",
     attachFile: "附加文件",
     fileTooLarge: "文件过大（{sizeMB} MB）。上限为 30 MB。",
     unsupportedFileType: "不支持的文件类型。支持:图像、PDF、DOCX、XLSX、PPTX、文本文件。",
     attachImageFailed: "附加图片失败：{error}",
+    stopFailed: "停止处理失败：{error}",
     dropHint: "拖放文件以附加",
   },
   sessionHistoryPanel: {
@@ -91,6 +93,10 @@ const zhMessages = {
     titleNotResponding: "{command} 未运行",
     notFound: "未找到 {command} — 相关功能已被禁用。请安装 {command} 后重启 MulmoClaude 以启用。",
     notResponding: "{command} 已安装但未运行 — 相关功能已被禁用。请启动 {command} 后重启 MulmoClaude 以启用。",
+  },
+  billingMigration: {
+    title: "开票功能已改为按需设置",
+    body: "内置的 clients、worklog、invoice 和 profile 集合已从仪表盘中移除，但你的数据安全无损。请求设置客户与工时记录，然后设置开票，即可重新创建它们，你现有的记录会重新出现。",
   },
   backendOffline: {
     title: "无法连接到后端",
@@ -150,6 +156,21 @@ const zhMessages = {
   fileTree: {
     workspace: "(工作区)",
     recentlyChanged: "最近修改",
+    newFileMenuItem: "新建文件",
+    newFileInputAria: "新文件名",
+    newFilePlaceholder: {
+      wikiPage: "页面 slug",
+      summary: "摘要名称",
+      document: "文档名称",
+      html: "页面名称",
+      story: "故事名称",
+    },
+    newFileError: {
+      empty: "文件名不能为空。",
+      unsafe: "文件名包含无效字符。",
+      exists: "此处已存在名为 {filename} 的文件。",
+      saveFailed: "无法创建文件，请重试。",
+    },
   },
   lockStatusPopup: {
     sandboxEnabledTooltip: "沙箱已启用 (Docker)",
@@ -279,7 +300,6 @@ const zhMessages = {
     errLabelConflict: '标签 "{label}" 已存在',
   },
   pluginLauncher: {
-    todos: { label: "待办" },
     calendar: { label: "日历" },
     automations: { label: "自动化" },
     wiki: { label: "百科" },
@@ -349,14 +369,6 @@ const zhMessages = {
     schedulerItems: {
       title: "调度器条目队列",
       summary: "等待触发的预定调用队列。代理管理；除非你清楚每个字段的含义，否则不要手动编辑。",
-    },
-    todosItems: {
-      title: "待办事项",
-      summary: "看板各列中的所有任务。当你说「添加待办」时代理会写入此文件，也可以手动编辑。",
-    },
-    todosColumns: {
-      title: "待办列定义",
-      summary: "看板的列布局（标题、顺序、ID）。用户可编辑 — 可自由重命名或重排。",
     },
     wikiIndex: {
       title: "Wiki 索引",
@@ -853,54 +865,6 @@ const zhMessages = {
     previewSummary: "会计 · {bookId}",
     previewError: "会计: {error}",
     previewGeneric: "会计结果",
-  },
-  todoExplorer: {
-    heading: "待办",
-    deleteConfirm: "删除「{text}」？",
-    doneRatio: "{done}/{total} 完成",
-    addButton: "+ 添加",
-    addColumnButton: "+ 列",
-    labels: "标签:",
-    searchPlaceholder: "搜索...",
-    clearButton: "清除 ✕",
-    clearFiltersTitle: "清除标签筛选",
-    emptyHint: '还没有待办项。点击 "+ 添加" 新建一个。',
-    addColumn: "添加列",
-    newColumnLabelField: "标签",
-    newColumnPlaceholder: "Review",
-    noMatchingFilter: "没有项目匹配当前筛选",
-  },
-  todoDialogs: {
-    addTitle: "添加待办",
-    editTitle: "编辑待办",
-    deleteButton: "删除",
-    deleteTitle: "删除此项",
-    noneOption: "— 无 —",
-    fieldText: "文本",
-    fieldNote: "备注",
-    fieldStatus: "状态",
-    fieldPriority: "优先级",
-    fieldDueDate: "截止日期",
-    fieldLabels: "标签",
-    fieldLabelsCommaSeparated: "标签(逗号分隔)",
-    textPlaceholder: "要做什么?",
-    labelsPlaceholder: "工作, 紧急",
-  },
-  todoKanban: {
-    rename: "重命名",
-    markAsDoneColumn: "设为完成列",
-    removeAllItems: "删除所有项目",
-    removeAllItemsConfirm: "确定要删除“{column}”中的所有 {count} 个项目吗？此操作无法撤销。",
-    deleteColumn: "删除列",
-    columnActions: "列操作",
-    addCard: "+ 添加卡片",
-    openCardAria: "打开任务: {task}",
-  },
-  todoTableList: {
-    noMatchingFilter: "没有项目匹配当前筛选",
-    sortColumnAria: "按 {column} 排序",
-    expandRowAria: "展开任务: {task}",
-    deleteItem: "删除项目",
   },
   pluginWiki: {
     backToIndex: "返回目录",

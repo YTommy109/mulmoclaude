@@ -19,8 +19,8 @@ A quick visual reference so chat instructions about UI ("the bell at the top rig
 │ │                                              ⚙ settings          │  │
 │ └──────────────────────────────────────────────────────────────────┘  │
 │ ┌─<PluginLauncher> [plugin-launcher]──────────────────────────────┐   │
-│ │ ✓Todos │📅Calendar │⏰Actions │📖Wiki │📡Sources │🧠Skills │🎭Roles│📁Files│   │
-│ │ [plugin-launcher-todos] [plugin-launcher-calendar] ...          │   │
+│ │ 📅Calendar │⏰Actions │📖Wiki │📡Sources │🧠Skills │🎭Roles│📁Files│   │
+│ │ [plugin-launcher-calendar] [plugin-launcher-automations] ...    │   │
 │ └─────────────────────────────────────────────────────────────────┘   │
 │ ┌─[main pane — route-specific]────┐ ┌─<SessionHistoryPanel>────────┐  │
 │ │                                 │ │ [session-history-side-panel] │  │
@@ -111,6 +111,8 @@ In **Stack layout** this sidebar isn't rendered; the same data flows through `<S
 │ │                                       │ │ the top of certain views │  │
 │ │  ┌─<ChatInput> [chat-input/wrapper]─┐ │ │                          │  │
 │ │  │ <SuggestionsPanel> (when open)   │ │ │                          │  │
+│ │  │ <SlashCommandMenu> (typing "/")  │ │ │                          │  │
+│ │  │   [slash-command-menu]           │ │ │                          │  │
 │ │  │ [user-input]                  …  │ │ │                          │  │
 │ │  │ [suggestions-btn] (if queries)   │ │ │                          │  │
 │ │  │ [send-btn] [stop-btn]            │ │ │                          │  │
@@ -230,8 +232,9 @@ several layouts: the **index** (page list), a **single page** body, the activity
 │ ┌─[wiki-linked-references] (pages whose [[links]] point here)┐ │
 │ │ • [wiki-linked-reference-<slug>] → /wiki/pages/<slug>     │ │
 │ └───────────────────────────────────────────────────────────┘ │
-│ Per-page chat composer:                                       │
+│ Per-page chat composer (<PageChatComposer>):                  │
 │   [wiki-page-chat-input]  [wiki-page-chat-send]               │
+│   typing "/" → <SlashCommandMenu> [slash-command-menu]        │
 └───────────────────────────────────────────────────────────────┘
 ```
 
@@ -341,34 +344,6 @@ Clicking a list row marks it read (badge decrements). The "Mark all read" button
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-## /todos — Kanban / table / list of tasks
-
-```
-┌─[<TodoExplorer> — [todo-view-root]]────────────────────────────────┐
-│ Top bar:                                                           │
-│  [todo-search]   [todo-add-btn]   [todo-column-add-btn]            │
-│  view mode: [todo-view-kanban] [todo-view-table] [todo-view-list]  │
-│                                                                    │
-│ Kanban (default):                                                  │
-│ ┌─Backlog─────┐ ┌─Todo──────┐ ┌─In Progress─┐ ┌─Done────────┐      │
-│ │             │ │           │ │             │ │             │      │
-│ │ [todo-card- │ │           │ │             │ │             │      │
-│ │  <id>]      │ │           │ │             │ │             │      │
-│ │   Title     │ │           │ │             │ │             │      │
-│ │   #label    │ │           │ │             │ │             │      │
-│ │             │ │           │ │             │ │             │      │
-│ └─────────────┘ └───────────┘ └─────────────┘ └─────────────┘      │
-│                                                                    │
-│ Drag cards across columns to change state.                         │
-│                                                                    │
-│ Add dialog (TodoAddDialog):                                        │
-│  [todo-add-dialog-text]   [todo-add-dialog-submit]                 │
-│                                                                    │
-│ Edit dialog (TodoEditDialog) — opens on card click:                │
-│  [todo-edit-dialog-delete]                                         │
-└────────────────────────────────────────────────────────────────────┘
-```
-
 ## /files — workspace file explorer
 
 ```
@@ -385,7 +360,6 @@ Clicking a list row marks it read (badge decrements). The "Mark all read" button
 │ │   • foo.md   ←sel  │ │  │                                        │ │ │
 │ │   • bar.md         │ │  │  • markdown → marked + Vue             │ │ │
 │ │ ...                │ │  │  • images → <img>                      │ │ │
-│ │                    │ │  │  • todos JSON → <TodoExplorer>         │ │ │
 │ │                    │ │  │  • scheduler items.json → <CalendarView>│ │ │
 │ │                    │ │  │  • code → text                         │ │ │
 │ │                    │ │  └────────────────────────────────────────┘ │ │

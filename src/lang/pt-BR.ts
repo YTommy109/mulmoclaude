@@ -32,10 +32,12 @@ const ptBRMessages = {
   chatInput: {
     placeholder: "Mensagem para Claude…",
     send: "Enviar",
+    stop: "Parar",
     attachFile: "Anexar arquivo",
     fileTooLarge: "Arquivo muito grande ({sizeMB} MB). O limite é 30 MB.",
     unsupportedFileType: "Tipo de arquivo não suportado. Aceitos: imagens, PDF, DOCX, XLSX, PPTX e arquivos de texto.",
     attachImageFailed: "Falha ao anexar a imagem: {error}",
+    stopFailed: "Falha ao parar a execução: {error}",
     dropHint: "Solte o arquivo para anexar",
   },
   sessionHistoryPanel: {
@@ -89,6 +91,10 @@ const ptBRMessages = {
     notFound: "{command} não encontrado — recursos relacionados foram desativados. Instale {command} e reinicie o MulmoClaude para habilitá-los.",
     notResponding:
       "{command} está instalado mas não está em execução — recursos relacionados foram desativados. Inicie {command} e reinicie o MulmoClaude para habilitá-los.",
+  },
+  billingMigration: {
+    title: "O faturamento passou a ser configurado sob demanda",
+    body: "As coleções incluídas clients, worklog, invoice e profile foram removidas do seu painel, mas seus dados estão seguros e intactos. Peça para configurar o controle de clientes e horas e, em seguida, o faturamento para recriá-las; seus registros existentes reaparecerão.",
   },
   backendOffline: {
     title: "Não foi possível conectar ao backend",
@@ -149,6 +155,21 @@ const ptBRMessages = {
   fileTree: {
     workspace: "(workspace)",
     recentlyChanged: "Alterados recentemente",
+    newFileMenuItem: "Novo arquivo",
+    newFileInputAria: "Nome do novo arquivo",
+    newFilePlaceholder: {
+      wikiPage: "slug-da-página",
+      summary: "nome-do-resumo",
+      document: "nome-do-documento",
+      html: "nome-da-página",
+      story: "nome-da-história",
+    },
+    newFileError: {
+      empty: "O nome do arquivo não pode ficar vazio.",
+      unsafe: "O nome do arquivo contém caracteres inválidos.",
+      exists: "Já existe um arquivo chamado {filename} aqui.",
+      saveFailed: "Não foi possível criar o arquivo. Tente novamente.",
+    },
   },
   lockStatusPopup: {
     sandboxEnabledTooltip: "Sandbox habilitado (Docker)",
@@ -282,7 +303,6 @@ const ptBRMessages = {
     errLabelConflict: 'Rótulo "{label}" já existe',
   },
   pluginLauncher: {
-    todos: { label: "Tarefas" },
     calendar: { label: "Calendário" },
     automations: { label: "Ações" },
     wiki: { label: "Wiki" },
@@ -353,15 +373,6 @@ const ptBRMessages = {
     schedulerItems: {
       title: "Fila de itens do agendador",
       summary: "Invocações agendadas prontas para disparar. Gerenciado pelo agente; não edite manualmente sem entender cada campo.",
-    },
-    todosItems: {
-      title: "Itens pendentes",
-      summary:
-        'Suas tarefas em todas as colunas do quadro kanban. O agente escreve aqui quando você diz "adicione um todo"; você também pode editar manualmente.',
-    },
-    todosColumns: {
-      title: "Colunas de pendências",
-      summary: "Layout das colunas do kanban (títulos, ordem, ids). Editável pelo usuário — renomeie ou reordene livremente.",
     },
     wikiIndex: {
       title: "Índice da wiki",
@@ -867,54 +878,6 @@ const ptBRMessages = {
     previewSummary: "Contabilidade · {bookId}",
     previewError: "Contabilidade: {error}",
     previewGeneric: "Resultado da contabilidade",
-  },
-  todoExplorer: {
-    heading: "Tarefas",
-    deleteConfirm: 'Excluir "{text}"?',
-    doneRatio: "{done}/{total} feitas",
-    addButton: "+ Adicionar",
-    addColumnButton: "+ Coluna",
-    labels: "Rótulos:",
-    searchPlaceholder: "Buscar...",
-    clearButton: "Limpar ✕",
-    clearFiltersTitle: "Limpar filtros de rótulo",
-    emptyHint: 'Ainda não há tarefas. Clique em "+ Adicionar" para criar uma.',
-    addColumn: "Adicionar coluna",
-    newColumnLabelField: "Rótulo",
-    newColumnPlaceholder: "Revisar",
-    noMatchingFilter: "Nenhum item corresponde ao filtro atual",
-  },
-  todoDialogs: {
-    addTitle: "Adicionar tarefa",
-    editTitle: "Editar tarefa",
-    deleteButton: "Excluir",
-    deleteTitle: "Excluir este item",
-    noneOption: "— Nenhum —",
-    fieldText: "Texto",
-    fieldNote: "Nota",
-    fieldStatus: "Status",
-    fieldPriority: "Prioridade",
-    fieldDueDate: "Data de vencimento",
-    fieldLabels: "Rótulos",
-    fieldLabelsCommaSeparated: "Rótulos (separados por vírgula)",
-    textPlaceholder: "O que precisa ser feito?",
-    labelsPlaceholder: "trabalho, urgente",
-  },
-  todoKanban: {
-    rename: "Renomear",
-    markAsDoneColumn: "Definir como coluna de concluídas",
-    removeAllItems: "Remover todos os itens",
-    removeAllItemsConfirm: 'Remover todos os {count} itens em "{column}"? Esta ação não pode ser desfeita.',
-    deleteColumn: "Excluir coluna",
-    columnActions: "Ações da coluna",
-    addCard: "+ Adicionar cartão",
-    openCardAria: "Abrir tarefa: {task}",
-  },
-  todoTableList: {
-    noMatchingFilter: "Nenhum item corresponde ao filtro atual",
-    sortColumnAria: "Ordenar por {column}",
-    expandRowAria: "Expandir tarefa: {task}",
-    deleteItem: "Excluir item",
   },
   pluginWiki: {
     backToIndex: "Voltar ao índice",
