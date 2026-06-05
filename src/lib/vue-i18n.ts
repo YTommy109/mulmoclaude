@@ -10,15 +10,17 @@
 //   3. Hard default `"en"`
 //
 // Language tags like `"ja-JP"` are matched by primary subtag, so
-// `ja-JP`, `ja-Hira-JP`, etc. all collapse to `"ja"`. Unknown tags
-// (`"fr-FR"`) skip to the next candidate.
+// `ja-JP`, `ja-Hira-JP`, etc. all collapse to `"ja"`. When only a
+// regional variant is supported (`pt-BR`), tags sharing the primary
+// subtag (`pt`, `pt-PT`) resolve to that variant. Completely unknown
+// primary subtags (`"sw"`) skip to the next candidate.
 //
 // `legacy: false` switches vue-i18n to the Composition API mode, so
 // components call `const { t } = useI18n()` instead of relying on
 // the Options API `this.$t`. CLAUDE.md mandates Composition API.
 
 import { createI18n } from "vue-i18n";
-import { messages, SUPPORTED_LOCALES, isSupportedLocale, type Locale, type LocaleMessages } from "../lang";
+import { messages, resolveLocale, type Locale, type LocaleMessages } from "../lang";
 
 // Schema generic on createI18n — this is what makes `t("common.save")`
 // calls across the whole app compile-time checked (the module
@@ -30,24 +32,13 @@ type MessageSchema = LocaleMessages;
 
 const DEFAULT_LOCALE: Locale = "en";
 
-// Match the full tag first (so `pt-BR` resolves exactly), then collapse
-// `ja-JP`, `ja-Hira-JP`, etc. to their primary subtag. Returns null when
-// neither the full tag nor the primary subtag is supported.
-function primarySubtagIfSupported(tag: string): Locale | null {
-  if (isSupportedLocale(tag)) return tag;
-  const lower = tag.toLowerCase();
-  for (const supported of SUPPORTED_LOCALES) {
-    if (supported.toLowerCase() === lower) return supported;
-  }
-  const [primary] = lower.split("-");
-  return isSupportedLocale(primary) ? primary : null;
-}
-
 function detectLocale(): Locale {
-  // 1. explicit env override
+  // 1. explicit env override (resolved through the same path as browser tags
+  //    so that VITE_LOCALE=pt maps to pt-BR, same as a browser reporting "pt")
   const envLocale = import.meta.env.VITE_LOCALE;
-  if (typeof envLocale === "string" && isSupportedLocale(envLocale)) {
-    return envLocale;
+  if (typeof envLocale === "string") {
+    const resolved = resolveLocale(envLocale);
+    if (resolved) return resolved;
   }
 
   // 2. browser / OS preference list
@@ -55,7 +46,7 @@ function detectLocale(): Locale {
     const preferred = navigator.languages && navigator.languages.length > 0 ? navigator.languages : [navigator.language];
     for (const tag of preferred) {
       if (typeof tag !== "string") continue;
-      const match = primarySubtagIfSupported(tag);
+      const match = resolveLocale(tag);
       if (match) return match;
     }
   }

@@ -135,6 +135,7 @@
           :is-running="activeSessionRunning"
           :queries="sessionRoleQueries"
           @send="sendMessage()"
+          @stop="stopCurrentRun()"
           @suggestion-send="(q) => sendMessage(q)"
         />
       </div>
@@ -195,7 +196,7 @@
             @update:layout-mode="setLayoutMode"
             @toggle-right-sidebar="toggleRightSidebar"
           />
-          <!-- Distinct pages. Plugin-owned views (Todo / Calendar /
+          <!-- Distinct pages. Plugin-owned views (Calendar /
                Automations / Wiki / Skills) call `useRuntime()` from
                `gui-chat-protocol/vue` inside their composables — that
                throws unless mounted under `<PluginScopedRoot>`. The
@@ -204,9 +205,6 @@
                same `pkg-name + endpoints` pair so the `useRuntime()`
                call resolves. -->
           <FilesView v-else-if="currentPage === 'files'" :refresh-token="filesRefreshToken" @load-session="handleSessionSelect" />
-          <PluginScopedRoot v-else-if="currentPage === 'todos'" pkg-name="@mulmoclaude/todo-plugin">
-            <TodoExplorer />
-          </PluginScopedRoot>
           <PluginScopedRoot v-else-if="currentPage === 'calendar'" pkg-name="scheduler" :endpoints="API_ROUTES.scheduler">
             <CalendarView />
           </PluginScopedRoot>
@@ -267,6 +265,7 @@
             :is-running="activeSessionRunning"
             :queries="sessionRoleQueries"
             @send="sendMessage()"
+            @stop="stopCurrentRun()"
             @suggestion-send="(q) => sendMessage(q)"
           />
         </div>
@@ -320,7 +319,6 @@ import ThinkingIndicator from "./components/ThinkingIndicator.vue";
 import PluginLauncher from "./components/PluginLauncher.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
-import TodoExplorer from "./components/TodoExplorer.vue";
 import CalendarView from "./plugins/scheduler/CalendarView.vue";
 import AutomationsView from "./plugins/scheduler/AutomationsView.vue";
 import WikiView from "./plugins/wiki/View.vue";
@@ -372,7 +370,7 @@ import { useEventListeners } from "./composables/useEventListeners";
 import { provideAppApi } from "./composables/useAppApi";
 import { provideActiveSession } from "./composables/useActiveSession";
 import { useRoute, useRouter } from "vue-router";
-import { apiGet } from "./utils/api";
+import { apiGet, apiPost } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 import { TOOL_NAMES } from "./config/toolNames";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
@@ -1027,6 +1025,21 @@ async function sendMessage(text?: string) {
   }
 }
 
+// Stop the in-flight agent run for the displayed session. The server's
+// /api/agent/cancel aborts the AbortController, kills the Claude
+// subprocess, and publishes `session_finished` — which flips
+// `isRunning` back to false through the normal pub/sub path. So we only
+// fire-and-report here; no local state reset is needed on success.
+async function stopCurrentRun(): Promise<void> {
+  const sessionId = currentSessionId.value;
+  if (!sessionId) return;
+  const result = await apiPost<{ ok: boolean }>(API_ROUTES.agent.cancel, { chatSessionId: sessionId });
+  if (!result.ok) {
+    const session = sessionMap.get(sessionId);
+    if (session) pushErrorMessage(session, t("chatInput.stopFailed", { error: result.error }));
+  }
+}
+
 // Route workspace-internal links (wiki pages, files, sessions) to the
 // appropriate page. Called from plugin Views via AppApi.
 function navigateToWorkspacePath(href: string): void {
@@ -1049,7 +1062,7 @@ function navigateToWorkspacePath(href: string): void {
     case "spa-route":
       // Top-level SPA route — push the URL directly and let vue-router
       // resolve the matching route + params (it knows `/collections/:slug?`,
-      // `/todos/:itemId?`, etc.). This is what the bare push handles
+      // `/automations/:taskId?`, etc.). This is what the bare push handles
       // generically; we don't need to map per-route param names.
       router.push(target.path).catch(() => {});
       break;
@@ -1102,7 +1115,7 @@ onMounted(async () => {
   // role list (built-in + custom).
   await refreshRoles();
 
-  // Session bootstrap only applies on /chat. On /files, /todos, /wiki,
+  // Session bootstrap only applies on /chat. On /files, /wiki,
   // etc. we must not create or load a chat session — doing so would
   // replace the URL with /chat/<new-id> and pull the user off the page
   // they actually loaded.
