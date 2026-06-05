@@ -106,11 +106,25 @@ export async function writeWikiPage(slug: string, content: string, meta: WikiWri
   const oldContent = opts.exclusive ? null : await readTextSafe(absPath);
   const finalContent = stampFrontmatter(oldContent, content, meta, opts);
   if (opts.exclusive) {
-    await mkdir(path.dirname(absPath), { recursive: true });
+    // Re-anchor the absolute path against the workspace root before
+    // handing it to `mkdir`/`writeFile`. `wikiPagePath` already
+    // enforces containment via `isSafeSlug` + `path.join`, but
+    // CodeQL's `js/path-injection` analysis doesn't trace through
+    // those — the explicit `relative` + `startsWith` containment
+    // check below is a sanitizer the analyzer recognizes, and it
+    // throws (rather than silently passing) on any escape so the
+    // route handler maps the throw to a 5xx via its catch.
+    const root = opts.workspaceRoot ?? defaultWorkspacePath;
+    const relFromRoot = path.relative(root, absPath);
+    if (relFromRoot.startsWith("..") || path.isAbsolute(relFromRoot)) {
+      throw new Error(`wiki-pages: refusing to write outside workspace root: ${JSON.stringify(absPath)}`);
+    }
+    const safeAbsPath = path.join(root, relFromRoot);
+    await mkdir(path.dirname(safeAbsPath), { recursive: true });
     // `flag: "wx"` is the POSIX `O_EXCL`: atomic create-or-fail.
     // On a concurrent create race only one call wins; the other
     // throws `EEXIST`, which the route handler maps to HTTP 409.
-    await writeFile(absPath, finalContent, { flag: "wx" });
+    await writeFile(safeAbsPath, finalContent, { flag: "wx" });
   } else {
     await writeFileAtomic(absPath, finalContent, { uniqueTmp: true });
   }
