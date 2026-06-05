@@ -441,7 +441,7 @@ test.describe("notification bell — history body expansion", () => {
     await expect(page.getByTestId("notification-history-navigate")).toHaveCount(0);
   });
 
-  test("history row without body or navigateTarget is not expandable", async ({ page }) => {
+  test("history row without body or navigateTarget has no expand button", async ({ page }) => {
     const history = [{ ...buildHistoryEntry(0), body: undefined }];
     await mockAllApis(page, { sessions: [] });
     await primeNotifierHistory(page, history);
@@ -451,6 +451,6 @@ test.describe("notification bell — history body expansion", () => {
 
     const row = page.getByTestId(`notification-history-${history[0].id}`);
     await expect(row).toBeVisible();
-    await expect(row).not.toHaveAttribute("role", "button");
+    await expect(row.getByTestId("notification-history-expand")).toHaveCount(0);
   });
 });

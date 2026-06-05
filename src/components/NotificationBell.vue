@@ -393,14 +393,8 @@ async function clearAllFyi(): Promise<void> {
             v-for="entry in displayedHistory"
             :key="`${entry.id}-${entry.terminalAt}`"
             :data-testid="`notification-history-${entry.id}`"
-            :role="isHistoryExpandable(entry) ? 'button' : undefined"
-            :tabindex="isHistoryExpandable(entry) ? 0 : undefined"
-            :aria-label="isHistoryExpandable(entry) ? localizeTitle(entry) : undefined"
-            :aria-expanded="isHistoryExpandable(entry) ? isHistoryBodyExpanded(entry.id) : undefined"
-            :class="['px-3 py-2 focus:bg-gray-100 focus:outline-none', isHistoryExpandable(entry) ? 'cursor-pointer hover:bg-gray-50' : '']"
+            :class="['px-3 py-2', isHistoryExpandable(entry) ? 'cursor-pointer hover:bg-gray-50' : '']"
             @click="isHistoryExpandable(entry) && toggleHistoryBody(entry.id)"
-            @keydown.enter.prevent.self="(e) => isHistoryExpandable(entry) && !e.repeat && toggleHistoryBody(entry.id)"
-            @keydown.space.prevent.self="(e) => isHistoryExpandable(entry) && !e.repeat && toggleHistoryBody(entry.id)"
           >
             <div class="flex items-start gap-2">
               <!-- eslint-disable @intlify/vue-i18n/no-raw-text --
@@ -437,9 +431,19 @@ async function clearAllFyi(): Promise<void> {
                   </button>
                 </div>
               </div>
-              <span v-if="isHistoryExpandable(entry)" class="material-icons text-xs text-gray-300 shrink-0 mt-0.5" aria-hidden="true">
-                {{ isHistoryBodyExpanded(entry.id) ? "expand_less" : "expand_more" }}
-              </span>
+              <button
+                v-if="isHistoryExpandable(entry)"
+                type="button"
+                class="text-gray-300 hover:text-gray-500 shrink-0 mt-0.5"
+                :aria-label="localizeTitle(entry)"
+                :aria-expanded="isHistoryBodyExpanded(entry.id)"
+                data-testid="notification-history-expand"
+                @click.stop="toggleHistoryBody(entry.id)"
+              >
+                <span class="material-icons text-xs">
+                  {{ isHistoryBodyExpanded(entry.id) ? "expand_less" : "expand_more" }}
+                </span>
+              </button>
             </div>
           </li>
         </ul>
