@@ -91,7 +91,7 @@ In **Stack layout** this sidebar isn't rendered; the same data flows through `<S
 ```
 
 - **Active** rows: fyi (body click clears + navigates) vs action (× cancels; body click navigates only).
-- **History** rows: read-only; navigate on click when `navigateTarget` is present. Capped at `HISTORY_CAP` (50) FIFO server-side; bell collapses to the first 5 with a toggle so repetitive entries (e.g. recurring "docker not running") don't bury the rest. Toggle state resets each time the popup closes.
+- **History** rows: click to expand/collapse the notification body inline. When expanded and `navigateTarget` is present, a small `open_in_new` icon appears for navigation. Capped at `HISTORY_CAP` (50) FIFO server-side; bell collapses to the first 5 with a toggle so repetitive entries (e.g. recurring "docker not running") don't bury the rest. Toggle and expansion state reset each time the popup closes.
 
 ## /chat — the chat page
 
