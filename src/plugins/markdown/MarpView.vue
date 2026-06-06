@@ -33,6 +33,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { errorMessage } from "../../utils/errors";
+import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 
 const { t } = useI18n();
 
@@ -67,12 +68,13 @@ const frameHeight = computed(() => {
 // the slide could attempt — `connect-src 'none'` denies fetch /
 // XHR / WebSocket / EventSource, and `frame-ancestors 'none'`
 // prevents the iframe from being reframed by hostile content.
-// `img-src 'self' data:` lets Marp's default-theme inline SVG and
-// inlined-as-data-URI assets render; `style-src 'unsafe-inline'
-// 'self'` is required because marp-core ships its theme CSS inline
-// via `<style>` blocks inside each rendered slide.
-const SRCDOC_CSP =
-  "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline' 'self'; font-src 'self' data:; connect-src 'none'; frame-ancestors 'none';";
+// `img-src *` (with `referrer: no-referrer` set below) lets the
+// markdown's workspace-rooted image refs load — `<img>` is read-
+// only, so loosening the allowlist here doesn't open a script /
+// fetch / XHR vector but does fix the "preview shows broken
+// images" failure mode that surfaced for relative refs. Style
+// allows inline `<style>` blocks (Marp's theme CSS arrives inline).
+const SRCDOC_CSP = "default-src 'none'; img-src * data:; style-src 'unsafe-inline' 'self'; font-src 'self' data:; connect-src 'none'; frame-ancestors 'none';";
 
 function buildSrcDoc(html: string, css: string): string {
   // Marp's default theme sets `svg[data-marpit-svg] { width:100vw;
@@ -116,7 +118,14 @@ async function renderMarp(markdown: string): Promise<void> {
   try {
     const { Marp } = await import("@marp-team/marp-core");
     const marp = new Marp({ inlineSVG: true, html: false });
-    const { html, css } = marp.render(markdown);
+    // Normalise `![alt](path)` refs BEFORE marp parses them — same
+    // pre-pass the regular markdown renderer uses (wiki/View.vue,
+    // FilesView.vue, markdown/View.vue). Without it, refs like
+    // `../images/foo.png` resolve against `about:srcdoc` and 404.
+    // Workspace-rooted refs route through `/artifacts/images` (static
+    // mount) or `/api/files/raw` (authenticated route).
+    const rewritten = rewriteMarkdownImageRefs(markdown, props.baseDir ?? "");
+    const { html, css } = marp.render(rewritten);
     slideCount.value = countSlides(html);
     srcDoc.value = buildSrcDoc(html, css);
   } catch (err) {

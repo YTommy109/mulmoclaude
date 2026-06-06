@@ -252,7 +252,10 @@ const marpBaseDir = computed(() => {
   const path = props.selectedPath;
   if (!path) return undefined;
   const idx = path.lastIndexOf("/");
-  return idx > 0 ? path.slice(0, idx) : undefined;
+  // Root-level markdown (no "/") → "" so server-side inlineImages()
+  // resolves relative `<img>` refs against the workspace root instead
+  // of falling back to the legacy `markdowns/` sourceDir (codex review).
+  return idx < 0 ? "" : path.slice(0, idx);
 });
 
 const marpPdfFilename = computed(() => {
