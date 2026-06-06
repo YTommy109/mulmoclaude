@@ -111,9 +111,9 @@ describe("classifyWorkspacePath", () => {
       assert.deepEqual(result, { kind: "spa-route", path: "/collections" });
     });
 
-    it("classifies /calendar as spa-route", () => {
-      const result = classifyWorkspacePath("/calendar");
-      assert.deepEqual(result, { kind: "spa-route", path: "/calendar" });
+    it("classifies /wiki as spa-route", () => {
+      const result = classifyWorkspacePath("/wiki");
+      assert.deepEqual(result, { kind: "spa-route", path: "/wiki" });
     });
 
     it("classifies /automations/<id> as spa-route", () => {

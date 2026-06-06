@@ -13,7 +13,7 @@ export type WorkspaceLinkTarget =
   | { kind: "file"; path: string }
   | { kind: "session"; sessionId: string }
   /** A top-level SPA route like `/collections/mc-clients`,
-   *  `/calendar`, `/automations/<id>`. `path` includes the leading slash
+   *  `/automations/<id>`. `path` includes the leading slash
    *  so callers can pass it directly to `router.push(string)`. */
   | { kind: "spa-route"; path: string };
 
@@ -26,7 +26,7 @@ const CHAT_LOG_PREFIX = "conversations/";
 // Top-level SPA route names whose leading-segment match should
 // short-circuit the files-view fallback. Without this set, an
 // agent-emitted link like `[Microsoft](/collections/mc-clients)` or
-// `[my calendar](/calendar)` falls into the `kind: "file"` default
+// `[automations](/automations)` falls into the `kind: "file"` default
 // and gets routed to `/files/collections/mc-clients`, which 404s
 // because that path doesn't exist on disk.
 //
@@ -89,7 +89,7 @@ export function classifyWorkspacePath(href: string): WorkspaceLinkTarget | null 
   }
 
   // Top-level SPA route: leading segment names one of the host's
-  // pages (collections, calendar, automations, skills, …).
+  // pages (collections, automations, wiki, skills, …).
   // Without this branch, those links would be routed to the Files
   // view (with `files/` prepended) and 404 — the trigger for this
   // generalization was `[X](/collections/mc-clients)` from the
