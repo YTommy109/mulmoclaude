@@ -49,7 +49,6 @@ export const NOTIFICATION_VIEWS = {
   chat: "chat",
   calendar: "calendar",
   automations: "automations",
-  sources: "sources",
   files: "files",
   wiki: "wiki",
   collections: "collections",
@@ -72,7 +71,6 @@ export type NotificationTarget =
   | { view: typeof NOTIFICATION_VIEWS.chat; sessionId: string }
   | { view: typeof NOTIFICATION_VIEWS.calendar }
   | { view: typeof NOTIFICATION_VIEWS.automations; taskId?: string }
-  | { view: typeof NOTIFICATION_VIEWS.sources; slug?: string }
   | { view: typeof NOTIFICATION_VIEWS.files; path?: string }
   | { view: typeof NOTIFICATION_VIEWS.wiki; slug?: string; anchor?: string }
   | { view: typeof NOTIFICATION_VIEWS.collections; slug: string; itemId?: string };

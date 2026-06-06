@@ -56,13 +56,6 @@ const routes: RouteRecordRaw[] = [
   { path: "/wiki/:section(pages|log|lint-report|graph)?/:slug?", name: PAGE_ROUTES.wiki, component: Stub },
   { path: "/skills", name: PAGE_ROUTES.skills, component: Stub },
   { path: "/roles", name: PAGE_ROUTES.roles, component: Stub },
-  // Sources accepts an optional `:slug` so notifications / deep-links
-  // can surface a specific registered feed. Missing slug lands on
-  // the full source list.
-  { path: "/sources/:slug?", name: PAGE_ROUTES.sources, component: Stub },
-  // News viewer (#761). Optional `?source=<slug>` query for the
-  // Sources-page deep link.
-  { path: "/news", name: PAGE_ROUTES.news, component: Stub },
   // Data-source Feeds — the declarative retrieval registry. `/feeds`
   // lists every feed; `/feeds/:slug` opens that feed's records in
   // <CollectionView> (the same component collections use), with the

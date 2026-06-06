@@ -44,7 +44,7 @@ export type PluginLauncherKind = "view"; // Switch the canvas to a dedicated vie
 // out of this file avoids duplication across the 8 locales.
 export interface PluginLauncherTarget {
   /** Stable key for testid + dispatch in App.vue. */
-  key: "calendar" | "automations" | "wiki" | "collections" | "feeds" | "sources" | "news" | "skills" | "roles" | "files" | "debug";
+  key: "calendar" | "automations" | "wiki" | "collections" | "feeds" | "skills" | "roles" | "files" | "debug";
   kind: PluginLauncherKind;
   /** Material-icons glyph. */
   icon: string;
@@ -78,14 +78,9 @@ const TARGETS: PluginLauncherTarget[] = [
   { key: "collections", kind: "view", icon: "apps" },
   // Data-source Feeds (#feat-feeds) — declarative retrieval of internet
   // data (RSS / podcast / weather / JSON) into self-refreshing
-  // collections. Sits next to Collections because a feed IS a collection
-  // that refills itself.
-  { key: "feeds", kind: "view", icon: "dynamic_feed" },
-  { key: "sources", kind: "view", icon: "rss_feed" },
-  // News viewer (#761) — a reader UI for items aggregated by the
-  // sources pipeline. Sits next to the source-registry button so the
-  // pair reads as "manage sources" → "read what they fetched".
-  { key: "news", kind: "view", icon: "newspaper" },
+  // collections. Takes the rss_feed glyph now that the legacy Sources
+  // surface is gone.
+  { key: "feeds", kind: "view", icon: "rss_feed" },
   // ─── Management / navigation ───
   { key: "skills", kind: "view", icon: "psychology" },
   { key: "roles", kind: "view", icon: "manage_accounts" },
@@ -101,9 +96,9 @@ const TARGETS: PluginLauncherTarget[] = [
 
 // Index AFTER which the visual separator is inserted (between data
 // plugins on the left and management on the right). Data plugins are
-// calendar / automations / wiki / collections / feeds / sources /
-// news (indices 0-6), so the divider renders before index 7 (skills).
-const SEPARATOR_AFTER_INDEX = 7;
+// calendar / automations / wiki / collections / feeds (indices 0-4),
+// so the divider renders before index 5 (skills).
+const SEPARATOR_AFTER_INDEX = 5;
 
 // Dev-mode flag — set `VITE_DEV_MODE=1` in `.env`. Anything else
 // (including unset) hides any target with `devOnly: true`.

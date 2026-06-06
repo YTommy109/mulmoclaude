@@ -252,13 +252,6 @@ const HOST_API_ROUTES = {
   },
 
   // `skills` group migrated to META — see `src/plugins/manageSkills/meta.ts`.
-  // `sources` group migrated to META — see `src/plugins/manageSource/meta.ts`.
-
-  news: {
-    items: "/api/news/items",
-    itemBody: "/api/news/items/:id/body",
-    readState: "/api/news/read-state",
-  },
 
   // Data-source feeds. Read-only list for the /feeds UI; feeds are
   // created/removed by the agent writing feeds/<slug>/schema.json files

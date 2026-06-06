@@ -116,7 +116,6 @@ const HOST_WORKSPACE_DIRS = {
   contacts: "data/contacts",
   clients: "data/clients",
   scheduler: "data/scheduler",
-  sources: "data/sources",
   // Non-skill data-source feed registry: feeds/<slug>/schema.json (+
   // _state.json). Records land under each schema's dataPath (data/feeds/*).
   feeds: "feeds",
@@ -159,7 +158,6 @@ const HOST_WORKSPACE_DIRS = {
   images: "artifacts/images",
   spreadsheets: "artifacts/spreadsheets",
   stories: "artifacts/stories",
-  news: "artifacts/news",
   // config/
   configs: "config",
   roles: "config/roles",

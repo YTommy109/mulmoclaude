@@ -15,8 +15,6 @@ export const PAGE_ROUTES = {
   wiki: "wiki",
   skills: "skills",
   roles: "roles",
-  sources: "sources",
-  news: "news",
   feeds: "feeds",
   debug: "debug",
   collections: "collections",

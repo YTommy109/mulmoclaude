@@ -77,7 +77,6 @@ const HOST_TOOL_NAMES = {
   // runtime plugins are accepted in `availablePlugins` as bare
   // strings via the schema's permissive branch — see
   // `availablePluginsSchema` in `src/config/roles.ts`.
-  manageBookmarks: "manageBookmarks",
   manageSpotify: "manageSpotify",
   // manageRecipes removed (#1286) — recipe-book-plugin dropped from
   // PRESET_PLUGINS; recipe management moved to the `mc-cooking-coach`

@@ -49,15 +49,6 @@ describe("legacyActionToNavigateTarget — automations / sources", () => {
       "/automations/task-1",
     );
   });
-  it("/sources with optional slug", () => {
-    assert.equal(
-      legacyActionToNavigateTarget({
-        type: NOTIFICATION_ACTION_TYPES.navigate,
-        target: { view: NOTIFICATION_VIEWS.sources, slug: "fed" },
-      }),
-      "/sources/fed",
-    );
-  });
   it("/calendar (no identifier)", () => {
     assert.equal(
       legacyActionToNavigateTarget({
@@ -116,12 +107,12 @@ describe("legacyActionToNavigateTarget — reserved characters", () => {
   // Each user/content-derived segment (sessionId, itemId, taskId,
   // slug, anchor) must ride through encodeURIComponent so reserved
   // chars don't change the URL's structure when interpolated.
-  it("encodes a slug containing '?' so it doesn't become a query string", () => {
+  it("encodes a taskId containing '?' so it doesn't become a query string", () => {
     const result = legacyActionToNavigateTarget({
       type: NOTIFICATION_ACTION_TYPES.navigate,
-      target: { view: NOTIFICATION_VIEWS.sources, slug: "weird?slug" },
+      target: { view: NOTIFICATION_VIEWS.automations, taskId: "weird?slug" },
     });
-    assert.equal(result, "/sources/weird%3Fslug");
+    assert.equal(result, "/automations/weird%3Fslug");
   });
 
   it("encodes an anchor containing '#' so the fragment isn't doubled", () => {
@@ -132,12 +123,12 @@ describe("legacyActionToNavigateTarget — reserved characters", () => {
     assert.equal(result, "/wiki/pages/page#%23mid");
   });
 
-  it("encodes a slug containing '/' so route matching stays single-segment", () => {
+  it("encodes a taskId containing '/' so route matching stays single-segment", () => {
     const result = legacyActionToNavigateTarget({
       type: NOTIFICATION_ACTION_TYPES.navigate,
-      target: { view: NOTIFICATION_VIEWS.sources, slug: "a/b" },
+      target: { view: NOTIFICATION_VIEWS.automations, taskId: "a/b" },
     });
-    assert.equal(result, "/sources/a%2Fb");
+    assert.equal(result, "/automations/a%2Fb");
   });
 
   it("encodes a taskId containing '%' so it isn't seen as a stray escape", () => {
@@ -232,14 +223,6 @@ describe("legacyActionToNavigateTarget — dot-segment safety", () => {
     assert.equal(result, "/automations");
   });
 
-  it("sources: dot-segment slug falls back to /sources", () => {
-    const result = legacyActionToNavigateTarget({
-      type: NOTIFICATION_ACTION_TYPES.navigate,
-      target: { view: NOTIFICATION_VIEWS.sources, slug: ".." },
-    });
-    assert.equal(result, "/sources");
-  });
-
   it("wiki: dot-segment slug omits the /pages/<slug> portion (anchor still rendered)", () => {
     const result = legacyActionToNavigateTarget({
       type: NOTIFICATION_ACTION_TYPES.navigate,
@@ -266,7 +249,6 @@ describe("legacyActionToNavigateTarget — engine constraints", () => {
       { view: "chat", expected: "/chat" },
       { view: "calendar", expected: "/calendar" },
       { view: "automations", expected: "/automations" },
-      { view: "sources", expected: "/sources" },
       { view: "files", expected: "/files" },
       { view: "wiki", expected: "/wiki" },
     ];

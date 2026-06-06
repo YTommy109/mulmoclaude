@@ -100,7 +100,6 @@ export const ROLES: Role[] = [
       // out-of-the-box "personal" role keeps exposing them. User-
       // installed runtime plugins (`~/mulmoclaude/plugins/*`) are
       // added to roles via Settings → Roles.
-      TOOL_NAMES.manageBookmarks,
       TOOL_NAMES.manageSpotify,
     ],
     queries: [
@@ -402,7 +401,6 @@ export const ROLES: Role[] = [
       // the dev-only `manageDebug` plugin. Runtime plugins are gated
       // by `availablePlugins` (see `general` role's note); listing
       // them here keeps the debug role's "kitchen sink" promise.
-      TOOL_NAMES.manageBookmarks,
       TOOL_NAMES.manageSpotify,
       // manageRecipes removed (#1286) — recipe-book-plugin no longer
       // in PRESET_PLUGINS; recipes drive via the `mc-cooking-coach`

@@ -196,8 +196,6 @@ function buildNavigateTarget(target: NavigateTarget): string | undefined {
       return `/${PAGE_ROUTES.calendar}`;
     case NOTIFICATION_VIEWS.automations:
       return buildSingleSegmentTarget(PAGE_ROUTES.automations, target.taskId);
-    case NOTIFICATION_VIEWS.sources:
-      return buildSingleSegmentTarget(PAGE_ROUTES.sources, target.slug);
     case NOTIFICATION_VIEWS.files:
       return buildFilesTarget(target);
     case NOTIFICATION_VIEWS.wiki:
