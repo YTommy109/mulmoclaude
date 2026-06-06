@@ -359,6 +359,17 @@ export function buildCliArgs(params: CliArgsParams): string[] {
     // leak (#1499) only manifests once tools are wired up, so the
     // hook is correctly tied to the MCP-config presence.
     args.push("--permission-prompt-tool", "mcp__mulmoclaude__handlePermission");
+    // Block the built-in `Agent` subagent tool. When the model calls
+    // `Agent`, Claude Code spawns a fresh subprocess that inherits
+    // `--permission-prompt-tool mcp__mulmoclaude__handlePermission`
+    // from the parent session but does NOT receive the session-specific
+    // `--mcp-config` file, so the subagent can't resolve the handler
+    // tool and aborts with an exit-1 error. Disallowing `Agent` keeps
+    // the model in the main process where the full MCP surface is
+    // available. The model falls back to sequential tool calls (e.g.
+    // multiple WebFetch calls) instead of parallel subagent dispatch —
+    // an acceptable trade-off.
+    args.push("--disallowedTools", "Agent");
   }
 
   if (effortLevel) {
