@@ -500,17 +500,17 @@ interface LoadedCollection {
   skillDir: string;
 }
 
-// Fill the cosmetic / boilerplate top-level fields a feed schema may omit
-// (agent-authored feeds carry no register tool to default them): `icon`
-// defaults to a feed glyph, `dataPath` to `data/feeds/<slug>`. Explicit
-// values always win. Non-object input passes through so the Zod error
-// stays clear.
+// Normalize an agent-authored feed schema (no register tool to do it):
+// default `icon`, and **force** `dataPath` to the feed-owned namespace
+// `data/feeds/<slug>`. Forcing dataPath (rather than trusting the file) is
+// a safety boundary — a feed can only ever read/write/delete records under
+// its own folder, never another app's data (e.g. `data/wiki`). Non-object
+// input passes through so the Zod error stays clear.
 function applyFeedSchemaDefaults(parsed: unknown, slug: string): unknown {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return parsed;
   const obj = parsed as Record<string, unknown>;
   const icon = typeof obj.icon === "string" && obj.icon.trim().length > 0 ? obj.icon : "dynamic_feed";
-  const dataPath = typeof obj.dataPath === "string" && obj.dataPath.trim().length > 0 ? obj.dataPath : `data/feeds/${slug}`;
-  return { ...obj, icon, dataPath };
+  return { ...obj, icon, dataPath: `data/feeds/${slug}` };
 }
 
 async function loadOneCollection(skillsRoot: string, slug: string, source: CollectionSource, workspaceRoot: string): Promise<LoadedCollection | null> {
@@ -562,6 +562,14 @@ async function loadOneCollection(skillsRoot: string, slug: string, source: Colle
   }
   if (primaryField.primary !== true) {
     log.warn("collections", "schema.json primaryKey field is not flagged primary: true, skipping", { slug: safeName, primaryKey: schema.primaryKey });
+    return null;
+  }
+
+  // A feed-registry schema MUST declare an `ingest` block — without it the
+  // host can never fetch it, so it'd be a dead, non-refreshable card in
+  // /feeds. Skip it (the old register tool rejected this case explicitly).
+  if (source === "feed" && !schema.ingest) {
+    log.warn("collections", "feed schema.json has no `ingest` block, skipping", { slug: safeName });
     return null;
   }
 

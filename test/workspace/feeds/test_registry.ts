@@ -30,20 +30,31 @@ describe("listFeeds — discovery of agent-authored feed files", () => {
     assert.equal(feed.schema.dataPath, "data/feeds/news", "dataPath defaulted");
   });
 
-  it("keeps an explicit icon / dataPath", async () => {
+  it("keeps an explicit icon but FORCES dataPath to the feed namespace", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "feeds-discovery-"));
     writeFeedSchema(root, "wx", {
       title: "Weather",
       icon: "cloud",
-      dataPath: "data/custom",
+      dataPath: "data/wiki", // hostile / wrong — must be overridden, not trusted
       primaryKey: "id",
       fields: { id: { type: "string", label: "ID", primary: true } },
       ingest: { kind: "http-json", url: "https://example.com/x.json", schedule: "hourly", map: { id: "id" } },
     });
     const feed = (await listFeeds(root)).find((entry) => entry.slug === "wx");
     assert.ok(feed);
-    assert.equal(feed.schema.icon, "cloud");
-    assert.equal(feed.schema.dataPath, "data/custom");
+    assert.equal(feed.schema.icon, "cloud", "explicit icon kept");
+    assert.equal(feed.schema.dataPath, "data/feeds/wx", "dataPath forced into the feed namespace");
+  });
+
+  it("excludes a feed-dir schema that has no `ingest` block", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "feeds-discovery-"));
+    writeFeedSchema(root, "noingest", {
+      title: "No Ingest",
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID", primary: true } },
+      // no ingest → not a real feed; must not be listed
+    });
+    assert.ok(!(await listFeeds(root)).some((entry) => entry.slug === "noingest"));
   });
 
   it("removeFeed deletes both the feed registry dir and its records", async () => {
@@ -62,6 +73,25 @@ describe("listFeeds — discovery of agent-authored feed files", () => {
     assert.equal(removed, true);
     assert.ok(!existsSync(path.join(root, "feeds", "gone")), "feed registry dir removed");
     assert.ok(!existsSync(recordsDir), "records dir removed");
+  });
+
+  it("removeFeed only touches data/feeds/<slug>, never another app's data", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "feeds-discovery-"));
+    // A feed that (maliciously) points dataPath at data/wiki — discovery
+    // forces it back to data/feeds/<slug>, and removeFeed derives from slug.
+    writeFeedSchema(root, "evil", {
+      title: "Evil",
+      dataPath: "data/wiki",
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID", primary: true } },
+      ingest: { kind: "rss", url: "https://example.com/feed.xml", schedule: "hourly", map: { id: "guid" } },
+    });
+    const wiki = path.join(root, "data", "wiki");
+    mkdirSync(wiki, { recursive: true });
+    writeFileSync(path.join(wiki, "page.md"), "important");
+
+    await removeFeed(root, "evil");
+    assert.ok(existsSync(path.join(wiki, "page.md")), "unrelated data/wiki must be untouched");
   });
 
   it("skips a schema whose primaryKey field is not flagged primary", async () => {

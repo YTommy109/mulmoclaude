@@ -7,8 +7,8 @@
 import { rm } from "node:fs/promises";
 import { workspacePath } from "../workspace.js";
 import { log } from "../../system/logger/index.js";
-import { discoverCollections, loadCollection, type LoadedCollection } from "../collections/index.js";
-import { isContainedInRoot, safeSlugName } from "../collections/paths.js";
+import { discoverCollections, type LoadedCollection } from "../collections/index.js";
+import { resolveDataDir, safeSlugName } from "../collections/paths.js";
 import { feedDir } from "./paths.js";
 
 /** Every registered feed, as a discovered collection (carrying its
@@ -18,21 +18,21 @@ export async function listFeeds(workspaceRoot: string = workspacePath): Promise<
   return all.filter((collection) => collection.source === "feed");
 }
 
-/** Delete a feed entirely: its fetched records (the schema's resolved
- *  `dataDir`) AND its `feeds/<slug>/` directory (schema + state).
- *  Idempotent. Host-side only (backs the UI delete button); the agent
- *  removes a feed by deleting both directories with its own file tools.
- *  The records dir is only removed when the slug resolves to an actual
- *  feed and stays within the workspace (never touches a skill collection's
- *  data on a slug collision). */
+/** Delete a feed entirely: its records AND its `feeds/<slug>/` directory
+ *  (schema + state). Idempotent. Host-side only (backs the UI delete
+ *  button); the agent removes a feed by deleting both directories itself.
+ *
+ *  The records dir is derived from the SLUG (`data/feeds/<slug>`), never
+ *  from the schema's `dataPath` — feeds are forced into that namespace at
+ *  discovery, so a malformed/hostile `dataPath` can't redirect this delete
+ *  at another app's data (e.g. `data/wiki`). `resolveDataDir` also rejects
+ *  any path that escapes the workspace. */
 export async function removeFeed(workspaceRoot: string, slug: string): Promise<boolean> {
   const safe = safeSlugName(slug);
   if (safe === null) return false;
-  const feed = await loadCollection(safe, { workspaceRoot });
+  const recordsDir = resolveDataDir(`data/feeds/${safe}`, workspaceRoot);
   try {
-    if (feed?.source === "feed" && isContainedInRoot(feed.dataDir, workspaceRoot)) {
-      await rm(feed.dataDir, { recursive: true, force: true });
-    }
+    if (recordsDir) await rm(recordsDir, { recursive: true, force: true });
     await rm(feedDir(safe, workspaceRoot), { recursive: true, force: true });
     log.info("feeds", "feed + records removed", { slug: safe });
     return true;

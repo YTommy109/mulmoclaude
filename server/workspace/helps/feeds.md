@@ -62,7 +62,9 @@ lists all registered feeds, and its delete button does the same.
 ```
 
 - `title` (required), `icon` (required — a Material Icons name; `dynamic_feed` is
-  a good default), `dataPath` (required — always `data/feeds/<slug>`).
+  a good default). `dataPath` is set by the host to `data/feeds/<slug>` — include
+  it (must equal that) or omit it; any other value is ignored. A feed can only
+  ever store records under its own `data/feeds/<slug>` folder.
 - `primaryKey` (required): names the id field. That field must set
   `primary: true`. The host derives a safe, stable filename from its value, so
   map it from a STABLE unique value (an item guid/id/link, or a snapshot date)
