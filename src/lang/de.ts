@@ -32,10 +32,12 @@ const deMessages = {
   chatInput: {
     placeholder: "Nachricht an Claude…",
     send: "Senden",
+    stop: "Stoppen",
     attachFile: "Datei anhängen",
     fileTooLarge: "Datei zu groß ({sizeMB} MB). Das Maximum beträgt 30 MB.",
     unsupportedFileType: "Dateityp nicht unterstützt. Akzeptiert: Bilder, PDF, DOCX, XLSX, PPTX, Textdateien.",
     attachImageFailed: "Anhängen des Bildes fehlgeschlagen: {error}",
+    stopFailed: "Stoppen der Ausführung fehlgeschlagen: {error}",
     dropHint: "Datei zum Anhängen ablegen",
   },
   sessionHistoryPanel: {
@@ -91,6 +93,10 @@ const deMessages = {
       "{command} nicht gefunden — zugehörige Funktionen wurden deaktiviert. Installieren Sie {command} und starten Sie MulmoClaude neu, um sie zu aktivieren.",
     notResponding:
       "{command} ist installiert, läuft aber nicht — zugehörige Funktionen wurden deaktiviert. Starten Sie {command} und starten Sie MulmoClaude neu, um sie zu aktivieren.",
+  },
+  billingMigration: {
+    title: "Die Rechnungsstellung wird jetzt bei Bedarf eingerichtet",
+    body: "Die gebündelten Sammlungen clients, worklog, invoice und profile wurden aus deinem Dashboard entfernt, deine Daten sind jedoch sicher und unverändert. Bitte um die Einrichtung der Kunden- und Zeiterfassung und anschließend der Rechnungsstellung, um sie neu zu erstellen – deine vorhandenen Datensätze werden wieder angezeigt.",
   },
   backendOffline: {
     title: "Backend nicht erreichbar",
@@ -151,6 +157,21 @@ const deMessages = {
   fileTree: {
     workspace: "(Arbeitsbereich)",
     recentlyChanged: "Kürzlich geändert",
+    newFileMenuItem: "Neue Datei",
+    newFileInputAria: "Name der neuen Datei",
+    newFilePlaceholder: {
+      wikiPage: "seiten-slug",
+      summary: "zusammenfassungsname",
+      document: "dokumentname",
+      html: "seitenname",
+      story: "story-name",
+    },
+    newFileError: {
+      empty: "Der Dateiname darf nicht leer sein.",
+      unsafe: "Der Dateiname enthält ungültige Zeichen.",
+      exists: "Eine Datei mit dem Namen {filename} existiert hier bereits.",
+      saveFailed: "Datei konnte nicht erstellt werden. Bitte erneut versuchen.",
+    },
   },
   lockStatusPopup: {
     sandboxEnabledTooltip: "Sandbox aktiviert (Docker)",
@@ -286,7 +307,6 @@ const deMessages = {
     errLabelConflict: 'Label "{label}" existiert bereits',
   },
   pluginLauncher: {
-    todos: { label: "To-dos" },
     calendar: { label: "Kalender" },
     automations: { label: "Aktionen" },
     wiki: { label: "Wiki" },
@@ -359,15 +379,6 @@ const deMessages = {
     schedulerItems: {
       title: "Scheduler-Item-Warteschlange",
       summary: "Geplante Aufrufe, die zur Auslösung bereitstehen. Agent-verwaltet; nicht von Hand bearbeiten, ohne jedes Feld zu verstehen.",
-    },
-    todosItems: {
-      title: "Todo-Einträge",
-      summary:
-        "Deine Aufgaben in allen Spalten des Kanban-Boards. Der Agent schreibt hier, wenn du sagst: füge ein Todo hinzu — Handbearbeitung ist ebenfalls möglich.",
-    },
-    todosColumns: {
-      title: "Todo-Spalten",
-      summary: "Spaltenaufteilung des Kanban-Boards (Titel, Reihenfolge, IDs). Vom Benutzer bearbeitbar — frei umbenennen oder umsortieren.",
     },
     wikiIndex: {
       title: "Wiki-Index",
@@ -880,54 +891,6 @@ const deMessages = {
     previewSummary: "Buchhaltung · {bookId}",
     previewError: "Buchhaltung: {error}",
     previewGeneric: "Buchhaltungs-Ergebnis",
-  },
-  todoExplorer: {
-    heading: "To-do",
-    deleteConfirm: "„{text}“ löschen?",
-    doneRatio: "{done}/{total} erledigt",
-    addButton: "+ Hinzufügen",
-    addColumnButton: "+ Spalte",
-    labels: "Labels:",
-    searchPlaceholder: "Suchen...",
-    clearButton: "Löschen ✕",
-    clearFiltersTitle: "Label-Filter zurücksetzen",
-    emptyHint: 'Noch keine To-dos. Klicken Sie auf "+ Hinzufügen", um eines zu erstellen.',
-    addColumn: "Spalte hinzufügen",
-    newColumnLabelField: "Label",
-    newColumnPlaceholder: "Review",
-    noMatchingFilter: "Keine Einträge passen zum aktuellen Filter",
-  },
-  todoDialogs: {
-    addTitle: "To-do hinzufügen",
-    editTitle: "To-do bearbeiten",
-    deleteButton: "Löschen",
-    deleteTitle: "Diesen Eintrag löschen",
-    noneOption: "— Keiner —",
-    fieldText: "Text",
-    fieldNote: "Notiz",
-    fieldStatus: "Status",
-    fieldPriority: "Priorität",
-    fieldDueDate: "Fälligkeitsdatum",
-    fieldLabels: "Labels",
-    fieldLabelsCommaSeparated: "Labels (durch Komma getrennt)",
-    textPlaceholder: "Was muss erledigt werden?",
-    labelsPlaceholder: "arbeit, dringend",
-  },
-  todoKanban: {
-    rename: "Umbenennen",
-    markAsDoneColumn: "Als Spalte „Erledigt“ markieren",
-    removeAllItems: "Alle Elemente entfernen",
-    removeAllItemsConfirm: "Alle {count} Elemente in „{column}“ entfernen? Diese Aktion kann nicht rückgängig gemacht werden.",
-    deleteColumn: "Spalte löschen",
-    columnActions: "Spaltenaktionen",
-    addCard: "+ Karte hinzufügen",
-    openCardAria: "Aufgabe öffnen: {task}",
-  },
-  todoTableList: {
-    noMatchingFilter: "Keine Einträge passen zum aktuellen Filter",
-    sortColumnAria: "Nach {column} sortieren",
-    expandRowAria: "Aufgabe ausklappen: {task}",
-    deleteItem: "Eintrag löschen",
   },
   pluginWiki: {
     backToIndex: "Zurück zum Index",

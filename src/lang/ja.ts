@@ -39,10 +39,12 @@ const jaMessages = {
   chatInput: {
     placeholder: "Claude にメッセージ…",
     send: "送信",
+    stop: "停止",
     attachFile: "ファイルを添付",
     fileTooLarge: "ファイルが大きすぎます（{sizeMB} MB）。上限は 30 MB です。",
     unsupportedFileType: "対応していないファイル形式です。画像・PDF・DOCX・XLSX・PPTX・テキストファイルを使用してください。",
     attachImageFailed: "画像の添付に失敗しました: {error}",
+    stopFailed: "処理の停止に失敗しました: {error}",
     dropHint: "ファイルをドロップして添付",
   },
   sessionHistoryPanel: {
@@ -94,6 +96,10 @@ const jaMessages = {
     titleNotResponding: "{command} が起動していません",
     notFound: "{command} がインストールされていないため、関連機能を停止しています。{command} をインストールしてから MulmoClaude を再起動してください。",
     notResponding: "{command} が起動していないため、関連機能を停止しています。{command} を起動してから MulmoClaude を再起動してください。",
+  },
+  billingMigration: {
+    title: "請求書機能はオンデマンド設定に移行しました",
+    body: "同梱されていた clients・worklog・invoice・profile のコレクションはダッシュボードから削除されましたが、データは安全でそのまま保持されています。クライアントと作業時間の記録、続いて請求書の設定を依頼すると再作成され、既存のレコードが再び表示されます。",
   },
   backendOffline: {
     title: "バックエンドに接続できません",
@@ -152,6 +158,21 @@ const jaMessages = {
   fileTree: {
     workspace: "（ワークスペース）",
     recentlyChanged: "最近変更されました",
+    newFileMenuItem: "新規ファイル",
+    newFileInputAria: "新規ファイル名",
+    newFilePlaceholder: {
+      wikiPage: "ページのスラッグ",
+      summary: "サマリー名",
+      document: "ドキュメント名",
+      html: "ページ名",
+      story: "ストーリー名",
+    },
+    newFileError: {
+      empty: "ファイル名を入力してください。",
+      unsafe: "ファイル名に使用できない文字が含まれています。",
+      exists: "{filename} は既に存在します。",
+      saveFailed: "ファイルを作成できませんでした。もう一度お試しください。",
+    },
   },
   lockStatusPopup: {
     sandboxEnabledTooltip: "サンドボックス有効 (Docker)",
@@ -285,7 +306,6 @@ const jaMessages = {
     errLabelConflict: "ラベル「{label}」は既に使用されています",
   },
   pluginLauncher: {
-    todos: { label: "Todo" },
     calendar: { label: "カレンダー" },
     automations: { label: "自動化" },
     wiki: { label: "Wiki" },
@@ -355,14 +375,6 @@ const jaMessages = {
     schedulerItems: {
       title: "スケジューラアイテムキュー",
       summary: "発火待ちの予約済み実行キュー。エージェント管理 — 各フィールドの意味を理解していなければ手動編集しないでください。",
-    },
-    todosItems: {
-      title: "Todo アイテム",
-      summary: "カンバン全列にまたがるタスク一覧。「Todo を追加して」と言うとエージェントがここに書き込みます。手動編集も可能です。",
-    },
-    todosColumns: {
-      title: "Todo 列定義",
-      summary: "カンバンの列レイアウト（タイトル・順序・ID）。ユーザー編集可 — 自由に名前変更や並び替えができます。",
     },
     wikiIndex: {
       title: "Wiki インデックス",
@@ -862,54 +874,6 @@ const jaMessages = {
     previewSummary: "会計 · {bookId}",
     previewError: "会計: {error}",
     previewGeneric: "会計の結果",
-  },
-  todoExplorer: {
-    heading: "Todo",
-    deleteConfirm: "「{text}」を削除しますか？",
-    doneRatio: "{done}/{total} 完了",
-    addButton: "+ 追加",
-    addColumnButton: "+ 列",
-    labels: "ラベル:",
-    searchPlaceholder: "検索...",
-    clearButton: "クリア ✕",
-    clearFiltersTitle: "ラベルフィルタをクリア",
-    emptyHint: "Todo 項目はまだありません。「+ 追加」で作成してください。",
-    addColumn: "列を追加",
-    newColumnLabelField: "ラベル",
-    newColumnPlaceholder: "レビュー",
-    noMatchingFilter: "現在のフィルタに一致する項目はありません",
-  },
-  todoDialogs: {
-    addTitle: "Todo を追加",
-    editTitle: "Todo を編集",
-    deleteButton: "削除",
-    deleteTitle: "この項目を削除",
-    noneOption: "— なし —",
-    fieldText: "内容",
-    fieldNote: "メモ",
-    fieldStatus: "ステータス",
-    fieldPriority: "優先度",
-    fieldDueDate: "期日",
-    fieldLabels: "ラベル",
-    fieldLabelsCommaSeparated: "ラベル（カンマ区切り）",
-    textPlaceholder: "やることを入力",
-    labelsPlaceholder: "work, urgent",
-  },
-  todoKanban: {
-    rename: "名前を変更",
-    markAsDoneColumn: "完了列に指定",
-    removeAllItems: "すべての項目を削除",
-    removeAllItemsConfirm: "「{column}」のすべての項目（{count}件）を削除しますか？この操作は取り消せません。",
-    deleteColumn: "列を削除",
-    columnActions: "列のアクション",
-    addCard: "+ カードを追加",
-    openCardAria: "タスクを開く: {task}",
-  },
-  todoTableList: {
-    noMatchingFilter: "現在のフィルタに一致する項目はありません",
-    sortColumnAria: "{column} で並べ替え",
-    expandRowAria: "タスクを展開: {task}",
-    deleteItem: "項目を削除",
   },
   pluginWiki: {
     backToIndex: "インデックスに戻る",

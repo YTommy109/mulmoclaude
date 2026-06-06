@@ -96,6 +96,10 @@ const HOST_API_ROUTES = {
     tree: "/api/files/tree",
     dir: "/api/files/dir",
     content: "/api/files/content",
+    /** POST — create a new file. Refuses on conflict (409) so the
+     *  client doesn't have to gate creation through PUT, which is
+     *  update-only and 404s on non-existent paths (#1598). */
+    create: "/api/files/create",
     raw: "/api/files/raw",
     refRoots: "/api/files/ref-roots",
   },
@@ -252,12 +256,6 @@ const HOST_API_ROUTES = {
     itemBody: "/api/news/items/:id/body",
     readState: "/api/news/read-state",
   },
-
-  // todos: removed — todo is now a runtime plugin
-  // (`@mulmoclaude/todo-plugin`, #1145 migration). The frontend
-  // calls into it via `runtime.dispatch({kind: ...})` from
-  // `useTodos` (`@mulmoclaude/todo-plugin/composables`); no
-  // host-managed routes remain.
 
   hooks: {
     /** Internal endpoint hit by the PostToolUse dispatcher

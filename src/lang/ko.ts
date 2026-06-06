@@ -39,10 +39,12 @@ const koMessages = {
   chatInput: {
     placeholder: "Claude에게 메시지…",
     send: "전송",
+    stop: "중지",
     attachFile: "파일 첨부",
     fileTooLarge: "파일이 너무 큽니다 ({sizeMB} MB). 최대 30 MB 까지 가능합니다.",
     unsupportedFileType: "지원되지 않는 파일 형식입니다. 이미지, PDF, DOCX, XLSX, PPTX, 텍스트 파일만 지원됩니다.",
     attachImageFailed: "이미지를 첨부하지 못했습니다: {error}",
+    stopFailed: "처리를 중지하지 못했습니다: {error}",
     dropHint: "파일을 놓아서 첨부",
   },
   sessionHistoryPanel: {
@@ -96,6 +98,10 @@ const koMessages = {
     notFound: "{command}을(를) 찾을 수 없습니다 — 관련 기능이 비활성화되었습니다. {command}을(를) 설치한 후 MulmoClaude를 재시작하면 활성화됩니다.",
     notResponding:
       "{command}은(는) 설치되어 있지만 실행 중이 아닙니다 — 관련 기능이 비활성화되었습니다. {command}을(를) 시작한 후 MulmoClaude를 재시작하면 활성화됩니다.",
+  },
+  billingMigration: {
+    title: "인보이스 기능이 온디맨드 설정으로 이동했습니다",
+    body: "번들로 제공되던 clients, worklog, invoice, profile 컬렉션이 대시보드에서 제거되었지만 데이터는 안전하게 그대로 유지됩니다. 클라이언트 및 작업 시간 기록을 설정한 다음 인보이스를 설정하도록 요청하면 다시 만들어지고 기존 레코드가 다시 표시됩니다.",
   },
   backendOffline: {
     title: "백엔드에 연결할 수 없습니다",
@@ -155,6 +161,21 @@ const koMessages = {
   fileTree: {
     workspace: "(워크스페이스)",
     recentlyChanged: "최근 변경됨",
+    newFileMenuItem: "새 파일",
+    newFileInputAria: "새 파일 이름",
+    newFilePlaceholder: {
+      wikiPage: "페이지 slug",
+      summary: "요약 이름",
+      document: "문서 이름",
+      html: "페이지 이름",
+      story: "스토리 이름",
+    },
+    newFileError: {
+      empty: "파일 이름을 입력하세요.",
+      unsafe: "파일 이름에 사용할 수 없는 문자가 포함되어 있습니다.",
+      exists: "{filename} 파일이 이미 존재합니다.",
+      saveFailed: "파일을 생성할 수 없습니다. 다시 시도해 주세요.",
+    },
   },
   lockStatusPopup: {
     sandboxEnabledTooltip: "샌드박스 활성화 (Docker)",
@@ -287,7 +308,6 @@ const koMessages = {
     errLabelConflict: '라벨 "{label}" 은(는) 이미 사용 중입니다',
   },
   pluginLauncher: {
-    todos: { label: "할 일" },
     calendar: { label: "캘린더" },
     automations: { label: "자동화" },
     wiki: { label: "위키" },
@@ -357,14 +377,6 @@ const koMessages = {
     schedulerItems: {
       title: "스케줄러 아이템 큐",
       summary: "발화 대기 중인 예약 호출 큐. 에이전트 관리 — 각 필드의 의미를 정확히 알지 않으면 수동 편집하지 마세요.",
-    },
-    todosItems: {
-      title: "할 일 항목",
-      summary: '칸반 보드 모든 열의 작업. "할 일 추가"라고 말하면 에이전트가 여기에 기록하며, 수동 편집도 가능합니다.',
-    },
-    todosColumns: {
-      title: "할 일 열 정의",
-      summary: "칸반 보드의 열 레이아웃(제목, 순서, ID). 사용자 편집 가능 — 자유롭게 이름 변경이나 재정렬 가능합니다.",
     },
     wikiIndex: {
       title: "위키 인덱스",
@@ -863,54 +875,6 @@ const koMessages = {
     previewSummary: "회계 · {bookId}",
     previewError: "회계: {error}",
     previewGeneric: "회계 결과",
-  },
-  todoExplorer: {
-    heading: "할 일",
-    deleteConfirm: '"{text}"을(를) 삭제하시겠습니까?',
-    doneRatio: "{done}/{total} 완료",
-    addButton: "+ 추가",
-    addColumnButton: "+ 칼럼",
-    labels: "라벨:",
-    searchPlaceholder: "검색...",
-    clearButton: "지우기 ✕",
-    clearFiltersTitle: "라벨 필터 지우기",
-    emptyHint: '아직 할 일이 없습니다. "+ 추가" 를 눌러 새로 만드세요.',
-    addColumn: "칼럼 추가",
-    newColumnLabelField: "라벨",
-    newColumnPlaceholder: "Review",
-    noMatchingFilter: "현재 필터와 일치하는 항목이 없습니다",
-  },
-  todoDialogs: {
-    addTitle: "할 일 추가",
-    editTitle: "할 일 편집",
-    deleteButton: "삭제",
-    deleteTitle: "이 항목을 삭제합니다",
-    noneOption: "— 없음 —",
-    fieldText: "텍스트",
-    fieldNote: "메모",
-    fieldStatus: "상태",
-    fieldPriority: "우선순위",
-    fieldDueDate: "마감일",
-    fieldLabels: "라벨",
-    fieldLabelsCommaSeparated: "라벨 (쉼표로 구분)",
-    textPlaceholder: "무엇을 해야 하나요?",
-    labelsPlaceholder: "업무, 긴급",
-  },
-  todoKanban: {
-    rename: "이름 바꾸기",
-    markAsDoneColumn: "완료 칼럼으로 설정",
-    removeAllItems: "모든 항목 삭제",
-    removeAllItemsConfirm: '"{column}"의 모든 항목 {count}개를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.',
-    deleteColumn: "칼럼 삭제",
-    columnActions: "칼럼 작업",
-    addCard: "+ 카드 추가",
-    openCardAria: "작업 열기: {task}",
-  },
-  todoTableList: {
-    noMatchingFilter: "현재 필터와 일치하는 항목이 없습니다",
-    sortColumnAria: "{column} 기준으로 정렬",
-    expandRowAria: "작업 펼치기: {task}",
-    deleteItem: "항목 삭제",
   },
   pluginWiki: {
     backToIndex: "목차로 돌아가기",

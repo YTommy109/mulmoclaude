@@ -37,10 +37,12 @@ const esMessages = {
   chatInput: {
     placeholder: "Mensaje para Claude…",
     send: "Enviar",
+    stop: "Detener",
     attachFile: "Adjuntar archivo",
     fileTooLarge: "El archivo es demasiado grande ({sizeMB} MB). El máximo es 30 MB.",
     unsupportedFileType: "Tipo de archivo no admitido. Se aceptan: imágenes, PDF, DOCX, XLSX, PPTX y archivos de texto.",
     attachImageFailed: "No se pudo adjuntar la imagen: {error}",
+    stopFailed: "No se pudo detener la ejecución: {error}",
     dropHint: "Suelta el archivo para adjuntar",
   },
   sessionHistoryPanel: {
@@ -94,6 +96,10 @@ const esMessages = {
     notFound: "No se encontró {command} — las funciones relacionadas se han desactivado. Instala {command} y reinicia MulmoClaude para habilitarlas.",
     notResponding:
       "{command} está instalado pero no se está ejecutando — las funciones relacionadas se han desactivado. Inicia {command} y reinicia MulmoClaude para habilitarlas.",
+  },
+  billingMigration: {
+    title: "La facturación pasó a configurarse bajo demanda",
+    body: "Las colecciones incluidas clients, worklog, invoice y profile se eliminaron de tu panel, pero tus datos están seguros e intactos. Pide configurar el seguimiento de clientes y horas y, luego, la facturación para volver a crearlas; tus registros existentes reaparecerán.",
   },
   backendOffline: {
     title: "No se puede conectar con el backend",
@@ -154,6 +160,21 @@ const esMessages = {
   fileTree: {
     workspace: "(área de trabajo)",
     recentlyChanged: "Modificados recientemente",
+    newFileMenuItem: "Nuevo archivo",
+    newFileInputAria: "Nombre del nuevo archivo",
+    newFilePlaceholder: {
+      wikiPage: "slug-de-página",
+      summary: "nombre-de-resumen",
+      document: "nombre-de-documento",
+      html: "nombre-de-página",
+      story: "nombre-de-historia",
+    },
+    newFileError: {
+      empty: "El nombre del archivo no puede estar vacío.",
+      unsafe: "El nombre del archivo contiene caracteres no válidos.",
+      exists: "Ya existe un archivo llamado {filename} aquí.",
+      saveFailed: "No se pudo crear el archivo. Inténtalo de nuevo.",
+    },
   },
   lockStatusPopup: {
     sandboxEnabledTooltip: "Sandbox activado (Docker)",
@@ -289,7 +310,6 @@ const esMessages = {
     errLabelConflict: 'La etiqueta "{label}" ya existe',
   },
   pluginLauncher: {
-    todos: { label: "Tareas" },
     calendar: { label: "Calendario" },
     automations: { label: "Acciones" },
     wiki: { label: "Wiki" },
@@ -361,14 +381,6 @@ const esMessages = {
     schedulerItems: {
       title: "Cola de elementos del programador",
       summary: "Invocaciones programadas listas para dispararse. Gestionado por el agente; no edites a mano salvo que entiendas cada campo.",
-    },
-    todosItems: {
-      title: "Tareas pendientes",
-      summary: "Tus tareas en todas las columnas del tablero kanban. El agente escribe aquí cuando dices «añade una tarea»; también puedes editar a mano.",
-    },
-    todosColumns: {
-      title: "Columnas de pendientes",
-      summary: "Disposición de columnas del tablero kanban (títulos, orden, ids). Editable por el usuario — renombra o reordena libremente.",
     },
     wikiIndex: {
       title: "Índice de la wiki",
@@ -875,54 +887,6 @@ const esMessages = {
     previewSummary: "Contabilidad · {bookId}",
     previewError: "Contabilidad: {error}",
     previewGeneric: "Resultado de contabilidad",
-  },
-  todoExplorer: {
-    heading: "Tareas",
-    deleteConfirm: '¿Eliminar "{text}"?',
-    doneRatio: "{done}/{total} hechas",
-    addButton: "+ Añadir",
-    addColumnButton: "+ Columna",
-    labels: "Etiquetas:",
-    searchPlaceholder: "Buscar...",
-    clearButton: "Borrar ✕",
-    clearFiltersTitle: "Borrar filtros de etiqueta",
-    emptyHint: 'Aún no hay tareas. Haz clic en "+ Añadir" para crear una.',
-    addColumn: "Añadir columna",
-    newColumnLabelField: "Etiqueta",
-    newColumnPlaceholder: "Revisar",
-    noMatchingFilter: "Ningún elemento coincide con el filtro actual",
-  },
-  todoDialogs: {
-    addTitle: "Añadir tarea",
-    editTitle: "Editar tarea",
-    deleteButton: "Eliminar",
-    deleteTitle: "Eliminar este elemento",
-    noneOption: "— Ninguno —",
-    fieldText: "Texto",
-    fieldNote: "Nota",
-    fieldStatus: "Estado",
-    fieldPriority: "Prioridad",
-    fieldDueDate: "Fecha límite",
-    fieldLabels: "Etiquetas",
-    fieldLabelsCommaSeparated: "Etiquetas (separadas por comas)",
-    textPlaceholder: "¿Qué hay que hacer?",
-    labelsPlaceholder: "trabajo, urgente",
-  },
-  todoKanban: {
-    rename: "Cambiar nombre",
-    markAsDoneColumn: "Marcar como columna de hechas",
-    removeAllItems: "Eliminar todos los elementos",
-    removeAllItemsConfirm: '¿Eliminar los {count} elementos de "{column}"? Esta acción no se puede deshacer.',
-    deleteColumn: "Eliminar columna",
-    columnActions: "Acciones de columna",
-    addCard: "+ Añadir tarjeta",
-    openCardAria: "Abrir tarea: {task}",
-  },
-  todoTableList: {
-    noMatchingFilter: "Ningún elemento coincide con el filtro actual",
-    sortColumnAria: "Ordenar por {column}",
-    expandRowAria: "Expandir tarea: {task}",
-    deleteItem: "Eliminar elemento",
   },
   pluginWiki: {
     backToIndex: "Volver al índice",

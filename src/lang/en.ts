@@ -54,10 +54,12 @@ const enMessages = {
   chatInput: {
     placeholder: "Message Claude…",
     send: "Send",
+    stop: "Stop",
     attachFile: "Attach file",
     fileTooLarge: "File too large ({sizeMB} MB). Maximum is 30 MB.",
     unsupportedFileType: "File type not supported. Accepted: images, PDF, DOCX, XLSX, PPTX, text files.",
     attachImageFailed: "Failed to attach image: {error}",
+    stopFailed: "Failed to stop the run: {error}",
     dropHint: "Drop file to attach",
   },
   sessionHistoryPanel: {
@@ -109,6 +111,10 @@ const enMessages = {
     titleNotResponding: "{command} not running",
     notFound: "{command} not found — related features are disabled. Install {command} and restart MulmoClaude to enable them.",
     notResponding: "{command} is installed but not running — related features are disabled. Start {command} and restart MulmoClaude to enable them.",
+  },
+  billingMigration: {
+    title: "Invoicing moved to on-demand setup",
+    body: "The bundled clients, worklog, invoice, and profile collections were removed from your dashboard, but your data is safe and untouched. Ask to set up client & time tracking, then invoicing, to recreate them — your existing records will reappear.",
   },
   backendOffline: {
     title: "Can't reach the backend",
@@ -169,6 +175,21 @@ const enMessages = {
   fileTree: {
     workspace: "(workspace)",
     recentlyChanged: "Recently changed",
+    newFileMenuItem: "New file",
+    newFileInputAria: "New file name",
+    newFilePlaceholder: {
+      wikiPage: "page-slug",
+      summary: "summary-name",
+      document: "document-name",
+      html: "page-name",
+      story: "story-name",
+    },
+    newFileError: {
+      empty: "Filename can't be empty.",
+      unsafe: "Filename contains invalid characters.",
+      exists: "A file named {filename} already exists here.",
+      saveFailed: "Couldn't create the file. Please try again.",
+    },
   },
   lockStatusPopup: {
     sandboxEnabledTooltip: "Sandbox enabled (Docker)",
@@ -302,7 +323,6 @@ const enMessages = {
     errLabelConflict: 'Label "{label}" already exists',
   },
   pluginLauncher: {
-    todos: { label: "Todos" },
     calendar: { label: "Calendar" },
     automations: { label: "Actions" },
     wiki: { label: "Wiki" },
@@ -380,14 +400,6 @@ const enMessages = {
     schedulerItems: {
       title: "Scheduler items queue",
       summary: "Active scheduled invocations ready to fire. Agent-managed; do not hand-edit unless you know exactly what each field means.",
-    },
-    todosItems: {
-      title: "Todo items",
-      summary: 'Your tasks across all columns of the kanban board. The agent writes here when you say things like "add a todo"; you can also hand-edit.',
-    },
-    todosColumns: {
-      title: "Todo columns",
-      summary: "Column layout of the kanban board (titles, order, ids). User-editable — rename or reorder freely.",
     },
     wikiIndex: {
       title: "Wiki index",
@@ -862,54 +874,6 @@ const enMessages = {
     previewSummary: "Accounting · {bookId}",
     previewError: "Accounting: {error}",
     previewGeneric: "Accounting result",
-  },
-  todoExplorer: {
-    heading: "Todo",
-    deleteConfirm: 'Delete "{text}"?',
-    doneRatio: "{done}/{total} done",
-    addButton: "+ Add",
-    addColumnButton: "+ Column",
-    labels: "Labels:",
-    searchPlaceholder: "Search...",
-    clearButton: "Clear ✕",
-    clearFiltersTitle: "Clear label filters",
-    emptyHint: 'No todo items yet. Click "+ Add" to create one.',
-    addColumn: "Add Column",
-    newColumnLabelField: "Label",
-    newColumnPlaceholder: "Review",
-    noMatchingFilter: "No items match the current filter",
-  },
-  todoDialogs: {
-    addTitle: "Add Todo",
-    editTitle: "Edit Todo",
-    deleteButton: "Delete",
-    deleteTitle: "Delete this item",
-    noneOption: "— None —",
-    fieldText: "Text",
-    fieldNote: "Note",
-    fieldStatus: "Status",
-    fieldPriority: "Priority",
-    fieldDueDate: "Due date",
-    fieldLabels: "Labels",
-    fieldLabelsCommaSeparated: "Labels (comma-separated)",
-    textPlaceholder: "What needs doing?",
-    labelsPlaceholder: "work, urgent",
-  },
-  todoKanban: {
-    rename: "Rename",
-    markAsDoneColumn: "Mark as done column",
-    removeAllItems: "Remove all items",
-    removeAllItemsConfirm: 'Remove all {count} item(s) in "{column}"? This cannot be undone.',
-    deleteColumn: "Delete column",
-    columnActions: "Column actions",
-    addCard: "+ Add card",
-    openCardAria: "Open task: {task}",
-  },
-  todoTableList: {
-    noMatchingFilter: "No items match the current filter",
-    sortColumnAria: "Sort by {column}",
-    expandRowAria: "Expand task: {task}",
-    deleteItem: "Delete item",
   },
   pluginWiki: {
     backToIndex: "Back to index",
