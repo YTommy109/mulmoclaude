@@ -138,11 +138,25 @@ function itemId(item: CollectionItem): string {
   return String(item[props.schema.primaryKey] ?? "");
 }
 
-/** Chip label: the schema's `displayField` value, else the primary key. */
+// Text-like field types that make a sensible human-readable chip label.
+const LABEL_FIELD_TYPES = new Set(["string", "text", "markdown", "email"]);
+
+// Which field labels each chip: the schema's explicit `displayField`, else
+// the first non-primary text-like field (so a feed/collection without a
+// displayField shows e.g. the title rather than the opaque primaryKey),
+// else null → fall back to the primaryKey value.
+const labelField = computed<string | null>(() => {
+  if (props.schema.displayField) return props.schema.displayField;
+  for (const [key, spec] of Object.entries(props.schema.fields)) {
+    if (key !== props.schema.primaryKey && LABEL_FIELD_TYPES.has(spec.type)) return key;
+  }
+  return null;
+});
+
+/** Chip label: the resolved `labelField` value, else the primary key. */
 function itemLabel(item: CollectionItem): string {
-  const field = props.schema.displayField;
-  if (field) {
-    const value = item[field];
+  if (labelField.value) {
+    const value = item[labelField.value];
     if (typeof value === "string" && value.length > 0) return value;
   }
   return itemId(item);
