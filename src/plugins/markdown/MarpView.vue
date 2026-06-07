@@ -43,7 +43,7 @@ const props = defineProps<{
   baseDir?: string;
 }>();
 
-const SLIDE_ASPECT = 9 / 16;
+const DEFAULT_SLIDE_ASPECT = 9 / 16;
 const SLIDE_GAP_PX = 16;
 const FRAME_PADDING_PX = 32;
 const FALLBACK_WIDTH_PX = 800;
@@ -52,15 +52,29 @@ const containerEl = ref<HTMLElement | null>(null);
 const containerWidth = ref(FALLBACK_WIDTH_PX);
 const srcDoc = ref<string>("");
 const slideCount = ref(0);
+const slideAspect = ref(DEFAULT_SLIDE_ASPECT);
 const renderError = ref<string | null>(null);
 
 const { pdfDownloading, pdfError, downloadPdf } = usePdfDownload();
 
 const frameHeight = computed(() => {
   if (slideCount.value === 0) return FRAME_PADDING_PX;
-  const slideHeight = containerWidth.value * SLIDE_ASPECT;
+  const slideHeight = containerWidth.value * slideAspect.value;
   return Math.ceil(slideCount.value * slideHeight + Math.max(0, slideCount.value - 1) * SLIDE_GAP_PX + FRAME_PADDING_PX);
 });
+
+// Extract aspect ratio (= height / width) from the first SVG's
+// viewBox. Marp embeds the slide canvas dimensions there — 1280×720
+// for the default 16:9, 960×720 for `size: 4:3`, etc. Stays at the
+// 16:9 fallback if the regex doesn't match (e.g. malformed render).
+function extractSlideAspect(html: string): number {
+  const match = html.match(/viewBox="0 0 (\d+) (\d+)"/);
+  if (!match) return DEFAULT_SLIDE_ASPECT;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!width || !height) return DEFAULT_SLIDE_ASPECT;
+  return height / width;
+}
 
 // Hard-locked CSP: defence-in-depth on top of `sandbox=""`. Even
 // if the iframe boundary ever leaks (e.g. someone removes the empty
@@ -142,6 +156,7 @@ async function renderMarp(markdown: string): Promise<void> {
   if (!markdown) {
     srcDoc.value = "";
     slideCount.value = 0;
+    slideAspect.value = DEFAULT_SLIDE_ASPECT;
     return;
   }
   try {
@@ -161,11 +176,13 @@ async function renderMarp(markdown: string): Promise<void> {
     const rewritten = rewriteMarkdownImageRefs(markdown, props.baseDir ?? "");
     const { html, css } = marp.render(rewritten);
     slideCount.value = countSlides(html);
+    slideAspect.value = extractSlideAspect(html);
     srcDoc.value = buildSrcDoc(html, css);
   } catch (err) {
     renderError.value = errorMessage(err);
     srcDoc.value = "";
     slideCount.value = 0;
+    slideAspect.value = DEFAULT_SLIDE_ASPECT;
   }
 }
 

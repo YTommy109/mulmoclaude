@@ -252,6 +252,24 @@ async function renderPdf(fullHtml: string, format: "Letter" | "A4" = "Letter"): 
 // is the only style sheet the slides need. Images are inlined as
 // base64 data URIs (same path as the markdown route) because puppeteer
 // can't reach workspace-relative paths over the wire.
+// Parse the slide canvas dimensions out of Marp's first SVG viewBox.
+// Defaults to 16:9 / 1280×720 — same fallback as the MarpView preview.
+// Marp emits the actual dimensions per its `size:` directive (e.g.
+// `size: 4:3` → 960×720), so honouring viewBox lets the exported PDF
+// match the deck's declared aspect instead of stretching every deck
+// into the puppeteer-hardcoded 1280×720.
+const DEFAULT_SLIDE_WIDTH = 1280;
+const DEFAULT_SLIDE_HEIGHT = 720;
+
+function extractSlideDimensions(html: string): { width: number; height: number } {
+  const match = html.match(/viewBox="0 0 (\d+) (\d+)"/);
+  if (!match) return { width: DEFAULT_SLIDE_WIDTH, height: DEFAULT_SLIDE_HEIGHT };
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!width || !height) return { width: DEFAULT_SLIDE_WIDTH, height: DEFAULT_SLIDE_HEIGHT };
+  return { width, height };
+}
+
 async function renderMarpPdf(markdown: string, baseDir?: string): Promise<Buffer> {
   // Disable twemoji conversion so the PDF stays self-contained — the
   // default would emit `<img src="https://twemoji.maxcdn.com/...">`
@@ -260,6 +278,7 @@ async function renderMarpPdf(markdown: string, baseDir?: string): Promise<Buffer
   // matches the MarpView preview's behaviour after the same change.
   const marp = new Marp({ html: false, emoji: { unicode: false, shortcode: false } });
   const { html, css } = marp.render(markdown);
+  const { width: slideWidth, height: slideHeight } = extractSlideDimensions(html);
   const inlinedHtml = inlineImages(html, { sourceDir: baseDir });
   const fullHtml = `<!doctype html>
 <html><head><meta charset="utf-8"><style>
@@ -280,11 +299,11 @@ div.marpit > svg > foreignObject > section img:not([data-marp-twemoji]) {
   const browser = await puppeteer.launch({ headless: true });
   try {
     const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 720 });
+    await page.setViewport({ width: slideWidth, height: slideHeight });
     await page.setContent(fullHtml, { waitUntil: "load" });
     const pdfBuffer = await page.pdf({
-      width: "1280px",
-      height: "720px",
+      width: `${slideWidth}px`,
+      height: `${slideHeight}px`,
       margin: { top: "0", bottom: "0", left: "0", right: "0" },
       printBackground: true,
     });
