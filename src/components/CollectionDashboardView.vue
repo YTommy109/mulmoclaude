@@ -7,7 +7,7 @@
     <div class="grid gap-3" :class="cardGridClass">
       <button
         v-for="card in cards"
-        :key="card.value || 'uncategorized'"
+        :key="card.value"
         type="button"
         class="flex flex-col items-center justify-center rounded-xl border px-4 py-4 text-center transition-colors"
         :class="STATUS_CARD_CLASS[card.status]"
