@@ -228,10 +228,15 @@ async function onExportPdf(): Promise<void> {
 <style scoped>
 .marp-container {
   width: 100%;
-  height: 100%;
+  /* Content-height so the grey card ends with the last slide. Parent
+     wrapper in View.vue / FileContentRenderer.vue is the centering
+     context — it uses `m-auto` to put a short deck mid-canvas (white
+     above + below) instead of pinning it to the top with all the
+     empty space at the bottom. */
   display: flex;
   flex-direction: column;
   background: #f8fafc;
+  border-radius: 6px;
 }
 
 .marp-frame-wrapper {
