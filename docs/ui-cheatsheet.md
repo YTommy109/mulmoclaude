@@ -16,12 +16,14 @@ A quick visual reference so chat instructions about UI ("the bell at the top rig
 ┌─[App.vue root]────────────────────────────────────────────────────────┐
 │ ┌─[#header]────────────────────────────────────────────────────────┐  │
 │ │  ⌂[Go to latest chat / brand]  🔓lock_open  🔔[notification-bell]│  │
-│ │                                              ⚙ settings          │  │
+│ │                          ⚙ settings (→ Skills / Roles tabs)      │  │
 │ └──────────────────────────────────────────────────────────────────┘  │
 │ ┌─<PluginLauncher> [plugin-launcher]──────────────────────────────────┐│
-│ │ ⏰Actions│📖Wiki│▦Collections│📡Feeds ‖ 🧠Skills│🎭Roles│📁Files       ││
-│ │ [plugin-launcher-automations] … [plugin-launcher-feeds] … (‖ = separator)││
-│ │ data plugins (0–3) │ separator │ management (Skills/Roles/Files)       ││
+│ │ ⏰Actions│📖Wiki│▦Collections│📡Feeds ‖ 📁Files ‖ ▦Invoices│📡Weather    ││
+│ │ [plugin-launcher-automations] … [plugin-launcher-feeds] …            ││
+│ │   [plugin-launcher-shortcuts]→[plugin-launcher-shortcut-<kind>-<slug>]││
+│ │ data plugins (0–3) │ ‖ │ management (Files) │ ‖ │ pinned shortcuts (scrolls) ││
+│ │ Skills & Roles moved into Settings (gear → Management group)           ││
 │ └─────────────────────────────────────────────────────────────────────┘│
 │ ┌─[main pane — route-specific]────┐ ┌─<SessionHistoryPanel>────────┐  │
 │ │                                 │ │ [session-history-side-panel] │  │
@@ -299,18 +301,24 @@ The preview pane renders by file type (markdown, images, JSON/JSONL syntax highl
 
 `boolean` columns render an inline checkbox and `enum` columns an inline `<select>` directly in the table cell — changing one writes the value straight to the record (`PUT .../items/:id`, optimistic + rollback on failure) without opening the detail panel. The controls use `@click.stop` so the cell click never bubbles into the row's `openView`. All other field types (and the full edit form) still go through the row → `[collections-detail]` → Edit → Save flow.
 
-The **Calendar** toggle (`[collection-view-toggle-calendar]`) appears only when the schema has a `date` field; the **Kanban** toggle (`[collection-view-toggle-kanban]`) only when it has an `enum` field. `<CollectionKanbanView>` groups records into columns by the chosen enum field (declared `values` order + a trailing **Uncategorized** column for empty/unknown values — omitted when the chosen enum is declared `required`), with a `[collection-kanban-field]` selector when >1 enum field exists. Dragging a card (`[collection-kanban-card-<id>]`) between columns writes the group field via the same inline-edit PUT (no column drag, no within-column ordering); a card whose group field is hidden by a `when` predicate is omitted from the board. Card click opens the same detail panel below the board.
+The **Calendar** toggle (`[collection-view-toggle-calendar]`) appears only when the schema has a `date` or `datetime` field; the **Kanban** toggle (`[collection-view-toggle-kanban]`) only when it has an `enum` field. In `<CollectionCalendarView>`, clicking anywhere in a day cell (`[collection-calendar-day-<key>]`, a keyboard-operable `role="button"`) opens `<CollectionDayView>` (`[collection-day-view]`) — a modal 24-hour timeline of that day; its **+** (`[collection-day-view-create]`) starts a create prefilled to that day — the only create entry point in the calendar (the header **Add** button `[collections-add-item]` is hidden while the calendar is active). The `<CollectionDayView>` modal is owned by `<CollectionView>` (not the calendar child), which slots the shared `<CollectionRecordPanel>` into its `#detail` slot (used for the open/edit detail *and* the new-item create form). Record chips inside the month cell select the record — which also opens the day popup on that record's day. Records with a clock (a `datetime` anchor/end, or a `date` plus the schema's `calendarTimeField` time-string like `"14:00-17:00"`) draw as proportional blocks (`[collection-day-view-chip-<id>]`); a start-only time draws as a single line; clock-less records sit in the bottom all-day strip (`[collection-day-view-all-day]`). A chip shows the record's title and, under it, a few non-date/non-time field values (no clock text) — clipped to the chip's time-proportional height, never expanding it. Selecting an entry keeps the popup open and shows its detail in the right pane (`[collection-day-view-detail]`), expanding the modal to two columns, and mirrors the selection into `?selected=<id>` so the day+record state is a shareable link (a `?selected=` deep link to a calendar-capable collection opens straight into this view). A record with no resolvable day (the **No date** tray, `[collection-calendar-no-date]`) can't sit on a timeline, so its detail falls back to a panel below the grid (`[collections-calendar-panel]`). `<CollectionKanbanView>` groups records into columns by the chosen enum field (declared `values` order + a trailing **Uncategorized** column for empty/unknown values — omitted when the chosen enum is declared `required`), with a `[collection-kanban-field]` selector when >1 enum field exists. Dragging a card (`[collection-kanban-card-<id>]`) between columns writes the group field via the same inline-edit PUT (no column drag, no within-column ordering); a card whose group field is hidden by a `when` predicate is omitted from the board. Card click opens the same detail panel below the board.
 
 A `toggle` field is a checkbox that **projects** an `enum` field (stores nothing itself): checked when the enum equals its `onValue`, toggling writes `onValue`/`offValue` back to that enum. It renders inline in the table (`[collections-inline-toggle-<key>-<id>]`) and on the kanban card (`[collection-kanban-toggle-<id>]`, shown when it projects the board's group field — checking it also moves the card). This is how a todo-style "done" checkbox fronts a kanban `status` while keeping the enum as the single source of truth.
 
-## /skills — workspace skills list
+## Settings → Skills tab — workspace skills list
+
+Lives inside the **Settings modal** (gear → `[settings-tab-skills]`,
+**Management** group) — there is **no `/skills` route** (it redirects to
+`/chat`). The same `<ManageSkillsView>` also mounts on the right canvas
+when a `manageSkills` tool result is selected in chat.
 
 Two-pane layout (`<ManageSkillsView>`): left sidebar = two collapsible
 sections, **Active** (skills in `.claude/skills/`, discovered by Claude
-Code and loaded into the prompt) and **Catalog** (launcher-managed
-presets the user can browse / ★ star / ▶ run once without bloating the
-prompt). Right pane renders the selected skill's `SKILL.md` (active) or
-the preset/external detail with Star / Run once actions (catalog).
+Code and loaded into the prompt) and **Catalog** (presets the user can
+browse / ★ star without bloating the prompt). Right pane renders the
+selected skill's `SKILL.md` (active) or the preset/external detail with
+the Star action (catalog). There is **no in-view Run** — invoke a skill
+by typing its `/<name>` slash command in chat.
 Within Active, provenance (System `mc-` bundled / Project / User) is a
 per-row badge, not its own group; only **Project** skills expose
 Edit/Delete, the rest are read-only. Collapse state per section is
@@ -321,20 +329,20 @@ sub-list, one collapsible subgroup per installed **external repo**
 collapse persisted to `skills:repoCollapsed`. A **+ Add skill
 repository** button opens a modal (GitHub URL + optional subpath, plus
 one-click seed suggestions). External rows behave like preset rows
-(select → right pane Star / Run once); uninstalling a repo keeps any
+(select → right pane Star); uninstalling a repo keeps any
 already-starred skills in Active (star = fork).
 
 ```text
-┌─[<ManageSkillsView>]───────────────────────────────────────────────┐
-│ Skills                              N available · click · Run = /…│
+┌─[<ManageSkillsView>] (in Settings modal → Skills tab)──────────────┐
+│ Skills                                          N available · click│
 │ ┌─Sidebar (w-64)──────────┬─Detail pane──────────────────────────┐ │
 │ │ ▼ ACTIVE            11  │  <skill name>                         │ │
 │ │ ├ [skill-item-foo] 🏠   │  description                          │ │
-│ │ ├ [skill-item-bar] 📁   │                            ✏ Edit  ✕ ⏵│ │
+│ │ ├ [skill-item-bar] 📁   │                             ✏ Edit  ✕ │ │
 │ │ └ [skill-item-baz] 📁   │  rendered SKILL.md (marked + sanitize)│ │
 │ │ ▼ CATALOG            4  │                                       │ │
 │ │   Presets               │  (catalog row → preset/external detail│ │
-│ │ ├ [skill-catalog-…] ★   │   with ★ Star / ▶ Run once)           │ │
+│ │ ├ [skill-catalog-…] ★   │   with ★ Star)                        │ │
 │ │ ▼ owner/repo (n) [⟳][🗑] │                                       │ │
 │ │ ├ [skill-catalog-…] ☁   │                                       │ │
 │ │ [+ Add skill repository]│                                       │ │
@@ -360,10 +368,14 @@ form + expand its description, NOT install) /
 `skill-add-repo-suggestion-link-{url}` (opens the repo on GitHub in a
 new tab) for the add-repo modal.
 
-## /roles — role configuration
+## Settings → Roles tab — role configuration
+
+Lives inside the **Settings modal** (gear → `[settings-tab-roles]`,
+**Management** group) — there is **no `/roles` route** (it redirects to
+`/chat`). Root testid `[roles-view-root]`.
 
 ```
-┌─[<RolesManager>]───────────────────────────────────────────────────┐
+┌─[<RolesManager>] (in Settings modal → Roles tab)───────────────────┐
 │ ┌─Built-in roles (read-only)─────────────────────────────────────┐ │
 │ │ ⭐ General              "Helpful assistant w/ workspace access" │ │
 │ │ 🎨 Artist                ...                                   │ │
