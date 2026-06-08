@@ -230,6 +230,7 @@
           :anchor-field="calendarAnchorField"
           :end-field="calendarEndField"
           :time-field="calendarTimeField"
+          :color-field="hasKanban ? kanbanGroupField : ''"
           :selected="viewing ? String(viewing[collection.schema.primaryKey] ?? '') : undefined"
           @select="onCalendarSelect"
           @open-day="onOpenDay"
@@ -522,7 +523,8 @@
                       v-else-if="field.type === 'enum' && Array.isArray(field.values) && field.values.length > 0"
                       :value="item[key] == null ? '' : String(item[key])"
                       :disabled="isRowInlineSaving(item)"
-                      class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="rounded-lg border px-2 py-0.5 text-[11px] font-semibold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      :class="enumControlClass(field, item[key])"
                       :data-testid="`collections-inline-enum-${key}-${item[collection.schema.primaryKey]}`"
                       :aria-label="field.label"
                       @click.stop
@@ -706,6 +708,7 @@ import { useConfirm } from "../composables/useConfirm";
 import { useAppApi } from "../composables/useAppApi";
 import { useShortcuts } from "../composables/useShortcuts";
 import { actionVisible, fieldVisible } from "../utils/collections/actionVisible";
+import { enumColorClasses, enumValueIndex } from "../utils/collections/enumColors";
 import { readCollectionViewMode, writeCollectionViewMode } from "../utils/collections/collectionViewMode";
 import { useCollectionRendering } from "../composables/collections/useCollectionRendering";
 import { buildUpdatedRecord, coerceInlineValue, draftToRecord, firstMissingRequiredField, rowFromItem } from "../utils/collections/draft";
@@ -901,6 +904,13 @@ function snapshotEmptyEnums(schema: CollectionDetail["schema"], records: Collect
  *  option: only for cells with no value at load time. */
 function showEnumPlaceholder(item: CollectionItem, fieldKey: string): boolean {
   return enumOriginallyEmpty.value.has(cellKey(rowId(item), fieldKey));
+}
+
+/** Tailwind fill/text/border classes tinting an inline enum `<select>` by its
+ *  current value's palette colour (neutral grey when unset/unknown). */
+function enumControlClass(field: FieldSpec, value: unknown): string {
+  const cls = enumColorClasses(enumValueIndex(field.values, value));
+  return `${cls.badge} ${cls.border}`;
 }
 
 /** Rows rendered by the table: the filtered records, plus a synthetic

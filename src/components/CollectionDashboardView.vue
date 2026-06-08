@@ -1,16 +1,15 @@
 <template>
   <div class="flex flex-col gap-4 p-1" data-testid="collection-dashboard">
     <!-- Stat cards: one per declared enum value (+ an Uncategorized card when
-         records carry an empty/unknown value). Colour is notifyWhen-driven —
-         a value flagged by the schema's notifyWhen reads red, the empty value
-         reads grey, everything else green. -->
+         records carry an empty/unknown value). Each value takes its palette
+         colour by declaration order; the empty/Uncategorized card reads grey. -->
     <div class="grid gap-3" :class="cardGridClass">
       <button
         v-for="card in cards"
         :key="card.value"
         type="button"
         class="flex flex-col items-center justify-center rounded-xl border px-4 py-4 text-center transition-colors"
-        :class="STATUS_CARD_CLASS[card.status]"
+        :class="enumColorClasses(card.colorIndex).card"
         :data-testid="`collection-dashboard-stat-${card.value || 'uncategorized'}`"
         @click="emit('select', null)"
       >
@@ -41,7 +40,7 @@
       </ul>
     </div>
 
-    <!-- Full list with a status dot + value badge per record, mirroring the
+    <!-- Full list with a colour dot + value badge per record, mirroring the
          table's openable rows. -->
     <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
       <div class="px-4 py-2.5 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -57,9 +56,9 @@
             :data-testid="`collection-dashboard-row-${itemId(row.item)}`"
             @click="emit('select', itemId(row.item))"
           >
-            <span class="w-2.5 h-2.5 rounded-full shrink-0" :class="STATUS_DOT_CLASS[row.status]" />
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" :class="enumColorClasses(row.colorIndex).dot" />
             <span class="flex-1 min-w-0 text-sm font-medium text-slate-800 truncate">{{ label(row.item) }}</span>
-            <span v-if="row.badge" class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="STATUS_BADGE_CLASS[row.status]">
+            <span v-if="row.badge" class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="enumColorClasses(row.colorIndex).badge">
               {{ row.badge }}
             </span>
             <span class="material-icons text-base text-slate-300 shrink-0">chevron_right</span>
@@ -74,6 +73,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { fieldVisible } from "../utils/collections/actionVisible";
+import { enumColorClasses, enumValueIndex } from "../utils/collections/enumColors";
 import { itemIdOf, itemLabelOf, labelFieldFor } from "../utils/collections/itemLabel";
 import type { CollectionItem, CollectionSchema } from "./collectionTypes";
 
@@ -91,26 +91,6 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-
-/** A record's status drives its colour: an enum value flagged by notifyWhen
- *  reads alert (red), the empty/unknown value neutral (grey), else ok (green). */
-type DashboardStatus = "alert" | "ok" | "none";
-
-const STATUS_CARD_CLASS: Record<DashboardStatus, string> = {
-  alert: "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100",
-  ok: "border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100",
-  none: "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100",
-};
-const STATUS_DOT_CLASS: Record<DashboardStatus, string> = {
-  alert: "bg-rose-500",
-  ok: "bg-emerald-500",
-  none: "bg-slate-300",
-};
-const STATUS_BADGE_CLASS: Record<DashboardStatus, string> = {
-  alert: "bg-rose-100 text-rose-700",
-  ok: "bg-emerald-100 text-emerald-700",
-  none: "bg-slate-100 text-slate-500",
-};
 
 const groupSpec = computed(() => props.schema.fields[props.groupField]);
 const labelField = computed<string | null>(() => labelFieldFor(props.schema));
@@ -138,13 +118,10 @@ function valueOf(item: CollectionItem): string {
   return (groupSpec.value?.values ?? []).includes(value) ? value : "";
 }
 
-/** The status of a grouping-field value: alert when notifyWhen targets THIS
- *  field and flags the value, none for the empty value, else ok. */
-function statusOfValue(value: string): DashboardStatus {
-  if (value === "") return "none";
-  const spec = notify.value;
-  if (spec && spec.field === props.groupField && spec.in.includes(value)) return "alert";
-  return "ok";
+/** A grouping-field value's index in the enum's declared `values` — drives
+ *  its palette colour. The empty/unknown value reads -1 (neutral grey). */
+function colorIndexOfValue(value: string): number {
+  return enumValueIndex(groupSpec.value?.values, value);
 }
 
 // Records placed on the dashboard, dropping any whose grouping field is hidden
@@ -155,7 +132,7 @@ interface StatCard {
   value: string;
   label: string;
   count: number;
-  status: DashboardStatus;
+  colorIndex: number;
 }
 
 const cards = computed<StatCard[]>(() => {
@@ -171,9 +148,9 @@ const cards = computed<StatCard[]>(() => {
     if (declared.has(value)) counts.set(value, (counts.get(value) ?? 0) + 1);
     else uncategorized += 1;
   }
-  const result: StatCard[] = values.map((value) => ({ value, label: value, count: counts.get(value) ?? 0, status: statusOfValue(value) }));
+  const result: StatCard[] = values.map((value, index) => ({ value, label: value, count: counts.get(value) ?? 0, colorIndex: index }));
   if (uncategorized > 0 && !values.includes("")) {
-    result.push({ value: "", label: t("collectionsView.kanbanUncategorized"), count: uncategorized, status: "none" });
+    result.push({ value: "", label: t("collectionsView.kanbanUncategorized"), count: uncategorized, colorIndex: -1 });
   }
   return result;
 });
@@ -197,14 +174,14 @@ const alertLabel = computed<string>(() => notify.value?.in.join(" / ") ?? "");
 
 interface DashboardRow {
   item: CollectionItem;
-  status: DashboardStatus;
+  colorIndex: number;
   badge: string;
 }
 
 const rows = computed<DashboardRow[]>(() =>
   visibleItems.value.map((item) => {
     const value = valueOf(item);
-    return { item, status: statusOfValue(value), badge: value };
+    return { item, colorIndex: colorIndexOfValue(value), badge: value };
   }),
 );
 </script>
