@@ -36,6 +36,8 @@ import { errorMessage } from "../../utils/errors";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { applyCustomMarpSize } from "../../utils/markdown/marpCustomSize";
 import { DEFAULT_SLIDE_ASPECT, extractSlideAspect } from "../../utils/markdown/marpAspect";
+import { apiGet } from "../../utils/api";
+import { pluginEndpoints } from "../api";
 
 const { t } = useI18n();
 
@@ -139,6 +141,28 @@ function countSlides(html: string): number {
   return sectionMatches ? sectionMatches.length : 0;
 }
 
+interface MarpThemeEntry {
+  readonly name: string;
+  readonly css: string;
+}
+
+const marpThemesEndpoints = pluginEndpoints<{ list: string }>("marpThemes");
+
+// Cache the workspace's Marp themes so we don't re-fetch on every
+// keystroke. Fetched lazily on first render; never expires within a
+// session — a theme edit requires a manual refresh until #1649's
+// follow-up wires pubsub-driven invalidation. Errors fall back to an
+// empty list (= no custom themes) so a broken endpoint doesn't take
+// the previewer offline.
+let cachedThemes: readonly MarpThemeEntry[] | null = null;
+
+async function loadMarpThemes(): Promise<readonly MarpThemeEntry[]> {
+  if (cachedThemes !== null) return cachedThemes;
+  const result = await apiGet<readonly MarpThemeEntry[]>(marpThemesEndpoints.list);
+  cachedThemes = result.ok && Array.isArray(result.data) ? result.data : [];
+  return cachedThemes;
+}
+
 async function renderMarp(markdown: string): Promise<void> {
   renderError.value = null;
   if (!markdown) {
@@ -155,6 +179,13 @@ async function renderMarp(markdown: string): Promise<void> {
     // Fall back to the OS's native font emoji, matching how every
     // other surface in the app renders emoji.
     const marp = new Marp({ inlineSVG: true, html: false, emoji: { unicode: false, shortcode: false } });
+    // Register every workspace-defined theme (#1649). A slide deck
+    // opts in by setting `theme: <name>` in its frontmatter; decks
+    // that don't keep Marp's default look.
+    const themes = await loadMarpThemes();
+    for (const theme of themes) {
+      marp.themeSet.add(theme.css);
+    }
     // Normalise `![alt](path)` refs BEFORE marp parses them — same
     // pre-pass the regular markdown renderer uses (wiki/View.vue,
     // FilesView.vue, markdown/View.vue). Without it, refs like
