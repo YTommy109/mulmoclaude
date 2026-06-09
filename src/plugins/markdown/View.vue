@@ -16,9 +16,20 @@
       <!-- Split mode: live editor on the left, MarpView on the right
            driven by the unsaved buffer. Toggle lives in the MarpView
            toolbar via slot. Apply/Cancel sit above the textarea so
-           the action surface is co-located with the input. -->
-      <div v-if="marpSplitMode" class="flex-1 min-h-0 flex">
-        <div class="flex flex-col" style="flex: 1 1 50%; min-width: 0; border-right: 1px solid #e0e0e0">
+           the action surface is co-located with the input.
+           IMPORTANT: layout-critical sizing uses inline styles instead
+           of Tailwind utility classes because this plugin renders
+           under `.stack-natural` (`presentDocument` is in
+           STACK_NATURAL_TOOLS — see `src/components/StackView.vue`).
+           That wrapper neutralises `.h-full`, `.overflow-hidden`,
+           and `.flex-col > .flex-1` via `:deep(...) { ... !important }`
+           so the deck flows at natural height in stack view. The
+           split editor needs a **bounded** height, so we set one
+           explicitly with `style="height: min(80vh, 720px)"` and use
+           inline `flex` shorthands that aren't matched by the class-
+           targeted override rules. -->
+      <div v-if="marpSplitMode" style="height: min(80vh, 720px); display: flex; overflow: hidden">
+        <div style="display: flex; flex-direction: column; flex: 1 1 50%; min-width: 0; min-height: 0; border-right: 1px solid #e0e0e0">
           <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
             <span class="text-xs text-gray-500 mr-auto">{{ t("pluginMarkdown.marpSplitEditorLabel") }}</span>
             <button class="apply-btn" :disabled="!hasChanges || saving" @click="applyMarkdown">
@@ -27,22 +38,23 @@
             <button class="cancel-btn" @click="cancelMarpSplitEdit">{{ t("pluginMarkdown.cancel") }}</button>
           </div>
           <p v-if="saveError" class="save-error mx-2 mt-1" role="alert">{{ t("pluginMarkdown.saveError", { error: saveError }) }}</p>
-          <textarea v-model="editableMarkdown" class="marp-split-editor flex-1" spellcheck="false"></textarea>
+          <textarea v-model="editableMarkdown" class="marp-split-editor" style="flex: 1 1 0; min-height: 0" spellcheck="false"></textarea>
         </div>
-        <div class="flex flex-col overflow-y-auto" style="flex: 1 1 50%; min-width: 0">
-          <div class="m-auto w-full">
-            <MarpView :markdown="marpPreviewMarkdown" :pdf-filename="marpPdfFilename" :base-dir="marpBaseDir">
-              <template #toolbar>
-                <button
-                  class="h-8 px-2.5 flex items-center gap-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm"
-                  :title="t('pluginMarkdown.marpSplitExit')"
-                  @click="marpSplitMode = false"
-                >
-                  <span class="material-icons text-base">close_fullscreen</span>
-                </button>
-              </template>
-            </MarpView>
-          </div>
+        <!-- Right pane: scroll container for the deck. No vertical
+             centering — the editor view starts slides at the top so
+             the source / preview baselines line up. -->
+        <div style="flex: 1 1 50%; min-width: 0; min-height: 0; overflow-y: auto">
+          <MarpView :markdown="marpPreviewMarkdown" :pdf-filename="marpPdfFilename" :base-dir="marpBaseDir">
+            <template #toolbar>
+              <button
+                class="h-8 px-2.5 flex items-center gap-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm"
+                :title="t('pluginMarkdown.marpSplitExit')"
+                @click="marpSplitMode = false"
+              >
+                <span class="material-icons text-base">close_fullscreen</span>
+              </button>
+            </template>
+          </MarpView>
         </div>
       </div>
       <!-- Preview-only mode (default): single MarpView + bottom <details>. -->
