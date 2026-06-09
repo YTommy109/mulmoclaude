@@ -9,7 +9,6 @@ import { META as chartMeta } from "../chart/meta";
 import { META as editImagesMeta } from "../editImages/meta";
 import { META as generateImageMeta } from "../generateImage/meta";
 import { META as manageSkillsMeta } from "../manageSkills/meta";
-import { META as manageSourceMeta } from "../manageSource/meta";
 import { META as markdownMeta } from "../markdown/meta";
 import { META as photoLocationsMeta } from "../photoLocations/meta";
 import { META as presentCollectionMeta } from "../presentCollection/meta";
@@ -18,7 +17,6 @@ import { META as presentHtmlMeta } from "../presentHtml/meta";
 import { META as presentMulmoScriptMeta } from "../presentMulmoScript/meta";
 import { META as presentSVGMeta } from "../presentSVG/meta";
 import { META as schedulerAutomationsMeta } from "../scheduler/automationsMeta";
-import { META as schedulerCalendarMeta } from "../scheduler/calendarMeta";
 import { META as spreadsheetMeta } from "../spreadsheet/meta";
 import { META as wikiMeta } from "../wiki/meta";
 
@@ -31,7 +29,6 @@ export const GENERATED_PLUGIN_METAS = [
   editImagesMeta,
   generateImageMeta,
   manageSkillsMeta,
-  manageSourceMeta,
   markdownMeta,
   photoLocationsMeta,
   presentCollectionMeta,
@@ -40,7 +37,6 @@ export const GENERATED_PLUGIN_METAS = [
   presentMulmoScriptMeta,
   presentSVGMeta,
   schedulerAutomationsMeta,
-  schedulerCalendarMeta,
   spreadsheetMeta,
   wikiMeta,
 ] as const satisfies readonly PluginMeta[];

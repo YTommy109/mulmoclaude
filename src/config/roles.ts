@@ -83,9 +83,10 @@ export const ROLES: Role[] = [
       "You are a personal assistant focused on the user's daily life — calendar, todos, bookmarks, music, places, and notifications. Help the user organize, track, and recall personal information.\n\n" +
       "## Asking the user to choose\n\n" +
       "When the user must pick from a small set of options, toggle features, or answer yes/no, call presentForm with the appropriate fields (radio for one-of, checkbox for many-of, text/textarea for free-form). Group related questions into one form. Prefer this strongly over phrasing the choice in plain prose — the form gives the user clickable controls and sends the answers back as a markdown bullet list.\n\n" +
-      "Mark every field the user must answer as `required: true`. The form blocks submission until required fields are filled, which prevents the LLM from receiving partial responses.",
+      "Mark every field the user must answer as `required: true`. The form blocks submission until required fields are filled, which prevents the LLM from receiving partial responses.\n\n" +
+      "## Data feeds\n\n" +
+      "To register a data-source feed (RSS / Atom / podcast / JSON) from a URL so it refreshes itself, first Read `config/helps/feeds.md`, then fetch and inspect the URL and author `feeds/<slug>/schema.json` exactly as the help describes. There is no feed tool — you write the schema file directly; the host fetches it on a schedule.",
     availablePlugins: [
-      TOOL_NAMES.manageCalendar,
       TOOL_NAMES.managePhotoLocations,
       TOOL_NAMES.mapControl,
       TOOL_NAMES.notify,
@@ -98,7 +99,6 @@ export const ROLES: Role[] = [
       // out-of-the-box "personal" role keeps exposing them. User-
       // installed runtime plugins (`~/mulmoclaude/plugins/*`) are
       // added to roles via Settings → Roles.
-      TOOL_NAMES.manageBookmarks,
       TOOL_NAMES.manageSpotify,
     ],
     queries: [
@@ -109,6 +109,7 @@ export const ROLES: Role[] = [
       "Create a bills collection to track recurring payments — payee, amount, due date, and status. Remind me 10 days before each bill is due, and when I mark one paid, automatically set up next month's bill.",
       "Set up client and time tracking for my consulting work. First read `config/helps/billing-clients-worklog.md` and follow it exactly to author the clients and worklog collections — do not redesign the schemas or ask me design questions.",
       "Set up invoicing for my business. First read `config/helps/billing-invoice.md` and follow it exactly to author the invoice and profile collections — do not redesign the schemas or ask me design questions.",
+      "Register this feed. https://feeds.captivate.fm/guy-kawasakis-remarkable/",
     ],
   },
   {
@@ -247,15 +248,13 @@ export const ROLES: Role[] = [
   // three focused preset skills so Claude's discovery layer can pick
   // the right one from a single user phrase:
   //   - `mc-manage-skills`      — `<workspace>/.claude/skills/<slug>/SKILL.md`
-  //   - `mc-manage-sources`     — `<workspace>/sources/<slug>.md`
   //   - `mc-manage-automations` — `<workspace>/config/scheduler/tasks.json`
   // Each skill edits the on-disk files directly; the post-write hook
   // installed by `provisionConfigRefreshHook` re-registers scheduled
   // skills and user tasks so changes activate without a server
-  // restart. Role-level `manageSource` / `manageSkills` /
-  // `manageAutomations` tools are therefore no longer needed as a
-  // bundle. The MCP tools themselves still exist for any role that
-  // wants the direct-call path.
+  // restart. Role-level `manageSkills` / `manageAutomations` tools are
+  // therefore no longer needed as a bundle. The MCP tools themselves
+  // still exist for any role that wants the direct-call path.
   {
     id: "accounting",
     name: "Accounting",
@@ -384,7 +383,6 @@ export const ROLES: Role[] = [
       "- **Browse / lint**: direct the user to the `/wiki` UI — catalog at `/wiki`, a specific page at `/wiki/pages/<slug>`, activity log at `/wiki/log`, or the Lint button on `/wiki` for a health check.\n\n" +
       "Page format: YAML frontmatter (title, created, updated, tags) + markdown body + `[[wiki links]]` for cross-references. Slugs are lowercase hyphen-separated. Always keep `data/wiki/index.md` current and append to `data/wiki/log.md` after any change. The page-list section of `index.md` is a flat, recency-ordered log: prepend new pages at the top, and when a page is updated (content, description, tags, or rename) move its entry to the top — don't group by category. The Tags section (if present) still needs its per-tag page lists updated on add / rename / delete, but the tag order itself is not reordered by recency. Read `config/helps/wiki.md` for full details.",
     availablePlugins: [
-      TOOL_NAMES.manageCalendar,
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentForm,
       TOOL_NAMES.presentMulmoScript,
@@ -399,7 +397,6 @@ export const ROLES: Role[] = [
       // the dev-only `manageDebug` plugin. Runtime plugins are gated
       // by `availablePlugins` (see `general` role's note); listing
       // them here keeps the debug role's "kitchen sink" promise.
-      TOOL_NAMES.manageBookmarks,
       TOOL_NAMES.manageSpotify,
       // manageRecipes removed (#1286) — recipe-book-plugin no longer
       // in PRESET_PLUGINS; recipes drive via the `mc-cooking-coach`
@@ -440,9 +437,9 @@ export const BUILTIN_ROLE_IDS = {
   tutor: "tutor",
   storyteller: "storyteller",
   // settings: removed (#1283) — replaced by `mc-manage-skills` /
-  // `mc-manage-sources` / `mc-manage-automations` preset skills (the
-  // single-skill `mc-settings` originally introduced in #1283 was
-  // split into three in #1295 for stronger discovery).
+  // `mc-manage-automations` preset skills (the single-skill
+  // `mc-settings` originally introduced in #1283 was split for
+  // stronger discovery).
   accounting: "accounting",
   investor: "investor",
   // cookingCoach: removed (#1286) — replaced by `mc-cooking-coach` preset skill.

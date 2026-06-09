@@ -16,12 +16,15 @@ A quick visual reference so chat instructions about UI ("the bell at the top rig
 ┌─[App.vue root]────────────────────────────────────────────────────────┐
 │ ┌─[#header]────────────────────────────────────────────────────────┐  │
 │ │  ⌂[Go to latest chat / brand]  🔓lock_open  🔔[notification-bell]│  │
-│ │                                              ⚙ settings          │  │
+│ │                          ⚙ settings (→ Skills / Roles tabs)      │  │
 │ └──────────────────────────────────────────────────────────────────┘  │
-│ ┌─<PluginLauncher> [plugin-launcher]──────────────────────────────┐   │
-│ │ 📅Calendar │⏰Actions │📖Wiki │📡Sources │🧠Skills │🎭Roles│📁Files│   │
-│ │ [plugin-launcher-calendar] [plugin-launcher-automations] ...    │   │
-│ └─────────────────────────────────────────────────────────────────┘   │
+│ ┌─<PluginLauncher> [plugin-launcher]──────────────────────────────────┐│
+│ │ ⏰Actions│📖Wiki│▦Collections│📡Feeds ‖ 📁Files ‖ ▦Invoices│📡Weather    ││
+│ │ [plugin-launcher-automations] … [plugin-launcher-feeds] …            ││
+│ │   [plugin-launcher-shortcuts]→[plugin-launcher-shortcut-<kind>-<slug>]││
+│ │ data plugins (0–3) │ ‖ │ management (Files) │ ‖ │ pinned shortcuts (scrolls) ││
+│ │ Skills & Roles moved into Settings (gear → Management group)           ││
+│ └─────────────────────────────────────────────────────────────────────┘│
 │ ┌─[main pane — route-specific]────┐ ┌─<SessionHistoryPanel>────────┐  │
 │ │                                 │ │ [session-history-side-panel] │  │
 │ │  (the active /route's content)  │ │ ┌─[session-filter-bar]─────┐ │  │
@@ -100,7 +103,7 @@ In **Stack layout** this sidebar isn't rendered; the same data flows through `<S
 │ ┌─[chat column — left, single layout]──┐ ┌─[canvas column — right]──┐  │
 │ │                                       │ │                          │  │
 │ │  scrollback transcript (text-results, │ │ Selected tool result UI: │  │
-│ │  tool-call cards, agent responses)    │ │  • <CalendarView>        │  │
+│ │  tool-call cards, agent responses)    │ │  • <AutomationsView>     │  │
 │ │                                       │ │  • <MarkdownView>        │  │
 │ │  • text-response (user) ──────────╮   │ │  • <SpreadsheetView>     │  │
 │ │  • text-response (assistant) ─────╯   │ │  • <ChartView>           │  │
@@ -137,36 +140,12 @@ Stable hooks for tests / chat references when a tool result is selected on the r
 | `textResponse` | `[text-response-pdf-button]` | The "PDF" button on an assistant text response (`usePdfDownload` → `/api/pdf/markdown`) |
 | `textResponse` | `[text-response-edit]` / `[text-response-edit-summary]` / `[text-response-edit-textarea]` / `[text-response-apply-btn]` | The collapsible source editor on an assistant text response |
 
-(Other plugin views — `<CalendarView>`, `<MarkdownView>`, `<SpreadsheetView>`, `<ChartView>`, etc. — are documented in their own sections below or are direct components without a stable testid yet.)
+(Other plugin views — `<AutomationsView>`, `<MarkdownView>`, `<SpreadsheetView>`, `<ChartView>`, etc. — are documented in their own sections below or are direct components without a stable testid yet.)
 
-## /calendar — calendar of dated items
-
-```
-┌─[<CalendarView> mounts <SchedulerView force-tab="calendar"> — [scheduler-view-root]]─┐
-│                                                                       │
-│  ┌─Header───────────────────────────────────────────────────────────┐ │
-│  │  📅 Calendar  N items     ◀ Today ▶   [scheduler-view-mode-     │ │
-│  │                                         {month,week,list}]       │ │
-│  └──────────────────────────────────────────────────────────────────┘ │
-│                                                                       │
-│  ┌─Grid (month/week) or List───────────────────────────────────────┐ │
-│  │  Mo  Tu  We  Th  Fr  Sa  Su                                     │ │
-│  │  …                                                              │ │
-│  │  [scheduler-event-item]  "Team meeting" · 10:00  ✕              │ │
-│  │   (list-view row; click → edit form;  ↑ [scheduler-item-        │ │
-│  │    delete-<id>] on hover)                                        │ │
-│  │  ...                                                             │ │
-│  └──────────────────────────────────────────────────────────────────┘ │
-│                                                                       │
-│  Edit form (when an item is selected):                                │
-│  ┌───────────────────────────────────────────────────────────────┐   │
-│  │  YAML editor: title + props.{date,time,location,notes,...}    │   │
-│  │  [Apply Changes] [Cancel]                                     │   │
-│  └───────────────────────────────────────────────────────────────┘   │
-└───────────────────────────────────────────────────────────────────────┘
-```
-
-In chat, when the agent calls `manageCalendar`, the same `<CalendarView>` mounts inside the right canvas with `selectedResult` populated.
+> The standalone Calendar view + `manageCalendar` tool were removed. Dated
+> items now live in `calendarField` collections (see `<CollectionCalendarView>`
+> under /collections below). `/calendar` and `/scheduler` redirect to
+> `/automations`.
 
 ## /automations — scheduled tasks
 
@@ -276,74 +255,6 @@ markup is identical:
 Tabs / PDF / chat composer / create-update buttons are hidden —
 this is a moment-in-time view, not the live page.
 
-## /news — news viewer
-
-`/news` reads the items the sources pipeline has fetched and presents them as a two-pane reader (list + detail) with unread tracking. Per-article chat composer lets the user spawn a new chat that's already aware of the article.
-
-```text
-┌─[<NewsView> data-testid="news-view"]─────────────────────────────────────┐
-│ Header row:                                                              │
-│   [news-counts] (e.g. "23 unread of 142")                                │
-│   Filters: [news-filter-all] [news-filter-unread]  [news-mark-all-read]  │
-│   Source selector: [news-source-<slug>] (one button per source)          │
-│                                                                          │
-│ ┌─[news-list] (left pane, 320px)────┐ ┌─[news-detail] (right pane)─────┐ │
-│ │ [news-item-<id>] · headline       │ │ Article title + metadata       │ │
-│ │ ◯ unread / ⚪ read                │ │ Author, source, published date │ │
-│ │ source · published date           │ │                                │ │
-│ │ ─────────────────────────────────  │ │ ┌─Article body (markdown)──┐  │ │
-│ │ ...                               │ │ │ ...                      │  │ │
-│ │                                   │ │ └──────────────────────────┘  │ │
-│ │                                   │ │ [news-open-original] (↗︎)      │ │
-│ │                                   │ │                                │ │
-│ │                                   │ │ Per-article chat composer:    │ │
-│ │                                   │ │ [news-article-chat-input]      │ │
-│ │                                   │ │ [news-article-chat-send]       │ │
-│ │                                   │ │ → spawns a new chat with a    │ │
-│ │                                   │ │ "read this article first"     │ │
-│ │                                   │ │ prepend                       │ │
-│ └───────────────────────────────────┘ └────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-Clicking a list row marks it read (badge decrements). The "Mark all read" button zeroes the counter for the current filter scope.
-
-## /sources — registered news/RSS feeds
-
-```
-┌─[<SourcesManager> — [sources-view-root]]───────────────────────────┐
-│ Top bar: [sources-add-btn] [sources-rebuild-btn]                   │
-│                                                                    │
-│ Add form (when adding) [sources-add-form]:                         │
-│ ┌────────────────────────────────────────────────────────────────┐ │
-│ │ kind ▼  [sources-draft-kind]                                   │ │
-│ │ url    [sources-draft-primary]                                 │ │
-│ │ title  [sources-draft-title]                                   │ │
-│ │ [sources-draft-cancel]   [sources-draft-add]                   │ │
-│ │ error  [sources-draft-error]                                   │ │
-│ └────────────────────────────────────────────────────────────────┘ │
-│                                                                    │
-│ Filter chips: [sources-filter-chip-<key>] [sources-filter-clear]   │
-│                                                                    │
-│ ┌─Source row [source-row-<slug>]─────────────────────────────────┐ │
-│ │  RSS │ Federal Reserve  · federal-reserve                      │ │
-│ │       https://www.federalreserve.gov/feeds/press_all.xml       │ │
-│ │       #central-bank                              [source-      │ │
-│ │                                                  remove-<slug>]│ │
-│ └────────────────────────────────────────────────────────────────┘ │
-│ ...                                                                │
-│                                                                    │
-│ Empty state: [sources-empty] (if no feeds yet) → preset buttons    │
-│   [sources-preset-<id>]                                            │
-│                                                                    │
-│ Last rebuild summary at the bottom: [sources-rebuild-summary]      │
-│                                                                    │
-│ Per-page chat composer (page mode only): [sources-page-chat-input] │
-│   [sources-page-chat-send] — spawns a fresh chat with a prepended  │
-│   pointer to config/helps/sources.md                               │
-└────────────────────────────────────────────────────────────────────┘
-```
-
 ## /files — workspace file explorer
 
 ```
@@ -360,20 +271,20 @@ Clicking a list row marks it read (badge decrements). The "Mark all read" button
 │ │   • foo.md   ←sel  │ │  │                                        │ │ │
 │ │   • bar.md         │ │  │  • markdown → marked + Vue             │ │ │
 │ │ ...                │ │  │  • images → <img>                      │ │ │
-│ │                    │ │  │  • scheduler items.json → <CalendarView>│ │ │
+│ │                    │ │  │  • json/jsonl → syntax-highlighted     │ │ │
 │ │                    │ │  │  • code → text                         │ │ │
 │ │                    │ │  └────────────────────────────────────────┘ │ │
 │ └────────────────────┘ └─────────────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-The preview pane reuses plugin views — clicking a `config/scheduler/items.json` mounts `<CalendarView>` via `toSchedulerResult`. System-managed files (`config/*.json`, `data/wiki/*.md`, `conversations/memory.md`, …) get a `[system-file-banner]` above the body explaining what the file is, who writes it, and whether hand-edits survive (descriptors live in `src/config/systemFileDescriptors.ts`; #832).
+The preview pane renders by file type (markdown, images, JSON/JSONL syntax highlight, Marp slides, …). System-managed files (`config/*.json`, `data/wiki/*.md`, `conversations/memory.md`, …) get a `[system-file-banner]` above the body explaining what the file is, who writes it, and whether hand-edits survive (descriptors live in `src/config/systemFileDescriptors.ts`; #832).
 
 ## /collections — schema-driven record tables
 
 ```
 ┌─[<CollectionView> — /collections/:slug]────────────────────────────────┐
-│ Toolbar: [collection-view-toggle-table | -calendar | -kanban] · search  │
+│ Toolbar: [collection-view-toggle-table|-calendar|-kanban|-dashboard]    │
 │                                                                         │
 │ [collections-inline-error] (banner, only after a failed inline write)   │
 │ ┌─Table──────────────────────────────────────────────────────────────┐ │
@@ -390,18 +301,24 @@ The preview pane reuses plugin views — clicking a `config/scheduler/items.json
 
 `boolean` columns render an inline checkbox and `enum` columns an inline `<select>` directly in the table cell — changing one writes the value straight to the record (`PUT .../items/:id`, optimistic + rollback on failure) without opening the detail panel. The controls use `@click.stop` so the cell click never bubbles into the row's `openView`. All other field types (and the full edit form) still go through the row → `[collections-detail]` → Edit → Save flow.
 
-The **Calendar** toggle (`[collection-view-toggle-calendar]`) appears only when the schema has a `date` field; the **Kanban** toggle (`[collection-view-toggle-kanban]`) only when it has an `enum` field. `<CollectionKanbanView>` groups records into columns by the chosen enum field (declared `values` order + a trailing **Uncategorized** column for empty/unknown values — omitted when the chosen enum is declared `required`), with a `[collection-kanban-field]` selector when >1 enum field exists. Dragging a card (`[collection-kanban-card-<id>]`) between columns writes the group field via the same inline-edit PUT (no column drag, no within-column ordering); a card whose group field is hidden by a `when` predicate is omitted from the board. Card click opens the same detail panel below the board.
+The **Calendar** toggle (`[collection-view-toggle-calendar]`) appears only when the schema has a `date` or `datetime` field; the **Kanban** toggle (`[collection-view-toggle-kanban]`) only when it has an `enum` field. In `<CollectionCalendarView>`, clicking anywhere in a day cell (`[collection-calendar-day-<key>]`, a keyboard-operable `role="button"`) opens `<CollectionDayView>` (`[collection-day-view]`) — a modal 24-hour timeline of that day; its **+** (`[collection-day-view-create]`) starts a create prefilled to that day — the only create entry point in the calendar (the header **Add** button `[collections-add-item]` is hidden while the calendar is active). The `<CollectionDayView>` modal is owned by `<CollectionView>` (not the calendar child), which slots the shared `<CollectionRecordPanel>` into its `#detail` slot (used for the open/edit detail *and* the new-item create form). Record chips inside the month cell select the record — which also opens the day popup on that record's day. Records with a clock (a `datetime` anchor/end, or a `date` plus the schema's `calendarTimeField` time-string like `"14:00-17:00"`) draw as proportional blocks (`[collection-day-view-chip-<id>]`); a start-only time draws as a single line; clock-less records sit in the bottom all-day strip (`[collection-day-view-all-day]`). A chip shows the record's title and, under it, a few non-date/non-time field values (no clock text) — clipped to the chip's time-proportional height, never expanding it. Selecting an entry keeps the popup open and shows its detail in the right pane (`[collection-day-view-detail]`), expanding the modal to two columns, and mirrors the selection into `?selected=<id>` so the day+record state is a shareable link (a `?selected=` deep link to a calendar-capable collection opens straight into this view). A record with no resolvable day (the **No date** tray, `[collection-calendar-no-date]`) can't sit on a timeline, so its detail falls back to a panel below the grid (`[collections-calendar-panel]`). `<CollectionKanbanView>` groups records into columns by the chosen enum field (declared `values` order + a trailing **Uncategorized** column for empty/unknown values — omitted when the chosen enum is declared `required`), with a `[collection-kanban-field]` selector when >1 enum field exists. Dragging a card (`[collection-kanban-card-<id>]`) between columns writes the group field via the same inline-edit PUT (no column drag, no within-column ordering); a card whose group field is hidden by a `when` predicate is omitted from the board. Card click opens the same detail panel below the board. The **Dashboard** toggle (`[collection-view-toggle-dashboard]`) also appears only when the schema has an `enum` field; `<CollectionDashboardView>` (`[collection-dashboard]`) is a read-only snapshot grouped by the same enum field (shares the `[collection-kanban-field]` selector when >1 enum field): a row of status stat-cards (`[collection-dashboard-stat-<value>]`, count per enum value), a notifyWhen-driven alert box (`[collection-dashboard-alert]`, listing records whose `notifyWhen` field holds a flagged value), and an openable item list (`[collection-dashboard-row-<id>]`) with a status dot + value badge per record. Card/row/alert/stat clicks open (or close) the same `[collections-dashboard-panel]` detail below. Colour is `notifyWhen`-driven: a flagged enum value reads red, the empty value grey, all others green.
 
 A `toggle` field is a checkbox that **projects** an `enum` field (stores nothing itself): checked when the enum equals its `onValue`, toggling writes `onValue`/`offValue` back to that enum. It renders inline in the table (`[collections-inline-toggle-<key>-<id>]`) and on the kanban card (`[collection-kanban-toggle-<id>]`, shown when it projects the board's group field — checking it also moves the card). This is how a todo-style "done" checkbox fronts a kanban `status` while keeping the enum as the single source of truth.
 
-## /skills — workspace skills list
+## Settings → Skills tab — workspace skills list
+
+Lives inside the **Settings modal** (gear → `[settings-tab-skills]`,
+**Management** group) — there is **no `/skills` route** (it redirects to
+`/chat`). The same `<ManageSkillsView>` also mounts on the right canvas
+when a `manageSkills` tool result is selected in chat.
 
 Two-pane layout (`<ManageSkillsView>`): left sidebar = two collapsible
 sections, **Active** (skills in `.claude/skills/`, discovered by Claude
-Code and loaded into the prompt) and **Catalog** (launcher-managed
-presets the user can browse / ★ star / ▶ run once without bloating the
-prompt). Right pane renders the selected skill's `SKILL.md` (active) or
-the preset/external detail with Star / Run once actions (catalog).
+Code and loaded into the prompt) and **Catalog** (presets the user can
+browse / ★ star without bloating the prompt). Right pane renders the
+selected skill's `SKILL.md` (active) or the preset/external detail with
+the Star action (catalog). There is **no in-view Run** — invoke a skill
+by typing its `/<name>` slash command in chat.
 Within Active, provenance (System `mc-` bundled / Project / User) is a
 per-row badge, not its own group; only **Project** skills expose
 Edit/Delete, the rest are read-only. Collapse state per section is
@@ -412,20 +329,20 @@ sub-list, one collapsible subgroup per installed **external repo**
 collapse persisted to `skills:repoCollapsed`. A **+ Add skill
 repository** button opens a modal (GitHub URL + optional subpath, plus
 one-click seed suggestions). External rows behave like preset rows
-(select → right pane Star / Run once); uninstalling a repo keeps any
+(select → right pane Star); uninstalling a repo keeps any
 already-starred skills in Active (star = fork).
 
 ```text
-┌─[<ManageSkillsView>]───────────────────────────────────────────────┐
-│ Skills                              N available · click · Run = /…│
+┌─[<ManageSkillsView>] (in Settings modal → Skills tab)──────────────┐
+│ Skills                                          N available · click│
 │ ┌─Sidebar (w-64)──────────┬─Detail pane──────────────────────────┐ │
 │ │ ▼ ACTIVE            11  │  <skill name>                         │ │
 │ │ ├ [skill-item-foo] 🏠   │  description                          │ │
-│ │ ├ [skill-item-bar] 📁   │                            ✏ Edit  ✕ ⏵│ │
+│ │ ├ [skill-item-bar] 📁   │                             ✏ Edit  ✕ │ │
 │ │ └ [skill-item-baz] 📁   │  rendered SKILL.md (marked + sanitize)│ │
 │ │ ▼ CATALOG            4  │                                       │ │
 │ │   Presets               │  (catalog row → preset/external detail│ │
-│ │ ├ [skill-catalog-…] ★   │   with ★ Star / ▶ Run once)           │ │
+│ │ ├ [skill-catalog-…] ★   │   with ★ Star)                        │ │
 │ │ ▼ owner/repo (n) [⟳][🗑] │                                       │ │
 │ │ ├ [skill-catalog-…] ☁   │                                       │ │
 │ │ [+ Add skill repository]│                                       │ │
@@ -451,10 +368,14 @@ form + expand its description, NOT install) /
 `skill-add-repo-suggestion-link-{url}` (opens the repo on GitHub in a
 new tab) for the add-repo modal.
 
-## /roles — role configuration
+## Settings → Roles tab — role configuration
+
+Lives inside the **Settings modal** (gear → `[settings-tab-roles]`,
+**Management** group) — there is **no `/roles` route** (it redirects to
+`/chat`). Root testid `[roles-view-root]`.
 
 ```
-┌─[<RolesManager>]───────────────────────────────────────────────────┐
+┌─[<RolesManager>] (in Settings modal → Roles tab)───────────────────┐
 │ ┌─Built-in roles (read-only)─────────────────────────────────────┐ │
 │ │ ⭐ General              "Helpful assistant w/ workspace access" │ │
 │ │ 🎨 Artist                ...                                   │ │

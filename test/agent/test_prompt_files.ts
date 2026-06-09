@@ -8,15 +8,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import {
-  SYSTEM_PROMPT,
-  TOPIC_MEMORY_MANAGEMENT,
-  ATOMIC_MEMORY_MANAGEMENT,
-  NEWS_CONCIERGE_PROMPT,
-  SANDBOX_TOOLS_HINT,
-  JOURNAL_POINTER,
-  SOURCES_CONTEXT,
-} from "../../server/prompts/index.js";
+import { SYSTEM_PROMPT, TOPIC_MEMORY_MANAGEMENT, ATOMIC_MEMORY_MANAGEMENT, SANDBOX_TOOLS_HINT, JOURNAL_POINTER } from "../../server/prompts/index.js";
 
 describe("server/prompts file loader", () => {
   it("loads every block as a non-empty string", () => {
@@ -24,10 +16,8 @@ describe("server/prompts file loader", () => {
       SYSTEM_PROMPT,
       TOPIC_MEMORY_MANAGEMENT,
       ATOMIC_MEMORY_MANAGEMENT,
-      NEWS_CONCIERGE_PROMPT,
       SANDBOX_TOOLS_HINT,
       JOURNAL_POINTER,
-      SOURCES_CONTEXT,
     })) {
       assert.equal(typeof value, "string", `${name} is a string`);
       assert.ok(value.length > 100, `${name} is non-trivially long (got ${value.length})`);
@@ -38,11 +28,9 @@ describe("server/prompts file loader", () => {
     assert.ok(SYSTEM_PROMPT.startsWith("You are MulmoClaude, a versatile assistant app with rich visual output."), "SYSTEM_PROMPT opening");
     assert.ok(TOPIC_MEMORY_MANAGEMENT.startsWith("## Memory Management"), "TOPIC opening");
     assert.ok(ATOMIC_MEMORY_MANAGEMENT.startsWith("## Memory Management"), "ATOMIC opening");
-    assert.ok(NEWS_CONCIERGE_PROMPT.startsWith("## News Concierge"), "NEWS opening");
     assert.ok(SANDBOX_TOOLS_HINT.startsWith("## Sandbox Tools"), "SANDBOX opening");
     assert.ok(JOURNAL_POINTER.startsWith("<journal-context>"), "JOURNAL_POINTER opening");
     assert.ok(JOURNAL_POINTER.endsWith("</journal-context>"), "JOURNAL_POINTER closing tag");
-    assert.ok(SOURCES_CONTEXT.startsWith("## Information sources (news feeds)"), "SOURCES opening");
   });
 
   it("preserves trailing-newline shape per source block", () => {
@@ -54,10 +42,8 @@ describe("server/prompts file loader", () => {
     assert.ok(SYSTEM_PROMPT.endsWith("\n"), "SYSTEM_PROMPT trailing newline");
     assert.ok(TOPIC_MEMORY_MANAGEMENT.endsWith("\n"), "TOPIC trailing newline");
     assert.ok(ATOMIC_MEMORY_MANAGEMENT.endsWith("\n"), "ATOMIC trailing newline");
-    assert.ok(!NEWS_CONCIERGE_PROMPT.endsWith("\n"), "NEWS no trailing newline");
     assert.ok(!SANDBOX_TOOLS_HINT.endsWith("\n"), "SANDBOX no trailing newline");
     assert.ok(!JOURNAL_POINTER.endsWith("\n"), "JOURNAL_POINTER no trailing newline");
-    assert.ok(!SOURCES_CONTEXT.endsWith("\n"), "SOURCES no trailing newline");
   });
 
   it("unescaped inline-code backticks correctly (no stray backslashes)", () => {

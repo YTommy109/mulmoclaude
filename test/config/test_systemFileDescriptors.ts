@@ -3,13 +3,6 @@ import assert from "node:assert/strict";
 import { descriptorForPath, jsonEditableByPolicy, SYSTEM_FILE_DESCRIPTORS } from "../../src/config/systemFileDescriptors.js";
 
 describe("descriptorForPath — exact matches", () => {
-  it("returns the interests descriptor for config/interests.json", () => {
-    const desc = descriptorForPath("config/interests.json");
-    assert.equal(desc?.id, "interests");
-    assert.equal(desc?.editPolicy, "agent-managed-but-hand-editable");
-    assert.equal(desc?.schemaRef, "server/workspace/sources/interests.ts");
-  });
-
   it("returns the mcp descriptor for config/mcp.json", () => {
     const desc = descriptorForPath("config/mcp.json");
     assert.equal(desc?.id, "mcp");
@@ -39,17 +32,6 @@ describe("descriptorForPath — pattern matches", () => {
     assert.equal(desc?.id, "rolesMd");
   });
 
-  it("matches a source feed Markdown file directly under data/sources/", () => {
-    const desc = descriptorForPath("data/sources/hackernews.md");
-    assert.equal(desc?.id, "sourceFeed");
-  });
-
-  it("matches per-source state JSON under data/sources/_state/", () => {
-    const desc = descriptorForPath("data/sources/_state/hackernews.json");
-    assert.equal(desc?.id, "sourceState");
-    assert.equal(desc?.editPolicy, "ephemeral");
-  });
-
   it("matches a daily journal markdown with the YYYY/MM/DD shape", () => {
     const desc = descriptorForPath("conversations/summaries/daily/2026/04/26.md");
     assert.equal(desc?.id, "journalDaily");
@@ -71,10 +53,9 @@ describe("descriptorForPath — non-matches", () => {
   });
 
   it("returns null for a partial-prefix path that should not match a pattern", () => {
-    // Pattern guards against `_state` directory entries leaking into
-    // the `sourceFeed` regex. _state/foo.json is its own descriptor;
-    // the bare _state path does not match either.
-    assert.equal(descriptorForPath("data/sources/_state/"), null);
+    // The roles patterns require a filename segment; the bare directory
+    // path must not match either the JSON or the Markdown role pattern.
+    assert.equal(descriptorForPath("config/roles/"), null);
   });
 
   it("does not match a malformed daily journal path (missing day)", () => {
@@ -112,15 +93,7 @@ describe("jsonEditableByPolicy (#833)", () => {
     assert.equal(jsonEditableByPolicy("config/mcp.json"), true);
   });
 
-  it("allows agent-managed-but-hand-editable (interests)", () => {
-    assert.equal(jsonEditableByPolicy("config/interests.json"), true);
-  });
-
   it("withholds editing from agent-managed files (scheduler tasks)", () => {
     assert.equal(jsonEditableByPolicy("config/scheduler/tasks.json"), false);
-  });
-
-  it("withholds editing from ephemeral state files", () => {
-    assert.equal(jsonEditableByPolicy("data/sources/_state/example.json"), false);
   });
 });

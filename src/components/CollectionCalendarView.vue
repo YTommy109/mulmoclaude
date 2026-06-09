@@ -36,26 +36,23 @@
       <div v-for="(label, idx) in weekdayLabels" :key="idx" class="px-1 py-1 text-center">{{ label }}</div>
     </div>
 
-    <!-- Day grid. A day with no records is itself the create affordance —
-         rendered with `role="button"` + keyboard handlers (no chips inside,
-         so no nested-interactive conflict). Populated days are plain
-         containers; their chips are the interactive elements. -->
+    <!-- Day grid. Every cell is a keyboard-operable button that opens the day
+         (time-allocation) view; its record chips are nested interactive
+         elements that `@click.stop` to select instead. Creating a record now
+         happens from inside the day view's + button. -->
     <div class="grid grid-cols-7 gap-1">
       <div
-        v-for="{ cell, entries, creatable } in cells"
+        v-for="{ cell, entries } in cells"
         :key="cell.key"
-        class="min-h-[5.5rem] rounded-lg border p-1 flex flex-col gap-1 overflow-hidden transition-colors"
-        :class="[
-          cell.inMonth ? 'bg-white border-slate-200' : 'bg-slate-50/50 border-slate-100',
-          creatable ? 'cursor-pointer hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30' : '',
-        ]"
-        :role="creatable ? 'button' : undefined"
-        :tabindex="creatable ? 0 : undefined"
-        :aria-label="creatable ? t('collectionsView.calendarCreateOn', { date: cell.key }) : undefined"
+        class="min-h-[5.5rem] rounded-lg border p-1 flex flex-col gap-1 overflow-hidden transition-colors cursor-pointer hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+        :class="cell.inMonth ? 'bg-white border-slate-200' : 'bg-slate-50/50 border-slate-100'"
+        role="button"
+        :tabindex="0"
+        :aria-label="t('collectionsView.dayViewOpen', { date: cell.key })"
         :data-testid="`collection-calendar-day-${cell.key}`"
-        @click="creatable && emit('createOn', cell.key)"
-        @keydown.enter.prevent="creatable && emit('createOn', cell.key)"
-        @keydown.space.prevent="creatable && emit('createOn', cell.key)"
+        @click="emit('openDay', cell.ymd)"
+        @keydown.enter.self.prevent="emit('openDay', cell.ymd)"
+        @keydown.space.self.prevent="emit('openDay', cell.ymd)"
       >
         <div class="flex items-center justify-end">
           <span
@@ -69,7 +66,7 @@
           :key="entry.id"
           type="button"
           class="text-left text-[11px] leading-tight font-semibold truncate rounded px-1.5 py-0.5 border transition-colors"
-          :class="entry.id === selected ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100'"
+          :class="chipClass(entry, DAY_CHIP_DEFAULT)"
           :data-testid="`collection-calendar-chip-${entry.id}`"
           @click.stop="emit('select', entry.id)"
         >
@@ -86,7 +83,7 @@
         :key="entry.id"
         type="button"
         class="text-[11px] font-semibold truncate rounded px-1.5 py-0.5 border transition-colors"
-        :class="entry.id === selected ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'"
+        :class="chipClass(entry, UNDATED_CHIP_DEFAULT)"
         :data-testid="`collection-calendar-undated-${entry.id}`"
         @click="emit('select', entry.id)"
       >
@@ -99,25 +96,31 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { bucketRecords, buildMonthGrid, ymdKey, spanCoversDay, type Ymd } from "../utils/collections/calendarGrid";
+import { bucketRecords, buildMonthGrid, ymdKey, daySlice, MINUTES_PER_DAY, type Ymd, type RecordSpan, type DaySlice } from "../utils/collections/calendarGrid";
+import { resolveEnumColor, type EnumColorClasses } from "../utils/collections/enumColors";
+import { labelFieldFor, itemIdOf, itemLabelOf } from "../utils/collections/itemLabel";
 import type { CollectionItem, CollectionSchema } from "./collectionTypes";
 
 const props = defineProps<{
   schema: CollectionSchema;
   items: CollectionItem[];
-  /** The `date` field whose value places each record on the grid. */
+  /** The `date`/`datetime` field whose value places each record on the grid. */
   anchorField: string;
-  /** Optional second `date` field — records span anchor→end inclusive. */
+  /** Optional second `date`/`datetime` field — records span anchor→end inclusive. */
   endField?: string;
+  /** Optional free-form time-string field driving the day (time-allocation) view. */
+  timeField?: string;
+  /** Optional `enum` field tinting each chip by its value's palette colour.
+   *  Empty / unset → the default indigo styling. */
+  colorField?: string;
   /** Primary-key of the currently-open record (highlighted chip). */
   selected?: string;
-  /** Whether empty-cell clicks create a record (Add gated for singletons). */
-  canCreate: boolean;
 }>();
 
 const emit = defineEmits<{
   select: [id: string | null];
-  createOn: [iso: string];
+  /** A day cell was activated → the host opens the time-allocation popup. */
+  openDay: [day: Ymd];
 }>();
 
 const { t, locale } = useI18n();
@@ -132,44 +135,72 @@ const todayKey = ymdKey({ year: now.getFullYear(), month: now.getMonth() + 1, da
 
 const grid = computed(() => buildMonthGrid(viewYear.value, viewMonth.value));
 
-const bucketed = computed(() => bucketRecords(props.items, props.anchorField, props.endField));
+const bucketed = computed(() => bucketRecords(props.items, props.anchorField, props.endField, props.timeField));
 
-function itemId(item: CollectionItem): string {
-  return String(item[props.schema.primaryKey] ?? "");
-}
-
-/** Chip label: the schema's `displayField` value, else the primary key. */
-function itemLabel(item: CollectionItem): string {
-  const field = props.schema.displayField;
-  if (field) {
-    const value = item[field];
-    if (typeof value === "string" && value.length > 0) return value;
-  }
-  return itemId(item);
-}
+const labelField = computed<string | null>(() => labelFieldFor(props.schema));
 
 interface CalendarEntry {
   id: string;
   label: string;
+  /** Resolved chip colour from the record's `colorField` value, or null when
+   *  no colour field is set → default styling. */
+  color: EnumColorClasses | null;
 }
 
-/** Records whose span covers a given day, in the bucket's start order. */
+/** A record's chip colour from its `colorField` value (palette, or
+ *  notification red/amber/grey on a notification enum); null when unset. */
+function colorOf(item: CollectionItem): EnumColorClasses | null {
+  return props.colorField ? resolveEnumColor(props.schema, props.colorField, item[props.colorField]) : null;
+}
+
+interface DayPair {
+  span: RecordSpan<CollectionItem>;
+  slice: DaySlice;
+}
+
+/** Sort key for ordering a day's chips by start time: earliest first, with
+ *  clock-less all-day records sinking to the bottom (matching the day view). */
+function sliceStartKey(slice: DaySlice): number {
+  return slice.kind === "allDay" ? MINUTES_PER_DAY + 1 : slice.startMin;
+}
+
+/** Records whose span covers a given day, ordered by start time so the month
+ *  grid stacks chips the same way the day (time-allocation) view does. */
 function recordsOnDay(day: Ymd): CalendarEntry[] {
-  return bucketed.value.spans.filter((span) => spanCoversDay(span, day)).map((span) => ({ id: itemId(span.item), label: itemLabel(span.item) }));
+  return bucketed.value.spans
+    .map((span) => ({ span, slice: daySlice(span, day) }))
+    .filter((pair): pair is DayPair => pair.slice !== null)
+    .sort((left, right) => sliceStartKey(left.slice) - sliceStartKey(right.slice))
+    .map(({ span }) => ({
+      id: itemIdOf(span.item, props.schema),
+      label: itemLabelOf(span.item, props.schema, labelField.value),
+      color: colorOf(span.item),
+    }));
 }
 
-/** Grid cells paired with their records, computed once per render. A cell
- *  is `creatable` only when it has NO records — clicking an empty day is
- *  the create affordance; clicking a populated day must NOT create (it
- *  would silently duplicate-create on a date that already has events). */
-const cells = computed(() =>
-  grid.value.map((cell) => {
-    const entries = recordsOnDay(cell.ymd);
-    return { cell, entries, creatable: props.canCreate && entries.length === 0 };
-  }),
+/** Grid cells paired with the records that land on them, computed once per
+ *  render. Clicking any cell opens the day view (create happens there). */
+const cells = computed(() => grid.value.map((cell) => ({ cell, entries: recordsOnDay(cell.ymd) })));
+
+const undatedEntries = computed<CalendarEntry[]>(() =>
+  bucketed.value.noDate.map((item) => ({
+    id: itemIdOf(item, props.schema),
+    label: itemLabelOf(item, props.schema, labelField.value),
+    color: colorOf(item),
+  })),
 );
 
-const undatedEntries = computed<CalendarEntry[]>(() => bucketed.value.noDate.map((item) => ({ id: itemId(item), label: itemLabel(item) })));
+const DAY_CHIP_DEFAULT = "bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100";
+const UNDATED_CHIP_DEFAULT = "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100";
+
+/** Chip classes: the selected chip keeps the solid indigo highlight; otherwise
+ *  a record with a resolved colour tints the chip, and one with none (no colour
+ *  field) falls back to `uncolored`. */
+function chipClass(entry: CalendarEntry, uncolored: string): string {
+  if (entry.id === props.selected) return "bg-indigo-600 text-white border-indigo-600";
+  if (!entry.color) return uncolored;
+  return `${entry.color.badge} ${entry.color.border} hover:brightness-95`;
+}
 
 const monthLabel = computed<string>(() => {
   try {

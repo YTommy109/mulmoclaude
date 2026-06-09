@@ -11,6 +11,8 @@ import { z } from "zod";
 import { log } from "../../system/logger/index.js";
 import { workspacePath } from "../workspace.js";
 import { USER_SKILLS_DIR, projectSkillsDir } from "../skills/paths.js";
+import { feedsRoot } from "../feeds/paths.js";
+import { INGEST_KINDS, FEED_SCHEDULES } from "../feeds/ingestTypes.js";
 import { SCHEMA_FILE, resolveDataDir, safeSlugName } from "./paths.js";
 import { isSafeActionTemplatePath } from "./templatePath.js";
 import type { CollectionDetail, CollectionSchema, CollectionSource, CollectionSummary } from "./types.js";
@@ -40,6 +42,14 @@ const refMessage = {
 // read-only detail view. It must declare a valid `to` slug (same
 // path-traversal guard as `ref`) AND a non-empty `id` naming the
 // fixed record's primary key (e.g. `me` for the singleton profile).
+// The calendar anchor/end fields accept either a date-only or a datetime
+// field (the latter carries the clock for the day view).
+const isDateLike = (type: string | undefined): boolean => type === "date" || type === "datetime";
+
+// `calendarTimeField` parses a free-form time string, so it must name a
+// string-backed field — a number/enum/date column has no time-range text.
+const isTimeStringField = (type: string | undefined): boolean => type === "string" || type === "text";
+
 const embedRefine = (spec: { type: string; to?: string; id?: string }): boolean => {
   if (spec.type !== "embed") return true;
   if (typeof spec.to !== "string" || safeSlugName(spec.to) === null) return false;
@@ -94,7 +104,7 @@ const WhenSchema = z.object({
 // row context, defer until a real need surfaces).
 const SubFieldSpecSchema = z
   .object({
-    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref", "money", "enum"]),
+    type: z.enum(["string", "text", "email", "number", "date", "datetime", "boolean", "markdown", "ref", "money", "enum"]),
     label: z.string().min(1),
     required: z.boolean().optional(),
     to: z.string().min(1).optional(),
@@ -113,7 +123,24 @@ const SubFieldSpecSchema = z
 
 const FieldSpecSchema = z
   .object({
-    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref", "money", "enum", "table", "derived", "embed", "image", "toggle"]),
+    type: z.enum([
+      "string",
+      "text",
+      "email",
+      "number",
+      "date",
+      "datetime",
+      "boolean",
+      "markdown",
+      "ref",
+      "money",
+      "enum",
+      "table",
+      "derived",
+      "embed",
+      "image",
+      "toggle",
+    ]),
     label: z.string().min(1),
     primary: z.boolean().optional(),
     required: z.boolean().optional(),
@@ -264,7 +291,25 @@ function spawnSuccessorStartsInert(schema: {
   return !(spawn.carry ?? []).includes(field); // carried ⇒ inherits the matching value
 }
 
-const CollectionSchemaZ = z
+// Declarative retrieval config for a Feed (a collection that refills
+// itself from the internet). Optional on every schema — skill-backed
+// collections omit it; only feeds discovered from `<workspace>/feeds/`
+// carry it. `http-json` needs a path to the items array; rss/atom
+// yield items natively and ignore `itemsAt`.
+const IngestSchemaZ = z.object({
+  kind: z.enum(INGEST_KINDS),
+  url: z.string().url(),
+  schedule: z.enum(FEED_SCHEDULES),
+  itemsAt: z.string().trim().min(1).optional(),
+  map: z.record(z.string().trim().min(1), z.string().trim().min(1)),
+  idFrom: z.string().trim().min(1).optional(),
+  maxItems: z.number().int().min(0).optional(),
+});
+// `itemsAt` is always optional: http-json omits it when the response body
+// is itself the items array (the engine falls back to the top-level array);
+// rss/atom ignore it. So no kind-specific requirement here.
+
+export const CollectionSchemaZ = z
   .object({
     title: z.string().min(1),
     icon: z.string().min(1),
@@ -307,6 +352,11 @@ const CollectionSchemaZ = z
     // Multi-day span end: a second `date` field the calendar record spans
     // to. Requires `calendarField`; validated to name a real `date` field.
     calendarEndField: z.string().trim().min(1).optional(),
+    // Day (time-allocation) view time source: names a string field holding a
+    // free-form time or time-range (e.g. "14:00-17:00", "17:00-", "16:30").
+    // Consulted only when the date fields are date-only. Requires
+    // `calendarField`; validated to name a real field by a refine below.
+    calendarTimeField: z.string().trim().min(1).optional(),
     // Kanban board group: names an `enum` field whose value buckets each
     // record into a column. Validated to name a real `enum` field by a
     // refine below. Optional — the toggle auto-derives from any `enum`
@@ -316,6 +366,10 @@ const CollectionSchemaZ = z
     // (e.g. high-priority todos). Reuses the `when` shape; requires
     // `completionField`; field validated to exist by refines below.
     notifyWhen: WhenSchema.optional(),
+    // Declarative retrieval config. Present only on Feeds (collections in
+    // the `<workspace>/feeds/` registry). Optional, so every existing
+    // skill schema validates unchanged.
+    ingest: IngestSchemaZ.optional(),
   })
   // The singleton value becomes a record id (and thus a `<id>.json`
   // filename), so it must satisfy the SAME `safeSlugName` rule the
@@ -418,11 +472,12 @@ const CollectionSchemaZ = z
       "`spawn` must leave the successor in a non-matching state (e.g. `set` the status to a pending value); seeding the predicate field to a matching value via `set`/`carry` would respawn forever",
     path: ["spawn"],
   })
-  // `calendarField` must name a real `date` field — the calendar view
-  // parses its value as `YYYY-MM-DD` to place records on the month grid;
-  // any other type can't be put on a calendar.
-  .refine((schema) => schema.calendarField === undefined || schema.fields[schema.calendarField]?.type === "date", {
-    message: "schema `calendarField` must name a top-level `date` field declared in `fields`",
+  // `calendarField` must name a real `date`/`datetime` field — the calendar
+  // view parses its value to place records on the month grid (a `datetime`
+  // anchor also carries the clock for the day view); any other type can't be
+  // put on a calendar.
+  .refine((schema) => schema.calendarField === undefined || isDateLike(schema.fields[schema.calendarField]?.type), {
+    message: "schema `calendarField` must name a top-level `date` or `datetime` field declared in `fields`",
     path: ["calendarField"],
   })
   // `calendarEndField` marks the end of a multi-day span, so it only means
@@ -431,10 +486,28 @@ const CollectionSchemaZ = z
     message: "schema `calendarEndField` requires `calendarField` (it marks the end of the span that starts at `calendarField`)",
     path: ["calendarEndField"],
   })
-  // `calendarEndField` must also name a real `date` field — same parse.
-  .refine((schema) => schema.calendarEndField === undefined || schema.fields[schema.calendarEndField]?.type === "date", {
-    message: "schema `calendarEndField` must name a top-level `date` field declared in `fields`",
+  // `calendarEndField` must also name a real `date`/`datetime` field — same parse.
+  .refine((schema) => schema.calendarEndField === undefined || isDateLike(schema.fields[schema.calendarEndField]?.type), {
+    message: "schema `calendarEndField` must name a top-level `date` or `datetime` field declared in `fields`",
     path: ["calendarEndField"],
+  })
+  // `calendarTimeField` places records on the day view, so it only means
+  // something alongside a start anchor.
+  .refine((schema) => schema.calendarTimeField === undefined || schema.calendarField !== undefined, {
+    message: "schema `calendarTimeField` requires `calendarField` (it supplies the time-of-day for the calendar's day view)",
+    path: ["calendarTimeField"],
+  })
+  // `calendarTimeField` must name a real top-level field (a free-form time
+  // string the day view parses).
+  .refine((schema) => schema.calendarTimeField === undefined || schema.fields[schema.calendarTimeField] !== undefined, {
+    message: "schema `calendarTimeField` must name a top-level field declared in `fields`",
+    path: ["calendarTimeField"],
+  })
+  // …and that field must be string-backed — the day view parses its value as a
+  // time string, so a number/enum/date column can't drive it.
+  .refine((schema) => schema.calendarTimeField === undefined || isTimeStringField(schema.fields[schema.calendarTimeField]?.type), {
+    message: "schema `calendarTimeField` must name a top-level `string` or `text` field declared in `fields`",
+    path: ["calendarTimeField"],
   })
   // `kanbanField` must name a real `enum` field — the board groups records
   // into one column per declared enum value; any other type has no closed
@@ -476,6 +549,19 @@ interface LoadedCollection {
   skillDir: string;
 }
 
+// Normalize an agent-authored feed schema (no register tool to do it):
+// default `icon`, and **force** `dataPath` to the feed-owned namespace
+// `data/feeds/<slug>`. Forcing dataPath (rather than trusting the file) is
+// a safety boundary — a feed can only ever read/write/delete records under
+// its own folder, never another app's data (e.g. `data/wiki`). Non-object
+// input passes through so the Zod error stays clear.
+function applyFeedSchemaDefaults(parsed: unknown, slug: string): unknown {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return parsed;
+  const obj = parsed as Record<string, unknown>;
+  const icon = typeof obj.icon === "string" && obj.icon.trim().length > 0 ? obj.icon : "dynamic_feed";
+  return { ...obj, icon, dataPath: `data/feeds/${slug}` };
+}
+
 async function loadOneCollection(skillsRoot: string, slug: string, source: CollectionSource, workspaceRoot: string): Promise<LoadedCollection | null> {
   const safeName = safeSlugName(slug);
   if (safeName === null) return null;
@@ -501,7 +587,10 @@ async function loadOneCollection(skillsRoot: string, slug: string, source: Colle
     return null;
   }
 
-  const parsed = CollectionSchemaZ.safeParse(parsedJson);
+  // Feeds are authored by the agent as plain files (no register tool), so
+  // fill the boilerplate icon / dataPath if omitted before validation.
+  const candidate = source === "feed" ? applyFeedSchemaDefaults(parsedJson, safeName) : parsedJson;
+  const parsed = CollectionSchemaZ.safeParse(candidate);
   if (!parsed.success) {
     log.warn("collections", "schema.json failed validation, skipping", { slug: safeName, issues: parsed.error.issues });
     return null;
@@ -522,6 +611,14 @@ async function loadOneCollection(skillsRoot: string, slug: string, source: Colle
   }
   if (primaryField.primary !== true) {
     log.warn("collections", "schema.json primaryKey field is not flagged primary: true, skipping", { slug: safeName, primaryKey: schema.primaryKey });
+    return null;
+  }
+
+  // A feed-registry schema MUST declare an `ingest` block — without it the
+  // host can never fetch it, so it'd be a dead, non-refreshable card in
+  // /feeds. Skip it (the old register tool rejected this case explicitly).
+  if (source === "feed" && !schema.ingest) {
+    log.warn("collections", "feed schema.json has no `ingest` block, skipping", { slug: safeName });
     return null;
   }
 
@@ -589,9 +686,15 @@ export async function discoverCollections(opts: DiscoveryOptions = {}): Promise<
   const workspaceRoot = opts.workspaceRoot ?? workspacePath;
   const userDir = opts.userSkillsDir ?? USER_SKILLS_DIR;
   const projectDir = projectSkillsDir(workspaceRoot);
+  // Feeds (the non-skill `<workspace>/feeds/` registry) are scanned as a
+  // third root. They merge FIRST so a real skill collection (user or
+  // project) always overrides a feed on slug collision — a feed must
+  // never shadow a genuine skill-backed collection.
+  const feedCollections = await collectFromDir(feedsRoot(workspaceRoot), "feed", workspaceRoot);
   const userCollections = await collectFromDir(userDir, "user", workspaceRoot);
   const projectCollections = await collectFromDir(projectDir, "project", workspaceRoot);
   const merged = new Map<string, LoadedCollection>();
+  for (const entry of feedCollections) merged.set(entry.slug, entry);
   for (const entry of userCollections) merged.set(entry.slug, entry);
   for (const entry of projectCollections) merged.set(entry.slug, entry);
   return [...merged.values()].sort((left, right) => left.slug.localeCompare(right.slug));
@@ -605,10 +708,14 @@ export async function loadCollection(slug: string, opts: DiscoveryOptions = {}):
   const workspaceRoot = opts.workspaceRoot ?? workspacePath;
   const userDir = opts.userSkillsDir ?? USER_SKILLS_DIR;
   const projectDir = projectSkillsDir(workspaceRoot);
-  // Project first (overrides user).
+  // Project first (overrides user), then user, then the feeds registry
+  // last — mirroring the merge precedence in `discoverCollections` so a
+  // skill collection always wins over a feed of the same slug.
   const projectCollection = await loadOneCollection(projectDir, safeName, "project", workspaceRoot);
   if (projectCollection) return projectCollection;
-  return loadOneCollection(userDir, safeName, "user", workspaceRoot);
+  const userCollection = await loadOneCollection(userDir, safeName, "user", workspaceRoot);
+  if (userCollection) return userCollection;
+  return loadOneCollection(feedsRoot(workspaceRoot), safeName, "feed", workspaceRoot);
 }
 
 export function toSummary(collection: LoadedCollection): CollectionSummary {

@@ -19,6 +19,8 @@ import { isErrorWithCode, isRecord } from "../../server/utils/types.ts";
 import type { NotifierEntry } from "../../server/notifier/types.ts";
 import { API_ROUTES } from "../../src/config/apiRoutes.ts";
 
+import { stagingSkillSlugFromWritePath } from "./staging-skill-path.ts";
+
 /**
  * Canonical SPA session URL pattern. Both `e2e-live/fixtures/`
  * helpers and `e2e-live/tests/*.spec.ts` route waits assert against
@@ -350,9 +352,70 @@ export async function removeBrokenSymlinkSkill(slug: string): Promise<void> {
 // in-memory skill registry to drift until the next config refresh.
 const SKILL_ROW_PRESENCE_TIMEOUT_MS = 30 * ONE_SECOND_MS;
 
+/**
+ * Open a Settings-modal management tab and wait for its surface to
+ * mount. Loads `/chat` first so the top-chrome gear button is present:
+ * the old standalone `/skills` / `/roles` routes used to load the app
+ * shell implicitly, and callers may invoke this before touching the UI
+ * at all (e.g. right after seeding a skill on disk).
+ */
+async function openSettingsTab(page: Page, tabId: "skills" | "roles", rootTestId: string, rootLabel: string): Promise<void> {
+  await page.goto("/chat");
+  await page.getByTestId("settings-btn").click();
+  await expect(page.getByTestId("settings-modal"), "settings modal must open").toBeVisible({ timeout: ONE_MINUTE_MS });
+  await page.getByTestId(`settings-tab-${tabId}`).click();
+  await expect(page.getByTestId(rootTestId), rootLabel).toBeVisible({ timeout: ONE_MINUTE_MS });
+}
+
+/**
+ * Open the Skills management surface. Skills moved out of the standalone
+ * `/skills` route into the Settings modal (Management group), so the
+ * live-mode path is now: gear button → Skills tab. Resolves once the
+ * always-rendered catalog accordion is visible inside the modal.
+ */
+export async function openSkillsPanel(page: Page): Promise<void> {
+  await openSettingsTab(page, "skills", "skill-section-catalog", "skills catalog section must mount inside the modal");
+}
+
+/** Open the Roles management surface (Settings modal → Roles tab). */
+export async function openRolesPanel(page: Page): Promise<void> {
+  await openSettingsTab(page, "roles", "roles-view-root", "roles view must mount inside the modal");
+}
+
+/** Close the Settings modal via its header ✕. No-op if already closed. */
+export async function closeSettingsModal(page: Page): Promise<void> {
+  if (
+    !(await page
+      .getByTestId("settings-modal")
+      .isVisible()
+      .catch(() => false))
+  )
+    return;
+  await page.getByTestId("settings-close-btn").click();
+  await expect(page.getByTestId("settings-modal")).toBeHidden({ timeout: ONE_MINUTE_MS });
+}
+
+/**
+ * Invoke a skill the only way the UI still offers it: type its
+ * `/<slug>` slash command as the first turn of a fresh chat. (The
+ * in-view Run button was removed when Skills moved into the Settings
+ * modal.) Dismisses the modal if open, starts a new session, sends the
+ * command, and returns the new session id once `/chat/<id>` settles.
+ */
+export async function invokeSkillViaSlashCommand(page: Page, slug: string): Promise<string> {
+  assertValidSkillSlug(slug);
+  await closeSettingsModal(page);
+  await startNewSession(page);
+  await sendChatMessage(page, `/${slug}`);
+  await page.waitForURL(SESSION_URL_PATTERN, { timeout: ONE_MINUTE_MS });
+  const sessionId = getCurrentSessionId(page);
+  if (sessionId === null) throw new Error(`invokeSkillViaSlashCommand: session id did not settle after sending /${slug}`);
+  return sessionId;
+}
+
 export async function deleteProjectSkillViaUi(page: Page, slug: string, timeoutMs: number = ONE_MINUTE_MS): Promise<void> {
   assertValidSkillSlug(slug);
-  await page.goto("/skills");
+  await openSkillsPanel(page);
   const skillRow = page.getByTestId(`skill-item-${slug}`);
   try {
     await expect(skillRow).toBeVisible({ timeout: SKILL_ROW_PRESENCE_TIMEOUT_MS });
@@ -364,7 +427,7 @@ export async function deleteProjectSkillViaUi(page: Page, slug: string, timeoutM
     // anyone reading the run log — silent fast-paths here are how
     // registry-staleness bugs sneak in.
     console.warn(
-      `deleteProjectSkillViaUi: row [skill-item-${slug}] never appeared in /skills within ${SKILL_ROW_PRESENCE_TIMEOUT_MS}ms — skipping UI delete (fs follow-up still rms both trees)`,
+      `deleteProjectSkillViaUi: row [skill-item-${slug}] never appeared in the Skills settings tab within ${SKILL_ROW_PRESENCE_TIMEOUT_MS}ms — skipping UI delete (fs follow-up still rms both trees)`,
     );
     return;
   }
@@ -378,7 +441,7 @@ export async function deleteProjectSkillViaUi(page: Page, slug: string, timeoutM
     });
   });
   await page.getByTestId("skill-delete-btn").click();
-  await expect(skillRow, "deleted skill row must disappear from /skills listing").toBeHidden({ timeout: timeoutMs });
+  await expect(skillRow, "deleted skill row must disappear from the Skills settings listing").toBeHidden({ timeout: timeoutMs });
 }
 
 /**
@@ -390,57 +453,25 @@ export async function deleteProjectSkillViaUi(page: Page, slug: string, timeoutM
  */
 export const WRITE_TOOL_NAME = "Write";
 
-// Path of an agent Write that targets a staging skill body. Anchored
-// to `/SKILL.md` (`(start|<sep>)data<sep>skills<sep><slug><sep>SKILL.md$`)
-// so a Write to `data/skills/<slug>/README.md` does NOT match — the
-// bridge only mirrors the canonical filename, and asserting on it is
-// what proves the bridge will fire. Slug pattern matches the bridge's
-// own `SLUG_RE`. Tolerates both POSIX and Windows separators since
-// path normalisation depends on how the SDK serialises the arg.
-// The `(?:^|[/\\])` prefix accepts bare cwd-relative paths
-// (`data/skills/<slug>/SKILL.md` — the form the mc-manage-skills
-// SKILL.md instructs the agent to use) as well as separator-prefixed
-// (`./data/...` / absolute) variants. Codex iter-2 review on this PR.
-// eslint-disable-next-line security/detect-unsafe-regex -- the slug clause is bounded by the path tail (slug ≤ 64 chars per server/utils/slug.ts) and the input is the agent-supplied file_path the Claude SDK already validated; no pathological backtracking surface.
-const STAGING_SKILL_WRITE_PATH_RE = /(?:^|[/\\])data[/\\]skills[/\\]([a-z0-9]+(?:-[a-z0-9]+)*)[/\\]SKILL\.md$/;
-
 /**
  * Extract the staging-skill slug from a `Write` tool call's
- * `file_path` arg. Returns `null` when the call isn't a `Write`,
- * the path doesn't sit under `data/skills/<slug>/SKILL.md`, the
- * slug fails the canonical kebab-case rule, OR the resolved path
- * is not under THIS workspace's staging dir (the regex alone is
- * tail-anchored, so a write to `/some/other/root/data/skills/...`
- * would otherwise match). Specs in L-31 use this to assert that
- * mc-manage-skills routed the agent into the bridge staging path
- * rather than into `.claude/skills/` (which would indicate the
- * bridge SKILL.md was ignored — the regression #1298 fixed).
+ * `file_path` arg. Returns `null` when the call isn't a `Write` to
+ * `<workspace>/data/skills/<slug>/SKILL.md`. Specs in L-31 use this to
+ * assert that mc-manage-skills routed the agent into the bridge
+ * staging path rather than into `.claude/skills/` (which would
+ * indicate the bridge SKILL.md was ignored — the regression #1298
+ * fixed).
  *
- * The agent's `Write` `file_path` arg is sometimes absolute (some
- * host normalisations) and sometimes cwd-relative; both must
- * resolve to OUR workspace's `data/skills/<slug>/SKILL.md` to be
- * considered a hit. Codex iter-1 review on this PR — without the
- * resolve+compare guard the canary could false-positive on a write
- * outside the workspace and silently report green.
+ * The host/sandbox dual-root path matching (and the false-positive
+ * guard for writes outside the workspace) lives in the pure,
+ * unit-tested {@link stagingSkillSlugFromWritePath}.
  */
 export function stagingSkillSlugFromWriteCall(call: ToolCallTraceRecord): string | null {
   if (call.toolName !== WRITE_TOOL_NAME) return null;
   if (!isRecord(call.args)) return null;
   const filePath = call.args.file_path;
   if (typeof filePath !== "string") return null;
-  const match = STAGING_SKILL_WRITE_PATH_RE.exec(filePath);
-  if (!match) return null;
-  const [, slug] = match;
-  // Re-validate against the full server rule. The regex enforces
-  // kebab-case shape but not the length bound `isValidSlug` adds
-  // (1-120 chars per server/utils/slug.ts). Without this gate the
-  // L-31 canary could green on a Write whose slug the backend would
-  // reject — catching that mismatch at the test layer keeps the
-  // signal honest. CodeRabbit review on PR #1345.
-  if (!isValidSlug(slug)) return null;
-  const expectedPath = resolveWorkspacePath(`data/skills/${slug}/SKILL.md`);
-  const candidatePath = path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(workspaceRoot(), filePath);
-  return candidatePath === expectedPath ? slug : null;
+  return stagingSkillSlugFromWritePath(filePath, workspaceRoot());
 }
 
 /**

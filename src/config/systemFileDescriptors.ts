@@ -39,11 +39,6 @@ export const SYSTEM_FILE_DESCRIPTORS: readonly Entry[] = [
   // ── config/ ──
   {
     kind: "exact",
-    path: "config/interests.json",
-    descriptor: { id: "interests", schemaRef: "server/workspace/sources/interests.ts", editPolicy: "agent-managed-but-hand-editable" },
-  },
-  {
-    kind: "exact",
     path: "config/mcp.json",
     descriptor: { id: "mcp", schemaRef: "server/system/config.ts", editPolicy: "user-editable" },
   },
@@ -61,11 +56,6 @@ export const SYSTEM_FILE_DESCRIPTORS: readonly Entry[] = [
     kind: "exact",
     path: "config/scheduler/overrides.json",
     descriptor: { id: "schedulerOverrides", schemaRef: "server/utils/files/scheduler-io.ts", editPolicy: "agent-managed" },
-  },
-  {
-    kind: "exact",
-    path: "config/news-read-state.json",
-    descriptor: { id: "newsReadState", editPolicy: "ephemeral" },
   },
   // ── data/ ──
   {
@@ -114,16 +104,6 @@ export const SYSTEM_FILE_DESCRIPTORS: readonly Entry[] = [
     kind: "pattern",
     regex: /^config\/roles\/[^/]+\.md$/,
     descriptor: { id: "rolesMd", schemaRef: "src/config/roles.ts", editPolicy: "user-editable" },
-  },
-  {
-    kind: "pattern",
-    regex: /^data\/sources\/[^_/][^/]*\.md$/,
-    descriptor: { id: "sourceFeed", schemaRef: "server/workspace/sources/types.ts", editPolicy: "user-editable" },
-  },
-  {
-    kind: "pattern",
-    regex: /^data\/sources\/_state\/[^/]+\.json$/,
-    descriptor: { id: "sourceState", editPolicy: "ephemeral" },
   },
   {
     kind: "pattern",
