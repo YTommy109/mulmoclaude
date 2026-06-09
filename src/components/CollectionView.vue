@@ -14,7 +14,7 @@
       </button>
 
       <div v-if="collection" class="h-9 w-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
-        <span class="material-icons text-xl">{{ collection.icon }}</span>
+        <span class="material-symbols-outlined text-xl">{{ collection.icon }}</span>
       </div>
 
       <div class="flex-1 min-w-0">
@@ -25,6 +25,26 @@
           {{ collection.slug }}
         </span>
       </div>
+
+      <PinToggle
+        v-if="collection && !embedded"
+        :kind="isFeedRoute ? 'feed' : 'collection'"
+        :slug="collection.slug"
+        :title="collection.title"
+        :icon="collection.icon"
+      />
+
+      <button
+        v-if="collection?.schema.ingest"
+        type="button"
+        class="h-8 px-2.5 flex items-center gap-1 rounded border border-indigo-200 bg-white hover:bg-indigo-50 text-indigo-600 font-bold text-xs transition-colors disabled:opacity-50"
+        :disabled="refreshing"
+        data-testid="collections-refresh-feed"
+        @click="refreshFeed"
+      >
+        <span class="material-icons text-sm">{{ refreshing ? "hourglass_empty" : "refresh" }}</span>
+        <span>{{ t("collectionsView.refreshFeed") }}</span>
+      </button>
 
       <button
         v-if="collection"
@@ -37,8 +57,10 @@
         <span>{{ t("collectionsView.chat") }}</span>
       </button>
 
+      <!-- Hidden in calendar view: there, creation happens via the day view's
+           + button, which opens the new-item form in the popup's right pane. -->
       <button
-        v-if="canCreate"
+        v-if="canCreate && !calendarActive"
         type="button"
         class="h-8 px-2.5 flex items-center gap-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors shadow-sm"
         data-testid="collections-add-item"
@@ -56,6 +78,18 @@
         :aria-label="t('collectionsView.deleteCollection')"
         data-testid="collections-delete"
         @click="confirmCollectionDelete"
+      >
+        <span class="material-icons text-sm">delete_forever</span>
+      </button>
+
+      <button
+        v-if="canDeleteFeed && !embedded"
+        type="button"
+        class="h-8 w-8 flex items-center justify-center rounded border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 transition-colors"
+        :title="t('collectionsView.deleteFeed')"
+        :aria-label="t('collectionsView.deleteFeed')"
+        data-testid="feeds-delete"
+        @click="confirmFeedDelete"
       >
         <span class="material-icons text-sm">delete_forever</span>
       </button>
@@ -93,7 +127,7 @@
         <!-- View toggle: table ↔ calendar ↔ kanban. Calendar shows only when
              the schema has a `date` field, kanban only with an `enum` field;
              local UI state, never persisted. -->
-        <div v-if="hasCalendar || hasKanban" class="flex gap-0.5" role="group" :aria-label="t('collectionsView.viewToggle')">
+        <div v-if="hasCalendar || hasKanban || hasDashboard" class="flex gap-0.5" role="group" :aria-label="t('collectionsView.viewToggle')">
           <button
             type="button"
             class="h-8 px-2.5 flex items-center gap-1 rounded text-xs font-bold transition-colors"
@@ -129,6 +163,18 @@
             <span class="material-icons text-sm">view_kanban</span>
             <span>{{ t("collectionsView.viewKanban") }}</span>
           </button>
+          <button
+            v-if="hasDashboard"
+            type="button"
+            class="h-8 px-2.5 flex items-center gap-1 rounded text-xs font-bold transition-colors"
+            :class="activeView === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'"
+            :aria-pressed="activeView === 'dashboard'"
+            data-testid="collection-view-toggle-dashboard"
+            @click="setView('dashboard')"
+          >
+            <span class="material-icons text-sm">dashboard</span>
+            <span>{{ t("collectionsView.viewDashboard") }}</span>
+          </button>
         </div>
         <!-- Which date field anchors the grid (only when >1 date field). -->
         <select
@@ -141,9 +187,10 @@
         >
           <option v-for="key in dateFields" :key="key" :value="key">{{ collection?.schema.fields[key]?.label ?? key }}</option>
         </select>
-        <!-- Which enum field groups the board (only when >1 enum field). -->
+        <!-- Which enum field groups the board / drives the dashboard (only
+             when >1 enum field). -->
         <select
-          v-if="kanbanActive && enumFields.length > 1"
+          v-if="(kanbanActive || dashboardActive) && enumFields.length > 1"
           :value="kanbanGroupField"
           class="h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 focus:outline-none focus:border-indigo-500 cursor-pointer"
           :aria-label="t('collectionsView.kanbanFieldLabel')"
@@ -182,13 +229,62 @@
           :items="filteredItems"
           :anchor-field="calendarAnchorField"
           :end-field="calendarEndField"
+          :time-field="calendarTimeField"
+          :color-field="hasKanban ? kanbanGroupField : ''"
+          :selected="viewing ? String(viewing[collection.schema.primaryKey] ?? '') : undefined"
+          @select="onCalendarSelect"
+          @open-day="onOpenDay"
+        />
+
+        <!-- Day (time-allocation) popup. Selecting a record opens it on the
+             right of this modal (the `#detail` slot), replacing the old panel
+             that sat below the grid. -->
+        <CollectionDayView
+          v-if="openDay"
+          :schema="collection.schema"
+          :items="filteredItems"
+          :day="openDay"
+          :anchor-field="calendarAnchorField"
+          :end-field="calendarEndField"
+          :time-field="calendarTimeField"
           :selected="viewing ? String(viewing[collection.schema.primaryKey] ?? '') : undefined"
           :can-create="canCreate"
+          :show-detail="Boolean(viewing || editing)"
           @select="onCalendarSelect"
           @create-on="createOnDate"
-        />
+          @close="onDayClose"
+        >
+          <template #detail>
+            <CollectionRecordPanel
+              v-model:editing="editing"
+              :collection="collection"
+              :viewing="viewing"
+              :saving="saving"
+              :save-error="saveError"
+              :action-error="actionError"
+              :action-pending="actionPending"
+              :visible-actions="visibleActions"
+              :live-record="liveRecord"
+              :live-derived="liveDerived"
+              :view-title="viewTitle"
+              :is-singleton="isSingleton"
+              :render="render"
+              :locale="locale"
+              @submit="saveEditor"
+              @cancel="cancelEditor"
+              @edit="editFromView"
+              @close="onDayClose"
+              @delete="viewing && confirmDelete(viewing)"
+              @run-action="runAction"
+            />
+          </template>
+        </CollectionDayView>
+
+        <!-- Fallback panel for records with no resolvable day (the "no date"
+             tray): they can't appear on a timeline, so their detail still
+             opens below the grid. -->
         <div
-          v-if="viewing || editing"
+          v-if="(viewing || editing) && !openDay"
           class="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden"
           data-testid="collections-calendar-panel"
         >
@@ -255,6 +351,43 @@
           class="m-3 mt-0 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden shrink-0"
           data-testid="collections-kanban-panel"
         >
+          <CollectionRecordPanel
+            v-model:editing="editing"
+            :collection="collection"
+            :viewing="viewing"
+            :saving="saving"
+            :save-error="saveError"
+            :action-error="actionError"
+            :action-pending="actionPending"
+            :visible-actions="visibleActions"
+            :live-record="liveRecord"
+            :live-derived="liveDerived"
+            :view-title="viewTitle"
+            :is-singleton="isSingleton"
+            :render="render"
+            :locale="locale"
+            @submit="saveEditor"
+            @cancel="cancelEditor"
+            @edit="editFromView"
+            @close="closeView"
+            @delete="viewing && confirmDelete(viewing)"
+            @run-action="runAction"
+          />
+        </div>
+      </div>
+
+      <!-- Dashboard body: a read-only snapshot for enum-bearing collections —
+           stat cards by status, a notifyWhen-driven alert box, and an openable
+           item list. Editing still happens via the table/detail panel. -->
+      <div v-else-if="dashboardActive" class="p-4 flex flex-col gap-4">
+        <CollectionDashboardView
+          :schema="collection.schema"
+          :items="filteredItems"
+          :group-field="kanbanGroupField"
+          :selected="viewing ? String(viewing[collection.schema.primaryKey] ?? '') : undefined"
+          @select="onCalendarSelect"
+        />
+        <div v-if="viewing || editing" class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden" data-testid="collections-dashboard-panel">
           <CollectionRecordPanel
             v-model:editing="editing"
             :collection="collection"
@@ -390,7 +523,8 @@
                       v-else-if="field.type === 'enum' && Array.isArray(field.values) && field.values.length > 0"
                       :value="item[key] == null ? '' : String(item[key])"
                       :disabled="isRowInlineSaving(item)"
-                      class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="rounded-lg border px-2 py-0.5 text-[11px] font-semibold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      :class="enumControlClass(String(key), item[key])"
                       :data-testid="`collections-inline-enum-${key}-${item[collection.schema.primaryKey]}`"
                       :aria-label="field.label"
                       @click.stop
@@ -563,12 +697,18 @@ import { API_ROUTES } from "../config/apiRoutes";
 import { PAGE_ROUTES } from "../router/pageRoutes";
 import { BUILTIN_ROLE_IDS } from "../config/roles";
 import ConfirmModal from "./ConfirmModal.vue";
+import PinToggle from "./PinToggle.vue";
 import CollectionRecordPanel from "./CollectionRecordPanel.vue";
 import CollectionCalendarView from "./CollectionCalendarView.vue";
+import CollectionDashboardView from "./CollectionDashboardView.vue";
+import CollectionDayView from "./CollectionDayView.vue";
 import CollectionKanbanView from "./CollectionKanbanView.vue";
+import { dateOf, type Ymd } from "../utils/collections/calendarGrid";
 import { useConfirm } from "../composables/useConfirm";
 import { useAppApi } from "../composables/useAppApi";
+import { useShortcuts } from "../composables/useShortcuts";
 import { actionVisible, fieldVisible } from "../utils/collections/actionVisible";
+import { resolveEnumColor } from "../utils/collections/enumColors";
 import { readCollectionViewMode, writeCollectionViewMode } from "../utils/collections/collectionViewMode";
 import { useCollectionRendering } from "../composables/collections/useCollectionRendering";
 import { buildUpdatedRecord, coerceInlineValue, draftToRecord, firstMissingRequiredField, rowFromItem } from "../utils/collections/draft";
@@ -600,7 +740,7 @@ const props = defineProps<{
   /** Embedded mode only: initial view / anchor / group restored from the
    *  card's persisted `viewState` so a switch to calendar or kanban
    *  survives a remount. */
-  initialView?: "table" | "calendar" | "kanban";
+  initialView?: "table" | "calendar" | "kanban" | "dashboard";
   initialAnchorField?: string;
   initialGroupField?: string;
 }>();
@@ -613,7 +753,7 @@ const emit = defineEmits<{
   /** Embedded mode only: the view mode / calendar anchor / kanban group
    *  changed. The card persists these alongside `selected` so the calendar
    *  and kanban stick. */
-  viewStateChange: [state: { view: "table" | "calendar" | "kanban"; anchorField: string; groupField: string }];
+  viewStateChange: [state: { view: "table" | "calendar" | "kanban" | "dashboard"; anchorField: string; groupField: string }];
 }>();
 
 const { t, locale } = useI18n();
@@ -621,6 +761,7 @@ const route = useRoute();
 const router = useRouter();
 const { openConfirm } = useConfirm();
 const appApi = useAppApi();
+const { unpin } = useShortcuts();
 
 /** Embedded when a `slug` prop is supplied; standalone (route-driven)
  *  otherwise. Switches the slug/selected source and the open/close
@@ -647,6 +788,11 @@ const collection = ref<CollectionDetail | null>(null);
 const items = ref<CollectionItem[]>([]);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
+/** True while a feed collection's manual refresh is in flight. */
+const refreshing = ref(false);
+/** Slug already auto-refreshed on first open — prevents a reload loop
+ *  (the auto-refresh reloads the view, which would re-trigger otherwise). */
+const autoRefreshedSlug = ref<string | null>(null);
 const editing = ref<EditState | null>(null);
 /** The record currently shown in read-only "open" mode. Distinct
  *  from `editing`: open mode renders formatted values (no inputs)
@@ -654,6 +800,10 @@ const editing = ref<EditState | null>(null);
  *  lands on. Mutually exclusive with `editing` in practice —
  *  `editFromView` hands off from one to the other. */
 const viewing = ref<CollectionItem | null>(null);
+/** The calendar day whose time-allocation popup is open, or null. The
+ *  selected record (`viewing`) renders in that popup's right pane; a record
+ *  with no resolvable day falls back to the panel below the grid. */
+const openDay = ref<Ymd | null>(null);
 const saving = ref(false);
 const saveError = ref<string | null>(null);
 /** Error from an inline table-cell edit (checkbox/dropdown). Distinct
@@ -756,6 +906,16 @@ function showEnumPlaceholder(item: CollectionItem, fieldKey: string): boolean {
   return enumOriginallyEmpty.value.has(cellKey(rowId(item), fieldKey));
 }
 
+/** Tailwind fill/text/border classes tinting an inline enum `<select>` by its
+ *  current value's colour (palette, or notification red/amber/grey when the
+ *  field is the schema's notifyWhen target). */
+function enumControlClass(fieldKey: string, value: unknown): string {
+  const schema = collection.value?.schema;
+  if (!schema) return "";
+  const cls = resolveEnumColor(schema, fieldKey, value);
+  return `${cls.badge} ${cls.border}`;
+}
+
 /** Rows rendered by the table: the filtered records, plus a synthetic
  *  create row at the top while a create is in progress. */
 const displayItems = computed<CollectionItem[]>(() => {
@@ -787,6 +947,28 @@ function shouldExpand(item: CollectionItem): boolean {
 
 function detailUrl(slug: string): string {
   return API_ROUTES.collections.detail.replace(":slug", encodeURIComponent(slug));
+}
+
+/** Re-run a feed collection's retrieval now, then reload its records.
+ *  Only reachable when `schema.ingest` is present (button is gated). */
+async function refreshFeed(): Promise<void> {
+  const current = collection.value;
+  if (!current?.schema.ingest || refreshing.value) return;
+  refreshing.value = true;
+  inlineError.value = null;
+  const url = API_ROUTES.collections.refresh.replace(":slug", encodeURIComponent(current.slug));
+  const result = await apiPost<{ refreshed: boolean; written: number; errors: string[] }>(url, {});
+  refreshing.value = false;
+  if (!result.ok) {
+    loadError.value = result.error;
+    return;
+  }
+  await loadCollection(current.slug);
+  // refreshOne reports retriever failures via `errors` even on HTTP 200, so
+  // surface them — otherwise a failed refresh looks like success.
+  if (result.data.errors.length > 0) {
+    inlineError.value = t("collectionsView.refreshFailed", { error: result.data.errors.join("; ") });
+  }
 }
 
 function itemsUrl(slug: string): string {
@@ -850,15 +1032,33 @@ function closeChat(): void {
   chatOpen.value = false;
 }
 
-/** Start a new general-role chat seeded with the collection's skill
- *  command, so e.g. "I want to create an item" on `mc_worklog` becomes
- *  `/mc_worklog I want to create an item`. */
+/** Build the chat seed text for the current view.
+ *
+ *  A collection IS a skill, so its slug doubles as a slash command:
+ *  "I want to create an item" on `mc_worklog` becomes
+ *  `/mc_worklog I want to create an item`.
+ *
+ *  A feed is data-only — it has NO skill, so `/<slug>` would resolve to
+ *  nothing. Instead, point the agent at the feed's schema + records
+ *  (`feeds/<slug>/schema.json` and `<dataPath>/`) and let it act on the
+ *  request directly. */
+function buildChatSeed(slug: string, message: string): string {
+  const schema = collection.value?.schema;
+  // A feed carries an `ingest` block; a plain collection does not. Checked
+  // here (rather than via the `isFeed` computed, defined further down) to
+  // keep this helper self-contained and avoid a use-before-define.
+  if (!schema?.ingest) return `/${slug} ${message}`;
+  const dataPath = schema.dataPath ?? `data/feeds/${slug}`;
+  return t("collectionsView.feedChatSeed", { slug, dataPath, message });
+}
+
+/** Start a new general-role chat seeded from the current view. */
 function submitChat(): void {
   if (!collection.value) return;
   const message = chatMessage.value.trim();
   if (!message) return;
   closeChat();
-  const text = `/${collection.value.slug} ${message}`;
+  const text = buildChatSeed(collection.value.slug, message);
   // Chat card → send into the current session; standalone → new chat.
   if (props.sendTextMessage) {
     props.sendTextMessage(text);
@@ -868,6 +1068,11 @@ function submitChat(): void {
 }
 
 async function loadCollection(slug: string): Promise<void> {
+  // Snapshot the shortcut kind BEFORE the await — if the user navigates
+  // between /feeds/:slug and /collections/:slug while the fetch is in
+  // flight, reading route.name in the 404 branch could unpin the wrong
+  // (kind, slug) pair.
+  const requestedKind = !embedded.value && route.name === PAGE_ROUTES.feeds ? "feed" : "collection";
   loading.value = true;
   loadError.value = null;
   collection.value = null;
@@ -875,10 +1080,19 @@ async function loadCollection(slug: string): Promise<void> {
   searchQuery.value = ""; // Reset search query on collection load
   render.resetLinkedCaches();
   viewing.value = null;
+  openDay.value = null; // never carry a previous collection's open day over
   const result = await apiGet<CollectionDetailResponse>(detailUrl(slug));
   loading.value = false;
   if (!result.ok) {
     loadError.value = result.status === 404 ? "not-found" : result.error;
+    // Dead-click safety net: a pinned shortcut for a collection/feed
+    // deleted out-of-band (e.g. via chat) lands here. Self-prune it so
+    // the launcher doesn't keep a button that 404s. Standalone only
+    // (embedded cards carry no shortcut), and only if we're still on the
+    // slug that triggered this fetch.
+    if (result.status === 404 && !embedded.value && activeSlug.value === slug) {
+      void unpin(requestedKind, slug);
+    }
     return;
   }
   collection.value = result.data.collection;
@@ -895,7 +1109,25 @@ async function loadCollection(slug: string): Promise<void> {
   // A `?selected=<id>` deep link opens that record in read-only
   // mode once its items are available. Guard against a stale load:
   // only act if we're still on the slug that triggered this fetch.
-  if (collection.value?.slug === slug) syncViewToSelected();
+  if (collection.value?.slug === slug) {
+    syncViewToSelected();
+    maybeOpenCalendarForSelected();
+  }
+  maybeAutoRefreshFeed(slug);
+}
+
+// First-open auto-refresh: when a feed view opens with no records yet
+// (e.g. a just-registered feed that hasn't hit the scheduler), fetch once
+// so data appears without a manual Refresh. Guarded per slug so the reload
+// `refreshFeed` triggers can't loop; the view re-mounts per slug, so each
+// open retries at most once.
+function maybeAutoRefreshFeed(slug: string): void {
+  if (embedded.value) return;
+  const current = collection.value;
+  if (current?.slug !== slug || !current.schema.ingest) return;
+  if (items.value.length > 0 || autoRefreshedSlug.value === slug) return;
+  autoRefreshedSlug.value = slug;
+  void refreshFeed();
 }
 
 /** Schema fields excluding display-only `embed` fields — used by the
@@ -937,6 +1169,16 @@ const canDeleteCollection = computed<boolean>(() => {
   return current.source === "project" && !current.slug.startsWith("mc-");
 });
 
+// True when this view was opened as a feed (`/feeds/:slug`): the schema
+// carries an `ingest` block. Feeds are deleted via DELETE /api/feeds/:slug,
+// not the project-scope collection delete above.
+const isFeed = computed<boolean>(() => Boolean(collection.value?.schema.ingest));
+const canDeleteFeed = computed<boolean>(() => isFeed.value && !embedded.value);
+
+// Which list to return to from the back arrow: feeds opened via /feeds
+// go back to the feed list; everything else to the collections index.
+const isFeedRoute = computed<boolean>(() => !embedded.value && route.name === PAGE_ROUTES.feeds);
+
 // ── View mode (table | calendar | kanban) ─────────────────────────
 // Local UI state only — NEVER persisted to schema. The user toggles it;
 // the host never flips it programmatically. The calendar is offered only
@@ -948,7 +1190,7 @@ const canDeleteCollection = computed<boolean>(() => {
 // localStorage so reopening `/collections/:slug` restores the prior view
 // instead of always starting on the table. Embedded mode ignores the store
 // and restores from the card's `initialView` prop instead.
-type CollectionViewMode = "table" | "calendar" | "kanban";
+type CollectionViewMode = "table" | "calendar" | "kanban" | "dashboard";
 
 /** The view to open with: the embedded card's restored `initialView` if
  *  present, else the standalone slug's stored mode, else "table". Embedded
@@ -963,11 +1205,12 @@ function initialViewMode(): CollectionViewMode {
 }
 const view = ref<CollectionViewMode>(initialViewMode());
 
-/** `date` fields in declaration order — the calendar can anchor on any. */
+/** `date` / `datetime` fields in declaration order — the calendar can anchor
+ *  on any (a `datetime` anchor also carries the clock for the day view). */
 const dateFields = computed<string[]>(() =>
   collection.value
     ? Object.entries(collection.value.schema.fields)
-        .filter(([, field]) => field.type === "date")
+        .filter(([, field]) => field.type === "date" || field.type === "datetime")
         .map(([key]) => key)
     : [],
 );
@@ -987,6 +1230,10 @@ const enumFields = computed<string[]>(() =>
 /** Whether the kanban toggle is offered (needs an `enum` field to group on). */
 const hasKanban = computed<boolean>(() => enumFields.value.length > 0);
 
+/** Whether the dashboard toggle is offered. Like the kanban, the dashboard
+ *  groups + colours records by an `enum` field, so it needs one to exist. */
+const hasDashboard = computed<boolean>(() => enumFields.value.length > 0);
+
 /** The effective view, collapsing any stale mode whose enabling field
  *  vanished (e.g. `view = "kanban"` after switching to an enum-less
  *  collection) back to "table". Single source of truth for the toggle and
@@ -994,6 +1241,7 @@ const hasKanban = computed<boolean>(() => enumFields.value.length > 0);
 const activeView = computed<CollectionViewMode>(() => {
   if (view.value === "calendar" && hasCalendar.value) return "calendar";
   if (view.value === "kanban" && hasKanban.value) return "kanban";
+  if (view.value === "dashboard" && hasDashboard.value) return "dashboard";
   return "table";
 });
 
@@ -1002,6 +1250,9 @@ const calendarActive = computed<boolean>(() => activeView.value === "calendar");
 
 /** True when the kanban is the active body. */
 const kanbanActive = computed<boolean>(() => activeView.value === "kanban");
+
+/** True when the dashboard is the active body. */
+const dashboardActive = computed<boolean>(() => activeView.value === "dashboard");
 
 // In-view override for which enum field groups the board; null ⇒ the schema
 // hint, else the first enum field.
@@ -1029,6 +1280,14 @@ const calendarEndField = computed<string | undefined>(() => {
   const schema = collection.value?.schema;
   if (!schema?.calendarEndField) return undefined;
   return calendarAnchorField.value === schema.calendarField ? schema.calendarEndField : undefined;
+});
+// The time-string field (e.g. ENGAGEMENTS' "time") that places records on the
+// day view. Like the end field, it pairs with the schema's `calendarField` —
+// dropped when the in-view anchor is switched to a different date field.
+const calendarTimeField = computed<string | undefined>(() => {
+  const schema = collection.value?.schema;
+  if (!schema?.calendarTimeField) return undefined;
+  return calendarAnchorField.value === schema.calendarField ? schema.calendarTimeField : undefined;
 });
 
 function setView(next: CollectionViewMode): void {
@@ -1387,7 +1646,31 @@ async function confirmCollectionDelete(): Promise<void> {
 }
 
 function goBack(): void {
-  router.push({ name: PAGE_ROUTES.collections, params: {} }).catch(() => {});
+  const name = isFeedRoute.value ? PAGE_ROUTES.feeds : PAGE_ROUTES.collections;
+  router.push({ name, params: {} }).catch(() => {});
+}
+
+// Delete a feed: remove its feeds/<slug>/ registry entry (records on disk
+// are retained), then return to the feed list. Distinct from
+// `confirmCollectionDelete`, which archives + deletes a skill-backed
+// collection through the project-scope collection-delete route.
+async function confirmFeedDelete(): Promise<void> {
+  const current = collection.value;
+  if (!current) return;
+  const { slug, title } = current;
+  const ok = await openConfirm({
+    message: t("collectionsView.confirmDeleteFeed", { title }),
+    confirmText: t("common.remove"),
+    cancelText: t("common.cancel"),
+    variant: "danger",
+  });
+  if (!ok) return;
+  const result = await apiDelete(API_ROUTES.feeds.detail.replace(":slug", encodeURIComponent(slug)));
+  if (!result.ok) {
+    loadError.value = result.error;
+    return;
+  }
+  router.push({ name: PAGE_ROUTES.feeds, params: {} }).catch(() => {});
 }
 
 // Load on slug change, immediate so the initial value (route param or
@@ -1395,18 +1678,38 @@ function goBack(): void {
 // separate slug watch. Works identically for route mode (reads
 // `route.params.slug`) and embedded mode (reads the `slug` prop).
 /** Open the create form with the clicked calendar day prefilled into the
- *  anchor date field. The calendar's empty-cell affordance; the create
- *  flow itself is the same one the Add button uses. */
+ *  anchor field. The calendar day view's + affordance; the create flow itself
+ *  is the same one the Add button uses. A `datetime` anchor renders as a
+ *  `datetime-local` input, which rejects a bare `YYYY-MM-DD` — seed midnight
+ *  so the chosen day actually survives the prefill. */
 function createOnDate(iso: string): void {
   if (!canCreate.value) return;
   openCreate();
   const anchor = calendarAnchorField.value;
-  if (editing.value && anchor) editing.value.text[anchor] = iso;
+  if (!editing.value || !anchor) return;
+  const anchorType = collection.value?.schema.fields[anchor]?.type;
+  editing.value.text[anchor] = anchorType === "datetime" ? `${iso}T00:00` : iso;
 }
 
-/** Calendar chip / kanban card click → open that record's detail below the
- *  grid (or close when a deselect is reported). Unlike `openView`, this
- *  never toggles — a second click on the same record keeps it open. */
+/** The civil day a record sits on, from its calendar anchor field (handles
+ *  both `date` and `datetime`). Null for undated records. */
+function dayOfItem(item: CollectionItem): Ymd | null {
+  return dateOf(item[calendarAnchorField.value]);
+}
+
+/** Mirror the open record into the `?selected=<id>` query (standalone mode)
+ *  so the calendar's day-view + selection is a copy-pasteable link. In-app
+ *  selection didn't previously touch the URL; the calendar now does. */
+function writeSelectedToUrl(itemId: string): void {
+  if (embedded.value || route.query.selected === itemId) return;
+  router.replace({ query: { ...route.query, selected: itemId } }).catch(() => {});
+}
+
+/** Calendar chip / kanban card click → open that record's detail. In the
+ *  calendar it opens the day (time-allocation) popup on the record's day with
+ *  the detail in the right pane; an undated record falls back to the panel
+ *  below the grid. Unlike `openView`, this never toggles — a second click on
+ *  the same record keeps it open. */
 function onCalendarSelect(itemId: string | null): void {
   if (!itemId) {
     closeView();
@@ -1415,7 +1718,37 @@ function onCalendarSelect(itemId: string | null): void {
   const item = findItemById(itemId);
   if (!item) return;
   if (editing.value) closeEditor();
+  // Anchor the popup on the record's day; null for an undated record, which
+  // closes the popup so its detail falls back to the panel below the grid.
+  if (calendarActive.value) openDay.value = dayOfItem(item);
   showDetail(item);
+  writeSelectedToUrl(itemId);
+}
+
+/** A calendar day cell was activated → open its popup on a clean slate
+ *  (clear any prior selection so the popup opens timeline-only). */
+function onOpenDay(day: Ymd): void {
+  if (editing.value) closeEditor();
+  closeView();
+  openDay.value = day;
+}
+
+/** Close the day popup: drop the open day and the selection together. */
+function onDayClose(): void {
+  openDay.value = null;
+  closeView();
+}
+
+/** Deep-link entry: a `?selected=<id>` link to a calendar-capable collection
+ *  opens in calendar view with the popup focused on the record's day. Runs
+ *  on load / slug change only (not on in-app selection), so table users
+ *  aren't forced into the calendar. */
+function maybeOpenCalendarForSelected(): void {
+  if (embedded.value || !hasCalendar.value || !viewing.value) return;
+  const day = dayOfItem(viewing.value);
+  if (!day) return;
+  view.value = "calendar";
+  openDay.value = day;
 }
 
 /** Kanban card dropped in a column → set the record's group field to the
@@ -1483,6 +1816,13 @@ watch([activeView, calendarAnchorField, kanbanGroupField, loading], () => {
 // The initial / cross-collection case is handled by `loadCollection`;
 // here we only act once items are loaded.
 watch(activeSelected, () => {
-  if (!loading.value && collection.value) syncViewToSelected();
+  if (loading.value || !collection.value) return;
+  syncViewToSelected();
+  // Keep the calendar-owned openDay in step with the selection — re-anchor it on
+  // the selected record's day, or clear it when the selection is gone. Do this
+  // even when the calendar isn't the active view: openDay is calendar state, so
+  // a selection cleared in the table must not survive into a later calendar
+  // visit. Never force a view switch here — that's loadCollection's deep-link job.
+  openDay.value = viewing.value ? dayOfItem(viewing.value) : null;
 });
 </script>

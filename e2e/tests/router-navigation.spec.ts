@@ -116,22 +116,22 @@ test.describe("page routing", () => {
     expect(new URL(page.url()).pathname).toBe("/files");
   });
 
-  test("/calendar loads the calendar page", async ({ page }) => {
-    await page.goto("/calendar");
-    await expect(page.getByText("MulmoClaude")).toBeVisible();
-    expect(new URL(page.url()).pathname).toBe("/calendar");
-  });
-
   test("/automations loads the automations page", async ({ page }) => {
     await page.goto("/automations");
     await expect(page.getByText("MulmoClaude")).toBeVisible();
     expect(new URL(page.url()).pathname).toBe("/automations");
   });
 
-  test("/scheduler redirects to /calendar (bookmark preservation for #758)", async ({ page }) => {
+  test("/calendar redirects to /automations (Calendar view removed)", async ({ page }) => {
+    await page.goto("/calendar");
+    await page.waitForURL(/\/automations(?:$|\?)/);
+    expect(new URL(page.url()).pathname).toBe("/automations");
+  });
+
+  test("/scheduler redirects to /automations (bookmark preservation for #758)", async ({ page }) => {
     await page.goto("/scheduler");
-    await page.waitForURL(/\/calendar(?:$|\?)/);
-    expect(new URL(page.url()).pathname).toBe("/calendar");
+    await page.waitForURL(/\/automations(?:$|\?)/);
+    expect(new URL(page.url()).pathname).toBe("/automations");
   });
 
   test("/wiki loads the wiki page", async ({ page }) => {
@@ -140,16 +140,19 @@ test.describe("page routing", () => {
     expect(new URL(page.url()).pathname).toBe("/wiki");
   });
 
-  test("/skills loads the skills page", async ({ page }) => {
+  // Skills and Roles moved into the Settings modal (Management group);
+  // the old standalone routes now redirect to /chat so existing
+  // bookmarks don't 404.
+  test("/skills redirects to /chat", async ({ page }) => {
     await page.goto("/skills");
-    await expect(page.getByText("MulmoClaude")).toBeVisible();
-    expect(new URL(page.url()).pathname).toBe("/skills");
+    await page.waitForURL(/\/chat/);
+    expect(new URL(page.url()).pathname).toMatch(/^\/chat/);
   });
 
-  test("/roles loads the roles page", async ({ page }) => {
+  test("/roles redirects to /chat", async ({ page }) => {
     await page.goto("/roles");
-    await expect(page.getByText("MulmoClaude")).toBeVisible();
-    expect(new URL(page.url()).pathname).toBe("/roles");
+    await page.waitForURL(/\/chat/);
+    expect(new URL(page.url()).pathname).toMatch(/^\/chat/);
   });
 
   test("unknown path redirects to /chat", async ({ page }) => {

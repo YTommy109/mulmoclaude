@@ -8,8 +8,7 @@ import photoLocationsRoutes from "./api/routes/photo-locations.js";
 import schedulerRoutes from "./api/routes/scheduler.js";
 import sessionsRoutes, { loadAllSessions } from "./api/routes/sessions.js";
 import chatIndexRoutes from "./api/routes/chat-index.js";
-import sourcesRoutes from "./api/routes/sources.js";
-import newsRoutes from "./api/routes/news.js";
+import feedsRoutes from "./api/routes/feeds.js";
 import pluginsRoutes from "./api/routes/plugins.js";
 import imageRoutes from "./api/routes/image.js";
 import attachmentRoutes from "./api/routes/attachment.js";
@@ -17,6 +16,7 @@ import presentHtmlRoutes from "./api/routes/presentHtml.js";
 import presentSvgRoutes from "./api/routes/presentSvg.js";
 import chartRoutes from "./api/routes/chart.js";
 import rolesRoutes from "./api/routes/roles.js";
+import shortcutsRoutes from "./api/routes/shortcuts.js";
 import { DEFAULT_ROLE_ID } from "../src/config/roles.js";
 import mulmoScriptRoutes from "./api/routes/mulmo-script.js";
 import wikiRoutes from "./api/routes/wiki.js";
@@ -78,6 +78,7 @@ import { cpus, homedir, loadavg } from "os";
 import { isDockerAvailable, ensureSandboxImage, getDockerBridgeIp } from "./system/docker.js";
 import { maybeRunJournal } from "./workspace/journal/index.js";
 import { backfillAllSessions } from "./workspace/chat-index/index.js";
+import { refreshDue as refreshDueFeeds } from "./workspace/feeds/index.js";
 import { createPubSub } from "./events/pub-sub/index.js";
 import { PUBSUB_CHANNELS } from "../src/config/pubsubChannels.js";
 import { createTaskManager } from "./events/task-manager/index.js";
@@ -603,8 +604,7 @@ app.use(photoLocationsRoutes);
 app.use(schedulerRoutes);
 app.use(sessionsRoutes);
 app.use(chatIndexRoutes);
-app.use(sourcesRoutes);
-app.use(newsRoutes);
+app.use(feedsRoutes);
 app.use(pluginsRoutes);
 app.use(imageRoutes);
 app.use(attachmentRoutes);
@@ -612,6 +612,7 @@ app.use(presentHtmlRoutes);
 app.use(presentSvgRoutes);
 app.use(chartRoutes);
 app.use(rolesRoutes);
+app.use(shortcutsRoutes);
 app.use(mulmoScriptRoutes);
 app.use(wikiRoutes);
 // Mounted under /api/wiki so the inner router's relative paths
@@ -1069,6 +1070,14 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
       schedule: { type: SCHEDULE_TYPES.interval, intervalMs: ONE_HOUR_MS },
       missedRunPolicy: MISSED_RUN_POLICIES.runOnce,
       run: () => backfillAllSessions().then(() => {}),
+    },
+    {
+      id: "system:feed-refresh",
+      name: "Data-source feed refresh",
+      description: "Fetch declarative data-source feeds (RSS / JSON) into their collections",
+      schedule: { type: SCHEDULE_TYPES.interval, intervalMs: ONE_HOUR_MS },
+      missedRunPolicy: MISSED_RUN_POLICIES.runOnce,
+      run: () => refreshDueFeeds().then(() => {}),
     },
   ];
 

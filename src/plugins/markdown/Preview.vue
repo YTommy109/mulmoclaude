@@ -1,9 +1,13 @@
 <template>
   <div class="p-2 bg-purple-100 rounded overflow-hidden">
-    <div class="text-sm text-gray-800 font-medium truncate">
-      {{ displayTitle }}
+    <div class="text-sm text-gray-800 font-medium truncate flex items-center gap-1">
+      <span v-if="marpInfo" class="material-icons text-base text-purple-700" aria-hidden="true">slideshow</span>
+      <span class="truncate">{{ displayTitle }}</span>
     </div>
-    <div v-if="contentPreview" class="text-xs text-gray-500 mt-1 line-clamp-4 whitespace-pre-line">
+    <div v-if="marpInfo" class="text-xs text-purple-700 mt-1">
+      {{ t("pluginMarkdown.marpSlidesMode", { count: marpInfo.slideCount }) }}
+    </div>
+    <div v-else-if="contentPreview" class="text-xs text-gray-500 mt-1 line-clamp-4 whitespace-pre-line">
       {{ contentPreview }}
     </div>
   </div>
@@ -11,11 +15,16 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import type { ToolResult } from "gui-chat-protocol";
 import { isFilePath, type MarkdownToolData } from "./definition";
 import { extractFirstH1 } from "../../utils/markdown/extractFirstH1";
+import { parseFrontmatter } from "../../utils/markdown/frontmatter";
+import { isMarpDocument } from "../../utils/markdown/marpDetect";
 import { apiGet } from "../../utils/api";
 import { pluginEndpoints } from "../api";
+
+const { t } = useI18n();
 
 const filesEndpoints = pluginEndpoints<{ content: string }>("files");
 
@@ -48,6 +57,20 @@ const resolvedMarkdown = computed(() => {
   const raw = props.result.data?.markdown;
   if (!raw) return "";
   return isFilePath(raw) ? fetchedContent.value : raw;
+});
+
+function countMarpSlides(body: string): number {
+  if (!body.trim()) return 0;
+  const separators = body.match(/^---\s*$/gm);
+  return (separators?.length ?? 0) + 1;
+}
+
+const marpInfo = computed(() => {
+  const markdown = resolvedMarkdown.value;
+  if (!markdown) return null;
+  const { meta, body } = parseFrontmatter(markdown);
+  if (!isMarpDocument(meta)) return null;
+  return { slideCount: countMarpSlides(body) };
 });
 
 const displayTitle = computed(() => {

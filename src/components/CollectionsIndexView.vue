@@ -59,7 +59,7 @@
                 : 'bg-violet-50 text-violet-600 group-hover:bg-violet-100/80 border border-violet-100/50'
             "
           >
-            <span class="material-icons text-2xl">{{ collection.icon }}</span>
+            <span class="material-symbols-outlined text-2xl">{{ collection.icon }}</span>
           </div>
 
           <div class="flex-1 min-w-0">
@@ -72,6 +72,8 @@
               <code class="text-[10px] bg-slate-100 px-1 rounded lowercase text-slate-500 font-mono font-normal">{{ collection.slug }}</code>
             </span>
           </div>
+
+          <PinToggle kind="collection" :slug="collection.slug" :title="collection.title" :icon="collection.icon" />
 
           <div
             class="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-50 group-hover:bg-indigo-50 text-slate-400 group-hover:text-indigo-600 transition-all duration-300"
@@ -92,13 +94,16 @@ import { apiGet } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
 import { PAGE_ROUTES } from "../router/pageRoutes";
 import { useAppApi } from "../composables/useAppApi";
+import { useShortcuts } from "../composables/useShortcuts";
 import { BUILTIN_ROLE_IDS } from "../config/roles";
+import PinToggle from "./PinToggle.vue";
 
 interface CollectionSummary {
   slug: string;
   title: string;
   icon: string;
-  source: "user" | "project";
+  // "feed" = a data-source collection from the <workspace>/feeds/ registry.
+  source: "user" | "project" | "feed";
 }
 
 interface CollectionsListResponse {
@@ -108,6 +113,7 @@ interface CollectionsListResponse {
 const { t } = useI18n();
 const router = useRouter();
 const appApi = useAppApi();
+const { reconcile } = useShortcuts();
 
 const collections = ref<CollectionSummary[]>([]);
 const loading = ref(true);
@@ -122,7 +128,16 @@ async function loadCollections(): Promise<void> {
     loadError.value = result.error;
     return;
   }
-  collections.value = result.data.collections;
+  // Feeds (source "feed") have their own /feeds surface — keep the
+  // Collections index to skill-backed collections so they don't double-list.
+  collections.value = result.data.collections.filter((collection) => collection.source !== "feed");
+  // Bulk-reconcile pinned collection shortcuts against this authoritative
+  // list (free — we already fetched it): prune dead slugs, refresh stale
+  // titles/icons, self-heal the file. Feed shortcuts are left to FeedsView.
+  void reconcile(
+    "collection",
+    collections.value.map((collection) => ({ slug: collection.slug, title: collection.title, icon: collection.icon })),
+  );
 }
 
 function openCollection(slug: string): void {

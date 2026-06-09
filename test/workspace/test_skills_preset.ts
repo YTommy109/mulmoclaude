@@ -427,7 +427,32 @@ describe("syncActivePresetSkills", () => {
 
   it("returns empty result when sourceDir is missing", () => {
     const result = syncActivePresetSkills({ sourceDir: path.join(workdir, "nonexistent"), activeDir });
-    assert.deepEqual(result, { updated: [], unchanged: [], notActive: [], skipped: [], backupSuffix: null });
+    assert.deepEqual(result, { updated: [], unchanged: [], notActive: [], removed: [], skipped: [], backupSuffix: null });
+  });
+
+  it("prunes an active mc-* preset whose source preset was retired", () => {
+    // Starred copy exists in active, but the launcher no longer ships
+    // a source preset for it (e.g. mc-manage-sources after removal).
+    writeActiveSkill("mc-manage-sources", "RETIRED SKILL");
+    assert.equal(existsSync(path.join(activeDir, "mc-manage-sources")), true);
+    const result = syncActivePresetSkills({ sourceDir, activeDir });
+    assert.deepEqual(result.removed, ["mc-manage-sources"]);
+    assert.equal(existsSync(path.join(activeDir, "mc-manage-sources")), false, "retired active preset must be pruned");
+  });
+
+  it("never prunes a user-authored (non-mc-*) active skill", () => {
+    writeActiveSkill("my-skill", "USER SKILL");
+    const result = syncActivePresetSkills({ sourceDir, activeDir });
+    assert.equal(result.removed.length, 0);
+    assert.equal(existsSync(path.join(activeDir, "my-skill")), true, "user skills must survive");
+  });
+
+  it("keeps an active mc-* preset that still has a source", () => {
+    writePresetSource("mc-clients", "BODY");
+    writeActiveSkill("mc-clients", "BODY");
+    const result = syncActivePresetSkills({ sourceDir, activeDir });
+    assert.equal(result.removed.length, 0);
+    assert.equal(existsSync(path.join(activeDir, "mc-clients")), true);
   });
 
   // Codex P1 review on PR #1490: the original `syncActivePresetSkills`

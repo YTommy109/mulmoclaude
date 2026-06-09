@@ -11,12 +11,15 @@
 // plans/done/feat-skill-driven-apps-worklog.md — historical names predate
 // the rename).
 
+import type { IngestSpec } from "../feeds/ingestTypes.js";
+
 export type CollectionFieldType =
   | "string"
   | "text"
   | "email"
   | "number"
   | "date"
+  | "datetime"
   | "boolean"
   | "markdown"
   | "ref"
@@ -37,7 +40,10 @@ export type CollectionFieldType =
   // source of truth (no separate stored boolean to keep in sync).
   | "toggle";
 
-export type CollectionSource = "user" | "project";
+// "feed" collections live in the non-skill `<workspace>/feeds/` registry
+// and carry an `ingest` block; they reuse the same storage + rendering
+// as skill-backed collections but are never loaded into the agent prompt.
+export type CollectionSource = "user" | "project" | "feed";
 
 /** Recurrence unit for a `spawn.every` advance. */
 export type CollectionRecurUnit = "day" | "week" | "month" | "year";
@@ -278,6 +284,11 @@ export interface CollectionSchema {
    *  date inclusive. Requires `calendarField`. Must name a real `date`
    *  field. Absent ⇒ single-day placement. */
   calendarEndField?: string;
+  /** Name of a string field holding a free-form time or time-range
+   *  (e.g. "14:00-17:00", "17:00-", "16:30") that places records on the
+   *  calendar's day (time-allocation) view. Consulted only when the calendar
+   *  date fields are date-only. Requires `calendarField`. */
+  calendarTimeField?: string;
   /** Name of an `enum` field that groups records into columns on the
    *  optional Kanban board: each record lands in the column matching its
    *  value, with empty/unknown values collected in an "Uncategorized"
@@ -295,6 +306,12 @@ export interface CollectionSchema {
    *  notify for every open record (the prior behaviour). `notifyWhen.field`
    *  must name a real top-level field. */
   notifyWhen?: CollectionWhen;
+  /** Optional declarative retrieval config. When present, this collection
+   *  is a "Feed": the host periodically fetches `ingest.url`, maps the
+   *  response into records, and upserts them by `primaryKey`. Only feeds
+   *  discovered from the `<workspace>/feeds/` registry carry this; skill
+   *  collections omit it. See {@link IngestSpec}. */
+  ingest?: IngestSpec;
 }
 
 export interface CollectionSummary {

@@ -3,7 +3,6 @@
 //
 // The signature is preserved so the existing host call sites
 // (`server/agent/mcp-tools/notify.ts`,
-// `server/workspace/sources/pipeline/notify.ts`,
 // `server/plugins/diagnostics.ts`) keep working without source changes.
 // Internally it now:
 //   1. Maps the legacy `NotificationKind` source category to a
@@ -192,12 +191,8 @@ function buildNavigateTarget(target: NavigateTarget): string | undefined {
   switch (target.view) {
     case NOTIFICATION_VIEWS.chat:
       return buildChatTarget(target);
-    case NOTIFICATION_VIEWS.calendar:
-      return `/${PAGE_ROUTES.calendar}`;
     case NOTIFICATION_VIEWS.automations:
       return buildSingleSegmentTarget(PAGE_ROUTES.automations, target.taskId);
-    case NOTIFICATION_VIEWS.sources:
-      return buildSingleSegmentTarget(PAGE_ROUTES.sources, target.slug);
     case NOTIFICATION_VIEWS.files:
       return buildFilesTarget(target);
     case NOTIFICATION_VIEWS.wiki:

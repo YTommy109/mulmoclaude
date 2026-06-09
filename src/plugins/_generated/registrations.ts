@@ -9,7 +9,6 @@ import { REGISTRATION as chartRegistration } from "../chart";
 import { REGISTRATION as editImagesRegistration } from "../editImages";
 import { REGISTRATION as generateImageRegistration } from "../generateImage";
 import { REGISTRATION as manageSkillsRegistration } from "../manageSkills";
-import { REGISTRATION as manageSourceRegistration } from "../manageSource";
 import { REGISTRATION as markdownRegistration } from "../markdown";
 import { REGISTRATION as photoLocationsRegistration } from "../photoLocations";
 import { REGISTRATION as presentCollectionRegistration } from "../presentCollection";
@@ -34,7 +33,6 @@ export const GENERATED_PLUGIN_REGISTRATIONS: readonly PluginRegistration[] = [
   editImagesRegistration,
   generateImageRegistration,
   manageSkillsRegistration,
-  manageSourceRegistration,
   markdownRegistration,
   photoLocationsRegistration,
   presentCollectionRegistration,

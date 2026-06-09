@@ -1,468 +1,439 @@
 # MulmoClaude — Product Hunt Launch Strategy
 
-**Owner:** CMO (strategy), Engineering (demo assets), Community (day-of ops)
-**Target launch:** Tuesday, one week out — 12:01 AM PT kickoff
-**Positioning one-liner:** *Ask Claude Code for an app and it appears — no code, no plugins. And it remembers everything.*
-**Core thesis (the story behind the product):** **Every AI agent has amnesia. Every AI app has a fixed feature set. MulmoClaude cures both.** Karpathy showed that an LLM paired with a wiki it builds and reads is powerful — we agree completely, and the wiki is the heart of MulmoClaude's memory. But a wiki is *unstructured*: linked prose, pure data you read. Give that same data a **schema** and it changes category — structured data + schema + Claude-as-runtime is an **application** that computes, relates, and acts. So MulmoClaude holds **both halves of memory**: the **wiki** (unstructured — what Claude *knows*) and **collections** (structured — what Claude *can do*). And the radical part: **you author the structured half by asking.** "Claude, make me an invoicing system" produces a working app — no code, no plugin install, all local Markdown/JSON in one folder (`~/mulmoclaude/`). The AI has a home. It remembers. It grows new capabilities on demand. It works while you sleep. You own it. That's the whole thesis.
+> **Canonical launch plan.** This file is the single source of truth for the Product Hunt launch. **On PH surfaces, lead with the phenomenon — *ask Claude for an app and it appears* — and explain the philosophy second.** The philosophy is the **file-system memory in two forms**: a linked **wiki** (what Claude knows) and **DSL-authored collections** (what Claude can do — the apps you summon). Order matters: *phenomenon → theory*, never the reverse. The earlier split drafts (`launch-ph-listing.md`, `launch-product-hunt-ja.md`) are retired to `plans/obsolete/`. The HN launch already ran with little traction (`plans/done/launch-hn.md`); **PH now stands alone** — do not assume an HN warm-up precedes it.
 
-**2026 reality check (what's commoditized vs. what's frontier):** Rich output (Artifacts), mobile AI (ChatGPT app, OpenClaw), sandboxing, and code generation are all **commoditized** — don't lead with them. The remaining frontier, and where MulmoClaude wins, is **extensibility-by-asking + memory + autonomy + ownership**. No major player lets a non-engineer grow a new structured app just by asking, then has the *agent itself* be the runtime — that's the freshest, most defensible thing we ship, so it leads. The other three are still unsolved by every major player too. That's the category-defining gap, and this plan is organized entirely around filling it.
-**Target early adopter (one audience, not four):** Claude Code power users who have already hit the limits of the terminal. Everyone else — productivity users, knowledge workers, AI enthusiasts — is phase 2 and will come via these users, not in parallel to them.
+**Owner:** Satoshi (strategy + maker post), Engineering (demo assets + activation path), Community (day-of ops)
+**Target launch:** **Tuesday, June 23, 2026 — 12:01 AM PT kickoff** (today is 2026-06-06; this gives ~2.5 weeks of asset build. Slip to June 30 if the activation path (§10.5) isn't ready — do not launch without it.)
+**Install / CTA (verified):** `npx mulmoclaude` — the published one-command launcher. *(`npx create-mulmoclaude` does not exist; never ship it.)*
 
 ---
 
-## 1. Positioning & Tagline
+## 0. Positioning — phenomenon first, philosophy second (read this first)
 
-### Primary tagline (Product Hunt hero line)
+**On every 3-second surface — headline, hero-video cold open, tweet #1 — lead with what it DOES, not what it IS:**
 
-> **MulmoClaude — Ask Claude Code for an app. It appears. No code, no plugins — and it remembers.**
+> **Ask Claude for an app, and it appears — then tomorrow it answers from that app's own data.** Type *"build me an invoicing app with line items and a PDF button"* and a real, working app materializes (fields, a live computed total, an action button) with **no code and no plugin**; a beat later a fresh session reads it back as memory.
 
-This one sentence is the whole product. The lead idea is **extensibility-by-asking**: *ask for an app, it appears* tells the viewer the one thing no competitor can claim. *No code, no plugins* names the magic (you didn't install anything, you didn't write anything). *And it remembers* keeps the memory moat — the wiki — riding shotgun. Every surface — hero video, PH headline, tweet #1, gallery captions — must trace back to it. Everything else (parallel sessions, bridges, sandbox, roles, skills, charts, multi-modal output) is *evidence*, not the message.
+That is the hook — and note it has **two beats**, because the locked headline (*"Ask for an app. It becomes memory."*) promises both. The phenomenon (*ask → app*) earns attention; the twist (*it becomes memory*) is what separates us from app builders. A PH viewer must feel "wait — you build apps just by *asking*?" **and then** "...and the app is *memory*?" Never open with abstractions ("file-system memory," "DSL," "harness," "runtime") — they answer a question the viewer hasn't asked yet. **On any moving surface (hero video, 15s loop), carry the loop all the way to "it becomes memory" inside the first 15 seconds** — stopping at "app appears" proves only half the headline. Show the phenomenon; the theory comes right after.
 
-**Drafting rule:** the lead is always the concrete demo — *"ask Claude for an invoicing app, watch it appear."* Whenever you're tempted to write the abstraction ("applications as data," "schema-driven collections"), write the **ask → app** moment instead. Abstractions lose upvotes; the live "it just appeared" does not.
+**Then — and only then — explain *why* it's more than a no-code toy. This is the product's philosophy: use it in the body, the maker comment, HN, and the blog, not in the headline.**
 
-### Supporting taglines (A/B candidates for social + hero imagery)
+The real substance of MulmoClaude is the **memory that accumulates on the file system — `~/mulmoclaude/`** — and it exists in **two forms**:
 
-1. *Need a new tool? Don't install one. Ask. Claude builds the app, you use it — all local.*
-2. *Karpathy gave the LLM a wiki. MulmoClaude gives it a wiki **and** a database that turns itself into apps.*
-3. *A wiki is memory you read. A collection is memory that runs. MulmoClaude has both.*
-4. *Every AI app ships the features its engineers chose. This one grows new ones when you ask.*
-5. *Docs, decks, videos, AND the app to track them — out of Claude Code, and it remembers.*
-6. *`~/mulmoclaude/` — your wiki, your apps, your data. All Markdown, all local, all grown by asking.* **(Geek-targeted; use on HN, X-dev, terminal-native audiences.)**
+- **Form 1 — the Wiki: what Claude *knows*.** Cross-linked Markdown pages that grow automatically from every chat (unstructured memory).
+- **Form 2 — Collections: what Claude *can do*.** Structured records under a schema — and **the schema is a small DSL, so writing it turns the memory into an app.** The invoicing app you just summoned *is* this form. Memory that doesn't just inform, it runs.
 
-### Category pick
+The deeper idea, for readers who lean in: the structured form is a **harness the user authors and Claude executes** — designing the environment an agent works inside used to be an engineer's job; now the end user does it by writing a tiny schema, and applications become *data users author*, not code engineers write. **For HN and the blog, frame this as Karpathy +1/+2** (Karpathy gave the LLM a wiki; we add a second, *structured* memory, and make that structure a DSL/harness). **On PH, skip the Karpathy framing** — most viewers don't know him and it costs ~30s to land, and PH gives you 3.
 
-Primary: **Developer Tools** · Secondary: **Artificial Intelligence**
-Dev Tools is where our one audience (Claude Code power users) lives. We skip Productivity entirely — chasing two audiences on PH day means landing neither. AI is a defensive tertiary at most.
+**The platform surface that operates the memory (matches `README.md` / `MANIFEST.md`):** Claude is a **universal controller** that composes across both forms (and every plugin) in one turn, and **chat summons the right GUI** to view or edit either (markdown, wiki page, chart, form, spreadsheet, 3D scene, narrated video) via an open protocol (`gui-chat-protocol`) extending MCP. **The platform is the *means*; the two-form memory is the *point*; the ask→app moment is the *proof you show first*.**
 
----
+**It's all yours.** Plain files — Markdown wiki, JSON + schema collections — in one local folder. git-friendly, no cloud, no lock-in.
 
-## 2. The One-Sentence Pitch
+**2026 reality check:** rich output (Artifacts), mobile AI (OpenClaw), sandboxing, code generation are **commoditized** — never lead with them.
 
-**MulmoClaude turns Claude Code into a system you extend by asking — say "build me an invoicing app" and a working, schema-driven app appears with no code — that also remembers everything in a self-growing wiki, runs multiple agents at once, and produces real documents, decks, and narrated videos.**
-
-Four clauses, in the order a user asks them: *Can I make it do new things? Does it remember? How fast? What does it make?* The lead clause — extend-by-asking — is the one no competitor can echo. Everything else in this plan is supporting evidence.
-
-### The deeper frame (use when the viewer is ready for more)
-
-> **An AI-built workspace that grows itself — in two directions. It grows *knowledge* (the wiki) and it grows *capability* (collections), both authored by asking. Research, organizing, file management — automatic. Reach it from anywhere. All local, all yours.**
-
-The real differentiator is the **two-axis growth in one folder**. Along the *knowledge* axis: web articles (via source crawling), chat conversations (via automatic wiki extraction), local files, scheduled runs, phone messages all converge into the wiki as plain Markdown — unstructured memory Claude maintains. Along the *capability* axis: when the unstructured wiki isn't enough — when you need something that computes, relates, and acts — you ask for a **collection**, and Claude authors a `schema.json` that *is* a new app, with the same agent as its runtime. Notion and Airtable have structure but an engineer designs the environment and there's no agent runtime. Obsidian is local but inert. ChatGPT/Claude.ai remember a little but can't grow new structured apps. MulmoClaude is the only one that is **local, AI-maintained, multi-source, AND user-extensible by asking** — both halves of memory in one place.
-
-### The anti-wrapper line (use this whenever "is it just a ChatGPT clone?" shows up)
-
-> **This doesn't call the Claude API. It runs Claude Code directly — your auth, your tools, your files, your environment.**
-
-That distinction is the whole reason the product can do what it does. Repeat it verbatim in the maker post, the HN title, and tweet #1.
+**Target early adopter (one audience):** Claude power users who have hit the limits of a single chat and a terminal. Honest tension: "ask → app appears" reads non-engineer, but our channels (PH Dev Tools, r/ClaudeAI) are engineers. **Resolution:** to engineers, frame Form 2 as *"you stop writing a plugin per feature — you write a small schema (a DSL) and Claude runs it."* The harness framing is the engineer-legible version of the same magic. Phase-2 audiences (productivity, knowledge workers, JP, enterprise) arrive later, pulled by the dev-native gravity.
 
 ---
 
-## 3. Why This Wins on Product Hunt
+## 1. Taglines & category
 
-Product Hunt voters reward three things: **a clear "aha"**, **a short demo**, and **a narrative that isn't another wrapper**. MulmoClaude lands all three:
+### Product Hunt listing fields
 
-| Hunt instinct                                   | MulmoClaude's answer                                                                                                |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| "Is this just another AI chat wrapper?"         | No — it runs the Claude Code CLI directly (not the API). And the pitch isn't "chat + pretty output" — it's **an app you extend by asking, that also never forgets.** |
-| "What's the new idea?"                          | **Ask for an app, it appears — no code, no plugins.** Say "build me an invoicing system" and Claude authors a schema-driven collection that *is* a working app, with Claude itself as the runtime. |
-| "Isn't that just Airtable / Notion / Retool?"   | Those are no-code too — but an *engineer* designs the environment and there's no agent runtime. In MulmoClaude the **user** designs it by asking, and **Claude operates inside it.** Zero domain-specific host code. |
-| "What's the moat?"                              | **Every AI agent has amnesia; this one doesn't.** A cross-linked wiki grows from every chat — Karpathy's idea, shipped. Collections add the *structured* half: memory that doesn't just inform, it runs. |
-| "Isn't that just ChatGPT Memory / Obsidian?"    | ChatGPT Memory is a bullet list. Obsidian is inert. **MulmoClaude builds a cross-linked wiki as a byproduct of chat AND lets you grow structured apps on top of it** — zero manual effort, zero code. |
-| "Why should I care tomorrow?"                   | It **works while you sleep.** Register a source, get a morning briefing. Schedule a task, find the report done. No other agent ships this. |
+- **Name / headline (≤60) — FINAL:** `MulmoClaude — Ask for an app. It becomes memory.` *(50 chars)*
+- **Tagline (≤60) — FINAL:** `An AI-native database where your data becomes apps.` *(50 chars)*
 
----
+*Pairing logic:* the **headline** does double duty in one breath — *"Ask for an app"* is the consumer phenomenon that earns the click, and *"It becomes memory"* is the differentiator in plain language (the reason this isn't just another app builder). The **tagline** then names the category outright — *an AI-native database* — for the reader who leans in. The arc is **phenomenon → differentiator → category**, headline flowing into tagline.
 
-## 4. Key Messages (4 — 2026 re-cut, Collections-led)
+**Why the headline carries "It becomes memory" (the differentiation, not optional).** "Build apps by asking" alone is a crowded 2026 category — Lovable, Bolt, Replit, V0 all say it. A viewer who sees only app-generation thinks *"another AI app builder"* and scrolls. Our moat isn't generating an app; it's that **the app becomes memory** — structured memory the agent reads and builds on — a loop no competitor closes:
 
-A PH viewer skims for ~10 seconds and remembers **one** idea. The 2026 market has commoditized rich output, mobile AI, and sandboxing — so those can't anchor the pitch anymore. The four remaining anchors, rank-ordered, are **extensibility-by-asking → memory → autonomy → ownership.** The first is the freshest and most defensible; it leads. The next two pair into one story (see "the spine" below); ownership closes.
+> **Ask → an app appears → the app is structured memory → the agent reads it → your capability compounds.**
 
-### The spine that ties #1 and #2 together (say this once, early)
+The headline states the first two beats (*ask → it becomes memory*); the payoff (*it compounds*) is carried by the body and by the tagline's "database" reframe. App-gen earns the click; "it becomes memory" is why you stay.
 
-Karpathy showed that an LLM paired with a wiki it builds and reads is powerful — and we agree. But **a wiki is *unstructured*: linked prose you read. A collection is *structured*: data with a schema that computes, relates, and acts — memory that doesn't just inform, it runs.** MulmoClaude is the only agent that holds both halves: the **wiki** (what Claude *knows*) and **collections** (what Claude *can do*). Message #1 is the structured half; message #2 is the unstructured half. Together they are "an agent whose memory grows in two directions — knowledge and capability — both authored by asking."
+**Headline — locked for the listing. Alternates kept only for social A/B (the PH name is one field):**
 
-### The four (rank-ordered)
+| | Headline | Note |
+|---|---|---|
+| **Chosen** | `Ask for an app. It becomes memory.` | Phenomenon + the memory differentiator in one line |
+| alt | `Build apps by asking. They remember.` | Phenomenon-forward; lighter on the "it's memory" twist |
+| alt | `Apps that grow from memory.` | Moat-first; softer on the phenomenon |
+| alt | `Build AI-powered apps by asking Claude` | Pure app-gen — the crowded-category control |
 
-**1. The app you extend by asking.** — *Every AI app ships the features its engineers chose. This one grows new ones when you ask.*
+**Tagline — locked. Alternates for social A/B:**
 
-Need a tool the product doesn't have — an invoicing system, a CRM, a reading log, a portfolio tracker? Don't install a plugin. Don't write code. **Ask.** Claude authors a `schema.json` — fields, relationships, computed totals, action buttons — and a working app appears, with Claude itself as the runtime. The schema *is* the application; the records are plain JSON; the host contains zero domain code. **This is the headline differentiator — no competitor lets a non-engineer grow a new structured app by asking.**
+| | Tagline | Note |
+|---|---|---|
+| **Chosen** | `An AI-native database where your data becomes apps.` | Names the uncontested category |
+| alt | `Ask for an app. Keep it forever.` | Ownership + permanence; warm, consumer |
+| alt | `Your data becomes apps — and they compound.` | Names the network effect directly |
+| alt | `Your wiki remembers. Your data becomes apps.` | Prior tagline — concrete but more abstract on the moat |
 
-- **vs Airtable / Notion / Retool:** also no-code, but an *engineer* designs the environment and there's no agent inside it. Here the **user** designs it conversationally and **Claude operates within it** — the democratization of harness design.
-- **vs plugin ecosystems (incl. our own earlier Worklog/Client/Invoice plugins):** no install, no marketplace, no per-feature system-prompt bloat. One generic engine; infinite user-defined apps.
-- **vs ChatGPT / Claude.ai:** they can *talk about* your invoices; they can't *become* a live invoicing app that computes a total, links a client, and fires a "Generate PDF" action.
-- *Why it compounds with #2:* a collection is the **structured** half of memory — the rung past the wiki. The wiki remembers; the collection remembers *and runs*.
+### The bigger positioning bet — "AI-native database," not "AI app builder"
 
-**2. The agent that remembers.** — *Every AI agent has amnesia. This one doesn't.*
+The single sharpest reframe available to us. **"AI app builder" is a knife fight** (Lovable, Bolt, V0, Replit, Cursor). **"Memory that turns into apps" has almost no one in it.** The core sentence is already in this plan: *the app is structured memory.* That one line moves us out of the app-gen category and into a category we'd largely define:
 
-A personal wiki grows from every chat — automatically, cross-linked, in plain Markdown on your machine. Three days later, Claude wires today's question to what it learned then, without you saving anything. **This is the moat** (Karpathy's idea, shipped). The longer you use it, the more painful it is to switch away — and collections (#1) sit on top of it as the structured layer.
+> A normal app reads from a database. Here **the app *is* the database** — you describe a schema, it becomes both your data store *and* its UI, and the agent reads/writes it as memory. Ask → app → structured memory → the agent uses it → your capability compounds. That loop is the product.
 
-- **vs ChatGPT Memory:** fragmented bullet points, not a knowledge base. MulmoClaude gives you a *cross-linked wiki*.
-- **vs Mem.ai / Obsidian:** zero manual effort. Knowledge grows as a byproduct of conversation — you never stop to "file" anything.
-- **vs Claude.ai Projects:** no manual uploads. Chats, crawled articles, generated images, search results, temporary summaries — *all* flow into memory automatically and become available from any future session.
-- *Eventually, memory itself should be inferred:* the agent decides what's worth remembering, the way it already decides what to generate. That's the endgame.
+**How to deploy it (don't over-rotate):**
+- **PH / consumer surfaces:** lead with the *phenomenon* + the consumer phrasing of the memory idea — the locked headline does exactly this (*"Ask for an app. It becomes memory."*). The **tagline is the one deliberate place the literal "AI-native database" is introduced** — the category reframe for the reader who gets to the second line. Don't spread the literal word "database" further into captions, tweets, or the hero video, where it reads as dev-infra/boring to a skimmer; there, stay with *"your data becomes apps" / "memory that turns into apps."*
+- **HN / investor / technical surfaces:** lead with **"AI-native database"** outright — there it's a feature, not a yawn, and it's the most defensible framing we have.
+- **Don't claim a category we can't back:** we're not a Postgres replacement. The claim is narrow and true — *a local, schema-defined store whose records render as apps and serve as the agent's structured memory.*
 
-**3. The agent that works while you sleep.** — *Other agents wait for you. This one has a schedule.*
+### Supporting taglines (A/B for social + hero imagery)
 
-Register a source — get a morning briefing waiting when you open the lid. Schedule a weekly report — find it in the workspace without asking. Ask for a collection that tracks a recurring obligation — a payment, a tax, a renewal — and it reminds you ahead of each due date and rolls itself forward to the next cycle, no code. Close the laptop, come back to a catch-up. **GUI + persistent state + catch-up after missed runs — no other AI agent ships this combination.** The memory moat (#2) plus autonomous execution (#3) is what compounds: the agent keeps learning while you're not looking.
+1. *"Build me an invoicing app." A working app appears — fields, totals, a PDF button. No code, no plugin.*
+2. *Need a tool it doesn't have? Don't install a plugin — just ask. Claude builds the app and runs it.*
+3. *Your wiki remembers everything. Your data becomes apps. All local, all yours.*
+4. *Two forms of memory in one folder: a linked wiki (what Claude knows) and apps you grow by schema (what Claude can do).* **(philosophy line — body/HN/blog, not the headline.)**
+5. *`~/mulmoclaude/` — your wiki and your apps, all plain Markdown/JSON, all yours.* **(geek-targeted: HN, X-dev, terminal-native.)**
 
-- **vs Devin / Codex / Claude Code today:** they're one-shot executors. You open them, they work, they stop. MulmoClaude runs in the background.
-- **vs cron + Claude API hacks:** power users cobble these together, but nobody ships GUI + persistence + catch-up out of the box.
-- *Eventually, scheduling should be autonomous too:* like memory, the agent should infer what to schedule, not wait for the user to specify cron expressions. That's what "an agent that works while you sleep" means at full resolution.
+### Category
 
-**4. Your machine, your data, your agent.** — *It all lives in `~/mulmoclaude/`. Plain Markdown. Git-friendly. No cloud. No lock-in.*
-
-Web articles, chats, local files, generated images and videos, search results, scheduled outputs — **and the apps themselves** (every collection is a `schema.json` + plain-JSON records) — all land in one folder as plain text. `git push` to a private repo and it's backed up. Open any file in any editor. Read it in 10 years without a migration. Your *data* and the *apps that run on it* are both yours, both inspectable, both diff-able.
-
-- **vs Notion / Mem.ai / ChatGPT:** not cloud. No export flow because there's nothing to export — it's already plain text on your disk.
-- **vs Obsidian:** local, but the AI grows it for you. Zero manual curation.
-- Hits the "own your AI" sentiment directly — a phrase that already travels on X.
-- Sandbox (Docker, auto-detected) gets folded in here, not its own message: it's *how* we keep "your machine, your data" honest, not a separate pitch.
-
-### The visual hooks (not messages — demo bangers)
-
-Two visuals do the work of earning the click. Lead with whichever the channel rewards:
-
-- **"Ask → app appears."** Type *"make me an invoicing system with line items and a PDF button"* and watch a real, usable app materialize — fields, a computed total, an action button — in seconds. This is the **money visual for message #1** and the single most novel thing we can show. Nobody else has it. Use it as the cold open wherever you have >10 seconds.
-- **Three parallel Claude Code sessions running at once.** Still a strong shareable visual — reads as "wait, it runs multiple agents?" Use it as the secondary hook / B-roll. It earns attention but it's no longer the lead.
-
-Visuals sell the click; extensibility + memory + autonomy + ownership sell the try.
-
-### Kept in reserve (2026 table stakes — don't lead, but keep warm for FAQ)
-
-- **Multi-modal output — documents, decks, spreadsheets, videos.** Claude Artifacts commoditized this. Still a capability, still strong demo material, but no longer category-defining. Mention after the four messages have landed. (Note: this is also the *escape hatch* a collection action drops into — "Generate PDF" hands off to an office-role chat — so it's a proof point for #1, not just a standalone.)
-- **Mobile bridges (Telegram, Slack, LINE, WhatsApp, Discord, Matrix).** OpenClaw (Claude's mobile app) arrived first to the "Claude on your phone" story. Our unique angle now: *your phone writes into the same persistent memory — and the same apps — as your laptop* — but that's a message-#2 proof point, not its own pillar.
-- **Docker sandbox.** Expected hygiene in 2026, not a headline. Absorbed into message #4.
-- **Roles, skills launcher, ECharts, file attachments.** Comment-thread fuel — deploy when a specific question opens the door. (Note: "Markdown/JSON-as-database" is no longer reserve fuel — it graduated into message #1 as the Collections engine.)
+Primary **Developer Tools** · Secondary **Artificial Intelligence** · Tertiary **Open Source** (MIT, npm-distributed, the protocol is part of the product). Skip Productivity — chasing two audiences on PH day lands neither.
 
 ---
 
-## 5. Product Hunt Listing Copy
+## 2. The one-sentence pitch
 
-### Headline (60 char max)
-`MulmoClaude — Ask for an app, it appears. No code.` *(50 chars — the ask→app lead in one breath)*
+**Ask MulmoClaude for an app — "build me an invoicing system" — and a working, schema-driven app appears with no code. Under it: a file-system memory in two forms — a linked wiki of everything Claude learns, and the collections those apps run on — operated by Claude as a universal controller that summons the right GUI, all as plain files in one local folder you own.**
 
-### Tagline (60 char max)
-`Build apps by asking. A wiki that remembers. All local.` *(55 chars)*
+Clauses in the order a viewer asks them: *What does it do? → Why is that possible? → Who operates it? → Whose is it?*
 
-### First comment (the maker post — pinned)
+### The anti-wrapper line (use whenever "is it just a ChatGPT clone?" appears)
+
+> **This doesn't call the Claude API. It runs Claude Code directly — your auth, your tools, your files, your environment. The host contains zero domain code; every app is a schema you or Claude authored.**
+
+Repeat verbatim in the maker post, any HN relaunch, and tweet #1.
+
+---
+
+## 3. Why this wins on Product Hunt
+
+| Hunt instinct | MulmoClaude's answer |
+| --- | --- |
+| "Another AI chat wrapper?" | No — it runs the Claude Code CLI directly (not the API), and the pitch is **a platform Claude composes across, that you extend by asking.** |
+| "What's the new idea?" | **You build apps by asking.** "Build me an invoicing system" → a working, schema-driven app appears with no code, Claude as the runtime. (The deeper why: it's the *structured* of two forms of file-system memory — the other is a self-growing wiki.) |
+| "Isn't that Airtable / Notion / Retool?" | Those are no-code too — but an *engineer* designs the environment and there's no agent runtime. Here the **user** declares a schema (a DSL) and **Claude operates inside it.** |
+| "Isn't that just MCP?" | MCP is transport (agent↔tool). `gui-chat-protocol` adds the layers MCP doesn't: **GUI surfaces, agent↔UI state, and cross-plugin composition.** It sits *on top of* MCP. |
+| "What's the moat?" | **Memory that compounds, in two forms.** The wiki links keep growing (Karpathy's KB idea, shipped) and so does your set of DSL-authored apps — all local plain text, painful to leave. |
+| "Why care tomorrow?" | It **works while you sleep.** Register a source → morning briefing. Declare a recurring obligation as a collection → it nudges you before each due date. |
+
+---
+
+## 4. Key messages (4, rank-ordered)
+
+A PH viewer remembers **one** idea in ~10 seconds. Lead with the phenomenon (build apps by asking); reveal the two-form-memory philosophy right after.
+
+**1. Build apps by asking.** — *Every app ships the features its engineers chose. This one grows new ones when you ask.*
+Need a tool the platform doesn't have — invoicing, a CRM, a reading log, a portfolio tracker? Don't install a plugin, don't write code. **Ask.** "Build me an invoicing app with line items and a PDF button" → fields, a computed total, a "Generate PDF" action appear, with **zero host code**. Update one stock quote and every portfolio holding revalues via a reference (`value = shares × ticker.price`). You asked for it; you didn't code it. This is the newest, most novel thing we ship — lead every PH surface with it.
+- *Why it's more than a no-code toy (the philosophy, second):* the app *is* the **structured form of a two-form memory** — the other form is the self-growing wiki (#2). Both are plain files in `~/mulmoclaude/`; the wiki remembers, the collection remembers *and runs*. The schema you asked for is a **harness the user authors and Claude executes** — the genuine step past the state of the art.
+- *vs Airtable / Notion / Retool:* no-code too, but an engineer designs the environment and no agent runs inside. Here the user declares a schema (a DSL) and Claude operates within it.
+- *vs plugin marketplaces (incl. our own retired Worklog/Client/Invoice plugins):* no install, no marketplace, no per-feature prompt bloat. One generic engine; infinite user-authored apps.
+- *Engineer framing:* you stop writing a plugin per feature; you write a small schema and Claude runs it.
+
+**2. The agent that remembers — and works while you sleep.** — *Every AI agent has amnesia. This one doesn't, and it keeps working when you're gone.*
+A personal **wiki** grows from every chat automatically, cross-linked, in plain Markdown — the *unstructured* half of memory (the structured half is the apps in #1). Ask a question three days later and Claude wires it to what it learned, nothing saved by hand. And it runs on a schedule: register a source → morning briefing; declare a recurring obligation as a collection → it reminds you ahead of each due date and rolls to the next cycle, no code.
+- *vs ChatGPT Memory:* a bullet list, not a cross-linked knowledge base.
+- *vs Mem.ai / Obsidian:* zero manual effort; the wiki grows as a byproduct of conversation.
+- *vs Devin / Codex / Claude Code today:* one-shot executors that stop when you close them; this runs on a schedule with catch-up after missed runs.
+- *Together with #1, this is the spine:* two forms of memory — what Claude knows (wiki) and what it can do (collections) — and autonomous runs keep writing to both while you're not looking.
+
+**3. Claude operates everything — universal controller; chat summons the GUI.** — *One chat reads the wiki and runs the apps, and the reply isn't a string — it's the right surface.*
+Claude composes across the whole plugin registry in a single turn: *"summarize Q1 expenses as a chart"* reads accounting, writes a chart — no app-switching, no copy-paste. And the agent picks the *format* for the content: markdown for prose, a chart/form/wiki/spreadsheet/3D-scene surface for rich output, MulmoScript for narrated video. It can also ask *you* for structured input via a form when free text isn't right.
+- *vs Claude Desktop / one-agent-plus-tools:* this is a registry of GUI-bearing apps Claude composes across — a different layer of the stack.
+- *The open protocol:* `gui-chat-protocol` is a versioned npm package extending MCP; built-in plugins, third-party npm plugins, and any future host implement the same contract.
+
+**4. Your machine, your data, your apps.** — *It all lives in `~/mulmoclaude/`. Plain Markdown/JSON. Git-friendly. No cloud. No lock-in.*
+Web articles, chats, local files, generated images/videos, search results, scheduled outputs — **and the apps themselves** (every collection is a `schema.json` + plain-JSON records) — land in one folder as plain text. `git push` is the backup; open any file in any editor; read it in 10 years with no migration.
+- *vs Notion / Mem.ai / ChatGPT:* not cloud; no export flow because it's already plain text on disk.
+- *vs Obsidian:* local, but the AI grows it for you.
+- Sandbox (Docker, auto-detected) folds in here — it's *how* "your machine, your data" stays honest, not a separate pitch.
+
+### Visual hooks (demo bangers, not messages)
+
+- **"Ask → app appears."** Type *"make me an invoicing system with line items and a PDF button"* and watch a real app materialize — fields, a live computed total, an action button. The single most novel thing we can show; use it as the cold open wherever you have >10 seconds.
+- **Update one quote → a whole portfolio revalues itself.** `value = shares × ticker.price` following a reference. The "wow" that proves Collections has depth.
+- **Three parallel Claude sessions at once** (secondary B-roll) — instantly legible "wait, it runs multiple agents?" Use as a 2-second cutaway, not the lead.
+
+### Kept in reserve (2026 table stakes — FAQ fuel, never the lead)
+
+Multi-modal output (Artifacts commoditized it; still a Collections proof point — a "Generate PDF" action hands off to an office-role chat), mobile bridges (Telegram/Slack/Discord/LINE — *your phone writes into the same memory and apps as your laptop*), Docker sandbox (absorbed into msg #4), roles / skills launcher / ECharts / file attachments (comment-thread fuel).
+
+---
+
+## 5. Product Hunt listing copy
+
+### Description (≤260 chars)
+
+> Ask Claude for an app — "build me an invoicing system" — and a working, schema-driven app appears with no code. Underneath: a file-system memory in two forms (a self-growing wiki + the collections your apps run on), operated by Claude as a universal controller. MIT · `npx mulmoclaude`.
+
+*(257 chars. Leads with the phenomenon (ask→app) + the two-form-memory why + who operates it + install.)*
+
+### Topics
+
+Developer Tools (primary) · Artificial Intelligence (required) · Open Source (required) · *(skip Productivity — dilutes the dev-tools framing.)*
+
+### Maker's first comment (pinned — goes up within 90 seconds)
 
 ```
 Hi Product Hunt 👋
 
 I'm Satoshi Nakajima. I spent thirteen and a half years at Microsoft
 working on operating systems (lead architect on early Windows
-releases), then spent the last year obsessing over a single question:
-**what does an AI-native OS actually look like?**
+releases), then spent the last year on one question: **what does an
+AI-native OS actually look like?**
 
-I don't think it's ChatGPT. I don't think it's Copilot. I think the
-kernel is something like Claude Code — an agent with direct access to
-your files, your tools, your environment. Powerful, but living inside
-a terminal. Terminals were the OS shell of 1975. We can do better.
+I don't think it's ChatGPT or Copilot. I think the kernel is something
+like Claude Code — an agent with direct access to your files, tools,
+and environment. Powerful, but living in a terminal. Terminals were
+the OS shell of 1975. We can do better.
 
-MulmoClaude is my attempt at the **shell for that new kernel.** Two
-observations drove it: **every AI agent has amnesia, and every AI app
-ships with a fixed feature set.** MulmoClaude is built to cure both.
+MulmoClaude is my attempt at the **shell for that new kernel** — an
+open-source, AI-native application platform. Three things make it
+different, in the order you'll care about them:
 
-**1. You extend it by asking — no code, no plugins.**
-Need a tool the app doesn't have? Don't install anything. *Ask.* Say
-"build me an invoicing app with line items and a PDF button" and a
-real, working app appears — fields, a computed total, an action
-button. Under the hood it's just a `schema.json` Claude wrote plus
-plain-JSON records; Claude itself is the runtime, and the host
-contains zero code about invoices. I've built ~13 apps this way
-without writing host code for any of them: a CRM, a reading list, a
-stock watchlist, a film tracker, even a baseball scouting roster. My
-portfolio holdings carry `value = shares × ticker.price` that follows
-a reference into my quotes collection — **update one quote and every
-holding revalues itself, no sync code.** That's not a feature I wrote;
-it's a schema I asked for. (Written up in `docs/collections-architecture.md`
-and `docs/dsl-as-harness.md` — applications as data, the user authoring
-the harness, Claude as the runtime.)
+**1. You extend it by asking — no code, no plugin install.**
+Need a tool the platform doesn't have? *Ask.* "Build me an invoicing
+app with line items and a PDF button" and a real app appears — fields,
+a computed total, an action button. Under the hood it's a `schema.json`
+Claude wrote plus plain-JSON records; Claude itself is the runtime, and
+the host contains zero code about invoices. My portfolio holdings carry
+`value = shares × ticker.price` following a reference into my quotes
+collection — update one quote and every holding revalues itself, no
+sync code. That's not a feature I wrote; it's a schema I asked for.
 
-**2. It remembers — a wiki that grows itself.**
-Every ingested article, decision, and fact becomes a cross-linked page
-in a personal wiki Claude builds and maintains itself (inspired by
-@karpathy's *LLM Knowledge Bases* post). The wiki is the *unstructured*
-half of memory — what Claude knows; collections (above) are the
-*structured* half — what Claude can do. Both plain Markdown/JSON in
-`~/mulmoclaude/` — git-friendly, portable, yours. **Every other Claude
-client starts from zero; this one compounds.**
+**2. The apps are memory — and the memory compounds.** This is the
+part that's actually new. The app you just asked for isn't a throwaway;
+it's *structured memory* that the agent reads and acts on later. Beside
+it grows a cross-linked **wiki** from every chat (inspired by
+@karpathy's *LLM Knowledge Bases* post) — the unstructured half;
+collections are the structured half. So the loop closes: ask → an app
+appears → the app is memory → the agent uses it → what you can do
+compounds. Every other Claude client starts from zero; this one builds
+on itself. All plain Markdown/JSON in ~/mulmoclaude/ — git-friendly,
+yours. (Written up in docs/collections-architecture.md and
+docs/dsl-as-harness.md — applications as data, Claude as runtime.)
 
-**3. It works while you sleep — and answers with real artifacts.**
-Register a source, get a morning briefing. Declare a recurring
-obligation as a collection and it nudges you before each due date. And it replies with
-documents, decks, spreadsheets, and narrated videos (via the built-in
-MulmoScript / MulmoCast engine — Gemini image + Veo 3.1 video + audio)
-— not walls of text. Behaviors are declarative too: my reading list
-lights up the notification bell for every unread link, from **three
-keys in its schema** — I never wrote notification code.
-
-**4. It runs many Claude Code agents in parallel, in one browser tab.**
-Kick off a video render in one session, refactor code in another,
-draft an email in a third. Claude Code is no longer single-threaded.
+**3. Claude is the controller; chat summons the GUI.** One chat
+composes across the whole plugin registry in a single turn —
+"summarize Q1 expenses as a chart" reads the accounting plugin and
+writes a chart, no app-switching. The reply isn't a string: Claude
+picks the format — markdown, chart, form, wiki, spreadsheet, 3D scene,
+or a narrated video (MulmoScript/MulmoCast) — and can ask *you* for
+structured input via a form. The agent↔GUI contract is an open
+protocol, `gui-chat-protocol`, extending MCP. Real apps running today:
+a full accounting system with server-side bookkeeping, a personal wiki,
+an SEC-filings reader (Edgar), and schema-driven collections.
 
 Two details that matter:
+- **Not a wrapper.** It doesn't call the Claude API — it runs the
+  actual Claude Code CLI: your auth, your filesystem, your skills,
+  your MCP servers. That's why it can do what it does.
+- **Sandboxed by default.** Claude runs in a Docker container that
+  only sees your workspace. SSH keys, .env, home dir — invisible.
+  Auto-detected, no config.
 
-- **Not a wrapper.** This doesn't call the Claude API. It runs the
-  actual Claude Code CLI — your auth, your filesystem, your skills,
-  your MCP servers. The host contains zero domain code; every app is a
-  schema you (or Claude) authored. That's why it can do what it does.
-- **Sandboxed by default.** Claude runs inside a Docker container that
-  only sees your workspace. SSH keys, `.env` files, home directory —
-  invisible. Auto-detected on launch, no configuration.
+Reach the same workspace — same wiki, same apps — from Telegram,
+Slack, Discord, LINE. Fire a task from the subway, see the result on
+your laptop.
 
-You can also reach the same workspace — same wiki, same apps — from
-Telegram, Slack, LINE, Discord, WhatsApp, Matrix. Fire a task from the
-subway, see the result on your laptop.
+Open source, MIT. Install: `npx mulmoclaude` (needs Node 20+ and the
+Claude Code CLI authenticated). Full thesis: MANIFEST.md in the repo.
 
-Open source, MIT.
-
-If you're a Claude Code power user who's hit the walls of the
-terminal, this is built for you. Would love your honest feedback — this
-is the first visible surface of a much bigger thesis about what
-computing looks like when AI is the kernel, and the *user* — not the
-engineer — designs the environment.
+If you're a Claude power user who's hit the walls of one chat and a
+terminal, this is built for you. I'd love your honest feedback — this
+is the first visible surface of a much bigger bet about what computing
+looks like when AI is the kernel and the *user*, not the engineer,
+designs the environment.
 
 — Satoshi
 ```
 
-### Description / gallery captions (one per screenshot)
+*(Optional first line if a fresh "Show HN" relaunch lands the same week: "This was on HN this morning — the thread helped sharpen the framing. [link]")*
 
-6 captions. Caption #1 is the ask→app visual hook; #2 shows Collections depth (the wow); #3–#5 are the remaining key messages; #6 is the anti-wrapper proof. No orphans, no reserve features.
+### Gallery captions (one per screenshot — 6 shots, no orphans)
 
-1. **Hook — Ask → app appears** — "Type 'build me an invoicing app with line items and a PDF button.' Watch a real app materialize — no code, no plugin install. Just ask."
-2. **#1 Collections depth** — "Update one stock quote — every holding in your portfolio revalues itself. `value = shares × ticker.price`, following a reference. You asked for it; you didn't code it."
-3. **#2 Memory** — "Every AI agent has amnesia. This one doesn't. A cross-linked wiki grows from every chat — automatically, in plain Markdown on your machine."
-4. **#3 Autonomy** — "Other agents wait for you. This one has a schedule — and a notification bell your apps wire into with three lines of schema. Register a source, get a morning briefing."
-5. **#4 Ownership** — "Your data AND your apps live in `~/mulmoclaude/` as plain text. `git push` is the backup. No cloud, no lock-in."
-6. **Proof — not a wrapper** — "Runs the Claude Code CLI directly. Zero domain code in the host — every app is a schema you authored. Sandboxed in Docker so it stays in its lane."
-
----
-
-## 6. Demo Video Plan
-
-Three videos — each serves a different channel. **Always record silent first; add a single-voice narration pass; ship captions.**
-
-### Video A — The 60-second hero (Product Hunt gallery + Twitter/X)
-
-- **Goal:** earn one upvote per viewer. No feature-listing.
-- **The two moments we must land, back to back:** (1) the **ask→app** moment — a user asks for an app and a real one appears, no code; (2) the **memory** moment — a session "tomorrow" answering a question grounded in the wiki it built "yesterday." Lead with the novelty (ask→app), land with the moat (memory). Together they are the whole pitch: *every AI app has a fixed feature set and every AI agent has amnesia — this one cures both.*
-- **Hook (opener):** a user types a plain-English request for an app and watches it materialize in seconds. It reads as "wait, you just *build apps by asking?*" — attention earned in 3 seconds.
-- **Structure:**
-  - 0:00–0:10 — Cold open: user types *"build me an invoicing app with line items and a PDF button."* An app materializes — fields, a live computed total, a "Generate PDF" button. No logo, no title card. Caption fades in: *"No code. No plugins. Just ask."*
-  - 0:10–0:18 — **The Collections wow.** Cut to the portfolio: user edits one stock quote; every holding's value updates live. Caption: *"Update a quote — your whole portfolio revalues itself. No sync code."*
-  - 0:18–0:32 — **The memory payoff (money shot).** Wiki sidebar zoom: pages auto-cross-link as Claude works. Time-cut overlay: *"Tomorrow."* A fresh session opens; the user asks a question touching yesterday's topic; Claude answers with the wiki cross-link visible. Caption: *"Every AI agent has amnesia. This one doesn't."*
-  - 0:32–0:42 — Autonomy beat. Scheduler view: a registered source triggers overnight; a morning briefing appears. Then the notification bell lights up with an unread reading-list item. Caption: *"It works while you sleep — and your apps wire into the bell with three lines of schema."*
-  - 0:42–0:50 — Ownership beat. Finder / terminal open `~/mulmoclaude/` — plain Markdown + the `schema.json` files visible. A `git push` scrolls by. Caption: *"Your data AND your apps. Plain text. Git-friendly. No cloud."*
-  - 0:50–0:55 — Anti-wrapper beat. Single white-on-black frame: *"Not an API wrapper. Claude Code, directly. Zero domain code."*
-  - 0:55–1:00 — Logo + `npx create-mulmoclaude` + github URL. (If a hosted demo or `--demo` mode ships — see §10.5 — swap in that CTA.)
-- **Parallel-sessions B-roll:** the three-agents-at-once shot is now secondary. Use it as a 2-second cutaway under the 0:32–0:42 autonomy beat, or hold it for Video C — don't spend the cold open on it.
-- **Production notes:** 1080p screen capture, 24fps, no zoom transitions, monospace captions. Music: one royalty-free lo-fi track at 40% — cut it at 0:55. **Non-negotiable:** zero spinner time. Pre-render, splice, don't wait. The 0:00–0:10 ask→app open and the 0:18–0:32 memory payoff are the two money shots — shoot each twice, pick the crisper take.
-
-### Video B — The 3-minute deep-dive (YouTube + landing page)
-
-- **Goal:** convert a developer watcher into a `git clone` (or a hosted-demo click).
-- **Narrative arc:** *Can I make it do new things? Does it remember? How fast? What does it make? Can I trust it?* — collections-led order.
-- **Outline:**
-  - 0:00–0:20 — Problem framing, in Satoshi's voice: "I worked on Windows for years. Claude Code is the kernel of an AI-native OS. But kernels need shells — and the shell should let *you*, not an engineer, define what the apps are. Here's the shell I wanted."
-  - 0:20–1:00 — **Shock demo: build an app by asking.** Type "build me an invoicing app with line items and a PDF button" → a working collection app appears. Then show depth: a `ref` field links a client; a `derived` field computes the total; the portfolio's `value = shares × ticker.price` revalues when a quote changes. Call out: *the host has zero code about invoices or portfolios — every app is a schema Claude wrote. Applications as data; Claude as the runtime.*
-  - 1:00–1:40 — **The compounding moment.** Ingest two related articles; show wiki backlinks appearing. Open a fresh session (simulated tomorrow morning) and ask a question — Claude answers grounded in the wiki it built itself. Call out: *the wiki is unstructured memory (what it knows); collections are structured memory (what it can do). Every other Claude client starts from zero. This one compounds.*
-  - 1:40–2:10 — **Speed + output.** Open two more sessions in parallel: drop a research paper PDF in one (out comes a summary doc, a deck, a narrated MulmoCast video), refactor a real codebase in another. Call out: *"one browser tab, many Claude Code workers — and the answer is an artifact, not text."*
-  - 2:10–2:30 — Autonomy + bridges. A scheduled source fires a morning briefing; the reading-list bell lights up (three keys of schema). A message from **Telegram** and **LINE** updates the desktop canvas live — same memory, same apps.
-  - 2:30–2:50 — Trust layer. Docker sandbox banner. Show Claude *unable* to read a file outside the workspace. Frame against tools that run Claude directly on `~/`. Anti-wrapper line on-screen: *"Claude Code, directly. Zero domain code in the host."*
-  - 2:50–3:00 — Open source, MIT. Hosted demo link + github link.
-- **Production notes:** talking-head inset bottom-right for the first 20 seconds, then pure screencast.
-
-### Video C — The 15-second loop (Instagram, LinkedIn, PH gallery motion)
-
-- Single prompt → single rich visual result → fade to logo. Meant to be muted.
-- Shoot 3 variants: **(a)** ask→app — "build me an invoicing app" → app appears (the lead), **(b)** update one quote → portfolio revalues live, **(c)** three parallel sessions running at once. Pick (a) for PH; post the other two on launch day. (Keep the MulmoCast-render and Telegram-round-trip clips warm as alternates.)
-
-### Filming checklist (applies to all)
-
-- Use a clean workspace (fresh `~/mulmoclaude/`) so the file tree isn't cluttered.
-- Record at 1920×1080 minimum; export H.264 at 8 Mbps.
-- Pre-compose all prompts in a text file — don't let live-typing slow the pace. Paste and hit send.
-- Do a dry run with the exact network Claude will hit. Agent latency is the #1 demo killer.
-- If a plugin takes >8s to render, **cut the wait** — PH viewers don't forgive dead air.
+1. **Hook — Ask → app appears (msg #1)** — "Type 'build me an invoicing app with line items and a PDF button.' Watch a real app materialize — no code, no plugin install. Just ask."
+2. **Collections depth (msg #1)** — "Update one stock quote — every holding revalues itself. `value = shares × ticker.price`, following a reference. You asked for it; you didn't code it."
+3. **The loop / memory (msg #2)** — "The app you asked for IS memory. Beside it, a cross-linked wiki grows from every chat. Ask → app → memory → the agent compounds. Every other Claude client starts from zero."
+4. **Works while you sleep (msg #2)** — "Register a source, get a morning briefing. Declare a recurring obligation as a collection — it nudges you before each due date and rolls to the next cycle."
+5. **Controller + chat summons GUIs (msg #3)** — "One chat composes across every plugin in a single turn. The reply isn't a string — chart, form, wiki, spreadsheet, 3D scene, or a narrated video, whatever the content needs."
+6. **Ownership / not a wrapper (msg #4)** — "Your data AND your apps live in `~/mulmoclaude/` as plain text. Runs the Claude Code CLI directly, zero domain code in the host, sandboxed in Docker."
 
 ---
 
-## 7. Launch Week Timeline (T = launch day)
+## 6. Demo video plan
 
-### T-14 to T-8 — Asset build
+Three videos, different channels. **Always record silent first; add one narration pass; ship captions. Zero spinner time — pre-render, splice, never wait.**
 
-- [ ] Finalize hero video, 3-min video, 3× 15s loops, 7 screenshots
-- [ ] Register Product Hunt account, link to X, warm up with 2 comments on other launches
-- [ ] Line up **4 hunters** who will commit to launch-day engagement. Brief them on the product in a 5-min Loom.
-- [ ] Draft all tweets, LinkedIn posts, Reddit posts, HN post
-- [ ] QA install on clean macOS, clean Windows WSL, clean Ubuntu — fix any friction
-- [ ] Decide: do we ship a `npx create-mulmoclaude` or keep `git clone` as the CTA? **Recommendation: ship the npx wrapper, it halves the install funnel.**
+### Video A — 60s hero (PH gallery + X)
 
-### T-7 — Pre-announce
+- **Goal:** one upvote per viewer. No feature-listing.
+- **One money window — the first 15 seconds ARE the headline.** The headline promises two things (*ask for an app* **and** *it becomes memory*), so the opener must prove **both, back to back**, before anything else. If a viewer watches only 15 seconds, they must see the whole loop: **Ask → app appears → "Tomorrow" → Claude uses it.** Stopping the opener at "app appears" (as a draft once did) proves only half the headline and reads as "another app builder." Everything after 0:15 is supporting evidence.
+- **0:00–0:15 — THE loop (the shot the whole video lives or dies on):**
+  - 0:00–0:07 — type *"build me an invoicing app with line items and a PDF button"* → a real app materializes (fields, a live total, "Generate PDF"). No logo, no title card. Caption: *"Ask for an app."*
+  - 0:07–0:15 — time-cut overlay *"Tomorrow."* A fresh session opens; the user asks something about that invoicing data and Claude answers **from the app's own records** — the app read back as memory, a wiki cross-link visible. Caption: *"It becomes memory."*
+- 0:15–0:23 — Collections depth: edit one stock quote; every holding revalues. Caption: *"Update a quote — your whole portfolio revalues itself. No sync code."*
+- 0:23–0:33 — Universal controller: one chat, *"summarize Q1 expenses as a chart"* → reads accounting, renders a chart inline. Caption: *"One chat. Every app. Composed in a single turn."*
+- 0:33–0:43 — Autonomy + ownership: a scheduled source fires a morning briefing; Finder opens `~/mulmoclaude/` showing plain Markdown + `schema.json`; a `git push` scrolls by. Caption: *"It works while you sleep. Your data and your apps — plain text, git-friendly."*
+- 0:43–0:50 — Anti-wrapper frame: *"Not an API wrapper. Claude Code, directly. Zero domain code."*
+- 0:50–1:00 — Logo + `npx mulmoclaude` + github URL. *(Swap to "try it in your browser" if the hosted demo (§10.5) ships.)*
+- **Notes:** 1080p, 24fps, monospace captions, one lo-fi track at 40% cut at 0:50. The **0:00–0:15 loop is THE shot** — rehearse the prompts cold, shoot it several times, pick the crispest take; the rest is B-roll by comparison. The "Tomorrow" cut must land instantly (pre-seed the workspace so the fresh session answers with zero spinner).
 
-- [ ] "Coming Tuesday on PH" tweet with the 15s loop (no link)
-- [ ] Post in r/ClaudeAI, r/LocalLLaMA teasers — product demos, not launch CTAs (Reddit hates launch posts)
-- [ ] DM 10 Claude Code power users you know — ask for a Tuesday morning try + honest feedback
+### Video B — 3-min deep-dive (YouTube + landing)
 
-### T-3 — Warm-up
+- **Arc:** *What is it? → What's new? → Does it remember? → How fast? → Can I trust it?*
+- 0:00–0:20 — Satoshi voice: "I worked on Windows for years. Claude Code is the kernel of an AI-native OS — but kernels need shells, and the shell should let *you*, not an engineer, define the apps."
+- 0:20–1:00 — Platform demo: one chat composes accounting → chart; show *chat summons GUIs* across a form, a wiki page, a spreadsheet.
+- 1:00–1:40 — **Extend-by-asking:** "build me an invoicing app" → working collection; then depth — a `ref` links a client, a `derived` field computes the total, the portfolio revalues on a quote change. Call out: *zero host code; applications as data; Claude as runtime.*
+- 1:40–2:10 — **Compounding memory:** ingest two related articles → wiki backlinks appear → fresh "tomorrow" session answers grounded in the wiki.
+- 2:10–2:30 — Speed + bridges: two more parallel sessions (PDF→summary doc + deck + narrated video in one, refactor in another); a Telegram/LINE message updates the canvas live — same memory, same apps.
+- 2:30–2:50 — Trust: Docker sandbox banner; Claude *unable* to read a file outside the workspace; anti-wrapper line on screen.
+- 2:50–3:00 — Open source, MIT. `npx mulmoclaude` + github + MANIFEST link.
+- **Notes:** talking-head inset bottom-right for the first 20s, then pure screencast.
 
-- [ ] Publish a **blog post** on the DSL-as-harness / applications-as-data thesis: *"What I learned letting users build apps by asking — a schema is a harness, and Claude is the runtime."* Builds on the Karpathy KB idea (the wiki is unstructured memory; collections are the structured rung past it). Source the argument from `docs/dsl-as-harness.md` + `docs/collections-architecture.md`. This is the intellectual anchor.
-- [ ] Submit the blog post to HN. Don't mention PH yet.
-- [ ] Draft the PH listing in Maker Studio (do **not** publish — just stage)
+### Video C — 15s loop (IG / LinkedIn / PH gallery motion, muted)
 
-### T-0 — Launch day
+Three variants: **(a)** the headline loop — *ask → app appears → "Tomorrow" → Claude uses it* (the full "Ask for an app. It becomes memory." in 15s; this IS the PH cut), **(b)** update one quote → portfolio revalues, **(c)** three parallel sessions. Use (a) for PH — it must prove *both* halves of the headline, not just app-gen; post the others launch day.
 
-- **00:01 PT** — Publish on PH. First comment goes up within 90 seconds.
-- **00:05 PT** — Tweet thread (7 tweets: ask→app hook, 4 messages, anti-wrapper, CTA). Pin the tweet.
-- **00:10 PT** — LinkedIn, Mastodon, Bluesky cross-post (adapted, not copy-pasted)
-- **01:00 PT** — HN "Show HN: MulmoClaude – build apps by asking; a schema is the harness, Claude is the runtime" (the §8 title)
-- **06:00 PT** — Reddit r/ClaudeAI post (value-first, not launch-y — "I built this, here's the wiki memory idea, here's the code")
-- **09:00 PT / 12:00 PT / 15:00 PT / 18:00 PT** — Respond to **every** PH comment within 30 minutes. Non-negotiable.
-- **17:00 PT** — Mid-day check: if we're not top-10, ship the Telegram bridge demo video as a fresh post and tag @ProductHunt.
-- **21:00 PT** — Thank-you post regardless of placement. Name the top commenters.
+### Filming checklist (all videos)
+
+Clean `~/mulmoclaude/`; 1920×1080 min, H.264 8 Mbps; pre-compose all prompts in a file and paste (no live typing); dry-run on the exact network Claude will hit (latency is the #1 demo killer); cut any render wait >8s.
+
+---
+
+## 7. Launch-week timeline (T = June 23, 2026)
+
+### T-14 to T-8 (now → ~June 15) — Asset build
+
+- [ ] **Decide & build the activation path (§10.5) — this is the critical path; nothing else matters if it slips.**
+- [ ] Hero video, 3-min video, 3× 15s loops, 6 screenshots
+- [ ] Verify `npx mulmoclaude` boots clean on fresh macOS, Windows (WSL + PowerShell), Ubuntu — fix any first-run friction; confirm the Claude Code CLI auth pre-flight is friendly
+- [ ] Register/refresh PH account, link to X, warm up with 2 comments on other launches
+- [ ] Line up **4 hunters/commenters**; brief them with a 5-min Loom
+- [ ] Draft all tweets, Reddit posts, optional Show HN relaunch copy
+- [ ] **Record the baseline** (current GitHub stars, npm weekly downloads, X following) so §11 metrics are measurable
+
+### T-3 (~June 20) — Warm-up
+
+- [ ] Publish the thesis blog post: *"A schema is a harness, and Claude is the runtime — letting users build apps by asking."* Source from `docs/dsl-as-harness.md` + `docs/collections-architecture.md`; tie to Karpathy (wiki = unstructured memory; collections = the structured rung past it). The intellectual anchor.
+- [ ] Stage the PH listing in Maker Studio (do **not** publish)
+- [ ] DM ~10 Claude power users for a launch-morning try + honest feedback
+
+### T-0 (June 23) — Launch day (all times PT)
+
+- **00:01** — Publish on PH; first comment within 90s
+- **00:05** — X thread (7 tweets: ask→app hook → 4 messages → anti-wrapper → CTA). Pin it.
+- **00:10** — Mastodon + Bluesky cross-post (adapted)
+- **01:00** — *(optional)* fresh "Show HN: MulmoClaude — a platform you extend by asking; a schema is the harness, Claude is the runtime." Only if the prior HN run is stale enough to re-submit; otherwise skip.
+- **06:00** — Reddit r/ClaudeAI (value-first build log, PH link one line at the bottom)
+- **09:00 / 12:00 / 15:00 / 18:00** — Reply to **every** PH comment within 30 min. Non-negotiable.
+- **17:00** — Mid-day check: if not top-10, post the bridge round-trip demo and tag @ProductHunt
+- **21:00** — Thank-you post regardless of placement; name top commenters
+- **JP:** ship the JP maker post + captions; JP launch tweet at 09:00 JST (= 17:00 PT the prior day) to catch the APAC window
 
 ### T+1 to T+7 — Compound
 
-- Newsletter sends (dev.to, Hacker Newsletter submission, TLDR Dev pitch)
-- Record a "Day after launch — what we learned" post. This outperforms the launch itself 30% of the time.
-- Start the interview circuit: pitch the Changelog, Latent Space, and the Anthropic community call.
+Newsletter sends (dev.to, Hacker Newsletter, TLDR Dev); a "day after — what we learned" post; pitch the Changelog / Latent Space / Anthropic community call; **LinkedIn at T+3** (phase-2 productivity audience — skip on day one).
 
 ---
 
-## 8. Channel-by-Channel Playbook
+## 8. Channel-by-channel playbook
 
-### X / Twitter
+### X / Twitter — launch thread (7 tweets)
 
-**Opening tweet (sells the click with the ask→app visual):**
-> *"I typed 'build me an invoicing app with line items and a PDF button.' No code. No plugin. A working app just… appeared. This is MulmoClaude. [GIF]"*
+1. **[Hook — the loop GIF: ask→app→"Tomorrow"→Claude uses it]** *"I typed 'build me an invoicing app with line items and a PDF button.' A working app appeared — no code, no plugin. Then tomorrow a fresh chat answered from that app's own data. You ask for an app; it becomes memory. Live on Product Hunt today. 🧵"*
+2. **[msg #1 — Collections]** *Every app ships the features its engineers chose. This one grows new ones when you ask. Each app is a `schema.json` Claude wrote + plain JSON; Claude is the runtime. Update one quote → my whole portfolio revalues, no sync code. [portfolio gif]*
+3. **[msg #2 — the moat: it remembers]** *"Another AI app builder?" No. The app you asked for IS memory — the agent reads it and acts on it later. Ask → app → memory → it compounds. A cross-linked wiki grows alongside. Every other Claude client starts from zero. [wiki gif]*
+4. **[msg #3 — Controller + GUIs]** *And it's a platform: one chat composes across every plugin in a single turn. "Summarize Q1 expenses as a chart" reads accounting, writes a chart. The reply isn't text — it's the right GUI. [compose gif]*
+5. **[msg #4 — Ownership]** *Your data AND your apps live in `~/mulmoclaude/` as plain text. `git push` is the backup. No cloud, no lock-in, no export flow. [folder + git gif]*
+6. **[Anti-wrapper]** *Not an API wrapper. It runs the Claude Code CLI directly — your auth, your tools, your files — and the host contains zero domain code. That's why it can do what it does.*
+7. **[CTA]** *Install: `npx mulmoclaude` — open source, MIT. One upvote on PH costs nothing and means everything today: [link]* *(swap first clause for the hosted demo URL if §10.5 ships.)*
 
-**Launch thread (7 tweets) — Order: hook → 4 messages → anti-wrapper → CTA. Extensibility-by-asking leads; memory/autonomy/ownership follow.**
+### Hacker News *(only if relaunching)*
 
-1. **[Hook — ask→app GIF]** *"I typed 'build me an invoicing app with line items and a PDF button.' No code, no plugin install — a working app appeared. You extend MulmoClaude by *asking*. Live on Product Hunt today. 🧵"*
-2. **[Message #1 — Collections]** *Every AI app ships the features its engineers chose. This one grows new ones when you ask. Each app is a `schema.json` Claude wrote + plain JSON; Claude is the runtime. Update one stock quote → my whole portfolio revalues itself, no sync code. [portfolio gif]*
-3. **[Message #2 — Memory]** *And it never forgets. A cross-linked wiki grows from every chat, automatically, in plain Markdown. The wiki is what Claude knows; collections are what it can do. ChatGPT Memory is a bullet list; Obsidian is inert. This is the moat. [wiki gif]*
-4. **[Message #3 — Autonomy]** *It works while you sleep. Register a source → morning briefing. And apps wire into the notification bell with three lines of schema — my reading list pings me for every unread link. No notification code. [bell gif]*
-5. **[Message #4 — Ownership]** *Your data AND your apps live in `~/mulmoclaude/` as plain text. `git push` is the backup. No cloud, no lock-in, no export flow. Your machine, your data, your agent. [folder + git gif]*
-6. **[Anti-wrapper beat]** *This is not an API wrapper. It runs the Claude Code CLI directly — your auth, your tools, your files — and the host contains zero domain code. Every app is a schema you authored. That's why it can do what it does.*
-7. **[CTA]** *Install with `npx create-mulmoclaude` or `git clone` — open source, MIT. One upvote on PH costs you nothing and means everything today: [link]* (If a hosted demo or `--demo` mode ships by launch, swap the first clause.)
-
-### Hacker News
-
-**Title:** `Show HN: MulmoClaude – build apps by asking; a schema is the harness, Claude is the runtime`
-
-**Opening line of the body:** *"I let users extend the app by asking — 'build me an invoicing system' produces a working app with no code. The schema is the application; Claude is the runtime; the host contains zero domain code. Here's what I learned."* Then walk the thesis HN actually rewards — **a DSL is a harness; the user, not the engineer, now authors it** — sourcing the argument from `docs/dsl-as-harness.md` and `docs/collections-architecture.md`. Tie it to Karpathy: the wiki is *unstructured* memory (what the agent knows); collections are the *structured* rung past it (what it can do). Close with the AI-native-OS context. Explicitly state: *this runs the Claude Code CLI directly, not the API — that's why it can do what it does.* (Memory/autonomy/ownership are the supporting arc, not the lead, on HN.)
+**Title:** `Show HN: MulmoClaude – a platform you extend by asking; a schema is the harness, Claude is the runtime`
+**Opening:** *"You extend the app by asking — 'build me an invoicing system' produces a working app with no code. The schema is the application; Claude is the runtime; the host has zero domain code."* Walk the DSL-as-harness thesis (`docs/dsl-as-harness.md` + `docs/collections-architecture.md`); tie to Karpathy; state plainly *this runs the Claude Code CLI directly, not the API.* The prior HN run got little traction — only relaunch with the sharper extend-by-asking angle, not the old framing.
 
 ### Reddit (r/ClaudeAI, r/LocalLLaMA, r/selfhosted)
 
-- NOT a launch post. A build log: *"I spent 8 months giving Claude Code a shell. Here's how users build their own apps by asking — and the wiki-memory idea underneath — and what I learned."*
-- PH link at the very bottom, one line.
-
-### LinkedIn
-
-**Skip on launch day.** LinkedIn is a phase-2 channel for the productivity audience. Chasing it on day one splits focus and signals "enterprise tool" to PH voters scanning categories. Queue a LinkedIn post for T+3 once the dev wave has landed.
+Build log, not a launch post: *"I spent months giving Claude a shell — here's how users build their own apps by asking, and the wiki-memory idea underneath."* PH link one line at the bottom.
 
 ### Japanese community (Note, X-JP)
 
-Satoshi has a strong JP audience. Ship a Japanese version of the maker post and the hero video captions. Launch-day JP tweet at 09:00 JST = 17:00 PT the day before — catches the Asia-Pacific vote window.
+Satoshi has a strong JP audience. Translate the maker post + hero captions (a fresh JP plan is **not** in scope for this branch — `launch-product-hunt-ja.md` was retired as stale; re-author from this file when JP assets are scheduled). Launch-day JP tweet at 09:00 JST.
 
 ---
 
-## 9. Hunters & Community Seed List
+## 9. Hunters & community seed list
 
-- **Hunter target:** someone with 5k+ PH followers, ideally in the Claude/LLM space. If we can't land one, self-hunt — Satoshi's direct network is strong enough.
-- **Seed voter list:** 50 people who've starred the repo or engaged with MulmoChat. DM them a calendar reminder Monday evening.
-- **Commenter priming:** 4–6 people who will leave substantive (not cheerleading) comments in hours 1, 3, 6, 9. PH's algorithm weights comment velocity and diversity, not just upvotes.
+- **Hunter:** someone with 5k+ PH followers in the Claude/LLM space; self-hunt if none (Satoshi's network is strong enough).
+- **Seed voters:** ~50 people who starred the repo or engaged with MulmoChat — DM a Monday-evening reminder.
+- **Commenter priming:** 4–6 people leaving substantive comments at hours 1/3/6/9 (PH weights comment velocity + diversity, not just upvotes).
 
 ---
 
-## 10. Risks & Mitigations
+## 10. Risks & mitigations
 
-| Risk                                                   | Probability | Mitigation                                                                                                                           |
-| ------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **Activation gap — setup too heavy for PH day**        | **High**    | **Commit to an activation path by T-10 (see §10.5):** a hosted demo *if* we build one (currently not built), or `--demo` replay mode, or a scripted walkthrough. `npx create-mulmoclaude` alone = 50% drop-off. |
-| Claude Code CLI auth fails on first run                | Medium      | Pre-flight check in the app; friendly error page linking to Claude Code docs                                                          |
-| "It's just a wrapper" objection                        | Medium      | Lead with the anti-wrapper line verbatim: *"It runs Claude Code directly — not the API."* Reinforce with wiki + multi-session proof.  |
-| Cognitive overload (too many features in one message)  | Medium      | Already addressed in §4 — collapsed to 4 rank-ordered messages, rest kept in reserve. Hold the line; don't let screenshots creep the list back. |
-| Demo video latency from live Claude calls              | Medium      | Pre-record, splice, never show >3s of spinner                                                                                        |
-| MIT + Docker read as "hacker tool, not safe"           | Low-Medium  | **Reframe:** sandbox = *"the level of care a real shell needs."* MIT = *"maximally permissive open source — fork it, ship it, use it commercially."* (MIT de-risks the license objection that AGPL would have created.) |
-| Anthropic ships their own GUI the same week            | Low         | Frame as complementary — local-first, open-source, plugin-extensible                                                                 |
-| PH algorithm — late US vote surge from JP timing       | Low         | JP launch tweet timed to catch evening-JP as launch-day-morning-PT                                                                   |
+| Risk | Prob | Mitigation |
+| --- | --- | --- |
+| **Activation gap — setup too heavy for PH day** | **High** | **Commit to an activation path by T-10 (§10.5).** `npx mulmoclaude` alone (Node + Claude CLI auth + optional Gemini key + Docker) ≈ 50% drop-off. **Do not launch without one.** |
+| Claude Code CLI auth fails on first run | Medium | In-app pre-flight check + friendly error page linking to Claude Code docs |
+| "It's just a wrapper" | Medium | Lead with the anti-wrapper line verbatim; reinforce with the universal-controller + zero-host-code proof |
+| Cognitive overload (too many features) | Medium | Hold the 4 rank-ordered messages; rest in reserve. Don't let screenshots creep the list back |
+| Demo latency from live Claude calls | Medium | Pre-record, splice, never show >3s of spinner |
+| Audience mismatch (no-code hook vs dev channels) | Medium | Use the engineer framing in §0: *"stop writing a plugin per feature; describe a schema, Claude runs it."* |
+| MIT + Docker read as "hacker tool" | Low-Med | Reframe: sandbox = *"the care a real shell needs"*; MIT = *"maximally permissive — fork it, ship it, use it commercially."* |
+| Anthropic ships a GUI the same week | Low | Frame as complementary — local-first, open-source, plugin-extensible, user-authored apps |
 
 ### 10.5 The activation problem — solve this or lose the day
 
-This is the single biggest gap in the v1 plan. Reality check: even with `npx create-mulmoclaude`, the install path is **Node + Claude Code CLI auth + Gemini API key + Docker** — 5 to 10 minutes, developer-only, zero mobile. PH winners are instant gratification. We get upvotes mid-morning, then momentum dies by afternoon because nobody actually tried it.
+The single biggest gap. Even with `npx mulmoclaude`, the path is Node + Claude CLI auth + (optional) Gemini key + Docker — 5–10 min, developer-only, zero mobile. PH rewards instant gratification; without a zero-install taste, upvotes spike mid-morning and momentum dies by afternoon.
 
-**Three options, ranked by impact:**
+**Three options, ranked:**
 
-**Option A (strongly recommended, but NOT yet built) — a hosted read-only demo**
-- Pre-loaded workspace with ~10 prepared sessions, **led by the ask→app replay**: "build me an invoicing app" → app appears, plus the portfolio-revalues-on-quote-change interaction (the message-#1 wow). Then the "tomorrow, it remembers" memory moment, a scheduler catch-up, the reading-list bell lighting up, a wiki with backlinks, a multi-session snapshot, an ingested article → wiki page flow.
-- Visitors click through existing artifacts and replay the canvas — no typing required, no auth, no API key, no Docker.
-- Budget: ~3 engineer-days + hosting. Ship by T-3. **This is the single highest-leverage change in the entire plan, but we don't have a domain or instance yet.** If we commit, reserve a subdomain and provision a VM at T-10.
-- If shipped, CTA in the hero video and every tweet becomes *"try it in your browser"* (with whatever URL we land on) instead of *"git clone"*.
+**A (strongly recommended — NOT yet built): hosted read-only demo.** A pre-loaded workspace (~10 prepared sessions) led by the **ask→app replay** ("build me an invoicing app" → app appears) + the portfolio-revalue interaction, then the "tomorrow, it remembers" moment, a scheduler catch-up, a wiki with backlinks, a multi-session snapshot. Click-through + canvas replay — no typing, auth, key, or Docker. Budget ~3 eng-days + hosting; reserve a subdomain + VM at T-10. If shipped, every CTA becomes *"try it in your browser."*
 
-**Option B (minimum viable) — "Watch Claude work" mode**
-- A local mode that runs without a Gemini key or Claude auth, using pre-recorded session replays baked into the repo. `npx create-mulmoclaude --demo` drops the user into an interactive walkthrough in 30 seconds.
-- Halves drop-off vs. a real install; doesn't match Option A but keeps the activation cost manageable.
+**B (minimum viable): `--demo` replay mode.** A local mode with pre-recorded sessions baked into the repo; `npx mulmoclaude --demo` drops into an interactive walkthrough in ~30s with no Gemini key / no Claude auth. Halves drop-off.
 
-**Option C (last resort) — Scripted screenshot walkthrough on the landing page**
-- Click-through of the shock demo, parallel sessions, wiki backlinks, Telegram round-trip.
-- No real interactivity but preserves the "I experienced it" feeling for PH skimmers.
+**C (last resort): scripted screenshot walkthrough on the landing page.** No real interactivity, but preserves the "I experienced it" feeling for skimmers.
 
-**Decision:** commit to **Option A by T-7**. If scope slips, fall back to B before touching C.
+**Decision owed by T-10: commit to A; fall back to B before touching C. Slip the launch date before launching without one of these.**
 
 ---
 
-## 11. Success Metrics
+## 11. Success metrics
 
-**Day of:**
-- Product Hunt: **Top 5 of the day**; Top 10 is floor.
-- GitHub stars: **+500** in 24h.
-- **Activation-path sessions: 3,000 unique** if a hosted demo or `--demo` replay ships (§10.5); otherwise this line is N/A.
-- Installs (Gemini key inputs as proxy): **500** if a demo absorbs casual traffic; **~1,500** if install is the only path (higher volume but lower quality — most drop off).
-- PH comments: **50+ substantive** (not counting our team).
+**Record the baseline at T-8** (current stars / weekly npm downloads / X following) — every target below is measured as a delta from that line.
 
-**Week of:**
-- Stars: **+1,500 cumulative.**
-- HN: front page for >2 hours.
-- Twitter: 2M+ impressions on launch thread.
-- 3+ inbound podcast/interview requests.
-
-**Month of:**
-- 2,000 active weekly users (sessions logged).
-- 5 community-contributed custom roles or plugins.
-- One mention by @karpathy, @alexalbert, or an Anthropic engineer (aspirational but trackable).
+- **Day of:** PH **Top 5** (Top 10 floor); GitHub **+500 stars/24h**; activation-path sessions **3,000 unique** (if A/B ships, else N/A); installs (npx launches / Gemini-key inputs as proxy) **500** with a demo absorbing casual traffic, **~1,500** if install is the only path (higher volume, lower quality); **50+ substantive PH comments**.
+- **Week of:** **+1,500 stars cumulative**; (if relaunched) HN front page >2h; **2M+ X impressions**; **3+ inbound podcast/interview requests**.
+- **Month of:** **2,000 WAU**; **5 community-contributed roles/collections/plugins**; one mention by @karpathy / @alexalbert / an Anthropic engineer (aspirational, trackable).
 
 ---
 
-## 12. The Two Bets
+## 12. The two bets
 
-There are two things we have to land. Miss either and the launch is a 6 out of 10.
+**Bet 1 — prove the headline in the first 15 seconds (earns the upvote).** The headline is *"Ask for an app. It becomes memory."* — so the hero video's **0:00–0:15** must show the whole loop back to back: type "build me an invoicing app" → a real app appears (no code) → time-cut *"Tomorrow"* → a fresh session answers **from that app's own data**, read back as memory. That 15-second loop *is* the headline, demonstrated. Lead with the novelty (ask→app), land with the moat (it becomes memory) — and land it inside 15s, not 40, because most viewers won't reach 0:40. Stop at "app appears" and we're "another app builder"; show the loop and we're a new category. (The portfolio-revalue and the self-growing wiki are elaboration for 0:15+.)
 
-**Bet 1 — The ask→app + memory sequence (earns the upvote).**
-The hero video's 0:00–0:32 window, as one breath: **(a)** a user types "build me an invoicing app" and a real app appears — *no code, no plugin* — followed by the portfolio revaluing itself when a quote changes; then **(b)** a fresh session "tomorrow" asking a question that touches yesterday's work, and Claude answering grounded in the wiki it built itself. Lead with the novelty (ask→app — the thing *no competitor can show*), land with the moat (memory — the thing that makes leaving painful). Together they make the whole pitch visible: *every AI app has a fixed feature set and every AI agent has amnesia — this one cures both.* Without the ask→app open, we're "another Claude wrapper with a pretty UI." Without the memory close, we're "a neat no-code toy." With both, we're a new category.
+**Bet 2 — the activation path (earns the try).** A zero-install way to experience the ask→app and memory moments (§10.5 A/B/C). Without one, Bet 1's upvote never converts to a star, a follow, or a build. **Decision owed by T-10. This is the unstarted critical-path item — assign an owner now.**
 
-**Bet 2 — The activation path (earns the try).**
-A zero-install way for a PH skimmer to experience the ask→app moment and the memory moment. Today this means one of: (a) a hosted read-only demo if we commit to building it before T-3 (§10.5 Option A, currently NOT built — and it MUST include a "watch an app get built by asking" replay plus the portfolio-revalue interaction), (b) `npx create-mulmoclaude --demo` with pre-recorded session replays baked in (§10.5 Option B), or (c) a scripted screenshot walkthrough on the landing page (§10.5 Option C). Without *one* of these, the upvote from Bet 1 doesn't convert into a star, a follow, or a build. **Decision owed by T-10.** Bet 1 gets you noticed; Bet 2 gets you remembered.
-
-Everything else in this plan — bridges, sandbox, roles, wiki tour, skills launcher, multi-modal output, parallel sessions — is confirmation bias for a viewer who already believes. Cut anything that doesn't serve one of the two bets.
+Everything else — bridges, sandbox, roles, skills launcher, multi-modal output, parallel sessions — is confirmation bias for a viewer who already believes. Cut anything that doesn't serve a bet.
 
 ---
 
-## 13. The Story Underneath (why we're doing this at all)
+## 13. The story underneath
 
-The PH-day frame is *"ask for an app and it appears — no code — and it never forgets."* But the deeper frame — the one we hold for HN, for long-form writing, for the people who want to know where this is going — has two legs.
+Two legs hold up the deeper frame (for HN, long-form, and anyone asking where this goes):
 
-**Leg one: every AI agent today is homeless.** They have no persistent filesystem, no schedule, no memory that compounds. They're summoned, they work, they're gone. That's not an agent. That's a function call. MulmoClaude gives the agent a home: `~/mulmoclaude/`. A bookshelf (the wiki), filing cabinets (documents), a workshop where the user builds new tools (collections), a calendar (the scheduler), phones (the bridges). Because it has a home, it accumulates. Because it accumulates, it gets smarter. Because it gets smarter, it can be trusted with more autonomy. Memory → compounding → trust → delegation. That's the loop this plan is trying to open.
+**Leg one — every AI agent today is homeless.** No persistent filesystem, no schedule, no compounding memory. Summoned, work, gone — that's a function call, not an agent. MulmoClaude gives the agent a home: `~/mulmoclaude/`. A bookshelf (the wiki), filing cabinets (documents), a workshop where the user builds new tools (collections), a calendar (the scheduler), phones (the bridges). Because it has a home it accumulates; because it accumulates it gets smarter; because it gets smarter it earns more autonomy. Memory → compounding → trust → delegation.
 
-**Leg two: the user designs the environment, not the code.** The lesson of 2025–2026 agentic engineering is that the *harness* — the designed environment an agent works inside — matters more than the model. A deliberately-limited language (a DSL) is one of the best harnesses there is: it gives up expressive power in exchange for a small, legible, *validatable* surface the agent can't drift outside of. MulmoClaude runs on two such DSLs — **MulmoScript** (the agent writes a script; a deterministic renderer makes the video) and **Collections** (the *user* declares a schema; Claude is the runtime). The radical move is the second one: **harness design, historically an engineer's job, gets handed to the end user.** A non-programmer who declares a collection schema is — without knowing the word — designing the environment an agent will operate in. Applications stop being code engineers write and become *data users author*. That is the shift this product is a first draft of, and it is developed at length in [`docs/dsl-as-harness.md`](../docs/dsl-as-harness.md) and [`docs/collections-architecture.md`](../docs/collections-architecture.md) — the intellectual anchors for the HN post and the launch blog.
+**Leg two — the user designs the environment, not the code.** The lesson of 2025–2026 agentic engineering: the *harness* matters more than the model, and a deliberately-limited DSL is one of the best harnesses — a small, legible, validatable surface the agent can't drift outside of. MulmoClaude runs on two: **MulmoScript** (the agent writes a script; a deterministic renderer makes the video) and **Collections** (the *user* declares a schema; Claude is the runtime). The radical move is the second: harness design, historically an engineer's job, handed to the end user. A non-programmer declaring a collection schema is — without the word — designing the environment an agent operates in. Applications stop being code engineers write and become *data users author*. Developed at length in [`docs/dsl-as-harness.md`](../docs/dsl-as-harness.md) and [`docs/collections-architecture.md`](../docs/collections-architecture.md).
 
-This is the first visible surface of a much bigger thesis: **computing is being re-platformed on top of AI agents, and the shell that platform needs doesn't exist yet.** Claude Code is the kernel. MulmoClaude is the first draft of the shell, and the shell's user-facing form is that single folder that every input flows into and every output comes out of. In 1975 the home directory was where your files lived. In 2026 it's where your files, your research, your conversations, your scheduled work, and the knowledge extracted from all of them live — maintained by an AI that knows what to remember, what to file, and eventually what to schedule on its own.
+This is the first visible surface of a bigger thesis: **computing is being re-platformed on AI agents, and the shell that platform needs doesn't exist yet.** Claude Code is the kernel; MulmoClaude is the first draft of the shell, and the shell's user-facing form is one folder every input flows into and every output comes out of. In 1975 the home directory held your files; in 2026 it holds your files, research, conversations, scheduled work, and the knowledge extracted from all of them — maintained by an AI that knows what to remember, what to file, and eventually what to schedule on its own. Both memory and scheduling should become autonomous: the endgame is an agent that decides for itself what to repeat and summarize, the way it already decides what to write into the wiki.
 
-That last clause matters. **Both memory and scheduling should become autonomous.** Today, MulmoClaude remembers automatically but still asks the user to set up schedules by hand. The endgame is an agent that decides for itself what to repeat, what to watch, what to summarize every morning — the way it already decides what's worth writing into the wiki. Everything the user does (searches, temp notes, generated images and videos, scheduled outputs) flows into the same memory and is available from any session, any device, any time. At that point, "MulmoClaude" stops being a tool you open and becomes an ambient collaborator that's already been working.
-
-If the launch goes well, we're not celebrating a successful product launch — we're announcing the existence of a new computing surface. Phase 2 audiences (productivity users, knowledge workers, JP market, enterprise) come later, pulled in by the dev-native gravity we establish on day one.
-
-That framing is what makes this plan aggressive rather than cautious. We're not trying to be a "very advanced tool." We're trying to show a glimpse of the future of computing, through one sharp product.
+If the launch goes well, we're not celebrating a product launch — we're announcing a new computing surface, through one sharp product.
 
 ---
 
-*Prepared for the MulmoClaude launch. Revise after the asset dry-run at T-7. **Activation-path decision owed at T-10** — pick one of §10.5 Options A / B / C. This is the critical-path item.*
+*Canonical PH launch plan. Revise after the asset dry-run at T-7. **Activation-path decision owed at T-10 (§10.5) — the critical-path item.** Retired drafts: `plans/obsolete/launch-ph-listing.md`, `plans/obsolete/launch-product-hunt-ja.md`. HN run: `plans/done/launch-hn.md`.*

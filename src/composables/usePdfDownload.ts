@@ -25,6 +25,11 @@ export interface DownloadPdfOptions {
    *  Other callers leave it false so a chat-generated document that
    *  literally starts with `---` is preserved. */
   stripFrontmatter?: boolean;
+  /** When true, the server renders the markdown via Marp (slide deck,
+   *  one slide per page, 16:9) instead of the default paged markdown
+   *  layout. Caller sets this when the source has `marp: true` in its
+   *  frontmatter. */
+  marp?: boolean;
 }
 
 export interface UsePdfDownloadHandle {
@@ -47,7 +52,7 @@ export function usePdfDownload(): UsePdfDownloadHandle {
       const response = await apiFetchRaw(API_ROUTES.pdf.markdown, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markdown, filename, baseDir: options.baseDir, stripFrontmatter: options.stripFrontmatter }),
+        body: JSON.stringify({ markdown, filename, baseDir: options.baseDir, stripFrontmatter: options.stripFrontmatter, marp: options.marp }),
       });
       if (!response.ok) {
         const errText = await response.text().catch(() => "");

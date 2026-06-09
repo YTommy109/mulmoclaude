@@ -5,21 +5,12 @@ import type { TopicMemoryFile } from "../workspace/memory/topic-types.js";
 import type { MemorySnapshot } from "../workspace/memory/snapshot.js";
 import type { Role } from "../../src/config/roles.js";
 import { getActiveToolDescriptors, MCP_SERVER_ID } from "./activeTools.js";
-import { WORKSPACE_DIRS, WORKSPACE_FILES } from "../workspace/paths.js";
+import { WORKSPACE_FILES } from "../workspace/paths.js";
 import { getCachedCustomDirs, buildCustomDirsPrompt } from "../workspace/custom-dirs.js";
-import { TOOL_NAMES } from "../../src/config/toolNames.js";
 import { getCachedReferenceDirs, buildReferenceDirsPrompt } from "../workspace/reference-dirs.js";
 import { log } from "../system/logger/index.js";
 import { toLocalIsoDate } from "../utils/date.js";
-import {
-  SYSTEM_PROMPT,
-  TOPIC_MEMORY_MANAGEMENT,
-  ATOMIC_MEMORY_MANAGEMENT,
-  NEWS_CONCIERGE_PROMPT,
-  SANDBOX_TOOLS_HINT,
-  JOURNAL_POINTER,
-  SOURCES_CONTEXT,
-} from "../prompts/index.js";
+import { SYSTEM_PROMPT, TOPIC_MEMORY_MANAGEMENT, ATOMIC_MEMORY_MANAGEMENT, SANDBOX_TOOLS_HINT, JOURNAL_POINTER } from "../prompts/index.js";
 
 // `SYSTEM_PROMPT` keeps its public export surface (other modules may
 // import it); the rest are internal to this file. Literals now live
@@ -196,37 +187,6 @@ export function buildWikiContext(workspacePath: string): string | null {
   return parts.join("\n\n");
 }
 
-// Light pointer to the information-sources / news workspace, added
-// to every role's system prompt when the user has registered at
-// least one source and the pipeline has produced at least one
-// daily brief. Mirrors the wiki-context pattern: no heavy data,
-// just a pointer so Claude can opportunistically Read the files
-// when the user's question touches recent news / topic trends.
-//
-// Skipped entirely on fresh workspaces so we don't pay the prompt
-// cost until the feature is actually in use.
-export function buildSourcesContext(workspacePath: string): string | null {
-  const sourcesDir = join(workspacePath, WORKSPACE_DIRS.sources);
-  const newsDir = join(workspacePath, WORKSPACE_DIRS.news);
-  // Require both the registry and at least one brief — before a
-  // rebuild has run the daily dir is empty and a pointer would
-  // send Claude chasing nothing.
-  if (!existsSync(sourcesDir)) return null;
-  if (!existsSync(newsDir)) return null;
-
-  return SOURCES_CONTEXT;
-}
-
-export function buildNewsConciergeContext(role: Role): string | null {
-  // Only emit when the role has manageSource available. Roles without
-  // manageSource (artist, tutor, etc.) can't register sources, so the
-  // prompt would be misleading. No sources-dir check — the concierge
-  // should work even on fresh workspaces where the user hasn't
-  // registered any source yet.
-  if (!role.availablePlugins.includes(TOOL_NAMES.manageSource)) return null;
-  return NEWS_CONCIERGE_PROMPT;
-}
-
 // Single-paragraph prompts up to this length collapse into a compact
 // `- **name**: body` bullet instead of the old `### name\n\n body`
 // heading. Saves ~25 chars of heading overhead per plugin and keeps the
@@ -397,8 +357,6 @@ export function buildSystemPrompt(params: SystemPromptParams): string {
     { name: "memory-management", content: buildMemoryManagementSection(memorySnapshot) },
     { name: "sandbox", content: useDocker ? SANDBOX_TOOLS_HINT : null },
     { name: "wiki", content: buildWikiContext(workspacePath) },
-    { name: "sources", content: buildSourcesContext(workspacePath) },
-    { name: "news-concierge", content: buildNewsConciergeContext(role) },
     { name: "custom-dirs", content: buildCustomDirsPrompt(getCachedCustomDirs()) },
     { name: "reference-dirs", content: buildReferenceDirsPrompt(getCachedReferenceDirs(), useDocker) },
     { name: "plugins", content: headingSection("Plugin Instructions", buildPluginPromptSections(role)) },

@@ -26,10 +26,8 @@ const HOST_TOOL_NAMES = {
   textResponse: "text-response",
 
   // Management plugins (not yet migrated to META)
-  // manageCalendar migrated — see `src/plugins/scheduler/calendarMeta.ts`.
   // manageAutomations migrated — see `src/plugins/scheduler/automationsMeta.ts`.
   // manageSkills migrated — see `src/plugins/manageSkills/meta.ts`.
-  // manageSource migrated — see `src/plugins/manageSource/meta.ts`.
   // manageWiki migrated — see `src/plugins/wiki/meta.ts`. Plugin is
   // GUI-only (no MCP binding — deprecated #963), so the sync test
   // pins "every binding → META", not the reverse.
@@ -77,7 +75,6 @@ const HOST_TOOL_NAMES = {
   // runtime plugins are accepted in `availablePlugins` as bare
   // strings via the schema's permissive branch — see
   // `availablePluginsSchema` in `src/config/roles.ts`.
-  manageBookmarks: "manageBookmarks",
   manageSpotify: "manageSpotify",
   // manageRecipes removed (#1286) — recipe-book-plugin dropped from
   // PRESET_PLUGINS; recipe management moved to the `mc-cooking-coach`

@@ -10,13 +10,9 @@
 export const PAGE_ROUTES = {
   chat: "chat",
   files: "files",
-  calendar: "calendar",
   automations: "automations",
   wiki: "wiki",
-  skills: "skills",
-  roles: "roles",
-  sources: "sources",
-  news: "news",
+  feeds: "feeds",
   debug: "debug",
   collections: "collections",
 } as const;

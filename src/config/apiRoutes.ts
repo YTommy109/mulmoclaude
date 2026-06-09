@@ -56,6 +56,11 @@ const HOST_API_ROUTES = {
   health: "/api/health",
   sandbox: "/api/sandbox",
 
+  // Manually-pinned launcher shortcuts (collections / feeds). GET reads
+  // the list; PUT replaces it wholesale (client owns add / remove /
+  // order). Single replace-endpoint — no add/remove route sprawl.
+  shortcuts: "/api/shortcuts",
+
   agent: {
     run: "/api/agent",
     cancel: "/api/agent/cancel",
@@ -235,9 +240,12 @@ const HOST_API_ROUTES = {
     item: "/api/collections/:slug/items/:itemId",
     /** POST → assemble a schema-declared action's seed prompt → { prompt, role } */
     itemAction: "/api/collections/:slug/items/:itemId/actions/:actionId",
+    /** POST → re-run a feed collection's retrieval now → { refreshed, written }.
+     *  400 when the collection has no `ingest` block (not a feed). */
+    refresh: "/api/collections/:slug/refresh",
   },
 
-  // `scheduler` group migrated to META — see `src/plugins/scheduler/calendarMeta.ts`.
+  // `scheduler` group migrated to META — see `src/plugins/scheduler/automationsMeta.ts`.
   // Auto-merged via `apiNamespace: "scheduler"`.
 
   sessions: {
@@ -249,12 +257,15 @@ const HOST_API_ROUTES = {
   },
 
   // `skills` group migrated to META — see `src/plugins/manageSkills/meta.ts`.
-  // `sources` group migrated to META — see `src/plugins/manageSource/meta.ts`.
 
-  news: {
-    items: "/api/news/items",
-    itemBody: "/api/news/items/:id/body",
-    readState: "/api/news/read-state",
+  // Data-source feeds. Read-only list for the /feeds UI; feeds are
+  // created/removed by the agent writing feeds/<slug>/schema.json files
+  // (config/helps/feeds.md), and refreshed via collections.refresh.
+  feeds: {
+    list: "/api/feeds",
+    /** DELETE → remove a feed's registry entry (records retained). Backs
+     *  the feed-delete button; the agent deletes via its own file tools. */
+    detail: "/api/feeds/:slug",
   },
 
   hooks: {

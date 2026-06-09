@@ -200,6 +200,28 @@ export function classify(filename: string): ContentKind {
 // already-realpath'd root.
 const workspaceReal = realpathSync(workspacePath);
 
+// Windows-only: cached **async-realpath** form of the workspace. On
+// Windows, `realpathSync` (sync) and `realpath` (async) can return
+// the same path in two different forms — 8.3 short-name (`RUNNER~1`)
+// vs. long-name (`runneradmin`) — depending on which syscall path
+// was used to open the dir entry. Comparing across forms via
+// `path.relative` then produces a false "outside workspace" verdict
+// (`..\..\runneradmin\...`). This cache mirrors `workspaceReal` but
+// is guaranteed to share the form the async `realpath` returns, so
+// `resolveNewFilePath`'s containment check has matching ends. On
+// non-Windows hosts both syscalls return the same string, so the
+// cache equals `workspaceReal` and the extra lookup is harmless.
+let workspaceRealAsyncCache: string | null = null;
+async function getWorkspaceRealAsync(): Promise<string> {
+  if (workspaceRealAsyncCache !== null) return workspaceRealAsyncCache;
+  try {
+    workspaceRealAsyncCache = await realpath(workspaceReal);
+  } catch {
+    workspaceRealAsyncCache = workspaceReal;
+  }
+  return workspaceRealAsyncCache;
+}
+
 // Wraps the shared resolveWithinRoot helper with the additional
 // hidden-dir traversal check (e.g. `.git/config`). `buildTreeAsync`
 // / `listDirShallow` hide these from the listing, but the URL
@@ -853,7 +875,9 @@ function jsonSyntaxError(relPath: string, content: string): string | null {
 //     reconstruct the final path under the resolved real ancestor.
 //     A symlinked workspace subtree pointing outside `workspaceReal`
 //     therefore can't route create writes outside the workspace.
-async function resolveNewFilePath(relPathRaw: string): Promise<{ ok: true; absPath: string } | { ok: false; status: 400; message: string }> {
+async function resolveNewFilePath(
+  relPathRaw: string,
+): Promise<{ ok: true; absPath: string; workspaceRoot: string } | { ok: false; status: 400; message: string }> {
   const normalised = path.normalize(relPathRaw);
   if (path.isAbsolute(normalised)) return { ok: false, status: 400, message: "Path must be workspace-relative" };
   const candidate = path.resolve(workspaceReal, normalised);
@@ -877,7 +901,7 @@ async function resolveNewFilePath(relPathRaw: string): Promise<{ ok: true; absPa
   let probeStat = await statSafeAsync(probe);
   while (!probeStat) {
     const parent = path.dirname(probe);
-    if (parent === probe) return { ok: false, status: 400, message: "Path outside workspace" };
+    if (parent === probe) return { ok: false, status: 400, message: `Path outside workspace (root reached at ${probe})` };
     trailing.unshift(path.basename(probe));
     probe = parent;
     probeStat = await statSafeAsync(probe);
@@ -889,11 +913,17 @@ async function resolveNewFilePath(relPathRaw: string): Promise<{ ok: true; absPa
     return { ok: false, status: 400, message: "Path not allowed" };
   }
   const finalAbs = trailing.length === 0 ? realProbe : path.join(realProbe, ...trailing);
-  const relFromReal = path.relative(workspaceReal, finalAbs);
+  // Compare against the **async-realpath** form of the workspace, not
+  // the sync form cached as `workspaceReal`. On Windows the two can
+  // differ (8.3 short-name vs. long-name), and `path.relative` across
+  // the two yields a spurious `..\..\..\<long-name>\...` that fails
+  // the containment check. See `getWorkspaceRealAsync` for the why.
+  const rootAsync = await getWorkspaceRealAsync();
+  const relFromReal = path.relative(rootAsync, finalAbs);
   if (relFromReal === ".." || relFromReal.startsWith(`..${path.sep}`) || path.isAbsolute(relFromReal)) {
     return { ok: false, status: 400, message: "Path outside workspace" };
   }
-  return { ok: true, absPath: finalAbs };
+  return { ok: true, absPath: finalAbs, workspaceRoot: rootAsync };
 }
 
 // Create a new text file. Refuses to overwrite — that's PUT's job and
@@ -928,9 +958,14 @@ router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteC
   // `writeWikiPage` with `exclusive: true` so the same exclusive
   // primitive applies after the frontmatter stamp.
   try {
-    const wikiClass = classifyAsWikiPage(resolved.absPath, { workspaceRoot: workspaceReal });
+    // `resolved.workspaceRoot` is the async-realpath form, matching
+    // `resolved.absPath`'s form. Passing the sync-form `workspaceReal`
+    // would make `classifyAsWikiPage` fail to match the prefix on
+    // Windows (8.3 short-name vs. long-name) — we'd fall into the
+    // plain-file branch and skip the wiki frontmatter stamp.
+    const wikiClass = classifyAsWikiPage(resolved.absPath, { workspaceRoot: resolved.workspaceRoot });
     if (wikiClass.wiki) {
-      await writeWikiPage(wikiClass.slug, content, { editor: "user" }, { workspaceRoot: workspaceReal, exclusive: true });
+      await writeWikiPage(wikiClass.slug, content, { editor: "user" }, { workspaceRoot: resolved.workspaceRoot, exclusive: true });
     } else {
       await mkdir(path.dirname(resolved.absPath), { recursive: true });
       await writeFile(resolved.absPath, content, { flag: "wx" });

@@ -9,6 +9,33 @@
     <div v-else-if="!markdownContent" class="min-h-full p-8 flex items-center justify-center">
       <div class="text-gray-500">{{ t("pluginMarkdown.noContent") }}</div>
     </div>
+    <template v-else-if="marpMode">
+      <div v-if="loadError" class="load-error-banner shrink-0" role="alert">
+        {{ t("pluginMarkdown.refreshFailed", { error: loadError }) }}
+      </div>
+      <div class="flex-1 min-h-0 overflow-y-auto flex flex-col">
+        <!-- `m-auto` centres a short MarpView vertically in the canvas
+             (free space distributed top + bottom). When the deck is
+             tall enough to overflow, margin:auto stops contributing
+             and the outer wrapper scrolls naturally. -->
+        <div class="m-auto w-full">
+          <MarpView :markdown="markdownContent" :pdf-filename="marpPdfFilename" :base-dir="marpBaseDir" />
+        </div>
+      </div>
+      <div class="bottom-bar-wrapper">
+        <details ref="sourceDetails" class="markdown-source" @toggle="onDetailsToggle">
+          <summary>{{ t("pluginMarkdown.editSource") }}</summary>
+          <textarea v-model="editableMarkdown" class="markdown-editor" spellcheck="false"></textarea>
+          <div class="editor-actions">
+            <button class="apply-btn" :disabled="!hasChanges || saving" @click="applyMarkdown">
+              {{ saving ? t("pluginMarkdown.saving") : t("pluginMarkdown.applyChanges") }}
+            </button>
+            <button class="cancel-btn" @click="cancelEdit">{{ t("pluginMarkdown.cancel") }}</button>
+          </div>
+          <p v-if="saveError" class="save-error" role="alert">{{ t("pluginMarkdown.saveError", { error: saveError }) }}</p>
+        </details>
+      </div>
+    </template>
     <template v-else>
       <div class="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
         <button
@@ -93,6 +120,8 @@ import { useClipboardCopy } from "../../composables/useClipboardCopy";
 import { buildPdfFilename } from "../../utils/files/filename";
 import { useAppApi } from "../../composables/useAppApi";
 import { useFileChange } from "../../composables/useFileChange";
+import { isMarpDocument } from "../../utils/markdown/marpDetect";
+import MarpView from "./MarpView.vue";
 
 const { t } = useI18n();
 
@@ -193,6 +222,30 @@ watch(fileVersion, (current, previous) => {
 // would render as a stray `<hr>` plus key:value plain text in
 // every file the LLM saved with frontmatter (#895 PR A).
 const mdDoc = useMarkdownDoc(markdownContent);
+
+const marpMode = computed(() => isMarpDocument(mdDoc.value.meta));
+
+const marpBaseDir = computed(() => {
+  const raw = props.selectedResult.data?.markdown;
+  if (typeof raw !== "string" || !isFilePath(raw)) return undefined;
+  const idx = raw.lastIndexOf("/");
+  // Root-level files (no "/") resolve their relative `<img>` refs
+  // against the workspace root — return "" so the server's
+  // inlineImages() uses the workspace root instead of falling back
+  // to the legacy `markdowns/` sourceDir (codex review).
+  return idx < 0 ? "" : raw.slice(0, idx);
+});
+
+const marpPdfFilename = computed(() => {
+  const prefix = props.selectedResult.data?.filenamePrefix;
+  const rawName = prefix || props.selectedResult.title || "";
+  const { uuid } = props.selectedResult;
+  return buildPdfFilename({
+    name: rawName,
+    fallback: "slides",
+    timestampMs: uuid ? appApi.getResultTimestamp(uuid) : undefined,
+  });
+});
 
 const renderedHtml = computed(() => {
   if (!markdownContent.value) return "";

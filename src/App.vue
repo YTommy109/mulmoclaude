@@ -17,7 +17,13 @@
           @home="handleHomeClick"
         />
         <div class="flex-1 min-w-0">
-          <PluginLauncher :active-tool-name="selectedResult?.toolName ?? null" :active-view-mode="currentPage" @navigate="onPluginNavigate" />
+          <PluginLauncher
+            :active-tool-name="selectedResult?.toolName ?? null"
+            :active-view-mode="currentPage"
+            :shortcuts="shortcuts"
+            @navigate="onPluginNavigate"
+            @navigate-shortcut="onShortcutNavigate"
+          />
         </div>
       </div>
       <!-- Row 2: role selector + session tabs. Shown whenever the
@@ -196,8 +202,8 @@
             @update:layout-mode="setLayoutMode"
             @toggle-right-sidebar="toggleRightSidebar"
           />
-          <!-- Distinct pages. Plugin-owned views (Calendar /
-               Automations / Wiki / Skills) call `useRuntime()` from
+          <!-- Distinct pages. Plugin-owned views (Automations / Wiki)
+               call `useRuntime()` from
                `gui-chat-protocol/vue` inside their composables — that
                throws unless mounted under `<PluginScopedRoot>`. The
                plugin registry's `wrapWithScope` wraps the chat-mounted
@@ -205,21 +211,14 @@
                same `pkg-name + endpoints` pair so the `useRuntime()`
                call resolves. -->
           <FilesView v-else-if="currentPage === 'files'" :refresh-token="filesRefreshToken" @load-session="handleSessionSelect" />
-          <PluginScopedRoot v-else-if="currentPage === 'calendar'" pkg-name="scheduler" :endpoints="API_ROUTES.scheduler">
-            <CalendarView />
-          </PluginScopedRoot>
           <PluginScopedRoot v-else-if="currentPage === 'automations'" pkg-name="scheduler" :endpoints="API_ROUTES.scheduler">
             <AutomationsView />
           </PluginScopedRoot>
           <PluginScopedRoot v-else-if="currentPage === 'wiki'" pkg-name="wiki" :endpoints="API_ROUTES.wiki">
             <WikiView />
           </PluginScopedRoot>
-          <PluginScopedRoot v-else-if="currentPage === 'skills'" pkg-name="skills" :endpoints="API_ROUTES.skills">
-            <SkillsView />
-          </PluginScopedRoot>
-          <RolesView v-else-if="currentPage === 'roles'" />
-          <SourcesView v-else-if="currentPage === 'sources'" />
-          <NewsView v-else-if="currentPage === 'news'" />
+          <CollectionView v-else-if="currentPage === 'feeds' && route.params.slug" :key="`feed-${route.params.slug}`" />
+          <FeedsView v-else-if="currentPage === 'feeds'" />
           <!-- Schema-driven collections. The route is
                `/collections/:slug?`; with a slug we mount the
                CollectionView, without one we mount the index. Both
@@ -319,14 +318,10 @@ import ThinkingIndicator from "./components/ThinkingIndicator.vue";
 import PluginLauncher from "./components/PluginLauncher.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
-import CalendarView from "./plugins/scheduler/CalendarView.vue";
 import AutomationsView from "./plugins/scheduler/AutomationsView.vue";
 import WikiView from "./plugins/wiki/View.vue";
 import { buildWikiRouteParams } from "./plugins/wiki/route";
-import SkillsView from "./plugins/manageSkills/View.vue";
-import RolesView from "./components/RolesView.vue";
-import SourcesView from "./components/SourcesView.vue";
-import NewsView from "./components/NewsView.vue";
+import FeedsView from "./components/FeedsView.vue";
 import CollectionsIndexView from "./components/CollectionsIndexView.vue";
 import CollectionView from "./components/CollectionView.vue";
 import PluginScopedRoot from "./components/PluginScopedRoot.vue";
@@ -359,6 +354,8 @@ import { useSidePanelVisible } from "./composables/useSidePanelVisible";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
 import { useCurrentRole } from "./composables/useCurrentRole";
+import { useShortcuts } from "./composables/useShortcuts";
+import type { Shortcut } from "./types/shortcuts";
 import { useTranslatedQueries } from "./composables/useTranslatedQueries";
 import { BUILTIN_ROLE_IDS, type Role } from "./config/roles";
 import { usePubSub } from "./composables/usePubSub";
@@ -448,6 +445,10 @@ watch(
 // `sessionRole` below, which derives from the active session.
 const { roles, refreshRoles } = useRoles();
 const { currentRoleId } = useCurrentRole(roles);
+
+// Pinned launcher shortcuts (collections / feeds). The host owns the
+// list and passes it down; the launcher stays presentational.
+const { shortcuts } = useShortcuts();
 
 const userInput = ref("");
 const pastedFile = ref<PastedFile | null>(null);
@@ -610,6 +611,14 @@ function onPluginNavigate(target: { key: string }): void {
 
 function isPageRouteName(value: string): value is PageRouteName {
   return Object.values(PAGE_ROUTES).includes(value as PageRouteName);
+}
+
+// A pinned shortcut reuses the existing collection / feed routes — the
+// host gains no shortcut-specific navigation logic beyond mapping the
+// singular `kind` to the plural route name.
+function onShortcutNavigate(shortcut: Shortcut): void {
+  const name = shortcut.kind === "feed" ? PAGE_ROUTES.feeds : PAGE_ROUTES.collections;
+  router.push({ name, params: { slug: shortcut.slug } }).catch(() => {});
 }
 
 // Layout only matters on /chat; other pages are full-width by design.
