@@ -258,6 +258,13 @@ function onFilePicked(event: Event): void {
   input.value = "";
 }
 
+watch(
+  () => props.pastedFiles.length,
+  (len) => {
+    if (len === 0) fileError.value = null;
+  },
+);
+
 const imeEnter = useImeAwareEnter(() => emit("send"));
 
 // Inline "/" command palette. Shares the lightbulb Skills tab's data store;
