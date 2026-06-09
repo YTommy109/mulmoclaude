@@ -233,9 +233,12 @@ export function useCollectionRendering(collection: Ref<CollectionDetail | null>,
 
   // A `file` field holds a workspace-relative path. When it points at an
   // HTML/SVG artifact the server serves directly, return that served URL
-  // so the rendered app can open in a new tab; otherwise null.
+  // so the rendered app can open in a new tab; otherwise null. Reject
+  // absolute / `..`-traversing paths first (same guard as fileRoutePath)
+  // — the preview-URL builders don't, so a `..` would normalize out of
+  // the intended mount.
   function artifactUrl(value: unknown): string | null {
-    if (typeof value !== "string" || value.length === 0) return null;
+    if (!isValidFilePath(value)) return null;
     return htmlPreviewUrlFor(value) ?? svgPreviewUrlFor(value);
   }
 
