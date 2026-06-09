@@ -1095,6 +1095,9 @@ const koMessages = {
     marpSlidesMode: "Marp 슬라이드 · {count}",
     marpExportPdf: "PDF로 내보내기",
     marpRenderFailed: "⚠ Marp 슬라이드 렌더링 실패: {error}",
+    marpSplitEnter: "소스를 나란히 편집",
+    marpSplitExit: "소스 편집기 닫기",
+    marpSplitEditorLabel: "소스",
   },
   pluginTextResponse: {
     pdf: "PDF",

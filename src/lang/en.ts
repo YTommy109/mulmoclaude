@@ -1094,6 +1094,9 @@ const enMessages = {
     marpSlidesMode: "Marp slides · {count}",
     marpExportPdf: "Export PDF",
     marpRenderFailed: "⚠ Failed to render Marp slides: {error}",
+    marpSplitEnter: "Edit source side-by-side with preview",
+    marpSplitExit: "Hide source editor",
+    marpSplitEditorLabel: "Source",
   },
   pluginTextResponse: {
     pdf: "PDF",

@@ -1099,6 +1099,9 @@ const frMessages = {
     marpSlidesMode: "Diapositives Marp · {count}",
     marpExportPdf: "Exporter en PDF",
     marpRenderFailed: "⚠ Échec du rendu des diapositives Marp : {error}",
+    marpSplitEnter: "Modifier la source en parallèle de l'aperçu",
+    marpSplitExit: "Fermer l'éditeur de source",
+    marpSplitEditorLabel: "Source",
   },
   pluginTextResponse: {
     pdf: "PDF",

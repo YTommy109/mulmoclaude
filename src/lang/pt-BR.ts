@@ -1096,6 +1096,9 @@ const ptBRMessages = {
     marpSlidesMode: "Slides Marp · {count}",
     marpExportPdf: "Exportar PDF",
     marpRenderFailed: "⚠ Falha ao renderizar os slides Marp: {error}",
+    marpSplitEnter: "Editar o código fonte ao lado da visualização",
+    marpSplitExit: "Fechar o editor de código",
+    marpSplitEditorLabel: "Código",
   },
   pluginTextResponse: {
     pdf: "PDF",

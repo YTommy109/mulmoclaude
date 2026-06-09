@@ -1084,6 +1084,9 @@ const zhMessages = {
     marpSlidesMode: "Marp 幻灯片 · {count}",
     marpExportPdf: "导出 PDF",
     marpRenderFailed: "⚠ Marp 幻灯片渲染失败: {error}",
+    marpSplitEnter: "并排编辑源代码",
+    marpSplitExit: "关闭源代码编辑器",
+    marpSplitEditorLabel: "源代码",
   },
   pluginTextResponse: {
     pdf: "PDF",

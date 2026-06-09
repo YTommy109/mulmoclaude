@@ -1107,6 +1107,9 @@ const esMessages = {
     marpSlidesMode: "Diapositivas Marp · {count}",
     marpExportPdf: "Exportar PDF",
     marpRenderFailed: "⚠ Error al renderizar las diapositivas Marp: {error}",
+    marpSplitEnter: "Editar la fuente junto a la vista previa",
+    marpSplitExit: "Cerrar el editor de la fuente",
+    marpSplitEditorLabel: "Fuente",
   },
   pluginTextResponse: {
     pdf: "PDF",

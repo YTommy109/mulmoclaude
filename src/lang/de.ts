@@ -1110,6 +1110,9 @@ const deMessages = {
     marpSlidesMode: "Marp-Folien · {count}",
     marpExportPdf: "Als PDF exportieren",
     marpRenderFailed: "⚠ Rendern der Marp-Folien fehlgeschlagen: {error}",
+    marpSplitEnter: "Quelle neben der Vorschau bearbeiten",
+    marpSplitExit: "Quelleneditor schließen",
+    marpSplitEditorLabel: "Quelle",
   },
   pluginTextResponse: {
     pdf: "PDF",

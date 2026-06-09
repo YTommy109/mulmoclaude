@@ -2,6 +2,10 @@
   <div ref="containerEl" class="marp-container">
     <div class="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
       <span class="text-xs text-gray-500 mr-auto pl-2">{{ t("pluginMarkdown.marpSlidesMode", { count: slideCount }) }}</span>
+      <!-- Toolbar slot: View.vue mounts the split-mode toggle here so
+           the chrome stays unified with PDF / slide-count. Slot is a
+           no-op for non-toggle consumers (FileContentRenderer). -->
+      <slot name="toolbar" />
       <button
         class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
         :disabled="pdfDownloading"

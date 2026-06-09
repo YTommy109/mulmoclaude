@@ -1093,6 +1093,9 @@ const jaMessages = {
     marpSlidesMode: "Marp スライド · {count}",
     marpExportPdf: "PDFを書き出し",
     marpRenderFailed: "⚠ Marp スライドの描画に失敗しました: {error}",
+    marpSplitEnter: "ソースを並べて編集",
+    marpSplitExit: "ソースエディタを閉じる",
+    marpSplitEditorLabel: "ソース",
   },
   pluginTextResponse: {
     pdf: "PDF",
