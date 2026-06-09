@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { WORKSPACE_DIRS } from "../../workspace/paths.js";
-import { writeWorkspaceText } from "../../utils/files/workspace-io.js";
+import { writeWorkspaceText, existsInWorkspace } from "../../utils/files/workspace-io.js";
 import { buildArtifactPath } from "../../utils/files/naming.js";
 import { overwriteHtml, isHtmlPath } from "../../utils/files/html-store.js";
 import { errorMessage } from "../../utils/errors.js";
@@ -13,9 +13,12 @@ import { publishFileChange } from "../../events/file-change.js";
 
 const router = Router();
 
+const PRESENT_ACK = "Acknowledge that the HTML page has been presented to the user.";
+
 interface PresentHtmlBody {
-  html: string;
+  html?: string;
   title?: string;
+  path?: string;
 }
 
 interface PresentHtmlSuccessResponse {
@@ -30,29 +33,43 @@ interface PresentHtmlErrorResponse {
 
 type PresentHtmlResponse = PresentHtmlSuccessResponse | PresentHtmlErrorResponse;
 
+// New HTML: persist under a fresh artifact path, then present it.
+async function saveAndPresent(html: string, title: string | undefined, res: Response<PresentHtmlResponse>): Promise<void> {
+  const filePath = buildArtifactPath(WORKSPACE_DIRS.htmls, title, ".html", "page");
+  await writeWorkspaceText(filePath, html);
+  log.info("html", "present: ok", { filePath, bytes: html.length });
+  // Fire-and-forget: any subscribed View tab refetches via cache-bust.
+  void publishFileChange(filePath);
+  res.json({ message: `Saved HTML to ${filePath}`, instructions: PRESENT_ACK, data: { title, filePath } });
+}
+
+// Existing HTML: present a file already on disk without re-saving a copy.
+function presentExisting(relativePath: string, title: string | undefined, res: Response<PresentHtmlResponse>): void {
+  if (!isHtmlPath(relativePath) || !existsInWorkspace(relativePath)) {
+    log.warn("html", "present: bad path", { pathPreview: previewSnippet(relativePath) });
+    badRequest(res, "path must be an existing .html file under artifacts/html/");
+    return;
+  }
+  log.info("html", "present: existing", { filePath: relativePath });
+  res.json({ message: `Presented existing HTML at ${relativePath}`, instructions: PRESENT_ACK, data: { title, filePath: relativePath } });
+}
+
 bindRoute(router, API_ROUTES.html.create, async (req: Request<object, unknown, PresentHtmlBody>, res: Response<PresentHtmlResponse>) => {
-  const { html, title } = req.body;
+  const { html, title, path: htmlPath } = req.body;
   log.info("html", "present: start", {
     titlePreview: typeof title === "string" ? previewSnippet(title) : undefined,
     bytes: typeof html === "string" ? html.length : undefined,
+    pathPreview: typeof htmlPath === "string" ? previewSnippet(htmlPath) : undefined,
   });
-  if (!html) {
-    log.warn("html", "present: missing html");
-    badRequest(res, "html is required");
-    return;
-  }
-
   try {
-    const filePath = buildArtifactPath(WORKSPACE_DIRS.htmls, title, ".html", "page");
-    await writeWorkspaceText(filePath, html);
-    log.info("html", "present: ok", { filePath, bytes: html.length });
-    // Fire-and-forget: any subscribed View tab refetches via cache-bust.
-    void publishFileChange(filePath);
-    res.json({
-      message: `Saved HTML to ${filePath}`,
-      instructions: "Acknowledge that the HTML page has been presented to the user.",
-      data: { title, filePath },
-    });
+    if (typeof htmlPath === "string" && htmlPath.length > 0) {
+      presentExisting(htmlPath, title, res);
+    } else if (typeof html === "string" && html.length > 0) {
+      await saveAndPresent(html, title, res);
+    } else {
+      log.warn("html", "present: missing html and path");
+      badRequest(res, "html or path is required");
+    }
   } catch (err) {
     log.error("html", "present: threw", { error: errorMessage(err) });
     serverError(res, errorMessage(err));

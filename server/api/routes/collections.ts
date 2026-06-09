@@ -22,6 +22,7 @@ import {
   readItem,
   readSkillTemplate,
   buildActionSeedPrompt,
+  buildCollectionActionSeedPrompt,
   resolveCreateItemId,
   toDetail,
   toSummary,
@@ -313,6 +314,36 @@ router.post(API_ROUTES.collections.itemAction, async (req: Request<{ slug: strin
       actionId: req.params.actionId,
       error: errorMessage(err),
     });
+    serverError(res, errorMessage(err));
+  }
+});
+
+// Assemble a collection-level action's seed prompt. Like the per-record
+// route but with no `itemId`: there is no record to read or gate on, so
+// the seed injects a compact progress summary of every record instead.
+// Fully generic — no domain literals.
+router.post(API_ROUTES.collections.collectionAction, async (req: Request<{ slug: string; actionId: string }>, res: Response<ActionSeedResponse>) => {
+  const collection = await loadCollection(req.params.slug);
+  if (!collection) {
+    notFound(res, `collection '${req.params.slug}' not found`);
+    return;
+  }
+  const action = collection.schema.collectionActions?.find((entry) => entry.id === req.params.actionId);
+  if (!action) {
+    notFound(res, `collection action '${req.params.actionId}' not found on collection '${collection.slug}'`);
+    return;
+  }
+  try {
+    const template = await readSkillTemplate(collection.skillDir, action.template);
+    if (template === null) {
+      serverError(res, `template '${action.template}' for action '${action.id}' could not be read`);
+      return;
+    }
+    const items = await listItems(collection.dataDir);
+    log.info("collections", "collection action seed built", { slug: collection.slug, actionId: action.id, items: items.length });
+    res.json({ prompt: buildCollectionActionSeedPrompt(items, collection.schema, template), role: action.role });
+  } catch (err) {
+    log.warn("collections", "collection action seed failed", { slug: collection.slug, actionId: req.params.actionId, error: errorMessage(err) });
     serverError(res, errorMessage(err));
   }
 });

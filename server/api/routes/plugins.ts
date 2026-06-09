@@ -4,6 +4,8 @@ import { executeSpreadsheet, type SpreadsheetArgs } from "../../../src/plugins/s
 import { executeQuiz } from "@mulmochat-plugin/quiz";
 import { executeForm } from "../../../src/plugins/presentForm/plugin.js";
 import { executePresentCollection } from "../../../src/plugins/presentCollection/plugin.js";
+import type { PresentCollectionArgs } from "../../../src/plugins/presentCollection/types.js";
+import { loadCollection, validateCollectionRecords } from "../../workspace/collections/index.js";
 import { executeOpenCanvas } from "../../../src/plugins/canvas/definition.js";
 import { executePresent3D } from "@gui-chat-plugin/present3d";
 import { executeMapControl } from "@gui-chat-plugin/google-map";
@@ -249,11 +251,27 @@ bindRoute(
 // presentCollection — render a collection (or one item) as an inline,
 // editable chat card. The View mounts CollectionView, which fetches +
 // mutates live workspace state via the existing /api/collections routes.
-bindRoute(
-  router,
-  API_ROUTES.presentCollection.dispatch,
-  wrapPluginExecute((req) => executePresentCollection(null as never, req.body)),
-);
+//
+// On top of the isomorphic executor we run a server-side validation pass:
+// a malformed record is silently skipped at read time, so without this a
+// bad file just vanishes. We append any problems to `instructions` (which
+// the LLM reads) so the model — which is told to call presentCollection
+// after every write — fixes the file instead of losing the record.
+async function dispatchPresentCollection(req: Request<object, unknown, PresentCollectionArgs>) {
+  const result = await executePresentCollection(null as never, req.body);
+  const slug = result.data?.collectionSlug;
+  if (!slug) return result; // error result (no slug) — nothing to validate
+  const collection = await loadCollection(slug);
+  if (!collection) return result; // bad slug surfaces as the View's not-found state
+  const issues = await validateCollectionRecords(collection);
+  if (issues.length === 0) return result;
+  log.warn("plugins", "presentCollection: record issues", { slug, count: issues.length });
+  const lines = issues.map((issue) => `- ${issue.file}: ${issue.problem}`).join("\n");
+  const warning = `\n\n⚠️ ${issues.length} record file(s) have data problems and may be missing from the view. Fix each (Read → correct → Write):\n${lines}`;
+  return { ...result, instructions: `${result.instructions ?? ""}${warning}` };
+}
+
+bindRoute(router, API_ROUTES.presentCollection.dispatch, wrapPluginExecute(dispatchPresentCollection));
 
 // 1×1 transparent PNG. Used as a placeholder so the canvas tool
 // result can carry a stable file path from the moment the canvas
