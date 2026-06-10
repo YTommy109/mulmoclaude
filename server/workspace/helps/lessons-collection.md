@@ -168,8 +168,9 @@ afterwards — just continue the conversation.
 4. only if **every** lesson is `mastered` → append the next batch as `planned`
    records (a **paragraph `objective`** each — the authoring brief — continuing the
    `order`), pitched at the learner's now-higher level; do NOT author the HTML yet.
-   When you write these records, use 「」/'' (or escape as `\"`) in string values —
-   never a raw `"`, or the file breaks and the record is silently skipped. Then call
+   When you write these records, use the language's quotation marks (`「」`/`『』`,
+   or `'…'`/`“…”`) — or escape as `\"` — in string values, never a raw `"`, or the
+   file breaks and the record is silently skipped. Then call
    `presentCollection` once to show the expanded roadmap.
 ```
 

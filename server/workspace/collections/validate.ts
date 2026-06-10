@@ -8,6 +8,9 @@
 
 import { readdir, readFile, lstat } from "node:fs/promises";
 import path from "node:path";
+import { log } from "../../system/logger/index.js";
+import { workspacePath } from "../workspace.js";
+import { isContainedInRoot } from "./paths.js";
 import type { LoadedCollection } from "./discovery.js";
 import type { CollectionItem, CollectionSchema } from "./types.js";
 
@@ -27,12 +30,22 @@ const COMPUTED_TYPES = new Set(["derived", "embed", "toggle"]);
 /** Read every `<id>.json` under the collection's dataDir and report the
  *  ones that won't load or violate the schema. An empty list means every
  *  record is fine. */
-export async function validateCollectionRecords(collection: LoadedCollection): Promise<RecordIssue[]> {
+export async function validateCollectionRecords(collection: LoadedCollection, opts: { workspaceRoot?: string } = {}): Promise<RecordIssue[]> {
+  // Re-check realpath containment (like `listItems`): defends against a symlinked
+  // data dir swapped in between discovery and use, which would otherwise let us
+  // scan + echo files from outside the workspace.
+  const workspaceRoot = opts.workspaceRoot ?? workspacePath;
+  if (!isContainedInRoot(collection.dataDir, workspaceRoot)) {
+    log.warn("collections", "validate refused: dataDir escapes workspace via symlink", { dataDir: collection.dataDir });
+    return [];
+  }
   let entries: string[];
   try {
     entries = await readdir(collection.dataDir);
-  } catch {
-    return []; // no dir yet = no records, not an error
+  } catch (err) {
+    const error = err as { code?: string };
+    if (error.code === "ENOENT") return []; // no dir yet = no records
+    throw err; // surface permission / I/O faults instead of silently passing
   }
   const issues: RecordIssue[] = [];
   for (const name of entries.sort()) {
@@ -44,25 +57,31 @@ export async function validateCollectionRecords(collection: LoadedCollection): P
   return issues;
 }
 
-/** Classify a single record file: unreadable / unparseable / non-object /
- *  schema violation, or null when it's fine. */
-async function inspectRecord(fullPath: string, name: string, schema: CollectionSchema): Promise<RecordIssue | null> {
-  let raw: string;
+// Read a record file's text, or classify why it can't be read (missing /
+// symlink / unreadable). Split out to keep `inspectRecord` under the line limit.
+async function readRecordText(fullPath: string, name: string): Promise<{ raw: string } | RecordIssue> {
   try {
     const stat = await lstat(fullPath);
     if (!stat.isFile()) return { file: name, problem: "not a regular file (symlink?) — skipped, won't appear" };
-    raw = await readFile(fullPath, "utf-8");
+    return { raw: await readFile(fullPath, "utf-8") };
   } catch {
     return { file: name, problem: "could not be read — skipped, won't appear" };
   }
+}
+
+/** Classify a single record file: unreadable / unparseable / non-object /
+ *  schema violation, or null when it's fine. */
+async function inspectRecord(fullPath: string, name: string, schema: CollectionSchema): Promise<RecordIssue | null> {
+  const read = await readRecordText(fullPath, name);
+  if ("problem" in read) return read;
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(read.raw);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     return {
       file: name,
-      problem: `invalid JSON (${reason}) — SKIPPED, won't appear. Usual cause: an unescaped " inside a string value; use 「」/'' or write \\" instead.`,
+      problem: `invalid JSON (${reason}) — SKIPPED, won't appear. Usual cause: an unescaped " inside a string value; use 「」/『』 or write \\" instead.`,
     };
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {

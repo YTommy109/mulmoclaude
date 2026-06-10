@@ -62,13 +62,19 @@ bindRoute(router, API_ROUTES.html.create, async (req: Request<object, unknown, P
     pathPreview: typeof htmlPath === "string" ? previewSnippet(htmlPath) : undefined,
   });
   try {
-    if (typeof htmlPath === "string" && htmlPath.length > 0) {
+    // `html` and `path` are mutually exclusive (the tool contract / prompt say
+    // "either, not both") — reject both-set and neither-set rather than letting
+    // one silently win and present the wrong page.
+    if (typeof htmlPath === "string" && htmlPath.length > 0 && typeof html === "string" && html.length > 0) {
+      log.warn("html", "present: both html and path provided");
+      badRequest(res, "provide either `html` or `path`, not both");
+    } else if (typeof htmlPath === "string" && htmlPath.length > 0) {
       presentExisting(htmlPath, title, res);
     } else if (typeof html === "string" && html.length > 0) {
       await saveAndPresent(html, title, res);
     } else {
       log.warn("html", "present: missing html and path");
-      badRequest(res, "html or path is required");
+      badRequest(res, "provide either `html` or `path`");
     }
   } catch (err) {
     log.error("html", "present: threw", { error: errorMessage(err) });

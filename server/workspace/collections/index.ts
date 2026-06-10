@@ -16,6 +16,7 @@ export {
 } from "./io.js";
 export type {
   CollectionSchema,
+  CollectionAction,
   CollectionFieldSpec,
   CollectionFieldType,
   CollectionSummary,

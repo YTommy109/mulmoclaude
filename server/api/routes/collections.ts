@@ -28,7 +28,7 @@ import {
   toSummary,
   writeItem,
 } from "../../workspace/collections/index.js";
-import type { CollectionDetail, CollectionItem, CollectionSummary } from "../../workspace/collections/index.js";
+import type { CollectionAction, CollectionDetail, CollectionItem, CollectionSummary, LoadedCollection } from "../../workspace/collections/index.js";
 import { badRequest, notFound, conflict, forbidden, serverError } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
 import { log } from "../../system/logger/index.js";
@@ -318,10 +318,20 @@ router.post(API_ROUTES.collections.itemAction, async (req: Request<{ slug: strin
   }
 });
 
-// Assemble a collection-level action's seed prompt. Like the per-record
-// route but with no `itemId`: there is no record to read or gate on, so
-// the seed injects a compact progress summary of every record instead.
-// Fully generic — no domain literals.
+// Assemble the seed for a collection-level action: read the template and inject
+// a compact progress summary of every record. Returns null when the template
+// can't be read. Pure plumbing — kept out of the route handler to stay under the
+// function-size limit.
+async function buildCollectionActionSeed(collection: LoadedCollection, action: CollectionAction): Promise<ActionSeedResponse | null> {
+  const template = await readSkillTemplate(collection.skillDir, action.template);
+  if (template === null) return null;
+  const items = await listItems(collection.dataDir);
+  log.info("collections", "collection action seed built", { slug: collection.slug, actionId: action.id, items: items.length });
+  return { prompt: buildCollectionActionSeedPrompt(items, collection.schema, template), role: action.role };
+}
+
+// Like the per-record route but with no `itemId`: there is no record to read or
+// gate on, so the seed injects a progress summary instead. No domain literals.
 router.post(API_ROUTES.collections.collectionAction, async (req: Request<{ slug: string; actionId: string }>, res: Response<ActionSeedResponse>) => {
   const collection = await loadCollection(req.params.slug);
   if (!collection) {
@@ -334,14 +344,12 @@ router.post(API_ROUTES.collections.collectionAction, async (req: Request<{ slug:
     return;
   }
   try {
-    const template = await readSkillTemplate(collection.skillDir, action.template);
-    if (template === null) {
+    const seed = await buildCollectionActionSeed(collection, action);
+    if (seed === null) {
       serverError(res, `template '${action.template}' for action '${action.id}' could not be read`);
       return;
     }
-    const items = await listItems(collection.dataDir);
-    log.info("collections", "collection action seed built", { slug: collection.slug, actionId: action.id, items: items.length });
-    res.json({ prompt: buildCollectionActionSeedPrompt(items, collection.schema, template), role: action.role });
+    res.json(seed);
   } catch (err) {
     log.warn("collections", "collection action seed failed", { slug: collection.slug, actionId: req.params.actionId, error: errorMessage(err) });
     serverError(res, errorMessage(err));
