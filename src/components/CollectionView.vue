@@ -388,7 +388,12 @@
         <table class="min-w-full text-xs">
           <thead>
             <tr class="bg-slate-50 border-b border-slate-200">
-              <th v-for="[key, field] in listColumnFields" :key="key" class="px-5 py-3 font-bold text-slate-500 text-left uppercase tracking-wider">
+              <th
+                v-for="[key, field] in listColumnFields"
+                :key="key"
+                :aria-sort="isSortableField(field) ? sortAriaValue(key) : undefined"
+                class="px-5 py-3 font-bold text-slate-500 text-left uppercase tracking-wider"
+              >
                 <div class="flex items-center gap-1">
                   <span>{{ field.label }}</span>
                   <button
@@ -878,9 +883,14 @@ function sortButtonClass(key: string): string {
   return effectiveSortDir(key) ? "text-slate-600" : "text-slate-300";
 }
 
-/** Comparable value for one row under the active field, mapped by type. */
-function sortValueOf(field: FieldSpec, key: string, item: CollectionItem): SortValue {
-  const raw = item[key];
+/** ARIA `aria-sort` token for a column's header cell. */
+function sortAriaValue(key: string): "ascending" | "descending" | "none" {
+  const dir = sortDirectionFor(key);
+  return dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none";
+}
+
+/** Comparable value for scalar fields that key off the raw cell value. */
+function scalarSortValue(field: FieldSpec, raw: unknown): SortValue {
   switch (field.type) {
     case "number":
     case "money":
@@ -892,24 +902,30 @@ function sortValueOf(field: FieldSpec, key: string, item: CollectionItem): SortV
       return enumSortValue(field.values, raw);
     case "boolean":
       return boolSortValue(raw === true);
-    case "toggle":
-      return boolSortValue(toggleChecked(item, field));
     case "ref":
       return field.to && typeof raw === "string" && raw ? stringSortValue(refDisplay(field.to, raw)) : stringSortValue(raw);
-    case "derived":
-      return derivedSortValue(field, key, item);
     default:
       return stringSortValue(raw);
   }
 }
 
+/** Comparable value for one row under the active field. Toggle and derived
+ *  need the whole record; every other type keys off the raw cell. */
+function sortValueOf(field: FieldSpec, key: string, item: CollectionItem): SortValue {
+  if (field.type === "toggle") return boolSortValue(toggleChecked(item, field));
+  if (field.type === "derived") return derivedSortValue(field, key, item);
+  return scalarSortValue(field, item[key]);
+}
+
 /** Derived rows sort by their display type: money/number → numeric,
- *  anything else → the enriched value as a string. */
+ *  date/datetime → epoch, anything else → the enriched value as a string. */
 function derivedSortValue(field: FieldSpec, key: string, item: CollectionItem): SortValue {
-  if (field.display === undefined || field.display === "number" || field.display === "money") {
+  const { display } = field;
+  if (display === undefined || display === "number" || display === "money") {
     return numericSortValue(evaluateDerivedAgainstItem(field, key, item));
   }
   const enriched = collection.value ? render.deriveAll(collection.value.schema, item, render.refRecordCache.value) : item;
+  if (display === "date" || display === "datetime") return dateSortValue(enriched[key]);
   return stringSortValue(enriched[key]);
 }
 
