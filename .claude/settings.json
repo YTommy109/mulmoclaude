@@ -3,16 +3,7 @@
     "allow": [
       "Bash(yarn test)",
       "Bash(yarn test *)",
-      "Bash(yarn test:*)",
-      "Bash(yarn lint)",
-      "Bash(yarn lint *)",
-      "Bash(yarn typecheck)",
-      "Bash(yarn typecheck *)",
-      "Bash(yarn format)",
-      "Bash(yarn format *)",
-      "Bash(sed -n *)",
-      "Bash(ls *)",
-      "mcp__mulmoclaude__readXPost"
+      "Bash(yarn test:*)"
     ]
   },
   "hooks": {

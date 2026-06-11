@@ -95,7 +95,11 @@ async function loadRequestedItems(
   const items: CollectionItem[] = [];
   const missing: string[] = [];
   for (const recordId of ids) {
-    const item = await readItem(collection.dataDir, recordId, { workspaceRoot: deps.workspaceRoot });
+    // readItem THROWS on a malformed record file (only ENOENT is null) —
+    // for the tool that's a `missing` entry, not a failed call: the
+    // warning scan that runs whenever something is missing then names
+    // the broken file and how to fix it.
+    const item = await readItem(collection.dataDir, recordId, { workspaceRoot: deps.workspaceRoot }).catch(() => null);
     if (item) items.push(item);
     else missing.push(recordId);
   }
@@ -109,7 +113,11 @@ async function handleGetItems(collection: LoadedCollection, args: GetItemsArgs, 
   }
   const enriched = await enrichItems(collection, items, deps);
   const projected = args.fields ? enriched.map((item) => projectFields(item, args.fields as string[], collection.schema.primaryKey)) : enriched;
-  const warning = await recordIssuesWarning(collection, deps);
+  // The warning scan reads every record file, so don't pay it on a
+  // selective read that found everything it asked for — only a full
+  // listing (where a malformed file silently looks absent) or a missing
+  // requested id (where the scan explains WHY it's missing) needs it.
+  const warning = !args.ids || missing.length > 0 ? await recordIssuesWarning(collection, deps) : undefined;
   return JSON.stringify({
     collection: collection.slug,
     count: projected.length,
@@ -143,7 +151,13 @@ interface RejectedRow {
  *  `notes`/`lesson`/…). Merge is a partial UPDATE by definition, so a
  *  missing record is a reject, not an implicit create — a merged-over-
  *  nothing partial record is exactly the data shape this mode exists
- *  to prevent. */
+ *  to prevent.
+ *
+ *  Computed keys found in the STORED record are stripped before the
+ *  merge: the caller's own row was already computed-key-rejected, but a
+ *  raw-written / legacy record can carry a stale `derived`/`embed`/
+ *  `toggle` value, and re-writing it would perpetuate a forged
+ *  host-computed value. A merge heals the record instead. */
 async function mergeWithExisting(
   collection: LoadedCollection,
   record: CollectionItem,
@@ -152,7 +166,8 @@ async function mergeWithExisting(
 ): Promise<CollectionItem | string> {
   const existing = await readItem(collection.dataDir, itemId, { workspaceRoot: deps.workspaceRoot });
   if (!existing) return `'${itemId}' not found — mode "merge" updates an existing record; use "upsert" or "create" to add it`;
-  return { ...existing, ...record };
+  const stored = Object.entries(existing).filter(([key]) => !COMPUTED_TYPES.has(collection.schema.fields[key]?.type ?? ""));
+  return { ...Object.fromEntries(stored), ...record };
 }
 
 async function putOneItem(

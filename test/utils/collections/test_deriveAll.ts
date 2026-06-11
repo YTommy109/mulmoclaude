@@ -56,6 +56,30 @@ describe("deriveAll — saturation across chained derived fields", () => {
   });
 });
 
+describe("deriveAll — persisted derived values are never trusted", () => {
+  const schema: DerivableSchema = {
+    fields: {
+      ticker: field("ref", { to: "stock-quotes" }),
+      shares: field("number"),
+      value: field("derived", { formula: "shares * ticker.price" }),
+    },
+  };
+
+  it("a stale stored value is stripped when the formula fails (dangling ref)", () => {
+    // The record carries value: 999 (raw Write / legacy data); the
+    // formula can't evaluate. The stale value must NOT survive as if
+    // host-computed.
+    const enriched = deriveAll(schema, { ticker: "ghost", shares: 10, value: 999 }, {});
+    assert.equal(enriched.value, undefined);
+  });
+
+  it("a stale stored value is replaced when the formula succeeds", () => {
+    const refRecords = { "stock-quotes": { aapl: { price: 200 } } };
+    const enriched = deriveAll(schema, { ticker: "aapl", shares: 10, value: 999 }, refRecords);
+    assert.equal(enriched.value, 2000);
+  });
+});
+
 describe("deriveAll — cycles", () => {
   it("saturates without looping on a 2-cycle", () => {
     const schema: DerivableSchema = {

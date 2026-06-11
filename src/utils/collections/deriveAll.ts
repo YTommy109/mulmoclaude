@@ -53,10 +53,18 @@ export function resolveRowRefs(schema: DerivableSchema, record: DerivableRecord,
  *  pass (`subtotal → tax → total` converges in ≤ field-count passes).
  *  Cycles can't loop forever — passes are bounded by the number of
  *  derived fields and the loop breaks as soon as a pass changes
- *  nothing. Failed formulas stay absent/null (the UI renders them as
- *  em-dash). Returns a copy; `base` is never mutated. */
+ *  nothing. Failed formulas stay ABSENT (the UI renders them as
+ *  em-dash). Returns a copy; `base` is never mutated.
+ *
+ *  Derived keys already present in `base` are stripped before
+ *  evaluation: computed output is host-truth, never persisted-input
+ *  fallback. A record JSON can carry a stale (or forged) derived value
+ *  — raw Write/Edit, legacy data — and without the strip, a failing
+ *  formula would silently surface that value as if the host computed
+ *  it. */
 export function deriveAll(schema: DerivableSchema, base: DerivableRecord, refRecords: DeriveRefRecords): DerivableRecord {
-  const enriched: DerivableRecord = { ...base };
+  const derivedKeys = new Set(Object.keys(schema.fields).filter((key) => schema.fields[key]?.type === "derived"));
+  const enriched: DerivableRecord = Object.fromEntries(Object.entries(base).filter(([key]) => !derivedKeys.has(key)));
   const refs = resolveRowRefs(schema, base, refRecords);
   const maxPasses = Object.values(schema.fields).filter((field) => field.type === "derived").length;
   for (let pass = 0; pass < maxPasses; pass++) {

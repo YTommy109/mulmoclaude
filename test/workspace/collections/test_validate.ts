@@ -129,11 +129,18 @@ describe("validateRecordObject — the write-gate variant", () => {
     assert.match(check({ id: "a", title: "T", status: "nope" }, "a") ?? "", /not one of/);
   });
 
-  it("skips computed field types entirely", () => {
-    const withDerived = {
+  it("skips computed field types entirely (derived, embed, toggle)", () => {
+    // All three COMPUTED_TYPES marked required: a record carrying none
+    // of them must still validate — they're host-computed, never stored.
+    const withComputed = {
       ...schema,
-      fields: { ...schema.fields, total: { type: "derived", label: "Total", formula: "1 + 1", required: true } },
+      fields: {
+        ...schema.fields,
+        total: { type: "derived", label: "Total", formula: "1 + 1", required: true },
+        owner: { type: "embed", label: "Owner", to: "profile", id: "me", required: true },
+        done: { type: "toggle", label: "Done", field: "status", onValue: "done", offValue: "planned", required: true },
+      },
     } as unknown as CollectionSchema;
-    assert.equal(validateRecordObject({ id: "a", title: "T", status: "done" }, "a", withDerived), null);
+    assert.equal(validateRecordObject({ id: "a", title: "T", status: "done" }, "a", withComputed), null);
   });
 });

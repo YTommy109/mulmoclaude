@@ -43,6 +43,19 @@ const portfolioSchema = {
     value: { type: "derived", label: "Value", formula: "shares * ticker.price" },
     status: { type: "enum", label: "Status", values: ["open", "closed"] },
     closed: { type: "toggle", label: "Closed", field: "status", onValue: "closed", offValue: "open" },
+    owner: { type: "embed", label: "Owner", to: "profile", id: "me" },
+  },
+};
+
+const profileSchema = {
+  title: "Profile",
+  icon: "person",
+  dataPath: "data/profile/items",
+  primaryKey: "id",
+  singleton: "me",
+  fields: {
+    id: { type: "string", label: "ID", primary: true, required: true },
+    name: { type: "string", label: "Name" },
   },
 };
 
@@ -52,7 +65,9 @@ beforeEach(() => {
   tool = makeManageCollectionTool({ workspaceRoot: workdir, userSkillsDir: emptyUserDir });
   writeSkill("stock-quotes", quotesSchema);
   writeSkill("portfolio", portfolioSchema);
+  writeSkill("profile", profileSchema);
   writeRecord("data/stock-quotes/items", "aapl", { symbol: "aapl", price: 200 });
+  writeRecord("data/profile/items", "me", { id: "me", name: "Satoshi" });
 });
 
 afterEach(() => {
@@ -124,6 +139,23 @@ describe("manageCollection — getItems", () => {
     assert.deepEqual(result.missing, ["ghost"]);
   });
 
+  it("resolves embed fields to the target record, null when missing", async () => {
+    const withProfile = await runJson({ action: "getItems", slug: "portfolio", ids: ["h1"] });
+    const [item] = withProfile.items as Record<string, unknown>[];
+    assert.deepEqual(item?.owner, { id: "me", name: "Satoshi" });
+    rmSync(path.join(workdir, "data/profile/items/me.json"), { force: true });
+    const withoutProfile = await runJson({ action: "getItems", slug: "portfolio", ids: ["h1"] });
+    const [bare] = withoutProfile.items as Record<string, unknown>[];
+    assert.equal(bare?.owner, null);
+  });
+
+  it("a stale stored derived value never reaches the result", async () => {
+    writeRecord("data/portfolio/items", "h9", { id: "h9", name: "Forged", ticker: "ghost", shares: 10, value: 999, status: "open" });
+    const result = await runJson({ action: "getItems", slug: "portfolio", ids: ["h9"] });
+    const [item] = result.items as Record<string, unknown>[];
+    assert.equal(item?.value, undefined); // formula fails (dangling ref) → absent, not 999
+  });
+
   it("projects fields, always keeping the primary key", async () => {
     const result = await runJson({ action: "getItems", slug: "portfolio", ids: ["h1"], fields: ["value"] });
     const [item] = result.items as Record<string, unknown>[];
@@ -135,6 +167,16 @@ describe("manageCollection — getItems", () => {
     const result = await runJson({ action: "getItems", slug: "portfolio" });
     assert.match(String(result.warning), /bad\.json/);
     assert.match(String(result.warning), /1 record file/);
+  });
+
+  it("skips the warning scan on a selective read that found everything", async () => {
+    writeFileSync(path.join(workdir, "data/portfolio/items/bad.json"), '{ "id": "bad", broken');
+    const found = await runJson({ action: "getItems", slug: "portfolio", ids: ["h1"] });
+    assert.equal(found.warning, undefined); // all requested ids present → no full scan
+    // A requested id that comes back missing IS explained by the scan.
+    const missed = await runJson({ action: "getItems", slug: "portfolio", ids: ["bad"] });
+    assert.deepEqual(missed.missing, ["bad"]);
+    assert.match(String(missed.warning), /bad\.json/);
   });
 
   it("refuses an unselective read over the limit, lifted by fields", async () => {
@@ -182,6 +224,8 @@ describe("manageCollection — putItems", () => {
     assert.match(rejected.find((row) => row.id === "a")?.problem ?? "", /'value' is derived/);
     assert.match(rejected.find((row) => row.id === "b")?.problem ?? "", /write the enum field 'status' instead/);
     assert.deepEqual(result.written, []);
+    const embed = await runJson({ action: "putItems", slug: "portfolio", items: [record("c", { owner: { id: "me" } })] });
+    assert.match((embed.rejected as { problem: string }[])[0]?.problem ?? "", /'owner' is an embed/);
   });
 
   it("rejects path-shaped ids before any write", async () => {
@@ -223,6 +267,18 @@ describe("manageCollection — putItems", () => {
     const [rejectedRow] = result.rejected as { id: string; problem: string }[];
     assert.match(rejectedRow?.problem ?? "", /not found .* use "upsert" or "create"/);
     assert.ok(!existsSync(path.join(workdir, "data/portfolio/items/ghost.json")));
+  });
+
+  it('mode "merge" heals a stale computed key in the stored record', async () => {
+    // Raw-written/legacy record carrying a forged host-computed value:
+    // a merge must not re-write it.
+    writeRecord("data/portfolio/items", "h1", record("h1", { value: 999, notes: "keep me" }));
+    const merged = await runJson({ action: "putItems", slug: "portfolio", items: [{ id: "h1", status: "closed" }], mode: "merge" });
+    assert.deepEqual(merged.written, ["h1"]);
+    const healed = stored("h1");
+    assert.ok(!("value" in healed), "stale derived key must be stripped on merge");
+    assert.equal(healed.notes, "keep me");
+    assert.equal(healed.status, "closed");
   });
 
   it('mode "merge" still validates the merged result and rejects computed keys', async () => {

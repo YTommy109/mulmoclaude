@@ -121,6 +121,14 @@ describe("enrichItems — derived across refs", () => {
     assert.equal(enriched?.value, undefined);
   });
 
+  it("a stale stored derived value never survives enrichment", async () => {
+    // Raw-written/legacy record carrying value: 999 with a formula that
+    // can't evaluate (dangling ticker): the stale value must come back
+    // absent, not echoed as host-computed truth.
+    const [enriched] = await enrichPortfolio([{ id: "h1", ticker: "ghost", shares: 10, value: 999 }]);
+    assert.equal(enriched?.value, undefined);
+  });
+
   it("missing target collection leaves the derived field absent", async () => {
     rmSync(path.join(workdir, ".claude/skills/stock-quotes"), { recursive: true, force: true });
     const [enriched] = await enrichPortfolio([{ id: "h1", ticker: "aapl", shares: 10 }]);
