@@ -334,9 +334,10 @@ collection. Keep it short — the schema and templates do the heavy lifting. Cov
     moment you present the current one** (not after running it) — and only once
     everything is `mastered`, append the next batch of `planned` lessons (paragraph
     `objective` each, HTML authored lazily later).
-- **Operations** — all I/O is plain Read / Write / Edit on
-  `data/lessons-<topic>/items/<id>.json`, one record per file (Add / List /
-  Update status / Edit / Delete). Rather than dumping the whole course into chat,
+- **Operations** — record I/O via `manageCollection` (`getItems` to read,
+  `putItems` for schema-validated Add / Update; Delete removes the file at
+  `data/lessons-<topic>/items/<id>.json`; raw Read / Write / Edit is the
+  escape hatch). Rather than dumping the whole course into chat,
   point the user at `/collections/lessons-<topic>`.
 - **When to call `presentCollection`** — when the **course itself** changes: after
   creating the collection or adding/extending lessons (it also surfaces malformed
