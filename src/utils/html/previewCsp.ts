@@ -36,7 +36,7 @@ export const HTML_PREVIEW_CSP_ALLOWED_CDNS: readonly string[] = [
  * undefined for the `srcdoc` fallback (where `'self'` is meaningless
  * either way and there are no same-origin refs to resolve).
  */
-function buildCsp(connectSrc: string, imgSelf: string, cdns: readonly string[], extraImgSrc = ""): string {
+function buildCsp(connectSrc: string, imgSelf: string, cdns: readonly string[], extraImgSrc = "", mediaSrc = ""): string {
   const cdnList = cdns.join(" ");
   const imgExtra = extraImgSrc ? ` ${extraImgSrc}` : "";
   return [
@@ -56,6 +56,11 @@ function buildCsp(connectSrc: string, imgSelf: string, cdns: readonly string[], 
     // legitimately needs more hosts. `extraImgSrc` lets a specific caller
     // (custom views) opt into a broader source set — see buildCustomViewCsp.
     `img-src ${imgSelf} ${cdnList} data: blob:${imgExtra}`,
+    // Audio / video: omitted by default, so `<audio>`/`<video>` fall back to
+    // default-src 'none' (preview + print stay locked). Custom views opt in via
+    // `mediaSrc` so a record's media URL (e.g. a podcast feed's .mp3) plays;
+    // same one-way GET-exfil tradeoff as img-src, see buildCustomViewCsp.
+    ...(mediaSrc ? [`media-src ${mediaSrc}`] : []),
     `connect-src ${connectSrc}`,
   ].join("; ");
 }
@@ -97,13 +102,18 @@ export function buildHtmlPreviewCsp(origin?: string, cdns: readonly string[] = H
  *     XHR / WebSocket / beacon stay origin-locked, so bulk/bidirectional exfil
  *     is still blocked. If you need the strict guarantee back, proxy images
  *     through the origin instead of widening `img-src`.
+ *   - **`media-src` likewise allows the origin + any `https:` host** (+ `data:`/
+ *     `blob:`), so a record's audio/video URL — e.g. a podcast feed's `.mp3` —
+ *     plays in an `<audio>`/`<video>` element. Same one-way GET-exfil tradeoff
+ *     as `img-src`, accepted for the same reasons; the streamed bytes flow into
+ *     the element, not into readable script state.
  *
  * `origin` MUST be the explicit server origin: the sandboxed iframe has an
  * opaque origin, so `'self'` would never match (same reason the preview policy
  * substitutes the origin into `img-src`).
  */
 export function buildCustomViewCsp(origin: string, cdns: readonly string[] = HTML_PREVIEW_CSP_ALLOWED_CDNS): string {
-  return buildCsp(origin, origin, cdns, "https:");
+  return buildCsp(origin, origin, cdns, "https:", `${origin} https: data: blob:`);
 }
 
 /**

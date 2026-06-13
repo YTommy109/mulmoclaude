@@ -51,6 +51,12 @@ describe("buildHtmlPreviewCsp", () => {
     assert.ok(!/img-src \*/.test(csp));
   });
 
+  it("sets no media-src, so audio/video falls back to default-src 'none'", () => {
+    // Media loosening is custom-view-only (buildCustomViewCsp). The Files
+    // preview keeps <audio>/<video> blocked via the default-src fallback.
+    assert.ok(!buildHtmlPreviewCsp().includes("media-src"));
+  });
+
   it("accepts a custom CDN list", () => {
     const csp = buildHtmlPreviewCsp(undefined, ["https://example.com"]);
     assert.ok(csp.includes("script-src 'unsafe-inline' https://example.com"));
@@ -85,6 +91,12 @@ describe("buildCustomViewCsp", () => {
   it("keeps the wildcard out of img-src (https: scheme, not *)", () => {
     const csp = buildCustomViewCsp("http://localhost:3001");
     assert.ok(!/img-src[^;]*\*/.test(csp));
+  });
+
+  it("adds a media-src allowing the origin + https (so a record's audio/video plays)", () => {
+    const csp = buildCustomViewCsp("http://localhost:3001");
+    assert.match(csp, /media-src http:\/\/localhost:3001 https: data: blob:/);
+    assert.ok(!/media-src[^;]*\*/.test(csp), "media-src must not be a wildcard");
   });
 });
 

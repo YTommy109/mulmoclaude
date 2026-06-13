@@ -115,6 +115,9 @@ The view runs in a `sandbox="allow-scripts"` iframe with a strict CSP:
   image URL stored in a record — a feed's article thumbnail, a poster, an
   avatar — renders directly. (Images are the one resource type not pinned to the
   CDN allowlist; everything else above still is.)
+- **`<audio>` / `<video>` may load from any `https:` host** (plus the origin and
+  `data:` / `blob:`), so a record's media URL — a podcast feed's `.mp3`, a
+  video enclosure — plays directly.
 - **`fetch` (and XHR / WebSocket / `sendBeacon`) is allowed ONLY to
   `window.__MC_VIEW.dataUrl`'s origin.** All other origins are blocked — no
   phone-home, no third-party analytics, no fetching weather / prices / etc.
