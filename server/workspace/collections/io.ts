@@ -215,6 +215,27 @@ export function generateItemId(): string {
   return randomBytes(4).toString("hex");
 }
 
+/** Read a collection's custom-view HTML from its `data/skills/<slug>/views/`
+ *  staging dir, path-safely. `viewFile` is a schema-validated `views/*.html`
+ *  path; `slug` is sanitised and the resolved path is realpath-contained to
+ *  the skill dir. Returns the HTML, or null when the slug/path is unsafe or
+ *  the file is missing. Custom-view HTML is staging-only — never mirrored to
+ *  `.claude/skills` — because rendering is host-side (see
+ *  plans/feat-collections-custom-views.md). */
+export async function readCustomViewHtml(slug: string, viewFile: string, opts: IoOptions = {}): Promise<string | null> {
+  const safeSlug = safeSlugName(slug);
+  if (safeSlug === null) return null;
+  const workspaceRoot = opts.workspaceRoot ?? workspacePath;
+  const viewsBase = path.join(workspaceRoot, "data", "skills", safeSlug);
+  const resolved = resolveTemplatePath(viewsBase, viewFile);
+  if (resolved === null) return null;
+  try {
+    return await readFile(resolved, "utf-8");
+  } catch {
+    return null;
+  }
+}
+
 /** The item id a CREATE should use for `schema`, or null when the
  *  caller should generate one. A singleton collection pins every
  *  create to its fixed `schema.singleton` id, so the "at most one

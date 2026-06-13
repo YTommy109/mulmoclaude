@@ -11,7 +11,7 @@ This file is only about the **view** layer.
 
 ## Where the files go
 
-```
+```text
 data/skills/<slug>/
   schema.json          ← register the view here, under `views[]`
   views/

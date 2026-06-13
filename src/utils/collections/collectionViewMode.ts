@@ -20,9 +20,11 @@ const BUILT_IN_MODES: readonly BuiltInViewMode[] = ["table", "calendar", "kanban
 
 /** A persisted mode is valid if it's a known built-in OR any `custom:<id>`
  *  key (the id is validated against the live schema at render time, so an
- *  unknown custom id simply collapses to the table there). */
-function isValidViewMode(value: string): value is CollectionViewMode {
-  return BUILT_IN_MODES.includes(value as BuiltInViewMode) || value.startsWith("custom:");
+ *  unknown custom id simply collapses to the table there). Takes `unknown`
+ *  and type-guards `string` first: a corrupted localStorage entry could hold a
+ *  number/object, and calling `.startsWith` on that would throw. */
+function isValidViewMode(value: unknown): value is CollectionViewMode {
+  return typeof value === "string" && (BUILT_IN_MODES.includes(value as BuiltInViewMode) || value.startsWith("custom:"));
 }
 
 type ViewModeMap = Record<string, CollectionViewMode>;
@@ -41,8 +43,8 @@ function readAll(): ViewModeMap {
 }
 
 export function readCollectionViewMode(slug: string): CollectionViewMode | null {
-  const stored = readAll()[slug];
-  return stored && isValidViewMode(stored) ? stored : null;
+  const stored: unknown = readAll()[slug];
+  return isValidViewMode(stored) ? stored : null;
 }
 
 export function writeCollectionViewMode(slug: string, view: CollectionViewMode): void {

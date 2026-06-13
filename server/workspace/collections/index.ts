@@ -10,6 +10,7 @@ export {
   generateItemId,
   resolveCreateItemId,
   readSkillTemplate,
+  readCustomViewHtml,
   buildActionSeedPrompt,
   buildCollectionActionSeedPrompt,
   type WriteItemResult,

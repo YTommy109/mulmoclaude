@@ -56,6 +56,17 @@ describe("viewToken — rejects tampering", () => {
     assert.equal(verifyViewToken("."), null);
   });
 
+  it("fails closed (no throw) on a multi-byte signature, not a 500", () => {
+    const minted = mintViewToken("c", ["read"]);
+    assert.ok(minted);
+    const [payload] = minted.token.split(".");
+    // A signature with the same CHARACTER count as the real one but multi-byte
+    // chars: timingSafeEqual would throw on the buffer-length mismatch if we
+    // only guarded string length. Must return null, never throw.
+    assert.doesNotThrow(() => verifyViewToken(`${payload}.${"€".repeat(43)}`));
+    assert.equal(verifyViewToken(`${payload}.${"€".repeat(43)}`), null);
+  });
+
   it("returns null once a different server key is in effect", async () => {
     const minted = mintViewToken("c", ["read"]);
     assert.ok(minted);

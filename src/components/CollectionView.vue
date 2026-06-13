@@ -110,11 +110,12 @@
       </button>
     </header>
 
-    <!-- Search Toolbar. Shown when there are items to search OR when the
-         calendar toggle is available — the toggle must reach an empty
-         date-bearing collection so its empty-day create affordance works. -->
+    <!-- Search Toolbar. Shown when there are items to search OR when a view
+         toggle is available — the toggle must reach an empty date-bearing
+         collection (empty-day create) and a collection whose only views are
+         custom ones (so its buttons + the "+" stay reachable). -->
     <div
-      v-if="collection && (items.length > 0 || hasCalendar || hasKanban)"
+      v-if="collection && (items.length > 0 || hasCalendar || hasKanban || hasCustomViews || canAddCustomView)"
       class="px-6 py-3 bg-white border-b border-slate-100 flex items-center justify-between gap-4"
     >
       <div v-if="items.length > 0" class="relative flex-1 max-w-md">

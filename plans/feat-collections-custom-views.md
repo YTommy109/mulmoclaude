@@ -92,7 +92,7 @@ the existing `img-src` handling.
 
 ## The data flow (end to end)
 
-```
+```text
  ┌── parent (authenticated, holds global bearer) ──────────────────────────┐
  │ 1. user selects a custom view in CollectionView.vue                     │
  │ 2. parent mints a scoped token:                                         │

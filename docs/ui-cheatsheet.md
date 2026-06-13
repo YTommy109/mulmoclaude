@@ -285,7 +285,7 @@ The preview pane renders by file type (markdown, images, JSON/JSONL syntax highl
 ```
 ┌─[<CollectionView> — /collections/:slug]────────────────────────────────┐
 │ Toolbar: [collection-view-toggle-table|-calendar|-kanban|-dashboard]    │
-│          [collection-view-custom-<id>]… [collection-view-add (+)]       │
+│          [collection-view-custom-<id>]… [collection-view-add] (+)       │
 │                                                                         │
 │ [collections-inline-error] (banner, only after a failed inline write)   │
 │ ┌─Table──────────────────────────────────────────────────────────────┐ │

@@ -87,11 +87,15 @@ export function verifyViewToken(token: string, nowMs: number = Date.now()): View
   const payloadB64 = token.slice(0, dot);
   const providedSig = token.slice(dot + 1);
   const expectedSig = signPayload(payloadB64, key);
-  // Length-guard before timingSafeEqual (it throws on length mismatch);
-  // the lengths are non-secret (fixed-size HMAC), so the early-out leaks
-  // nothing useful.
-  if (providedSig.length !== expectedSig.length) return null;
-  if (!timingSafeEqual(Buffer.from(providedSig), Buffer.from(expectedSig))) return null;
+  // Compare BYTE lengths (not string lengths) before timingSafeEqual — it
+  // throws a RangeError on a buffer-length mismatch, and a malformed signature
+  // with the same character count but multi-byte chars would otherwise crash
+  // the request (500) instead of failing closed. The lengths are non-secret
+  // (fixed-size HMAC), so the early-out leaks nothing useful.
+  const providedBuf = Buffer.from(providedSig);
+  const expectedBuf = Buffer.from(expectedSig);
+  if (providedBuf.length !== expectedBuf.length) return null;
+  if (!timingSafeEqual(providedBuf, expectedBuf)) return null;
   let parsed: unknown;
   try {
     parsed = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8"));

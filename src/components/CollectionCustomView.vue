@@ -71,14 +71,23 @@ function scheduleRefresh(expMs: number): void {
   refreshTimer = setTimeout(() => void load(), delay);
 }
 
+// Monotonic load id: a switch/refresh that starts a newer load() must win, so
+// a slower in-flight load can't clobber the current view's srcdoc when it
+// finally resolves. Each load captures its id and bails on every commit if a
+// newer load has started.
+let loadSeq = 0;
+
 async function load(): Promise<void> {
   clearRefresh();
+  const seq = ++loadSeq;
+  const stale = (): boolean => seq !== loadSeq;
   loading.value = true;
   error.value = null;
   srcdoc.value = null;
   try {
     // 1. Mint a scoped token for this view's declared capabilities.
     const mint = await apiPost<MintResponse>(viewTokenUrl.value, { viewId: props.view.id });
+    if (stale()) return;
     if (!mint.ok) {
       error.value = mint.error;
       return;
@@ -87,11 +96,13 @@ async function load(): Promise<void> {
     scheduleRefresh(mint.data.exp);
     // 2. Fetch the view's HTML (global-bearer; attached by apiFetchRaw).
     const resp = await apiFetchRaw(viewFileUrl.value, { query: { id: props.view.id } });
+    if (stale()) return;
     if (!resp.ok) {
       error.value = `HTTP ${resp.status}`;
       return;
     }
     const html = await resp.text();
+    if (stale()) return;
     // 3. Render it sandboxed with the token + CSP injected.
     srcdoc.value = buildCustomViewSrcdoc(html, {
       slug: props.slug,
@@ -100,9 +111,9 @@ async function load(): Promise<void> {
       origin: window.location.origin,
     });
   } catch (err) {
-    error.value = errorMessage(err);
+    if (!stale()) error.value = errorMessage(err);
   } finally {
-    loading.value = false;
+    if (!stale()) loading.value = false;
   }
 }
 

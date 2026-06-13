@@ -8,8 +8,6 @@
 //   PUT    /api/collections/:slug/items/:itemId   → { item, itemId }
 //   DELETE /api/collections/:slug/items/:itemId   → { deleted: true }
 
-import path from "node:path";
-import { readFile } from "node:fs/promises";
 import { Router, Request, Response, NextFunction } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { actionVisible } from "../../../src/utils/collections/actionVisible.js";
@@ -23,6 +21,7 @@ import {
   loadCollection,
   readItem,
   readSkillTemplate,
+  readCustomViewHtml,
   buildActionSeedPrompt,
   buildCollectionActionSeedPrompt,
   resolveCreateItemId,
@@ -45,7 +44,6 @@ import { log } from "../../system/logger/index.js";
 import { workspacePath } from "../../workspace/workspace.js";
 import { refreshOne } from "../../workspace/feeds/index.js";
 import { manageCollection } from "../../agent/mcp-tools/manageCollection.js";
-import { resolveTemplatePath, safeSlugName } from "../../workspace/collections/paths.js";
 import { clampCapabilities, mintViewToken, requireViewToken, type ViewCapability } from "../auth/viewToken.js";
 
 const router = Router();
@@ -452,20 +450,11 @@ router.get(API_ROUTES.collections.viewFile, async (req: Request<{ slug: string }
       notFound(res, `custom view '${viewId}' not found on collection '${slug}'`);
       return;
     }
-    const safeSlug = safeSlugName(slug);
-    if (!safeSlug) {
-      badRequest(res, `invalid collection slug '${slug}'`);
-      return;
-    }
-    const viewsBase = path.join(workspacePath, "data", "skills", safeSlug);
-    const resolved = resolveTemplatePath(viewsBase, view.file);
-    if (!resolved) {
-      forbidden(res, `view file path for '${viewId}' escapes the collection`);
-      return;
-    }
-    const html = await readFile(resolved, "utf8").catch(() => null);
+    // Path-safe read through the collections domain layer (no raw fs / hardcoded
+    // subpaths in the route): staging-only `data/skills/<slug>/views/*.html`.
+    const html = await readCustomViewHtml(slug, view.file);
     if (html === null) {
-      notFound(res, `view file '${view.file}' not found — author it at data/skills/${safeSlug}/${view.file}`);
+      notFound(res, `view file '${view.file}' not found — author it at data/skills/<slug>/${view.file}`);
       return;
     }
     res.type("text/html").send(html);
