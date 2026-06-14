@@ -1,0 +1,538 @@
+\documentclass[11pt]{article}
+
+% --- packages ---------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[colorlinks=true,allcolors=blue]{hyperref}
+
+% --- listings (JSON / ascii diagrams) ---------------------------------------
+\definecolor{codebg}{gray}{0.96}
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  framesep=4pt,
+  rulecolor=\color{gray!40},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  aboveskip=1em,
+  belowskip=1em,
+}
+
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+% Include a screenshot if present, else a labeled placeholder box.
+\newcommand{\viewfig}[1]{%
+  \IfFileExists{#1}{\includegraphics[width=\linewidth]{#1}}{%
+    \fbox{\parbox[c][3cm][c]{0.92\linewidth}{\centering\footnotesize\itshape
+      screenshot pending\\\texttt{\scriptsize #1}}}}}
+
+% --- title ------------------------------------------------------------------
+\title{\textbf{The Workspace Is the Self-Improving Agent}}
+
+\author{
+  Satoshi Nakajima\\
+  \small The Singularity Society\\
+  \small \texttt{satoshi.nakajima@gmail.com}
+}
+
+\date{\today}
+
+\begin{document}
+\maketitle
+\let\thefootnote\relax\footnotetext{\copyright\ 2026 Satoshi Nakajima. This work is
+licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) license:
+\url{https://creativecommons.org/licenses/by/4.0/}.}
+
+\begin{abstract}
+A common framing for file-backed LLM assistants is \emph{the workspace is the
+database}: the file system stores data and the model is an interface that reads and
+writes it. We argue this framing understates what is actually on disk. In
+MulmoClaude, an open-source agent application, the workspace holds not only
+\emph{data} (notes, records, generated artifacts) but \emph{code}: persona
+definitions, tool wiring, application schemas, procedural skills, and recurring
+automations, almost all written in domain-specific languages the model interprets.
+Once the artifact the agent maintains includes its own \emph{behavior}, the sharper
+statement is \textbf{the workspace is the agent}, and an agent that authors its own
+workspace is \emph{self-improving}---not because its weights change, but because it
+accretes and refines a personal suite of applications in its own substrate. We make
+this concrete with three contributions: (i) an account of the workspace-as-agent
+architecture, in which identity, capability, behavior, and memory are all
+inspectable, forkable (\code{cp -r}), and versionable (\code{git}) files; (ii) a
+\emph{self-improvement loop}---recognize, crystallize, tune, retire---by which the
+agent promotes a recurring need into a durable application; and (iii) an economic
+reframing, \emph{software for an audience of one}, in which the marginal cost of
+bespoke software collapses, code becomes a disposable intermediate representation,
+and the burden of correctness relocates from a vendor's QA to the trust between one
+user and one model. We report a longitudinal single-user deployment in which a
+personalized application suite (24 schema-defined applications, 3 external feeds,
+and 9 bespoke views) accreted over roughly two months, and we are explicit about
+the limitations: self-improvement requires self-pruning, execution is not
+replayable, a self-modifying file-based agent widens its own attack surface, and
+our evidence is a single author-operated deployment.
+\end{abstract}
+
+\noindent\textbf{Keywords:} LLM agents; self-improving agents; agent memory;
+end-user software engineering; applications as data; personal software; agent
+security.
+
+% ===========================================================================
+\section{Introduction}
+\label{sec:intro}
+
+A productive design philosophy for file-backed LLM assistants is \emph{the
+workspace is the database; files are the source of truth; the model is the
+intelligent interface.} It positions the file system as storage and the model as
+the component that reads and writes it. The framing is correct but incomplete,
+because it describes only half of what lives in a mature agent workspace.
+
+Consider what is actually on disk in MulmoClaude, an open-source agent application
+built on the Claude Agent SDK. Alongside the obvious \emph{data}---notes, records,
+generated artifacts---are persona definitions that fix the agent's behavior, a
+tool-and-server manifest that fixes its capabilities, application schemas that
+define entire data-backed apps, procedural skill files the agent reads to operate
+those apps, and automation definitions that fix when it acts proactively. These are
+not data; they are \emph{program}, almost all written in domain-specific languages
+(DSLs) that the model interprets at run time. The model is therefore not merely an
+interface onto stored data; it is the \textbf{runtime that interprets a multi-DSL
+program persisted as files.} Strip the running process away and the agent does not
+vanish---it sits, complete and inspectable, on disk.
+
+That observation motivates a sharper claim: \textbf{the workspace is the agent.}
+And because the artifact the agent maintains now includes its own behavior and
+capabilities, an agent that edits its workspace is editing itself. We call this
+\emph{self-improvement}, and we mean something precise by it (\S\ref{sec:loop}): not
+that the model's weights change---they are fixed---but that the agent accretes and
+refines a \emph{personal suite of applications} in its own substrate, becoming more
+capable in a direction shaped by one particular user.
+
+This paper develops the architecture, the loop that drives it, and its economic
+consequence. The detailed mechanism of the application layer---the Collection
+DSL, its validator, and the host/model reliability split---is the subject of a
+companion paper~\citep{nakajima2026dsl}; here we treat a collection as a given
+building block and focus on what it means when the whole agent is files and the
+agent authors them.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+  \item \textbf{Workspace-as-agent.} We show that an agent's identity, capabilities,
+  behavior, and memory can all be plain files, making the agent inspectable,
+  forkable (\code{cp -r}), and versionable (\code{git}) for free
+  (\S\ref{sec:workspace}, \S\ref{sec:forking}).
+  \item \textbf{The self-improvement loop.} We describe a recognize $\rightarrow$
+  crystallize $\rightarrow$ tune $\rightarrow$ retire loop that promotes a recurring
+  need into a durable, self-authored application, yielding personalization through
+  accreted applications (\S\ref{sec:loop}).
+  \item \textbf{Software for an audience of one.} We argue the marginal cost of
+  bespoke software collapses in this setting, that code becomes a disposable
+  intermediate representation, and that the cost of correctness relocates rather
+  than disappears (\S\ref{sec:one}).
+  \item \textbf{A longitudinal case study} of a single real workspace
+  (\S\ref{sec:casestudy}), and \textbf{an honest account of the limitations}:
+  self-pruning, non-replayability, the security of a self-modifying agent, and the
+  single-user scope of our evidence (\S\ref{sec:limitations}).
+\end{enumerate}
+
+% ===========================================================================
+\section{Background and Related Work}
+\label{sec:related}
+
+\paragraph{Self-improving and memory-augmented agents.}
+Several systems let an agent extend itself over time. Voyager~\citep{wang2023voyager}
+accretes a reusable skill library of generated code; Generative
+Agents~\citep{park2023generative} maintain a memory stream they periodically reflect
+over; Reflexion~\citep{shinn2023reflexion} and Self-Refine~\citep{madaan2023selfrefine}
+improve a task trajectory through verbal self-feedback; STaR~\citep{zelikman2022star}
+bootstraps reasoning by fine-tuning on self-generated rationales. These differ from
+our setting along two axes. First, \emph{substrate}: the accreted artifact is, variously,
+learned weights, a code skill-library, or a memory log, whereas ours is a set of
+\emph{declarative DSL documents}---schemas, roles, automations---that are
+inspectable, diff-able, and validated before they run. Second, \emph{object of
+improvement}: prior work largely improves task-solving \emph{performance}, whereas
+the loop here improves the agent's \emph{application surface}---the durable apps it
+offers a specific user.
+
+\paragraph{Autonomous agent loops and frameworks.}
+AutoGPT~\citep{autogpt} and BabyAGI~\citep{babyagi} popularized autonomous
+plan-act-reflect loops; multi-agent frameworks such as AutoGen~\citep{wu2023autogen}
+structure collaborating agents with configuration files. These accrete \emph{task
+plans} or wire \emph{agent topologies}; our concern is the accretion of durable,
+user-facing \emph{applications} into the agent's own substrate, which persist and
+are reused long after any single task.
+
+\paragraph{Self-maintained knowledge.}
+The direct ancestor of this design is the idea of letting the model build and
+maintain its own knowledge base---a growing, interlinked wiki---rather than a flat
+memory file~\citep{karpathy2025kb}. MulmoClaude ships exactly such a self-maintained
+wiki. This paper extends the principle from self-maintained \emph{data} to
+self-maintained \emph{code}: the same workspace also holds the schemas, skills, and
+roles the agent authors and refines.
+
+\paragraph{Event-log-primary agents.}
+A complementary architecture makes an append-only event log the primary artifact to
+obtain deterministic replay and cheap forking~\citep{ynakajima2026log}. We
+deliberately choose a different primary artifact---the workspace of files---trading
+byte-for-byte run replay (the model step is nondeterministic) for an agent that can
+be read, forked, and evolved as plain configuration; \S\ref{sec:limitations} returns
+to this trade.
+
+\paragraph{End-user software engineering and the audience of one.}
+End-user programming has long sought to let non-programmers build software, from the
+spreadsheet onward~\citep{nardi1993small,ko2011enduser}; the spreadsheet was, in
+effect, the first widely used \emph{software for an audience of one}. The persistent
+price in that tradition is that the user must work inside a constrained authoring
+surface and perform the assembly. The shift we describe (\S\ref{sec:one}) keeps the
+constrained, validated surface but moves authorship to the agent, and connects this
+to a software-economics argument about the collapse of bespoke build cost.
+
+% ===========================================================================
+\section{The Workspace Is the Agent}
+\label{sec:workspace}
+
+The claim is literal. Table~\ref{tab:contents} inventories a MulmoClaude workspace
+by whether each location holds \emph{data} or \emph{code}. Only the bottom rows are
+``the database.'' Everything above is program: it specifies what the agent is, what
+it can do, how it behaves, and when it acts.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Location} & \textbf{What it is} & \textbf{Sense} \\
+\midrule
+\code{config/roles/}          & persona / system-prompt definitions   & code (behavior DSL) \\
+\code{config/mcp.json}        & tool-and-server wiring                 & code (capability DSL) \\
+collection \code{schema.json} & data model + UI + computation + workflow & code (application DSL) \\
+collection \code{SKILL.md}    & how to operate a collection            & code (procedural DSL) \\
+\code{data/scheduler/}        & recurring automations                  & code (trigger DSL) \\
+\code{data/wiki/}             & densely cross-linked knowledge         & data + graph \\
+\code{conversations/memory.md}& accreted facts                         & data \\
+\code{artifacts/}             & generated outputs                      & data \\
+\bottomrule
+\end{tabular}
+\caption{What is actually in an agent workspace. The upper rows are program---the
+agent's behavior, capabilities, and applications---persisted as files in DSLs the
+model interprets. The model is the runtime over this multi-DSL program.}
+\label{tab:contents}
+\end{table}
+
+The agent's identity is \code{config/roles/}; its capability set is
+\code{config/mcp.json} plus its skills; its applications are its collections; its
+proactive behavior is its automations; its long-term knowledge is its wiki and
+memory. None of this is a learned blob separate from the files: the agent
+\emph{is} the files, of which data is one part.
+
+\paragraph{Lineage: from self-maintained memory to self-improvement.}
+The design descends from the self-maintained knowledge base~\citep{karpathy2025kb}:
+let the model curate its own artifact rather than be handed one. A wiki is
+self-maintained \emph{data}; a collection extends that to self-maintained
+\emph{structured} data; the observation here is that the workspace also holds
+self-maintained \emph{code}---schemas, skills, roles, automations. The moment the
+maintained artifact includes the agent's own behavior, ``self-maintaining'' becomes
+``self-improving'' (\S\ref{sec:loop}). This kind of improvement \emph{compounds}:
+each application the agent crystallizes makes the next interaction faster and more
+reliable, and the workspace grows into a personal capability surface no general
+model update reproduces.
+
+% ===========================================================================
+\section{A Collection Is an Application}
+\label{sec:collection}
+
+The load-bearing building block is the \emph{collection}: a single
+\code{schema.json} plus record files that, together with the model as runtime,
+behaves like a traditional application. It has a data model (typed fields),
+relationships (cross-collection references), computation (spreadsheet-like derived
+fields), a user interface (host-rendered field types plus optional bespoke HTML
+views), workflows (declarative actions that hand off to a seeded chat), and
+host-driven recurrence---with \emph{zero} application-specific host code. The
+companion paper~\citep{nakajima2026dsl} develops this mechanism and the validator
+that makes a structurally incoherent schema fail to load; for this paper the
+relevant point is only that a collection is a genuine application, not a memory
+note. It differs from a note in three ways: \emph{structure} (a schema pins the
+shape; a note is re-parsed lossily), \emph{durable behavior} (a collection behaves
+the same tomorrow; a prompt-of-the-moment does not), and \emph{a UI for free}. That
+makes a collection the top rung of a ladder---conversation, then \code{memory.md},
+then a collection, then a collection with workflows and UI---and recognizing when a
+recurring need has stabilized enough to climb it is where self-improvement begins.
+
+% ===========================================================================
+\section{The Boundaries That Dissolve}
+\label{sec:boundaries}
+
+A traditional application is built by developers, shipped across a deployment
+boundary, and run by users. The workspace model erases all three.
+
+\paragraph{The builder is the agent, not a human composer.}
+This is the line that separates the architecture from no-code platforms. In
+Airtable, Notion, or Retool---even with recent AI-assisted authoring---the human
+still composes the app from primitives the platform supplies. Here the user
+expresses a need in natural language, often implicitly through repeated similar
+requests, and the \emph{agent} writes the schema, authors the skill, and wires the
+actions. The human is the product owner, not the carpenter: the jump is from
+\emph{no-code} (a human composes blocks) to \emph{intent-driven} (an agent composes
+the DSL program from intent).
+
+\paragraph{There is no deployment boundary.}
+A collection is authored directly into the agent's own substrate; building it and
+running it happen in the same workspace, in the same breath. There is no build, no
+CI, no release, no migration job. ``Also track whether I have been to each
+restaurant'' edits the schema and skill in place, and the app has evolved, live.
+
+\paragraph{The app/agent boundary disappears.}
+Because the workspace is the agent (\S\ref{sec:workspace}) and the app is authored
+into the workspace, the app becomes part of the agent. There is no longer a clean
+line between ``the agent'' and ``the applications the agent built.'' When the agent
+refines a collection it built, it is modifying its own code. That is the precise
+sense in which this is a \emph{self-improving agent}, and why that description fits
+better than ``no-code platform'': the latter foregrounds a human builder and a
+separate product, both of which are wrong here.
+
+\paragraph{The trajectory already shows it.}
+This is not aspirational. In the studied codebase, features such as worklog, client,
+and invoice tracking began as hardcoded host plugins---developer-built apps behind a
+deployment boundary---and are being superseded by collection skills the agent can
+author with no host change. The locus of application creation is visibly moving from
+the development team to the agent.
+
+% ===========================================================================
+\section{The Self-Improvement Loop}
+\label{sec:loop}
+
+``Self-improving'' is loose unless we say what improves and how. It is not that the
+model gets generally smarter; it is that the agent accretes and refines a personal
+suite of applications. The loop has four steps, and the fourth is the one most
+easily forgotten.
+
+\begin{lstlisting}
+   RECOGNIZE          CRYSTALLIZE         TUNE              RETIRE
+   a recurring   -->  into a DSL    -->   the host/model -->  when
+   need               application         split (dial)        superseded
+     ^                                                          |
+     +----------------------------------------------------------+
+\end{lstlisting}
+
+\begin{enumerate}
+  \item \textbf{Recognize.} Notice that a need recurs---the user keeps asking for the
+  same shape of thing in free-form chat. This is the signal to promote it up the
+  maturity ladder (\S\ref{sec:collection}).
+  \item \textbf{Crystallize.} Author the application: write the schema, the skill,
+  the actions. The loose intent becomes a durable, structured, reliable app.
+  \item \textbf{Tune.} As the need evolves, adjust where the reliability dial sits
+  (companion paper~\citep{nakajima2026dsl})---move more structure into the schema
+  where it must be deterministic, leave more to the model where it needs judgment.
+  \item \textbf{Retire.} When an app is superseded or abandoned, remove it. This
+  keeps the agent's ``self'' coherent rather than sprawling (\S\ref{sec:limitations}).
+\end{enumerate}
+
+Running this loop over months yields not a smarter model but an agent whose
+workspace has grown into a \emph{personalized application suite shaped to one user}.
+Two instances that start identical diverge into very different agents, because they
+crystallize different apps from different lives. Self-improvement here is
+\textbf{personalization through accreted applications}---the agent becomes more
+useful to \emph{its} owner specifically, not more capable in the abstract.
+
+% ===========================================================================
+\section{Software for an Audience of One}
+\label{sec:one}
+
+The self-improvement loop is only affordable because of an economic shift worth
+stating on its own terms.
+
+\paragraph{The collapse of bespoke build cost.}
+Software was always built for the average of an audience, never the individual---but
+this was a consequence of cost, not a preference. Development was expensive and
+fixed while replication was free, so the rational strategy was to spread the fixed
+cost over as many users as possible: build for the mass. When an agent can generate
+a working application from a sentence of intent, the fixed cost collapses, and with
+it the reason to target the average. Software whose audience is a single
+person---historically impossible, not merely uneconomic---becomes the default for a
+large class of needs.
+
+\paragraph{Code as a disposable intermediate representation.}
+When code costs almost nothing to produce, it stops being the precious asset and
+becomes a compile target between intent and behavior. The durable artifacts are the
+\emph{intent} (natural language) and the \emph{data} (the records); the code in
+between---a schema, or the HTML of a custom view---is regrown when the need changes
+rather than maintained. Figure~\ref{fig:views} shows three custom views from the
+studied workspace: each is a self-contained HTML file the agent wrote on request and
+the host serves sandboxed, and in each case the owner described the view in natural
+language and never saw the markup. A restaurant guide drawn as a transit map is
+software no vendor would build for a market of one---and now does not have to be.
+
+\begin{figure}[t]
+\centering
+\begin{minipage}[t]{0.31\textwidth}\centering
+  \viewfig{figures/restaurants-map.png}\\[2pt]\footnotesize (a) a restaurant guide as a transit-style map
+\end{minipage}\hfill
+\begin{minipage}[t]{0.31\textwidth}\centering
+  \viewfig{figures/portfolio-allocation.png}\\[2pt]\footnotesize (b) a portfolio as an allocation chart
+\end{minipage}\hfill
+\begin{minipage}[t]{0.31\textwidth}\centering
+  \viewfig{figures/feed-gallery.png}\\[2pt]\footnotesize (c) a podcast feed as a read--write gallery
+\end{minipage}
+\caption{Three agent-authored custom views from the studied deployment (two
+collection views and one feed view). Each is software with an addressable audience
+of one, produced for the cost of a natural-language request; the owner never wrote
+or read the generated HTML.}
+\label{fig:views}
+\end{figure}
+
+\paragraph{Correctness relocates rather than disappears.}
+Mass software is poor at fitting the individual but excellent at accumulating
+correctness: many users and years surface edge cases and harden the code. Software
+for an audience of one has no such second audience. The cost of correctness does not
+vanish; it relocates---from a vendor's QA organization to the trust between one user
+and one model. The stakes are uneven: a wrong poster gallery is harmless, but a
+wrong financial or tax view is not, and only the model and the single user ever
+inspect it. This is the spreadsheet era's oldest hazard---the invisible formula error
+in a model no one else audits---returning in a more powerful form, and it is a real
+limitation (\S\ref{sec:limitations}), not a footnote.
+
+% ===========================================================================
+\section{Case Study: A Longitudinal Single-User Deployment}
+\label{sec:casestudy}
+
+We report on one author's production workspace, which accreted applications through
+ordinary use over roughly two months, with no host code written per application.
+
+\paragraph{An accreted, personal application suite.}
+The workspace contains 24 schema-defined collections holding $\sim$700 records,
+3 external feeds holding a further $\sim$260 ingested records, and 9 agent-authored
+custom views (7 over collections, 2 over feeds). The applications span personal
+finance, reading and watch lists, a vocabulary trainer, recurring-obligation
+trackers, contact and engagement records, and domain-specific trackers; their record
+counts span nearly three orders of magnitude, from a single-record profile to
+hundreds of entries. Crucially, the suite \emph{diverges sharply from any
+mass-market product}---a restaurant guide rendered as a transit map, a read--write
+podcast tracker carrying the owner's own ratings and resume positions---which is the
+signature of build-for-one (\S\ref{sec:one}).
+
+\paragraph{The loop, observed.}
+All four steps of \S\ref{sec:loop} appear in the history. Needs were
+\emph{recognized} and \emph{crystallized} into collections; schemas were
+\emph{tuned} in place (for example, a podcast feed gained user rating and notes
+fields after ingestion had populated it, absorbed as an additive, non-breaking
+change); and the \emph{retire} step is visible as the ongoing migration from
+hardcoded worklog/client/invoice plugins toward collection skills that supersede
+them (\S\ref{sec:boundaries}).
+
+\paragraph{Forking and versioning, in practice.}
+Because the agent is its files, the whole agent---apps, memory, personality,
+automations---is copied by \code{cp -r} and versioned by \code{git}; every
+self-edit to a schema, role, or skill is a readable, revertable diff. This is the
+audit mechanism we rely on in place of run replay (\S\ref{sec:limitations}).
+
+% ===========================================================================
+\section{Forking, Portability, and What the Workspace Buys for Free}
+\label{sec:forking}
+
+Because the agent is its workspace, several properties that normally require
+engineering fall out of the file system. \emph{Forking} an agent is \code{cp -r}:
+copying the directory copies the apps, memory, personality, and automations as one
+coherent unit, with no separate ``export behavior'' and ``export data'' steps,
+because they are the same files. \emph{Versioning} an agent is \code{git}: a
+git-backed workspace gives configuration replay (\code{checkout}), branching, and
+self-edit lineage (\code{blame})---audit and rollback for the agent's edits to
+itself, with no bespoke runtime. \emph{Portability} is trivial: nothing is stranded
+in a process or a database server; move the directory, move the agent. And
+\emph{inspectability} is total: every part of the agent is a readable, greppable,
+diffable file, with no opaque learned blob that constitutes the agent apart from its
+workspace. These are not the headline result, but they are why the headline result
+is practical: an agent you can fork, version, inspect, and carry is one you can more
+safely let modify itself, because every modification is a visible, reversible change
+to files you can read.
+
+% ===========================================================================
+\section{Discussion and Limitations}
+\label{sec:limitations}
+
+\paragraph{Self-improvement requires self-pruning.}
+If every recognized need spawns an artifact and every artifact becomes part of the
+agent's ``self,'' then self-improvement without self-pruning produces a junk drawer:
+half-built collections, abandoned skills, stale automations. Traditional
+applications have maintainers and sunset processes; a self-built suite needs the
+same discipline, and nothing provides it automatically. The retire step
+(\S\ref{sec:loop}) is what keeps the agent's self coherent rather than merely
+larger; an agent that only ever adds capabilities eventually degrades, because more
+surface means more ways to be wrong and more instructions competing for the same
+intent. A genuinely self-improving agent must be as willing to delete its own code
+as to write it.
+
+\paragraph{Non-replayable execution.}
+Because the operating step is a nondeterministic model call, a run cannot be replayed
+byte-for-byte, and a self-modification's effect cannot be A/B-replayed against the
+prior behavior on identical inputs---the deliberate trade against log-primary
+designs~\citep{ynakajima2026log}. The mitigation is configuration-level rather than
+run-level: a git-backed workspace makes every self-edit auditable and revertable,
+which is the granularity that matters for an agent editing its own applications.
+
+\paragraph{Correctness has no second audience.}
+As argued in \S\ref{sec:one}, an application with an audience of one does not
+accumulate correctness the way mass software does. Pushing consequential computation
+into host-evaluated derived fields helps, but relocates rather than removes the
+valid-but-wrong failure mode: a derived formula is itself a model-authored
+expression that the host evaluates faithfully whether or not it is the right formula.
+That formulas and schemas are short, inspectable, plain-text artifacts makes
+\emph{review against stated intent} tractable, but the residual risk is real.
+
+\paragraph{The security of a self-modifying, file-based agent.}
+Making behavior editable as files widens the attack surface in two ways. First,
+content the agent ingests is untrusted: feeds bring external natural language into
+records the model reasons over while it may hold write-capable tokens, so indirect
+prompt injection~\citep{greshake2023injection} is a live threat that view sandboxing
+does not address, since it governs UI rendering rather than the model's context.
+Second, the agent edits its \emph{own} behavior---roles, skills, schemas---so a
+successful injection or a careless self-edit can in principle alter what the agent is,
+not just what it stores. The defenses are partial and must be layered: a
+git-backed workspace makes every self-edit reviewable and revertable; the schema
+validator rejects structurally incoherent self-modifications at load regardless of
+how they were written; and consequential or externally-triggered operations warrant
+confirmation. We did not observe an attack in our benign deployment, but we flag
+self-modification security as the architecture's most important open problem.
+
+\paragraph{Threats to validity.}
+Our evidence is a single user, a single system, and an author-operated deployment;
+it demonstrates feasibility and the no-host-code property but does not establish
+generality, and it reports usage rather than a controlled comparison. Quantifying
+how often the loop is run, how much authoring effort it saves versus alternatives,
+and how the discipline of pruning holds up across users and longer horizons is
+future work.
+
+% ===========================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+Traditional software assumes that engineers write programs and users operate them.
+The architecture described here assumes something different: users express intent,
+the agent writes the programs---into itself---and the resulting applications are part
+of the agent. The collection schema is the program, the DSLs in the workspace are
+the source code, the model is the runtime, and the workspace is the agent. Because
+the programs live inside the agent, writing them is the agent improving itself, which
+is why, of the available names, \emph{self-improving agent} fits better than
+\emph{no-code platform}. The same move that makes this possible---near-zero-cost
+bespoke software, authored from intent---turns software from a product shipped to a
+market into an artifact grown for an individual, and shifts the discipline from
+maintaining precious code to verifying disposable code and curating the durable
+intent and data behind it.
+
+% ===========================================================================
+\section*{Availability}
+MulmoClaude is open source, including the roles, collection schemas, skills, and
+automations that constitute the workspace-as-agent described here, and the
+self-maintained wiki: \url{https://github.com/receptron/mulmoclaude}.
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

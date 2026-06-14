@@ -13,7 +13,7 @@ artifact with a technical contribution are unaffected.
 | Dir | Title | Source essays | Primary / cross-list |
 |---|---|---|---|
 | `dsls-as-harnesses/` | DSLs as Harnesses: Declarative Applications-as-Data as a Reliability Substrate for LLM Agents | `dsl-as-harness.md` + `collections-architecture.md` | cs.AI / cs.SE, cs.PL, cs.HC |
-| `workspace-is-the-agent/` *(not yet drafted)* | The Workspace Is the Self-Improving Agent | `workspace-is-the-agent.md` + `software-for-one.md` | cs.AI / cs.SE, cs.HC, cs.CY |
+| `workspace-is-the-agent/` | The Workspace Is the Self-Improving Agent | `workspace-is-the-agent.md` + `software-for-one.md` | cs.AI / cs.SE, cs.HC, cs.CY |
 
 **Primary category is cs.AI for both.** Endorsement is category-specific, and the
 endorser (Yohei Nakajima) is qualified in cs.AI — so cs.AI primary is friction-free;
