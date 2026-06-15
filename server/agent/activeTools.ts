@@ -97,7 +97,11 @@ export function getActiveToolDescriptors(role: Role): ActiveToolDescriptor[] {
 
   for (const tool of mcpTools) {
     const toolName = tool.definition.name;
-    if (!allowed.has(toolName) || seen.has(toolName) || !isMcpToolEnabled(tool)) continue;
+    // `alwaysActive` tools (generic host infra like spawnBackgroundChat)
+    // bypass the per-role gate — they're offered to every role, like a
+    // built-in. All other MCP tools stay gated by `availablePlugins`.
+    const isAllowed = tool.alwaysActive === true || allowed.has(toolName);
+    if (!isAllowed || seen.has(toolName) || !isMcpToolEnabled(tool)) continue;
     out.push({
       name: toolName,
       fullName: fullNameFor(toolName),

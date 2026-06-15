@@ -39,6 +39,9 @@ const ptBRMessages = {
     attachImageFailed: "Falha ao anexar a imagem: {error}",
     stopFailed: "Falha ao parar a execução: {error}",
     dropHint: "Solte o arquivo para anexar",
+    tooManyFiles: "Você pode anexar no máximo {max} arquivos por vez.",
+    removeAttachment: "Remover {name}",
+    attachmentFallbackName: "anexo",
   },
   sessionHistoryPanel: {
     filters: {
@@ -74,6 +77,8 @@ const ptBRMessages = {
     cancel: "Cancelar",
     showMore: "Mostrar mais ({count})",
     showLess: "Mostrar menos",
+    openTarget: "Abrir",
+    expandDetails: "Expandir detalhes",
   },
   pluginDiagnostics: {
     title: "Problema de configuração do plugin",
@@ -334,6 +339,8 @@ const ptBRMessages = {
     invalidJson: "JSON inválido",
     undo: "Desfazer",
     redo: "Refazer",
+    editMarp: "Editar código do slide",
+    marpEditorLabel: "Código do slide Marp",
   },
   filesView: {
     chatPlaceholder: "Pergunte sobre este arquivo…",
@@ -1096,6 +1103,9 @@ const ptBRMessages = {
     marpSlidesMode: "Slides Marp · {count}",
     marpExportPdf: "Exportar PDF",
     marpRenderFailed: "⚠ Falha ao renderizar os slides Marp: {error}",
+    marpSplitEnter: "Editar o código fonte ao lado da visualização",
+    marpSplitExit: "Fechar o editor de código",
+    marpSplitEditorLabel: "Código",
   },
   pluginTextResponse: {
     pdf: "PDF",
@@ -1150,6 +1160,13 @@ const ptBRMessages = {
     // enquanto o texto é traduzível.
     explanation:
       "Nomes adicionais de ferramentas a serem passados ao Claude via {allowedTools}. Um por linha. Útil para servidores MCP integrados ao Claude Code como Gmail / Google Calendar após autenticar via {claudeMcp}.",
+    connectorsSectionTitle: "Conectores conectados",
+    connectorsEmpty: "Nenhum conector encontrado.",
+    connectorConnected: "Conectado",
+    connectorDisconnected: "Não conectado",
+    connectorsGuide:
+      "Conectores como Slack e Gmail permitem que o Claude acesse suas contas. Adicione ou remova conectores pelo Claude Desktop ou configure-os {configLink}. (Abre claude.ai)",
+    connectorsConfigLinkText: "aqui",
   },
   collectionsView: {
     addCollectionLabel: "Coleção",
@@ -1185,6 +1202,7 @@ const ptBRMessages = {
     searchSummary: "Mostrando {shown} de {total}",
     noMatchingItems: "Nenhum item correspondente",
     clearSearch: "Limpar busca",
+    sortBy: "Ordenar por {field}",
     openCollection: "Abrir {title}",
     createTitle: "Adicionar novo",
     derivedLabel: "Derivado",
@@ -1216,9 +1234,23 @@ const ptBRMessages = {
     kanbanFieldLabel: "Campo de agrupamento do Kanban",
     kanbanUncategorized: "Sem categoria",
     kanbanOpenCard: "Abrir {label}",
-    viewDashboard: "Painel",
-    dashboardAlertHeading: "{label} — {count}",
-    dashboardAllItems: "Todos os itens",
+    addView: "Adicionar visualização",
+    config: {
+      open: "Configurações da coleção",
+      title: "{title} · configurações",
+      viewsHeading: "Visualizações personalizadas",
+      deleteView: "Excluir {label}",
+      confirmDelete: 'Excluir a visualização "{label}"? Isso remove o arquivo HTML e cancela o registro.',
+      empty: "Ainda não há visualizações personalizadas.",
+    },
+    customViewLoading: "Carregando visualização…",
+    customViewError: "Não foi possível carregar esta visualização: {error}",
+    addViewPrompt:
+      'Quero adicionar uma visualização personalizada à coleção "{title}". Pergunte o que eu quero ver ou editar, depois crie o arquivo HTML da visualização em {base}/views/your-view.html e registre-o em {base}/schema.json em `views[]` (capabilities ["read"] para uma visualização somente leitura, ["read","write"] se editar registros). Siga a ajuda custom-view para o contrato de dados.',
+    repair: "Reparar",
+    dataIssuesDetected: "{count} arquivo(s) de registro têm problemas de dados e podem não aparecer nesta visualização.",
+    repairPrompt:
+      "A coleção {title} tem {count} arquivo(s) de registro com problemas de dados que impedem que apareçam. Corrija cada um: leia o arquivo com Read, corrija-o e grave-o novamente com Write:\n{issues}\n\nQuando terminar, chame presentCollection para confirmar que os registros carregam.",
     source: {
       user: "Usuário",
       project: "Projeto",

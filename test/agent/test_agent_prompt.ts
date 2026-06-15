@@ -376,7 +376,11 @@ describe("buildSystemPrompt", () => {
     assert.ok(!result.includes("## Sandbox Tools"));
   });
 
-  it("omits plugin section when no prompts", () => {
+  it("always includes the Plugin Instructions section for the always-active spawnBackgroundChat tool", () => {
+    // spawnBackgroundChat is generic host infra flagged `alwaysActive`,
+    // so EVERY role — even one with no `availablePlugins` — gets its
+    // section (an MCP tool must be described in the prompt; unlike a
+    // Claude Code built-in, the model doesn't know it inherently).
     const role = makeRole();
     const result = buildSystemPrompt({
       role,
@@ -384,7 +388,8 @@ describe("buildSystemPrompt", () => {
       useDocker: false,
       memorySnapshot: EMPTY_ATOMIC_SNAPSHOT,
     });
-    assert.ok(!result.includes("## Plugin Instructions"));
+    assert.ok(result.includes("## Plugin Instructions"));
+    assert.ok(result.includes("mcp__mulmoclaude__spawnBackgroundChat"));
   });
 });
 
@@ -454,12 +459,15 @@ describe("buildPluginPromptSections", () => {
     // mcp__<server>__<tool> shape for ToolSearch lookups.
     // Section headers print the fully-qualified id so the LLM uses
     // the exact tool name on tool_use.
+    // The list also always carries the always-active spawnBackgroundChat
+    // section, so assert on the openCanvas entry specifically rather than
+    // on a fixed length.
     const role = makeRole({ availablePlugins: ["openCanvas"] });
     const sections = buildPluginPromptSections(role);
-    assert.equal(sections.length, 2, "MCP-prefix hint + one plugin section");
     assert.ok(sections[0].includes("mcp__mulmoclaude__"), "first entry is the prefix hint");
-    assert.ok(sections[1].startsWith("- **mcp__mulmoclaude__openCanvas**: "));
-    assert.ok(!sections[1].includes("\n"));
+    const openCanvas = sections.find((section) => section.startsWith("- **mcp__mulmoclaude__openCanvas**: "));
+    assert.ok(openCanvas, "openCanvas renders as a compact bullet");
+    assert.ok(!openCanvas.includes("\n"));
   });
 
   it("returns heading form for a multi-paragraph plugin prompt", () => {
@@ -468,18 +476,24 @@ describe("buildPluginPromptSections", () => {
     // survives.
     const role = makeRole({ availablePlugins: ["presentDocument"] });
     const sections = buildPluginPromptSections(role);
-    assert.equal(sections.length, 2, "MCP-prefix hint + one plugin section");
     assert.ok(sections[0].includes("mcp__mulmoclaude__"), "first entry is the prefix hint");
-    assert.ok(sections[1].startsWith("### mcp__mulmoclaude__presentDocument\n\n"));
+    const doc = sections.find((section) => section.startsWith("### mcp__mulmoclaude__presentDocument\n\n"));
+    assert.ok(doc, "presentDocument renders in heading form");
     // Body retains its paragraph break
-    assert.ok(sections[1].includes("\n\n"));
+    assert.ok(doc.includes("\n\n"));
   });
 
-  it("returns empty array when the role has no matching plugins (no orphan hint)", () => {
-    // No plugins → no hint either. The prefix hint is meaningless on
-    // its own and clutters the prompt of a tool-less role.
+  it("still surfaces the always-active spawnBackgroundChat section for a role with no plugins", () => {
+    // Previously a plugin-less role got an empty list (no orphan hint).
+    // Now spawnBackgroundChat is always-active, so the hint is
+    // meaningful and the section is present.
     const role = makeRole({ availablePlugins: [] });
-    assert.deepEqual(buildPluginPromptSections(role), []);
+    const sections = buildPluginPromptSections(role);
+    assert.ok(sections[0].includes("mcp__mulmoclaude__"), "prefix hint present");
+    assert.ok(
+      sections.some((section) => section.includes("mcp__mulmoclaude__spawnBackgroundChat")),
+      "always-active spawnBackgroundChat section present even with no role plugins",
+    );
   });
 });
 

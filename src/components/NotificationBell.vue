@@ -6,9 +6,10 @@
 // readable than a generic dot. History rows fall back to a faded
 // dot so the row reads as past-tense.
 //
-// Body is displayed only as a native hover tooltip (`:title=`) — the
-// row stays compact and the relative-time meta line is what the user
-// scans for "when was this?".
+// Active rows show body as a native hover tooltip (`:title=`).
+// History rows expand body inline on click — a chevron indicates
+// expandability, and a navigate icon appears when `navigateTarget`
+// is present.
 //
 // The dev-mode `NotifierDebugPopup` that ran in parallel during PR 3
 // is gone — the production bell now serves both audiences.
@@ -48,6 +49,7 @@ const badgeText = computed(() => (badgeCount.value > 99 ? "99+" : String(badgeCo
 // "docker not running" notifications burying active items).
 const HISTORY_INITIAL_VISIBLE = 5;
 const historyExpanded = ref(false);
+const expandedHistoryIds = ref(new Set<string>());
 const displayedHistory = computed(() => (historyExpanded.value ? visibleHistory.value : visibleHistory.value.slice(0, HISTORY_INITIAL_VISIBLE)));
 const hiddenHistoryCount = computed(() => Math.max(0, visibleHistory.value.length - HISTORY_INITIAL_VISIBLE));
 const canToggleHistory = computed(() => visibleHistory.value.length > HISTORY_INITIAL_VISIBLE);
@@ -90,7 +92,10 @@ watch(
 // starts from the collapsed 5-row view. Without this, an expanded
 // state persists across closes and the scroll position jumps.
 watch(open, (nowOpen: boolean) => {
-  if (!nowOpen) historyExpanded.value = false;
+  if (!nowOpen) {
+    historyExpanded.value = false;
+    expandedHistoryIds.value = new Set<string>();
+  }
 });
 
 // ── Legacy pluginData typing ────────────────────────────────
@@ -239,7 +244,25 @@ async function handleDismiss(event: Event, entry: NotifierEntry): Promise<void> 
   else await cancel(entry.id);
 }
 
-async function handleHistoryClick(entry: NotifierHistoryEntry): Promise<void> {
+function isHistoryExpandable(entry: NotifierHistoryEntry): boolean {
+  return Boolean(localizeBody(entry) || entry.navigateTarget);
+}
+
+function isHistoryBodyExpanded(entryId: string): boolean {
+  return expandedHistoryIds.value.has(entryId);
+}
+
+function toggleHistoryBody(entryId: string): void {
+  const next = new Set(expandedHistoryIds.value);
+  if (next.has(entryId)) {
+    next.delete(entryId);
+  } else {
+    next.add(entryId);
+  }
+  expandedHistoryIds.value = next;
+}
+
+async function handleHistoryNavigate(entry: NotifierHistoryEntry): Promise<void> {
   if (!entry.navigateTarget) return;
   await navigateAndClose(entry.navigateTarget, entry.id);
 }
@@ -370,13 +393,8 @@ async function clearAllFyi(): Promise<void> {
             v-for="entry in displayedHistory"
             :key="`${entry.id}-${entry.terminalAt}`"
             :data-testid="`notification-history-${entry.id}`"
-            :role="entry.navigateTarget ? 'button' : undefined"
-            :tabindex="entry.navigateTarget ? 0 : undefined"
-            :aria-label="entry.navigateTarget ? localizeTitle(entry) : undefined"
-            :class="['px-3 py-2 focus:bg-gray-100 focus:outline-none', entry.navigateTarget ? 'cursor-pointer hover:bg-gray-50' : '']"
-            @click="entry.navigateTarget && handleHistoryClick(entry)"
-            @keydown.enter.prevent.self="(e) => entry.navigateTarget && !e.repeat && handleHistoryClick(entry)"
-            @keydown.space.prevent.self="(e) => entry.navigateTarget && !e.repeat && handleHistoryClick(entry)"
+            :class="['px-3 py-2', isHistoryExpandable(entry) ? 'cursor-pointer hover:bg-gray-50' : '']"
+            @click="isHistoryExpandable(entry) && toggleHistoryBody(entry.id)"
           >
             <div class="flex items-start gap-2">
               <!-- eslint-disable @intlify/vue-i18n/no-raw-text --
@@ -388,14 +406,44 @@ async function clearAllFyi(): Promise<void> {
               </span>
               <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
               <span :class="['mt-1 inline-block w-2 h-2 rounded-full shrink-0 opacity-30', severityDotClassForHistory(entry.severity)]" aria-hidden="true" />
-              <div :class="['flex-1 min-w-0', entry.navigateTarget ? 'hover:underline' : '']">
+              <div class="flex-1 min-w-0">
                 <div class="flex items-baseline gap-2">
-                  <span class="text-gray-700 truncate">{{ localizeTitle(entry) }}</span>
+                  <span :class="['text-gray-700', isHistoryBodyExpanded(entry.id) ? '' : 'truncate']">{{ localizeTitle(entry) }}</span>
                 </div>
-                <div class="text-gray-400 mt-0.5 font-mono text-[10px]">
-                  {{ formatTime(entry.terminalAt) }} · {{ entry.terminalType }} · {{ shortPkg(entry.pluginPkg) }}
+                <p
+                  v-if="isHistoryBodyExpanded(entry.id) && localizeBody(entry)"
+                  class="text-gray-600 mt-1 whitespace-pre-wrap break-words text-[11px]"
+                  data-testid="notification-history-body"
+                >
+                  {{ localizeBody(entry) }}
+                </p>
+                <div class="flex items-center gap-1 text-gray-400 mt-0.5 font-mono text-[10px]">
+                  <span>{{ formatTime(entry.terminalAt) }} · {{ entry.terminalType }} · {{ shortPkg(entry.pluginPkg) }}</span>
+                  <button
+                    v-if="isHistoryBodyExpanded(entry.id) && entry.navigateTarget"
+                    type="button"
+                    class="ml-1 text-blue-500 hover:text-blue-700"
+                    :aria-label="t('notificationBell.openTarget')"
+                    data-testid="notification-history-navigate"
+                    @click.stop="handleHistoryNavigate(entry)"
+                  >
+                    <span class="material-icons text-xs">open_in_new</span>
+                  </button>
                 </div>
               </div>
+              <button
+                v-if="isHistoryExpandable(entry)"
+                type="button"
+                class="text-gray-300 hover:text-gray-500 shrink-0 mt-0.5"
+                :aria-label="t('notificationBell.expandDetails')"
+                :aria-expanded="isHistoryBodyExpanded(entry.id)"
+                data-testid="notification-history-expand"
+                @click.stop="toggleHistoryBody(entry.id)"
+              >
+                <span class="material-icons text-xs">
+                  {{ isHistoryBodyExpanded(entry.id) ? "expand_less" : "expand_more" }}
+                </span>
+              </button>
             </div>
           </li>
         </ul>

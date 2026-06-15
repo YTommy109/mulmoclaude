@@ -46,6 +46,9 @@ const koMessages = {
     attachImageFailed: "이미지를 첨부하지 못했습니다: {error}",
     stopFailed: "처리를 중지하지 못했습니다: {error}",
     dropHint: "파일을 놓아서 첨부",
+    tooManyFiles: "한 번에 최대 {max}개까지 첨부할 수 있습니다.",
+    removeAttachment: "{name} 제거",
+    attachmentFallbackName: "첨부파일",
   },
   sessionHistoryPanel: {
     filters: {
@@ -81,6 +84,8 @@ const koMessages = {
     cancel: "취소",
     showMore: "더 보기 ({count})",
     showLess: "접기",
+    openTarget: "열기",
+    expandDetails: "상세 보기",
   },
   pluginDiagnostics: {
     title: "플러그인 구성 문제",
@@ -339,6 +344,8 @@ const koMessages = {
     invalidJson: "잘못된 JSON",
     undo: "실행 취소",
     redo: "다시 실행",
+    editMarp: "슬라이드 소스 편집",
+    marpEditorLabel: "Marp 슬라이드 소스",
   },
   filesView: {
     chatPlaceholder: "이 파일에 대해 질문하세요…",
@@ -1095,6 +1102,9 @@ const koMessages = {
     marpSlidesMode: "Marp 슬라이드 · {count}",
     marpExportPdf: "PDF로 내보내기",
     marpRenderFailed: "⚠ Marp 슬라이드 렌더링 실패: {error}",
+    marpSplitEnter: "소스를 나란히 편집",
+    marpSplitExit: "소스 편집기 닫기",
+    marpSplitEditorLabel: "소스",
   },
   pluginTextResponse: {
     pdf: "PDF",
@@ -1148,6 +1158,13 @@ const koMessages = {
     // `<code>` 태그는 스타일을 유지하면서 본문은 번역 가능합니다.
     explanation:
       "{allowedTools} 를 통해 Claude 에 전달할 추가 도구 이름. 한 줄에 하나씩. {claudeMcp} 로 인증을 완료한 후 Claude Code 내장 MCP 서버 (Gmail / Google 캘린더 등) 를 사용할 때 유용합니다.",
+    connectorsSectionTitle: "연결된 커넥터",
+    connectorsEmpty: "커넥터를 찾을 수 없습니다.",
+    connectorConnected: "연결됨",
+    connectorDisconnected: "연결 안 됨",
+    connectorsGuide:
+      "Slack, Gmail 등의 커넥터로 Claude가 계정에 접근할 수 있습니다. 커넥터 추가 및 제거는 Claude Desktop 또는 {configLink}에서 할 수 있습니다. (claude.ai로 이동합니다)",
+    connectorsConfigLinkText: "여기",
   },
   collectionsView: {
     addCollectionLabel: "컬렉션",
@@ -1183,6 +1200,7 @@ const koMessages = {
     searchSummary: "{total}개 중 {shown}개 표시",
     noMatchingItems: "일치하는 항목이 없습니다",
     clearSearch: "검색 지우기",
+    sortBy: "{field} 기준 정렬",
     openCollection: "{title} 열기",
     createTitle: "새로 추가",
     derivedLabel: "파생",
@@ -1214,9 +1232,23 @@ const koMessages = {
     kanbanFieldLabel: "칸반 그룹 필드",
     kanbanUncategorized: "미분류",
     kanbanOpenCard: "{label} 열기",
-    viewDashboard: "대시보드",
-    dashboardAlertHeading: "{label} — {count}건",
-    dashboardAllItems: "전체 항목",
+    addView: "보기 추가",
+    config: {
+      open: "컬렉션 설정",
+      title: "{title} · 설정",
+      viewsHeading: "사용자 지정 보기",
+      deleteView: "{label} 삭제",
+      confirmDelete: "“{label}” 보기를 삭제할까요? HTML 파일을 삭제하고 등록을 해제합니다.",
+      empty: "아직 사용자 지정 보기가 없습니다.",
+    },
+    customViewLoading: "보기를 불러오는 중…",
+    customViewError: "이 보기를 불러오지 못했습니다: {error}",
+    addViewPrompt:
+      '{title} 컬렉션에 사용자 지정 보기를 추가하고 싶어요. 무엇을 보거나 편집하고 싶은지 먼저 물어본 뒤, {base}/views/your-view.html 에 HTML 보기 파일을 만들고 {base}/schema.json의 `views[]`에 등록해 주세요(읽기 전용 보기는 capabilities ["read"], 레코드를 편집하면 ["read","write"]). 데이터 계약은 custom-view 도움말을 따르세요.',
+    repair: "복구",
+    dataIssuesDetected: "{count}개의 레코드 파일에 데이터 문제가 있어 이 보기에 표시되지 않을 수 있습니다.",
+    repairPrompt:
+      "{title} 컬렉션에 표시되지 않는 원인이 되는 데이터 문제가 있는 레코드 파일이 {count}개 있습니다. 각 파일을 수정하세요 — Read로 파일을 읽고 수정한 뒤 Write로 다시 저장하세요:\n{issues}\n\n완료되면 presentCollection을 호출하여 레코드가 로드되는지 확인하세요.",
     source: {
       user: "사용자",
       project: "프로젝트",

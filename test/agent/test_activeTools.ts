@@ -127,6 +127,17 @@ describe("getActiveToolDescriptors — single source of truth", () => {
     assert.equal(matches[0].source, "static-gui", "static wins over runtime in the unified list");
   });
 
+  it("surfaces an `alwaysActive` MCP tool even when the role lists nothing", () => {
+    // `spawnBackgroundChat` is generic host infra flagged
+    // `alwaysActive: true`, so it must appear for EVERY role,
+    // bypassing the `availablePlugins` gate that all other tools obey.
+    const role = fakeRole([]);
+    const descriptors = getActiveToolDescriptors(role);
+    const entry = descriptors.find((descriptor) => descriptor.name === "spawnBackgroundChat");
+    assert.ok(entry, "alwaysActive tool must surface for a role with empty availablePlugins");
+    assert.equal(entry?.source, "static-mcp");
+  });
+
   it("does not include runtime plugins when the registry is empty", () => {
     const role = fakeRole(["presentMulmoScript"]);
     const descriptors = getActiveToolDescriptors(role);

@@ -10,7 +10,9 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { apiGet } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
-import { evaluateDerived, type FormulaContext } from "../../utils/collections/derivedFormula";
+import { htmlPreviewUrlFor, svgPreviewUrlFor } from "../useContentDisplay";
+import { isValidFilePath } from "../useFileSelection";
+import { deriveAll } from "../../utils/collections/deriveAll";
 import type { EmbedRow, EmbedView } from "../../components/collectionEmbed";
 import type {
   CollectionDetail,
@@ -42,6 +44,8 @@ export interface CollectionRendering {
   formatCell: (value: unknown, type: FieldType) => string;
   detailText: (value: unknown) => string;
   isExternalUrl: (value: unknown) => boolean;
+  artifactUrl: (value: unknown) => string | null;
+  fileRoutePath: (value: unknown) => string | null;
   tableRows: (value: unknown) => Record<string, unknown>[];
   hasTableRows: (value: unknown) => boolean;
   formatSubCell: (subField: FieldSpec, value: unknown, record: CollectionItem | null) => string;
@@ -227,6 +231,26 @@ export function useCollectionRendering(collection: Ref<CollectionDetail | null>,
     return typeof value === "string" && /^https?:\/\//i.test(value);
   }
 
+  // A `file` field holds a workspace-relative path. When it points at an
+  // HTML/SVG artifact the server serves directly, return that served URL
+  // so the rendered app can open in a new tab; otherwise null. Reject
+  // absolute / `..`-traversing paths first (same guard as fileRoutePath)
+  // — the preview-URL builders don't, so a `..` would normalize out of
+  // the intended mount.
+  function artifactUrl(value: unknown): string | null {
+    if (!isValidFilePath(value)) return null;
+    return htmlPreviewUrlFor(value) ?? svgPreviewUrlFor(value);
+  }
+
+  // In-app File Explorer route for a workspace path — the fallback for
+  // `file` values that aren't a directly-served artifact. Returns null
+  // for paths the Files view would reject (absolute or `..`-traversing),
+  // so we never emit a link that lands on an empty Files page.
+  function fileRoutePath(value: unknown): string | null {
+    if (!isValidFilePath(value)) return null;
+    return `/files/${value.split("/").map(encodeURIComponent).join("/")}`;
+  }
+
   function detailText(value: unknown): string {
     if (value === undefined || value === null || value === "") return "—";
     return String(value);
@@ -256,34 +280,11 @@ export function useCollectionRendering(collection: Ref<CollectionDetail | null>,
     return "text";
   }
 
-  function resolveRowRefs(schema: CollectionSchema, record: CollectionItem, refRecords: RefRecordCache): NonNullable<FormulaContext["refs"]> {
-    const refs: NonNullable<FormulaContext["refs"]> = {};
-    for (const [key, field] of Object.entries(schema.fields)) {
-      if (field.type !== "ref" || !field.to) continue;
-      const slug = record[key];
-      refs[key] = typeof slug === "string" ? (refRecords[field.to]?.[slug] ?? null) : null;
-    }
-    return refs;
-  }
-
-  function deriveAll(schema: CollectionSchema, base: CollectionItem, refRecords: RefRecordCache): CollectionItem {
-    const enriched: CollectionItem = { ...base };
-    const refs = resolveRowRefs(schema, base, refRecords);
-    const maxPasses = Object.values(schema.fields).filter((field) => field.type === "derived").length;
-    for (let pass = 0; pass < maxPasses; pass++) {
-      let mutated = false;
-      for (const [key, field] of Object.entries(schema.fields)) {
-        if (field.type !== "derived" || !field.formula) continue;
-        const next = evaluateDerived(field.formula, { record: enriched, refs });
-        if (next !== null && enriched[key] !== next) {
-          enriched[key] = next;
-          mutated = true;
-        }
-      }
-      if (!mutated) break;
-    }
-    return enriched;
-  }
+  // The derive loop itself lives in `utils/collections/deriveAll.ts`,
+  // shared with the server's manageCollection enrichment so both sides
+  // compute identical values. This composable re-exposes it (typed with
+  // the richer client types via structural assignability) plus the
+  // collection-bound convenience wrappers below.
 
   function evaluateDerivedAgainstItem(field: FieldSpec, fieldKey: string, item: CollectionItem): number | null {
     if (!field.formula || !collection.value) return null;
@@ -313,6 +314,8 @@ export function useCollectionRendering(collection: Ref<CollectionDetail | null>,
     formatCell,
     detailText,
     isExternalUrl,
+    artifactUrl,
+    fileRoutePath,
     tableRows,
     hasTableRows,
     formatSubCell,

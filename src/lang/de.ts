@@ -39,6 +39,9 @@ const deMessages = {
     attachImageFailed: "Anhängen des Bildes fehlgeschlagen: {error}",
     stopFailed: "Stoppen der Ausführung fehlgeschlagen: {error}",
     dropHint: "Datei zum Anhängen ablegen",
+    tooManyFiles: "Sie können maximal {max} Dateien gleichzeitig anhängen.",
+    removeAttachment: "{name} entfernen",
+    attachmentFallbackName: "Anhang",
   },
   sessionHistoryPanel: {
     filters: {
@@ -74,6 +77,8 @@ const deMessages = {
     cancel: "Abbrechen",
     showMore: "Mehr anzeigen ({count})",
     showLess: "Weniger anzeigen",
+    openTarget: "Öffnen",
+    expandDetails: "Details anzeigen",
   },
   pluginDiagnostics: {
     title: "Plugin-Konfigurationsproblem",
@@ -338,6 +343,8 @@ const deMessages = {
     invalidJson: "Ungültiges JSON",
     undo: "Rückgängig",
     redo: "Wiederholen",
+    editMarp: "Folienquelle bearbeiten",
+    marpEditorLabel: "Marp-Folienquelle",
   },
   filesView: {
     chatPlaceholder: "Frage zu dieser Datei stellen…",
@@ -1110,6 +1117,9 @@ const deMessages = {
     marpSlidesMode: "Marp-Folien · {count}",
     marpExportPdf: "Als PDF exportieren",
     marpRenderFailed: "⚠ Rendern der Marp-Folien fehlgeschlagen: {error}",
+    marpSplitEnter: "Quelle neben der Vorschau bearbeiten",
+    marpSplitExit: "Quelleneditor schließen",
+    marpSplitEditorLabel: "Quelle",
   },
   pluginTextResponse: {
     pdf: "PDF",
@@ -1164,6 +1174,13 @@ const deMessages = {
     // behalten, während der Text übersetzbar ist.
     explanation:
       "Zusätzliche Tool-Namen, die Claude über {allowedTools} übergeben werden sollen. Einer pro Zeile. Nützlich für in Claude Code integrierte MCP-Server wie Gmail / Google Kalender, nachdem Sie sich über {claudeMcp} authentifiziert haben.",
+    connectorsSectionTitle: "Verbundene Konnektoren",
+    connectorsEmpty: "Keine Konnektoren gefunden.",
+    connectorConnected: "Verbunden",
+    connectorDisconnected: "Nicht verbunden",
+    connectorsGuide:
+      "Konnektoren wie Slack und Gmail erlauben Claude den Zugriff auf Ihre Konten. Konnektoren können in Claude Desktop oder {configLink} hinzugefügt oder entfernt werden. (Öffnet claude.ai)",
+    connectorsConfigLinkText: "hier",
   },
   collectionsView: {
     addCollectionLabel: "Sammlung",
@@ -1199,6 +1216,7 @@ const deMessages = {
     searchSummary: "{shown} von {total} werden angezeigt",
     noMatchingItems: "Keine passenden Einträge",
     clearSearch: "Suche zurücksetzen",
+    sortBy: "Nach {field} sortieren",
     openCollection: "{title} öffnen",
     createTitle: "Neu hinzufügen",
     derivedLabel: "Abgeleitet",
@@ -1230,9 +1248,23 @@ const deMessages = {
     kanbanFieldLabel: "Kanban-Gruppierungsfeld",
     kanbanUncategorized: "Nicht kategorisiert",
     kanbanOpenCard: "{label} öffnen",
-    viewDashboard: "Dashboard",
-    dashboardAlertHeading: "{label} — {count}",
-    dashboardAllItems: "Alle Einträge",
+    addView: "Ansicht hinzufügen",
+    config: {
+      open: "Sammlungseinstellungen",
+      title: "{title} · Einstellungen",
+      viewsHeading: "Benutzerdefinierte Ansichten",
+      deleteView: "{label} löschen",
+      confirmDelete: "Ansicht {label} löschen? Die HTML-Datei wird entfernt und die Registrierung aufgehoben.",
+      empty: "Noch keine benutzerdefinierten Ansichten.",
+    },
+    customViewLoading: "Ansicht wird geladen…",
+    customViewError: "Diese Ansicht konnte nicht geladen werden: {error}",
+    addViewPrompt:
+      'Ich möchte der Sammlung {title} eine benutzerdefinierte Ansicht hinzufügen. Frag mich, was ich sehen oder bearbeiten möchte, erstelle dann die HTML-Ansichtsdatei unter {base}/views/your-view.html und registriere sie in {base}/schema.json unter `views[]` (capabilities ["read"] für eine schreibgeschützte Ansicht, ["read","write"] wenn sie Datensätze bearbeitet). Folge der custom-view-Hilfe für den Datenvertrag.',
+    repair: "Reparieren",
+    dataIssuesDetected: "{count} Datensatzdatei(en) haben Datenprobleme und fehlen möglicherweise in dieser Ansicht.",
+    repairPrompt:
+      "Die Sammlung {title} hat {count} Datensatzdatei(en) mit Datenproblemen, die ihr Erscheinen verhindern. Korrigiere jede — die Datei mit Read lesen, korrigieren und mit Write zurückschreiben:\n{issues}\n\nRufe anschließend presentCollection auf, um zu bestätigen, dass die Datensätze geladen werden.",
     source: {
       user: "Benutzer",
       project: "Projekt",

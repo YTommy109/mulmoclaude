@@ -46,6 +46,9 @@ const jaMessages = {
     attachImageFailed: "画像の添付に失敗しました: {error}",
     stopFailed: "処理の停止に失敗しました: {error}",
     dropHint: "ファイルをドロップして添付",
+    tooManyFiles: "一度に添付できるのは {max} 件までです。",
+    removeAttachment: "{name} を削除",
+    attachmentFallbackName: "添付ファイル",
   },
   sessionHistoryPanel: {
     filters: {
@@ -81,6 +84,8 @@ const jaMessages = {
     cancel: "キャンセル",
     showMore: "もっと見る ({count})",
     showLess: "閉じる",
+    openTarget: "開く",
+    expandDetails: "詳細を展開",
   },
   pluginDiagnostics: {
     title: "プラグイン設定の問題",
@@ -337,6 +342,8 @@ const jaMessages = {
     invalidJson: "不正な JSON",
     undo: "元に戻す",
     redo: "やり直し",
+    editMarp: "スライドソースを編集",
+    marpEditorLabel: "Marp スライドソース",
   },
   filesView: {
     chatPlaceholder: "このファイルについて質問…",
@@ -1093,6 +1100,9 @@ const jaMessages = {
     marpSlidesMode: "Marp スライド · {count}",
     marpExportPdf: "PDFを書き出し",
     marpRenderFailed: "⚠ Marp スライドの描画に失敗しました: {error}",
+    marpSplitEnter: "ソースを並べて編集",
+    marpSplitExit: "ソースエディタを閉じる",
+    marpSplitEditorLabel: "ソース",
   },
   pluginTextResponse: {
     pdf: "PDF",
@@ -1144,6 +1154,13 @@ const jaMessages = {
   settingsToolsTab: {
     explanation:
       "{allowedTools} を介して Claude に渡す追加ツール名。1行につき1つ。Gmail / Google Calendar などの Claude Code 組み込み MCP サーバを、{claudeMcp} で認証した後に利用する場合に便利です。",
+    connectorsSectionTitle: "接続済みコネクタ",
+    connectorsEmpty: "コネクタが見つかりません。",
+    connectorConnected: "接続済み",
+    connectorDisconnected: "未接続",
+    connectorsGuide:
+      "Slack や Gmail 等のコネクタで Claude がアカウントにアクセスできるようになります。追加・削除は Claude Desktop から、または、{configLink}からも設定できます。（Web 版 claude.ai に移動します）",
+    connectorsConfigLinkText: "こちら",
   },
   collectionsView: {
     addCollectionLabel: "コレクション",
@@ -1179,6 +1196,7 @@ const jaMessages = {
     searchSummary: "{total} 件中 {shown} 件を表示",
     noMatchingItems: "一致する項目がありません",
     clearSearch: "検索をクリア",
+    sortBy: "{field}で並べ替え",
     openCollection: "{title} を開く",
     createTitle: "新規追加",
     derivedLabel: "計算値",
@@ -1210,9 +1228,23 @@ const jaMessages = {
     kanbanFieldLabel: "カンバンのグループフィールド",
     kanbanUncategorized: "未分類",
     kanbanOpenCard: "{label} を開く",
-    viewDashboard: "ダッシュボード",
-    dashboardAlertHeading: "{label} — {count}件",
-    dashboardAllItems: "一覧",
+    addView: "ビューを追加",
+    config: {
+      open: "コレクション設定",
+      title: "{title} · 設定",
+      viewsHeading: "カスタムビュー",
+      deleteView: "{label} を削除",
+      confirmDelete: "ビュー「{label}」を削除しますか？ HTML ファイルを削除し、登録を解除します。",
+      empty: "カスタムビューはまだありません。",
+    },
+    customViewLoading: "ビューを読み込み中…",
+    customViewError: "このビューを読み込めませんでした: {error}",
+    addViewPrompt:
+      '「{title}」コレクションにカスタムビューを追加したい。何を見たい／編集したいか質問してから、HTML ビューファイルを {base}/views/your-view.html に作成し、{base}/schema.json の `views[]` に登録して（読み取り専用なら capabilities ["read"]、レコードを編集するなら ["read","write"]）。データ契約は custom-view ヘルプに従ってください。',
+    repair: "修復",
+    dataIssuesDetected: "{count} 件のレコードファイルにデータの問題があり、この表示に出てこない可能性があります。",
+    repairPrompt:
+      "コレクション「{title}」に、表示されない原因となるデータの問題を持つレコードファイルが {count} 件あります。それぞれを修正してください — ファイルを Read し、修正してから Write し直します:\n{issues}\n\n完了したら presentCollection を呼び出して、レコードが読み込めることを確認してください。",
     source: {
       user: "ユーザー",
       project: "プロジェクト",

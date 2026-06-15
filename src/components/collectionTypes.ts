@@ -21,6 +21,7 @@ export type FieldType =
   | "table"
   | "derived"
   | "image"
+  | "file"
   | "embed"
   | "toggle";
 
@@ -73,6 +74,20 @@ export interface CollectionAction {
   when?: { field: string; in: string[] };
 }
 
+/** What a custom view's capability token may do against the data endpoint.
+ *  Mirror of `CollectionViewCapability` in server collections types. */
+export type CollectionViewCapability = "read" | "write";
+
+/** A custom (LLM-authored) HTML view. Mirror of `CollectionCustomView` in
+ *  `server/workspace/collections/types.ts`. */
+export interface CollectionCustomView {
+  id: string;
+  label: string;
+  icon?: string;
+  file: string;
+  capabilities?: CollectionViewCapability[];
+}
+
 export interface CollectionSchema {
   title: string;
   icon: string;
@@ -83,6 +98,9 @@ export interface CollectionSchema {
   singleton?: string;
   fields: Record<string, FieldSpec>;
   actions?: CollectionAction[];
+  /** Collection-level actions rendered as buttons in the header. Carry no
+   *  record context; the `when` predicate is not evaluated. */
+  collectionActions?: CollectionAction[];
   /** Name of the field whose value labels the record in notifications and
    *  the calendar chip (falls back to the primary key). */
   displayField?: string;
@@ -106,6 +124,9 @@ export interface CollectionSchema {
   /** Optional predicate gating the completion bell (server-side); reuses
    *  the `when` shape. */
   notifyWhen?: { field: string; in: string[] };
+  /** Optional custom (LLM-authored) HTML views, each rendered in a
+   *  sandboxed iframe over the records. */
+  views?: CollectionCustomView[];
   /** Present only on "feed" collections (the <workspace>/feeds/ registry):
    *  declarative retrieval config the host uses to refill the records.
    *  When set, the view shows a Refresh control. */
@@ -123,9 +144,22 @@ export interface CollectionDetail {
 
 export type CollectionItem = Record<string, unknown>;
 
+/** A record file the server couldn't load or that violates the schema —
+ *  silently skipped at read time. Mirror of `RecordIssue` in
+ *  `server/workspace/collections/validate.ts`. */
+export interface CollectionRecordIssue {
+  /** Record filename, e.g. `lesson-003.json`. */
+  file: string;
+  /** Human-readable problem, written to be actionable by the LLM. */
+  problem: string;
+}
+
 export interface CollectionDetailResponse {
   collection: CollectionDetail;
   items: CollectionItem[];
+  /** Record files that failed validation; drives the in-view Repair
+   *  prompt. Absent or empty when every record is fine. */
+  issues?: CollectionRecordIssue[];
 }
 
 export interface ItemMutationResponse {

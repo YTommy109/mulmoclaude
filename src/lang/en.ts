@@ -61,6 +61,9 @@ const enMessages = {
     attachImageFailed: "Failed to attach image: {error}",
     stopFailed: "Failed to stop the run: {error}",
     dropHint: "Drop file to attach",
+    tooManyFiles: "You can attach up to {max} files at once.",
+    removeAttachment: "Remove {name}",
+    attachmentFallbackName: "attachment",
   },
   sessionHistoryPanel: {
     filters: {
@@ -96,6 +99,8 @@ const enMessages = {
     cancel: "Cancel",
     showMore: "Show more ({count})",
     showLess: "Show less",
+    openTarget: "Open",
+    expandDetails: "Expand details",
   },
   pluginDiagnostics: {
     title: "Plugin configuration issue",
@@ -354,6 +359,8 @@ const enMessages = {
     invalidJson: "Invalid JSON",
     undo: "Undo",
     redo: "Redo",
+    editMarp: "Edit slide source",
+    marpEditorLabel: "Marp slide source",
   },
   filesView: {
     chatPlaceholder: "Ask about this file…",
@@ -1094,6 +1101,9 @@ const enMessages = {
     marpSlidesMode: "Marp slides · {count}",
     marpExportPdf: "Export PDF",
     marpRenderFailed: "⚠ Failed to render Marp slides: {error}",
+    marpSplitEnter: "Edit source side-by-side with preview",
+    marpSplitExit: "Hide source editor",
+    marpSplitEditorLabel: "Source",
   },
   pluginTextResponse: {
     pdf: "PDF",
@@ -1148,6 +1158,13 @@ const enMessages = {
     // is translatable.
     explanation:
       "Extra tool names to pass to Claude via {allowedTools}. One per line. Useful for built-in Claude Code MCP servers like Gmail / Google Calendar after you have authenticated via {claudeMcp}.",
+    connectorsSectionTitle: "Connected connectors",
+    connectorsEmpty: "No connectors found.",
+    connectorConnected: "Connected",
+    connectorDisconnected: "Not connected",
+    connectorsGuide:
+      "Connectors like Slack and Gmail let Claude access your accounts. Add or remove connectors from Claude Desktop, or configure them {configLink}. (Opens claude.ai)",
+    connectorsConfigLinkText: "here",
   },
   collectionsView: {
     addCollectionLabel: "Collection",
@@ -1183,6 +1200,7 @@ const enMessages = {
     searchSummary: "Showing {shown} of {total}",
     noMatchingItems: "No matching items",
     clearSearch: "Clear search",
+    sortBy: "Sort by {field}",
     openCollection: "Open {title}",
     createTitle: "Add new",
     derivedLabel: "Derived",
@@ -1214,9 +1232,23 @@ const enMessages = {
     kanbanFieldLabel: "Kanban group field",
     kanbanUncategorized: "Uncategorized",
     kanbanOpenCard: "Open {label}",
-    viewDashboard: "Dashboard",
-    dashboardAlertHeading: "{label} — {count}",
-    dashboardAllItems: "All items",
+    addView: "Add view",
+    config: {
+      open: "Collection settings",
+      title: "{title} · settings",
+      viewsHeading: "Custom views",
+      deleteView: "Delete {label}",
+      confirmDelete: 'Delete the "{label}" view? This removes its HTML file and unregisters it.',
+      empty: "No custom views yet.",
+    },
+    customViewLoading: "Loading view…",
+    customViewError: "Couldn't load this view: {error}",
+    addViewPrompt:
+      'I want to add a custom view to the "{title}" collection. Ask me what I want to see or edit, then author the HTML view file at {base}/views/your-view.html and register it in {base}/schema.json under `views[]` (capabilities ["read"] for a read-only view, ["read","write"] if it edits records). Follow the custom-view help for the data contract.',
+    repair: "Repair",
+    dataIssuesDetected: "{count} record file(s) have data problems and may be missing from this view.",
+    repairPrompt:
+      'The "{title}" collection has {count} record file(s) with data problems that keep them from appearing. Fix each one — Read the file, correct it, then Write it back:\n{issues}\n\nWhen you\'re done, call presentCollection to confirm the records load.',
     source: {
       user: "User",
       project: "Project",
