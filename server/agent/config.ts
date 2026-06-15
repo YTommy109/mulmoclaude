@@ -586,6 +586,8 @@ export function buildDockerSpawnArgs(params: DockerSpawnArgsParams): string[] {
     "-v",
     `${toDockerPath(projectRoot)}/node_modules:/app/node_modules:ro`,
     "-v",
+    `${toDockerPath(projectRoot)}/packages:/app/packages:ro`,
+    "-v",
     `${toDockerPath(projectRoot)}/server:/app/server:ro`,
     "-v",
     `${toDockerPath(projectRoot)}/src:/app/src:ro`,
