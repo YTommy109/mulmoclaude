@@ -12,6 +12,13 @@ export const SESSION_ORIGINS = {
   scheduler: "scheduler",
   skill: "skill",
   bridge: "bridge",
+  // Detached worker sessions launched via `spawnBackgroundChat` with
+  // `hidden: true` (e.g. just-in-time artifact pre-generation). These
+  // are internal plumbing, not conversations — the session-list path
+  // (`loadSessionRow` in server/api/routes/sessions.ts) excludes this
+  // origin entirely, so it appears under NO history filter. Deliberately
+  // NOT added to `src/config/historyFilters.ts` (it has no pill).
+  system: "system",
 } as const;
 
 /** Prefix for plugin-seeded sessions. `runtime.chat.start()` (Phase 1

@@ -14,7 +14,7 @@ import { USER_SKILLS_DIR, projectSkillsDir } from "../skills/paths.js";
 import { feedsRoot } from "../feeds/paths.js";
 import { INGEST_KINDS, FEED_SCHEDULES } from "../feeds/ingestTypes.js";
 import { SCHEMA_FILE, resolveDataDir, safeSlugName } from "./paths.js";
-import { isSafeActionTemplatePath } from "./templatePath.js";
+import { isSafeActionTemplatePath, isSafeCustomViewPath } from "./templatePath.js";
 import type { CollectionDetail, CollectionSchema, CollectionSource, CollectionSummary } from "./types.js";
 
 // Cross-field refines, factored out so they can apply at both the
@@ -139,6 +139,7 @@ const FieldSpecSchema = z
       "derived",
       "embed",
       "image",
+      "file",
       "toggle",
     ]),
     label: z.string().min(1),
@@ -205,6 +206,23 @@ const ActionSpecSchema = z.object({
     .min(1)
     .refine(isSafeActionTemplatePath, "must be a safe path under `templates/` (e.g. `templates/invoice.md`; no `..`, no leading `/`, no backslash)"),
   when: WhenSchema.optional(),
+});
+
+// A custom (LLM-authored) HTML view registration. Domain-free: the host
+// validates the shape; the view's behaviour lives in the HTML file. `file`
+// is constrained to `views/*.html` (path-safe) so the view-file reader can
+// never reach the data folder or the schema/template files. `id` is
+// validated to be a real slug + unique by schema-level refines below.
+const CustomViewSchema = z.object({
+  id: z.string().trim().min(1),
+  label: z.string().trim().min(1),
+  icon: z.string().trim().min(1).optional(),
+  file: z
+    .string()
+    .trim()
+    .min(1)
+    .refine(isSafeCustomViewPath, "must be a safe path under `views/` ending in `.html` (e.g. `views/year.html`; no `..`, no leading `/`, no backslash)"),
+  capabilities: z.array(z.enum(["read", "write"])).optional(),
 });
 
 // Recurrence advance for `spawn.every`. `interval` is a positive integer
@@ -322,6 +340,10 @@ export const CollectionSchemaZ = z
     singleton: z.string().trim().min(1).optional(),
     fields: z.record(z.string(), FieldSpecSchema),
     actions: z.array(ActionSpecSchema).optional(),
+    // Collection-level actions (header buttons). Same shape as `actions`;
+    // the `when` predicate is ignored (no record context). The seed
+    // prompt injects a progress summary of all records instead.
+    collectionActions: z.array(ActionSpecSchema).optional(),
     // Completion-tracking pair: when both are set, item-create fires a
     // notification that clears once `completionField` transitions into
     // `completionDoneValues`. The two are bound together — declaring
@@ -362,6 +384,10 @@ export const CollectionSchemaZ = z
     // refine below. Optional — the toggle auto-derives from any `enum`
     // field when this is unset.
     kanbanField: z.string().trim().min(1).optional(),
+    // Custom (LLM-authored) HTML views. Each renders in a sandboxed iframe
+    // over the records. Optional, so every existing schema validates
+    // unchanged. Ids validated to be valid + unique slugs by refines below.
+    views: z.array(CustomViewSchema).optional(),
     // Completion-bell gate: only notify for records matching this predicate
     // (e.g. high-priority todos). Reuses the `when` shape; requires
     // `completionField`; field validated to exist by refines below.
@@ -386,6 +412,14 @@ export const CollectionSchemaZ = z
     message: "schema `actions` must have unique `id`s",
     path: ["actions"],
   })
+  // Collection-level action ids must likewise be unique.
+  .refine(
+    (schema) => schema.collectionActions === undefined || new Set(schema.collectionActions.map((action) => action.id)).size === schema.collectionActions.length,
+    {
+      message: "schema `collectionActions` must have unique `id`s",
+      path: ["collectionActions"],
+    },
+  )
   // A `currencyField` pointer must name a real top-level field that
   // holds a code string — a typo (`curreny`) would otherwise pass the
   // per-field check, then silently fall back to the literal / USD at
@@ -533,6 +567,19 @@ export const CollectionSchemaZ = z
   .refine((schema) => schema.notifyWhen === undefined || schema.fields[schema.notifyWhen.field] !== undefined, {
     message: "schema `notifyWhen.field` must name a top-level field declared in `fields`",
     path: ["notifyWhen"],
+  })
+  // Every custom view `id` must be a valid slug — it doubles as the
+  // view-mode selector key (`custom:<id>`) and the capability-token clamp
+  // key, both of which expect a path-safe token.
+  .refine((schema) => schema.views === undefined || schema.views.every((view) => safeSlugName(view.id) !== null), {
+    message: "every `views[].id` must be a valid slug (alphanumeric / hyphen / underscore, no path separators)",
+    path: ["views"],
+  })
+  // Custom view ids must be unique so the selector + token clamp resolve
+  // unambiguously.
+  .refine((schema) => schema.views === undefined || new Set(schema.views.map((view) => view.id)).size === schema.views.length, {
+    message: "schema `views` must have unique `id`s",
+    path: ["views"],
   });
 
 interface LoadedCollection {

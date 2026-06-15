@@ -2,6 +2,10 @@
   <div ref="containerEl" class="marp-container">
     <div class="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
       <span class="text-xs text-gray-500 mr-auto pl-2">{{ t("pluginMarkdown.marpSlidesMode", { count: slideCount }) }}</span>
+      <!-- Toolbar slot: View.vue mounts the split-mode toggle here so
+           the chrome stays unified with PDF / slide-count. Slot is a
+           no-op for non-toggle consumers (FileContentRenderer). -->
+      <slot name="toolbar" />
       <button
         class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
         :disabled="pdfDownloading"
@@ -41,6 +45,9 @@ import { usePdfDownload } from "../../composables/usePdfDownload";
 import { errorMessage } from "../../utils/errors";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { applyCustomMarpSize } from "../../utils/markdown/marpCustomSize";
+import { apiGet } from "../../utils/api";
+import { pluginEndpoints } from "../api";
+import { MARP_HTML_ALLOWLIST } from "../../utils/markdown/marpTheme";
 
 const { t } = useI18n();
 
@@ -158,9 +165,47 @@ function resetRenderState(): void {
   slideHeight.value = DEFAULT_SLIDE_HEIGHT;
 }
 
+interface MarpThemeEntry {
+  readonly name: string;
+  readonly css: string;
+}
+
+const marpThemesEndpoints = pluginEndpoints<{ list: string }>("marpThemes");
+
+// Cache the workspace's Marp themes so we don't re-fetch on every
+// keystroke. Fetched lazily on first render; a theme edit requires a
+// manual reload until follow-up work wires pubsub invalidation.
+// **Successful** responses are cached, including an empty list (=
+// user has no themes — confirmed by the server, not just guessed).
+// Failed fetches (network blip, server temporarily down) leave the
+// cache null so the next render retries — caching `[]` on failure
+// would silently disable themes for the rest of the session
+// (CodeRabbit #1653 review).
+let cachedThemes: readonly MarpThemeEntry[] | null = null;
+
+async function loadMarpThemes(): Promise<readonly MarpThemeEntry[]> {
+  if (cachedThemes !== null) return cachedThemes;
+  const result = await apiGet<readonly MarpThemeEntry[]>(marpThemesEndpoints.list);
+  if (!result.ok || !Array.isArray(result.data)) return [];
+  cachedThemes = result.data;
+  return cachedThemes;
+}
+
 async function prepareMarp(markdown: string): Promise<{ html: string; css: string }> {
   const { Marp } = await import("@marp-team/marp-core");
-  const marp = new Marp({ inlineSVG: false, html: false, emoji: { unicode: false, shortcode: false } });
+  // `html: MARP_HTML_ALLOWLIST` opens a small layout-tag subset
+  // (`<div class>`, `<span>`, `<img>`, …); default `html: false`
+  // escapes them all. Same allowlist applied server-side in
+  // `renderMarpPdf` so preview / export agree. Scripts, iframes,
+  // and form elements stay escaped.
+  const marp = new Marp({ inlineSVG: false, html: MARP_HTML_ALLOWLIST, emoji: { unicode: false, shortcode: false } });
+  // Register every workspace-defined theme (#1649). A deck opts in
+  // via frontmatter `theme: <name>`; decks that don't keep Marp's
+  // default look.
+  const themes = await loadMarpThemes();
+  for (const theme of themes) {
+    marp.themeSet.add(theme.css);
+  }
   const rewritten = rewriteMarkdownImageRefs(markdown, props.baseDir ?? "");
   const sized = applyCustomMarpSize(marp, rewritten);
   return marp.render(sized);

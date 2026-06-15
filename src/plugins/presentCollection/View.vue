@@ -22,11 +22,14 @@ import type { PresentCollectionData } from "./types";
 
 /** Card-local UI state persisted in the tool result's `viewState` so it
  *  survives a re-render — same pattern as presentForm. `selected` is the
- *  open record (`null` once explicitly closed); `view` / `anchorField`
- *  keep the table↔calendar choice and calendar anchor sticky. */
+ *  open record (`null` once explicitly closed); `view` / `anchorField` /
+ *  `groupField` keep the table↔calendar↔kanban choice and its axes sticky.
+ *  NOTE: the table sort is deliberately NOT here — it's a single shared
+ *  per-collection preference in localStorage (read+written by both the
+ *  standalone page and chat cards), so it stays consistent everywhere. */
 interface PresentCollectionViewState {
   selected?: string | null;
-  view?: "table" | "calendar" | "kanban" | "dashboard";
+  view?: "table" | "calendar" | "kanban";
   anchorField?: string;
   groupField?: string;
 }
@@ -65,7 +68,7 @@ function onSelect(itemId: string | null): void {
   emit("updateResult", { ...props.selectedResult, viewState: { ...viewState.value, selected: itemId } });
 }
 
-function onViewStateChange(state: { view: "table" | "calendar" | "kanban" | "dashboard"; anchorField: string; groupField: string }): void {
+function onViewStateChange(state: { view: "table" | "calendar" | "kanban"; anchorField: string; groupField: string }): void {
   if (!props.selectedResult) return;
   // Skip redundant writes (the anchor/group settling on load fires this once).
   const current = viewState.value;

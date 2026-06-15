@@ -13,28 +13,70 @@
       <div v-if="loadError" class="load-error-banner shrink-0" role="alert">
         {{ t("pluginMarkdown.refreshFailed", { error: loadError }) }}
       </div>
-      <div class="flex-1 min-h-0 overflow-y-auto flex flex-col">
-        <!-- `m-auto` centres a short MarpView vertically in the canvas
-             (free space distributed top + bottom). When the deck is
-             tall enough to overflow, margin:auto stops contributing
-             and the outer wrapper scrolls naturally. -->
-        <div class="m-auto w-full">
-          <MarpView :markdown="markdownContent" :pdf-filename="marpPdfFilename" :base-dir="marpBaseDir" />
-        </div>
-      </div>
-      <div class="bottom-bar-wrapper">
-        <details ref="sourceDetails" class="markdown-source" @toggle="onDetailsToggle">
-          <summary>{{ t("pluginMarkdown.editSource") }}</summary>
-          <textarea v-model="editableMarkdown" class="markdown-editor" spellcheck="false"></textarea>
-          <div class="editor-actions">
-            <button class="apply-btn" :disabled="!hasChanges || saving" @click="applyMarkdown">
-              {{ saving ? t("pluginMarkdown.saving") : t("pluginMarkdown.applyChanges") }}
-            </button>
-            <button class="cancel-btn" @click="cancelEdit">{{ t("pluginMarkdown.cancel") }}</button>
+      <!-- Split mode: live editor on the left, MarpView on the right
+           driven by the unsaved buffer. Layout / inline-style
+           rationale lives in `MarpSplitEditor.vue` (the shared
+           50/50 split component). Toggles, Apply / Cancel, error
+           banner are supplied here via slots. -->
+      <MarpSplitEditor
+        v-if="marpSplitMode"
+        v-model="editableMarkdown"
+        :pdf-filename="marpPdfFilename"
+        :base-dir="marpBaseDir"
+        :editor-label="t('pluginMarkdown.marpSplitEditorLabel')"
+      >
+        <template #actions>
+          <button class="apply-btn" :disabled="!hasChanges || saving" @click="applyMarkdown">
+            {{ saving ? t("pluginMarkdown.saving") : t("pluginMarkdown.applyChanges") }}
+          </button>
+          <button class="cancel-btn" @click="cancelMarpSplitEdit">{{ t("pluginMarkdown.cancel") }}</button>
+        </template>
+        <template #error>
+          <p v-if="saveError" class="save-error mx-2 mt-1" role="alert">{{ t("pluginMarkdown.saveError", { error: saveError }) }}</p>
+        </template>
+        <template #preview-toolbar>
+          <button
+            class="h-8 px-2.5 flex items-center gap-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm"
+            :title="t('pluginMarkdown.marpSplitExit')"
+            :aria-label="t('pluginMarkdown.marpSplitExit')"
+            @click="marpSplitMode = false"
+          >
+            <span class="material-icons text-base" aria-hidden="true">close_fullscreen</span>
+          </button>
+        </template>
+      </MarpSplitEditor>
+      <!-- Preview-only mode (default): single MarpView + bottom <details>. -->
+      <template v-else>
+        <div class="flex-1 min-h-0 overflow-y-auto flex flex-col">
+          <div class="m-auto w-full">
+            <MarpView :markdown="markdownContent" :pdf-filename="marpPdfFilename" :base-dir="marpBaseDir">
+              <template #toolbar>
+                <button
+                  class="h-8 px-2.5 flex items-center gap-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm"
+                  :title="t('pluginMarkdown.marpSplitEnter')"
+                  :aria-label="t('pluginMarkdown.marpSplitEnter')"
+                  @click="enterMarpSplitMode"
+                >
+                  <span class="material-icons text-base" aria-hidden="true">open_in_full</span>
+                </button>
+              </template>
+            </MarpView>
           </div>
-          <p v-if="saveError" class="save-error" role="alert">{{ t("pluginMarkdown.saveError", { error: saveError }) }}</p>
-        </details>
-      </div>
+        </div>
+        <div class="bottom-bar-wrapper">
+          <details ref="sourceDetails" class="markdown-source" @toggle="onDetailsToggle">
+            <summary>{{ t("pluginMarkdown.editSource") }}</summary>
+            <textarea v-model="editableMarkdown" class="markdown-editor" spellcheck="false"></textarea>
+            <div class="editor-actions">
+              <button class="apply-btn" :disabled="!hasChanges || saving" @click="applyMarkdown">
+                {{ saving ? t("pluginMarkdown.saving") : t("pluginMarkdown.applyChanges") }}
+              </button>
+              <button class="cancel-btn" @click="cancelEdit">{{ t("pluginMarkdown.cancel") }}</button>
+            </div>
+            <p v-if="saveError" class="save-error" role="alert">{{ t("pluginMarkdown.saveError", { error: saveError }) }}</p>
+          </details>
+        </div>
+      </template>
     </template>
     <template v-else>
       <div class="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
@@ -122,6 +164,7 @@ import { useAppApi } from "../../composables/useAppApi";
 import { useFileChange } from "../../composables/useFileChange";
 import { isMarpDocument } from "../../utils/markdown/marpDetect";
 import MarpView from "./MarpView.vue";
+import MarpSplitEditor from "./MarpSplitEditor.vue";
 
 const { t } = useI18n();
 
@@ -197,9 +240,34 @@ const watchedPath = computed(() => {
 });
 const { version: fileVersion } = useFileChange(watchedPath);
 
+// Counter of in-flight / very-recent self-saves. Bumped before our
+// own PUT lands, decremented when the resulting fileChange event
+// arrives. The watcher below uses it to distinguish "the user just
+// clicked Apply (same tab)" from "another tab / agent / browser
+// rewrote the file". Without this, `useFileChange` would feed our
+// own save back through the watcher and tear down split mode (and
+// the bottom <details> editor) every time the user presses Apply
+// (Codex review on PR #1658).
+const pendingSelfSaves = ref(0);
+
 // Declared early so the `fileVersion` watcher below can reach into the
 // `<details>` element to close the editor when a remote write lands.
 const sourceDetails = ref<HTMLDetailsElement>();
+
+// Split-mode state (#1647). When true, the marp branch renders a
+// 50/50 layout: textarea on the left feeds `editableMarkdown` live
+// to the MarpView on the right, so the deck re-renders on every
+// keystroke without going through Apply. Default false to preserve
+// the preview-only landing experience from #1646. Declared up here
+// (rather than alongside the other marp-* helpers) so the
+// `fileVersion` watcher below can reset it on remote writes.
+const marpSplitMode = ref(false);
+
+// `editing` tracks whether the legacy bottom <details> editor is
+// open. Hoisted above `enterMarpSplitMode` (which clears this on
+// entry) and the click-delegation handler below; the toggle setter
+// lives in `onDetailsToggle` further down.
+const editing = ref(false);
 
 // Remote write: refetch so the rendered view tracks disk. If the
 // editor is open we close it first — `fileVersion` only fires once
@@ -210,8 +278,19 @@ const sourceDetails = ref<HTMLDetailsElement>();
 // see plans/done/feat-file-change-pubsub.md.
 watch(fileVersion, (current, previous) => {
   if (current === 0 || current === previous) return;
+  // Self-save: our own Apply / task-checkbox write feeds back here
+  // through pubsub. Don't tear down the editor for our own writes.
+  if (pendingSelfSaves.value > 0) {
+    pendingSelfSaves.value -= 1;
+    return;
+  }
   if (sourceDetails.value?.open) {
     sourceDetails.value.open = false;
+  }
+  // Drop split mode on remote write — same discard-and-reload policy
+  // as the bottom <details> editor (#1647).
+  if (marpSplitMode.value) {
+    marpSplitMode.value = false;
   }
   void fetchMarkdownContent();
 });
@@ -224,6 +303,36 @@ watch(fileVersion, (current, previous) => {
 const mdDoc = useMarkdownDoc(markdownContent);
 
 const marpMode = computed(() => isMarpDocument(mdDoc.value.meta));
+
+function enterMarpSplitMode(): void {
+  // Preserve any existing unsaved draft. The close (`close_fullscreen`)
+  // button is labelled as "hide editor", not "discard" — silently
+  // overwriting `editableMarkdown` with `markdownContent` on re-entry
+  // would drop the user's in-flight edits without warning (Codex
+  // review on PR #1658). `fetchMarkdownContent` already syncs the
+  // buffer on fresh loads, and the remote-write watcher closes split
+  // mode + reloads when disk diverges. Explicit discard stays on the
+  // Cancel button.
+  //
+  // Tear down the legacy bottom <details> state in case it was open:
+  // Vue's `v-else` unmounts that subtree without firing the
+  // `@toggle` listener, leaving `editing` stuck on `true` — which
+  // then reverts task-checkbox clicks (`onMarkdownClick`) and hides
+  // the copy button (`v-show="!editing"`) for the rest of the
+  // session (Codex review on PR #1658).
+  if (sourceDetails.value?.open) sourceDetails.value.open = false;
+  editing.value = false;
+  saveError.value = null;
+  marpSplitMode.value = true;
+}
+
+function cancelMarpSplitEdit(): void {
+  // Discard the unsaved buffer and return to preview-only. Same
+  // policy as `cancelEdit` for the bottom <details>.
+  editableMarkdown.value = markdownContent.value;
+  saveError.value = null;
+  marpSplitMode.value = false;
+}
 
 const marpBaseDir = computed(() => {
   const raw = props.selectedResult.data?.markdown;
@@ -282,7 +391,6 @@ watch(
   },
 );
 
-const editing = ref(false);
 const { copied, copy } = useClipboardCopy();
 
 function onDetailsToggle(event: Event) {
@@ -329,12 +437,17 @@ async function applyMarkdown() {
   // (e.g. the YYYY/MM partitions added in #764).
   if (isFilePath(raw)) {
     saving.value = true;
+    pendingSelfSaves.value += 1;
     const result = await apiPut<unknown>(endpoints.update.url, {
       relativePath: raw,
       markdown: editableMarkdown.value,
     });
     saving.value = false;
     if (!result.ok) {
+      // Roll back the self-save expectation — no pubsub event will
+      // arrive for a failed PUT, so the counter would otherwise stay
+      // high and silently absorb the next *remote* write.
+      pendingSelfSaves.value = Math.max(0, pendingSelfSaves.value - 1);
       // Store the raw error; the template formats it via t() so locale
       // switches re-render without double-translating.
       saveError.value = result.error;
@@ -381,6 +494,7 @@ async function persistTaskMarkdown(relativePath: string, markdown: string): Prom
   // on screen, and persisting it would clobber unrelated state.
   if (props.selectedResult.data?.markdown !== relativePath) return;
 
+  pendingSelfSaves.value += 1;
   const result = await apiPut<unknown>(endpoints.update.url, {
     relativePath,
     markdown,
@@ -395,6 +509,10 @@ async function persistTaskMarkdown(relativePath: string, markdown: string): Prom
   if (props.selectedResult.data?.markdown !== relativePath) return;
 
   if (!result.ok) {
+    // Failed write — no pubsub event will land for it, so roll the
+    // self-save counter back to keep the next genuine remote write
+    // visible to the fileVersion watcher.
+    pendingSelfSaves.value = Math.max(0, pendingSelfSaves.value - 1);
     saveError.value = result.error;
     // Refetch synchronously inside the chain so subsequent queued
     // clicks observe the canonical (server-side) markdown before
@@ -484,6 +602,19 @@ function onMarkdownClick(event: MouseEvent): void {
 watch(
   () => props.selectedResult.data?.markdown,
   () => {
+    // Reset split mode so navigating from one Marp doc to another
+    // doesn't carry the editor pane across (split mode is a
+    // per-document opt-in; "状態の永続化: なし"). The bottom-bar
+    // <details> is already closed by `fetchMarkdownContent` via
+    // editableMarkdown resync (Codex review on PR #1658).
+    marpSplitMode.value = false;
+    // Drop any in-flight self-save expectation: `useFileChange`
+    // rebinds to the new path and resets `version` to 0, so any
+    // pubsub event we were waiting on for the *old* file will never
+    // reach our watcher. Leaving the counter positive would let it
+    // absorb the next genuine remote write on the new doc (Codex
+    // review on PR #1658).
+    pendingSelfSaves.value = 0;
     fetchMarkdownContent();
   },
 );

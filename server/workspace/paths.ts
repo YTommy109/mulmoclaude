@@ -162,6 +162,12 @@ const HOST_WORKSPACE_DIRS = {
   configs: "config",
   roles: "config/roles",
   helps: "config/helps",
+  // Custom Marp themes (#1649). One `.css` file per theme; the
+  // filename (sans extension) is the theme name referenced from a
+  // slide deck's frontmatter `theme: <name>`. Loaded into the
+  // shared Marp themeSet at preview-render and PDF-export time so
+  // the same look applies to both surfaces.
+  marpThemes: "config/marp-themes",
   // Project-scope Claude Code skills root — both user-authored and
   // launcher-managed presets live here. Path is hardcoded by Claude
   // Code's slash-command resolver (it scans `<cwd>/.claude/skills/`
@@ -189,7 +195,7 @@ const HOST_WORKSPACE_DIRS = {
   // Restorable backups written before a destructive delete. A
   // collection-delete drops `archive/<date>-<uuid>/` holding one skill
   // copy + the records + an LLM-readable RESTORE.md (see
-  // docs/collections-architecture.md "Deleting a collection").
+  // docs/papers/collections-architecture.md "Deleting a collection").
   archive: "archive",
   // Nested subdirs inside a top-level grouping. Kept here (rather
   // than module-local constants) when multiple modules need to

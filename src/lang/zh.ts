@@ -44,6 +44,9 @@ const zhMessages = {
     attachImageFailed: "附加图片失败：{error}",
     stopFailed: "停止处理失败：{error}",
     dropHint: "拖放文件以附加",
+    tooManyFiles: "一次最多可附加 {max} 个文件。",
+    removeAttachment: "移除 {name}",
+    attachmentFallbackName: "附件",
   },
   sessionHistoryPanel: {
     filters: {
@@ -79,6 +82,8 @@ const zhMessages = {
     cancel: "取消",
     showMore: "显示更多 ({count})",
     showLess: "收起",
+    openTarget: "打开",
+    expandDetails: "展开详情",
   },
   pluginDiagnostics: {
     title: "插件配置问题",
@@ -331,6 +336,8 @@ const zhMessages = {
     invalidJson: "无效的 JSON",
     undo: "撤销",
     redo: "重做",
+    editMarp: "编辑幻灯片源代码",
+    marpEditorLabel: "Marp 幻灯片源代码",
   },
   filesView: {
     chatPlaceholder: "询问关于此文件的问题…",
@@ -1084,6 +1091,9 @@ const zhMessages = {
     marpSlidesMode: "Marp 幻灯片 · {count}",
     marpExportPdf: "导出 PDF",
     marpRenderFailed: "⚠ Marp 幻灯片渲染失败: {error}",
+    marpSplitEnter: "并排编辑源代码",
+    marpSplitExit: "关闭源代码编辑器",
+    marpSplitEditorLabel: "源代码",
   },
   pluginTextResponse: {
     pdf: "PDF",
@@ -1137,6 +1147,13 @@ const zhMessages = {
     // 以便保留 `<code>` 标签的样式,同时文本可本地化。
     explanation:
       "要通过 {allowedTools} 传递给 Claude 的额外工具名。每行一个。适用于在 {claudeMcp} 完成授权后,调用 Claude Code 内置的 MCP 服务器(如 Gmail / Google 日历)。",
+    connectorsSectionTitle: "已连接的连接器",
+    connectorsEmpty: "未找到连接器。",
+    connectorConnected: "已连接",
+    connectorDisconnected: "未连接",
+    connectorsGuide:
+      "Slack、Gmail 等连接器让 Claude 可以访问您的账户。请在 Claude Desktop 中添加或移除连接器，也可以在{configLink}进行配置。（将打开 claude.ai）",
+    connectorsConfigLinkText: "此处",
   },
   collectionsView: {
     addCollectionLabel: "集合",
@@ -1172,6 +1189,7 @@ const zhMessages = {
     searchSummary: "显示 {total} 条中的 {shown} 条",
     noMatchingItems: "没有匹配的项目",
     clearSearch: "清除搜索",
+    sortBy: "按{field}排序",
     openCollection: "打开 {title}",
     createTitle: "新增",
     derivedLabel: "派生",
@@ -1203,9 +1221,23 @@ const zhMessages = {
     kanbanFieldLabel: "看板分组字段",
     kanbanUncategorized: "未分类",
     kanbanOpenCard: "打开 {label}",
-    viewDashboard: "仪表板",
-    dashboardAlertHeading: "{label} — {count} 项",
-    dashboardAllItems: "全部条目",
+    addView: "添加视图",
+    config: {
+      open: "集合设置",
+      title: "{title} · 设置",
+      viewsHeading: "自定义视图",
+      deleteView: "删除 {label}",
+      confirmDelete: "删除视图“{label}”？这将删除其 HTML 文件并取消注册。",
+      empty: "暂无自定义视图。",
+    },
+    customViewLoading: "正在加载视图…",
+    customViewError: "无法加载此视图：{error}",
+    addViewPrompt:
+      '我想为“{title}”集合添加一个自定义视图。先问我想查看或编辑什么，然后在 {base}/views/your-view.html 创建 HTML 视图文件，并在 {base}/schema.json 的 `views[]` 中注册（只读视图用 capabilities ["read"]，需要编辑记录则用 ["read","write"]）。数据契约请遵循 custom-view 帮助文档。',
+    repair: "修复",
+    dataIssuesDetected: "有 {count} 个记录文件存在数据问题，可能未显示在此视图中。",
+    repairPrompt:
+      "集合 {title} 有 {count} 个记录文件存在导致无法显示的数据问题。请逐一修复——用 Read 读取该文件，更正后再用 Write 写回：\n{issues}\n\n完成后，调用 presentCollection 确认记录可以正常加载。",
     source: {
       user: "用户",
       project: "项目",

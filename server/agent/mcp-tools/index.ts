@@ -2,6 +2,8 @@ import { Router, Request, Response } from "express";
 import { readXPost, searchX } from "./x.js";
 import { notify } from "./notify.js";
 import { handlePermission } from "./handlePermission.js";
+import { spawnBackgroundChat } from "./spawnBackgroundChat.js";
+import { manageCollection } from "./manageCollection.js";
 import { errorMessage } from "../../utils/errors.js";
 import { notFound, sendError, serverError } from "../../utils/httpError.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
@@ -25,10 +27,16 @@ export interface McpTool {
   };
   requiredEnv?: string[];
   prompt?: string;
+  /** When true, the tool is offered to EVERY role regardless of
+   *  `role.availablePlugins` — like a built-in (Bash/Read/Write).
+   *  `getActiveToolDescriptors` (server/agent/activeTools.ts) skips
+   *  the per-role gate for these. Use only for generic host
+   *  infrastructure that benefits every role. */
+  alwaysActive?: boolean;
   handler: (args: Record<string, unknown>, ctx?: McpToolContext) => Promise<string>;
 }
 
-export const mcpTools: McpTool[] = [readXPost, searchX, notify, handlePermission];
+export const mcpTools: McpTool[] = [readXPost, searchX, notify, handlePermission, spawnBackgroundChat, manageCollection];
 
 const toolMap = new Map(mcpTools.map((tool) => [tool.definition.name, tool]));
 

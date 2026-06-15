@@ -39,6 +39,9 @@ const frMessages = {
     attachImageFailed: "Échec de l'attache de l'image : {error}",
     stopFailed: "Échec de l'arrêt du traitement : {error}",
     dropHint: "Déposez le fichier pour joindre",
+    tooManyFiles: "Vous pouvez joindre jusqu'à {max} fichiers à la fois.",
+    removeAttachment: "Retirer {name}",
+    attachmentFallbackName: "pièce jointe",
   },
   sessionHistoryPanel: {
     filters: {
@@ -74,6 +77,8 @@ const frMessages = {
     cancel: "Annuler",
     showMore: "Voir plus ({count})",
     showLess: "Réduire",
+    openTarget: "Ouvrir",
+    expandDetails: "Afficher les détails",
   },
   pluginDiagnostics: {
     title: "Problème de configuration du plugin",
@@ -335,6 +340,8 @@ const frMessages = {
     invalidJson: "JSON invalide",
     undo: "Annuler",
     redo: "Rétablir",
+    editMarp: "Modifier la source de la diapositive",
+    marpEditorLabel: "Source des diapositives Marp",
   },
   filesView: {
     chatPlaceholder: "Posez une question sur ce fichier…",
@@ -1099,6 +1106,9 @@ const frMessages = {
     marpSlidesMode: "Diapositives Marp · {count}",
     marpExportPdf: "Exporter en PDF",
     marpRenderFailed: "⚠ Échec du rendu des diapositives Marp : {error}",
+    marpSplitEnter: "Modifier la source en parallèle de l'aperçu",
+    marpSplitExit: "Fermer l'éditeur de source",
+    marpSplitEditorLabel: "Source",
   },
   pluginTextResponse: {
     pdf: "PDF",
@@ -1153,6 +1163,13 @@ const frMessages = {
     // style tandis que le texte reste traduisible.
     explanation:
       "Noms d'outils supplémentaires à transmettre à Claude via {allowedTools}. Un par ligne. Utile pour les serveurs MCP intégrés à Claude Code comme Gmail / Google Agenda après authentification via {claudeMcp}.",
+    connectorsSectionTitle: "Connecteurs actifs",
+    connectorsEmpty: "Aucun connecteur trouvé.",
+    connectorConnected: "Connecté",
+    connectorDisconnected: "Non connecté",
+    connectorsGuide:
+      "Les connecteurs comme Slack et Gmail permettent à Claude d'accéder à vos comptes. Ajoutez ou supprimez des connecteurs depuis Claude Desktop ou configurez-les {configLink}. (Ouvre claude.ai)",
+    connectorsConfigLinkText: "ici",
   },
   collectionsView: {
     addCollectionLabel: "Collection",
@@ -1189,6 +1206,7 @@ const frMessages = {
     searchSummary: "Affichage de {shown} sur {total}",
     noMatchingItems: "Aucun élément correspondant",
     clearSearch: "Effacer la recherche",
+    sortBy: "Trier par {field}",
     openCollection: "Ouvrir {title}",
     createTitle: "Ajouter",
     derivedLabel: "Calculé",
@@ -1220,9 +1238,23 @@ const frMessages = {
     kanbanFieldLabel: "Champ de regroupement Kanban",
     kanbanUncategorized: "Non classé",
     kanbanOpenCard: "Ouvrir {label}",
-    viewDashboard: "Tableau de bord",
-    dashboardAlertHeading: "{label} — {count}",
-    dashboardAllItems: "Tous les éléments",
+    addView: "Ajouter une vue",
+    config: {
+      open: "Paramètres de la collection",
+      title: "{title} · paramètres",
+      viewsHeading: "Vues personnalisées",
+      deleteView: "Supprimer {label}",
+      confirmDelete: "Supprimer la vue « {label} » ? Cela supprime son fichier HTML et la désenregistre.",
+      empty: "Aucune vue personnalisée pour le moment.",
+    },
+    customViewLoading: "Chargement de la vue…",
+    customViewError: "Impossible de charger cette vue : {error}",
+    addViewPrompt:
+      'Je veux ajouter une vue personnalisée à la collection « {title} ». Demande-moi ce que je veux voir ou modifier, puis crée le fichier HTML de la vue dans {base}/views/your-view.html et enregistre-le dans {base}/schema.json sous `views[]` (capabilities ["read"] pour une vue en lecture seule, ["read","write"] si elle modifie des enregistrements). Suis l\'aide custom-view pour le contrat de données.',
+    repair: "Réparer",
+    dataIssuesDetected: "{count} fichier(s) d'enregistrement présentent des problèmes de données et peuvent être absents de cette vue.",
+    repairPrompt:
+      "La collection « {title} » comporte {count} fichier(s) d'enregistrement présentant des problèmes de données qui les empêchent d'apparaître. Corrigez chacun : lisez le fichier avec Read, corrigez-le, puis réécrivez-le avec Write :\n{issues}\n\nUne fois terminé, appelez presentCollection pour confirmer que les enregistrements se chargent.",
     source: {
       user: "Utilisateur",
       project: "Projet",

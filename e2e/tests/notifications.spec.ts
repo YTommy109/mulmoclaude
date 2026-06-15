@@ -348,3 +348,89 @@ test.describe("notification bell — history more / less toggle", () => {
     await expect(page.getByTestId(`notification-history-${history[HISTORY_INITIAL_VISIBLE].id}`)).toHaveCount(0);
   });
 });
+
+function buildHistoryEntryWithBody(index: number, body: string, navigateTarget?: string): NotifierHistoryFixture {
+  const base = buildHistoryEntry(index);
+  return { ...base, body, navigateTarget };
+}
+
+test.describe("notification bell — history body expansion", () => {
+  test("clicking a history row with body expands and collapses the body", async ({ page }) => {
+    const history = [buildHistoryEntryWithBody(0, "Detailed body text for testing")];
+    await mockAllApis(page, { sessions: [] });
+    await primeNotifierHistory(page, history);
+
+    await page.goto("/todos");
+    await page.getByTestId("notification-bell").click();
+
+    const row = page.getByTestId(`notification-history-${history[0].id}`);
+    await expect(row).toBeVisible();
+    await expect(page.getByTestId("notification-history-body")).toHaveCount(0);
+
+    await row.click();
+    await expect(page.getByTestId("notification-history-body")).toBeVisible();
+    await expect(page.getByTestId("notification-history-body")).toHaveText("Detailed body text for testing");
+
+    await row.click();
+    await expect(page.getByTestId("notification-history-body")).toHaveCount(0);
+  });
+
+  test("expanded body state resets when the panel closes", async ({ page }) => {
+    const history = [buildHistoryEntryWithBody(0, "Body resets on close")];
+    await mockAllApis(page, { sessions: [] });
+    await primeNotifierHistory(page, history);
+
+    await page.goto("/todos");
+    await page.getByTestId("notification-bell").click();
+    await page.getByTestId(`notification-history-${history[0].id}`).click();
+    await expect(page.getByTestId("notification-history-body")).toBeVisible();
+
+    await page.mouse.click(10, 10);
+    await expect(page.getByTestId("notification-panel")).toHaveCount(0);
+
+    await page.getByTestId("notification-bell").click();
+    await expect(page.getByTestId("notification-panel")).toBeVisible();
+    await expect(page.getByTestId("notification-history-body")).toHaveCount(0);
+  });
+
+  test("navigate icon appears when expanded and navigateTarget is present", async ({ page }) => {
+    const history = [buildHistoryEntryWithBody(0, "Body with link", "/calendar")];
+    await mockAllApis(page, { sessions: [] });
+    await primeNotifierHistory(page, history);
+
+    await page.goto("/todos");
+    await page.getByTestId("notification-bell").click();
+
+    const row = page.getByTestId(`notification-history-${history[0].id}`);
+    await expect(page.getByTestId("notification-history-navigate")).toHaveCount(0);
+
+    await row.click();
+    await expect(page.getByTestId("notification-history-navigate")).toBeVisible();
+  });
+
+  test("navigate icon is absent for entries without navigateTarget", async ({ page }) => {
+    const history = [buildHistoryEntryWithBody(0, "Body without link")];
+    await mockAllApis(page, { sessions: [] });
+    await primeNotifierHistory(page, history);
+
+    await page.goto("/todos");
+    await page.getByTestId("notification-bell").click();
+    await page.getByTestId(`notification-history-${history[0].id}`).click();
+
+    await expect(page.getByTestId("notification-history-body")).toBeVisible();
+    await expect(page.getByTestId("notification-history-navigate")).toHaveCount(0);
+  });
+
+  test("history row without body or navigateTarget has no expand button", async ({ page }) => {
+    const history = [{ ...buildHistoryEntry(0), body: undefined }];
+    await mockAllApis(page, { sessions: [] });
+    await primeNotifierHistory(page, history);
+
+    await page.goto("/todos");
+    await page.getByTestId("notification-bell").click();
+
+    const row = page.getByTestId(`notification-history-${history[0].id}`);
+    await expect(row).toBeVisible();
+    await expect(row.getByTestId("notification-history-expand")).toHaveCount(0);
+  });
+});

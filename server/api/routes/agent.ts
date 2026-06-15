@@ -12,6 +12,7 @@ import {
   readSessionJsonl,
   sessionJsonlAbsPath,
   ensureChatDir,
+  deleteSessionFiles,
 } from "../../utils/files/session-io.js";
 import { getRole } from "../../workspace/roles.js";
 import { runAgent } from "../../agent/index.js";
@@ -31,16 +32,14 @@ import { errorMessage } from "../../utils/errors.js";
 import { createArgsCache, recordToolEvent } from "../../workspace/tool-trace/index.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
-import { isSessionOrigin, type SessionOrigin } from "../../../src/types/session.js";
+import { isSessionOrigin, SESSION_ORIGINS, type SessionOrigin } from "../../../src/types/session.js";
+import { releaseBackgroundSession } from "../../agent/backgroundSessions.js";
 // Imports kept commented (instead of deleted) alongside the
-// publishNotification call below — see the duplicate-notification
-// comment near `endRun()` in `runAgentInBackground` for context.
-// `SESSION_ORIGINS` is dragged into this same commented block
-// because every remaining live reference to it lived inside the
-// commented helper / call site; once those went, leaving the value
-// import un-commented would trip the unused-import lint rule.
+// publishNotification call in `runPostTurnSideEffects` — see the
+// duplicate-notification comment there for context. (`SESSION_ORIGINS`
+// is now imported live above — the hidden-worker branch in
+// `runAgentInBackground` references it.)
 // (by snakajima)
-// import { SESSION_ORIGINS } from "../../../src/types/session.js";
 // import { NOTIFICATION_KINDS } from "../../../src/types/notification.js";
 // import { publishNotification } from "../../events/notifications.js";
 import { env } from "../../system/env.js";
@@ -890,6 +889,10 @@ async function runAgentInBackground(params: BackgroundRunParams): Promise<void> 
   let failoverAttemptsRemaining = claudeSessionId ? 1 : 0;
   let currentMessage = decoratedMessage;
   let currentClaudeSessionId = claudeSessionId;
+  // Tracks whether this run threw, so the finally can decide whether a
+  // hidden worker session's files are safe to delete (success) or
+  // should be kept for inspection (error).
+  let didError = false;
 
   try {
     while (true) {
@@ -946,6 +949,7 @@ async function runAgentInBackground(params: BackgroundRunParams): Promise<void> 
       durationMs: Date.now() - requestStartedAt,
     });
   } catch (err) {
+    didError = true;
     await flushTextAccumulator(eventCtx);
     log.error("agent", "request failed", {
       chatSessionId,
@@ -956,54 +960,83 @@ async function runAgentInBackground(params: BackgroundRunParams): Promise<void> 
       message: String(err),
     });
   } finally {
-    endRun(chatSessionId);
-    // Commented out: this would create a duplicate notification.
-    //
-    // `endRun(chatSessionId)` above flips `session.hasUnread = true`
-    // for every chat-session turn completion regardless of origin,
-    // which already lights up the red unread-count badge on the
-    // Session History Panel toggle button (driven by `hasUnread` →
-    // `useSessionDerived.unreadCount` →
-    // `SessionHistoryToggleButton.vue`). Firing
-    // `publishNotification` here adds a *second* red badge — on the
-    // notification bell — for the exact same event, in the same
-    // chrome row. Two indicators, one event = noise.
-    //
-    // The duplicate occurs whenever a chat session receives a new
-    // message, which is exactly what every code path through this
-    // `finally` represents. The initiator of the turn (human, bridge
-    // user, scheduled job, skill chain, another agent) does not
-    // change this — both badges flip together.
-    //
-    // Other `publishNotification` call sites (news pipeline, `notify`
-    // MCP tool, scheduled-test endpoint) do not post a chat-session
-    // message at the same time, so they are not duplicates and
-    // remain enabled.
-    //
-    // (by snakajima)
-    //
-    // if (params.origin && params.origin !== SESSION_ORIGINS.human) {
-    //   publishNotification({
-    //     kind: NOTIFICATION_KINDS.agent,
-    //     title: completionNotificationTitle(params.role.name, params.origin),
-    //     sessionId: chatSessionId,
-    //   });
-    // }
-    // Fire-and-forget: journal + chat-index post-processing
-    maybeRunJournal({ activeSessionIds: getActiveSessionIds() }).catch(logBackgroundError("journal"));
-    maybeIndexSession({
-      sessionId: chatSessionId,
-      activeSessionIds: getActiveSessionIds(),
-    }).catch(logBackgroundError("chat-index"));
-    // Walks wiki/pages/ for files modified during this turn and
-    // appends a backlink to the originating chat session so the
-    // user can jump back from a wiki page to the conversation
-    // that created it. See #109.
-    maybeAppendWikiBacklinks({
-      chatSessionId,
-      turnStartedAt: requestStartedAt,
-    }).catch(logBackgroundError("wiki-backlinks"));
+    await finalizeRun(chatSessionId, params.origin, didError, requestStartedAt);
   }
+}
+
+// Run the per-turn teardown: mark the run finished, then either clean up
+// a hidden worker session or fire the normal post-turn side effects.
+// Split out of `runAgentInBackground` to keep that function under the
+// cognitive-complexity threshold.
+async function finalizeRun(chatSessionId: string, origin: SessionOrigin | undefined, didError: boolean, requestStartedAt: number): Promise<void> {
+  endRun(chatSessionId);
+
+  if (origin === SESSION_ORIGINS.system) {
+    // Hidden worker session (spawnBackgroundChat `hidden: true`) —
+    // plumbing, not a conversation. Release its runaway-guard slot,
+    // skip the post-turn side effects (they'd burn tokens summarising
+    // plumbing and pollute wiki backlinks), and clean up its files on
+    // success — keep them on error so a failed worker stays inspectable.
+    releaseBackgroundSession(chatSessionId);
+    if (!didError) {
+      await deleteSessionFiles(chatSessionId).catch(logBackgroundError("background-session-cleanup"));
+    }
+    return;
+  }
+
+  runPostTurnSideEffects(chatSessionId, requestStartedAt);
+}
+
+// Fire-and-forget post-turn processing for a normal (user-facing) chat
+// session: journal, chat-index, and wiki-backlinks. Hidden worker
+// sessions skip this entirely (see `runAgentInBackground`'s finally).
+function runPostTurnSideEffects(chatSessionId: string, requestStartedAt: number): void {
+  // Commented out: this would create a duplicate notification.
+  //
+  // `endRun(chatSessionId)` (in the caller) flips `session.hasUnread =
+  // true` for every chat-session turn completion regardless of origin,
+  // which already lights up the red unread-count badge on the
+  // Session History Panel toggle button (driven by `hasUnread` →
+  // `useSessionDerived.unreadCount` →
+  // `SessionHistoryToggleButton.vue`). Firing
+  // `publishNotification` here adds a *second* red badge — on the
+  // notification bell — for the exact same event, in the same
+  // chrome row. Two indicators, one event = noise.
+  //
+  // The duplicate occurs whenever a chat session receives a new
+  // message, which is exactly what every code path through the
+  // `finally` represents. The initiator of the turn (human, bridge
+  // user, scheduled job, skill chain, another agent) does not
+  // change this — both badges flip together.
+  //
+  // Other `publishNotification` call sites (news pipeline, `notify`
+  // MCP tool, scheduled-test endpoint) do not post a chat-session
+  // message at the same time, so they are not duplicates and
+  // remain enabled.
+  //
+  // (by snakajima)
+  //
+  // if (params.origin && params.origin !== SESSION_ORIGINS.human) {
+  //   publishNotification({
+  //     kind: NOTIFICATION_KINDS.agent,
+  //     title: completionNotificationTitle(params.role.name, params.origin),
+  //     sessionId: chatSessionId,
+  //   });
+  // }
+  // Fire-and-forget: journal + chat-index post-processing
+  maybeRunJournal({ activeSessionIds: getActiveSessionIds() }).catch(logBackgroundError("journal"));
+  maybeIndexSession({
+    sessionId: chatSessionId,
+    activeSessionIds: getActiveSessionIds(),
+  }).catch(logBackgroundError("chat-index"));
+  // Walks wiki/pages/ for files modified during this turn and
+  // appends a backlink to the originating chat session so the
+  // user can jump back from a wiki page to the conversation
+  // that created it. See #109.
+  maybeAppendWikiBacklinks({
+    chatSessionId,
+    turnStartedAt: requestStartedAt,
+  }).catch(logBackgroundError("wiki-backlinks"));
 }
 
 // Read claudeSessionId from meta (primary) or jsonl (legacy fallback).

@@ -95,6 +95,7 @@ const HOST_API_ROUTES = {
     // `mc-manage-automations` preset skills (split out in #1295).
     // Safe to call ad-hoc — pure side effect, no body.
     refresh: "/api/config/refresh",
+    connectors: "/api/config/connectors",
   },
 
   files: {
@@ -226,6 +227,13 @@ const HOST_API_ROUTES = {
     manage: "/api/roles/manage",
   },
 
+  // Custom Marp themes (#1649). One CSS file per theme under
+  // `config/marp-themes/`; `GET /api/marp-themes` returns the list
+  // for the MarpView previewer to register via `marp.themeSet.add()`.
+  marpThemes: {
+    list: "/api/marp-themes",
+  },
+
   // Schema-driven collections (see plans/done/feat-skill-driven-apps.md
   // — historical name predates the rename). One "collection" is a
   // skill that ships a `schema.json` alongside its `SKILL.md`; the
@@ -240,9 +248,26 @@ const HOST_API_ROUTES = {
     item: "/api/collections/:slug/items/:itemId",
     /** POST → assemble a schema-declared action's seed prompt → { prompt, role } */
     itemAction: "/api/collections/:slug/items/:itemId/actions/:actionId",
+    /** POST → assemble a collection-level action's seed prompt (no record;
+     *  injects a progress summary of all items) → { prompt, role } */
+    collectionAction: "/api/collections/:slug/actions/:actionId",
     /** POST → re-run a feed collection's retrieval now → { refreshed, written }.
      *  400 when the collection has no `ingest` block (not a feed). */
     refresh: "/api/collections/:slug/refresh",
+    /** GET ?id=<viewId> → the custom view's HTML file (global-bearer auth),
+     *  read from data/skills/:slug/views/. The parent renders it sandboxed. */
+    viewFile: "/api/collections/:slug/view-file",
+    /** POST → mint a slug- and capability-scoped token for a custom view
+     *  (global-bearer auth) → { token, exp, dataUrl, capabilities }. */
+    viewToken: "/api/collections/:slug/view-token",
+    /** GET → enriched records (getItems); PUT → validated write (putItems).
+     *  Guarded by the scoped view token (NOT the global bearer); exempt from
+     *  the global bearer + CSRF middleware. See server/api/auth/viewToken.ts. */
+    viewData: "/api/collections/:slug/view-data",
+    /** DELETE → remove one custom view: drop it from schema.json `views[]` and
+     *  unlink its `views/<file>.html` (global-bearer auth) → { deleted, viewId }.
+     *  Source-aware; refuses user-scope + preset collections. */
+    viewDelete: "/api/collections/:slug/views/:viewId",
   },
 
   // `scheduler` group migrated to META — see `src/plugins/scheduler/automationsMeta.ts`.

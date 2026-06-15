@@ -19,7 +19,7 @@ import { markRead, getSession, evictSession, publishSessionsChanged } from "../.
 import { notFound } from "../../utils/httpError.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
-import type { SessionOrigin } from "../../../src/types/session.js";
+import { SESSION_ORIGINS, type SessionOrigin } from "../../../src/types/session.js";
 import { env } from "../../system/env.js";
 import { ONE_DAY_MS } from "../../utils/time.js";
 import { encodeCursor, parseCursor, sessionChangeMs } from "./sessionsCursor.js";
@@ -181,6 +181,12 @@ async function loadSessionRow(sessionId: string, ctx: SessionRowContext): Promis
 
     const meta = await readSessionMeta(ctx.chatDir, sessionId);
     if (!meta) return null;
+
+    // Hidden worker sessions (spawnBackgroundChat `hidden: true`) are
+    // internal plumbing, not conversations — exclude them from every
+    // listing. This is the single choke point feeding both the list
+    // route and the cursor diff (`loadAllSessions`).
+    if (meta.origin === SESSION_ORIGINS.system) return null;
 
     // The meta sidecar bumps its mtime on hasUnread / origin writes —
     // feed it into changeMs so cursor-based refetches pick up drains
