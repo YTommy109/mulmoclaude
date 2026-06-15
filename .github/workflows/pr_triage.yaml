@@ -32,7 +32,12 @@ on:
   #      pull_request.* }}` template substitution into the shell body,
   #      so zizmor's template-injection vector is closed.
   pull_request_target:
-    types: [opened, reopened, synchronize]
+    # `edited` catches base-branch retargets: a contributor could open
+    # the PR against a non-main branch (bypassing `branches: [main]`)
+    # then edit it to point at main. That arrives as `edited`, not
+    # `opened` / `reopened`, so triage would otherwise never fire on
+    # the retargeted PR. CodeRabbit + Codex review on PR #1708.
+    types: [opened, reopened, synchronize, edited]
     branches: [main]
 
 permissions:
