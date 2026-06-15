@@ -162,11 +162,11 @@ describe("buildCliArgs", () => {
     assert.ok(withMcpIdx >= 0, "must pass --permission-prompt-tool when MCP is configured");
     assert.equal(withMcp[withMcpIdx + 1], "mcp__mulmoclaude__handlePermission");
 
-    // When --permission-prompt-tool is active, block the built-in Agent
+    // When --permission-prompt-tool is active, block the built-in Task
     // subagent tool so it doesn't inherit the flag without the MCP server.
     const disallowedIdx = withMcp.indexOf("--disallowedTools");
     assert.ok(disallowedIdx >= 0, "must pass --disallowedTools when MCP is configured");
-    assert.equal(withMcp[disallowedIdx + 1], "Agent");
+    assert.equal(withMcp[disallowedIdx + 1], "Task");
 
     const withoutMcp = buildCliArgs({ systemPrompt: "x", activePlugins: [] });
     assert.ok(!withoutMcp.includes("--permission-prompt-tool"), "must NOT pass --permission-prompt-tool in no-MCP sessions");
