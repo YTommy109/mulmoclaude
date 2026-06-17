@@ -1244,7 +1244,7 @@ process.on("SIGTERM", () => {
   // `http://<laptop-ip>:3001/api/*`), which combined with the
   // workspace file API is a credential-theft risk. Personal dev
   // tool — localhost is the right default.
-  const httpServer = app.listen(port, "127.0.0.1", async () => {
+  const httpServer = app.listen(port, env.listenHost, async () => {
     // Initialize the notifier engine synchronously, before any await
     // in this callback. The HTTP listener is already accepting
     // connections by the time this callback fires, so any awaited

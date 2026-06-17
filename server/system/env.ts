@@ -66,6 +66,9 @@ function asCsv(value: string | undefined): readonly string[] {
 export const env = Object.freeze({
   // HTTP server
   port: asInt(process.env.PORT, 3001, { min: 0, max: 65_535 }),
+  // Bind address for the HTTP server. Defaults to 127.0.0.1 (localhost-only).
+  // Set to 0.0.0.0 when running behind a reverse proxy (e.g. exe.dev).
+  listenHost: process.env.LISTEN_HOST ?? "127.0.0.1",
   nodeEnv: process.env.NODE_ENV ?? "development",
   isProduction: process.env.NODE_ENV === "production",
 
