@@ -1,19 +1,28 @@
 import type { ToolPlugin } from "gui-chat-protocol/vue";
 import type { PluginRegistration } from "../../tools/types";
-import type { FormData, FormArgs } from "./types";
-import { TOOL_DEFINITION, TOOL_NAME } from "./definition";
-import { executeForm } from "./plugin";
+import type { FormData, FormArgs } from "@mulmoclaude/form-plugin";
+import { plugin as formPlugin } from "@mulmoclaude/form-plugin/vue";
+import "@mulmoclaude/form-plugin/style.css";
 import { wrapWithScope } from "../scope";
-import View from "./View.vue";
-import Preview from "./Preview.vue";
+import { TOOL_NAME } from "./definition";
+
+// The form's schema, validation, View, and Preview come from the shared
+// @mulmoclaude/form-plugin package. We re-wrap its components in MulmoClaude's scoped
+// runtime provider (wrapWithScope) so the package's useRuntime()/locale resolves
+// to the host — which is what drives the package's bundled i18n.
+//
+// Coerce the package's plugin to the host's ToolPlugin type. The package is built
+// with its own `vue` dep, so under yarn 4 it resolves a second @vue/runtime-core
+// whose `Component` type is nominally distinct from the host's (identical at
+// runtime — the built app bundles a single Vue). Without this bridge, passing the
+// package's Component into the host-typed wrapWithScope makes tsc compare two giant
+// equivalent Component types and blow the stack (TS2321).
+const pkg = formPlugin as unknown as ToolPlugin<FormData, FormData, FormArgs>;
 
 const presentFormPlugin: ToolPlugin<FormData, FormData, FormArgs> = {
-  toolDefinition: TOOL_DEFINITION,
-  execute: executeForm,
-  generatingMessage: "Preparing form...",
-  isEnabled: () => true,
-  viewComponent: wrapWithScope("form", View),
-  previewComponent: wrapWithScope("form", Preview),
+  ...pkg,
+  viewComponent: wrapWithScope("form", pkg.viewComponent),
+  previewComponent: wrapWithScope("form", pkg.previewComponent),
 };
 
 export default presentFormPlugin;

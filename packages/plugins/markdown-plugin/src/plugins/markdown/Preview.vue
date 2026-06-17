@@ -15,18 +15,16 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useI18n } from "vue-i18n";
 import type { ToolResult } from "gui-chat-protocol";
 import { isFilePath, type MarkdownToolData } from "./definition";
 import { extractFirstH1 } from "../../utils/markdown/extractFirstH1";
 import { parseFrontmatter } from "../../utils/markdown/frontmatter";
 import { isMarpDocument } from "../../utils/markdown/marpDetect";
-import { apiGet } from "../../utils/api";
-import { pluginEndpoints } from "../api";
+import { useRuntime } from "gui-chat-protocol/vue";
+import { useT } from "../../lang";
 
-const { t } = useI18n();
-
-const filesEndpoints = pluginEndpoints<{ content: string }>("files");
+const t = useT();
+const { dispatch } = useRuntime();
 
 const props = defineProps<{
   result: ToolResult<MarkdownToolData>;
@@ -40,14 +38,12 @@ async function fetchContent(): Promise<void> {
     fetchedContent.value = "";
     return;
   }
-  const result = await apiGet<{ content?: string }>(filesEndpoints.content, {
-    path: raw,
-  });
-  if (!result.ok) {
+  try {
+    const { content } = await dispatch<{ content: string }>({ kind: "loadDoc", path: raw });
+    fetchedContent.value = content ?? "";
+  } catch {
     fetchedContent.value = "";
-    return;
   }
-  fetchedContent.value = result.data.content ?? "";
 }
 
 fetchContent();

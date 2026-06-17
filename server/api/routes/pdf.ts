@@ -2,9 +2,8 @@ import { realpathSync } from "fs";
 import path from "path";
 import { Router, Request, Response } from "express";
 import { marked } from "marked";
-import { Marp } from "@marp-team/marp-core";
+import { renderMarpDeck } from "@mulmoclaude/markdown-plugin";
 import { listMarpThemes } from "../../workspace/marp-themes.js";
-import { MARP_HTML_ALLOWLIST } from "../../../src/utils/markdown/marpTheme.js";
 import puppeteer from "puppeteer";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, serverError } from "../../utils/httpError.js";
@@ -12,7 +11,6 @@ import { WORKSPACE_DIRS } from "../../workspace/paths.js";
 import { resolveWithinRoot, readBinarySafeSync } from "../../utils/files/safe.js";
 import { resolveWorkspacePath } from "../../utils/files/workspace-io.js";
 import { parseFrontmatter } from "../../utils/markdown/frontmatter.js";
-import { applyCustomMarpSize } from "../../../src/utils/markdown/marpCustomSize.js";
 import { log } from "../../system/logger/index.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { transformResolvableUrlsInHtml } from "../../../src/utils/image/htmlSrcAttrs.js";
@@ -248,62 +246,17 @@ async function renderPdf(fullHtml: string, format: "Letter" | "A4" = "Letter"): 
   }
 }
 
-// Marp slides render at a fixed pixel canvas (default 1280×720). We
-// feed puppeteer a page sized to that canvas with zero margin so each
-// `<section>` becomes exactly one PDF page at the slide's native
-// proportions. Skips the markdown CSS wrapper — Marp's own theme CSS
-// is the only style sheet the slides need. Images are inlined as
-// base64 data URIs (same path as the markdown route) because puppeteer
-// can't reach workspace-relative paths over the wire.
-// Parse the slide canvas dimensions out of Marp's first SVG viewBox.
-// Defaults to 16:9 / 1280×720 — same fallback as the MarpView preview.
-// Marp emits the actual dimensions per its `size:` directive (e.g.
-// `size: 4:3` → 960×720), so honouring viewBox lets the exported PDF
-// match the deck's declared aspect instead of stretching every deck
-// into the puppeteer-hardcoded 1280×720.
-//
-// Dimensions are clamped to a safe range before being handed to
-// Puppeteer. Without this, a hostile / typo'd `size: 99999x99999`
-// would forward those numbers into `page.setViewport()` +
-// `page.pdf({ width, height })` and Chromium can either OOM during
-// raster or take pathologically long to render a single page.
-const DEFAULT_SLIDE_WIDTH = 1280;
-const DEFAULT_SLIDE_HEIGHT = 720;
-const MIN_SLIDE_DIM = 200;
-const MAX_SLIDE_DIM = 3840;
-
-function clampDim(value: number, fallback: number): number {
-  if (!Number.isFinite(value) || value < MIN_SLIDE_DIM) return fallback;
-  if (value > MAX_SLIDE_DIM) return MAX_SLIDE_DIM;
-  return value;
-}
-
-export function extractSlideDimensions(html: string): { width: number; height: number } {
-  const match = html.match(/viewBox="0 0 (\d+) (\d+)"/);
-  if (!match) return { width: DEFAULT_SLIDE_WIDTH, height: DEFAULT_SLIDE_HEIGHT };
-  const width = clampDim(Number(match[1]), DEFAULT_SLIDE_WIDTH);
-  const height = clampDim(Number(match[2]), DEFAULT_SLIDE_HEIGHT);
-  return { width, height };
-}
-
 async function renderMarpPdf(markdown: string, baseDir?: string): Promise<Buffer> {
-  // Disable twemoji conversion so the PDF stays self-contained — the
-  // default would emit `<img src="https://twemoji.maxcdn.com/...">`
-  // and puppeteer would need network access during the print to
-  // resolve them. OS-font emoji renders inline without a fetch and
-  // matches the MarpView preview's behaviour after the same change.
-  // Same allowlist as the MarpView preview so preview / export stay
-  // identical when authors lean on raw HTML tags for layout.
-  const marp = new Marp({ html: MARP_HTML_ALLOWLIST, emoji: { unicode: false, shortcode: false } });
-  // Register every workspace-defined theme (#1649). Slides that
-  // reference one via `theme: <name>` then render with the same
-  // CSS the previewer applied; slides that don't are unaffected.
-  for (const theme of listMarpThemes()) {
-    marp.themeSet.add(theme.css);
-  }
-  const sized = applyCustomMarpSize(marp, markdown);
-  const { html, css } = marp.render(sized);
-  const { width: slideWidth, height: slideHeight } = extractSlideDimensions(html);
+  // Shared render core (@mulmoclaude/markdown-plugin) — the MarpView
+  // preview and every host's PDF export use the same Marp config + theme
+  // registration + custom-size bridging, so they can't drift. Twemoji
+  // stays disabled (emoji unicode/shortcode false) so the PDF is self-
+  // contained (no network fetch for emoji during print). `inlineSVG:
+  // true` keeps this route's SVG `viewBox` page sizing.
+  const { html, css, slideWidth, slideHeight } = await renderMarpDeck(markdown, {
+    themes: listMarpThemes(),
+    inlineSVG: true,
+  });
   const inlinedHtml = inlineImages(html, { sourceDir: baseDir });
   const fullHtml = `<!doctype html>
 <html><head><meta charset="utf-8"><style>
@@ -336,6 +289,31 @@ div.marpit > svg > foreignObject > section img:not([data-marp-twemoji]) {
   } finally {
     await browser.close();
   }
+}
+
+export interface RenderMarkdownPdfOptions {
+  markdown: string;
+  /** Render via Marp (one page per slide) instead of the `marked`
+   *  pipeline. `format` / `stripFrontmatter` are ignored in Marp mode. */
+  marp?: boolean;
+  /** Workspace-relative source dir for resolving relative `<img>` refs. */
+  baseDir?: string;
+  format?: "Letter" | "A4";
+  stripFrontmatter?: boolean;
+}
+
+/** Render markdown (or a Marp deck) to a PDF buffer. The single code
+ *  path behind both `POST /api/pdf/markdown` and the markdown plugin's
+ *  `exportPdf` host capability (`server/plugins/markdown-builtin.ts`),
+ *  so the HTTP route and the plugin dispatch can never drift. */
+export async function renderMarkdownPdf(options: RenderMarkdownPdfOptions): Promise<Buffer> {
+  const { markdown, marp = false, baseDir, format = "Letter", stripFrontmatter = false } = options;
+  if (marp) {
+    return renderMarpPdf(markdown, baseDir);
+  }
+  const source = stripFrontmatter ? parseFrontmatter(markdown).body : markdown;
+  const html = inlineImages(await marked.parse(source), { sourceDir: baseDir });
+  return renderPdf(wrapHtml(html, MARKDOWN_CSS), format);
 }
 
 function sendPdf(res: Response, buffer: Buffer, filename: string): void {
@@ -399,16 +377,8 @@ router.post(API_ROUTES.pdf.markdown, async (req: Request<object, unknown, PdfMar
   }
 
   try {
-    if (marpMode) {
-      log.info("pdf", "marp", { filename, length: markdown.length, baseDir });
-      const buffer = await renderMarpPdf(markdown, baseDir);
-      sendPdf(res, buffer, filename);
-      return;
-    }
-    log.info("pdf", "markdown", { filename, length: markdown.length, baseDir, stripFrontmatter });
-    const source = stripFrontmatter ? parseFrontmatter(markdown).body : markdown;
-    const html = inlineImages(await marked.parse(source), { sourceDir: baseDir });
-    const buffer = await renderPdf(wrapHtml(html, MARKDOWN_CSS), format);
+    log.info("pdf", marpMode ? "marp" : "markdown", { filename, length: markdown.length, baseDir, stripFrontmatter });
+    const buffer = await renderMarkdownPdf({ markdown, marp: marpMode, baseDir, format, stripFrontmatter });
     sendPdf(res, buffer, filename);
   } catch (err) {
     log.error("pdf", "generation failed", { error: String(err) });

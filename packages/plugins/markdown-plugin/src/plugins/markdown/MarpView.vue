@@ -40,16 +40,16 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { useI18n } from "vue-i18n";
-import { usePdfDownload } from "../../composables/usePdfDownload";
+import { useRuntime } from "gui-chat-protocol/vue";
+import { usePdfExport } from "./usePdfExport";
+import type { MarpThemeEntry } from "./contract";
 import { errorMessage } from "../../utils/errors";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
-import { applyCustomMarpSize } from "../../utils/markdown/marpCustomSize";
-import { apiGet } from "../../utils/api";
-import { pluginEndpoints } from "../api";
-import { MARP_HTML_ALLOWLIST } from "../../utils/markdown/marpTheme";
+import { renderMarpDeck, type RenderMarpResult } from "../../render/marp";
+import { useT } from "../../lang";
 
-const { t } = useI18n();
+const t = useT();
+const { dispatch } = useRuntime();
 
 const props = defineProps<{
   markdown: string;
@@ -59,8 +59,6 @@ const props = defineProps<{
 
 const DEFAULT_SLIDE_WIDTH = 1280;
 const DEFAULT_SLIDE_HEIGHT = 720;
-const MIN_SLIDE_DIM = 200;
-const MAX_SLIDE_DIM = 3840;
 const SLIDE_GAP_PX = 16;
 const BODY_PADDING_PX = 16;
 const WRAPPER_PADDING_PX = 12;
@@ -78,7 +76,7 @@ const slideWidth = ref(DEFAULT_SLIDE_WIDTH);
 const slideHeight = ref(DEFAULT_SLIDE_HEIGHT);
 const renderError = ref<string | null>(null);
 
-const { pdfDownloading, pdfError, downloadPdf } = usePdfDownload();
+const { pdfDownloading, pdfError, downloadPdf } = usePdfExport();
 
 const nativeIframeWidth = computed(() => slideWidth.value + BODY_PADDING_PX * 2);
 
@@ -140,24 +138,6 @@ function countSlides(html: string): number {
   return sectionMatches ? sectionMatches.length : 0;
 }
 
-const SECTION_SIZE_RE = /div\.marpit\s*>\s*section\s*\{[^}]*?width:\s*(\d+)px[^}]*?height:\s*(\d+)px/;
-
-function clampDim(value: number, fallback: number): number {
-  if (!Number.isFinite(value) || value < MIN_SLIDE_DIM) return fallback;
-  return Math.min(value, MAX_SLIDE_DIM);
-}
-
-function extractSlideDimensions(css: string): { width: number; height: number } {
-  const match = css.match(SECTION_SIZE_RE);
-  if (match) {
-    return {
-      width: clampDim(Number(match[1]), DEFAULT_SLIDE_WIDTH),
-      height: clampDim(Number(match[2]), DEFAULT_SLIDE_HEIGHT),
-    };
-  }
-  return { width: DEFAULT_SLIDE_WIDTH, height: DEFAULT_SLIDE_HEIGHT };
-}
-
 function resetRenderState(): void {
   srcDoc.value = "";
   slideCount.value = 0;
@@ -165,19 +145,12 @@ function resetRenderState(): void {
   slideHeight.value = DEFAULT_SLIDE_HEIGHT;
 }
 
-interface MarpThemeEntry {
-  readonly name: string;
-  readonly css: string;
-}
-
-const marpThemesEndpoints = pluginEndpoints<{ list: string }>("marpThemes");
-
 // Cache the workspace's Marp themes so we don't re-fetch on every
 // keystroke. Fetched lazily on first render; a theme edit requires a
 // manual reload until follow-up work wires pubsub invalidation.
 // **Successful** responses are cached, including an empty list (=
 // user has no themes — confirmed by the server, not just guessed).
-// Failed fetches (network blip, server temporarily down) leave the
+// Failed dispatches (network blip, server temporarily down) leave the
 // cache null so the next render retries — caching `[]` on failure
 // would silently disable themes for the rest of the session
 // (CodeRabbit #1653 review).
@@ -185,30 +158,27 @@ let cachedThemes: readonly MarpThemeEntry[] | null = null;
 
 async function loadMarpThemes(): Promise<readonly MarpThemeEntry[]> {
   if (cachedThemes !== null) return cachedThemes;
-  const result = await apiGet<readonly MarpThemeEntry[]>(marpThemesEndpoints.list);
-  if (!result.ok || !Array.isArray(result.data)) return [];
-  cachedThemes = result.data;
-  return cachedThemes;
+  try {
+    const { themes } = await dispatch<{ themes: MarpThemeEntry[] }>({ kind: "marpThemes" });
+    if (!Array.isArray(themes)) return [];
+    cachedThemes = themes;
+    return cachedThemes;
+  } catch {
+    return [];
+  }
 }
 
-async function prepareMarp(markdown: string): Promise<{ html: string; css: string }> {
-  const { Marp } = await import("@marp-team/marp-core");
-  // `html: MARP_HTML_ALLOWLIST` opens a small layout-tag subset
-  // (`<div class>`, `<span>`, `<img>`, …); default `html: false`
-  // escapes them all. Same allowlist applied server-side in
-  // `renderMarpPdf` so preview / export agree. Scripts, iframes,
-  // and form elements stay escaped.
-  const marp = new Marp({ inlineSVG: false, html: MARP_HTML_ALLOWLIST, emoji: { unicode: false, shortcode: false } });
+async function prepareMarp(markdown: string): Promise<RenderMarpResult> {
   // Register every workspace-defined theme (#1649). A deck opts in
   // via frontmatter `theme: <name>`; decks that don't keep Marp's
   // default look.
   const themes = await loadMarpThemes();
-  for (const theme of themes) {
-    marp.themeSet.add(theme.css);
-  }
+  // Rewrite workspace-relative `<img>` refs to host URLs BEFORE Marp so
+  // the preview iframe can load them (the PDF export inlines instead).
+  // `inlineSVG: false` (the renderMarpDeck default) → CSS-sized sections
+  // for the scrollable preview.
   const rewritten = rewriteMarkdownImageRefs(markdown, props.baseDir ?? "");
-  const sized = applyCustomMarpSize(marp, rewritten);
-  return marp.render(sized);
+  return renderMarpDeck(rewritten, { themes });
 }
 
 let renderToken = 0;
@@ -221,16 +191,15 @@ async function renderMarp(markdown: string): Promise<void> {
     return;
   }
   try {
-    const { html, css } = await prepareMarp(markdown);
-    // eslint-disable-next-line security/detect-possible-timing-attacks -- monotonic render counter, not a secret
+    const { html, css, slideWidth: width, slideHeight: height } = await prepareMarp(markdown);
+    // regex note: monotonic render counter, not a secret
     if (token !== renderToken) return;
     slideCount.value = countSlides(html);
-    const dims = extractSlideDimensions(css);
-    slideWidth.value = dims.width;
-    slideHeight.value = dims.height;
+    slideWidth.value = width;
+    slideHeight.value = height;
     srcDoc.value = buildSrcDoc(html, css);
   } catch (err) {
-    // eslint-disable-next-line security/detect-possible-timing-attacks -- monotonic render counter, not a secret
+    // regex note: monotonic render counter, not a secret
     if (token !== renderToken) return;
     renderError.value = errorMessage(err);
     resetRenderState();
@@ -264,7 +233,7 @@ onBeforeUnmount(() => {
 
 async function onExportPdf(): Promise<void> {
   if (!props.markdown) return;
-  await downloadPdf(props.markdown, props.pdfFilename, { marp: true, baseDir: props.baseDir });
+  await downloadPdf({ markdown: props.markdown, filename: props.pdfFilename, marp: true, baseDir: props.baseDir });
 }
 </script>
 
