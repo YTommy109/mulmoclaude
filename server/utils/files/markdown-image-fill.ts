@@ -4,6 +4,7 @@
 // The placeholder regex + substitution format are shared with MulmoTerminal via @mulmoclaude/markdown-plugin
 // (fillImagePlaceholders); this file is MulmoClaude's host wiring — Gemini generation + workspace image store +
 // observability. Image generation/storage is injected as `resolveImage`.
+import path from "node:path";
 import { fillImagePlaceholders, IMAGE_PLACEHOLDER, type ImagePlaceholderResult } from "@mulmoclaude/markdown-plugin";
 import { generateGeminiImageFromPrompt, isGeminiAvailable } from "../gemini.js";
 import { errorMessage } from "../errors.js";
@@ -28,8 +29,9 @@ async function generateImageFile(prompt: string, index: number, total: number): 
       const url = await saveImage(imageData);
       log.info(LOG_PREFIX, "image gen ok", { index, total, elapsedMs, url });
       // Workspace-rooted "/…" so the ref resolves the same regardless of document depth (#764 sharded documents
-      // under artifacts/documents/YYYY/MM/; a relative path would be off by two directory levels).
-      return `/${url}`;
+      // under artifacts/documents/YYYY/MM/; a relative path would be off by two directory levels). path.posix.join
+      // normalises so a saveImage path that already starts with "/" can't produce a "//" ref.
+      return path.posix.join("/", url);
     }
     log.warn(LOG_PREFIX, "image gen returned no image data", { index, total, elapsedMs, prompt: meta });
   } catch (err) {
