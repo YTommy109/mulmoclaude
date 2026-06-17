@@ -10,6 +10,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ---
 
+## [0.8.0] - 2026-06-16
+
+Collections graduate from "spreadsheets with bells" into a real DSL platform. The headline change is **custom views** — LLM-authored HTML pages that render alongside the built-in table/calendar, sandboxed in an iframe with the collection's records JSON injected for live filtering, charting, dashboards, even podcast players. A companion **`manageCollection` MCP tool** gives Claude the same affordances the host has — computed-aware reads + schema-validated writes — replacing the previous "Claude writes JSON files directly via Write" pattern. **`spawnBackgroundChat`** lands as a generic parallel-chat primitive that underpins collection-level actions and broader fan-out workflows. Side dishes: per-column sort with localStorage persistence, multi-file attach in the chat input (up to 10), expandable notification bodies, and a fistful of UI / scheduler / CSP fixes.
+
+### Added
+- **Custom views for collections** — drop an `views/<slug>.html` (or `.html.tmpl`) under a collection's data folder and a new view picker appears next to table/calendar. The page renders inside a sandbox iframe with the records JSON injected, so vanilla JS / CSS / chart libraries / `<audio>` / `<video>` all work end to end. A view config modal in the CollectionView header lets users reorder, rename, and delete views without leaving the canvas. The (rarely-used) built-in dashboard view is replaced by "author one as a custom view". (#1686, #1687)
+- **`manageCollection` MCP tool** — LLM-callable read/write API symmetric to CollectionView. Reads include computed / derived fields; writes go through the same schema validator the UI uses, so a bad record is rejected at call time rather than silently corrupting the data folder. Becomes the canonical way for LLMs to mutate collection records. (#1681)
+- **`spawnBackgroundChat` agent primitive** — any tool can now spawn a sibling chat in a different role with a templated seed prompt and get a handle back for status polling. Foundation for the new collection-level actions and broader fan-out workflows (e.g. an invoice action spawning a parallel payment-recording chat). (#1678)
+- **Tracked-lessons collection recipe + collection-level actions** — second canonical collection recipe (after invoicing). Demonstrates a *collection-level* action button (vs. the existing per-record kind), the `presentHtml` action target, and the schema-validated write contract end to end. (#1669)
+- **Per-column sort in CollectionView's table** — clickable column header cycles ascending → descending → off; the choice persists per (workspace × collection) in localStorage so revisits restore the same order. (#1674, #1677)
+- **Multi-file attach in chat input** — paste / drop / file-picker up to 10 attachments per turn (was 1). Each attachment renders in the composer with its own remove button; the send-enabled rule treats text *or* any attachment as a valid send. (#1660)
+- **Notification body expansion** — clicking a bell entry now expands its full body (markdown / record snapshot) inline. Faster triage for the daily news brief and collection completion bells. (#1619)
+
+### Changed
+- **Dashboard view mode removed** — the fixed, enum-driven dashboard rarely earned its keep; anyone who wants one can now author a custom view tuned to their schema. A persisted `dashboard` value in localStorage falls through to `table` via the existing unknown-mode safety net. All dashboard i18n keys are dropped from the 8 locales. (#1687)
+- **CollectionView header shorter** — shaves ~24px off the chrome so on small canvas cards the table body gets more rows visible above the fold without scrolling. (#1689)
+- **`MarpSplitEditor` extracted as a shared component** — the marp split-pane editor moves into a reusable component so other markdown surfaces can adopt the same chrome. (#1665)
+
+### Fixed
+- **Scheduler state persistence race** — replaced the static `scheduler.tmp` write path with a unique-tmp helper so two scheduler ticks landing in the same millisecond can no longer trample each other's writes (one would publish a half-written JSON). (#1693)
+- **CSP blocked audio/video in custom views** — the custom-view CSP omitted `media-src`, so a podcast-feed custom view's `<audio src="https://...mp3">` fell through to `default-src 'none'` and the browser refused to load. Added a `media-src` with the same `https:` + `data:` + `blob:` allowlist as the existing iframe CSP. (#1688)
+
+### Docs / Research
+- **"DSLs as Harnesses"** arXiv pre-print — theoretical scaffolding for the collections-as-DSL bet: a DSL can serve as a harness that constrains, validates, and structures an agent's reasoning. CC BY 4.0 + a revision after external review. (#1691, #1692, #1694)
+- **"The Workspace Is the Self-Improving Agent"** arXiv pre-print — companion paper framing the workspace + collection corpus as the substrate for "owning the learning loop", from single user up to firm scale. (#1683, #1695, #1696)
+- **"Software for an Audience of One"** essay — refines the collections-and-custom-views thesis: applications are data, the schema is the harness, Claude is the runtime. (#1690)
+- **Terminal-native chat plan** — design doc for eliminating `claude -p` in favour of a terminal-native chat surface, with permissions also moving terminal-native. (#1697, #1699)
+
+---
+
 ## [0.7.0] - 2026-06-10
 
 Three large built-ins move out of the launcher in favour of the schema-driven collections model: **Calendar**, the **Todo plugin**, and the **Encore** recurring-obligation built-in are all removed; their use cases are now expressed as collections (`calendarField` for dated items, `config/helps/todo-collection.md` for todo lists, `triggerField` + `spawn` for recurring obligations). The bundled **invoicing suite** moves the same way — from preset skills to on-demand help-file recipes. No data is deleted; the records on disk are left in place.
