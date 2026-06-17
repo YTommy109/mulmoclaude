@@ -7,6 +7,10 @@
 const CHART_DIR = "charts";
 const ARTIFACTS_ROOT = "artifacts";
 
+// Cap slug length so a long LLM title can't produce a filename that blows the
+// filesystem's NAME_MAX (the old shared buildArtifactPath capped at 120 too).
+const MAX_SLUG_LEN = 120;
+
 /** Lowercase ASCII slug; empty / non-ASCII input falls back to `fallback`. */
 export function slugify(title: string | undefined, fallback = "chart"): string {
   if (!title) return fallback;
@@ -17,6 +21,9 @@ export function slugify(title: string | undefined, fallback = "chart"): string {
   let start = 0;
   let end = collapsed.length;
   while (start < end && collapsed[start] === "-") start += 1;
+  while (end > start && collapsed[end - 1] === "-") end -= 1;
+  if (end - start > MAX_SLUG_LEN) end = start + MAX_SLUG_LEN;
+  // Truncation may re-expose a trailing hyphen at the cut boundary; strip it.
   while (end > start && collapsed[end - 1] === "-") end -= 1;
   return collapsed.slice(start, end) || fallback;
 }

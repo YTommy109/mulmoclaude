@@ -41,6 +41,15 @@ export function isValidChartDocument(value: unknown): value is ChartDocument {
  * drives the View and preview sidebar.
  */
 export const executeChart = async (context: ChartExecuteContext, args: ChartArgs): Promise<ToolResult<PresentChartData>> => {
+  // Guard the payload shape first: a malformed/empty body (wrong content-type,
+  // undefined, non-object) must surface as a normal tool-level error, not a
+  // thrown TypeError → 500, since other hosts reuse this function directly.
+  if (!isRecord(args)) {
+    return {
+      message: "presentChart args must be an object containing a `document`",
+      instructions: "Acknowledge the error and retry with { document: { charts: [{ option: {...} }] } }.",
+    };
+  }
   const { document, title } = args;
   if (!isValidChartDocument(document)) {
     return {
