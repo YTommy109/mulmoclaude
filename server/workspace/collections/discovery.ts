@@ -13,9 +13,9 @@ import { workspacePath } from "../workspace.js";
 import { USER_SKILLS_DIR, projectSkillsDir } from "../skills/paths.js";
 import { feedsRoot } from "../feeds/paths.js";
 import { INGEST_KINDS, FEED_SCHEDULES } from "../feeds/ingestTypes.js";
-import { SCHEMA_FILE, resolveDataDir, safeSlugName } from "@mulmoclaude/collection-plugin/server";
+import { SCHEMA_FILE, resolveDataDir, safeSlugName, type LoadedCollection } from "@mulmoclaude/collection-plugin/server";
 import { isSafeActionTemplatePath, isSafeCustomViewPath } from "./templatePath.js";
-import type { CollectionDetail, CollectionSchema, CollectionSource, CollectionSummary } from "./types.js";
+import type { CollectionDetail, CollectionSource, CollectionSummary } from "./types.js";
 
 // Cross-field refines, factored out so they can apply at both the
 // top-level FieldSpec and the table-row SubFieldSpec without prose
@@ -582,19 +582,9 @@ export const CollectionSchemaZ = z
     path: ["views"],
   });
 
-interface LoadedCollection {
-  slug: string;
-  source: CollectionSource;
-  schema: CollectionSchema;
-  /** Absolute path to the resolved dataPath directory (inside the
-   *  workspace). May not exist yet — the data folder is created on
-   *  first write. */
-  dataDir: string;
-  /** Absolute path to the skill directory this collection was loaded
-   *  from (`<skillsRoot>/<slug>/`). Action templates are read from
-   *  here, path-safely. */
-  skillDir: string;
-}
+// The LoadedCollection shape now lives in @mulmoclaude/collection-plugin/server
+// (imported at the top, re-exported below) so discovery stays its producer and
+// the many `from "./discovery.js"` importers resolve it unchanged.
 
 // Normalize an agent-authored feed schema (no register tool to do it):
 // default `icon`, and **force** `dataPath` to the feed-owned namespace

@@ -46,11 +46,15 @@ export function getWorkspaceRoot(): string {
   return requireHost().workspaceRoot;
 }
 
-/** Logger proxy so engine modules can `import { log }` and use it exactly
- *  like the host logger — each call resolves the live host binding. */
+/** Logger proxy so engine modules can `import { log }` and use it exactly like
+ *  the host logger — each call forwards to the live host binding. Logging is
+ *  non-critical, so calls before the host configures a binding (e.g. unit tests
+ *  that exercise pure logic) are dropped rather than throwing — unlike
+ *  `getWorkspaceRoot()`, which fails loudly because the engine cannot operate
+ *  without a workspace root. */
 export const log: CollectionLogger = {
-  error: (prefix, message, data) => requireHost().log.error(prefix, message, data),
-  warn: (prefix, message, data) => requireHost().log.warn(prefix, message, data),
-  info: (prefix, message, data) => requireHost().log.info(prefix, message, data),
-  debug: (prefix, message, data) => requireHost().log.debug(prefix, message, data),
+  error: (prefix, message, data) => current?.log.error(prefix, message, data),
+  warn: (prefix, message, data) => current?.log.warn(prefix, message, data),
+  info: (prefix, message, data) => current?.log.info(prefix, message, data),
+  debug: (prefix, message, data) => current?.log.debug(prefix, message, data),
 };

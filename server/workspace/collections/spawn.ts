@@ -23,7 +23,7 @@
 import { log } from "../../system/logger/index.js";
 import { errorMessage } from "../../utils/errors.js";
 import { ONE_DAY_MS } from "../../utils/time.js";
-import { writeItem, type IoOptions } from "./io.js";
+import { writeItem, type IoOptions } from "@mulmoclaude/collection-plugin/server";
 import type { CollectionEvery, CollectionItem, CollectionSchema, CollectionWhen } from "./types.js";
 
 /** A timezone-free calendar date. `m` is 1-12. */

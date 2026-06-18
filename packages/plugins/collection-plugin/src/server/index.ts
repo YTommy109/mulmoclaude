@@ -7,4 +7,7 @@
 //   configureCollectionHost({ workspaceRoot, log });
 
 export { configureCollectionHost, getWorkspaceRoot, log, type CollectionHost, type CollectionLogger } from "./host";
+export type { LoadedCollection } from "./discoveredCollection";
 export * from "./paths";
+export * from "./io";
+export * from "./validate";

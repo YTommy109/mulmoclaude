@@ -43,7 +43,7 @@ import { log } from "../../system/logger/index.js";
 import { errorMessage } from "../../utils/errors.js";
 import { whenMatches } from "@mulmoclaude/collection-plugin";
 import { loadCollection, type DiscoveryOptions } from "./discovery.js";
-import { listItems, readItem, type IoOptions } from "./io.js";
+import { listItems, readItem, type IoOptions } from "@mulmoclaude/collection-plugin/server";
 import { isTriggerDue, maybeSpawnSuccessor } from "./spawn.js";
 import type { CollectionItem, CollectionSchema } from "./types.js";
 

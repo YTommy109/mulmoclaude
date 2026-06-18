@@ -8,7 +8,7 @@
 
 import { deriveAll, type DeriveRefRecords } from "@mulmoclaude/collection-plugin";
 import { loadCollection, type DiscoveryOptions, type LoadedCollection } from "./discovery.js";
-import { listItems } from "./io.js";
+import { listItems } from "@mulmoclaude/collection-plugin/server";
 import type { CollectionFieldSpec, CollectionItem, CollectionSchema } from "./types.js";
 
 /** Slugs of every collection referenced by a `ref` field — top-level
