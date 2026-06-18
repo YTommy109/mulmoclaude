@@ -1,3 +1,4 @@
+import "../../../server/workspace/collections/configure.js"; // configure @mulmoclaude/collection-plugin host binding for tests
 // Server-side computed-field enrichment (collections/derive.ts):
 // derived formulas evaluated through the SHARED deriveAll loop with
 // ref targets loaded from disk, toggles projected off their enum, and
@@ -14,7 +15,7 @@ import path from "node:path";
 import { ref } from "vue";
 
 import { enrichItems } from "../../../server/workspace/collections/derive.js";
-import { loadCollection, toDetail } from "../../../server/workspace/collections/discovery.js";
+import { loadCollection, toDetail } from "@mulmoclaude/collection-plugin/server";
 import { useCollectionRendering } from "../../../src/composables/collections/useCollectionRendering.js";
 import { deriveAll } from "@mulmoclaude/collection-plugin";
 import type { CollectionDetail, FieldSpec } from "../../../src/components/collectionTypes.js";

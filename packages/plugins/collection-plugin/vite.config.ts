@@ -24,7 +24,9 @@ export default defineConfig({
       fileName: (format, entryName) => `${entryName}.${format === "es" ? "js" : "cjs"}`,
     },
     rollupOptions: {
-      external: [/^node:/],
+      // node built-ins + zod stay external (resolved from node_modules at
+      // runtime); only the package's own modules are bundled.
+      external: [/^node:/, "zod"],
       output: { exports: "named" },
     },
     minify: false,

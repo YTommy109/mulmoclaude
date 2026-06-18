@@ -1,3 +1,4 @@
+import "../../../server/workspace/collections/configure.js"; // configure @mulmoclaude/collection-plugin host binding for tests
 // deleteCollection — archives a restorable copy, then removes all three
 // on-disk locations (staging skill, active mirror, records). Also pins
 // the scope guards: user-scope and preset (`mc-*`) collections refuse.
@@ -9,7 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { deleteCollection } from "../../../server/workspace/collections/delete.js";
-import type { LoadedCollection } from "../../../server/workspace/collections/discovery.js";
+import type { LoadedCollection } from "@mulmoclaude/collection-plugin/server";
 import type { CollectionSchema, CollectionSource } from "../../../server/workspace/collections/types.js";
 
 let workdir: string;

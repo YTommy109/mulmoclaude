@@ -8,14 +8,12 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { log } from "../../system/logger/index.js";
-import { workspacePath } from "../workspace.js";
-import { USER_SKILLS_DIR, projectSkillsDir } from "../skills/paths.js";
-import { feedsRoot } from "../feeds/paths.js";
-import { INGEST_KINDS, FEED_SCHEDULES } from "../feeds/ingestTypes.js";
-import { SCHEMA_FILE, resolveDataDir, safeSlugName, type LoadedCollection } from "@mulmoclaude/collection-plugin/server";
-import { isSafeActionTemplatePath, isSafeCustomViewPath } from "./templatePath.js";
-import type { CollectionDetail, CollectionSource, CollectionSummary } from "./types.js";
+import { log, getWorkspaceRoot, userSkillsDir, projectSkillsDir, feedsRoot } from "./host";
+import { INGEST_KINDS, FEED_SCHEDULES } from "../core/schema";
+import { SCHEMA_FILE, resolveDataDir, safeSlugName } from "./paths";
+import type { LoadedCollection } from "./discoveredCollection";
+import { isSafeActionTemplatePath, isSafeCustomViewPath } from "./templatePath";
+import type { CollectionDetail, CollectionSource, CollectionSummary } from "../core/schema";
 
 // Cross-field refines, factored out so they can apply at both the
 // top-level FieldSpec and the table-row SubFieldSpec without prose
@@ -720,8 +718,8 @@ export interface DiscoveryOptions {
  *  previously dataDir was always rooted at the live workspacePath
  *  regardless of override). */
 export async function discoverCollections(opts: DiscoveryOptions = {}): Promise<LoadedCollection[]> {
-  const workspaceRoot = opts.workspaceRoot ?? workspacePath;
-  const userDir = opts.userSkillsDir ?? USER_SKILLS_DIR;
+  const workspaceRoot = opts.workspaceRoot ?? getWorkspaceRoot();
+  const userDir = opts.userSkillsDir ?? userSkillsDir();
   const projectDir = projectSkillsDir(workspaceRoot);
   // Feeds (the non-skill `<workspace>/feeds/` registry) are scanned as a
   // third root. They merge FIRST so a real skill collection (user or
@@ -742,8 +740,8 @@ export async function discoverCollections(opts: DiscoveryOptions = {}): Promise<
 export async function loadCollection(slug: string, opts: DiscoveryOptions = {}): Promise<LoadedCollection | null> {
   const safeName = safeSlugName(slug);
   if (safeName === null) return null;
-  const workspaceRoot = opts.workspaceRoot ?? workspacePath;
-  const userDir = opts.userSkillsDir ?? USER_SKILLS_DIR;
+  const workspaceRoot = opts.workspaceRoot ?? getWorkspaceRoot();
+  const userDir = opts.userSkillsDir ?? userSkillsDir();
   const projectDir = projectSkillsDir(workspaceRoot);
   // Project first (overrides user), then user, then the feeds registry
   // last — mirroring the merge precedence in `discoverCollections` so a
@@ -762,5 +760,3 @@ export function toSummary(collection: LoadedCollection): CollectionSummary {
 export function toDetail(collection: LoadedCollection): CollectionDetail {
   return { ...toSummary(collection), schema: collection.schema };
 }
-
-export type { LoadedCollection };

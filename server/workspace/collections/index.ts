@@ -1,4 +1,4 @@
-export { discoverCollections, loadCollection, toSummary, toDetail, CollectionSchemaZ, type LoadedCollection } from "./discovery.js";
+export { discoverCollections, loadCollection, toSummary, toDetail, CollectionSchemaZ, type LoadedCollection } from "@mulmoclaude/collection-plugin/server";
 export { validateCollectionRecords, validateRecordObject, COMPUTED_TYPES, type RecordIssue } from "@mulmoclaude/collection-plugin/server";
 export { enrichItems } from "./derive.js";
 export { deleteCollection, deleteCollectionRefusalMessage, type DeleteCollectionResult } from "./delete.js";

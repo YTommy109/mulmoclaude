@@ -24,6 +24,17 @@ export interface CollectionIngest {
   schedule: string;
 }
 
+/** Retriever kinds a Feed's `ingest.kind` may declare. The host's feeds engine
+ *  dispatches on these; they live here (with the schema contract) so the schema
+ *  validator can enforce them. The host re-exports these from
+ *  `server/workspace/feeds/ingestTypes.ts`. */
+export const INGEST_KINDS = ["rss", "atom", "http-json"] as const;
+export type IngestKind = (typeof INGEST_KINDS)[number];
+
+/** Refresh cadences a Feed's `ingest.schedule` may declare. */
+export const FEED_SCHEDULES = ["hourly", "daily", "weekly", "on-demand"] as const;
+export type FeedSchedule = (typeof FEED_SCHEDULES)[number];
+
 export type CollectionFieldType =
   | "string"
   | "text"

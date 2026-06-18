@@ -7,7 +7,7 @@
 // the same numbers the user sees on screen.
 
 import { deriveAll, type DeriveRefRecords } from "@mulmoclaude/collection-plugin";
-import { loadCollection, type DiscoveryOptions, type LoadedCollection } from "./discovery.js";
+import { loadCollection, type DiscoveryOptions, type LoadedCollection } from "@mulmoclaude/collection-plugin/server";
 import { listItems } from "@mulmoclaude/collection-plugin/server";
 import type { CollectionFieldSpec, CollectionItem, CollectionSchema } from "./types.js";
 

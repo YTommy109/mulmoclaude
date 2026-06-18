@@ -22,8 +22,7 @@ import { workspacePath } from "../workspace.js";
 import { WORKSPACE_DIRS } from "../paths.js";
 import { isPresetSlug } from "../skills-preset.js";
 import { resolveTemplatePath, safeSlugName, SCHEMA_FILE } from "@mulmoclaude/collection-plugin/server";
-import type { LoadedCollection } from "./discovery.js";
-import type { IoOptions } from "@mulmoclaude/collection-plugin/server";
+import type { LoadedCollection, IoOptions } from "@mulmoclaude/collection-plugin/server";
 
 export type DeleteViewResult =
   | { kind: "ok"; viewId: string }

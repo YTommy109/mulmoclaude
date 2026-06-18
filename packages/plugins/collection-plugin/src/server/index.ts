@@ -9,5 +9,7 @@
 export { configureCollectionHost, getWorkspaceRoot, log, type CollectionHost, type CollectionLogger } from "./host";
 export type { LoadedCollection } from "./discoveredCollection";
 export * from "./paths";
+export * from "./templatePath";
 export * from "./io";
 export * from "./validate";
+export * from "./discovery";
