@@ -38,34 +38,46 @@ keep `useI18n()` and resolve the host's i18n instance + keys.
 - ✅ **step 2d** — `CollectionKanbanView` (+ `vuedraggable` package dep, `CollectionNotifySeverity` type) — `294856f4`.
 - ✅ **step 2e** — `CollectionRecordPanel` (+ `imageSrc` context capability) — `0f040837`.
 
-`CollectionUi` now exposes: `fetchCollectionDetail`, `fileAssetUrl`, `fileRoutePath`, `imageSrc`.
+Steps 1 + 2a–2e shipped in **PR #1725** as **`@mulmoclaude/collection-plugin@0.3.0`** (published; launcher pin → `^0.3.0`).
 
-### Remaining — the API-heavy cluster (design the rest of the context in one pass)
+**Branch `feat/collection-view-move`** (off `feat/collection-ui-context`) — the API-heavy cluster:
 
-`CollectionViewConfigModal` (108) + `CollectionCustomView` (152) + `CollectionView` (2,131, the
-root that renders both) share one large host surface. Survey of `CollectionView`'s coupling →
-the `CollectionUi` additions needed:
+- ✅ **step 2f** — `CollectionViewConfigModal` (+ `confirm`, `deleteView` capabilities; shared `errorMessage` core helper) — `6f5a173c`.
+- ✅ **step 2g** — `CollectionCustomView` (+ `mintViewToken`, `fetchViewHtml`, `buildViewSrcdoc`; context result/token types exported from `./vue`) — `a52023c5`.
+
+`CollectionUi` now exposes: `fetchCollectionDetail`, `fileAssetUrl`, `fileRoutePath`, `imageSrc`,
+`confirm`, `deleteView`, `mintViewToken`, `fetchViewHtml`, `buildViewSrcdoc`.
+
+### Remaining — the `CollectionView` capstone (2,131 LOC, the root)
+
+The last component. It renders the now-migrated sub-components and carries the bulk of the host
+surface. Survey of its coupling → the `CollectionUi` additions still needed:
 
 - **Collection CRUD/actions** (replaces `apiGet/Post/Put/Delete` + `API_ROUTES.collections.*`):
   create item, update item, delete item, run item-action, run collection-action, refresh,
   feed detail (`API_ROUTES.feeds.detail`).
-- **Custom views** (`CollectionCustomView`): `mintViewToken(slug, viewId)` (apiPost), `fetchViewHtml(slug, viewId)`
-  (apiFetchRaw). `buildCustomViewSrcdoc` is a pure util → move into the package (`vue/` or core).
-- **Custom-view delete** (`CollectionViewConfigModal`): `deleteView(slug, viewId)` (apiDelete) + `confirm(opts)`.
-- **Navigation**: `navigate` (router push/replace + `PAGE_ROUTES.collections` / `PAGE_ROUTES.feeds`).
-- **App integration**: `sendMessage`/`startNewChat` (`useAppApi`), `confirm` (`useConfirm`),
-  `pin` (`useShortcuts`), `notify` (`useNotifications`).
-- **Generic UI**: `ConfirmModal`, `PinToggle` — inject as context-provided components or move.
+- **Navigation**: `navigate` (router push/replace + `PAGE_ROUTES.collections` / `PAGE_ROUTES.feeds`)
+  + read current route query (`useRoute`, e.g. `?selected=`).
+- **App integration**: `sendMessage`/`startNewChat` (`useAppApi`), `pin` (`useShortcuts`),
+  `notify` + `notifiedSeverities(slug)` (`useNotifications` + `collectionNotifiedSeverities`).
+- **Generic UI**: `ConfirmModal`, `PinToggle` — inject as context-provided components, or have the
+  host render them around the View (CollectionView renders its own `<ConfirmModal>` instance today).
 - **Misc utils**: `shortHexId` (`utils/id`), `defangForPrompt` (`utils/promptSafety`),
-  `BUILTIN_ROLE_IDS` (`config/roles`), `collectionNotifiedSeverities` (host notifier bridge stays host-side).
+  `BUILTIN_ROLE_IDS` (`config/roles`) — small pure utils, move into core or inject.
+
+After CollectionView lands, the `enumColors`/`draft` host shims can be removed (nothing host-side
+imports them anymore).
 
 ### Sequence (each its own green commit)
-1. ✅ done — see steps 1, 2a–2e above. Six leaf components migrated; `enumColors`/`draft` shims still in place (removed when `CollectionView` moves).
-2. Expand `CollectionUi` with the CRUD/nav/confirm/app surface above; move `CollectionViewConfigModal` + `CollectionCustomView` + `CollectionView` → package `./vue`; remove the `enumColors`/`draft` shims.
-3. Browsable pages (`CollectionsIndexView`, `/collections` route) → package + host router wiring.
-4. Plugin `./vue` entry (View + Preview + lang); shrink the host `presentCollection` adapter; bump to `0.3.0` (new `./vue` + `./style.css` exports) + publish.
+1. ✅ done — steps 1, 2a–2e (PR #1725).
+2. ✅ sub-modals — steps 2f, 2g (this branch). `confirm`/`deleteView`/custom-view caps added.
+3. ⏳ **`CollectionView`** — expand `CollectionUi` with the CRUD/nav/app/notify surface above + the
+   two generic components; move the root → `./vue`; drop the `enumColors`/`draft` shims.
+4. Browsable pages (`CollectionsIndexView`, `/collections` route) → package + host router wiring.
+5. Plugin `./vue` entry (View + Preview + lang); shrink the host `presentCollection` adapter; bump
+   to `0.4.0` + publish.
 
 ## Publish gate
-The launcher pins `@mulmoclaude/collection-plugin@^0.2.x`; bump + republish before each PR/smoke run
-so the clean-install resolves the current content (0.2.0 → 0.2.1 already done in PR #1723). The
-`./vue` + `./style.css` additions make the next release a minor bump (`0.3.0`).
+The launcher pins `@mulmoclaude/collection-plugin`; bump + republish before each PR/smoke run so the
+clean-install resolves the current content (`0.2.1` in PR #1723, `0.3.0` in PR #1725). The
+CollectionView move (new capabilities, no new export surface) is a minor bump (`0.4.0`).
