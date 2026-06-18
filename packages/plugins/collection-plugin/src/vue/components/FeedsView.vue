@@ -116,11 +116,11 @@
 
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from "vue";
-import { useI18n } from "vue-i18n";
+import { useCollectionI18n } from "../lang";
 import { collectionUi } from "../uiContext";
 import type { FeedSummary } from "../../core/uiTypes";
 
-const { t } = useI18n();
+const { t } = useCollectionI18n();
 // Host couplings (list/refresh/navigate/chat/shortcuts/pin) via the binding.
 const cui = collectionUi();
 const { pinToggle, reconcileShortcuts } = cui;

@@ -717,7 +717,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { useI18n } from "vue-i18n";
+import { useCollectionI18n } from "../lang";
 import CollectionRecordModal from "./CollectionRecordModal.vue";
 import CollectionCalendarView from "./CollectionCalendarView.vue";
 import CollectionDayView from "./CollectionDayView.vue";
@@ -796,7 +796,7 @@ const emit = defineEmits<{
   viewStateChange: [state: { view: BuiltInViewMode; anchorField: string; groupField: string }];
 }>();
 
-const { t, locale } = useI18n();
+const { t, locale } = useCollectionI18n();
 // All host couplings (data, routing, confirm, chat, shortcuts, notifications,
 // the pin toggle) come through the injected CollectionUi binding. The aliases
 // keep the body's call sites unchanged where the host shape matched 1:1.

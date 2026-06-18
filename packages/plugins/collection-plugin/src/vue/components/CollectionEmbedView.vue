@@ -64,10 +64,10 @@
 // it app-wide; a host embedding this card must do the same and own a
 // `/collections/:slug` route. Translation keys (`collectionsView.*`) resolve
 // against the host's vue-i18n instance — the host must define them.
-import { useI18n } from "vue-i18n";
+import { useCollectionI18n } from "../lang";
 import type { EmbedView } from "../../core/uiTypes";
 
 defineProps<{ view: EmbedView; fieldKey: string }>();
 
-const { t } = useI18n();
+const { t } = useCollectionI18n();
 </script>

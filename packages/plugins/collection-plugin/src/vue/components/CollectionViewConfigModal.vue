@@ -55,7 +55,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { useI18n } from "vue-i18n";
+import { useCollectionI18n } from "../lang";
 import CollectionRecordModal from "./CollectionRecordModal.vue";
 import type { CollectionCustomView } from "../../core/schema";
 import { errorMessage } from "../../core/errorMessage";
@@ -64,7 +64,7 @@ import { collectionUi } from "../uiContext";
 const props = defineProps<{ slug: string; title: string; views: CollectionCustomView[] }>();
 const emit = defineEmits<{ close: []; changed: [] }>();
 
-const { t } = useI18n();
+const { t } = useCollectionI18n();
 
 // The id of the view whose delete is in flight (disables the other buttons),
 // and the last delete error (HTTP or network), shown inline.

@@ -19,7 +19,9 @@ import { apiDelete, apiFetchRaw, apiGet, apiPost, apiPut } from "../../utils/api
 import { API_ROUTES } from "../../config/apiRoutes";
 import { PAGE_ROUTES } from "../../router/pageRoutes";
 import { BUILTIN_ROLE_IDS } from "../../config/roles";
+import { unref } from "vue";
 import router from "../../router/index";
+import hostI18n from "../../lib/vue-i18n";
 import { htmlPreviewUrlFor, svgPreviewUrlFor } from "../useContentDisplay";
 import { isValidFilePath } from "../useFileSelection";
 import { resolveImageSrc } from "../../utils/image/resolve";
@@ -104,6 +106,9 @@ configureCollectionUi({
   reconcileShortcuts: (kind, live) => reconcile(kind, live),
 
   // app integration
+  // `i18n.global.locale` is typed as a string but is actually a Ref at runtime
+  // (the host runs vue-i18n in composition mode); `unref` returns the tag either way.
+  localeTag: () => unref(hostI18n.global.locale),
   startChat: (prompt, role) => startChatFn?.(prompt, role),
   generalRoleId: BUILTIN_ROLE_IDS.general,
   personalRoleId: BUILTIN_ROLE_IDS.personal,

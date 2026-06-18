@@ -88,11 +88,11 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useI18n } from "vue-i18n";
+import { useCollectionI18n } from "../lang";
 import { collectionUi } from "../uiContext";
 import type { CollectionSummary } from "../../core/schema";
 
-const { t } = useI18n();
+const { t } = useCollectionI18n();
 // Host couplings (list/navigate/chat/shortcuts/pin) via the injected binding.
 const cui = collectionUi();
 const { pinToggle, reconcileShortcuts } = cui;

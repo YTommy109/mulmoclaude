@@ -156,6 +156,9 @@ export interface CollectionUi {
   // ── app integration ──
   /** Start a new chat with a seed prompt + role (host: `useAppApi().startNewChat`). */
   startChat: (prompt: string, role: string) => void;
+  /** The host's active i18n locale tag (e.g. "en", "ja"), read reactively — the
+   *  plugin syncs its own self-contained i18n instance to it. */
+  localeTag: () => string;
   /** The host's "general" role id, for chats seeded without a specific role. */
   generalRoleId: string;
   /** The host's "personal" role id (the feed-add chat seeds into it). */

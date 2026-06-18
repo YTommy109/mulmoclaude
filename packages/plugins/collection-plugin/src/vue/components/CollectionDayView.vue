@@ -114,7 +114,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
-import { useI18n } from "vue-i18n";
+import { useCollectionI18n } from "../lang";
 import { bucketRecords, daySlice, assignLanes, ymdKey, MINUTES_PER_DAY, type Ymd, type DaySlice } from "../../core/calendarGrid";
 import { resolveEnumColor, type EnumColorClasses } from "../../core/enumColors";
 import { labelFieldFor, itemIdOf, itemLabelOf } from "../../core/itemLabel";
@@ -143,7 +143,7 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const { t, locale } = useI18n();
+const { t, locale } = useCollectionI18n();
 
 // One hour = 48px tall; the full day is 24 of them. A point-in-time event
 // (start, no end) has no duration to size by, so it gets a fixed one-line-tall

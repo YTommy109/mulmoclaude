@@ -28,12 +28,12 @@
 
 <script setup lang="ts">
 import { ref, watch, onBeforeUnmount } from "vue";
-import { useI18n } from "vue-i18n";
+import { useCollectionI18n } from "../lang";
 import { errorMessage } from "../../core/errorMessage";
 import type { CollectionCustomView } from "../../core/schema";
 import { collectionUi } from "../uiContext";
 
-const { t } = useI18n();
+const { t } = useCollectionI18n();
 
 const props = defineProps<{
   slug: string;
