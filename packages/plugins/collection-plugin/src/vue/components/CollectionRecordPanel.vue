@@ -433,7 +433,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { useI18n } from "vue-i18n";
+import { useCollectionI18n } from "../lang";
 import CollectionEmbedView from "./CollectionEmbedView.vue";
 import { fieldVisible } from "../../core/actionVisible";
 import { resolveEnumColor } from "../../core/enumColors";
@@ -483,7 +483,7 @@ const emit = defineEmits<{
   runAction: [action: CollectionAction];
 }>();
 
-const { t } = useI18n();
+const { t } = useCollectionI18n();
 
 // `embedViews` is a ComputedRef nested in the `render` object, so it isn't
 // auto-unwrapped in the template — re-expose it as a top-level computed.

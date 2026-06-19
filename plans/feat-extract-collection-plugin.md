@@ -38,34 +38,47 @@ keep `useI18n()` and resolve the host's i18n instance + keys.
 - ✅ **step 2d** — `CollectionKanbanView` (+ `vuedraggable` package dep, `CollectionNotifySeverity` type) — `294856f4`.
 - ✅ **step 2e** — `CollectionRecordPanel` (+ `imageSrc` context capability) — `0f040837`.
 
-`CollectionUi` now exposes: `fetchCollectionDetail`, `fileAssetUrl`, `fileRoutePath`, `imageSrc`.
+Steps 1 + 2a–2e shipped in **PR #1725** as **`@mulmoclaude/collection-plugin@0.3.0`** (published; launcher pin → `^0.3.0`).
 
-### Remaining — the API-heavy cluster (design the rest of the context in one pass)
+**Branch `feat/collection-view-move`** (off `feat/collection-ui-context`) — the API-heavy cluster:
 
-`CollectionViewConfigModal` (108) + `CollectionCustomView` (152) + `CollectionView` (2,131, the
-root that renders both) share one large host surface. Survey of `CollectionView`'s coupling →
-the `CollectionUi` additions needed:
+- ✅ **step 2f** — `CollectionViewConfigModal` (+ `confirm`, `deleteView` capabilities; shared `errorMessage` core helper) — `6f5a173c`.
+- ✅ **step 2g** — `CollectionCustomView` (+ `mintViewToken`, `fetchViewHtml`, `buildViewSrcdoc`; context result/token types exported from `./vue`) — `a52023c5`.
+- ✅ **step 2h-prep** — moved `shortHexId` / `defangForPrompt` / `collectionViewMode` (CollectionView-only utils) into the package; server now imports `defangForPrompt` from the package too — `90f24b20`.
+- ✅ **step 2h** — **`CollectionView`** (the 2,134-LOC root) → `./vue` — `4d90f783`.
+- ✅ **step 2h-cleanup** — removed the dead `enumColors` / `draft` / `collectionEmbed` host shims — `7a233984`.
 
-- **Collection CRUD/actions** (replaces `apiGet/Post/Put/Delete` + `API_ROUTES.collections.*`):
-  create item, update item, delete item, run item-action, run collection-action, refresh,
-  feed detail (`API_ROUTES.feeds.detail`).
-- **Custom views** (`CollectionCustomView`): `mintViewToken(slug, viewId)` (apiPost), `fetchViewHtml(slug, viewId)`
-  (apiFetchRaw). `buildCustomViewSrcdoc` is a pure util → move into the package (`vue/` or core).
-- **Custom-view delete** (`CollectionViewConfigModal`): `deleteView(slug, viewId)` (apiDelete) + `confirm(opts)`.
-- **Navigation**: `navigate` (router push/replace + `PAGE_ROUTES.collections` / `PAGE_ROUTES.feeds`).
-- **App integration**: `sendMessage`/`startNewChat` (`useAppApi`), `confirm` (`useConfirm`),
-  `pin` (`useShortcuts`), `notify` (`useNotifications`).
-- **Generic UI**: `ConfirmModal`, `PinToggle` — inject as context-provided components or move.
-- **Misc utils**: `shortHexId` (`utils/id`), `defangForPrompt` (`utils/promptSafety`),
-  `BUILTIN_ROLE_IDS` (`config/roles`), `collectionNotifiedSeverities` (host notifier bridge stays host-side).
+**The entire collection View layer is now in the package.** `CollectionUi` exposes the full host
+surface: `fetchCollectionDetail` (now `CollectionApiResult`, with `status`), `fileAssetUrl`,
+`fileRoutePath`, `imageSrc`, `confirm`, `deleteView`, `mintViewToken`, `fetchViewHtml`,
+`buildViewSrcdoc`, `createItem`, `updateItem`, `deleteItem`, `deleteCollection`, `deleteFeed`,
+`runItemAction`, `runCollectionAction`, `refreshCollection`, `routeSlug`, `routeSelectedId`,
+`isFeedRoute`, `setSelectedId`, `gotoIndex`, `startChat`, `generalRoleId`, `unpin`,
+`notifiedSeverities`, `pinToggle`. Routing is wired via the vue-router *instance* (no inject
+barrier); `startChat` + `notifiedSeverities` are deferred to `installCollectionAppBindings`
+(App.vue setup) because `useAppApi`/`useNotifications` need a component context. App.vue renders the
+global `<ConfirmModal />`; `PinToggle` is injected via `<component :is>`.
 
-### Sequence (each its own green commit)
-1. ✅ done — see steps 1, 2a–2e above. Six leaf components migrated; `enumColors`/`draft` shims still in place (removed when `CollectionView` moves).
-2. Expand `CollectionUi` with the CRUD/nav/confirm/app surface above; move `CollectionViewConfigModal` + `CollectionCustomView` + `CollectionView` → package `./vue`; remove the `enumColors`/`draft` shims.
-3. Browsable pages (`CollectionsIndexView`, `/collections` route) → package + host router wiring.
-4. Plugin `./vue` entry (View + Preview + lang); shrink the host `presentCollection` adapter; bump to `0.3.0` (new `./vue` + `./style.css` exports) + publish.
+### Sequence (each its own green commit) — on branch `feat/collection-view-move`
+1. ✅ done — steps 1, 2a–2e (PR #1725, merged).
+2. ✅ sub-modals — steps 2f, 2g.
+3. ✅ **`CollectionView`** — steps 2h-prep / 2h / 2h-cleanup. View layer extraction COMPLETE.
+4. ✅ **Browsable pages** — `CollectionsIndexView` + `FeedsView` moved; added `listCollections` /
+   `listFeeds` / `gotoDetail` / `reconcileShortcuts` / `personalRoleId` to the binding.
+5. ✅ **Self-contained i18n** — the plugin ships its OWN vue-i18n instance + all 8 locales
+   (`collectionsView.*` + duplicated `common.*`); components use `useCollectionI18n()`; the host's
+   dead `collectionsView` block was removed from all 8 locale files. `localeTag()` (via `unref`)
+   feeds the host locale through the binding. The "ToolPlugin like chart" idea was dropped —
+   `presentCollection` is a *built-in* plugin (host-specific registration), not a runtime plugin, and
+   its tool def already lives in the package.
+
+**The extraction is functionally complete: every collection component is importable from
+`@mulmoclaude/collection-plugin/vue`, the plugin owns its i18n, and it uses no host i18n resources.**
+
+Remaining before a release: bump to `0.4.0` + launcher pin → `^0.4.0`, push, open the PR, publish.
 
 ## Publish gate
-The launcher pins `@mulmoclaude/collection-plugin@^0.2.x`; bump + republish before each PR/smoke run
-so the clean-install resolves the current content (0.2.0 → 0.2.1 already done in PR #1723). The
-`./vue` + `./style.css` additions make the next release a minor bump (`0.3.0`).
+The launcher pins `@mulmoclaude/collection-plugin`; bump + republish before each PR/smoke run so the
+clean-install resolves the current content (`0.2.1` in PR #1723, `0.3.0` in PR #1725). The
+CollectionView + index-pages + i18n work (new capabilities, no new export surface beyond the already-
+shipped `./vue`) is a minor bump (`0.4.0`).

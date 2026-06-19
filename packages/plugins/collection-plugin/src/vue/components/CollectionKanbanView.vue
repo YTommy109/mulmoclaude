@@ -65,7 +65,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { useI18n } from "vue-i18n";
+import { useCollectionI18n } from "../lang";
 import draggable from "vuedraggable";
 import { fieldVisible } from "../../core/actionVisible";
 import { resolveEnumColor } from "../../core/enumColors";
@@ -101,7 +101,7 @@ const emit = defineEmits<{
   move: [id: string, value: string];
 }>();
 
-const { t } = useI18n();
+const { t } = useCollectionI18n();
 
 /** The Uncategorized column uses the empty string as its sentinel value. */
 const UNCATEGORIZED = "";

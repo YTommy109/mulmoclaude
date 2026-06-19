@@ -55,31 +55,24 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { useI18n } from "vue-i18n";
-import { CollectionRecordModal } from "@mulmoclaude/collection-plugin/vue";
-import type { CollectionCustomView } from "./collectionTypes";
-import { apiDelete } from "../utils/api";
-import { errorMessage } from "../utils/errors";
-import { useConfirm } from "../composables/useConfirm";
-import { API_ROUTES } from "../config/apiRoutes";
+import { useCollectionI18n } from "../lang";
+import CollectionRecordModal from "./CollectionRecordModal.vue";
+import type { CollectionCustomView } from "../../core/schema";
+import { errorMessage } from "../../core/errorMessage";
+import { collectionUi } from "../uiContext";
 
 const props = defineProps<{ slug: string; title: string; views: CollectionCustomView[] }>();
 const emit = defineEmits<{ close: []; changed: [] }>();
 
-const { t } = useI18n();
-const { openConfirm } = useConfirm();
+const { t } = useCollectionI18n();
 
 // The id of the view whose delete is in flight (disables the other buttons),
 // and the last delete error (HTTP or network), shown inline.
 const deleting = ref<string | null>(null);
 const error = ref<string | null>(null);
 
-function viewDeleteUrl(viewId: string): string {
-  return API_ROUTES.collections.viewDelete.replace(":slug", encodeURIComponent(props.slug)).replace(":viewId", encodeURIComponent(viewId));
-}
-
 async function onDelete(view: CollectionCustomView): Promise<void> {
-  const ok = await openConfirm({
+  const ok = await collectionUi().confirm({
     message: t("collectionsView.config.confirmDelete", { label: view.label }),
     confirmText: t("common.remove"),
     cancelText: t("common.cancel"),
@@ -89,7 +82,7 @@ async function onDelete(view: CollectionCustomView): Promise<void> {
   error.value = null;
   deleting.value = view.id;
   try {
-    const result = await apiDelete(viewDeleteUrl(view.id));
+    const result = await collectionUi().deleteView(props.slug, view.id);
     if (!result.ok) {
       error.value = result.error;
       return;
@@ -97,7 +90,7 @@ async function onDelete(view: CollectionCustomView): Promise<void> {
     // Parent reloads the collection detail; the `views` prop updates reactively.
     emit("changed");
   } catch (err) {
-    // apiDelete normalises network/HTTP errors into a result, so this only
+    // deleteView normalises network/HTTP errors into a result, so this only
     // catches the unexpected — but a `finally` guarantees the row never stays
     // stuck disabled.
     error.value = errorMessage(err);

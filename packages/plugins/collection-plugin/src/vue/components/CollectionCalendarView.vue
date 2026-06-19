@@ -95,7 +95,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useI18n } from "vue-i18n";
+import { useCollectionI18n } from "../lang";
 import { bucketRecords, buildMonthGrid, ymdKey, daySlice, MINUTES_PER_DAY, type Ymd, type RecordSpan, type DaySlice } from "../../core/calendarGrid";
 import { resolveEnumColor, type EnumColorClasses } from "../../core/enumColors";
 import { labelFieldFor, itemIdOf, itemLabelOf } from "../../core/itemLabel";
@@ -123,7 +123,7 @@ const emit = defineEmits<{
   openDay: [day: Ymd];
 }>();
 
-const { t, locale } = useI18n();
+const { t, locale } = useCollectionI18n();
 
 // Visible month, 1-12. Initial value is the current local month — app
 // code, so `new Date()` is fine (the pure grid helpers stay clock-free).

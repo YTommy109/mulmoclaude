@@ -14,11 +14,38 @@
 // itself (see uiHost.ts). The import here only covers this package's own dev.
 import "../style.css";
 
-export { configureCollectionUi, collectionUi, type CollectionUi } from "./uiContext";
+export {
+  configureCollectionUi,
+  collectionUi,
+  type CollectionUi,
+  type CollectionFetchResult,
+  type CollectionApiResult,
+  type CollectionMutationResult,
+  type CollectionConfirmOptions,
+  type CollectionViewToken,
+  type CollectionViewHtmlResult,
+  type CollectionViewSrcdocBoot,
+  type CollectionActionResult,
+  type CollectionRefreshResult,
+} from "./uiContext";
 export { useCollectionRendering, type CollectionRendering } from "./useCollectionRendering";
+export {
+  readCollectionViewMode,
+  writeCollectionViewMode,
+  readCollectionSort,
+  writeCollectionSort,
+  type CollectionViewMode,
+  type BuiltInViewMode,
+  type CustomViewMode,
+} from "./collectionViewMode";
 export { default as CollectionRecordModal } from "./components/CollectionRecordModal.vue";
 export { default as CollectionEmbedView } from "./components/CollectionEmbedView.vue";
 export { default as CollectionCalendarView } from "./components/CollectionCalendarView.vue";
 export { default as CollectionDayView } from "./components/CollectionDayView.vue";
 export { default as CollectionKanbanView } from "./components/CollectionKanbanView.vue";
 export { default as CollectionRecordPanel } from "./components/CollectionRecordPanel.vue";
+export { default as CollectionViewConfigModal } from "./components/CollectionViewConfigModal.vue";
+export { default as CollectionCustomView } from "./components/CollectionCustomView.vue";
+export { default as CollectionView } from "./components/CollectionView.vue";
+export { default as CollectionsIndexView } from "./components/CollectionsIndexView.vue";
+export { default as FeedsView } from "./components/FeedsView.vue";
