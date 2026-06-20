@@ -129,34 +129,76 @@ function ensureDestSlugDir(destSlugDir: string): boolean {
   return info.isDirectory();
 }
 
-/** Refresh one preset slot as stage-and-swap: copy the source tree into a
- *  temp sibling first and replace the live slot only once the copy is
- *  known-good. Wipe-and-replace (not merge) so stale sibling assets — e.g. a
- *  schema.json dropped between releases — don't linger; the catalog preset
- *  slot is launcher-owned, so user edits there are not preserved across boots.
+/** Filesystem ops `_replaceSlugTree` depends on — injectable so the
+ *  mid-swap failure path can be regression-tested without real IO faults. */
+export interface SlugTreeFsOps {
+  copyTree: (src: string, dest: string) => void;
+  rename: (from: string, dest: string) => void;
+  remove: (target: string) => void;
+  exists: (target: string) => boolean;
+}
+
+const REAL_FS_OPS: SlugTreeFsOps = {
+  copyTree: copyDirTreeSync,
+  rename: renameSync,
+  remove: (target) => rmSync(target, { recursive: true, force: true }),
+  exists: existsSync,
+};
+
+/** Refresh one preset slot as a rollback-safe stage-and-swap. Wipe-and-replace
+ *  (not merge) so stale sibling assets — e.g. a schema.json dropped between
+ *  releases — don't linger; the catalog preset slot is launcher-owned, so user
+ *  edits there are not preserved across boots.
  *
- *  The staging step is what makes a transient copy failure non-destructive: if
- *  `copyDirTreeSync` throws, the existing preset is untouched (only the temp
- *  dir is cleaned up) instead of being deleted before its replacement exists.
- *  Throws on failure (caller records + skips). */
-function replaceSlugTree(sourceSlugDir: string, destSlugDir: string): void {
+ *  The live slot is never left without a recoverable copy:
+ *    1. Stage: copy the source into a temp sibling. A copy failure leaves the
+ *       existing preset untouched (temp dir removed).
+ *    2. Move the existing tree ASIDE to a backup (rename, not delete), so the
+ *       old contents survive even if the next step fails.
+ *    3. Move the staged copy into place. On failure, restore from the backup;
+ *       if even the restore fails, BOTH backup and staging are preserved for
+ *       manual recovery rather than deleted.
+ *    4. On success, drop the backup.
+ *
+ *  Exported with a `_` prefix only so the rename-failure-after-move path can be
+ *  regression-tested via the injected `fsOps`. Throws on failure (caller records
+ *  + skips). */
+export function _replaceSlugTree(sourceSlugDir: string, destSlugDir: string, fsOps: SlugTreeFsOps = REAL_FS_OPS): void {
   const staging = `${destSlugDir}.tmp-${randomUUID()}`;
   try {
-    copyDirTreeSync(sourceSlugDir, staging);
+    fsOps.copyTree(sourceSlugDir, staging);
   } catch (err) {
-    rmSync(staging, { recursive: true, force: true });
+    fsOps.remove(staging); // dest untouched
     throw err;
   }
-  // Swap: the staged copy is complete, so replacing the live slot is fast
-  // same-volume fs work. On the rare swap failure, clean up staging and
-  // surface the error.
+  const backup = `${destSlugDir}.bak-${randomUUID()}`;
+  let backedUp = false;
+  if (fsOps.exists(destSlugDir)) {
+    try {
+      fsOps.rename(destSlugDir, backup);
+      backedUp = true;
+    } catch (err) {
+      fsOps.remove(staging); // dest untouched; nothing was moved
+      throw err;
+    }
+  }
   try {
-    rmSync(destSlugDir, { recursive: true, force: true });
-    renameSync(staging, destSlugDir);
+    fsOps.rename(staging, destSlugDir);
   } catch (err) {
-    rmSync(staging, { recursive: true, force: true });
+    if (backedUp) {
+      try {
+        fsOps.rename(backup, destSlugDir); // roll back to the previous tree
+        fsOps.remove(staging);
+      } catch {
+        // Rollback failed — preserve BOTH backup and staging for manual
+        // recovery rather than leaving the slot empty.
+      }
+    } else {
+      fsOps.remove(staging); // dest never existed; nothing to restore
+    }
     throw err;
   }
+  if (backedUp) fsOps.remove(backup);
 }
 
 function copySourcesIntoDest(sourceDir: string, destDir: string, opts: SyncPresetSkillsOptions, result: SyncPresetSkillsResult): Set<string> {
@@ -189,7 +231,7 @@ function copySourcesIntoDest(sourceDir: string, destDir: string, opts: SyncPrese
     // corruption on one preset must not abort syncing the rest, nor destroy
     // the existing copy. Skip the offender (recorded) and continue.
     try {
-      replaceSlugTree(path.join(sourceDir, entry), destSlugDir);
+      _replaceSlugTree(path.join(sourceDir, entry), destSlugDir);
       result.copied.push(entry);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);

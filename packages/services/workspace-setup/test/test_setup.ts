@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { isPresetSlug, helpsAssetDir, presetSkillsAssetDir, seedHelps, syncPresetSkills } from "../src/index.ts";
+import { _replaceSlugTree, type SlugTreeFsOps } from "../src/sync.ts";
 
 test("isPresetSlug", () => {
   assert.equal(isPresetSlug("mc-library"), true);
@@ -61,6 +62,43 @@ test("syncPresetSkills re-sync replaces a slug cleanly (wipe stale siblings) and
     // Stage-and-swap must not leak temp staging dirs into the catalog.
     const leftovers = readdirSync(dest).filter((name) => name.includes(".tmp-"));
     assert.deepEqual(leftovers, [], "no staging dirs leaked");
+  } finally {
+    rmSync(wsDir, { recursive: true, force: true });
+  }
+});
+
+test("_replaceSlugTree rolls back to the old preset when the swap rename fails (no data loss)", () => {
+  const wsDir = mkdtempSync(path.join(tmpdir(), "wsDir-setup-"));
+  try {
+    const src = path.join(wsDir, "src-slug");
+    const dest = path.join(wsDir, "dest-slug");
+    mkdirSync(src, { recursive: true });
+    writeFileSync(path.join(src, "SKILL.md"), "NEW");
+    mkdirSync(dest, { recursive: true });
+    writeFileSync(path.join(dest, "SKILL.md"), "OLD");
+
+    const ops: SlugTreeFsOps = {
+      copyTree: (from, target) => {
+        mkdirSync(target, { recursive: true });
+        for (const name of readdirSync(from)) copyFileSync(path.join(from, name), path.join(target, name));
+      },
+      // Fail only the staging→dest swap (its `from` is the `.tmp-` staging dir);
+      // the backup move and the rollback restore use real rename.
+      rename: (from, target) => {
+        if (from.includes(".tmp-")) throw new Error("simulated rename failure");
+        renameSync(from, target);
+      },
+      remove: (target) => rmSync(target, { recursive: true, force: true }),
+      exists: existsSync,
+    };
+
+    assert.throws(() => _replaceSlugTree(src, dest, ops), /simulated rename failure/);
+    // The previous preset must still be intact (restored from the backup), not lost.
+    assert.ok(existsSync(path.join(dest, "SKILL.md")), "old preset survives a failed swap");
+    assert.equal(readFileSync(path.join(dest, "SKILL.md"), "utf8"), "OLD");
+    // No staging/backup dirs leaked after a successful rollback.
+    const leftovers = readdirSync(wsDir).filter((name) => name.includes(".tmp-") || name.includes(".bak-"));
+    assert.deepEqual(leftovers, [], "no staging/backup dirs leaked");
   } finally {
     rmSync(wsDir, { recursive: true, force: true });
   }
