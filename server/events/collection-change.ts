@@ -12,17 +12,43 @@
 //
 // Channel name + payload shape come from `src/config/pubsubChannels.ts` so the
 // publisher can't drift from the View-side subscribers.
+//
+// `setCollectionChangePublisher` is a *namespace* import + feature-detect, NOT a
+// named import, on purpose: the published `mulmoclaude` launcher resolves
+// `@mulmoclaude/collection-plugin` from the registry via a caret range, so a
+// freshly-installed launcher can transiently resolve a version older than the
+// one that added this export. A named `import { setCollectionChangePublisher }`
+// would then fail at ESM link time and crash the whole server at boot. A
+// namespace import binds whatever the module exports (missing names are just
+// `undefined`), so we degrade gracefully: live updates stay off until the
+// package catches up, but the launcher boots. Matches the feature's
+// "optional everywhere" design (the View-side `subscribeChanges` is optional too).
 
-import { setCollectionChangePublisher, type CollectionChangePayload } from "@mulmoclaude/collection-plugin/server";
+import * as collectionPlugin from "@mulmoclaude/collection-plugin/server";
+import type { CollectionChangePayload } from "@mulmoclaude/collection-plugin/server";
 import { collectionChannel, type CollectionChannelPayload } from "../../src/config/pubsubChannels.js";
 import { log } from "../system/logger/index.js";
 import { errorMessage } from "../utils/errors.js";
 import type { IPubSub } from "./pub-sub/index.js";
 
+type SetPublisher = (publish: ((payload: CollectionChangePayload) => void) | null) => void;
+
+/** The package's publisher setter, or null when the installed package predates
+ *  it (see the module header on why this is feature-detected, not imported). */
+function resolveSetPublisher(): SetPublisher | null {
+  const candidate = (collectionPlugin as { setCollectionChangePublisher?: SetPublisher }).setCollectionChangePublisher;
+  return typeof candidate === "function" ? candidate : null;
+}
+
 /** Wire the package's change publisher to `instance`. Call once at server
  *  startup, next to `initFileChangePublisher` / `initAccountingEventPublisher`. */
 export function initCollectionChangePublisher(instance: IPubSub): void {
-  setCollectionChangePublisher((payload: CollectionChangePayload) => {
+  const setPublisher = resolveSetPublisher();
+  if (!setPublisher) {
+    log.info("collections", "installed @mulmoclaude/collection-plugin predates live updates; change publisher disabled", {});
+    return;
+  }
+  setPublisher((payload: CollectionChangePayload) => {
     const channelPayload: CollectionChannelPayload = { slug: payload.slug, ids: payload.ids, op: payload.op };
     try {
       instance.publish(collectionChannel(payload.slug), channelPayload);
@@ -38,7 +64,7 @@ export function initCollectionChangePublisher(instance: IPubSub): void {
   });
 }
 
-/** Detach the publisher (test teardown). */
+/** Detach the publisher (test teardown). No-op against an older package. */
 export function _resetCollectionChangePublisherForTesting(): void {
-  setCollectionChangePublisher(null);
+  resolveSetPublisher()?.(null);
 }
