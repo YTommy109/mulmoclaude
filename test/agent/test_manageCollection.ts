@@ -291,3 +291,82 @@ describe("manageCollection — putItems", () => {
     assert.match((computed.rejected as { problem: string }[])[0]?.problem ?? "", /'value' is derived/);
   });
 });
+
+describe("manageCollection — schemaDocs", () => {
+  it("returns the bundled authoring reference when the workspace has none", async () => {
+    const docs = await run({ action: "schemaDocs" });
+    assert.doesNotMatch(docs, /could not read/);
+    assert.match(docs, /Collection skills/); // heading from the bundled collection-skills.md
+  });
+
+  it("prefers the workspace copy over the bundled asset", async () => {
+    const helpsDir = path.join(workdir, "config/helps");
+    mkdirSync(helpsDir, { recursive: true });
+    writeFileSync(path.join(helpsDir, "collection-skills.md"), "SENTINEL workspace doc");
+    assert.equal(await run({ action: "schemaDocs" }), "SENTINEL workspace doc");
+  });
+
+  it("needs no slug", async () => {
+    assert.doesNotMatch(await run({ action: "schemaDocs" }), /`slug` is required/);
+  });
+});
+
+describe("manageCollection — getSchema", () => {
+  it("returns the raw schema.json of an existing collection", async () => {
+    const parsed = JSON.parse(await run({ action: "getSchema", slug: "portfolio" })) as Record<string, unknown>;
+    assert.equal(parsed.title, "Portfolio");
+    assert.ok((parsed.fields as Record<string, unknown>).value, "derived field present");
+  });
+
+  it("reports an unknown collection", async () => {
+    assert.match(await run({ action: "getSchema", slug: "nope" }), /unknown collection 'nope'/);
+  });
+});
+
+describe("manageCollection — putSchema", () => {
+  // Inject a no-op refresh so the write never touches the real workspace.
+  let putTool: ReturnType<typeof makeManageCollectionTool>;
+  const putRun = (args: Record<string, unknown>) => putTool.handler(args);
+  const readJson = (rel: string) => JSON.parse(readFileSync(path.join(workdir, rel), "utf-8")) as Record<string, unknown>;
+  const withField = (fields: Record<string, unknown>) => ({ ...quotesSchema, fields: { ...quotesSchema.fields, ...fields } });
+
+  beforeEach(() => {
+    putTool = makeManageCollectionTool({ workspaceRoot: workdir, userSkillsDir: emptyUserDir, refreshAfterWrite: async () => {} });
+  });
+
+  it("validates, writes to data/skills staging, and mirrors to .claude/skills", async () => {
+    const updated = withField({ volume: { type: "number", label: "Volume" } });
+    const result = JSON.parse(await putRun({ action: "putSchema", slug: "stock-quotes", schema: updated })) as Record<string, unknown>;
+    assert.equal(result.written, true);
+    assert.ok((readJson("data/skills/stock-quotes/schema.json").fields as Record<string, unknown>).volume, "new field in canonical staging copy");
+    assert.ok((readJson(".claude/skills/stock-quotes/schema.json").fields as Record<string, unknown>).volume, "new field mirrored to active copy");
+  });
+
+  it("rejects an invalid schema, points at schemaDocs, and writes nothing", async () => {
+    const msg = await putRun({ action: "putSchema", slug: "stock-quotes", schema: { ...quotesSchema, primaryKey: "" } });
+    assert.match(msg, /schema rejected/);
+    assert.match(msg, /schemaDocs/);
+    assert.ok(!existsSync(path.join(workdir, "data/skills/stock-quotes/schema.json")), "no staging file on rejection");
+  });
+
+  it("requires a schema object", async () => {
+    assert.match(await putRun({ action: "putSchema", slug: "stock-quotes" }), /`schema` is required/);
+  });
+
+  it("refuses a user-scope collection (read-only)", async () => {
+    const dir = path.join(emptyUserDir, "house-rules");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "SKILL.md"), "---\nname: house-rules\ndescription: test fixture\n---\nbody\n");
+    writeFileSync(path.join(dir, "schema.json"), JSON.stringify(quotesSchema));
+    assert.match(await putRun({ action: "putSchema", slug: "house-rules", schema: quotesSchema }), /user-scope and read-only/);
+  });
+
+  it("refuses a preset (mc-*) collection", async () => {
+    writeSkill("mc-budget", quotesSchema);
+    assert.match(await putRun({ action: "putSchema", slug: "mc-budget", schema: quotesSchema }), /preset \(mc-\*\)/);
+  });
+
+  it("refuses an unknown collection with a create hint", async () => {
+    assert.match(await putRun({ action: "putSchema", slug: "ghost", schema: quotesSchema }), /create it by writing SKILL\.md/);
+  });
+});
