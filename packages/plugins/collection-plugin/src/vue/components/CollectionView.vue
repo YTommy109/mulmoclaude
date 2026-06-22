@@ -2077,12 +2077,15 @@ watch(
 // OPTIONAL host capability: a host without a pub/sub transport omits it and the
 // view simply keeps its existing manual-refresh behaviour.
 //
-// Debounced so a bulk write (N rows) collapses to one refetch, and SKIPPED
-// while an inline/create edit is unsaved so a live refetch never clobbers the
-// user's draft — the save path refetches on its own once the edit commits.
+// Debounced so a bulk write (N rows) collapses to one refetch, and DEFERRED
+// (not dropped) while an inline/create edit is unsaved so a live refetch never
+// clobbers the user's draft. A change that lands mid-edit sets a pending flag
+// that the `editing` watch below flushes once the edit ends — whether it ends
+// by save or cancel — so a cancelled edit doesn't leave the view stale.
 const LIVE_REFRESH_DEBOUNCE_MS = 150;
 let changeUnsub: (() => void) | null = null;
 let liveRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+let pendingRemoteRefresh = false;
 
 function clearLiveRefreshTimer(): void {
   if (liveRefreshTimer !== undefined) {
@@ -2095,10 +2098,22 @@ function onRemoteChange(slug: string): void {
   clearLiveRefreshTimer();
   liveRefreshTimer = setTimeout(() => {
     liveRefreshTimer = undefined;
-    if (editing.value) return; // don't clobber an unsaved draft
+    if (editing.value) {
+      pendingRemoteRefresh = true; // defer past the edit, don't drop it
+      return;
+    }
     if (activeSlug.value === slug) void refreshItemsInPlace(slug);
   }, LIVE_REFRESH_DEBOUNCE_MS);
 }
+
+// Flush a remote change that arrived mid-edit once the edit ends (save or
+// cancel). The save path refetches on its own, but cancel has no other refresh
+// path — without this, a cancelled edit would strand the deferred update.
+watch(editing, (current) => {
+  if (current || !pendingRemoteRefresh) return;
+  pendingRemoteRefresh = false;
+  if (activeSlug.value) void refreshItemsInPlace(activeSlug.value);
+});
 
 watch(
   activeSlug,
