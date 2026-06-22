@@ -29,7 +29,9 @@ function onChangeBootstrap(): string {
   // One line on purpose — it's inlined into the iframe's bootstrap <script>.
   // Uses single quotes throughout (no `</script>`, no `<`, no `${`) so it stays
   // intact inside the template literal and inside the script element.
-  return `(function(){var v=window.__MC_VIEW,cbs=[],t;function fire(){t=undefined;for(var i=0;i<cbs.length;i++){try{cbs[i]()}catch(e){}}}window.addEventListener('message',function(e){if(e.source!==window.parent)return;var d=e.data;if(!d||d.type!=='mc-collection-changed'||d.slug!==v.slug)return;if(t)clearTimeout(t);t=setTimeout(fire,${ONCHANGE_DEBOUNCE_MS});});v.onChange=function(cb){if(typeof cb!=='function')return function(){};cbs.push(cb);return function(){var i=cbs.indexOf(cb);if(i>=0)cbs.splice(i,1);};};})();`;
+  // `cbs.slice()` snapshots the listeners before dispatch so a callback that
+  // unsubscribes itself can't shift the array and skip the next one.
+  return `(function(){var v=window.__MC_VIEW,cbs=[],t;function fire(){t=undefined;cbs.slice().forEach(function(cb){try{cb()}catch(e){}});}window.addEventListener('message',function(e){if(e.source!==window.parent)return;var d=e.data;if(!d||d.type!=='mc-collection-changed'||d.slug!==v.slug)return;if(t)clearTimeout(t);t=setTimeout(fire,${ONCHANGE_DEBOUNCE_MS});});v.onChange=function(cb){if(typeof cb!=='function')return function(){};cbs.push(cb);return function(){var i=cbs.indexOf(cb);if(i>=0)cbs.splice(i,1);};};})();`;
 }
 
 export interface CustomViewBootstrap {

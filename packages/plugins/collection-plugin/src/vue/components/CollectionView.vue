@@ -1284,6 +1284,33 @@ async function loadCollection(slug: string): Promise<void> {
   maybeAutoRefreshFeed(slug);
 }
 
+/** Refresh records + schema IN PLACE for a live (pub/sub-driven) update,
+ *  preserving the user's browsing state — unlike `loadCollection`, which is the
+ *  route-change path and resets it. Specifically: does NOT null `collection`
+ *  (so the layout and an active custom-view iframe don't remount), keeps
+ *  `searchQuery` / `openDay` / `sortState`, and shows no loading spinner; the
+ *  open detail (`viewing`) is re-resolved against the fresh records by id, so it
+ *  follows an edited record and closes only if the record was deleted. A failed
+ *  fetch is a no-op (keep the current data) — a transient blip shouldn't blank a
+ *  view the user is reading. */
+async function refreshItemsInPlace(slug: string): Promise<void> {
+  const result = await cui.fetchCollectionDetail(slug);
+  // Bail if the fetch failed or the user switched collections mid-flight.
+  if (!result.ok || activeSlug.value !== slug) return;
+  collection.value = result.data.collection;
+  items.value = result.data.items;
+  dataIssues.value = result.data.issues ?? [];
+  enumOriginallyEmpty.value = snapshotEmptyEnums(result.data.collection.schema, result.data.items);
+  await render.loadLinkedCollections(result.data.collection.schema, slug);
+  if (activeSlug.value !== slug) return; // re-check after the await
+  // Keep an open detail modal pointed at the fresh record object (or close it
+  // if the record is now gone) — `viewing` holds a stale reference otherwise.
+  if (viewing.value) {
+    const openId = String(viewing.value[result.data.collection.schema.primaryKey] ?? "");
+    viewing.value = findItemById(openId) ?? null;
+  }
+}
+
 // First-open auto-refresh: when a feed view opens with no records yet
 // (e.g. a just-registered feed that hasn't hit the scheduler), fetch once
 // so data appears without a manual Refresh. Guarded per slug so the reload
@@ -2069,7 +2096,7 @@ function onRemoteChange(slug: string): void {
   liveRefreshTimer = setTimeout(() => {
     liveRefreshTimer = undefined;
     if (editing.value) return; // don't clobber an unsaved draft
-    if (activeSlug.value === slug) void loadCollection(slug);
+    if (activeSlug.value === slug) void refreshItemsInPlace(slug);
   }, LIVE_REFRESH_DEBOUNCE_MS);
 }
 

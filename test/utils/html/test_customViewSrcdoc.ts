@@ -75,4 +75,13 @@ describe("buildCustomViewSrcdoc", () => {
     // close the tag early. The only </script> must be the intended closer.
     assert.equal(out.match(/<\/script>/gi)?.length, 1);
   });
+
+  it("the injected bootstrap script body contains no raw < (no parser surprises)", () => {
+    // Isolate the bootstrap <script>…</script> and assert its body has no `<` at
+    // all — the contract that lets it be inlined safely (Sourcery suggestion).
+    const out = buildCustomViewSrcdoc("<head></head>", boot);
+    const body = out.slice(out.indexOf("<script>") + "<script>".length, out.indexOf("</script>"));
+    assert.ok(body.length > 0);
+    assert.ok(!body.includes("<"), "inlined bootstrap must not contain a raw '<'");
+  });
 });
