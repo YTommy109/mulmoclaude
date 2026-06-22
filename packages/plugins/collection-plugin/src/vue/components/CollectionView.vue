@@ -720,7 +720,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 import { useCollectionI18n } from "../lang";
 import CollectionRecordModal from "./CollectionRecordModal.vue";
 import CollectionCalendarView from "./CollectionCalendarView.vue";
@@ -2041,6 +2041,56 @@ watch(
   },
   { immediate: true },
 );
+
+// ── Live updates ──
+// Refetch when the server reports a record change for the active collection —
+// agent writes (the common case: a record added/updated mid-chat), UI writes
+// from another tab/window, feed refreshes, and host-driven `spawn` successors
+// all ride the host's collection-change channel. `subscribeChanges` is an
+// OPTIONAL host capability: a host without a pub/sub transport omits it and the
+// view simply keeps its existing manual-refresh behaviour.
+//
+// Debounced so a bulk write (N rows) collapses to one refetch, and SKIPPED
+// while an inline/create edit is unsaved so a live refetch never clobbers the
+// user's draft — the save path refetches on its own once the edit commits.
+const LIVE_REFRESH_DEBOUNCE_MS = 150;
+let changeUnsub: (() => void) | null = null;
+let liveRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+
+function clearLiveRefreshTimer(): void {
+  if (liveRefreshTimer !== undefined) {
+    clearTimeout(liveRefreshTimer);
+    liveRefreshTimer = undefined;
+  }
+}
+
+function onRemoteChange(slug: string): void {
+  clearLiveRefreshTimer();
+  liveRefreshTimer = setTimeout(() => {
+    liveRefreshTimer = undefined;
+    if (editing.value) return; // don't clobber an unsaved draft
+    if (activeSlug.value === slug) void loadCollection(slug);
+  }, LIVE_REFRESH_DEBOUNCE_MS);
+}
+
+watch(
+  activeSlug,
+  (slug) => {
+    changeUnsub?.();
+    changeUnsub = null;
+    clearLiveRefreshTimer();
+    if (slug && cui.subscribeChanges) {
+      changeUnsub = cui.subscribeChanges(slug, () => onRemoteChange(slug));
+    }
+  },
+  { immediate: true },
+);
+
+onUnmounted(() => {
+  changeUnsub?.();
+  changeUnsub = null;
+  clearLiveRefreshTimer();
+});
 
 // Embedded mode: report view/anchor changes so the chat card persists them
 // in `viewState` (alongside `selected`). Standalone mode: persist the view

@@ -16,6 +16,7 @@
          into the view; the token stays isolated. -->
     <iframe
       v-else-if="srcdoc"
+      ref="iframeEl"
       :key="view.id"
       data-testid="collection-custom-view-iframe"
       :title="view.label"
@@ -43,6 +44,7 @@ const props = defineProps<{
 const loading = ref(true);
 const error = ref<string | null>(null);
 const srcdoc = ref<string | null>(null);
+const iframeEl = ref<HTMLIFrameElement | null>(null);
 
 // The injected token expires (VIEW_TOKEN_TTL_MS, 1h). The sandboxed view can't
 // re-mint itself (it has no global bearer), so a view left mounted past expiry
@@ -113,7 +115,38 @@ async function load(): Promise<void> {
 // Reload (re-mint + re-fetch) whenever the selected view or collection changes.
 watch([() => props.slug, () => props.view.id], () => void load(), { immediate: true });
 
-onBeforeUnmount(clearRefresh);
+// ── Live updates ──
+// The sandboxed iframe can't open its own authenticated pub/sub socket, so the
+// host parent subscribes (via the optional `subscribeChanges` capability) and
+// relays a `{ type: "mc-collection-changed", slug }` message into the iframe on
+// every record change. The injected `window.__MC_VIEW.onChange(cb)` helper
+// validates + debounces it and re-fetches through the token the view already
+// holds. The message carries no secret. If the host omits `subscribeChanges`,
+// custom views simply keep their fetch-on-load behaviour.
+let changeUnsub: (() => void) | null = null;
+
+function relayChange(): void {
+  // `"*"` target is safe: the payload is just a refetch ping (no token/data),
+  // and the iframe-side handler verifies the message came from `window.parent`.
+  iframeEl.value?.contentWindow?.postMessage({ type: "mc-collection-changed", slug: props.slug }, "*");
+}
+
+watch(
+  () => props.slug,
+  (slug) => {
+    changeUnsub?.();
+    changeUnsub = null;
+    const subscribe = collectionUi().subscribeChanges;
+    if (slug && subscribe) changeUnsub = subscribe(slug, relayChange);
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(() => {
+  clearRefresh();
+  changeUnsub?.();
+  changeUnsub = null;
+});
 </script>
 
 <style scoped>

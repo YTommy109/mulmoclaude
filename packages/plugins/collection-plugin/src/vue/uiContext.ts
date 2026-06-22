@@ -183,6 +183,13 @@ export interface CollectionUi {
   /** Active-notification severity per record id, for accenting flagged rows/cards
    *  (`collectionNotifiedSeverities` over the host's live notifier entries). */
   notifiedSeverities: (slug: string) => Map<string, CollectionNotifySeverity>;
+  /** Subscribe to server-side record changes for `slug` — fires `cb` whenever a
+   *  record is created / updated / deleted by ANY writer (the agent, the UI, a
+   *  feed refresh, or a host-driven `spawn` successor), so a live view can
+   *  debounce-refetch. Returns an unsubscribe. Optional: a host without a
+   *  pub/sub transport omits it and views fall back to manual refresh (so this
+   *  is purely additive — a missing binding never breaks a view). */
+  subscribeChanges?: (slug: string, cb: () => void) => () => void;
 
   // ── injected host component ──
   /** The host's pin/unpin toggle (couples to the host's shortcut store + is

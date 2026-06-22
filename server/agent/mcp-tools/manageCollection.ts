@@ -235,7 +235,11 @@ async function putOneItem(
   }
   const invalid = validateRecordObject(toWrite, itemId, schema);
   if (invalid) return reject(itemId, invalid);
-  const result = await writeItem(collection.dataDir, itemId, toWrite, { refuseOverwrite: mode === "create", workspaceRoot: deps.workspaceRoot });
+  const result = await writeItem(collection.dataDir, itemId, toWrite, {
+    refuseOverwrite: mode === "create",
+    workspaceRoot: deps.workspaceRoot,
+    slug: collection.slug,
+  });
   if (result.kind === "ok") return { written: result.itemId };
   if (result.kind === "invalid-id")
     return reject(itemId, `'${itemId}' is not a valid record id (letters/digits at the ends; -, _, or . inside; no '..' or path characters)`);

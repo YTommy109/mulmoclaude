@@ -42,7 +42,22 @@ export interface CollectionHost {
   isPresetSlug: (slug: string) => boolean;
 }
 
+/** A collection's records changed on disk. Carries the `slug` so the host can
+ *  publish on a per-collection channel; `ids` lists the affected record ids
+ *  when known (a consumer may ignore them and refetch the whole collection),
+ *  and `op` is advisory. Deliberately carries NO record bodies — this is a
+ *  "refetch" ping, not a data feed, so it stays cheap and leaks nothing when a
+ *  host relays it into an opaque-origin custom-view iframe. */
+export interface CollectionChangePayload {
+  slug: string;
+  ids?: string[];
+  op?: "upsert" | "delete";
+}
+
+type CollectionChangePublisher = (payload: CollectionChangePayload) => void;
+
 let current: CollectionHost | null = null;
+let changePublisher: CollectionChangePublisher | null = null;
 
 /** Wire the engine to a host. Call once at server startup, before any
  *  collection storage operation. Re-binding to a *different* host throws —
@@ -53,6 +68,24 @@ export function configureCollectionHost(host: CollectionHost): void {
     throw new Error("@mulmoclaude/collection-plugin/server: configureCollectionHost() was already called with a different host");
   }
   current = host;
+}
+
+/** Wire a publisher that broadcasts record-change events; the host bridges it
+ *  to its pubsub. Kept SEPARATE from `configureCollectionHost` because the
+ *  host's pubsub instance isn't ready at host-binding time (the binding is set
+ *  at the top of server startup, the pubsub later). Optional: left unset, every
+ *  write is silent — the default for tests and for a host that doesn't want
+ *  live view updates. Pass `null` to detach (test teardown). */
+export function setCollectionChangePublisher(publish: CollectionChangePublisher | null): void {
+  changePublisher = publish;
+}
+
+/** Broadcast a record-change event if a publisher is wired (no-op otherwise).
+ *  Called from the write path (`writeItem`/`deleteItem`). The wired publisher is
+ *  expected to be fire-and-forget (it wraps its own pubsub call in try/catch),
+ *  so this stays a thin pass-through and never throws into the write. */
+export function publishCollectionChange(payload: CollectionChangePayload): void {
+  changePublisher?.(payload);
 }
 
 function requireHost(): CollectionHost {

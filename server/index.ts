@@ -66,6 +66,7 @@ import { readSessionJsonl } from "./utils/files/session-io.js";
 import { onSessionEvent, initSessionStore } from "./events/session-store/index.js";
 import { initFileChangePublisher } from "./events/file-change.js";
 import { initAccountingEventPublisher } from "./accounting/eventPublisher.js";
+import { initCollectionChangePublisher } from "./events/collection-change.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";
 import { discoverSkills } from "./workspace/skills/index.js";
 import { WORKSPACE_PATHS } from "./workspace/paths.js";
@@ -1080,6 +1081,7 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // boot already sees a live publisher.
   initFileChangePublisher(pubsub);
   initAccountingEventPublisher(pubsub);
+  initCollectionChangePublisher(pubsub);
 
   // --- Scheduler (Phase 1 of #357) ---
   // Register system tasks with persistence + catch-up. The journal

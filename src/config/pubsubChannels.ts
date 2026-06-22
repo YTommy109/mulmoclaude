@@ -64,6 +64,33 @@ export function fileChannel(workspaceRelativePath: string): string {
   return `file:${toPosixWorkspacePath(workspaceRelativePath)}`;
 }
 
+/**
+ * Per-collection record-change channel — one per collection slug. Fires when
+ * a record is created / updated / deleted, regardless of writer (the agent's
+ * `manageCollection`, the UI's `/api/collections` routes, a feed refresh, or
+ * a host-driven `spawn` successor). A "refetch" ping: the payload carries no
+ * record bodies, just the changed ids.
+ *
+ * Publisher: `server/events/collection-change.ts` (bridged from the package's
+ * `publishCollectionChange`, fired in `io.ts#writeItem`/`deleteItem`).
+ * Subscribers: `CollectionView.vue` (debounced refetch) and
+ * `CollectionCustomView.vue` (relays into the sandboxed iframe), both via the
+ * host's `subscribeChanges` capability in `composables/collections/uiHost.ts`.
+ */
+export function collectionChannel(slug: string): string {
+  return `collection:${slug}`;
+}
+
+/** Payload published on `collectionChannel(...)`. `ids` lists the changed
+ *  record ids when known (subscribers may ignore them and refetch the whole
+ *  collection); `op` is advisory. No record bodies — safe to relay into an
+ *  opaque-origin custom-view iframe. */
+export interface CollectionChannelPayload {
+  slug: string;
+  ids?: string[];
+  op?: "upsert" | "delete";
+}
+
 /** Payload published on `fileChannel(...)`. `mtimeMs` is the post-write
  *  `fs.stat().mtimeMs`; subscribers use it both as a cache-buster and
  *  as a monotonic clock to drop out-of-order events. */

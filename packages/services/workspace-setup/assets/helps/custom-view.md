@@ -61,6 +61,7 @@ window.__MC_VIEW = {
   slug: "annual-plan", // this collection
   token: "<scoped capability token>", // Authorization bearer
   dataUrl: "http://localhost:3001/api/collections/annual-plan/view-data",
+  onChange: (cb) => unsubscribe, // live refresh — see "Staying live" below
 };
 ```
 
@@ -101,6 +102,36 @@ const { written, rejected } = await res.json(); // fix & re-send any rejected ro
 
 Surface any `rejected` rows to the user with their `problem` text — don't fail
 silently.
+
+### Staying live — `onChange`
+
+By default a view paints once, on load. To keep it fresh, register a callback —
+it runs whenever the collection's data changes on the server:
+
+```js
+async function render() {
+  const res = await fetch(dataUrl, { headers: { Authorization: "Bearer " + token } });
+  if (!res.ok) return; // handle the error per your UI
+  const { items } = await res.json();
+  // …draw items…
+}
+render(); // initial paint
+window.__MC_VIEW.onChange(render); // live refresh on every server-side change
+```
+
+What you need to know:
+
+- **It fires for every writer** — the assistant adding/editing a record in chat,
+  an edit from another browser tab, a feed refresh, and auto-generated recurring
+  records. Your view stays in sync no matter who changed the data.
+- **Make the callback a full re-fetch + re-render** (like `render` above). It is
+  a "something changed, reload" signal — it carries no record data — and one
+  callback may stand in for several rapid changes.
+- **It is already debounced** (a burst of changes collapses to one call) — do
+  **not** add your own throttle.
+- **No extra capability needed** — a read-only view can use `onChange`.
+- It returns an **unsubscribe** function; you rarely need it (the view is torn
+  down with the iframe), but it's there for fine-grained control.
 
 ## Sandbox rules (what the view may and may not do)
 
@@ -222,6 +253,8 @@ fields `start` / `end` and a `title`. `capabilities: ["read"]`.
       main().catch((e) => {
         document.getElementById("root").innerHTML = '<span class="err">Could not load: ' + e.message + "</span>";
       });
+      // Live refresh: re-run whenever the collection's data changes server-side.
+      window.__MC_VIEW.onChange(() => main().catch(() => {}));
     </script>
   </body>
 </html>
@@ -312,6 +345,9 @@ writes it back. `capabilities: ["read","write"]`.
       render().catch((e) => {
         document.getElementById("root").textContent = "Could not load: " + e.message;
       });
+      // Live refresh: re-render on any server-side change (incl. our own writes
+      // landing, and edits from the assistant or another tab).
+      window.__MC_VIEW.onChange(() => render().catch(() => {}));
     </script>
   </body>
 </html>

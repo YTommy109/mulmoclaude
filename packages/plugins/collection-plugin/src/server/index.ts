@@ -6,7 +6,16 @@
 //   import { configureCollectionHost } from "@mulmoclaude/collection-plugin/server";
 //   configureCollectionHost({ workspaceRoot, log });
 
-export { configureCollectionHost, getWorkspaceRoot, log, type CollectionHost, type CollectionLogger } from "./host";
+export {
+  configureCollectionHost,
+  getWorkspaceRoot,
+  log,
+  setCollectionChangePublisher,
+  publishCollectionChange,
+  type CollectionHost,
+  type CollectionLogger,
+  type CollectionChangePayload,
+} from "./host";
 export type { LoadedCollection } from "./discoveredCollection";
 export * from "./paths";
 export * from "./templatePath";

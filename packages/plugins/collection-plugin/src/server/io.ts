@@ -6,7 +6,7 @@
 import { lstat, mkdir, open, readdir, readFile, unlink } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
-import { getWorkspaceRoot, log, skillsStagingDir } from "./host";
+import { getWorkspaceRoot, log, publishCollectionChange, skillsStagingDir } from "./host";
 import { writeFileAtomic } from "./atomic";
 import { isContainedInRoot, itemFilePath, resolveTemplatePath, safeRecordId, safeSlugName } from "./paths";
 import type { CollectionItem, CollectionSchema } from "../core/schema";
@@ -19,6 +19,12 @@ export interface IoOptions {
    *  without touching `~/mulmoclaude/`. Same pattern as
    *  `server/workspace/skills/catalog.ts#CatalogOptions`. */
   workspaceRoot?: string;
+  /** Collection slug this write/delete belongs to. When provided, a
+   *  successful write/delete publishes a record-change event (see
+   *  `publishCollectionChange`) so live views refetch. `writeItem` has no
+   *  slug of its own (it's keyed by `dataDir`), so callers thread it through;
+   *  omitting it just means no event is published (internal / test writes). */
+  slug?: string;
 }
 
 /** True iff `filePath` exists and is a regular file (NOT a symlink).
@@ -176,10 +182,12 @@ export async function writeItem(dataDir: string, itemId: string, item: Collectio
     } finally {
       await handle.close();
     }
-    return { kind: "ok", itemId: safeId, item };
+  } else {
+    await writeFileAtomic(filePath, payload);
   }
-
-  await writeFileAtomic(filePath, payload);
+  // Publish AFTER the write lands so a live subscriber that refetches always
+  // sees the new record (never a read-before-write race).
+  if (opts.slug) publishCollectionChange({ slug: opts.slug, ids: [safeId], op: "upsert" });
   return { kind: "ok", itemId: safeId, item };
 }
 
@@ -200,6 +208,7 @@ export async function deleteItem(dataDir: string, itemId: string, opts: IoOption
   const filePath = itemFilePath(dataDir, safeId);
   try {
     await unlink(filePath);
+    if (opts.slug) publishCollectionChange({ slug: opts.slug, ids: [safeId], op: "delete" });
     return { kind: "ok", itemId: safeId };
   } catch (err) {
     const error = err as { code?: string };

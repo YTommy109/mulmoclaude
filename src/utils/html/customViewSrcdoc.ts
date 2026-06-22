@@ -7,10 +7,30 @@
 // view's own scripts:
 //   1. a CSP <meta> with connect-src = the server origin (the view may fetch
 //      its data endpoint but no third party), and
-//   2. `window.__MC_VIEW = { slug, token, dataUrl }` — the scoped capability
-//      token + the absolute data URL the view reads.
+//   2. `window.__MC_VIEW = { slug, token, dataUrl, onChange }` — the scoped
+//      capability token + the absolute data URL the view reads, plus an
+//      `onChange(cb)` live-refresh subscription (see below).
 
 import { buildCustomViewCsp } from "./previewCsp";
+
+/** Debounce (ms) for the in-iframe live-refresh helper — collapses a burst of
+ *  parent change-pings (e.g. a bulk write) into a single `onChange` callback. */
+const ONCHANGE_DEBOUNCE_MS = 150;
+
+/** The in-iframe bootstrap appended after `window.__MC_VIEW = {…}`. It adds
+ *  `onChange(cb)`: the view author's one-line opt-in to live refresh. The host
+ *  parent (`CollectionCustomView.vue`) relays a `{ type: "mc-collection-changed",
+ *  slug }` message into the iframe whenever the collection's data changes; this
+ *  validates the message came from the parent, is for THIS collection, debounces,
+ *  and invokes every registered callback. The message carries no secret and only
+ *  triggers a re-fetch through the token the view already holds — so it grants
+ *  no new capability. Self-contained string (no `</script>` sequence, no `<`). */
+function onChangeBootstrap(): string {
+  // One line on purpose — it's inlined into the iframe's bootstrap <script>.
+  // Uses single quotes throughout (no `</script>`, no `<`, no `${`) so it stays
+  // intact inside the template literal and inside the script element.
+  return `(function(){var v=window.__MC_VIEW,cbs=[],t;function fire(){t=undefined;for(var i=0;i<cbs.length;i++){try{cbs[i]()}catch(e){}}}window.addEventListener('message',function(e){if(e.source!==window.parent)return;var d=e.data;if(!d||d.type!=='mc-collection-changed'||d.slug!==v.slug)return;if(t)clearTimeout(t);t=setTimeout(fire,${ONCHANGE_DEBOUNCE_MS});});v.onChange=function(cb){if(typeof cb!=='function')return function(){};cbs.push(cb);return function(){var i=cbs.indexOf(cb);if(i>=0)cbs.splice(i,1);};};})();`;
+}
 
 export interface CustomViewBootstrap {
   slug: string;
@@ -38,7 +58,7 @@ export function buildCustomViewSrcdoc(html: string, boot: CustomViewBootstrap): 
     token: boot.token,
     dataUrl: absoluteDataUrl(boot.dataUrl, boot.origin),
   }).replace(/</g, "\\u003c");
-  const injection = `${cspMeta}<script>window.__MC_VIEW=${json};</script>`;
+  const injection = `${cspMeta}<script>window.__MC_VIEW=${json};${onChangeBootstrap()}</script>`;
   if (/<head\b[^>]*>/i.test(html)) {
     return html.replace(/(<head\b[^>]*>)/i, `$1${injection}`);
   }

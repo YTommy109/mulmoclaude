@@ -57,4 +57,22 @@ describe("buildCustomViewSrcdoc", () => {
     const out = buildCustomViewSrcdoc("<head></head>", { ...boot, dataUrl: "http://example.test/data" });
     assert.match(out, /"dataUrl":"http:\/\/example\.test\/data"/);
   });
+
+  it("injects the onChange live-refresh bootstrap into the same script", () => {
+    const out = buildCustomViewSrcdoc("<head></head>", boot);
+    // The helper is defined on the existing __MC_VIEW global…
+    assert.match(out, /v\.onChange=function/);
+    // …and only reacts to the parent's collection-changed message.
+    assert.match(out, /mc-collection-changed/);
+    assert.match(out, /e\.source!==window\.parent/);
+    // It lives inside the single bootstrap <script>, before the view's own code.
+    assert.ok(out.indexOf("onChange") < out.indexOf("</head>"));
+  });
+
+  it("keeps the onChange bootstrap free of a </script> breakout sequence", () => {
+    const out = buildCustomViewSrcdoc("<head></head>", boot);
+    // The bootstrap is inlined in a <script>; a literal </script> inside it would
+    // close the tag early. The only </script> must be the intended closer.
+    assert.equal(out.match(/<\/script>/gi)?.length, 1);
+  });
 });

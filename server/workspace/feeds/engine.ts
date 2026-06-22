@@ -36,7 +36,7 @@ async function upsertItems(workspaceRoot: string, feed: LoadedCollection, items:
   for (const item of items) {
     const itemId = item[feed.schema.primaryKey];
     if (typeof itemId !== "string" || itemId.length === 0) continue;
-    const result = await writeItem(feed.dataDir, itemId, item, { refuseOverwrite: false, workspaceRoot });
+    const result = await writeItem(feed.dataDir, itemId, item, { refuseOverwrite: false, workspaceRoot, slug: feed.slug });
     if (result.kind === "ok") written += 1;
     else log.warn("feeds", "feed item write skipped", { slug: feed.slug, itemId, kind: result.kind });
   }
@@ -77,7 +77,7 @@ async function pruneFeed(workspaceRoot: string, feed: LoadedCollection): Promise
   for (const item of stale) {
     const itemId = item[feed.schema.primaryKey];
     if (typeof itemId !== "string" || itemId.length === 0) continue;
-    if ((await deleteItem(feed.dataDir, itemId, { workspaceRoot })).kind === "ok") removed += 1;
+    if ((await deleteItem(feed.dataDir, itemId, { workspaceRoot, slug: feed.slug })).kind === "ok") removed += 1;
   }
   if (removed > 0) log.info("feeds", "pruned old feed records", { slug: feed.slug, removed, cap });
   return removed;

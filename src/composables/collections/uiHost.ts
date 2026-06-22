@@ -16,6 +16,8 @@ import { configureCollectionUi, type CollectionViewToken } from "@mulmoclaude/co
 // this host's Tailwind content scan, so the classes must be loaded explicitly.
 import "@mulmoclaude/collection-plugin/style.css";
 import { apiDelete, apiFetchRaw, apiGet, apiPost, apiPut } from "../../utils/api";
+import { usePubSub } from "../usePubSub";
+import { collectionChannel } from "../../config/pubsubChannels";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { PAGE_ROUTES } from "../../router/pageRoutes";
 import { BUILTIN_ROLE_IDS } from "../../config/roles";
@@ -134,6 +136,11 @@ configureCollectionUi({
   personalRoleId: BUILTIN_ROLE_IDS.personal,
   unpin: (kind, slug) => useShortcuts().unpin(kind, slug),
   notifiedSeverities: (slug) => notifiedSeveritiesFn?.(slug) ?? new Map<string, NotifierSeverity>(),
+  // Live record-change subscription. `usePubSub().subscribe` is context-free
+  // (module-level socket), so this works when invoked from a view's setup; the
+  // view owns the returned unsubscribe (onUnmounted). The payload is ignored —
+  // subscribers refetch — so the callback is parameterless.
+  subscribeChanges: (slug, onChange) => usePubSub().subscribe(collectionChannel(slug), () => onChange()),
 
   pinToggle: PinToggle,
 });

@@ -233,7 +233,7 @@ export async function maybeSpawnSuccessor(
     return;
   }
   try {
-    const result = await writeItem(dataDir, computed.id, computed.record, { ...ioOpts, refuseOverwrite: true });
+    const result = await writeItem(dataDir, computed.id, computed.record, { ...ioOpts, refuseOverwrite: true, slug });
     if (result.kind === "ok") {
       log.info("collections", "spawned successor", { slug, sourceId, successorId: computed.id });
     } else if (result.kind !== "conflict") {
