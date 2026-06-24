@@ -43,7 +43,8 @@ const deMessages = {
     removeAttachment: "{name} entfernen",
     attachmentFallbackName: "Anhang",
     voice: {
-      tooltip: "Zum Sprechen gedrückt halten",
+      start: "Spracheingabe starten",
+      stop: "Spracheingabe stoppen",
     },
   },
   sessionHistoryPanel: {

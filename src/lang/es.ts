@@ -48,7 +48,8 @@ const esMessages = {
     removeAttachment: "Quitar {name}",
     attachmentFallbackName: "archivo adjunto",
     voice: {
-      tooltip: "Mantén pulsado para hablar",
+      start: "Iniciar entrada de voz",
+      stop: "Detener entrada de voz",
     },
   },
   sessionHistoryPanel: {

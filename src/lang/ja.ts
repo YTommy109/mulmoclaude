@@ -50,7 +50,8 @@ const jaMessages = {
     removeAttachment: "{name} を削除",
     attachmentFallbackName: "添付ファイル",
     voice: {
-      tooltip: "押している間だけ話す",
+      start: "音声入力を開始",
+      stop: "音声入力を停止",
     },
   },
   sessionHistoryPanel: {

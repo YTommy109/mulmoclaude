@@ -90,23 +90,22 @@
           >
             <span class="material-icons text-base leading-none">attach_file</span>
           </button>
-          <!-- Push-to-talk mic. Hidden unless the backend reports voice
-               input ready (Mac + enabled + model downloaded). Hold to
-               record, release to transcribe; transcript is appended to
-               the input for review, never auto-sent. -->
+          <!-- Toggle mic. Hidden unless the backend reports voice input
+               ready (Mac + enabled + model downloaded). Click to start
+               listening; each pause finalizes a segment that is
+               transcribed and appended to the input for review (never
+               auto-sent). Click again to stop. -->
           <button
             v-if="voiceAvailable"
             data-testid="mic-btn"
             class="rounded w-8 h-8 flex items-center justify-center"
-            :class="voiceRecording ? 'bg-red-600 text-white animate-pulse' : 'text-gray-400 hover:text-gray-600'"
-            :disabled="isRunning || voiceTranscribing"
-            :title="t('chatInput.voice.tooltip')"
-            :aria-label="t('chatInput.voice.tooltip')"
-            @pointerdown.prevent="startVoice"
-            @pointerup="stopVoice"
-            @pointerleave="stopVoice"
+            :class="voiceListening ? 'bg-red-600 text-white animate-pulse' : voiceTranscribing ? 'text-blue-500' : 'text-gray-400 hover:text-gray-600'"
+            :disabled="isRunning || (!voiceListening && voiceTranscribing)"
+            :title="voiceListening ? t('chatInput.voice.stop') : t('chatInput.voice.start')"
+            :aria-label="voiceListening ? t('chatInput.voice.stop') : t('chatInput.voice.start')"
+            @click="toggleVoice"
           >
-            <span class="material-icons text-base leading-none">{{ voiceTranscribing ? "hourglass_top" : "mic" }}</span>
+            <span class="material-icons text-base leading-none">{{ !voiceListening && voiceTranscribing ? "hourglass_top" : "mic" }}</span>
           </button>
         </div>
       </div>
@@ -165,10 +164,9 @@ function insertTranscript(text: string): void {
 
 const {
   available: voiceAvailable,
-  recording: voiceRecording,
+  listening: voiceListening,
   transcribing: voiceTranscribing,
-  start: startVoice,
-  stop: stopVoice,
+  toggle: toggleVoice,
   refreshAvailability: refreshVoiceAvailability,
 } = useVoiceInput({
   locale: () => locale.value,

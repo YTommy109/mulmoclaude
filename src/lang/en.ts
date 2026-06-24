@@ -65,7 +65,8 @@ const enMessages = {
     removeAttachment: "Remove {name}",
     attachmentFallbackName: "attachment",
     voice: {
-      tooltip: "Hold to talk",
+      start: "Start voice input",
+      stop: "Stop voice input",
     },
   },
   sessionHistoryPanel: {

@@ -48,7 +48,8 @@ const zhMessages = {
     removeAttachment: "移除 {name}",
     attachmentFallbackName: "附件",
     voice: {
-      tooltip: "按住说话",
+      start: "开始语音输入",
+      stop: "停止语音输入",
     },
   },
   sessionHistoryPanel: {

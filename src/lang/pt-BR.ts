@@ -43,7 +43,8 @@ const ptBRMessages = {
     removeAttachment: "Remover {name}",
     attachmentFallbackName: "anexo",
     voice: {
-      tooltip: "Segure para falar",
+      start: "Iniciar entrada de voz",
+      stop: "Parar entrada de voz",
     },
   },
   sessionHistoryPanel: {

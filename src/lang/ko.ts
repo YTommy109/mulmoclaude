@@ -50,7 +50,8 @@ const koMessages = {
     removeAttachment: "{name} 제거",
     attachmentFallbackName: "첨부파일",
     voice: {
-      tooltip: "누르고 있는 동안 말하기",
+      start: "음성 입력 시작",
+      stop: "음성 입력 중지",
     },
   },
   sessionHistoryPanel: {

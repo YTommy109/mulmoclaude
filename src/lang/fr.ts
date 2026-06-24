@@ -43,7 +43,8 @@ const frMessages = {
     removeAttachment: "Retirer {name}",
     attachmentFallbackName: "pièce jointe",
     voice: {
-      tooltip: "Maintenez pour parler",
+      start: "Démarrer la saisie vocale",
+      stop: "Arrêter la saisie vocale",
     },
   },
   sessionHistoryPanel: {
