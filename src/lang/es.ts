@@ -263,6 +263,8 @@ const esMessages = {
     voiceTab: {
       description:
         "Dicta mensajes de chat con tu voz. El audio se transcribe localmente en la máquina que ejecuta MulmoClaude; no se envía nada a ningún servicio externo.",
+      requirements:
+        "Disponible solo en macOS. Requiere el servidor whisper.cpp: compílalo con yarn build:whisper (consulta la sección Local Voice Input del README).",
       unsupported: "La entrada de voz requiere macOS con el servidor whisper.cpp instalado. No está disponible en esta máquina.",
       enableLabel: "Activar entrada de voz",
       enableHint: "Al activarlo se descarga una vez el modelo de voz (1–3 GB). Luego aparece un botón de micrófono en la entrada de chat.",

@@ -278,6 +278,8 @@ const enMessages = {
     voiceTab: {
       description:
         "Dictate chat messages with your voice. Audio is transcribed locally on the machine running MulmoClaude — nothing is sent to any external service.",
+      requirements:
+        "Available on macOS only. It requires the whisper.cpp server — build it with yarn build:whisper (see the README, Local Voice Input section).",
       unsupported: "Voice input requires macOS with the whisper.cpp server installed. It is not available on this machine.",
       enableLabel: "Enable voice input",
       enableHint: "Turning this on downloads the speech model (1–3 GB) once. A mic button then appears in the chat input.",

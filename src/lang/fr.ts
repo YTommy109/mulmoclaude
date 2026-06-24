@@ -258,6 +258,8 @@ const frMessages = {
     voiceTab: {
       description:
         "Dictez vos messages de chat à la voix. L'audio est transcrit localement sur la machine qui exécute MulmoClaude — rien n'est envoyé à un service externe.",
+      requirements:
+        "Disponible uniquement sur macOS. Nécessite le serveur whisper.cpp — compilez-le avec yarn build:whisper (voir la section Local Voice Input du README).",
       unsupported: "La saisie vocale nécessite macOS avec le serveur whisper.cpp installé. Elle n'est pas disponible sur cette machine.",
       enableLabel: "Activer la saisie vocale",
       enableHint: "L'activation télécharge le modèle vocal (1–3 Go) une seule fois. Un bouton micro apparaît ensuite dans la zone de saisie du chat.",

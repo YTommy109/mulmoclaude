@@ -258,6 +258,7 @@ const ptBRMessages = {
     voiceTab: {
       description:
         "Dite mensagens de chat com sua voz. O áudio é transcrito localmente na máquina que executa o MulmoClaude — nada é enviado para nenhum serviço externo.",
+      requirements: "Disponível apenas no macOS. Requer o servidor whisper.cpp — compile-o com yarn build:whisper (veja a seção Local Voice Input no README).",
       unsupported: "A entrada de voz requer macOS com o servidor whisper.cpp instalado. Não está disponível nesta máquina.",
       enableLabel: "Ativar entrada de voz",
       enableHint: "Ao ativar, o modelo de voz (1–3 GB) é baixado uma vez. Em seguida, um botão de microfone aparece na entrada de chat.",

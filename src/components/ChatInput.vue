@@ -437,5 +437,5 @@ function collapseSuggestions(): void {
   suggestionsExpanded.value = false;
 }
 
-defineExpose({ focus, collapseSuggestions, addFiles });
+defineExpose({ focus, collapseSuggestions, addFiles, refreshVoiceAvailability });
 </script>

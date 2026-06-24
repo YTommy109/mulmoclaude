@@ -261,6 +261,8 @@ const deMessages = {
     voiceTab: {
       description:
         "Diktieren Sie Chat-Nachrichten mit Ihrer Stimme. Das Audio wird lokal auf dem Rechner transkribiert, der MulmoClaude ausführt — nichts wird an einen externen Dienst gesendet.",
+      requirements:
+        "Nur unter macOS verfügbar. Erfordert den whisper.cpp-Server — bauen Sie ihn mit yarn build:whisper (siehe Abschnitt Local Voice Input in der README).",
       unsupported: "Spracheingabe erfordert macOS mit installiertem whisper.cpp-Server. Auf diesem Rechner ist sie nicht verfügbar.",
       enableLabel: "Spracheingabe aktivieren",
       enableHint:

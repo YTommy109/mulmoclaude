@@ -262,6 +262,7 @@ const koMessages = {
     },
     voiceTab: {
       description: "음성으로 채팅 메시지를 입력합니다. 오디오는 MulmoClaude를 실행하는 컴퓨터에서 로컬로 전사되며 외부 서비스로 전송되지 않습니다.",
+      requirements: "macOS에서만 사용할 수 있습니다. whisper.cpp 서버가 필요하며 yarn build:whisper 로 빌드하세요 (README의 Local Voice Input 섹션 참조).",
       unsupported: "음성 입력에는 whisper.cpp 서버가 설치된 macOS가 필요합니다. 이 컴퓨터에서는 사용할 수 없습니다.",
       enableLabel: "음성 입력 활성화",
       enableHint: "켜면 음성 모델(1–3 GB)을 한 번 다운로드합니다. 이후 채팅 입력란에 마이크 버튼이 표시됩니다.",

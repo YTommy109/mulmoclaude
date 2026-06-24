@@ -1,6 +1,7 @@
 <template>
   <div class="space-y-3" data-testid="settings-voice-tab">
     <p class="text-sm text-gray-700">{{ t("settingsModal.voiceTab.description") }}</p>
+    <p class="text-xs text-gray-500" data-testid="settings-voice-requirements">{{ t("settingsModal.voiceTab.requirements") }}</p>
 
     <!-- Not a Mac / whisper binary missing: feature can't be enabled. -->
     <div v-if="loaded && !status.capable" class="rounded border border-gray-300 bg-gray-50 p-3 text-sm text-gray-600" data-testid="settings-voice-unsupported">

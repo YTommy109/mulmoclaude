@@ -293,7 +293,7 @@
       :docker-mode="sandboxEnabled"
       :gemini-available="geminiAvailable"
       :mcp-tools-error="mcpToolsError"
-      @update:open="showSettings = $event"
+      @update:open="onSettingsOpenChange"
       @ask-gemini="handleAskGemini"
       @saved="refreshGoogleMapsApiKey"
     />
@@ -547,7 +547,13 @@ useGlobalImageErrorRepair();
 
 const sessionSidebarRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
-const chatInputRef = ref<{ focus: () => void; collapseSuggestions: () => void; addFiles: (files: File[]) => void } | null>(null);
+const chatInputRef = ref<{
+  focus: () => void;
+  collapseSuggestions: () => void;
+  addFiles: (files: File[]) => void;
+  refreshVoiceAvailability: () => Promise<void>;
+} | null>(null);
+
 const { focusChatInput } = useChatScroll({
   sessionSidebarRef,
   toolResults,
@@ -576,6 +582,15 @@ const {
 
 const { showRightSidebar, toggleRightSidebar } = useRightSidebar();
 const showSettings = ref(false);
+
+// When the Settings modal closes, re-check voice-input availability: the
+// user may have just enabled it / started the model download, and the
+// mic button should appear without a reload (the composable then polls
+// until the download finishes). See plans/feat-voice-input.md.
+function onSettingsOpenChange(open: boolean): void {
+  showSettings.value = open;
+  if (!open) chatInputRef.value?.refreshVoiceAvailability()?.catch(() => undefined);
+}
 
 const { layoutMode, setLayoutMode } = useLayoutMode();
 const { sidePanelVisible, setSidePanelVisible } = useSidePanelVisible();

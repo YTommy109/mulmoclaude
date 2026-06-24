@@ -261,6 +261,8 @@ const jaMessages = {
     voiceTab: {
       description:
         "チャットメッセージを音声で入力できます。音声は MulmoClaude を実行しているマシン上でローカルに文字起こしされ、外部サービスには一切送信されません。",
+      requirements:
+        "macOS でのみ利用できます。whisper.cpp サーバーが必要です。yarn build:whisper でビルドしてください（README の Local Voice Input セクションを参照）。",
       unsupported: "音声入力には whisper.cpp サーバーがインストールされた macOS が必要です。このマシンでは利用できません。",
       enableLabel: "音声入力を有効にする",
       enableHint: "オンにすると音声モデル（1〜3 GB）を一度だけダウンロードします。その後、チャット入力欄にマイクボタンが表示されます。",

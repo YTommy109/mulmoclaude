@@ -112,10 +112,37 @@ export function useVoiceInput(opts: UseVoiceInputOptions): UseVoiceInput {
   let segmentStart = 0;
   let pending = 0;
   let queue: Promise<void> = Promise.resolve();
+  let availabilityPollHandle: number | null = null;
 
+  function stopAvailabilityPoll(): void {
+    if (availabilityPollHandle !== null) {
+      window.clearInterval(availabilityPollHandle);
+      availabilityPollHandle = null;
+    }
+  }
+
+  // Fetch readiness. While the model is downloading (capable + enabled),
+  // keep polling so the mic button appears as soon as it finishes —
+  // without requiring a remount/reload. Idle/unsupported clients don't
+  // poll (the download state is the only trigger).
   async function refreshAvailability(): Promise<void> {
     const result = await apiGet<VoiceInputStatusResponse>(API_ROUTES.transcribe.model);
-    available.value = result.ok && result.data.capable && result.data.enabled && result.data.model.state === "ready";
+    if (!result.ok) {
+      available.value = false;
+      stopAvailabilityPoll();
+      return;
+    }
+    const { capable, enabled, model } = result.data;
+    available.value = capable && enabled && model.state === "ready";
+    if (capable && enabled && model.state === "downloading") {
+      if (availabilityPollHandle === null) {
+        availabilityPollHandle = window.setInterval(() => {
+          void refreshAvailability();
+        }, 2000);
+      }
+    } else {
+      stopAvailabilityPoll();
+    }
   }
 
   function setPending(delta: number): void {
@@ -243,7 +270,10 @@ export function useVoiceInput(opts: UseVoiceInputOptions): UseVoiceInput {
     stream = null;
   }
 
-  onScopeDispose(stop);
+  onScopeDispose(() => {
+    stopAvailabilityPoll();
+    stop();
+  });
 
   return { available, listening, transcribing, error, refreshAvailability, start, stop };
 }

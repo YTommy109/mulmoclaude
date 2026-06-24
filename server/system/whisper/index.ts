@@ -23,11 +23,14 @@ export { WHISPER_MODELS, DEFAULT_WHISPER_MODEL, isWhisperModelName, type Whisper
 const SCRATCH_DIR = path.join(WORKSPACE_PATHS.models, ".scratch");
 
 /** Whisper.cpp local transcription needs macOS (Metal) + the
- *  whisper-server binary on PATH. `depStatus` returns undefined until
- *  the boot probe completes — treat that as not-yet-capable so the mic
- *  button doesn't flicker on before we know. */
+ *  whisper-server binary AND ffmpeg on PATH — every transcription shells
+ *  out to ffmpeg (webm→WAV) before the sidecar, so ffmpeg must be in the
+ *  capability gate or the mic shows available and each request 500s.
+ *  `depStatus` returns undefined until the boot probe completes — treat
+ *  that as not-yet-capable so the mic button doesn't flicker on before
+ *  we know. */
 export function isVoiceInputCapable(): boolean {
-  return process.platform === "darwin" && depStatus("whisper")?.available === true;
+  return process.platform === "darwin" && depStatus("whisper")?.available === true && depStatus("ffmpeg")?.available === true;
 }
 
 export interface VoiceInputStatus {

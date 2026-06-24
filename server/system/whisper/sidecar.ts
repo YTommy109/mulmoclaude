@@ -27,7 +27,9 @@ interface Sidecar {
 }
 
 let sidecar: Sidecar | null = null;
-let starting: Promise<Sidecar> | null = null;
+// Tracks the in-flight start AND the model it's for, so a request for a
+// different model never reuses a startup spawned for the wrong one.
+let starting: { model: WhisperModelName; promise: Promise<Sidecar> } | null = null;
 
 async function findFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -100,12 +102,17 @@ async function startSidecar(model: WhisperModelName): Promise<Sidecar> {
  *  share one in-flight start. */
 async function ensureSidecar(model: WhisperModelName): Promise<Sidecar> {
   if (sidecar && sidecar.model === model && !sidecar.proc.killed) return sidecar;
+  // Reuse an in-flight start only when it's for the SAME model; if a
+  // different model is starting, let it settle first, then replace it.
+  if (starting && starting.model === model) return starting.promise;
+  if (starting) await starting.promise.catch(() => undefined);
+  if (sidecar && sidecar.model === model && !sidecar.proc.killed) return sidecar;
   if (sidecar && sidecar.model !== model) stopWhisperSidecar();
-  if (starting) return starting;
-  starting = startSidecar(model).finally(() => {
+  const promise = startSidecar(model).finally(() => {
     starting = null;
   });
-  return starting;
+  starting = { model, promise };
+  return promise;
 }
 
 /** Pre-spawn the sidecar so the first real transcription doesn't pay the
