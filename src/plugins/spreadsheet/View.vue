@@ -126,6 +126,7 @@ import { applyCellHighlights, clearCellHighlights } from "./cellHighlights";
 import { getArrowKeyOffset, isWithinSheetBounds } from "./keyboardNav";
 import { handleExternalLinkClick } from "../../utils/dom/externalLink";
 import { errorMessage as formatErrorMessage } from "../../utils/errors";
+import { escapeHtml } from "../../utils/markdown/wikiEmbeds";
 
 // Import all spreadsheet functions to populate the function registry
 import "./engine/functions";
@@ -362,7 +363,12 @@ const renderedHtml = computed(() => {
     return html;
   } catch (error) {
     console.error("Failed to render spreadsheet:", error);
-    return `<div class="error">Failed to render spreadsheet: ${error instanceof Error ? error.message : "Unknown error"}</div>`;
+    // Result is fed into v-html (see :data-testid="table"). The
+    // message comes from a caught throw, which can include attacker-
+    // controlled object shapes (e.g. `{ details: "<script>..." }`)
+    // surfaced by formatErrorMessage's gRPC-style unwrap. Escape
+    // before interpolation. (Codex review on #1767.)
+    return `<div class="error">Failed to render spreadsheet: ${escapeHtml(formatErrorMessage(error, "Unknown error"))}</div>`;
   }
 });
 
@@ -386,7 +392,7 @@ const downloadExcel = () => {
     XLSX.writeFile(workbook, filename);
   } catch (error) {
     console.error("Failed to download Excel:", error);
-    alert(`Failed to download Excel file: ${error instanceof Error ? error.message : "Unknown error"}`);
+    alert(`Failed to download Excel file: ${formatErrorMessage(error, "Unknown error")}`);
   }
 };
 
@@ -525,7 +531,7 @@ function saveMiniEditor() {
     // Don't close the mini editor - keep it open so user can see the updated references
     // closeMiniEditor();
   } catch (error) {
-    alert(`Failed to save cell: ${error instanceof Error ? error.message : "Unknown error"}`);
+    alert(`Failed to save cell: ${formatErrorMessage(error, "Unknown error")}`);
   }
 }
 

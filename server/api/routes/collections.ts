@@ -10,7 +10,7 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
-import { actionVisible } from "../../../src/utils/collections/actionVisible.js";
+import { actionVisible } from "@mulmoclaude/collection-plugin";
 import {
   discoverCollections,
   generateItemId,
@@ -180,7 +180,7 @@ router.post(API_ROUTES.collections.items, async (req: Request<{ slug: string }>,
   const itemId = resolveCreateItemId(collection.schema, record) ?? generateItemId();
   const recordWithId: CollectionItem = { ...record, [collection.schema.primaryKey]: itemId };
   try {
-    const result = await writeItem(collection.dataDir, itemId, recordWithId, { refuseOverwrite: true });
+    const result = await writeItem(collection.dataDir, itemId, recordWithId, { refuseOverwrite: true, slug: collection.slug });
     if (result.kind === "invalid-id") {
       badRequest(res, `invalid item id: ${result.itemId}`);
       return;
@@ -224,7 +224,7 @@ router.put(API_ROUTES.collections.item, async (req: Request<{ slug: string; item
   // record id never drift.
   const recordWithId: CollectionItem = { ...record, [primaryKey]: req.params.itemId };
   try {
-    const result = await writeItem(collection.dataDir, req.params.itemId, recordWithId);
+    const result = await writeItem(collection.dataDir, req.params.itemId, recordWithId, { slug: collection.slug });
     if (result.kind === "invalid-id") {
       badRequest(res, `invalid item id: ${result.itemId}`);
       return;
@@ -254,7 +254,7 @@ router.delete(API_ROUTES.collections.item, async (req: Request<{ slug: string; i
     return;
   }
   try {
-    const result = await deleteItem(collection.dataDir, req.params.itemId);
+    const result = await deleteItem(collection.dataDir, req.params.itemId, { slug: collection.slug });
     if (result.kind === "invalid-id") {
       badRequest(res, `invalid item id: ${result.itemId}`);
       return;

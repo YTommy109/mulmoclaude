@@ -21,6 +21,7 @@ import { ClaudeCliNotFoundError } from "../journal/archivist-cli.js";
 import { errorMessage } from "../../utils/errors.js";
 import type { SummaryResult } from "./types.js";
 import { isRecord } from "../../utils/types.js";
+import { claudeBinPath } from "../../utils/claudeBin.js";
 
 const SYSTEM_PROMPT =
   "You summarize a single chat session. Output strict JSON matching the provided schema. " +
@@ -194,7 +195,7 @@ function spawnClaudeSummarize(input: string, timeoutMs: number): Promise<string>
     ];
     // Run from tmpdir so claude does not load the project's
     // CLAUDE.md / plugins / memory and inflate the context.
-    const proc = spawn("claude", args, {
+    const proc = spawn(claudeBinPath(), args, {
       cwd: tmpdir(),
       stdio: ["ignore", "pipe", "pipe"],
     });
