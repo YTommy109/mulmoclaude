@@ -1,4 +1,7 @@
 import "dotenv/config";
+// Wire @mulmoclaude/collection-plugin/server to this host's workspace + logger
+// before any module that touches collection storage loads.
+import "./workspace/collections/configure.js";
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -35,6 +38,9 @@ import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
 // Side-effect: registers the built-in "markdown" dispatch handler so the
 // markdown View's useRuntime().dispatch({ kind }) resolves (task #6).
 import "./plugins/markdown-builtin.js";
+// Side-effect: registers the built-in "html" dispatch handler so the
+// presentHtml View's useRuntime().dispatch({ kind }) resolves (phase 2).
+import "./plugins/html-builtin.js";
 import { loadRuntimePlugins } from "./plugins/runtime-loader.js";
 import { evaluateDevPluginGate, loadDevPlugins, parseDevPluginsEnv } from "./plugins/dev-loader.js";
 import { watchDevPlugins } from "./plugins/dev-watcher.js";
@@ -60,6 +66,7 @@ import { readSessionJsonl } from "./utils/files/session-io.js";
 import { onSessionEvent, initSessionStore } from "./events/session-store/index.js";
 import { initFileChangePublisher } from "./events/file-change.js";
 import { initAccountingEventPublisher } from "./accounting/eventPublisher.js";
+import { initCollectionChangePublisher } from "./events/collection-change.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";
 import { discoverSkills } from "./workspace/skills/index.js";
 import { WORKSPACE_PATHS } from "./workspace/paths.js";
@@ -133,14 +140,14 @@ const debugMode = process.argv.includes("--debug");
 // `process.exit(1)` is non-zero so supervisors that branch on exit
 // code treat the bounce as an error condition.
 process.on("uncaughtException", (err) => {
-  log.error("uncaughtException", err instanceof Error ? err.message : String(err), {
+  log.error("uncaughtException", errorMessage(err), {
     stack: err instanceof Error ? err.stack : undefined,
   });
   // Tiny grace so the log line flushes to disk before we exit.
   setTimeout(() => process.exit(1), FATAL_LOG_FLUSH_MS);
 });
 process.on("unhandledRejection", (reason) => {
-  log.error("unhandledRejection", reason instanceof Error ? reason.message : String(reason), {
+  log.error("unhandledRejection", errorMessage(reason), {
     stack: reason instanceof Error ? reason.stack : undefined,
   });
   setTimeout(() => process.exit(1), FATAL_LOG_FLUSH_MS);
@@ -869,7 +876,7 @@ function logExternalMcpPreflight(): void {
     // per-agent-run path will still attempt the preflight and surface
     // any genuine issue when the user actually starts a chat.
     log.warn("mcp", "preflight at boot failed; will retry per-agent-run", {
-      error: err instanceof Error ? err.message : String(err),
+      error: errorMessage(err),
     });
   }
 }
@@ -1074,6 +1081,7 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // boot already sees a live publisher.
   initFileChangePublisher(pubsub);
   initAccountingEventPublisher(pubsub);
+  initCollectionChangePublisher(pubsub);
 
   // --- Scheduler (Phase 1 of #357) ---
   // Register system tasks with persistence + catch-up. The journal

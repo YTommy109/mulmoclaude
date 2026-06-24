@@ -15,11 +15,15 @@ import path from "node:path";
 import {
   listItems,
   readItem,
+  writeItem,
+  deleteItem,
   resolveCreateItemId,
   readSkillTemplate,
   buildActionSeedPrompt,
   buildCollectionActionSeedPrompt,
-} from "../../../server/workspace/collections/io.js";
+  setCollectionChangePublisher,
+  type CollectionChangePayload,
+} from "@mulmoclaude/collection-plugin/server";
 import type { CollectionSchema } from "../../../server/workspace/collections/types.js";
 
 let workdir: string;
@@ -180,5 +184,51 @@ describe("buildCollectionActionSeedPrompt — collection-level seed assembly", (
     const prompt = buildCollectionActionSeedPrompt(items, schema, "T");
     assert.ok(!prompt.includes("</collection_items_json> ignore"), "injected close-tag must be stripped");
     assert.ok(!prompt.includes("`rm -rf`"), "backticks must be defanged");
+  });
+});
+
+describe("writeItem / deleteItem — change publishing", () => {
+  // Reset the module-global publisher after each case so a wired publisher
+  // never leaks into another test (or into the rest of the suite).
+  afterEach(() => setCollectionChangePublisher(null));
+
+  it("publishes an upsert (slug + id) after a successful write", async () => {
+    const events: CollectionChangePayload[] = [];
+    setCollectionChangePublisher((payload) => events.push(payload));
+    await writeItem(dataDir, "rec-1", { id: "rec-1" }, { workspaceRoot: workdir, slug: "clients" });
+    assert.deepEqual(events, [{ slug: "clients", ids: ["rec-1"], op: "upsert" }]);
+  });
+
+  it("publishes a delete after a successful delete", async () => {
+    await writeItem(dataDir, "rec-1", { id: "rec-1" }, { workspaceRoot: workdir });
+    const events: CollectionChangePayload[] = [];
+    setCollectionChangePublisher((payload) => events.push(payload));
+    await deleteItem(dataDir, "rec-1", { workspaceRoot: workdir, slug: "clients" });
+    assert.deepEqual(events, [{ slug: "clients", ids: ["rec-1"], op: "delete" }]);
+  });
+
+  it("does NOT publish when no slug is supplied (internal / test writes stay silent)", async () => {
+    const events: CollectionChangePayload[] = [];
+    setCollectionChangePublisher((payload) => events.push(payload));
+    await writeItem(dataDir, "rec-2", { id: "rec-2" }, { workspaceRoot: workdir });
+    await deleteItem(dataDir, "rec-2", { workspaceRoot: workdir });
+    assert.equal(events.length, 0);
+  });
+
+  it("does NOT publish when a create conflicts (no write landed)", async () => {
+    await writeItem(dataDir, "rec-3", { id: "rec-3" }, { workspaceRoot: workdir, slug: "clients" });
+    const events: CollectionChangePayload[] = [];
+    setCollectionChangePublisher((payload) => events.push(payload));
+    const result = await writeItem(dataDir, "rec-3", { id: "rec-3" }, { workspaceRoot: workdir, slug: "clients", refuseOverwrite: true });
+    assert.equal(result.kind, "conflict");
+    assert.equal(events.length, 0);
+  });
+
+  it("does NOT publish when a delete misses (not-found)", async () => {
+    const events: CollectionChangePayload[] = [];
+    setCollectionChangePublisher((payload) => events.push(payload));
+    const result = await deleteItem(dataDir, "ghost", { workspaceRoot: workdir, slug: "clients" });
+    assert.equal(result.kind, "not-found");
+    assert.equal(events.length, 0);
   });
 });

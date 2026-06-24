@@ -57,4 +57,53 @@ describe("buildCustomViewSrcdoc", () => {
     const out = buildCustomViewSrcdoc("<head></head>", { ...boot, dataUrl: "http://example.test/data" });
     assert.match(out, /"dataUrl":"http:\/\/example\.test\/data"/);
   });
+
+  it("injects the onChange live-refresh bootstrap into the same script", () => {
+    const out = buildCustomViewSrcdoc("<head></head>", boot);
+    // The helper is defined on the existing __MC_VIEW global…
+    assert.match(out, /v\.onChange=function/);
+    // …and only reacts to the parent's collection-changed message.
+    assert.match(out, /mc-collection-changed/);
+    assert.match(out, /e\.source!==window\.parent/);
+    // It lives inside the single bootstrap <script>, before the view's own code.
+    assert.ok(out.indexOf("onChange") < out.indexOf("</head>"));
+  });
+
+  it("injects the openItem bridge + origin so the view can open the host modal", () => {
+    const out = buildCustomViewSrcdoc("<head></head>", boot);
+    // The origin is injected so openItem can target the parent frame's origin.
+    assert.match(out, /"origin":"http:\/\/localhost:3001"/);
+    // openItem posts an mc-open-item message up to the parent.
+    assert.match(out, /v\.openItem=function/);
+    assert.match(out, /mc-open-item/);
+    assert.match(out, /window\.parent\.postMessage\(/);
+    // Targets the known parent origin, never '*'.
+    assert.ok(out.includes("},v.origin)"), "openItem must post to the parent origin, not '*'");
+  });
+
+  it("injects the startChat bridge so the view can draft a new chat", () => {
+    const out = buildCustomViewSrcdoc("<head></head>", boot);
+    // startChat posts an mc-start-chat message up to the parent.
+    assert.match(out, /v\.startChat=function/);
+    assert.match(out, /mc-start-chat/);
+    // Carries the prompt (+ optional role); targets the known parent origin, never '*'.
+    assert.match(out, /type:'mc-start-chat'/);
+    assert.ok(out.includes("},v.origin)"), "startChat must post to the parent origin, not '*'");
+  });
+
+  it("keeps the onChange bootstrap free of a </script> breakout sequence", () => {
+    const out = buildCustomViewSrcdoc("<head></head>", boot);
+    // The bootstrap is inlined in a <script>; a literal </script> inside it would
+    // close the tag early. The only </script> must be the intended closer.
+    assert.equal(out.match(/<\/script>/gi)?.length, 1);
+  });
+
+  it("the injected bootstrap script body contains no raw < (no parser surprises)", () => {
+    // Isolate the bootstrap <script>…</script> and assert its body has no `<` at
+    // all — the contract that lets it be inlined safely (Sourcery suggestion).
+    const out = buildCustomViewSrcdoc("<head></head>", boot);
+    const body = out.slice(out.indexOf("<script>") + "<script>".length, out.indexOf("</script>"));
+    assert.ok(body.length > 0);
+    assert.ok(!body.includes("<"), "inlined bootstrap must not contain a raw '<'");
+  });
 });
