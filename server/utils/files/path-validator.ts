@@ -6,7 +6,7 @@
 // in the other four. Both are individually sound; having two for the
 // same intent is the smell (#1761).
 //
-// `makePathValidator` applies all four defenses:
+// `makePathValidator` applies all five defenses:
 //
 //   1. Prefix gate — value must start with `dirPrefix + "/"`.
 //   2. Optional extension gate — value must end with the configured
