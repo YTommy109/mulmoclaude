@@ -1,6 +1,7 @@
 node_modules
 package-lock.json
 dist
+.whisper/
 .i18n-cache/
 .env
 .DS_Store

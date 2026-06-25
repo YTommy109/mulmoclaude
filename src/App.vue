@@ -140,6 +140,7 @@
           v-model:pasted-files="pastedFiles"
           :is-running="activeSessionRunning"
           :queries="sessionRoleQueries"
+          :session-id="currentSessionId"
           @send="sendMessage()"
           @stop="stopCurrentRun()"
           @suggestion-send="(q) => sendMessage(q)"
@@ -263,6 +264,7 @@
             v-model:pasted-files="pastedFiles"
             :is-running="activeSessionRunning"
             :queries="sessionRoleQueries"
+            :session-id="currentSessionId"
             @send="sendMessage()"
             @stop="stopCurrentRun()"
             @suggestion-send="(q) => sendMessage(q)"
@@ -291,7 +293,7 @@
       :docker-mode="sandboxEnabled"
       :gemini-available="geminiAvailable"
       :mcp-tools-error="mcpToolsError"
-      @update:open="showSettings = $event"
+      @update:open="onSettingsOpenChange"
       @ask-gemini="handleAskGemini"
       @saved="refreshGoogleMapsApiKey"
     />
@@ -337,7 +339,8 @@ import { EVENT_TYPES } from "./types/events";
 import { buildAgentRequestBody, postAgentRun } from "./utils/agent/request";
 import { resolvePastedAttachment } from "./utils/agent/pastedAttachment";
 import { applyAgentEvent, type AgentEventContext } from "./utils/agent/eventDispatch";
-import { pushErrorMessage, beginUserTurn, updateResult } from "./utils/session/sessionHelpers";
+import { pushErrorMessage, beginUserTurn, updateResult, applyToolResultToSession } from "./utils/session/sessionHelpers";
+import { parseCollectionSlashSeed, makeSyntheticCollectionResult, hasRealCollectionResult } from "./utils/collections/presentSeed";
 import { roleName, roleIcon } from "./utils/role/icon";
 import { createEmptySession } from "./utils/session/sessionFactory";
 import { buildLoadedSession, parseSessionEntries } from "./utils/session/sessionEntries";
@@ -368,6 +371,7 @@ import ConfirmModal from "./components/ConfirmModal.vue";
 import { useNotifications } from "./composables/useNotifications";
 import { collectionNotifiedSeverities } from "./utils/collections/notifiedItems";
 import { installCollectionAppBindings } from "./composables/collections/uiHost";
+import type { CollectionsListResponse } from "@mulmoclaude/collection-plugin";
 import { useHealth } from "./composables/useHealth";
 import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
@@ -545,7 +549,13 @@ useGlobalImageErrorRepair();
 
 const sessionSidebarRef = ref<{ root: HTMLDivElement | null } | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
-const chatInputRef = ref<{ focus: () => void; collapseSuggestions: () => void; addFiles: (files: File[]) => void } | null>(null);
+const chatInputRef = ref<{
+  focus: () => void;
+  collapseSuggestions: () => void;
+  addFiles: (files: File[]) => void;
+  refreshVoiceAvailability: () => Promise<void>;
+} | null>(null);
+
 const { focusChatInput } = useChatScroll({
   sessionSidebarRef,
   toolResults,
@@ -574,6 +584,15 @@ const {
 
 const { showRightSidebar, toggleRightSidebar } = useRightSidebar();
 const showSettings = ref(false);
+
+// When the Settings modal closes, re-check voice-input availability: the
+// user may have just enabled it / started the model download, and the
+// mic button should appear without a reload (the composable then polls
+// until the download finishes). See plans/feat-voice-input.md.
+function onSettingsOpenChange(open: boolean): void {
+  showSettings.value = open;
+  if (!open) chatInputRef.value?.refreshVoiceAvailability()?.catch(() => undefined);
+}
 
 const { layoutMode, setLayoutMode } = useLayoutMode();
 const { sidePanelVisible, setSidePanelVisible } = useSidePanelVisible();
@@ -1089,6 +1108,40 @@ function startNewChat(message: string, roleId?: string): void {
   // is now handled inside createNewSession via the isChatPage check.
   createNewSession(roleId);
   void sendMessage(message);
+  void seedCollectionPresentation(message);
+}
+
+// A chat started from a collection view carries that collection's slash command
+// (`/<slug> …`). Present the collection in the canvas immediately — a
+// client-side stand-in for the presentCollection call the agent makes when the
+// message is sent — so the collection is visible up front (#1768). Used by both
+// entry points: startNewChat (message sent) and startNewChatDraft (message left
+// as an editable draft). The placeholder is reconciled away once the real tool
+// result arrives (reconcileSyntheticCollection in eventDispatch). No-op for
+// non-collection slash commands (e.g. /deep-research) and plain prose.
+async function seedCollectionPresentation(message: string): Promise<void> {
+  const seed = parseCollectionSlashSeed(message);
+  if (!seed) return;
+  const session = activeSession.value;
+  if (!session) return;
+  if (!(await isKnownCollectionSlug(seed.slug))) return;
+  // The active session can change while the collection-list fetch is in flight
+  // (user starts another chat); only seed the session we parsed for.
+  if (activeSession.value?.id !== session.id) return;
+  // Race guard: if the agent's real presentCollection result already arrived
+  // (fast agent, slow collection-list fetch), reconcile has nothing to remove,
+  // so seeding now would append a stale duplicate. Skip — the real card is up.
+  if (hasRealCollectionResult(session, seed.slug)) return;
+  applyToolResultToSession(session, makeSyntheticCollectionResult(seed.slug, seed.itemId));
+}
+
+// Confirm `slug` names a real collection before seeding — otherwise a
+// non-collection slash command would flash a "not found" collection canvas. On
+// fetch failure we skip the optimistic card; the agent still presents it.
+async function isKnownCollectionSlug(slug: string): Promise<boolean> {
+  const result = await apiGet<CollectionsListResponse>(API_ROUTES.collections.list);
+  if (!result.ok) return false;
+  return result.data.collections.some((collection) => collection.slug === slug);
 }
 
 // Like startNewChat, but prefills the composer with `message` as an editable
@@ -1096,13 +1149,16 @@ function startNewChat(message: string, roleId?: string): void {
 // Used by custom collection views (`__MC_VIEW.startChat`) so a view button can
 // propose a chat without the view's code triggering an agent run on its own.
 // `roleId` is validated against the known roles and falls back to General
-// (createNewSession does not validate the id it is handed).
+// (createNewSession does not validate the id it is handed). When the draft is a
+// collection slash command, the collection is presented in the canvas up front
+// (#1768) — presentCollection first, then the prefilled draft.
 function startNewChatDraft(message: string, roleId?: string): void {
   const rId = roleId && roles.value.some((role) => role.id === roleId) ? roleId : BUILTIN_ROLE_IDS.general;
   createNewSession(rId);
   userInput.value = message;
   chatInputRef.value?.collapseSuggestions();
   nextTick(() => focusChatInput());
+  void seedCollectionPresentation(message);
 }
 
 function handleAskGemini(): void {

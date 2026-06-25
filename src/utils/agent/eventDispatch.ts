@@ -8,6 +8,7 @@ import type { ToolCallHistoryItem } from "../../types/toolCallHistory";
 import { findPendingToolCall, toToolCallEntry } from "./toolCalls";
 import { extractMcpHint } from "./mcpHint";
 import { pushErrorMessage, applySkillEvent, applyTextEvent, applyToolResultToSession } from "../session/sessionHelpers";
+import { reconcileSyntheticCollection } from "../collections/presentSeed";
 
 export interface AgentEventContext {
   session: ActiveSession;
@@ -71,6 +72,9 @@ export async function applyAgentEvent(event: SseEvent, ctx: AgentEventContext): 
       });
       return;
     case EVENT_TYPES.toolResult:
+      // Drop any client-seeded placeholder for this collection first, so the
+      // real presentCollection result replaces it instead of stacking.
+      reconcileSyntheticCollection(session, event.result);
       applyToolResultToSession(session, event.result);
       return;
     case EVENT_TYPES.error:
