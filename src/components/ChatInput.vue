@@ -90,6 +90,24 @@
           >
             <span class="material-icons text-base leading-none">attach_file</span>
           </button>
+          <!-- Toggle mic. Hidden unless the backend reports voice input
+               ready (Mac + enabled + model downloaded). Click to arm
+               voice input for the session: it listens on the user's
+               turn, pauses while the agent runs, and auto-resumes each
+               turn until clicked off. Each pause finalizes a segment
+               that is transcribed and appended for review (never
+               auto-sent). -->
+          <button
+            v-if="voiceAvailable"
+            data-testid="mic-btn"
+            class="rounded w-8 h-8 flex items-center justify-center"
+            :class="micButtonClass"
+            :title="micButtonLabel"
+            :aria-label="micButtonLabel"
+            @click="onMicClick"
+          >
+            <span class="material-icons text-base leading-none">{{ micButtonIcon }}</span>
+          </button>
         </div>
       </div>
 
@@ -103,8 +121,9 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, toRef, watch } from "vue";
+import { computed, nextTick, onMounted, ref, toRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useVoiceInput } from "../composables/useVoiceInput";
 import ChatAttachmentPreview from "./ChatAttachmentPreview.vue";
 import SlashCommandMenu from "./SlashCommandMenu.vue";
 import SuggestionsPanel from "./SuggestionsPanel.vue";
@@ -115,7 +134,7 @@ import type { PastedFile } from "../types/pastedFile";
 
 export type { PastedFile };
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 const props = withDefaults(
   defineProps<{
@@ -123,8 +142,13 @@ const props = withDefaults(
     pastedFiles: PastedFile[];
     isRunning: boolean;
     queries?: string[];
+    /** Currently displayed session id. Voice "armed" state is reset
+     *  whenever this changes so leaving a session and coming back
+     *  starts with the mic off (the state is in-memory only — never
+     *  persisted). */
+    sessionId?: string;
   }>(),
-  { queries: () => [] },
+  { queries: () => [], sessionId: "" },
 );
 
 const emit = defineEmits<{
@@ -134,6 +158,85 @@ const emit = defineEmits<{
   stop: [];
   "suggestion-send": [query: string];
 }>();
+
+// Local voice input (Mac-only). The mic button is hidden unless the
+// backend reports voice input ready; transcripts are appended to the
+// input for review, never auto-sent. See plans/feat-voice-input.md.
+function insertTranscript(text: string): void {
+  const current = props.modelValue;
+  const next = current.trim().length > 0 ? `${current.trimEnd()} ${text}` : text;
+  emit("update:modelValue", next);
+}
+
+const {
+  available: voiceAvailable,
+  listening: voiceListening,
+  transcribing: voiceTranscribing,
+  start: startVoice,
+  stop: stopVoice,
+  refreshAvailability: refreshVoiceAvailability,
+} = useVoiceInput({
+  locale: () => locale.value,
+  onTranscript: insertTranscript,
+});
+
+// Sticky per-session voice intent. Once the user turns the mic on it
+// stays "armed" for the session: capture pauses while the agent is
+// running (isRunning) and auto-resumes when it's the user's turn again.
+// The button toggles this intent; turning it off stops auto-resume.
+const voiceSessionOn = ref(false);
+
+function onMicClick(): void {
+  voiceSessionOn.value = !voiceSessionOn.value;
+}
+
+const micButtonClass = computed(() => {
+  if (voiceSessionOn.value) return voiceListening.value ? "bg-red-600 text-white animate-pulse" : "bg-red-600 text-white";
+  return voiceTranscribing.value ? "text-blue-500" : "text-gray-400 hover:text-gray-600";
+});
+const micButtonIcon = computed(() => (!voiceSessionOn.value && voiceTranscribing.value ? "hourglass_top" : "mic"));
+const micButtonLabel = computed(() => (voiceSessionOn.value ? t("chatInput.voice.stop") : t("chatInput.voice.start")));
+
+// Disarm when the displayed session changes — voice intent is per
+// session and never persisted, so leaving and returning starts off.
+watch(
+  () => props.sessionId,
+  () => {
+    voiceSessionOn.value = false;
+  },
+);
+
+// Drive listening from (intent ∧ available ∧ not the agent's turn).
+// Auto-starts when armed and it becomes the user's turn; pauses when
+// the agent starts running; drops the intent if the mic can't start
+// (permission denied) so it doesn't retry every turn.
+function wantsToListen(): boolean {
+  return voiceSessionOn.value && voiceAvailable.value && !props.isRunning;
+}
+
+watch([voiceSessionOn, () => props.isRunning, voiceAvailable], () => {
+  if (wantsToListen() && !voiceListening.value) {
+    startVoice()
+      .then((ok) => {
+        if (!ok) {
+          voiceSessionOn.value = false;
+          return;
+        }
+        // `startVoice()` awaits mic permission; the state may have flipped
+        // (session switch / toggled off / agent started) while we waited.
+        // The watcher won't re-fire for that, so re-check here and stop a
+        // start that's now stale rather than record in the wrong state.
+        if (!wantsToListen()) stopVoice();
+      })
+      .catch(() => undefined);
+  } else if (!wantsToListen() && voiceListening.value) {
+    stopVoice();
+  }
+});
+
+onMounted(() => {
+  void refreshVoiceAvailability();
+});
 
 const textarea = ref<HTMLTextAreaElement | null>(null);
 const fileError = ref<string | null>(null);
@@ -345,5 +448,5 @@ function collapseSuggestions(): void {
   suggestionsExpanded.value = false;
 }
 
-defineExpose({ focus, collapseSuggestions, addFiles });
+defineExpose({ focus, collapseSuggestions, addFiles, refreshVoiceAvailability });
 </script>
