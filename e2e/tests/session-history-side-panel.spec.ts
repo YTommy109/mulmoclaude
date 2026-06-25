@@ -112,16 +112,19 @@ test.describe("session-history side-panel toggle", () => {
     await expect(page.getByTestId(`session-tab-${SESSION_A.id}`)).toBeVisible();
   });
 
-  test("side panel stays visible across page navigation", async ({ page }) => {
+  test("side panel is chat-only — hidden off /chat, restored on return", async ({ page }) => {
     // Enable the toggle on /chat first so the preference is on.
     await page.goto("/chat");
     await page.getByTestId("session-history-toggle-off").click();
     await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
 
-    // Navigate off chat — panel stays up. `sidePanelVisible` is the
-    // single flag driving the column; it does not depend on the
-    // current route, so Files / Wiki / etc. render alongside it.
+    // Navigate off chat — the session-history chrome is chat-only, so
+    // the panel unmounts even though `sidePanelVisible` is still on.
     await page.goto("/files");
+    await expect(page.getByTestId("session-history-side-panel")).toBeHidden();
+
+    // Returning to /chat restores it (the preference persisted).
+    await page.goto("/chat");
     await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
   });
 });
