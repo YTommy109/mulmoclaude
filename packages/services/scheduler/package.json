@@ -1,6 +1,6 @@
 {
   "name": "@mulmoclaude/scheduler",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cron tick engine (dependency-ordered task-manager) + persistence/catch-up adapter over @receptron/task-scheduler, shared by MulmoClaude and MulmoTerminal. Workspace root, atomic writer, and logger are injected; the host supplies its own system tasks.",
   "type": "module",
   "main": "./dist/index.js",
@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@receptron/task-scheduler": "*",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.0.1",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.13",

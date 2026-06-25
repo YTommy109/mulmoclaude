@@ -7,6 +7,11 @@ export default defineConfig({
   testDir: "./tests",
   timeout: 30 * ONE_SECOND_MS,
   retries: 0,
+  // Pre-warm the Vite dev server before tests start so the first
+  // navigation per spec doesn't pay Vite's on-demand module-compile cost
+  // (which has been flaking `accounting-action-routing` and the
+  // `files-path-url` non-ASCII redirect tests). See `./global-setup.ts`.
+  globalSetup: "./global-setup.ts",
   use: {
     baseURL: `http://localhost:${port}`,
     headless: true,
