@@ -23,7 +23,7 @@ import {
   type CivilDate,
   readItem,
   writeItem,
-} from "@mulmoclaude/collection-plugin/server";
+} from "@mulmoclaude/core/collection/server";
 import type { CollectionEvery, CollectionSchema, CollectionSpawnEvery } from "../../../server/workspace/collections/types.js";
 
 describe("daysInMonth", () => {

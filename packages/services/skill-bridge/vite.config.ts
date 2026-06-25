@@ -2,8 +2,8 @@ import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 
 // Server-only package: one entry, no Vue. Mirrors x-plugin's build. Node built-ins
-// and the @mulmoclaude/collection-plugin peer (for isSafeActionTemplatePath) are
-// externalized — they're provided by the host at runtime.
+// and the @mulmoclaude/core peer (for isSafeActionTemplatePath, from
+// @mulmoclaude/core/collection/paths) are externalized — provided by the host at runtime.
 export default defineConfig({
   plugins: [
     dts({
@@ -19,7 +19,7 @@ export default defineConfig({
       fileName: (format, entryName) => `${entryName}.${format === "es" ? "js" : "cjs"}`,
     },
     rollupOptions: {
-      external: [/^node:/, /^@mulmoclaude\/collection-plugin/],
+      external: [/^node:/, /^@mulmoclaude\/core/],
       output: { exports: "named" },
     },
     minify: false,

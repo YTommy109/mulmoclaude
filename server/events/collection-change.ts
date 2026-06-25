@@ -15,7 +15,7 @@
 //
 // `setCollectionChangePublisher` is a *namespace* import + feature-detect, NOT a
 // named import, on purpose: the published `mulmoclaude` launcher resolves
-// `@mulmoclaude/collection-plugin` from the registry via a caret range, so a
+// `@mulmoclaude/core/collection` from the registry via a caret range, so a
 // freshly-installed launcher can transiently resolve a version older than the
 // one that added this export. A named `import { setCollectionChangePublisher }`
 // would then fail at ESM link time and crash the whole server at boot. A
@@ -24,8 +24,8 @@
 // package catches up, but the launcher boots. Matches the feature's
 // "optional everywhere" design (the View-side `subscribeChanges` is optional too).
 
-import * as collectionPlugin from "@mulmoclaude/collection-plugin/server";
-import type { CollectionChangePayload } from "@mulmoclaude/collection-plugin/server";
+import * as collectionPlugin from "@mulmoclaude/core/collection/server";
+import type { CollectionChangePayload } from "@mulmoclaude/core/collection/server";
 import { collectionChannel, type CollectionChannelPayload } from "../../src/config/pubsubChannels.js";
 import { log } from "../system/logger/index.js";
 import { errorMessage } from "../utils/errors.js";
@@ -45,7 +45,7 @@ function resolveSetPublisher(): SetPublisher | null {
 export function initCollectionChangePublisher(instance: IPubSub): void {
   const setPublisher = resolveSetPublisher();
   if (!setPublisher) {
-    log.info("collections", "installed @mulmoclaude/collection-plugin predates live updates; change publisher disabled", {});
+    log.info("collections", "installed @mulmoclaude/core/collection predates live updates; change publisher disabled", {});
     return;
   }
   setPublisher((payload: CollectionChangePayload) => {

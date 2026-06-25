@@ -9,9 +9,13 @@
 
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { collectionUi } from "./uiContext";
-import { deriveAll } from "../core/deriveAll";
-import type { CollectionDetail, CollectionItem, CollectionSchema, CollectionFieldSpec as FieldSpec, CollectionFieldType as FieldType } from "../core/schema";
+import { deriveAll } from "@mulmoclaude/core/collection";
 import type {
+  CollectionDetail,
+  CollectionItem,
+  CollectionSchema,
+  CollectionFieldSpec as FieldSpec,
+  CollectionFieldType as FieldType,
   CollectionDetailResponse,
   EmbedCache,
   EmbedRow,
@@ -21,7 +25,7 @@ import type {
   RefOption,
   RefRecordCache,
   RefRecordMap,
-} from "../core/uiTypes";
+} from "@mulmoclaude/core/collection";
 
 export interface CollectionRendering {
   refCache: Ref<RefCache>;

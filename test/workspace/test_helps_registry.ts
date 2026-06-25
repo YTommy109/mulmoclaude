@@ -2,10 +2,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { helpsAssetDir } from "@mulmoclaude/workspace-setup";
+import { helpsAssetDir } from "@mulmoclaude/core/workspace-setup";
 
 // Guards the curated `## Help Pages` list in the bundled `helps/index.md`.
-// The help docs now ship inside `@mulmoclaude/workspace-setup`
+// The help docs now ship inside `@mulmoclaude/core/workspace-setup`
 // (`helpsAssetDir()`), seeded into `<workspace>/helps/` at startup. The list
 // is the canonical
 // human-readable index of every help file shipped with the app —

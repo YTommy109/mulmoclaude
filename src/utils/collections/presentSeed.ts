@@ -9,7 +9,7 @@
 // any plugin coupling; the collection-specific knowledge lives here.
 
 import { v4 as uuidv4 } from "uuid";
-import { TOOL_NAME as PRESENT_COLLECTION_TOOL_NAME, type PresentCollectionData } from "@mulmoclaude/collection-plugin";
+import { TOOL_NAME as PRESENT_COLLECTION_TOOL_NAME, type PresentCollectionData } from "@mulmoclaude/core/collection";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { ActiveSession } from "../../types/session";
 

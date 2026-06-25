@@ -5,10 +5,10 @@
 // records via the shared collections io layer.
 //
 // The ingest vocab (INGEST_KINDS / FEED_SCHEDULES + their literal-union types)
-// now lives in @mulmoclaude/collection-plugin alongside the schema contract, so
+// now lives in @mulmoclaude/core/collection alongside the schema contract, so
 // the package's schema validator can enforce it. Re-exported here so the feeds
 // engine's existing importers resolve them unchanged.
-import { type CollectionIngest, INGEST_KINDS, FEED_SCHEDULES, type IngestKind, type FeedSchedule } from "@mulmoclaude/collection-plugin";
+import { type CollectionIngest, INGEST_KINDS, FEED_SCHEDULES, type IngestKind, type FeedSchedule } from "@mulmoclaude/core/collection";
 //
 // Declarative-only for now; the `kind` enum reserves room for future
 // "code" (LLM-generated transform) and "prompt" (LLM-performed fetch)
@@ -32,7 +32,7 @@ export const DEFAULT_FEED_MAX_ITEMS = 100;
 export type IngestFieldMap = Record<string, string>;
 
 /** The `ingest` block carried on a Feed's `CollectionSchema`. The canonical
- *  schema (in @mulmoclaude/collection-plugin) only promises the minimal
+ *  schema (in @mulmoclaude/core/collection) only promises the minimal
  *  `CollectionIngest` (kind/url/schedule as plain strings); this feeds-only
  *  subtype narrows those + adds the retrieval fields the engine needs. */
 export interface IngestSpec extends CollectionIngest {

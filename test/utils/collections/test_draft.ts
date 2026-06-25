@@ -1,11 +1,11 @@
 // Unit tests for the inline-edit pure helpers in
-// @mulmoclaude/collection-plugin (used by the collections table's
+// @mulmoclaude/core/collection (used by the collections table's
 // checkbox/dropdown cells). No Vue, no I/O.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildUpdatedRecord, coerceInlineValue, type CollectionFieldSpec as FieldSpec } from "@mulmoclaude/collection-plugin";
+import { buildUpdatedRecord, coerceInlineValue, type CollectionFieldSpec as FieldSpec } from "@mulmoclaude/core/collection";
 
 const boolField: FieldSpec = { type: "boolean", label: "Done" };
 const enumField: FieldSpec = { type: "enum", label: "Status", values: ["todo", "doing", "done"] };

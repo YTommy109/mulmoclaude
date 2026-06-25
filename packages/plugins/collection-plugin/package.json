@@ -1,24 +1,12 @@
 {
   "name": "@mulmoclaude/collection-plugin",
   "version": "0.5.7",
-  "description": "Schema-driven Collections plugin (presentCollection) — shared gui-chat-protocol plugin for MulmoClaude and MulmoTerminal. This entry is the isomorphic collection engine (derive / formula / visibility); Vue surfaces land in ./vue.",
+  "description": "Schema-driven Collections plugin (presentCollection) — the Vue surfaces (chat View/Preview, embeds, calendar, record modal, i18n) for MulmoClaude and MulmoTerminal. The isomorphic engine + node storage engine now live in @mulmoclaude/core/collection and @mulmoclaude/core/collection/server.",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/vue.js",
+  "module": "./dist/vue.js",
+  "types": "./dist/vue/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "default": "./dist/index.js"
-    },
-    "./server": {
-      "types": "./dist/server/index.d.ts",
-      "import": "./dist/server.js",
-      "require": "./dist/server.cjs",
-      "default": "./dist/server.js"
-    },
     "./vue": {
       "types": "./dist/vue/index.d.ts",
       "import": "./dist/vue.js",
@@ -43,11 +31,13 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
+    "@mulmoclaude/core": "*",
     "gui-chat-protocol": "^0.4.0",
     "vue": "^3.5.0",
     "vue-i18n": "^11.4.4"
   },
   "devDependencies": {
+    "@mulmoclaude/core": "*",
     "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^26.0.0",
     "@vitejs/plugin-vue": "^6.0.5",

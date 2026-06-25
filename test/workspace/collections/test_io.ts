@@ -23,7 +23,7 @@ import {
   buildCollectionActionSeedPrompt,
   setCollectionChangePublisher,
   type CollectionChangePayload,
-} from "@mulmoclaude/collection-plugin/server";
+} from "@mulmoclaude/core/collection/server";
 import type { CollectionSchema } from "../../../server/workspace/collections/types.js";
 
 let workdir: string;

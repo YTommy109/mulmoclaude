@@ -10,7 +10,7 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
-import { actionVisible } from "@mulmoclaude/collection-plugin";
+import { actionVisible } from "@mulmoclaude/core/collection";
 import {
   discoverCollections,
   generateItemId,

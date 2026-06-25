@@ -301,7 +301,7 @@
     <!-- Global confirm dialog. Renders the module-global confirm state opened
          via useConfirm()/the collection plugin's confirm() capability — mounted
          here at the app root so it survives any single view (CollectionView used
-         to render its own before moving into @mulmoclaude/collection-plugin). -->
+         to render its own before moving into @mulmoclaude/core/collection). -->
     <ConfirmModal />
   </div>
 </template>
@@ -371,7 +371,7 @@ import ConfirmModal from "./components/ConfirmModal.vue";
 import { useNotifications } from "./composables/useNotifications";
 import { collectionNotifiedSeverities } from "./utils/collections/notifiedItems";
 import { installCollectionAppBindings } from "./composables/collections/uiHost";
-import type { CollectionsListResponse } from "@mulmoclaude/collection-plugin";
+import type { CollectionsListResponse } from "@mulmoclaude/core/collection";
 import { useHealth } from "./composables/useHealth";
 import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";

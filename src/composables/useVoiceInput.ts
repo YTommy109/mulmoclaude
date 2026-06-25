@@ -1,12 +1,12 @@
 // Thin Vue wrapper over the framework-neutral capture controller in
-// `@mulmoclaude/whisper/client` (shared with MulmoTerminal). This file supplies
+// `@mulmoclaude/core/whisper/client` (shared with MulmoTerminal). This file supplies
 // the MulmoClaude-specific transport (api client + route constants) and language
 // mapping, and mirrors the controller's pushed state into Vue refs. The capture
 // logic itself (MediaRecorder + VAD + segment queue) lives in the package.
 // See plans/feat-extract-whisper-package.md.
 
 import { onScopeDispose, ref, type Ref } from "vue";
-import { createVoiceCapture, localeToWhisperLanguage, type VoiceCaptureTransport } from "@mulmoclaude/whisper/client";
+import { createVoiceCapture, localeToWhisperLanguage, type VoiceCaptureTransport } from "@mulmoclaude/core/whisper/client";
 import { API_ROUTES } from "../config/apiRoutes";
 import { apiGet, apiPost } from "../utils/api";
 

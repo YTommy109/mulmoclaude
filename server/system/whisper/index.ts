@@ -1,17 +1,17 @@
 // Host adapter for local voice input. The reusable core (sidecar, model
-// download, ffmpeg, transcription) lives in `@mulmoclaude/whisper`, shared with
+// download, ffmpeg, transcription) lives in `@mulmoclaude/core/whisper`, shared with
 // MulmoTerminal. This file owns only the host-specific glue: capability gating
 // (platform + optional-dep probe), settings/status shaping, and a single
 // process-wide service instance pointed at the workspace models dir.
 // See plans/feat-extract-whisper-package.md.
 
-import { createWhisper, resolveModelName, type ModelStatus, type WhisperModelName, type WhisperLogger } from "@mulmoclaude/whisper";
+import { createWhisper, resolveModelName, type ModelStatus, type WhisperModelName, type WhisperLogger } from "@mulmoclaude/core/whisper";
 import { WORKSPACE_PATHS } from "../../workspace/paths.js";
 import { depStatus } from "../optionalDeps.js";
 import { log } from "../logger/index.js";
 import type { AppSettings } from "../config.js";
 
-export { WHISPER_MODELS, DEFAULT_WHISPER_MODEL, isWhisperModelName, type WhisperModelName } from "@mulmoclaude/whisper";
+export { WHISPER_MODELS, DEFAULT_WHISPER_MODEL, isWhisperModelName, type WhisperModelName } from "@mulmoclaude/core/whisper";
 
 // Adapt the host's prefixed logger to the package's minimal logger interface.
 const whisperLogger: WhisperLogger = {

@@ -14,7 +14,7 @@ import {
   enumSortValue,
   boolSortValue,
   type SortValue,
-} from "@mulmoclaude/collection-plugin";
+} from "@mulmoclaude/core/collection";
 import type { CollectionItem } from "../../../src/components/collectionTypes.js";
 
 describe("isSortableField", () => {

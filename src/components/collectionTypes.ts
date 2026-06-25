@@ -2,7 +2,7 @@
 // record panel (CollectionRecordPanel.vue), the calendar view, and the
 // rendering composable (composables/collections/useCollectionRendering.ts).
 //
-// All of these now live in @mulmoclaude/collection-plugin — the canonical schema
+// All of these now live in @mulmoclaude/core/collection — the canonical schema
 // types AND the UI-only view-state types — the single source of truth shared
 // with the server and MulmoTerminal. They are re-exported here under the names
 // the frontend has always used (FieldType ← CollectionFieldType, FieldSpec ←
@@ -30,4 +30,4 @@ export type {
   EmbedTargetData,
   EmbedCache,
   RefOption,
-} from "@mulmoclaude/collection-plugin";
+} from "@mulmoclaude/core/collection";

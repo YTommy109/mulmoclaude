@@ -6,7 +6,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { evaluateDerived } from "@mulmoclaude/collection-plugin";
+import { evaluateDerived } from "@mulmoclaude/core/collection";
 
 describe("evaluateDerived — literals + arithmetic", () => {
   it("returns a bare number literal", () => {

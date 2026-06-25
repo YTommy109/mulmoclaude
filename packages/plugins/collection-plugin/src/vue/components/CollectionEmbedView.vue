@@ -79,7 +79,7 @@
 import { useCollectionI18n } from "../lang";
 import { collectionUi } from "../uiContext";
 import { activateRefLink } from "../refLink";
-import type { EmbedView } from "../../core/uiTypes";
+import type { EmbedView } from "@mulmoclaude/core/collection";
 
 defineProps<{ view: EmbedView; fieldKey: string }>();
 

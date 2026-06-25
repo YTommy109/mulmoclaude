@@ -67,10 +67,8 @@
 import { computed } from "vue";
 import { useCollectionI18n } from "../lang";
 import draggable from "vuedraggable";
-import { fieldVisible } from "../../core/actionVisible";
-import { resolveEnumColor } from "../../core/enumColors";
-import type { CollectionNotifySeverity as NotifierSeverity } from "../../core/uiTypes";
-import type { CollectionItem, CollectionSchema } from "../../core/schema";
+import { fieldVisible, resolveEnumColor } from "@mulmoclaude/core/collection";
+import type { CollectionNotifySeverity as NotifierSeverity, CollectionItem, CollectionSchema } from "@mulmoclaude/core/collection";
 
 // vuedraggable @change shape — same three keys as the todo board. We act
 // only on "added" (the destination column): a cross-column move emits a

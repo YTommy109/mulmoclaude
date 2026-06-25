@@ -1,5 +1,5 @@
 import "dotenv/config";
-// Wire @mulmoclaude/collection-plugin/server to this host's workspace + logger
+// Wire @mulmoclaude/core/collection/server to this host's workspace + logger
 // before any module that touches collection storage loads.
 import "./workspace/collections/configure.js";
 import express, { Request, Response, NextFunction } from "express";

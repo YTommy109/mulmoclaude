@@ -26,10 +26,10 @@
     "test": "tsx --test test/test_*.ts"
   },
   "peerDependencies": {
-    "@mulmoclaude/collection-plugin": ">=0.5.0"
+    "@mulmoclaude/core": "*"
   },
   "devDependencies": {
-    "@mulmoclaude/collection-plugin": "*",
+    "@mulmoclaude/core": "*",
     "@types/node": "^26.0.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",

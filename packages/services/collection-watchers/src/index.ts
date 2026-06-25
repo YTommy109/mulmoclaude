@@ -3,7 +3,7 @@
 // (watcher.ts) + the convergent reconciler (reconciler.ts) live here; the
 // host injects its notification taxonomy + in-app routing via a
 // CollectionNotificationAdapter (config.ts). Depends directly on the
-// shared @mulmoclaude/notifier singleton and @mulmoclaude/collection-plugin.
+// shared @mulmoclaude/core/notifier singleton and @mulmoclaude/core/collection.
 export {
   configureCollectionWatchers,
   resetCollectionWatchersConfig,

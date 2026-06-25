@@ -1,0 +1,93 @@
+{
+  "name": "@mulmoclaude/core",
+  "version": "0.1.0",
+  "description": "Shared server-side core for MulmoClaude and MulmoTerminal — the always-shipped-together subsystems consolidated behind subpath exports so the two hosts can't drift. Server-only except the browser-safe ./whisper/client and ./workspace-setup/slug entries. All host specifics are injected.",
+  "type": "module",
+  "exports": {
+    "./collection": {
+      "types": "./dist/collection/index.d.ts",
+      "import": "./dist/collection/index.js",
+      "require": "./dist/collection/index.cjs",
+      "default": "./dist/collection/index.js"
+    },
+    "./collection/server": {
+      "types": "./dist/collection/server/index.d.ts",
+      "import": "./dist/collection/server/index.js",
+      "require": "./dist/collection/server/index.cjs",
+      "default": "./dist/collection/server/index.js"
+    },
+    "./collection/paths": {
+      "types": "./dist/collection/server/templatePath.d.ts",
+      "import": "./dist/collection/paths.js",
+      "require": "./dist/collection/paths.cjs",
+      "default": "./dist/collection/paths.js"
+    },
+    "./file-change": {
+      "types": "./dist/file-change/index.d.ts",
+      "import": "./dist/file-change/index.js",
+      "require": "./dist/file-change/index.cjs",
+      "default": "./dist/file-change/index.js"
+    },
+    "./notifier": {
+      "types": "./dist/notifier/index.d.ts",
+      "import": "./dist/notifier/index.js",
+      "require": "./dist/notifier/index.cjs",
+      "default": "./dist/notifier/index.js"
+    },
+    "./scheduler": {
+      "types": "./dist/scheduler/index.d.ts",
+      "import": "./dist/scheduler/index.js",
+      "require": "./dist/scheduler/index.cjs",
+      "default": "./dist/scheduler/index.js"
+    },
+    "./whisper": {
+      "types": "./dist/whisper/index.d.ts",
+      "import": "./dist/whisper/index.js",
+      "require": "./dist/whisper/index.cjs",
+      "default": "./dist/whisper/index.js"
+    },
+    "./whisper/client": {
+      "types": "./dist/whisper/client.d.ts",
+      "import": "./dist/whisper/client.js",
+      "require": "./dist/whisper/client.cjs",
+      "default": "./dist/whisper/client.js"
+    },
+    "./workspace-setup": {
+      "types": "./dist/workspace-setup/index.d.ts",
+      "import": "./dist/workspace-setup/index.js",
+      "default": "./dist/workspace-setup/index.js"
+    },
+    "./workspace-setup/slug": {
+      "types": "./dist/workspace-setup/slug.d.ts",
+      "import": "./dist/workspace-setup/slug.js",
+      "default": "./dist/workspace-setup/slug.js"
+    }
+  },
+  "files": [
+    "dist",
+    "assets"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build && vite build -c vite.esm.config.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/**/test_*.ts"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@receptron/task-scheduler": "*"
+  },
+  "devDependencies": {
+    "@receptron/task-scheduler": "*",
+    "@types/node": "^26.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.13",
+    "vite-plugin-dts": "^5.0.0"
+  },
+  "license": "MIT"
+}
