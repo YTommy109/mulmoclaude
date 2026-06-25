@@ -12,7 +12,7 @@ import {
   hasRealCollectionResult,
 } from "../../../src/utils/collections/presentSeed.js";
 import { createEmptySession } from "../../../src/utils/session/sessionFactory.js";
-import { TOOL_NAME as PRESENT_COLLECTION } from "@mulmoclaude/collection-plugin";
+import { TOOL_NAME as PRESENT_COLLECTION } from "@mulmoclaude/core/collection";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 
 describe("parseCollectionSlashSeed", () => {

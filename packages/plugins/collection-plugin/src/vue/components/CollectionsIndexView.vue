@@ -90,7 +90,7 @@
 import { onMounted, ref } from "vue";
 import { useCollectionI18n } from "../lang";
 import { collectionUi } from "../uiContext";
-import type { CollectionSummary } from "../../core/schema";
+import type { CollectionSummary } from "@mulmoclaude/core/collection";
 
 const { t } = useCollectionI18n();
 // Host couplings (list/navigate/chat/shortcuts/pin) via the injected binding.

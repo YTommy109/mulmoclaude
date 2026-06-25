@@ -742,8 +742,8 @@ import {
 } from "../collectionViewMode";
 import { collectionUi } from "../uiContext";
 import { activateRefLink, activatePathLink } from "../refLink";
-import { dateOf, type Ymd } from "../../core/calendarGrid";
 import {
+  dateOf,
   isSortableField,
   nextSortDirection,
   sortItems,
@@ -752,22 +752,29 @@ import {
   dateSortValue,
   enumSortValue,
   boolSortValue,
+  shortHexId,
+  defangForPrompt,
+  actionVisible,
+  fieldVisible,
+  resolveEnumColor,
+  buildUpdatedRecord,
+  coerceInlineValue,
+  draftToRecord,
+  firstMissingRequiredField,
+  rowFromItem,
+  type Ymd,
   type SortState,
   type SortValue,
-} from "../../core/sortItems";
-import { shortHexId } from "../../core/shortHexId";
-import { defangForPrompt } from "../../core/promptSafety";
-import { actionVisible, fieldVisible } from "../../core/actionVisible";
-import { resolveEnumColor } from "../../core/enumColors";
-import { buildUpdatedRecord, coerceInlineValue, draftToRecord, firstMissingRequiredField, rowFromItem } from "../../core/draft";
-import type {
-  CollectionAction,
-  CollectionCustomView as CustomViewSpec,
-  CollectionDetail,
-  CollectionItem,
-  CollectionFieldSpec as FieldSpec,
-} from "../../core/schema";
-import type { CollectionRecordIssue, CollectionNotifySeverity, EditState, TableRowDraft } from "../../core/uiTypes";
+  type CollectionAction,
+  type CollectionCustomView as CustomViewSpec,
+  type CollectionDetail,
+  type CollectionItem,
+  type CollectionFieldSpec as FieldSpec,
+  type CollectionRecordIssue,
+  type CollectionNotifySeverity,
+  type EditState,
+  type TableRowDraft,
+} from "@mulmoclaude/core/collection";
 
 /** `slug` / `selected` are supplied only in EMBEDDED mode (the
  *  `presentCollection` chat card mounts this component and drives both

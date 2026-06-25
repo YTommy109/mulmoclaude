@@ -30,8 +30,8 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 import { useCollectionI18n } from "../lang";
-import { errorMessage } from "../../core/errorMessage";
-import type { CollectionCustomView } from "../../core/schema";
+import { errorMessage } from "@mulmoclaude/core/collection";
+import type { CollectionCustomView } from "@mulmoclaude/core/collection";
 import { collectionUi } from "../uiContext";
 
 const { t } = useCollectionI18n();

@@ -15,7 +15,7 @@
 import "../style.css";
 
 import type { ToolPlugin } from "gui-chat-protocol/vue";
-import { TOOL_DEFINITION, executePresentCollection, type PresentCollectionData, type PresentCollectionArgs } from "../core/presentCollection";
+import { TOOL_DEFINITION, executePresentCollection, type PresentCollectionData, type PresentCollectionArgs } from "@mulmoclaude/core/collection";
 import ChatView from "./chat/View.vue";
 import ChatPreview from "./chat/Preview.vue";
 

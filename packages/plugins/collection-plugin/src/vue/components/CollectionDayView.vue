@@ -115,10 +115,20 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
 import { useCollectionI18n } from "../lang";
-import { bucketRecords, daySlice, assignLanes, ymdKey, MINUTES_PER_DAY, type Ymd, type DaySlice } from "../../core/calendarGrid";
-import { resolveEnumColor, type EnumColorClasses } from "../../core/enumColors";
-import { labelFieldFor, itemIdOf, itemLabelOf } from "../../core/itemLabel";
-import type { CollectionItem, CollectionSchema } from "../../core/schema";
+import {
+  bucketRecords,
+  daySlice,
+  assignLanes,
+  ymdKey,
+  MINUTES_PER_DAY,
+  type Ymd,
+  type DaySlice,
+  resolveEnumColor,
+  type EnumColorClasses,
+  CollectionItem,
+  CollectionSchema,
+} from "@mulmoclaude/core/collection";
+import { labelFieldFor, itemIdOf, itemLabelOf } from "@mulmoclaude/core/collection";
 
 const props = defineProps<{
   schema: CollectionSchema;

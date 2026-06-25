@@ -1,4 +1,4 @@
-// Notifier engine — thin host binding over @mulmoclaude/notifier. The
+// Notifier engine — thin host binding over @mulmoclaude/core/notifier. The
 // engine logic (validation, write coordinator, active+history
 // persistence, fan-out) lives in the shared package so MulmoClaude and
 // MulmoTerminal run one notification engine; this file injects the
@@ -10,7 +10,7 @@ import { PUBSUB_CHANNELS } from "../../src/config/pubsubChannels.js";
 import { log } from "../system/logger/index.js";
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
 import { writeJsonAtomic } from "../utils/files/json.js";
-import { configureNotifier, setNotifierFilePaths, type NotifierEvent } from "@mulmoclaude/notifier";
+import { configureNotifier, setNotifierFilePaths, type NotifierEvent } from "@mulmoclaude/core/notifier";
 
 // Engine methods + validation re-exported verbatim from the package.
 export {
@@ -27,7 +27,7 @@ export {
   onEvent,
   validatePublishInput,
   NOTIFIER_LIMITS,
-} from "@mulmoclaude/notifier";
+} from "@mulmoclaude/core/notifier";
 
 // Bind production active/history paths at module load — mirrors the
 // previous module-init default (`let activeFilePath = WORKSPACE_PATHS…`).

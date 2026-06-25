@@ -15,8 +15,8 @@ import type {
   CollectionsListResponse,
   FeedsListResponse,
   CollectionShortcutInfo,
-} from "../core/uiTypes";
-import type { CollectionItem } from "../core/schema";
+  CollectionItem,
+} from "@mulmoclaude/core/collection";
 
 /** Result of a host data fetch — structurally a subset of the host's own
  *  `ApiResult` (so the host can pass `apiGet` straight through). The view layer

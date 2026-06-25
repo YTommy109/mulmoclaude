@@ -1,5 +1,5 @@
 // File-change publisher — thin host binding over
-// @mulmoclaude/file-change-publisher. Every route that writes through
+// @mulmoclaude/core/file-change. Every route that writes through
 // the app calls `publishFileChange(relPath)` after a successful write so
 // that subscribed UI tabs (and other browsers) refetch. The orchestration
 // (stat → primary channel → plugin-scoped forwards → side-effect) lives in
@@ -11,7 +11,7 @@
 // publisher; we hand those to the package as the primary channel + normaliser.
 
 import type { IPubSub } from "./pub-sub/index.js";
-import { configureFileChangePublisher, publishFileChange, resetFileChangePublisher } from "@mulmoclaude/file-change-publisher";
+import { configureFileChangePublisher, publishFileChange, resetFileChangePublisher } from "@mulmoclaude/core/file-change";
 import { fileChannel, toPosixWorkspacePath } from "../../src/config/pubsubChannels.js";
 import { isMarkdownPath } from "../utils/files/markdown-store.js";
 import { isHtmlPath } from "../utils/files/html-store.js";

@@ -1,7 +1,7 @@
 {
   "name": "@mulmoclaude/collection-watchers",
-  "version": "0.1.2",
-  "description": "Collection-completion bell subsystem (fs.watch plumbing + convergent reconciler) shared by MulmoClaude and MulmoTerminal. Depends on the @mulmoclaude/notifier singleton + @mulmoclaude/collection-plugin; the host injects its notification taxonomy + in-app routing via a CollectionNotificationAdapter.",
+  "version": "0.1.3",
+  "description": "Collection-completion bell subsystem (fs.watch plumbing + convergent reconciler) shared by MulmoClaude and MulmoTerminal. Depends on the @mulmoclaude/core/notifier singleton + @mulmoclaude/core/collection; the host injects its notification taxonomy + in-app routing via a CollectionNotificationAdapter.",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -26,12 +26,10 @@
     "test": "tsx --test test/test_*.ts"
   },
   "peerDependencies": {
-    "@mulmoclaude/collection-plugin": "*",
-    "@mulmoclaude/notifier": "*"
+    "@mulmoclaude/core": "*"
   },
   "devDependencies": {
-    "@mulmoclaude/collection-plugin": "*",
-    "@mulmoclaude/notifier": "*",
+    "@mulmoclaude/core": "*",
     "@types/node": "^26.0.1",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",

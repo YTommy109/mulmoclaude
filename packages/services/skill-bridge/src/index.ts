@@ -20,7 +20,7 @@
 // PostToolUse path and triggers its own config refresh afterward.
 import path from "node:path";
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { isSafeActionTemplatePath } from "@mulmoclaude/collection-plugin/server";
+import { isSafeActionTemplatePath } from "@mulmoclaude/core/collection/paths";
 
 const DATA_SKILLS_DIR = path.join("data", "skills");
 const CLAUDE_SKILLS_DIR = path.join(".claude", "skills");

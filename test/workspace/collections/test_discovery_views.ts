@@ -1,11 +1,11 @@
-import "../../../server/workspace/collections/configure.js"; // configure @mulmoclaude/collection-plugin host binding for tests
+import "../../../server/workspace/collections/configure.js"; // configure @mulmoclaude/core/collection host binding for tests
 // Validation tests for custom-view (`views[]`) schema registrations (see
 // plans/feat-collections-custom-views.md). Drives the exported Zod schema
 // directly — the rules are pure shape checks, no filesystem needed.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { CollectionSchemaZ } from "@mulmoclaude/collection-plugin/server";
+import { CollectionSchemaZ } from "@mulmoclaude/core/collection/server";
 
 const base = {
   title: "Plans",

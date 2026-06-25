@@ -32,7 +32,7 @@ import { useConfirm } from "../useConfirm";
 import { useShortcuts } from "../useShortcuts";
 import PinToggle from "../../components/PinToggle.vue";
 import type { NotifierSeverity } from "../../utils/collections/notifiedItems";
-import type { CollectionsListResponse, FeedsListResponse } from "@mulmoclaude/collection-plugin";
+import type { CollectionsListResponse, FeedsListResponse } from "@mulmoclaude/core/collection";
 import type { CollectionDetailResponse, ItemMutationResponse } from "../../components/collectionTypes";
 
 const { openConfirm } = useConfirm();
