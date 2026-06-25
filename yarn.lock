@@ -1508,12 +1508,12 @@
     "@mulmocast/deck" "^0.7.0"
     zod "^4.4.3"
 
-"@mulmochat-plugin/quiz@0.4.3":
-  version "0.4.3"
-  resolved "https://registry.yarnpkg.com/@mulmochat-plugin/quiz/-/quiz-0.4.3.tgz#8dedad10324e2a61fa7621698997d98ddbbfc362"
-  integrity sha512-HlLteHPifbuEksexMNp7WeRN328WgQHjXg8MbMiNYFW9vNLaY0r0fi83isyp3bQYM9wn+dvdz8dBTjbj4mINmg==
+"@mulmochat-plugin/quiz@0.5.0":
+  version "0.5.0"
+  resolved "https://npm.flatt.tech/@mulmochat-plugin/quiz/-/quiz-0.5.0.tgz#25210d0a5cd126b0962468cce55ff2f6983b255c"
+  integrity sha512-uSIBmr1URk3PR6S/L8KxYaWyg21BbH0R0Y1wksRtHwwbnye1GM0qd53Ys/49+MJzSrArZ9CDoig1Nr+bn6gZPA==
   dependencies:
-    gui-chat-protocol "^0.3.3"
+    gui-chat-protocol "^0.4.0"
 
 "@mulmochat-plugin/ui-image@^0.4.0":
   version "0.4.0"
@@ -6459,10 +6459,10 @@ mulmocast-vision@^1.0.10:
     puppeteer "^25.0.2"
     yauzl "^3.2.1"
 
-mulmocast@^2.6.21:
-  version "2.6.21"
-  resolved "https://npm.flatt.tech/mulmocast/-/mulmocast-2.6.21.tgz#bc895ec03e0f6141160c08975b8e9769c89584db"
-  integrity sha512-nDIRwSKtW1C94Et5zaGkxWwtQLgohQh4e1Pi2WqeIPuR6GlZzd93CLjRZHK1ElOCuJuzbCQ8Jy1wLl43bEB2Lw==
+mulmocast@^2.6.22:
+  version "2.6.22"
+  resolved "https://npm.flatt.tech/mulmocast/-/mulmocast-2.6.22.tgz#9a98a8b39a720b3ca0233c5452302cb42f4c6a70"
+  integrity sha512-mNMozf8jh/2mJI8TJUr69zho+y2yoXZP9VkySfAokCdUy+EFVOMzAPyRy1606kLZvYDYwsuS3XeYAYhDHNjctg==
   dependencies:
     "@google-cloud/text-to-speech" "^6.4.1"
     "@google/genai" "^2.7.0"
