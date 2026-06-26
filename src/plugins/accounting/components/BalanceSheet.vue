@@ -76,8 +76,13 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { getBalanceSheet, type BalanceSheet } from "../api";
-import { formatAmount as formatAmountWithCurrency } from "../currencies";
-import { decemberOfPreviousYearString, lastMonthOfPreviousQuarterString, localMonthString, previousMonthString } from "../dates";
+import {
+  formatAmount as formatAmountWithCurrency,
+  decemberOfPreviousYearString,
+  lastMonthOfPreviousQuarterString,
+  localMonthString,
+  previousMonthString,
+} from "@mulmoclaude/accounting-plugin/shared";
 import { useLatestRequest } from "./useLatestRequest";
 
 const { t } = useI18n();

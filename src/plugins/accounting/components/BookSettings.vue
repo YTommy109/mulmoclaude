@@ -108,8 +108,16 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { deleteBook, rebuildSnapshots, updateBook } from "../api";
-import { SUPPORTED_COUNTRY_CODES, isSupportedCountryCode, localizedCountryName, type SupportedCountryCode } from "../countries";
-import { DEFAULT_FISCAL_YEAR_END, FISCAL_YEAR_ENDS, resolveFiscalYearEnd, type FiscalYearEnd } from "../fiscalYear";
+import {
+  SUPPORTED_COUNTRY_CODES,
+  isSupportedCountryCode,
+  localizedCountryName,
+  type SupportedCountryCode,
+  DEFAULT_FISCAL_YEAR_END,
+  FISCAL_YEAR_ENDS,
+  resolveFiscalYearEnd,
+  type FiscalYearEnd,
+} from "@mulmoclaude/accounting-plugin/shared";
 
 const { t, locale } = useI18n();
 

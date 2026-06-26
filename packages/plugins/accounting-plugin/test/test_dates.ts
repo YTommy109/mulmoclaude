@@ -10,7 +10,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { decemberOfPreviousYearString, lastMonthOfPreviousQuarterString, previousMonthString } from "../../../src/plugins/accounting/dates.ts";
+import { decemberOfPreviousYearString, lastMonthOfPreviousQuarterString, previousMonthString } from "../src/shared/dates.ts";
 
 describe("previousMonthString", () => {
   it("returns the previous calendar month as YYYY-MM", () => {

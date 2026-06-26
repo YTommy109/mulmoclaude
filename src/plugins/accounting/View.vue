@@ -136,7 +136,7 @@ import BalanceSheet from "./components/BalanceSheet.vue";
 import ProfitLoss from "./components/ProfitLoss.vue";
 import BookSettings from "./components/BookSettings.vue";
 import { getOpeningBalances, getAccounts, getBooks, type Account, type BookSummary } from "./api";
-import { ACCOUNTING_ACTIONS } from "./actions";
+import { ACCOUNTING_ACTIONS } from "@mulmoclaude/accounting-plugin/shared";
 import { useAccountingChannel, useAccountingBooksChannel } from "../../composables/useAccountingChannel";
 import { errorMessage } from "../../utils/errors";
 

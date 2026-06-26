@@ -83,8 +83,13 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { getProfitLoss, type ProfitLoss } from "../api";
-import { formatAmount as formatAmountWithCurrency } from "../currencies";
-import { currentFiscalYearRange, resolveFiscalYearEnd, type DateRange, type FiscalYearEnd } from "../fiscalYear";
+import {
+  formatAmount as formatAmountWithCurrency,
+  currentFiscalYearRange,
+  resolveFiscalYearEnd,
+  type DateRange,
+  type FiscalYearEnd,
+} from "@mulmoclaude/accounting-plugin/shared";
 import { useLatestRequest } from "./useLatestRequest";
 import DateRangePicker from "./DateRangePicker.vue";
 

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatAmountNumeric, formatAmount, fractionDigitsFor } from "../../../src/plugins/accounting/currencies.js";
+import { formatAmountNumeric, formatAmount, fractionDigitsFor } from "../src/shared/currencies.ts";
 
 // Pin locale on every assertion so host-default locale variations
 // (CI vs. dev machine, de-DE vs. en-US) cannot turn into flakes.

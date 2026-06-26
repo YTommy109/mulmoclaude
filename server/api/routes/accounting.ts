@@ -32,7 +32,7 @@ import {
   voidEntry,
 } from "../../accounting/service.js";
 import type { BookSummary } from "../../accounting/types.js";
-import { ACCOUNTING_ACTIONS } from "../../../src/plugins/accounting/actions.js";
+import { ACCOUNTING_ACTIONS } from "@mulmoclaude/accounting-plugin/shared";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { bindRoute } from "../../utils/router.js";
 import { log } from "../../system/logger/index.js";

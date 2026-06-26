@@ -51,8 +51,15 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { currentFiscalYearRange, currentQuarterRange, previousFiscalYearRange, previousQuarterRange, type DateRange, type FiscalYearEnd } from "../fiscalYear";
-import { localDateString } from "../dates";
+import {
+  currentFiscalYearRange,
+  currentQuarterRange,
+  previousFiscalYearRange,
+  previousQuarterRange,
+  type DateRange,
+  type FiscalYearEnd,
+  localDateString,
+} from "@mulmoclaude/accounting-plugin/shared";
 
 const { t } = useI18n();
 

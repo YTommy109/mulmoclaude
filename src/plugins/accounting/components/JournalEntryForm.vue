@@ -177,9 +177,7 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { addEntries, voidEntry, type Account, type JournalEntry, type JournalLine } from "../api";
-import { formatAmount, inputStepFor } from "../currencies";
-import { localDateString } from "../dates";
-import { countryHasFeature, type SupportedCountryCode } from "../countries";
+import { formatAmount, inputStepFor, localDateString, countryHasFeature, type SupportedCountryCode } from "@mulmoclaude/accounting-plugin/shared";
 import { isTaxAccountCode } from "./accountNumbering";
 import AccountsModal from "./AccountsModal.vue";
 import { errorMessage } from "../../../utils/errors";

@@ -14,13 +14,14 @@
 
 import type { Account, AccountType, JournalEntry } from "./types.js";
 import { aggregateBalances } from "./report.js";
-import { fiscalYearEndMonth, type FiscalYearEnd } from "../../src/plugins/accounting/fiscalYear.js";
 import {
+  fiscalYearEndMonth,
+  type FiscalYearEnd,
   TIME_SERIES_GRANULARITIES,
   TIME_SERIES_METRICS,
   type TimeSeriesGranularity,
   type TimeSeriesMetric,
-} from "../../src/plugins/accounting/timeSeriesEnums.js";
+} from "@mulmoclaude/accounting-plugin/shared";
 
 export { TIME_SERIES_GRANULARITIES, TIME_SERIES_METRICS };
 export type { TimeSeriesGranularity, TimeSeriesMetric };

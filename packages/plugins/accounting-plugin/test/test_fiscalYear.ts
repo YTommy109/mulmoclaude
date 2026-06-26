@@ -15,7 +15,7 @@ import {
   previousFiscalYearRange,
   previousQuarterRange,
   resolveFiscalYearEnd,
-} from "../../../src/plugins/accounting/fiscalYear.ts";
+} from "../src/shared/fiscalYear.ts";
 
 describe("fiscalYearEndMonth", () => {
   it("maps each Q to the correct calendar month", () => {

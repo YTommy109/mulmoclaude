@@ -24,7 +24,7 @@ import {
   BOOK_EVENT_KINDS as ACCOUNTING_BOOK_EVENT_KINDS_FROM_META,
   type BookEventKind as AccountingBookEventKindFromMeta,
   type BookChannelPayload as AccountingBookChannelPayloadFromMeta,
-} from "../plugins/accounting/meta";
+} from "@mulmoclaude/accounting-plugin/shared";
 
 /**
  * Channel for the per-session event stream. One per chat session.

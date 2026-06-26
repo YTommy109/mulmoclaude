@@ -69,8 +69,13 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { getLedger, type Account, type Ledger, type ReportPeriod } from "../api";
-import { formatAmount as formatAmountWithCurrency } from "../currencies";
-import { currentFiscalYearRange, resolveFiscalYearEnd, type DateRange, type FiscalYearEnd } from "../fiscalYear";
+import {
+  formatAmount as formatAmountWithCurrency,
+  currentFiscalYearRange,
+  resolveFiscalYearEnd,
+  type DateRange,
+  type FiscalYearEnd,
+} from "@mulmoclaude/accounting-plugin/shared";
 import { isTaxAccountCode } from "./accountNumbering";
 import { useLatestRequest } from "./useLatestRequest";
 import DateRangePicker from "./DateRangePicker.vue";

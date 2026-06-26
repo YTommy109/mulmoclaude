@@ -8,8 +8,7 @@
 //
 // Snapshots are cache only — journal is the single source of truth.
 
-import type { SupportedCountryCode } from "../../src/plugins/accounting/countries.js";
-import type { FiscalYearEnd } from "../../src/plugins/accounting/fiscalYear.js";
+import type { SupportedCountryCode, FiscalYearEnd } from "@mulmoclaude/accounting-plugin/shared";
 
 export const ACCOUNT_TYPES = ["asset", "liability", "equity", "income", "expense"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];

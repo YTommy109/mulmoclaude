@@ -51,8 +51,15 @@ import { publishBookChange, publishBooksChanged } from "./eventPublisher.js";
 import { DEFAULT_ACCOUNTS } from "./defaultAccounts.js";
 import { log } from "../system/logger/index.js";
 import { ACCOUNTING_BOOK_EVENT_KINDS } from "../../src/config/pubsubChannels.js";
-import { isSupportedCountryCode, SUPPORTED_COUNTRY_CODES, type SupportedCountryCode } from "../../src/plugins/accounting/countries.js";
-import { DEFAULT_FISCAL_YEAR_END, FISCAL_YEAR_ENDS, isFiscalYearEnd, type FiscalYearEnd } from "../../src/plugins/accounting/fiscalYear.js";
+import {
+  isSupportedCountryCode,
+  SUPPORTED_COUNTRY_CODES,
+  type SupportedCountryCode,
+  DEFAULT_FISCAL_YEAR_END,
+  FISCAL_YEAR_ENDS,
+  isFiscalYearEnd,
+  type FiscalYearEnd,
+} from "@mulmoclaude/accounting-plugin/shared";
 import type { Account, AccountingConfig, BookSummary, JournalEntry, JournalLine, ReportPeriod } from "./types.js";
 
 export class AccountingError extends Error {

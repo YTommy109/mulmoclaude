@@ -64,9 +64,16 @@
 import { computed, nextTick, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { createBook, type BookSummary } from "../api";
-import { SUPPORTED_CURRENCY_CODES, localizedCurrencyName } from "../currencies";
-import { SUPPORTED_COUNTRY_CODES, localizedCountryName, type SupportedCountryCode } from "../countries";
-import { DEFAULT_FISCAL_YEAR_END, FISCAL_YEAR_ENDS, type FiscalYearEnd } from "../fiscalYear";
+import {
+  SUPPORTED_CURRENCY_CODES,
+  localizedCurrencyName,
+  SUPPORTED_COUNTRY_CODES,
+  localizedCountryName,
+  type SupportedCountryCode,
+  DEFAULT_FISCAL_YEAR_END,
+  FISCAL_YEAR_ENDS,
+  type FiscalYearEnd,
+} from "@mulmoclaude/accounting-plugin/shared";
 
 const { t, locale } = useI18n();
 
