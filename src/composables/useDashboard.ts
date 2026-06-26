@@ -105,6 +105,18 @@ function setViewMode(slug: string, viewMode: string | null): Promise<boolean> {
   });
 }
 
+/** Set one tile's view-area height (px). No-op if the slug isn't a tile. */
+function setHeight(slug: string, height: number): Promise<boolean> {
+  return enqueue(async () => {
+    await load();
+    if (!loaded.value) return false;
+    if (!tiles.value.some((tile) => tile.slug === slug)) return true;
+    const previous = tiles.value;
+    const next = previous.map((tile) => (tile.slug === slug ? { ...tile, height } : tile));
+    return persist(next, previous);
+  });
+}
+
 /** Fold a fresh favorite-slug list into the stored layout: keep stored
  *  tiles whose slug is still a favorite (preserving order + view mode),
  *  then append any favorites not yet present (in the favorites' order).
@@ -130,6 +142,7 @@ export function useDashboard(): {
   load: (force?: boolean) => Promise<void>;
   setTiles: (next: DashboardTile[]) => Promise<boolean>;
   setViewMode: (slug: string, viewMode: string | null) => Promise<boolean>;
+  setHeight: (slug: string, height: number) => Promise<boolean>;
   reconcile: (favoriteSlugs: string[]) => Promise<void>;
 } {
   void load();
@@ -139,6 +152,7 @@ export function useDashboard(): {
     load,
     setTiles,
     setViewMode,
+    setHeight,
     reconcile,
   };
 }

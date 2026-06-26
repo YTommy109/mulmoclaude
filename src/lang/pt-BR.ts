@@ -339,6 +339,7 @@ const ptBRMessages = {
     viewPickerLabel: "Escolher visualização",
     openFull: "Abrir visualização completa",
     dragHint: "Arraste para reordenar",
+    resizeHint: "Arraste para redimensionar a altura",
   },
   pluginLauncher: {
     chat: { label: "Chat" },

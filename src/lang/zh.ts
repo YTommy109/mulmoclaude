@@ -335,6 +335,7 @@ const zhMessages = {
     viewPickerLabel: "选择视图",
     openFull: "打开完整视图",
     dragHint: "拖动以重新排序",
+    resizeHint: "拖动以调整高度",
   },
   pluginLauncher: {
     chat: { label: "聊天" },

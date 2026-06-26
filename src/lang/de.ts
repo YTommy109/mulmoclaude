@@ -345,6 +345,7 @@ const deMessages = {
     viewPickerLabel: "Ansicht wählen",
     openFull: "Vollansicht öffnen",
     dragHint: "Zum Neuordnen ziehen",
+    resizeHint: "Zum Ändern der Höhe ziehen",
   },
   pluginLauncher: {
     chat: { label: "Chat" },

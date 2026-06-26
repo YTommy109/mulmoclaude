@@ -360,6 +360,7 @@ const enMessages = {
     viewPickerLabel: "Choose view",
     openFull: "Open full view",
     dragHint: "Drag to reorder",
+    resizeHint: "Drag to resize",
   },
   pluginLauncher: {
     chat: { label: "Chat" },

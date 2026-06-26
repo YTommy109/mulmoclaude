@@ -343,6 +343,7 @@ const jaMessages = {
     viewPickerLabel: "表示を選択",
     openFull: "全体表示を開く",
     dragHint: "ドラッグして並べ替え",
+    resizeHint: "ドラッグして高さを変更",
   },
   pluginLauncher: {
     chat: { label: "チャット" },

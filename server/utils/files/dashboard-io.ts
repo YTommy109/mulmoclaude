@@ -23,11 +23,12 @@ export function normalizeDashboard(input: unknown): DashboardTile[] {
   for (const raw of input) {
     if (typeof raw !== "object" || raw === null) continue;
     const candidate = raw as Record<string, unknown>;
-    const { slug, viewMode } = candidate;
+    const { slug, viewMode, height } = candidate;
     if (typeof slug !== "string" || slug.length === 0) continue;
     if (out.some((existing) => existing.slug === slug)) continue;
     const tile: DashboardTile = { slug };
     if (typeof viewMode === "string" && viewMode.length > 0) tile.viewMode = viewMode;
+    if (typeof height === "number" && Number.isFinite(height) && height > 0) tile.height = height;
     out.push(tile);
   }
   return out;

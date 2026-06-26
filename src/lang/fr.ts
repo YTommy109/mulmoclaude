@@ -341,6 +341,7 @@ const frMessages = {
     viewPickerLabel: "Choisir la vue",
     openFull: "Ouvrir la vue complète",
     dragHint: "Glisser pour réorganiser",
+    resizeHint: "Glisser pour redimensionner",
   },
   pluginLauncher: {
     chat: { label: "Discussion" },

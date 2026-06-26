@@ -22,6 +22,9 @@ export interface DashboardTile {
    *  dependency on the collection-plugin's Vue layer; validated against
    *  the live schema at render time. Absent ⇒ the tile's default view. */
   viewMode?: string;
+  /** The tile's view-area height in pixels (drag-resized, per tile).
+   *  Absent ⇒ the default height. */
+  height?: number;
 }
 
 /** On-disk shape of `config/dashboard.json`. Object wrapper (not a bare

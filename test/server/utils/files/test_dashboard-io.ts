@@ -90,4 +90,17 @@ describe("normalizeDashboard — validation", () => {
       [{ slug: "a" }, { slug: "b" }, { slug: "c", viewMode: "custom:year" }],
     );
   });
+
+  it("keeps height only when a positive finite number", () => {
+    assert.deepEqual(
+      normalizeDashboard([
+        { slug: "a", height: 420 },
+        { slug: "b", height: 0 },
+        { slug: "c", height: -5 },
+        { slug: "d", height: "tall" },
+        { slug: "e", height: Number.NaN },
+      ]),
+      [{ slug: "a", height: 420 }, { slug: "b" }, { slug: "c" }, { slug: "d" }, { slug: "e" }],
+    );
+  });
 });

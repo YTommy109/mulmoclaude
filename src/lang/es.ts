@@ -347,6 +347,7 @@ const esMessages = {
     viewPickerLabel: "Elegir vista",
     openFull: "Abrir vista completa",
     dragHint: "Arrastra para reordenar",
+    resizeHint: "Arrastra para cambiar el tamaño",
   },
   pluginLauncher: {
     chat: { label: "Chat" },

@@ -343,6 +343,7 @@ const koMessages = {
     viewPickerLabel: "보기 선택",
     openFull: "전체 보기 열기",
     dragHint: "드래그하여 순서 변경",
+    resizeHint: "드래그하여 높이 조절",
   },
   pluginLauncher: {
     chat: { label: "채팅" },

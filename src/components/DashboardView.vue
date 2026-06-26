@@ -8,8 +8,10 @@
     </div>
 
     <!-- Two-column grid of favorite collections. Each tile shows a live
-         embedded CollectionView in the tile's chosen view mode. -->
-    <div v-else class="grid gap-4 sm:grid-cols-2" data-testid="dashboard-grid">
+         embedded CollectionView in the tile's chosen view mode.
+         `items-start` keeps each tile at its own height so a row's two
+         tiles don't stretch to match — heights stay independent. -->
+    <div v-else class="grid gap-4 sm:grid-cols-2 items-start" data-testid="dashboard-grid">
       <section
         v-for="(tile, index) in tiles"
         v-show="metaFor(tile.slug)"
@@ -52,8 +54,9 @@
           </select>
         </header>
         <!-- Live embedded view. `:key` remounts the view when the mode
-             changes so the new initial view takes effect. -->
-        <div class="h-80 overflow-auto">
+             changes so the new initial view takes effect. Height is
+             per-tile and drag-resizable via the handle below. -->
+        <div class="overflow-auto" :style="{ height: `${bodyHeight(tile)}px` }">
           <CollectionView
             :key="`${tile.slug}:${effectiveView(tile)}`"
             :slug="tile.slug"
@@ -63,13 +66,23 @@
             hide-search
           />
         </div>
+        <!-- Resize handle: drag vertically to set this tile's height. -->
+        <div
+          class="h-2 flex-none cursor-row-resize bg-slate-100 hover:bg-indigo-200 transition-colors flex items-center justify-center"
+          :title="t('dashboard.resizeHint')"
+          :aria-label="t('dashboard.resizeHint')"
+          :data-testid="`dashboard-tile-resize-${tile.slug}`"
+          @pointerdown.prevent="onResizeStart(tile, $event)"
+        >
+          <span class="h-0.5 w-8 rounded-full bg-slate-300"></span>
+        </div>
       </section>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { CollectionView, applicableViewModes, customViewKey, type CollectionViewMode } from "@mulmoclaude/collection-plugin/vue";
@@ -85,7 +98,7 @@ const { t } = useI18n();
 const router = useRouter();
 
 const { shortcuts, load: loadShortcuts } = useShortcuts();
-const { tiles, load: loadDashboard, reconcile, setTiles, setViewMode } = useDashboard();
+const { tiles, load: loadDashboard, reconcile, setTiles, setViewMode, setHeight } = useDashboard();
 
 // Favorites = pinned COLLECTION shortcuts (feeds are excluded — the
 // dashboard is a collections surface). The cached title/icon ride along
@@ -161,6 +174,58 @@ function onDrop(target: number): void {
   next.splice(target, 0, moved);
   void setTiles(next);
 }
+
+// ── Per-tile drag-to-resize (height stored on the tile, independent) ──
+const DEFAULT_HEIGHT = 320;
+const MIN_HEIGHT = 160;
+const MAX_HEIGHT = 900;
+
+// Live height during a drag (smooth, not yet persisted), keyed by slug.
+const liveHeights = ref<Record<string, number>>({});
+
+function bodyHeight(tile: DashboardTile): number {
+  return liveHeights.value[tile.slug] ?? tile.height ?? DEFAULT_HEIGHT;
+}
+
+let resize: { slug: string; startY: number; startHeight: number } | null = null;
+
+function onResizeMove(event: PointerEvent): void {
+  if (!resize) return;
+  const next = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, resize.startHeight + (event.clientY - resize.startY)));
+  liveHeights.value = { ...liveHeights.value, [resize.slug]: next };
+}
+
+function clearLiveHeight(slug: string): void {
+  liveHeights.value = Object.fromEntries(Object.entries(liveHeights.value).filter(([key]) => key !== slug));
+}
+
+// Persist the final height, then drop the live override so the stored
+// value (now identical) takes over without a flash.
+async function persistHeight(slug: string, height: number): Promise<void> {
+  await setHeight(slug, Math.round(height));
+  clearLiveHeight(slug);
+}
+
+function onResizeEnd(): void {
+  window.removeEventListener("pointermove", onResizeMove);
+  window.removeEventListener("pointerup", onResizeEnd);
+  if (!resize) return;
+  const { slug } = resize;
+  resize = null;
+  const height = liveHeights.value[slug];
+  if (height !== undefined) void persistHeight(slug, height);
+}
+
+function onResizeStart(tile: DashboardTile, event: PointerEvent): void {
+  resize = { slug: tile.slug, startY: event.clientY, startHeight: bodyHeight(tile) };
+  window.addEventListener("pointermove", onResizeMove);
+  window.addEventListener("pointerup", onResizeEnd);
+}
+
+onBeforeUnmount(() => {
+  window.removeEventListener("pointermove", onResizeMove);
+  window.removeEventListener("pointerup", onResizeEnd);
+});
 
 // First load: fold favorites into the stored layout once both lists are
 // authoritatively loaded (so an empty pre-load list never prunes tiles).
