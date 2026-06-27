@@ -137,6 +137,14 @@ describe("writeImportedCollection", () => {
     if (!result.ok) assert.equal(result.status, 409);
   });
 
+  it("returns 409 when an ancestor of the data path is a non-directory file", async () => {
+    mkdirSync(path.join(wsRoot, "data", "collections"), { recursive: true });
+    writeFileSync(path.join(wsRoot, "data", "collections", "movies"), "ancestor is a file, not a dir");
+    const result = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t" });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.status, 409);
+  });
+
   it("cleans a leftover staging dir from a prior failed import and still installs", async () => {
     const staging = path.join(wsRoot, ".claude", "skills", ".importing-movies");
     mkdirSync(staging, { recursive: true });

@@ -46,8 +46,12 @@ export type ImportResult =
 async function statType(target: string): Promise<"dir" | "other" | "absent"> {
   try {
     return (await stat(target)).isDirectory() ? "dir" : "other";
-  } catch {
-    return "absent";
+  } catch (err) {
+    // Only a genuinely missing path is "absent". ENOTDIR (an ancestor is a file),
+    // EACCES, etc. are path-shape conflicts that mkdir would later throw on, so
+    // surface them as "other" for deterministic 409 handling.
+    if (isRecord(err) && err.code === "ENOENT") return "absent";
+    return "other";
   }
 }
 
@@ -139,15 +143,17 @@ export async function writeImportedCollection(params: {
   const { registry, entry, bundle, workspaceRoot, nowIso } = params;
   const target = await resolveTarget(workspaceRoot, registry, entry);
   if ("conflict" in target) return { ok: false, status: STATUS_CONFLICT, error: target.conflict };
-  const validated = validateAndNormalize(bundle, entry.slug, workspaceRoot);
-  if ("error" in validated) return { ok: false, status: STATUS_UNPROCESSABLE, error: validated.error };
 
-  // Pre-flight the data dir: a non-directory at the dataPath would make mkdir throw
-  // EEXIST mid-import (a generic 500). Reject deterministically before any write.
+  // Pre-flight the data dir before schema validation: a non-directory at the dataPath
+  // (or an ancestor that's a file → ENOTDIR) would otherwise surface as a generic 500
+  // on mkdir. statType maps ENOTDIR/other to a deterministic 409 path-shape conflict.
   const dataDir = path.join(workspaceRoot, ...normalizedDataPath(entry.slug).split("/"));
   if ((await statType(dataDir)) === "other") {
     return { ok: false, status: STATUS_CONFLICT, error: `data path for slug '${entry.slug}' exists and is not a directory` };
   }
+
+  const validated = validateAndNormalize(bundle, entry.slug, workspaceRoot);
+  if ("error" in validated) return { ok: false, status: STATUS_UNPROCESSABLE, error: validated.error };
 
   // Stage the full replacement (bundle + origin) in a hidden sibling dir, then swap
   // it in with a single rename. So a mid-write failure never destroys the prior
