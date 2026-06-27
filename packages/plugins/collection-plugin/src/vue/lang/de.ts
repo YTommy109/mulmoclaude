@@ -19,6 +19,9 @@ const deMessages: CollectionMessages = {
       updated: "Aktualisiert",
       open: "Öffnen",
     },
+    contribute: "Beitragen",
+    contributePrompt:
+      "Hilf mir, meine Sammlung „{title}“ (Slug: {slug}) zur MulmoClaude-Sammlungsregistry (receptron/mulmoclaude-collections) beizutragen. Lies zuerst `config/helps/collection-skills.md` für das Layout des Beitragspakets. Frage mich nach meinem GitHub-Benutzernamen (muss meta.author entsprechen und dient als Namespace in der Registry) und ob meine Datensätze als Beispiel-Seed-Daten enthalten sein sollen (überspringe alles, was Geheimnisse enthält). Erstelle dann das Beitragspaket (SKILL.md, schema.json, meta.json, optional seed/items), kopiere es in einen Klon der Registry unter `github/`, führe `node scripts/build-index.mjs` und `node scripts/validate.mjs` aus und öffne nach meiner Bestätigung einen PR.",
     addCollectionLabel: "Sammlung",
     addCollectionPrompt:
       "Hilf mir, eine neue Sammlung zu erstellen. Lies zuerst `config/helps/collection-skills.md` für die Konventionen schemabasierter Sammlungen. Verwende dann das Tool `presentForm` (nutze nicht AskUserQuestion), um mich zu fragen, welche Art von Daten ich verfolgen möchte, und erstelle die schema.json und SKILL.md aus meinen Antworten.",

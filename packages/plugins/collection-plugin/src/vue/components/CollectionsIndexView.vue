@@ -100,6 +100,17 @@
 
             <component :is="pinToggle" kind="collection" :slug="collection.slug" :title="collection.title" :icon="collection.icon" />
 
+            <button
+              type="button"
+              class="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-50 text-slate-400 hover:bg-teal-50 hover:text-teal-600 transition-all duration-300"
+              :title="t('collectionsView.contribute')"
+              :aria-label="t('collectionsView.contribute')"
+              :data-testid="`collections-contribute-${collection.slug}`"
+              @click.stop="startContributeChat(collection)"
+            >
+              <span class="material-icons text-lg">ios_share</span>
+            </button>
+
             <div
               class="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-50 group-hover:bg-indigo-50 text-slate-400 group-hover:text-indigo-600 transition-all duration-300"
             >
@@ -156,6 +167,10 @@ function openCollection(slug: string): void {
 
 function startCreateCollectionChat(): void {
   cui.startChat(t("collectionsView.addCollectionPrompt"), cui.generalRoleId);
+}
+
+function startContributeChat(collection: CollectionSummary): void {
+  cui.startChat(t("collectionsView.contributePrompt", { title: collection.title, slug: collection.slug }), cui.generalRoleId);
 }
 
 onMounted(loadCollections);

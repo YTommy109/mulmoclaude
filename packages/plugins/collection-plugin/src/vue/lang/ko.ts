@@ -19,6 +19,9 @@ const koMessages: CollectionMessages = {
       updated: "업데이트됨",
       open: "열기",
     },
+    contribute: "기여",
+    contributePrompt:
+      "제 {title} 컬렉션(slug: {slug})을 MulmoClaude 컬렉션 레지스트리(receptron/mulmoclaude-collections)에 기여하고 싶어요. 먼저 `config/helps/collection-skills.md`를 읽고 기여 번들 구조를 확인하세요. 제 GitHub 사용자 이름(meta.author와 일치해야 하며 레지스트리의 네임스페이스로 사용됩니다)과 제 레코드를 샘플 seed 데이터로 포함할지(비밀 정보가 포함된 것은 제외)를 물어보세요. 그런 다음 기여 번들(SKILL.md, schema.json, meta.json, 선택적 seed/items)을 만들어 `github/` 아래에 clone한 레지스트리에 복사하고, `node scripts/build-index.mjs`와 `node scripts/validate.mjs`를 실행한 뒤, 제 확인을 받고 PR을 여세요.",
     addCollectionLabel: "컬렉션",
     addCollectionPrompt:
       "새 컬렉션을 만들고 싶어요. 먼저 `config/helps/collection-skills.md`를 읽고 스키마 기반 컬렉션 규칙을 확인하세요. 그런 다음 `presentForm` 도구를 사용해(AskUserQuestion은 사용하지 말고) 어떤 데이터를 관리하고 싶은지 물어보고, 제 답변을 바탕으로 schema.json과 SKILL.md를 작성해 주세요.",

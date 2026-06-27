@@ -19,6 +19,9 @@ const zhMessages: CollectionMessages = {
       updated: "已更新",
       open: "打开",
     },
+    contribute: "贡献",
+    contributePrompt:
+      "帮我把我的「{title}」集合（slug：{slug}）贡献到 MulmoClaude 集合注册表（receptron/mulmoclaude-collections）。请先阅读 `config/helps/collection-skills.md` 了解贡献包的结构。询问我的 GitHub 用户名（必须与 meta.author 一致，并用作注册表中的命名空间），以及是否将我的记录作为示例 seed 数据包含（跳过任何包含机密信息的内容）。然后构建贡献包（SKILL.md、schema.json、meta.json、可选的 seed/items），将其复制到 `github/` 下克隆的注册表中，运行 `node scripts/build-index.mjs` 和 `node scripts/validate.mjs`，并在我确认后创建 PR。",
     addCollectionLabel: "集合",
     addCollectionPrompt:
       "帮我创建一个新的集合。请先阅读 `config/helps/collection-skills.md` 了解基于 schema 的集合约定。然后使用 `presentForm` 工具（不要使用 AskUserQuestion）询问我想跟踪哪种数据，并根据我的回答编写 schema.json 和 SKILL.md。",
