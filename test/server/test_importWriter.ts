@@ -25,6 +25,7 @@ const entry: RegistryCollectionEntry = {
   seedCount: 1,
   path: "collections/isamu/movies",
   contentSha: "abc123",
+  registryName: "official",
 };
 
 function validSchema(): Record<string, unknown> {
