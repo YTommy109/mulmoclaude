@@ -1,24 +1,36 @@
-// Import a registry collection into the active workspace. The writer fetches the
-// bundle, re-validates the schema with the host's own gates (R7 — the index is not
-// a trust boundary), writes the bundle into .claude/skills/<localSlug>/ with a
-// host-owned dataPath (R3), materializes any seed records into that dataPath when
-// it's empty, and records provenance in .origin.json for update detection (R5/R8).
+// Import a registry collection into the active workspace. The writer fetches
+// the bundle, re-validates the schema with the host's own gates (R7 — the
+// index is not a trust boundary), writes the bundle into `data/skills/<localSlug>/`
+// with a host-owned dataPath (R3), materializes any seed records into that
+// dataPath when it's empty, and records provenance in `.origin.json` for
+// update detection (R5/R8). After the data-skills swap, the bundle's
+// allowlisted files (SKILL.md, schema.json, templates/<safe>) are mirrored
+// 1:1 into `.claude/skills/<localSlug>/` via the same `@mulmoclaude/core/skill-bridge`
+// rules an agent-authored skill would go through — so an authored and an
+// imported collection live in EXACTLY the same place on disk, and the user
+// can edit either one identically.
+//
+// `.origin.json` lives ONLY in `data/skills/<slug>/.origin.json` and is NOT
+// mirrored — the skill-bridge allowlist deliberately excludes host
+// bookkeeping. Its presence is what distinguishes "imported" from
+// "user-authored" in every downstream tool.
 //
 // `writeImportedCollection` takes the already-fetched bundle + an explicit
-// workspaceRoot/clock so it is unit-testable against a temp workspace with no
-// network; `performImport` is the thin glue that fetches and calls it.
+// workspaceRoot/clock so it is unit-testable against a temp workspace with
+// no network; `performImport` is the thin glue that fetches and calls it.
 
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import type { Dirent } from "node:fs";
 import path from "node:path";
 
-import { acceptParsedSchema, CollectionSchemaZ, safeRecordId } from "@mulmoclaude/core/collection/server";
+import { acceptParsedSchema, CollectionSchemaZ, isSafeActionTemplatePath, safeRecordId } from "@mulmoclaude/core/collection/server";
 import type { CollectionSchema } from "@mulmoclaude/core/collection";
+import { claudeSkillDir, dataSkillDir, mirrorSkillWrite } from "@mulmoclaude/core/skill-bridge";
 
 import { log } from "../../system/logger/index.js";
 import { errorMessage } from "../../utils/errors.js";
 import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { isRecord } from "../../utils/types.js";
-import { projectSkillDir } from "../skills/paths.js";
 import { fetchAllRegistries } from "./client.js";
 import { fetchBundle, fetchManifest, normalizedDataPath } from "./importCollection.js";
 import type { RegistryCollectionEntry } from "./registryIndex.js";
@@ -26,6 +38,7 @@ import type { RegistryCollectionEntry } from "./registryIndex.js";
 const ORIGIN_FILE = ".origin.json";
 const SEED_PREFIX = "seed/items/";
 const SCHEMA_FILE = "schema.json";
+const SKILL_FILE = "SKILL.md";
 const STATUS_NOT_FOUND = 404;
 const STATUS_CONFLICT = 409;
 const STATUS_UNPROCESSABLE = 422;
@@ -77,10 +90,11 @@ async function readOrigin(targetDir: string): Promise<unknown> {
 
 type TargetResolution = { targetDir: string; localSlug: string; updated: boolean } | { conflict: string };
 
-// Only bounds the fresh-slug search (a safety cap, far above any realistic number of
-// same-named collections — the first free slug is normally found in 1–2 iterations).
-// An EXISTING install is found via the directory scan below, not this loop, so updates
-// are never missed regardless of how high the rename suffix is.
+// Only bounds the fresh-slug search (a safety cap, far above any realistic
+// number of same-named collections — the first free slug is normally found in
+// 1–2 iterations). An EXISTING install is found via the directory scan below,
+// not this loop, so updates are never missed regardless of how high the rename
+// suffix is.
 const MAX_SLUG_ATTEMPTS = 10000;
 
 const renameCandidate = (slug: string, attempt: number): string => (attempt === 0 ? slug : `${slug}-${attempt + 1}`);
@@ -93,9 +107,11 @@ function isRenameOf(name: string, slug: string): boolean {
   return suffix.length > 0 && /^\d+$/.test(suffix);
 }
 
-// Find an existing install of this registry collection at ANY rename suffix by scanning
-// the active skills dir — independent of any candidate bound, so a re-import always
-// updates the existing install rather than duplicating it (even if an earlier slug freed up).
+// Find an existing install of this registry collection at ANY rename suffix
+// by scanning `data/skills/` — independent of any candidate bound, so a
+// re-import always updates the existing install rather than duplicating it
+// (even if an earlier slug freed up). An authored skill without `.origin.json`
+// is invisible to this scan and so never collides with an update.
 async function findMatchingInstall(skillsDir: string, registry: string, entry: RegistryCollectionEntry): Promise<string | null> {
   const names = await readdir(skillsDir).catch(() => [] as string[]);
   for (const name of names) {
@@ -106,17 +122,30 @@ async function findMatchingInstall(skillsDir: string, registry: string, entry: R
   return null;
 }
 
-// Pick the local install slug (rename-on-collision, R8). First reuse an existing matching
-// install (update). Otherwise install fresh at the first free slug — the registry slug,
-// else `<slug>-2`, `-3`, … — never clobbering a user's own same-named collection.
+// Pick the local install slug (rename-on-collision, R8). First reuse an
+// existing matching install (update). Otherwise install fresh at the first
+// free slug — the registry slug, else `<slug>-2`, `-3`, … — never clobbering
+// a user's own same-named collection.
+//
+// A slug is "free" only when BOTH `data/skills/<slug>/` AND
+// `.claude/skills/<slug>/` are absent. The mirror check matters because
+// `mirrorToClaudeSkills` overwrites the mirror dir's allowlisted files and
+// prunes anything else — if the user has a manually-installed Claude skill
+// at `.claude/skills/<slug>/` with no corresponding `data/skills/<slug>/`
+// (e.g. installed by the Claude CLI directly, or a legacy pre-refactor
+// import we never migrated), picking that slug would silently overwrite
+// their SKILL.md/schema.json and prune the rest of their files (CodeRabbit
+// review on #1839).
 async function resolveTarget(workspaceRoot: string, registry: string, entry: RegistryCollectionEntry): Promise<TargetResolution> {
-  const skillsDir = path.dirname(projectSkillDir(workspaceRoot, entry.slug));
+  const skillsDir = path.dirname(dataSkillDir(workspaceRoot, entry.slug));
   const existing = await findMatchingInstall(skillsDir, registry, entry);
-  if (existing) return { targetDir: projectSkillDir(workspaceRoot, existing), localSlug: existing, updated: true };
+  if (existing) return { targetDir: dataSkillDir(workspaceRoot, existing), localSlug: existing, updated: true };
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
     const localSlug = renameCandidate(entry.slug, attempt);
-    if ((await statType(projectSkillDir(workspaceRoot, localSlug))) === "absent") {
-      return { targetDir: projectSkillDir(workspaceRoot, localSlug), localSlug, updated: false };
+    const sourceAbsent = (await statType(dataSkillDir(workspaceRoot, localSlug))) === "absent";
+    const mirrorAbsent = (await statType(claudeSkillDir(workspaceRoot, localSlug))) === "absent";
+    if (sourceAbsent && mirrorAbsent) {
+      return { targetDir: dataSkillDir(workspaceRoot, localSlug), localSlug, updated: false };
     }
   }
   return { conflict: `couldn't find an available slug for '${entry.slug}'` };
@@ -125,6 +154,14 @@ async function resolveTarget(workspaceRoot: string, registry: string, entry: Reg
 type SchemaResolution = { schema: CollectionSchema } | { error: string };
 
 function validateAndNormalize(bundle: Map<string, string>, localSlug: string, workspaceRoot: string): SchemaResolution {
+  // SKILL.md is required: `mirrorToClaudeSkills` calls
+  // `mirrorSkillWrite({slug, relSegments: [SKILL_FILE]})` unconditionally
+  // after the data-side swap, which throws if SKILL.md is missing. Caught
+  // outside, that throw is logged but the data-side write still succeeds and
+  // the function returns `ok: true` for an unusable import. Reject up front
+  // so a missing SKILL.md surfaces as a clean 422 instead (CodeRabbit review
+  // on #1839).
+  if (bundle.get(SKILL_FILE) === undefined) return { error: "bundle is missing SKILL.md" };
   const schemaText = bundle.get(SCHEMA_FILE);
   if (schemaText === undefined) return { error: "bundle is missing schema.json" };
   let parsedJson: unknown;
@@ -169,6 +206,67 @@ async function materializeSeed(dataDir: string, bundle: Map<string, string>): Pr
   return { written, skipped: false };
 }
 
+/** Compute the set of bundle-relative paths that should land in `.claude/skills/<slug>/`.
+ *  Matches the bridge allowlist exactly — SKILL.md, schema.json,
+ *  `templates/<safe>` — so anything else (seed, meta.json, views, README,
+ *  assets) stays source-side. */
+function bridgeAllowlistFiles(bundle: Map<string, string>): Set<string> {
+  const wanted = new Set<string>([SKILL_FILE, SCHEMA_FILE]);
+  for (const rel of bundle.keys()) {
+    if (rel === SKILL_FILE || rel === SCHEMA_FILE) continue;
+    if (rel.startsWith(SEED_PREFIX)) continue;
+    if (!isSafeActionTemplatePath(rel)) continue;
+    wanted.add(rel);
+  }
+  return wanted;
+}
+
+/** Recursively list every file under `root`, returned as forward-slash paths
+ *  relative to `root`. Empty list when `root` doesn't exist. Used to spot
+ *  mirror files left over from a previous install so we can prune them after
+ *  writing the new ones. */
+async function listFilesRecursive(root: string, prefix = ""): Promise<string[]> {
+  const dir = prefix ? path.join(root, ...prefix.split("/")) : root;
+  const entries: Dirent[] = await readdir(dir, { withFileTypes: true }).catch(() => [] as Dirent[]);
+  const out: string[] = [];
+  for (const entry of entries) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isFile()) out.push(rel);
+    else if (entry.isDirectory()) out.push(...(await listFilesRecursive(root, rel)));
+  }
+  return out;
+}
+
+// Mirror the just-written `data/skills/<slug>/` into `.claude/skills/<slug>/`
+// using the shared bridge package — exactly the set of files an
+// agent-authored skill would mirror, no more (SKILL.md, schema.json,
+// templates/<safe>). `.origin.json` is host bookkeeping and stays only on the
+// data side.
+//
+// **Write-then-prune ordering** (Codex review on #1839): write the new
+// bundle's allowlisted files FIRST (each is a per-file tmp+rename, atomic),
+// THEN prune mirror files that aren't in the new bundle. A transient mirror
+// failure during the writes leaves the previous mirror's files in place —
+// agent discovery keeps working with the prior state instead of finding an
+// empty `.claude/skills/<slug>/`. The prune step is best-effort: a failure
+// there leaves harmless stale leftovers but doesn't break the new install.
+// Compare with the old `mirrorSkillDelete`-first ordering, which could
+// silently leave an empty mirror if a subsequent write threw.
+async function mirrorToClaudeSkills(workspaceRoot: string, localSlug: string, bundle: Map<string, string>): Promise<void> {
+  const wanted = bridgeAllowlistFiles(bundle);
+  // 1. Write the new set first (overwrites existing via tmp+rename).
+  for (const rel of wanted) {
+    mirrorSkillWrite(workspaceRoot, { slug: localSlug, relSegments: rel.split("/") });
+  }
+  // 2. Prune files that exist in the mirror but aren't in the new bundle.
+  const mirrorRoot = claudeSkillDir(workspaceRoot, localSlug);
+  const existing = await listFilesRecursive(mirrorRoot);
+  for (const rel of existing) {
+    if (wanted.has(rel)) continue;
+    await rm(path.join(mirrorRoot, ...rel.split("/")), { force: true }).catch(() => undefined);
+  }
+}
+
 export async function writeImportedCollection(params: {
   registry: string;
   entry: RegistryCollectionEntry;
@@ -193,10 +291,12 @@ export async function writeImportedCollection(params: {
   const validated = validateAndNormalize(bundle, localSlug, workspaceRoot);
   if ("error" in validated) return { ok: false, status: STATUS_UNPROCESSABLE, error: validated.error };
 
-  // Build the replacement fully in a hidden sibling staging dir (bundle + origin),
-  // so the prior install is untouched until everything is durably written. Leftover
-  // staging/backup dirs from a crashed import are cleaned first, keeping retries possible.
+  // Build the replacement fully in a hidden sibling staging dir under
+  // `data/skills/` (bundle + origin), so the prior install is untouched until
+  // everything is durably written. Leftover staging/backup dirs from a
+  // crashed import are cleaned first, keeping retries possible.
   const skillsParent = path.dirname(target.targetDir);
+  await mkdir(skillsParent, { recursive: true }); // first-import case — data/skills/ may not exist
   const staging = path.join(skillsParent, `.importing-${localSlug}`);
   const backup = path.join(skillsParent, `.backup-${localSlug}`);
   await rm(staging, { recursive: true, force: true });
@@ -206,9 +306,10 @@ export async function writeImportedCollection(params: {
   const origin: ImportOrigin = { registry, author: entry.author, slug: entry.slug, version: entry.version, contentSha: entry.contentSha, importedAt: nowIso };
   await writeFileAtomic(path.join(staging, ORIGIN_FILE), `${JSON.stringify(origin, null, 2)}\n`);
 
-  // Swap with rollback: move the old install aside (rename), move the new in (rename),
-  // then discard the old. If the swap fails, restore the old so we never end up with no
-  // installed collection. Records live in dataPath (a separate dir) and are untouched.
+  // Swap with rollback: move the old install aside (rename), move the new in
+  // (rename), then discard the old. If the swap fails, restore the old so we
+  // never end up with no installed collection. Records live in dataPath (a
+  // separate dir) and are untouched.
   if (target.updated) await rename(target.targetDir, backup);
   try {
     await rename(staging, target.targetDir);
@@ -217,6 +318,23 @@ export async function writeImportedCollection(params: {
     throw err;
   }
   await rm(backup, { recursive: true, force: true });
+
+  // Replicate the new `data/skills/<slug>/` set into `.claude/skills/<slug>/`
+  // via the shared bridge package — same allowlist + tmp+rename semantics the
+  // hook uses for agent-authored writes. Write-then-prune ordering inside
+  // mirrorToClaudeSkills means a transient failure here can't leave the mirror
+  // empty (Codex review on #1839); the worst case is a half-written mirror
+  // where the new install's SKILL.md/schema.json may not have updated, but the
+  // prior install remains accessible to the agent until the next mirror
+  // attempt. Logged-not-thrown matches the hook's posture for agent writes.
+  try {
+    await mirrorToClaudeSkills(workspaceRoot, localSlug, bundle);
+  } catch (err) {
+    log.warn("collections-registry", "mirror to .claude/skills/ failed (data/skills write succeeded; prior mirror left intact)", {
+      localSlug,
+      error: errorMessage(err),
+    });
+  }
 
   const seed = await materializeSeed(dataDir, bundle);
   return { ok: true, localSlug, updated: target.updated, seedWritten: seed.written, seedSkipped: seed.skipped };
@@ -248,3 +366,7 @@ export async function performImport(author: string, slug: string, workspaceRoot:
     return { ok: false, status: 500, error: `import failed: ${errorMessage(err)}` };
   }
 }
+
+// Exported for downstream code that wants the path conventions without
+// importing skill-bridge directly.
+export { claudeSkillDir, dataSkillDir };
