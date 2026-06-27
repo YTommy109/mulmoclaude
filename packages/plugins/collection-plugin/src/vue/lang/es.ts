@@ -20,6 +20,8 @@ const esMessages: CollectionMessages = {
       open: "Abrir",
     },
     contribute: "Contribuir",
+    contributeConfirm:
+      "¿Compartir la colección «{title}»? Esto ejecuta una skill que la exporta y abre un PR de GitHub al registro de colecciones (receptron/mulmoclaude-collections).",
     contributePrompt:
       "Ayúdame a contribuir mi colección «{title}» (slug: {slug}) al registro de colecciones de MulmoClaude (receptron/mulmoclaude-collections). Primero lee `config/helps/collection-skills.md` para conocer la estructura del paquete de contribución. Pregúntame mi nombre de usuario de GitHub (debe coincidir con meta.author y se usa como espacio de nombres del registro) y si incluir mis registros como datos de ejemplo (seed) (omite cualquier cosa que contenga secretos). Luego crea el paquete de contribución (SKILL.md, schema.json, meta.json, seed/items opcional), cópialo en un clon del registro en `github/`, ejecuta `node scripts/build-index.mjs` y `node scripts/validate.mjs`, y abre un PR tras mi confirmación.",
     addCollectionLabel: "Colección",

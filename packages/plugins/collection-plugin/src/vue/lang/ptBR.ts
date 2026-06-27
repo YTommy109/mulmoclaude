@@ -20,6 +20,8 @@ const ptBRMessages: CollectionMessages = {
       open: "Abrir",
     },
     contribute: "Contribuir",
+    contributeConfirm:
+      "Compartilhar a coleção {title}? Isso executa uma skill que a exporta e abre um PR no GitHub para o registro de coleções (receptron/mulmoclaude-collections).",
     contributePrompt:
       "Ajude-me a contribuir minha coleção {title} (slug: {slug}) para o registro de coleções do MulmoClaude (receptron/mulmoclaude-collections). Primeiro leia `config/helps/collection-skills.md` para conhecer a estrutura do pacote de contribuição. Pergunte-me meu nome de usuário do GitHub (deve corresponder a meta.author e é usado como namespace no registro) e se devo incluir meus registros como dados de exemplo (seed) (ignore qualquer coisa que contenha segredos). Em seguida, crie o pacote de contribuição (SKILL.md, schema.json, meta.json, seed/items opcional), copie-o para um clone do registro em `github/`, execute `node scripts/build-index.mjs` e `node scripts/validate.mjs`, e abra um PR após minha confirmação.",
     addCollectionLabel: "Coleção",

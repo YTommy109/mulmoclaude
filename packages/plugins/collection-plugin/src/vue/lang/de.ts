@@ -20,6 +20,8 @@ const deMessages: CollectionMessages = {
       open: "Öffnen",
     },
     contribute: "Beitragen",
+    contributeConfirm:
+      "Die Sammlung „{title}“ teilen? Dadurch wird eine Skill ausgeführt, die sie exportiert und einen GitHub-PR an die Sammlungsregistry (receptron/mulmoclaude-collections) öffnet.",
     contributePrompt:
       "Hilf mir, meine Sammlung „{title}“ (Slug: {slug}) zur MulmoClaude-Sammlungsregistry (receptron/mulmoclaude-collections) beizutragen. Lies zuerst `config/helps/collection-skills.md` für das Layout des Beitragspakets. Frage mich nach meinem GitHub-Benutzernamen (muss meta.author entsprechen und dient als Namespace in der Registry) und ob meine Datensätze als Beispiel-Seed-Daten enthalten sein sollen (überspringe alles, was Geheimnisse enthält). Erstelle dann das Beitragspaket (SKILL.md, schema.json, meta.json, optional seed/items), kopiere es in einen Klon der Registry unter `github/`, führe `node scripts/build-index.mjs` und `node scripts/validate.mjs` aus und öffne nach meiner Bestätigung einen PR.",
     addCollectionLabel: "Sammlung",

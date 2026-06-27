@@ -20,6 +20,8 @@ const jaMessages: CollectionMessages = {
       open: "開く",
     },
     contribute: "寄稿",
+    contributeConfirm:
+      "「{title}」コレクションをシェアしますか？スキルが起動してコレクションを export し、コレクションレジストリ（receptron/mulmoclaude-collections）に GitHub PR を作成します。",
     contributePrompt:
       "自作の「{title}」コレクション（slug: {slug}）を MulmoClaude のコレクションレジストリ（receptron/mulmoclaude-collections）に寄稿したいです。まず `config/helps/collection-skills.md` を読んで寄稿バンドルの構成を確認してください。私の GitHub ユーザー名（meta.author と一致する必要があり、レジストリ上の名前空間になります）と、自分のレコードをサンプル seed データとして含めるか（秘密情報を含むものは除外）を質問してください。そのうえで寄稿バンドル（SKILL.md, schema.json, meta.json, 任意の seed/items）を作り、`github/` 配下に clone したレジストリにコピーし、`node scripts/build-index.mjs` と `node scripts/validate.mjs` を実行し、私の確認後に PR を作成してください。",
     addCollectionLabel: "コレクション",

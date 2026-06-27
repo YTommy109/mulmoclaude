@@ -18,6 +18,8 @@ const enMessages = {
       open: "Open",
     },
     contribute: "Contribute",
+    contributeConfirm:
+      'Share the "{title}" collection? This runs a skill that exports it and opens a GitHub PR to the collection registry (receptron/mulmoclaude-collections).',
     contributePrompt:
       'Help me contribute my "{title}" collection (slug: {slug}) to the MulmoClaude collection registry (receptron/mulmoclaude-collections). First read `config/helps/collection-skills.md` for the contribution bundle layout. Ask me for my GitHub username (must match meta.author, used as the registry namespace) and whether to include my records as sample seed data (skip anything containing secrets). Then build the contribution bundle (SKILL.md, schema.json, meta.json, optional seed/items), copy it into a clone of the registry under `github/`, run `node scripts/build-index.mjs` and `node scripts/validate.mjs`, and open a PR once I confirm.',
     addCollectionLabel: "Collection",

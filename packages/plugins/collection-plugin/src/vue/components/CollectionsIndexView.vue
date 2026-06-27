@@ -169,7 +169,15 @@ function startCreateCollectionChat(): void {
   cui.startChat(t("collectionsView.addCollectionPrompt"), cui.generalRoleId);
 }
 
-function startContributeChat(collection: CollectionSummary): void {
+// Contributing runs an agent that exports the collection and opens a GitHub PR —
+// confirm before launching so a stray click doesn't start a share unprompted.
+async function startContributeChat(collection: CollectionSummary): Promise<void> {
+  const confirmed = await cui.confirm({
+    message: t("collectionsView.contributeConfirm", { title: collection.title }),
+    confirmText: t("collectionsView.contribute"),
+    variant: "primary",
+  });
+  if (!confirmed) return;
   cui.startChat(t("collectionsView.contributePrompt", { title: collection.title, slug: collection.slug }), cui.generalRoleId);
 }
 

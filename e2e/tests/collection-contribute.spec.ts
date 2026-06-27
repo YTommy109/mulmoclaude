@@ -40,16 +40,21 @@ test.describe("collection Contribute button", () => {
     await mockCollections(page);
   });
 
-  test("click launches one contribute chat and does not open the collection", async ({ page }) => {
+  test("click → confirm launches one contribute chat and does not open the collection", async ({ page }) => {
     const agentRuns = await captureAgentRuns(page);
     await page.goto("/collections");
 
     await expect(page.getByTestId("collections-index-card-reading-list")).toBeVisible();
     await page.getByTestId("collections-contribute-reading-list").click();
 
+    // A confirm dialog gates the share — no chat (agent run) starts until accepted.
+    await expect(page.getByTestId("host-confirm-modal")).toBeVisible();
+    expect(agentRuns).toHaveLength(0);
+    await page.getByTestId("host-confirm-ok").click();
+
     await expect.poll(() => agentRuns.length, { timeout: 2000 }).toBe(1);
-    // A double-fire (native click + a stray @keydown handler) would arrive right
-    // after the first; give it a beat, then confirm there was only one.
+    // A double-fire would arrive right after the first; give it a beat, then
+    // confirm there was only one launch.
     await page.waitForTimeout(250);
     expect(agentRuns).toHaveLength(1);
     expect(agentRuns[0]).toContain("reading-list");
@@ -59,13 +64,31 @@ test.describe("collection Contribute button", () => {
     await expect(page).not.toHaveURL(/\/collections\/reading-list/);
   });
 
-  test("keyboard activation (Enter) launches exactly one contribute chat", async ({ page }) => {
+  test("cancelling the confirm dialog launches no chat", async ({ page }) => {
+    const agentRuns = await captureAgentRuns(page);
+    await page.goto("/collections");
+
+    await expect(page.getByTestId("collections-index-card-reading-list")).toBeVisible();
+    await page.getByTestId("collections-contribute-reading-list").click();
+
+    await expect(page.getByTestId("host-confirm-modal")).toBeVisible();
+    await page.getByTestId("host-confirm-cancel").click();
+
+    await page.waitForTimeout(300);
+    expect(agentRuns).toHaveLength(0);
+    await expect(page).not.toHaveURL(/\/collections\/reading-list/);
+  });
+
+  test("keyboard activation (Enter) → confirm launches exactly one chat", async ({ page }) => {
     const agentRuns = await captureAgentRuns(page);
     await page.goto("/collections");
 
     const button = page.getByTestId("collections-contribute-reading-list");
     await button.focus();
     await page.keyboard.press("Enter");
+
+    await expect(page.getByTestId("host-confirm-modal")).toBeVisible();
+    await page.getByTestId("host-confirm-ok").click();
 
     await expect.poll(() => agentRuns.length, { timeout: 2000 }).toBe(1);
     await page.waitForTimeout(250);
