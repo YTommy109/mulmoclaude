@@ -126,6 +126,10 @@ test.describe("collection Contribute button", () => {
     await page.goto("/collections");
 
     await page.getByTestId("collections-contribute-danger").click();
+    // Same confirm gate as the happy-path test above — accept it so the
+    // sanitised values actually reach the agent prompt.
+    await expect(page.getByTestId("host-confirm-modal")).toBeVisible();
+    await page.getByTestId("host-confirm-ok").click();
     await expect.poll(() => agentRuns.length, { timeout: 2000 }).toBe(1);
 
     const [body] = agentRuns;
@@ -169,6 +173,10 @@ test.describe("collection Contribute button", () => {
     await page.goto("/collections");
 
     await page.getByTestId("collections-contribute-uniline").click();
+    // Same confirm gate as the happy-path test above — accept it so the
+    // sanitised values actually reach the agent prompt.
+    await expect(page.getByTestId("host-confirm-modal")).toBeVisible();
+    await page.getByTestId("host-confirm-ok").click();
     await expect.poll(() => agentRuns.length, { timeout: 2000 }).toBe(1);
 
     const [body] = agentRuns;
