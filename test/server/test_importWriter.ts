@@ -53,8 +53,8 @@ function makeBundle(overrides: Record<string, string> = {}): Map<string, string>
   );
 }
 
-const skillDir = (root: string) => path.join(root, ".claude", "skills", "movies");
-const seedFile = (root: string) => path.join(root, "data", "collections", "movies", "items", "a.json");
+const skillDir = (root: string, slug = "movies") => path.join(root, ".claude", "skills", slug);
+const seedFile = (root: string, slug = "movies") => path.join(root, "data", "collections", slug, "items", "a.json");
 
 describe("writeImportedCollection", () => {
   let wsRoot: string;
@@ -98,12 +98,56 @@ describe("writeImportedCollection", () => {
     assert.equal(again.seedSkipped, true, "existing dataPath → seed skipped");
   });
 
-  it("rejects with 409 when a different collection occupies the slug", async () => {
+  it("renames to <slug>-2 when a different collection occupies the slug (and re-imports as an update)", async () => {
     mkdirSync(skillDir(wsRoot), { recursive: true });
     writeFileSync(path.join(skillDir(wsRoot), "SKILL.md"), "someone else's collection");
     const result = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t" });
-    assert.equal(result.ok, false);
-    if (!result.ok) assert.equal(result.status, 409);
+    assert.ok(result.ok);
+    if (result.ok) {
+      assert.equal(result.localSlug, "movies-2");
+      assert.equal(result.updated, false, "a renamed fresh install is not an update");
+    }
+    // the user's own collection is untouched
+    assert.equal(readFileSync(path.join(skillDir(wsRoot), "SKILL.md"), "utf-8"), "someone else's collection");
+    assert.ok(existsSync(path.join(skillDir(wsRoot, "movies-2"), "SKILL.md")));
+    // schema + seed land under the renamed slug, not the original
+    const renamedSchema = JSON.parse(readFileSync(path.join(skillDir(wsRoot, "movies-2"), "schema.json"), "utf-8"));
+    assert.equal(renamedSchema.dataPath, "data/collections/movies-2/items");
+    assert.ok(existsSync(seedFile(wsRoot, "movies-2")), "seed materialized under movies-2");
+    assert.ok(!existsSync(seedFile(wsRoot)), "no seed written under the original slug");
+    // a second import reuses movies-2 (matching origin) as an update, not movies-3
+    const again = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t2" });
+    assert.ok(again.ok);
+    if (again.ok) {
+      assert.equal(again.localSlug, "movies-2");
+      assert.equal(again.updated, true);
+    }
+  });
+
+  it("re-imports into the existing renamed slug even after the original slug frees up", async () => {
+    mkdirSync(skillDir(wsRoot), { recursive: true });
+    writeFileSync(path.join(skillDir(wsRoot), "SKILL.md"), "someone else's collection");
+    const first = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t1" });
+    assert.ok(first.ok && first.localSlug === "movies-2");
+    // the user deletes their own collection → the original slug frees up
+    rmSync(skillDir(wsRoot), { recursive: true, force: true });
+    const again = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t2" });
+    assert.ok(again.ok);
+    if (again.ok) {
+      assert.equal(again.localSlug, "movies-2", "updates the existing renamed install, not a fresh 'movies'");
+      assert.equal(again.updated, true);
+    }
+    assert.ok(!existsSync(path.join(skillDir(wsRoot), ".origin.json")), "no duplicate fresh install at the freed slug");
+  });
+
+  it("finds a free slug past several colliding installs", async () => {
+    for (const slug of ["movies", "movies-2", "movies-3"]) {
+      mkdirSync(skillDir(wsRoot, slug), { recursive: true });
+      writeFileSync(path.join(skillDir(wsRoot, slug), "SKILL.md"), "a foreign collection");
+    }
+    const result = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t" });
+    assert.ok(result.ok);
+    if (result.ok) assert.equal(result.localSlug, "movies-4");
   });
 
   it("rejects an invalid schema with 422", async () => {
@@ -121,12 +165,12 @@ describe("writeImportedCollection", () => {
     assert.ok(existsSync(path.join(skillDir(wsRoot), "SKILL.md")), "current bundle still installed");
   });
 
-  it("returns 409 when the slug path exists as a non-directory file", async () => {
+  it("renames past a slug path that exists as a non-directory file", async () => {
     mkdirSync(path.dirname(skillDir(wsRoot)), { recursive: true });
     writeFileSync(skillDir(wsRoot), "i am a file, not a directory");
     const result = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t" });
-    assert.equal(result.ok, false);
-    if (!result.ok) assert.equal(result.status, 409);
+    assert.ok(result.ok);
+    if (result.ok) assert.equal(result.localSlug, "movies-2");
   });
 
   it("returns 409 when the data path exists as a non-directory file", async () => {

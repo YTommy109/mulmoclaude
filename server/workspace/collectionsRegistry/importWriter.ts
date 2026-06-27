@@ -75,15 +75,51 @@ async function readOrigin(targetDir: string): Promise<unknown> {
   }
 }
 
-type TargetResolution = { targetDir: string; updated: boolean } | { conflict: string };
+type TargetResolution = { targetDir: string; localSlug: string; updated: boolean } | { conflict: string };
 
+// Only bounds the fresh-slug search (a safety cap, far above any realistic number of
+// same-named collections — the first free slug is normally found in 1–2 iterations).
+// An EXISTING install is found via the directory scan below, not this loop, so updates
+// are never missed regardless of how high the rename suffix is.
+const MAX_SLUG_ATTEMPTS = 10000;
+
+const renameCandidate = (slug: string, attempt: number): string => (attempt === 0 ? slug : `${slug}-${attempt + 1}`);
+
+// True when `name` is the registry slug or a `<slug>-<n>` rename of it.
+function isRenameOf(name: string, slug: string): boolean {
+  if (name === slug) return true;
+  if (!name.startsWith(`${slug}-`)) return false;
+  const suffix = name.slice(slug.length + 1);
+  return suffix.length > 0 && /^\d+$/.test(suffix);
+}
+
+// Find an existing install of this registry collection at ANY rename suffix by scanning
+// the active skills dir — independent of any candidate bound, so a re-import always
+// updates the existing install rather than duplicating it (even if an earlier slug freed up).
+async function findMatchingInstall(skillsDir: string, registry: string, entry: RegistryCollectionEntry): Promise<string | null> {
+  const names = await readdir(skillsDir).catch(() => [] as string[]);
+  for (const name of names) {
+    if (!isRenameOf(name, entry.slug)) continue;
+    const dir = path.join(skillsDir, name);
+    if ((await statType(dir)) === "dir" && originMatches(await readOrigin(dir), registry, entry.author, entry.slug)) return name;
+  }
+  return null;
+}
+
+// Pick the local install slug (rename-on-collision, R8). First reuse an existing matching
+// install (update). Otherwise install fresh at the first free slug — the registry slug,
+// else `<slug>-2`, `-3`, … — never clobbering a user's own same-named collection.
 async function resolveTarget(workspaceRoot: string, registry: string, entry: RegistryCollectionEntry): Promise<TargetResolution> {
-  const targetDir = projectSkillDir(workspaceRoot, entry.slug);
-  const kind = await statType(targetDir);
-  if (kind === "absent") return { targetDir, updated: false };
-  if (kind === "other") return { conflict: `path for slug '${entry.slug}' exists and is not a directory` };
-  if (originMatches(await readOrigin(targetDir), registry, entry.author, entry.slug)) return { targetDir, updated: true };
-  return { conflict: `a different collection already occupies slug '${entry.slug}'` };
+  const skillsDir = path.dirname(projectSkillDir(workspaceRoot, entry.slug));
+  const existing = await findMatchingInstall(skillsDir, registry, entry);
+  if (existing) return { targetDir: projectSkillDir(workspaceRoot, existing), localSlug: existing, updated: true };
+  for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
+    const localSlug = renameCandidate(entry.slug, attempt);
+    if ((await statType(projectSkillDir(workspaceRoot, localSlug))) === "absent") {
+      return { targetDir: projectSkillDir(workspaceRoot, localSlug), localSlug, updated: false };
+    }
+  }
+  return { conflict: `couldn't find an available slug for '${entry.slug}'` };
 }
 
 type SchemaResolution = { schema: CollectionSchema } | { error: string };
@@ -144,23 +180,25 @@ export async function writeImportedCollection(params: {
   const target = await resolveTarget(workspaceRoot, registry, entry);
   if ("conflict" in target) return { ok: false, status: STATUS_CONFLICT, error: target.conflict };
 
+  const { localSlug } = target;
+
   // Pre-flight the data dir before schema validation: a non-directory at the dataPath
   // (or an ancestor that's a file → ENOTDIR) would otherwise surface as a generic 500
   // on mkdir. statType maps ENOTDIR/other to a deterministic 409 path-shape conflict.
-  const dataDir = path.join(workspaceRoot, ...normalizedDataPath(entry.slug).split("/"));
+  const dataDir = path.join(workspaceRoot, ...normalizedDataPath(localSlug).split("/"));
   if ((await statType(dataDir)) === "other") {
-    return { ok: false, status: STATUS_CONFLICT, error: `data path for slug '${entry.slug}' exists and is not a directory` };
+    return { ok: false, status: STATUS_CONFLICT, error: `data path for slug '${localSlug}' exists and is not a directory` };
   }
 
-  const validated = validateAndNormalize(bundle, entry.slug, workspaceRoot);
+  const validated = validateAndNormalize(bundle, localSlug, workspaceRoot);
   if ("error" in validated) return { ok: false, status: STATUS_UNPROCESSABLE, error: validated.error };
 
   // Build the replacement fully in a hidden sibling staging dir (bundle + origin),
   // so the prior install is untouched until everything is durably written. Leftover
   // staging/backup dirs from a crashed import are cleaned first, keeping retries possible.
   const skillsParent = path.dirname(target.targetDir);
-  const staging = path.join(skillsParent, `.importing-${entry.slug}`);
-  const backup = path.join(skillsParent, `.backup-${entry.slug}`);
+  const staging = path.join(skillsParent, `.importing-${localSlug}`);
+  const backup = path.join(skillsParent, `.backup-${localSlug}`);
   await rm(staging, { recursive: true, force: true });
   await rm(backup, { recursive: true, force: true });
   await mkdir(staging, { recursive: true });
@@ -181,7 +219,7 @@ export async function writeImportedCollection(params: {
   await rm(backup, { recursive: true, force: true });
 
   const seed = await materializeSeed(dataDir, bundle);
-  return { ok: true, localSlug: entry.slug, updated: target.updated, seedWritten: seed.written, seedSkipped: seed.skipped };
+  return { ok: true, localSlug, updated: target.updated, seedWritten: seed.written, seedSkipped: seed.skipped };
 }
 
 export async function performImport(author: string, slug: string, workspaceRoot: string): Promise<ImportResult> {
