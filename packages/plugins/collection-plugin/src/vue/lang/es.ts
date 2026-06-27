@@ -4,6 +4,20 @@ import type { CollectionMessages } from "./en";
 
 const esMessages: CollectionMessages = {
   collectionsView: {
+    discover: {
+      tab: "Descubrir",
+      installedTab: "Instaladas",
+      empty: "Aún no hay colecciones disponibles en el registro.",
+      loadFailed: "No se pudo cargar el registro",
+      by: "por {author}",
+      fields: "{count} campos",
+      samples: "{count} ejemplos",
+      import: "Importar",
+      importing: "Importando…",
+      imported: "Importada",
+      updated: "Actualizada",
+      open: "Abrir",
+    },
     addCollectionLabel: "Colección",
     addCollectionPrompt:
       "Ayúdame a crear una nueva colección. Primero lee `config/helps/collection-skills.md` para conocer las convenciones de las colecciones basadas en esquemas. Luego usa la herramienta `presentForm` (no uses AskUserQuestion) para preguntarme qué tipo de datos quiero registrar, y crea el schema.json y el SKILL.md a partir de mis respuestas.",

@@ -10,7 +10,7 @@
 // they're deferred behind `installCollectionAppBindings`, which App.vue calls in
 // its setup (see App.vue). Until it does, `startChat` is a no-op and
 // `notifiedSeverities` returns an empty map.
-import { configureCollectionUi, type CollectionViewToken } from "@mulmoclaude/collection-plugin/vue";
+import { configureCollectionUi, type CollectionViewToken, type RegistryListResponse, type RegistryImportResponse } from "@mulmoclaude/collection-plugin/vue";
 // The package's compiled Tailwind classes — the library build extracts the SFCs'
 // styles into this file rather than injecting them, and node_modules isn't in
 // this host's Tailwind content scan, so the classes must be loaded explicitly.
@@ -132,6 +132,8 @@ configureCollectionUi({
   // index pages
   listCollections: () => apiGet<CollectionsListResponse>(API_ROUTES.collections.list),
   listFeeds: () => apiGet<FeedsListResponse>(API_ROUTES.feeds.list),
+  listRegistry: () => apiGet<RegistryListResponse>(API_ROUTES.collectionsRegistry.list),
+  importRegistry: (author, slug) => apiPost<RegistryImportResponse>(API_ROUTES.collectionsRegistry.import, { author, slug }),
   reconcileShortcuts: (kind, live) => useShortcuts().reconcile(kind, live),
 
   // app integration

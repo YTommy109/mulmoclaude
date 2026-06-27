@@ -4,6 +4,20 @@ import type { CollectionMessages } from "./en";
 
 const deMessages: CollectionMessages = {
   collectionsView: {
+    discover: {
+      tab: "Entdecken",
+      installedTab: "Installiert",
+      empty: "Noch keine Sammlungen im Registry verfügbar.",
+      loadFailed: "Registry konnte nicht geladen werden",
+      by: "von {author}",
+      fields: "{count} Felder",
+      samples: "{count} Beispiele",
+      import: "Importieren",
+      importing: "Wird importiert…",
+      imported: "Importiert",
+      updated: "Aktualisiert",
+      open: "Öffnen",
+    },
     addCollectionLabel: "Sammlung",
     addCollectionPrompt:
       "Hilf mir, eine neue Sammlung zu erstellen. Lies zuerst `config/helps/collection-skills.md` für die Konventionen schemabasierter Sammlungen. Verwende dann das Tool `presentForm` (nutze nicht AskUserQuestion), um mich zu fragen, welche Art von Daten ich verfolgen möchte, und erstelle die schema.json und SKILL.md aus meinen Antworten.",

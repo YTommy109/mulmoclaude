@@ -4,6 +4,20 @@ import type { CollectionMessages } from "./en";
 
 const zhMessages: CollectionMessages = {
   collectionsView: {
+    discover: {
+      tab: "发现",
+      installedTab: "已安装",
+      empty: "注册表中暂无可用集合。",
+      loadFailed: "无法加载注册表",
+      by: "作者：{author}",
+      fields: "{count} 个字段",
+      samples: "{count} 个示例",
+      import: "导入",
+      importing: "导入中…",
+      imported: "已导入",
+      updated: "已更新",
+      open: "打开",
+    },
     addCollectionLabel: "集合",
     addCollectionPrompt:
       "帮我创建一个新的集合。请先阅读 `config/helps/collection-skills.md` 了解基于 schema 的集合约定。然后使用 `presentForm` 工具（不要使用 AskUserQuestion）询问我想跟踪哪种数据，并根据我的回答编写 schema.json 和 SKILL.md。",

@@ -2,6 +2,20 @@
 // i18n migration. The plugin owns its own copy so it uses NO host i18n resources.
 const enMessages = {
   collectionsView: {
+    discover: {
+      tab: "Discover",
+      installedTab: "Installed",
+      empty: "No collections available in the registry yet.",
+      loadFailed: "Couldn't load the registry",
+      by: "by {author}",
+      fields: "{count} fields",
+      samples: "{count} samples",
+      import: "Import",
+      importing: "Importing…",
+      imported: "Imported",
+      updated: "Updated",
+      open: "Open",
+    },
     addCollectionLabel: "Collection",
     addCollectionPrompt:
       "Help me create a new collection. First read `config/helps/collection-skills.md` for the schema-driven collection conventions. Then use the `presentForm` tool (do not use AskUserQuestion) to ask me what kind of data I want to track, and author the schema.json and SKILL.md from my answers.",

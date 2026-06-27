@@ -4,6 +4,20 @@ import type { CollectionMessages } from "./en";
 
 const ptBRMessages: CollectionMessages = {
   collectionsView: {
+    discover: {
+      tab: "Descobrir",
+      installedTab: "Instaladas",
+      empty: "Ainda não há coleções disponíveis no registro.",
+      loadFailed: "Não foi possível carregar o registro",
+      by: "por {author}",
+      fields: "{count} campos",
+      samples: "{count} amostras",
+      import: "Importar",
+      importing: "Importando…",
+      imported: "Importada",
+      updated: "Atualizada",
+      open: "Abrir",
+    },
     addCollectionLabel: "Coleção",
     addCollectionPrompt:
       "Ajude-me a criar uma nova coleção. Primeiro leia `config/helps/collection-skills.md` para conhecer as convenções de coleções baseadas em esquema. Depois use a ferramenta `presentForm` (não use AskUserQuestion) para perguntar que tipo de dados quero acompanhar, e crie o schema.json e o SKILL.md a partir das minhas respostas.",

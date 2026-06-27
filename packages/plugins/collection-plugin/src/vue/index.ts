@@ -32,6 +32,9 @@ export {
   type CollectionViewSrcdocBoot,
   type CollectionActionResult,
   type CollectionRefreshResult,
+  type RegistryEntry,
+  type RegistryListResponse,
+  type RegistryImportResponse,
 } from "./uiContext";
 export { useCollectionRendering, type CollectionRendering } from "./useCollectionRendering";
 export {

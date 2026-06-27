@@ -78,6 +78,43 @@ export interface CollectionConfirmOptions {
   variant?: "primary" | "success" | "danger";
 }
 
+/** One collection in the curated registry's published index (the host fetches the
+ *  registry's index.json and proxies it to the Discover tab). */
+export interface RegistryEntry {
+  id: string;
+  author: string;
+  slug: string;
+  title: string;
+  icon: string;
+  description: string;
+  version: string;
+  tags: string[];
+  license: string;
+  fieldCount: number;
+  views: string[];
+  hasSeed: boolean;
+  seedCount: number;
+  screenshot?: string;
+  path: string;
+  contentSha: string;
+}
+
+/** `GET …collectionsRegistry.list` — the Discover catalog. */
+export interface RegistryListResponse {
+  registry: string;
+  generatedAt: string;
+  stale: boolean;
+  collections: RegistryEntry[];
+}
+
+/** `POST …collectionsRegistry.import` — install result. */
+export interface RegistryImportResponse {
+  localSlug: string;
+  updated: boolean;
+  seedWritten: number;
+  seedSkipped: boolean;
+}
+
 export interface CollectionUi {
   /** Fetch a collection's detail (schema + records) by slug — backs both the
    *  View's own load (reads `status` for 404 → not-found) and ref/embed
@@ -162,6 +199,12 @@ export interface CollectionUi {
   listCollections: () => Promise<CollectionApiResult<CollectionsListResponse>>;
   /** List feed-backed collections (`apiGet` over `…feeds.list`). */
   listFeeds: () => Promise<CollectionApiResult<FeedsListResponse>>;
+  /** List the curated registry's collections for the Discover tab (`apiGet` over
+   *  `…collectionsRegistry.list`). */
+  listRegistry: () => Promise<CollectionApiResult<RegistryListResponse>>;
+  /** Import a registry collection by author+slug (`apiPost` over
+   *  `…collectionsRegistry.import`). */
+  importRegistry: (author: string, slug: string) => Promise<CollectionApiResult<RegistryImportResponse>>;
   /** Bulk-reconcile pinned launcher shortcuts of one kind against the
    *  authoritative list — prune dead slugs, refresh stale labels
    *  (`useShortcuts().reconcile`). */

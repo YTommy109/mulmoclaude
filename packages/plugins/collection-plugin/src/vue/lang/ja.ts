@@ -4,6 +4,20 @@ import type { CollectionMessages } from "./en";
 
 const jaMessages: CollectionMessages = {
   collectionsView: {
+    discover: {
+      tab: "発見",
+      installedTab: "インストール済み",
+      empty: "レジストリに利用可能なコレクションがまだありません。",
+      loadFailed: "レジストリを読み込めませんでした",
+      by: "作者: {author}",
+      fields: "{count} フィールド",
+      samples: "サンプル {count} 件",
+      import: "取り込む",
+      importing: "取り込み中…",
+      imported: "取り込み済み",
+      updated: "更新済み",
+      open: "開く",
+    },
     addCollectionLabel: "コレクション",
     addCollectionPrompt:
       "新しいコレクションを作成したいです。まず `config/helps/collection-skills.md` を読んでスキーマ駆動コレクションの規約を確認してください。次に `presentForm` ツールを使って（AskUserQuestion は使わないで）どんなデータを管理したいか質問し、その回答をもとに schema.json と SKILL.md を作成してください。",

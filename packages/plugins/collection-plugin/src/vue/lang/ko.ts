@@ -4,6 +4,20 @@ import type { CollectionMessages } from "./en";
 
 const koMessages: CollectionMessages = {
   collectionsView: {
+    discover: {
+      tab: "둘러보기",
+      installedTab: "설치됨",
+      empty: "레지스트리에 사용 가능한 컬렉션이 아직 없습니다.",
+      loadFailed: "레지스트리를 불러오지 못했습니다",
+      by: "작성자: {author}",
+      fields: "필드 {count}개",
+      samples: "샘플 {count}개",
+      import: "가져오기",
+      importing: "가져오는 중…",
+      imported: "가져옴",
+      updated: "업데이트됨",
+      open: "열기",
+    },
     addCollectionLabel: "컬렉션",
     addCollectionPrompt:
       "새 컬렉션을 만들고 싶어요. 먼저 `config/helps/collection-skills.md`를 읽고 스키마 기반 컬렉션 규칙을 확인하세요. 그런 다음 `presentForm` 도구를 사용해(AskUserQuestion은 사용하지 말고) 어떤 데이터를 관리하고 싶은지 물어보고, 제 답변을 바탕으로 schema.json과 SKILL.md를 작성해 주세요.",
