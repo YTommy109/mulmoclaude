@@ -168,7 +168,15 @@ export async function spawnSystemWorker(args: {
   if (args.hidden && !tryReserveBackgroundSession(chatId)) {
     return { ok: false, error: `too many background sessions already in flight (max ${MAX_BACKGROUND_SESSIONS})` };
   }
-  const result = await startChat({ message: args.message, roleId: args.roleId, chatSessionId: chatId, origin });
+  let result: StartChatResult;
+  try {
+    result = await startChat({ message: args.message, roleId: args.roleId, chatSessionId: chatId, origin });
+  } catch (err) {
+    // `startChat` is normally fire-and-forget, but a synchronous setup failure
+    // can reject — release the reservation so the slot isn't leaked until restart.
+    if (args.hidden) releaseBackgroundSession(chatId);
+    return { ok: false, error: errorMessage(err) };
+  }
   if (result.kind === "error") {
     if (args.hidden) releaseBackgroundSession(chatId); // roll back the reservation
     return { ok: false, error: result.error };
@@ -918,6 +926,12 @@ export const _splitSkillAndReplyForTest = splitSkillAndReply;
 //   }
 // }
 
+/** A stale `--resume` failure we can recover from by retrying without it: an
+ *  error event carrying a stale-session message, while failover budget remains. */
+function isRecoverableStaleSession(event: { type: string; message?: unknown }, failoverAttemptsRemaining: number): boolean {
+  return failoverAttemptsRemaining > 0 && event.type === EVENT_TYPES.error && typeof event.message === "string" && isStaleSessionError(event.message);
+}
+
 async function runAgentInBackground(params: BackgroundRunParams): Promise<void> {
   const { decoratedMessage, role, chatSessionId, claudeSessionId, abortSignal, resultsFilePath, requestStartedAt, toolArgsCache, attachments, userTimezone } =
     params;
@@ -956,7 +970,7 @@ async function runAgentInBackground(params: BackgroundRunParams): Promise<void> 
         attachments,
         userTimezone,
       })) {
-        if (failoverAttemptsRemaining > 0 && event.type === EVENT_TYPES.error && typeof event.message === "string" && isStaleSessionError(event.message)) {
+        if (isRecoverableStaleSession(event, failoverAttemptsRemaining)) {
           // Swallow the error — we're about to recover. `break`
           // abandons the current generator; since the event is only
           // yielded after the CLI has already exited non-zero, the
@@ -966,6 +980,12 @@ async function runAgentInBackground(params: BackgroundRunParams): Promise<void> 
           failoverAttemptsRemaining--;
           break;
         }
+        // A yielded error event (non-zero Claude exit, missing binary, a tool
+        // surfacing an error) is a real failure even though the generator
+        // didn't throw — record it so `finalizeRun`'s hidden-worker cleanup and
+        // the agent-ingest completion hook see `didError`. The stale-session
+        // failover above returns earlier, so a recoverable id doesn't count.
+        if (event.type === EVENT_TYPES.error) didError = true;
         await handleAgentEvent(event, eventCtx);
       }
       if (!staleSessionDetected) break;

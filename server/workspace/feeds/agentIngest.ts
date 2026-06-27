@@ -68,15 +68,24 @@ export async function refreshViaAgent(workspaceRoot: string, collection: LoadedC
   const items = await listItems(collection.dataDir, { workspaceRoot });
   const message = buildCollectionActionSeedPrompt(items, collection.schema, template);
 
-  const launch = await workerRunner({
-    message,
-    roleId: ingest.role,
-    hidden,
-    // A visible manual run is watched directly — only hidden runs get the
-    // completion hook (failure bell + consecutiveFailures); `finalizeRun` only
-    // fires it for system-origin sessions anyway.
-    onComplete: hidden ? (outcome) => recordOutcome(workspaceRoot, collection, outcome.didError) : undefined,
-  });
+  // The runner is injected, so guard its promise here to honour the
+  // failure-isolated contract (a rejection must become an `errors` entry, not
+  // escape into the scheduler loop / route handler).
+  let launch: AgentWorkerResult;
+  try {
+    launch = await workerRunner({
+      message,
+      roleId: ingest.role,
+      hidden,
+      // A visible manual run is watched directly — only hidden runs get the
+      // completion hook (failure bell + consecutiveFailures); `finalizeRun` only
+      // fires it for system-origin sessions anyway.
+      onComplete: hidden ? (outcome) => recordOutcome(workspaceRoot, collection, outcome.didError) : undefined,
+    });
+  } catch (err) {
+    log.warn("feeds", "agent ingest worker launch threw", { slug, error: String(err) });
+    return result(slug, { errors: [String(err)], dispatched: false });
+  }
   if (!launch.ok) {
     // Cap-miss or launch error: do NOT touch lastFetchedAt — the next due tick
     // (or manual Refresh) redials. Surface it so a manual refresh reads honest.

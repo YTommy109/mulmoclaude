@@ -1398,10 +1398,16 @@ async function refreshItemsInPlace(slug: string): Promise<void> {
 // so data appears without a manual Refresh. Guarded per slug so the reload
 // `refreshFeed` triggers can't loop; the view re-mounts per slug, so each
 // open retries at most once.
+//
+// Restricted to ACTUAL feeds (`source === "feed"`): a declarative feed
+// populates synchronously here, but a skill-backed `ingest.kind: "agent"`
+// collection would dispatch a VISIBLE worker and navigate the user to its
+// chat just by opening an empty collection — those refresh on schedule or an
+// explicit Refresh click only.
 function maybeAutoRefreshFeed(slug: string): void {
   if (embedded.value) return;
   const current = collection.value;
-  if (current?.slug !== slug || !current.schema.ingest) return;
+  if (current?.slug !== slug || current.source !== "feed") return;
   if (items.value.length > 0 || autoRefreshedSlug.value === slug) return;
   autoRefreshedSlug.value = slug;
   void refreshFeed();

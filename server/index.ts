@@ -1171,6 +1171,13 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
     }
   }
 
+  // Wire the agent-ingest dispatcher's hidden-worker launcher (DI seam — keeps
+  // the feeds engine from importing the routes layer) BEFORE scheduler init:
+  // `initScheduler` runs catch-up, which can fire `system:feed-refresh` and
+  // dispatch agent ingest immediately. Wiring after would make those first
+  // refreshes fail with "worker runner not configured".
+  setAgentWorkerRunner(spawnSystemWorker);
+
   initScheduler(taskManager, systemTasks).catch((err) => {
     log.error("scheduler", "init failed (non-fatal)", {
       error: String(err),
@@ -1191,11 +1198,6 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
       }
     })
     .catch(logBackgroundError("skills", "failed to register scheduled skills"));
-
-  // Wire the agent-ingest dispatcher's hidden-worker launcher (DI seam — keeps
-  // the feeds engine from importing the routes layer). Must be set before the
-  // scheduler ticks, since `system:feed-refresh` may dispatch agent ingest.
-  setAgentWorkerRunner(spawnSystemWorker);
 
   // Register user-created scheduled tasks from tasks.json.
   registerUserTasks({ taskManager, startChat })

@@ -166,9 +166,17 @@ export async function refreshDue(workspaceRoot: string = workspacePath): Promise
   const withIngest = all.filter((collection) => collection.schema.ingest);
   const results: RefreshResult[] = [];
   for (const collection of withIngest) {
-    const state = await readFeedState(workspaceRoot, collection);
-    if (!isFeedDue(collection, state)) continue;
-    results.push(await refreshOne(workspaceRoot, collection));
+    // Isolate per-collection failures: `readFeedState`/`refreshOne` (esp. the
+    // agent path) can throw, and one bad collection must not abort the whole
+    // due-loop. Capture it as an errors result and move on.
+    try {
+      const state = await readFeedState(workspaceRoot, collection);
+      if (!isFeedDue(collection, state)) continue;
+      results.push(await refreshOne(workspaceRoot, collection));
+    } catch (error) {
+      log.warn("feeds", "scheduled refresh failed for collection", { slug: collection.slug, error: String(error) });
+      results.push({ slug: collection.slug, written: 0, removed: 0, errors: [String(error)] });
+    }
   }
   return results;
 }
