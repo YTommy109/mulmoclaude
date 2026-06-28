@@ -216,6 +216,27 @@ export interface CollectionCustomView {
   /** Skill-relative path to the HTML file under `views/` (e.g.
    *  `views/year.html`). Path-safe, must end in `.html`. */
   file: string;
+  /** Optional skill-relative path to a JSON translation dictionary co-located
+   *  with the view (e.g. `views/year.i18n.json`). Shape mirrors **vue-i18n
+   *  locale messages** so an author can lift their app's locale JSON
+   *  verbatim:
+   *
+   *  ```json
+   *  { "en": { "next": "Next", "hello": "Hello, {name}" },
+   *    "ja": { "next": "次へ", "hello": "{name} さん、こんにちは" } }
+   *  ```
+   *
+   *  The host picks the block matching the active app locale (fallback
+   *  `"en"`, else `{}`) and injects ONLY that flat string map into
+   *  `window.__MC_VIEW.dict`. The iframe-side helper
+   *  `__MC_VIEW.t(key, named?)` mirrors vue-i18n's `t('msg', { name: 'x' })`
+   *  signature — named-interpolation only (no pluralization / linked
+   *  messages in v1; shipping vue-i18n's full runtime into every sandboxed
+   *  iframe would dominate page weight). The view never sees other locales'
+   *  strings. Constrained to `views/*.i18n.json` so authors keep the
+   *  translation file next to the HTML it translates. Absent ⇒ host-side
+   *  no-op (an i18n-less view keeps working; `t(key)` echoes the key). */
+  i18n?: string;
   /** What the view may do with the data endpoint. Defaults to `["read"]`
    *  (least privilege); declare `["read","write"]` only for views that
    *  edit records. The mint endpoint clamps any requested caps to this. */

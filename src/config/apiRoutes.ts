@@ -272,6 +272,14 @@ const HOST_API_ROUTES = {
     /** GET ?id=<viewId> → the custom view's HTML file (global-bearer auth),
      *  read from data/skills/:slug/views/. The parent renders it sandboxed. */
     viewFile: "/api/collections/:slug/view-file",
+    /** GET ?id=<viewId>&locale=<tag> → translation dict for one custom view
+     *  (global-bearer auth) → { locale, dict }. `dict` is the host-picked
+     *  flat map for the requested locale (fallback `"en"`, else `{}`); the
+     *  host never streams other locales' strings. Empty dict + `locale: ""`
+     *  when the view declares no `i18n` file or the file is missing /
+     *  malformed — the view keeps working via `__MC_VIEW.t()`'s key
+     *  fallback. */
+    viewI18n: "/api/collections/:slug/view-i18n",
     /** POST → mint a slug- and capability-scoped token for a custom view
      *  (global-bearer auth) → { token, exp, dataUrl, capabilities }. */
     viewToken: "/api/collections/:slug/view-token",

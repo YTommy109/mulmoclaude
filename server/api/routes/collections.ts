@@ -23,6 +23,7 @@ import {
   readItem,
   readSkillTemplate,
   readCustomViewHtml,
+  readCustomViewI18n,
   buildActionSeedPrompt,
   buildCollectionActionSeedPrompt,
   resolveCreateItemId,
@@ -477,6 +478,43 @@ router.get(API_ROUTES.collections.viewFile, async (req: Request<{ slug: string }
     res.type("text/html").send(html);
   } catch (err) {
     log.warn("collections", "view-file read failed", { slug: req.params.slug, error: errorMessage(err) });
+    serverError(res, errorMessage(err));
+  }
+});
+
+// Translation dict for ONE custom view, locale-filtered server-side. The
+// client passes its active app locale; the host returns only that locale's
+// strings (fallback `"en"`, then `{}`). The view never sees other locales'
+// strings — the host is the picker, the iframe is the consumer. Empty dict
+// + `locale: ""` when the view has no `i18n` declared or the file is
+// absent / malformed; the iframe-side `__MC_VIEW.t(key)` falls back to the
+// key, so an i18n-less view keeps working unchanged.
+router.get(API_ROUTES.collections.viewI18n, async (req: Request<{ slug: string }>, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const viewId = typeof req.query.id === "string" ? req.query.id : "";
+    const locale = typeof req.query.locale === "string" ? req.query.locale : "";
+    const collection = await loadCollection(slug);
+    if (!collection) {
+      notFound(res, `collection '${slug}' not found`);
+      return;
+    }
+    const view = (collection.schema.views ?? []).find((entry) => entry.id === viewId);
+    if (!view) {
+      notFound(res, `custom view '${viewId}' not found on collection '${slug}'`);
+      return;
+    }
+    if (!view.i18n) {
+      // The view declared no translation file — return the empty contract so
+      // the client doesn't have to special-case "no i18n" with a different
+      // shape. `t(key)` will just echo the key.
+      res.json({ locale: "", dict: {} });
+      return;
+    }
+    const result = await readCustomViewI18n(collection, view.i18n, locale);
+    res.json(result);
+  } catch (err) {
+    log.warn("collections", "view-i18n read failed", { slug: req.params.slug, error: errorMessage(err) });
     serverError(res, errorMessage(err));
   }
 });

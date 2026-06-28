@@ -12,7 +12,7 @@ import { log, getWorkspaceRoot, userSkillsDir, projectSkillsDir, feedsRoot } fro
 import { INGEST_KINDS, AGENT_INGEST_KIND, FEED_SCHEDULES, isFieldDrivenEvery } from "../core/schema";
 import { SCHEMA_FILE, resolveDataDir, safeRecordId, safeSlugName } from "./paths";
 import type { LoadedCollection } from "./discoveredCollection";
-import { isSafeActionTemplatePath, isSafeCustomViewPath } from "./templatePath";
+import { isSafeActionTemplatePath, isSafeCustomViewI18nPath, isSafeCustomViewPath } from "./templatePath";
 import type { CollectionDetail, CollectionEveryFieldDriven, CollectionSchema, CollectionSource, CollectionSpawnEvery, CollectionSummary } from "../core/schema";
 
 // Cross-field refines, factored out so they can apply at both the
@@ -220,6 +220,15 @@ const CustomViewSchema = z.object({
     .trim()
     .min(1)
     .refine(isSafeCustomViewPath, "must be a safe path under `views/` ending in `.html` (e.g. `views/year.html`; no `..`, no leading `/`, no backslash)"),
+  i18n: z
+    .string()
+    .trim()
+    .min(1)
+    .refine(
+      isSafeCustomViewI18nPath,
+      "must be a safe path under `views/` ending in `.i18n.json` (e.g. `views/year.i18n.json`; no `..`, no leading `/`, no backslash)",
+    )
+    .optional(),
   capabilities: z.array(z.enum(["read", "write"])).optional(),
 });
 

@@ -20,6 +20,7 @@ export {
   resolveCreateItemId,
   readSkillTemplate,
   readCustomViewHtml,
+  readCustomViewI18n,
   buildActionSeedPrompt,
   buildCollectionActionSeedPrompt,
   type WriteItemResult,

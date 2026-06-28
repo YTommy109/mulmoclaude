@@ -224,6 +224,14 @@ export function generateItemId(): string {
   return randomBytes(4).toString("hex");
 }
 
+/** The shape `readSourceAwareFile` (and its public callers
+ *  `readCustomViewHtml` / `readCustomViewI18n`) need from a loaded collection:
+ *  the slug for the safe-name check, the source to pick the base set, and the
+ *  discovered skill dir for the imported-layout fallback. Kept as a named
+ *  alias so the three signatures stay in lockstep (and so sonarjs stops
+ *  flagging the inline `Pick` union as duplication). */
+type SourceAwareReadTarget = Pick<LoadedCollection, "slug" | "source" | "skillDir">;
+
 /** Read a collection's custom-view HTML, path-safely. `viewFile` is a
  *  schema-validated `views/*.html` path, resolved with realpath containment.
  *  Returns the HTML, or null when the path is unsafe or the file is missing.
@@ -240,17 +248,20 @@ export function generateItemId(): string {
  *  so it only needs the single lookup. `resolveTemplatePath` does the
  *  containment / `..` defense per base, so the fallback never broadens the
  *  attack surface. */
-export async function readCustomViewHtml(
-  collection: Pick<LoadedCollection, "slug" | "source" | "skillDir">,
-  viewFile: string,
-  opts: IoOptions = {},
-): Promise<string | null> {
+export async function readCustomViewHtml(collection: SourceAwareReadTarget, viewFile: string, opts: IoOptions = {}): Promise<string | null> {
+  return readSourceAwareFile(collection, viewFile, opts);
+}
+
+/** Internal helper: read a file using the same source-aware base fallback as
+ *  `readCustomViewHtml`. Used by both `readCustomViewHtml` and
+ *  `readCustomViewI18n` so the two stay in lockstep. */
+async function readSourceAwareFile(collection: SourceAwareReadTarget, relPath: string, opts: IoOptions): Promise<string | null> {
   const safeSlug = safeSlugName(collection.slug);
   if (safeSlug === null) return null;
   const workspaceRoot = opts.workspaceRoot ?? getWorkspaceRoot();
   const bases = collection.source === "project" ? [path.join(skillsStagingDir(workspaceRoot), safeSlug), collection.skillDir] : [collection.skillDir];
   for (const base of bases) {
-    const resolved = resolveTemplatePath(base, viewFile);
+    const resolved = resolveTemplatePath(base, relPath);
     if (resolved === null) continue;
     try {
       return await readFile(resolved, "utf-8");
@@ -264,6 +275,60 @@ export async function readCustomViewHtml(
     }
   }
   return null;
+}
+
+export interface CustomViewI18nResult {
+  /** The locale the returned `dict` is keyed to — equals the requested locale
+   *  when available, else the `"en"` fallback, else `""` when neither block is
+   *  present (empty `dict`). The host echoes this back to the iframe so
+   *  `__MC_VIEW.locale` reflects what the view actually got. */
+  locale: string;
+  /** Flat key → string map for the picked locale. Empty when the file is
+   *  absent, malformed, or has no usable locale block. Non-string values in a
+   *  locale block are dropped — `__MC_VIEW.dict` is contract-flat. */
+  dict: Record<string, string>;
+}
+
+const I18N_FALLBACK_LOCALE = "en";
+const EMPTY_I18N: CustomViewI18nResult = { locale: "", dict: {} };
+
+function pickLocaleBlock(parsed: Record<string, unknown>, locale: string): Record<string, string> | null {
+  const block = parsed[locale];
+  if (!block || typeof block !== "object" || Array.isArray(block)) return null;
+  const entries = Object.entries(block as Record<string, unknown>).filter((entry): entry is [string, string] => typeof entry[1] === "string");
+  return Object.fromEntries(entries);
+}
+
+/** Read a custom view's translation dictionary and return only the strings
+ *  for the requested locale (or the `"en"` fallback, or empty). Same
+ *  source-aware fallback as `readCustomViewHtml` so imported and authored
+ *  project collections both work. The on-disk file is `{ <locale>: { <key>:
+ *  <string> } }`; the host never streams other locales' strings to the view.
+ *  Malformed JSON / unknown shape yields an empty dict — an i18n-less view
+ *  keeps working unchanged (`__MC_VIEW.t(key)` falls back to the key). */
+export async function readCustomViewI18n(
+  collection: SourceAwareReadTarget,
+  i18nFile: string,
+  locale: string,
+  opts: IoOptions = {},
+): Promise<CustomViewI18nResult> {
+  const raw = await readSourceAwareFile(collection, i18nFile, opts);
+  if (raw === null) return EMPTY_I18N;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return EMPTY_I18N;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return EMPTY_I18N;
+  const obj = parsed as Record<string, unknown>;
+  const primary = pickLocaleBlock(obj, locale);
+  if (primary !== null && Object.keys(primary).length > 0) return { locale, dict: primary };
+  if (locale !== I18N_FALLBACK_LOCALE) {
+    const fallback = pickLocaleBlock(obj, I18N_FALLBACK_LOCALE);
+    if (fallback !== null) return { locale: I18N_FALLBACK_LOCALE, dict: fallback };
+  }
+  return EMPTY_I18N;
 }
 
 /** The item id a CREATE should use for `schema`, or null when the
