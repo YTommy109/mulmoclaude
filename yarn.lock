@@ -1955,11 +1955,6 @@
   resolved "https://registry.yarnpkg.com/@types/http-errors/-/http-errors-2.0.5.tgz#5b749ab2b16ba113423feb1a64a95dcd30398472"
   integrity sha512-r8Tayk8HJnX0FztbZN7oVqGccWgw98T/0neJphO91KkmOzug1KkofZURD4UaD5uH8AqcFLfdPErnBod0u71/qg==
 
-"@types/js-yaml@^4.0.9":
-  version "4.0.9"
-  resolved "https://registry.yarnpkg.com/@types/js-yaml/-/js-yaml-4.0.9.tgz#cd82382c4f902fed9691a2ed79ec68c5898af4c2"
-  integrity sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg==
-
 "@types/jsdom@^28.0.3":
   version "28.0.3"
   resolved "https://npm.flatt.tech/@types/jsdom/-/jsdom-28.0.3.tgz#a5a900ae4d5bb1d874dee24a89afc06b34d3c1a0"
@@ -5528,10 +5523,17 @@ js-tiktoken@^1.0.14:
   dependencies:
     base64-js "^1.5.1"
 
-js-yaml@^4.1.0, js-yaml@^4.1.1, js-yaml@^4.2.0:
+js-yaml@^4.1.0, js-yaml@^4.1.1:
   version "4.2.0"
   resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-4.2.0.tgz#2bd9e85682dd91bd469afb809d816043b3d49524"
   integrity sha512-ePWsvanv0DWuDRsW8dnt+R4jQ31SCRCQ7hhNcPXZPsoBZiemuZNYGf7adZdqX2D86j6rvKp3RpCxVTSb8WQlOw==
+  dependencies:
+    argparse "^2.0.1"
+
+js-yaml@^5.2.0:
+  version "5.2.0"
+  resolved "https://npm.flatt.tech/js-yaml/-/js-yaml-5.2.0.tgz#b559a892cae3e32fc5afecc9f18e1672378ddb68"
+  integrity sha512-YeLUMlvR4Ou1B119LIaM0r65JvbOBooJDc9yEu0dClb/uSC5P4FrLU8OCCz/HXWvtPoIrR0dRzABTjo1sTN9Bw==
   dependencies:
     argparse "^2.0.1"
 
