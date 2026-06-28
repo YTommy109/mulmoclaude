@@ -72,6 +72,26 @@ export interface CollectionViewSrcdocBoot {
   token: string;
   dataUrl: string;
   origin: string;
+  /** Active app locale the dict was picked for (e.g. `"en"`, `"ja"`); empty
+   *  when the view has no `i18n` declared or no locale block matched. The
+   *  bootstrap surfaces this as `__MC_VIEW.locale`. */
+  locale?: string;
+  /** Host-picked, locale-filtered flat string map (vue-i18n locale-message
+   *  shape). The iframe sees ONLY this locale's strings via `__MC_VIEW.dict`
+   *  and the `__MC_VIEW.t(key, named?)` helper (vue-i18n-style named
+   *  interpolation). Optional — when omitted, the helper falls back to the
+   *  key. */
+  dict?: Record<string, string>;
+}
+
+/** Server response shape for `fetchViewI18n` — already locale-picked + flat.
+ *  `locale === ""` means no translations were available (view has no `i18n`
+ *  declared, file missing, or neither the requested locale nor `"en"` had a
+ *  block). The `dict` matches the `CollectionViewSrcdocBoot.dict` shape so
+ *  the host can pass it through `buildViewSrcdoc` unchanged. */
+export interface CollectionViewI18nResult {
+  locale: string;
+  dict: Record<string, string>;
 }
 
 /** Options for the host's confirm dialog — structurally matches the host's own
@@ -166,6 +186,12 @@ export interface CollectionUi {
   /** Fetch a custom view's raw HTML (host: `apiFetchRaw` over
    *  `API_ROUTES.collections.viewFile`, global bearer attached). */
   fetchViewHtml: (slug: string, viewId: string) => Promise<CollectionViewHtmlResult>;
+  /** Fetch the translation dict for one custom view, already locale-picked
+   *  server-side (host: `apiGet` over `API_ROUTES.collections.viewI18n`,
+   *  global bearer attached). Returns `{ locale: "", dict: {} }` when the
+   *  view has no `i18n` declared or the file is missing / malformed — the
+   *  iframe-side `__MC_VIEW.t(key)` then echoes the key. */
+  fetchViewI18n: (slug: string, viewId: string, locale: string) => Promise<CollectionApiResult<CollectionViewI18nResult>>;
   /** Wrap a custom view's HTML in a sandboxed `<iframe srcdoc>` with the token +
    *  data URL injected and the host's CSP applied. Replaces the host's
    *  `buildCustomViewSrcdoc`. */

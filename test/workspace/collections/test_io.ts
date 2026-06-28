@@ -21,6 +21,7 @@ import {
   resolveCreateItemId,
   readSkillTemplate,
   readCustomViewHtml,
+  readCustomViewI18n,
   buildActionSeedPrompt,
   buildCollectionActionSeedPrompt,
   setCollectionChangePublisher,
@@ -218,6 +219,110 @@ describe("readCustomViewHtml — source-aware base + import fallback", () => {
     // fallback must not retry with the same unsafe path against skillDir.
     const result = await readCustomViewHtml(authoredProjectCollection(), "../../../etc/passwd", { workspaceRoot: workdir });
     assert.equal(result, null);
+  });
+});
+
+describe("readCustomViewI18n — locale pick + source-aware fallback", () => {
+  const slug = "movies";
+  const i18nFile = "views/cinema.i18n.json";
+  const dictDoc = {
+    en: { hello: "Hello, {name}", next: "Next" },
+    ja: { hello: "{name} さん、こんにちは", next: "次へ" },
+  };
+
+  function authoredProjectCollection() {
+    return { slug, source: "project" as const, skillDir: path.join(workdir, ".claude", "skills", slug) };
+  }
+
+  function importedProjectCollection() {
+    // Imported = same skillDir as authored, but the staging dir was never
+    // created — the `.claude/skills/<slug>/views/` copy is the only one.
+    return { slug, source: "project" as const, skillDir: path.join(workdir, ".claude", "skills", slug) };
+  }
+
+  function userCollection() {
+    return { slug, source: "user" as const, skillDir: path.join(workdir, ".claude", "skills", slug) };
+  }
+
+  function writeI18nFile(base: string, body: unknown) {
+    const dir = path.join(base, "views");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "cinema.i18n.json"), JSON.stringify(body));
+  }
+
+  it("returns only the requested locale's strings (staging dir, project authored)", async () => {
+    writeI18nFile(path.join(workdir, "data", "skills", slug), dictDoc);
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "ja");
+    assert.deepEqual(result.dict, dictDoc.ja);
+  });
+
+  it("falls back to skillDir for an imported project collection (no staging mirror)", async () => {
+    writeI18nFile(path.join(workdir, ".claude", "skills", slug), dictDoc);
+    const result = await readCustomViewI18n(importedProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "ja", "imported view must read its dict from skillDir, not 404");
+    assert.deepEqual(result.dict, dictDoc.ja);
+  });
+
+  it("falls back to the en block when the requested locale is absent", async () => {
+    writeI18nFile(path.join(workdir, "data", "skills", slug), dictDoc);
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "de", { workspaceRoot: workdir });
+    assert.equal(result.locale, "en");
+    assert.deepEqual(result.dict, dictDoc.en);
+  });
+
+  it("returns empty (no en, no requested locale) when neither block exists", async () => {
+    writeI18nFile(path.join(workdir, "data", "skills", slug), { fr: { only: "fr" } });
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "");
+    assert.deepEqual(result.dict, {});
+  });
+
+  it("returns empty when the file is missing in every base", async () => {
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "");
+    assert.deepEqual(result.dict, {});
+  });
+
+  it("returns empty on malformed JSON (no throw — the view must keep rendering)", async () => {
+    const dir = path.join(workdir, "data", "skills", slug, "views");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "cinema.i18n.json"), "not json {");
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "");
+    assert.deepEqual(result.dict, {});
+  });
+
+  it("drops non-string values from the picked locale block (contract: flat string map)", async () => {
+    writeI18nFile(path.join(workdir, "data", "skills", slug), { ja: { greeting: "こんにちは", count: 5, nested: { x: 1 } } });
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "ja");
+    assert.deepEqual(result.dict, { greeting: "こんにちは" });
+  });
+
+  it("returns empty (not locale='en') when the en fallback block filters down to {} (CodeRabbit #1842)", async () => {
+    // The en block exists but every entry is a non-string → after the flat-map
+    // filter it's `{}`. The earlier `primary` arm already guards "no usable
+    // strings"; the fallback arm must symmetrically refuse to report `"en"`
+    // when there's nothing to deliver. Reporting `{ locale: "en", dict: {} }`
+    // would mislead the iframe into thinking English is available.
+    writeI18nFile(path.join(workdir, "data", "skills", slug), { en: { count: 5, nested: { x: 1 } } });
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "");
+    assert.deepEqual(result.dict, {});
+  });
+
+  it("reads user-collection i18n from its discovered skillDir", async () => {
+    writeI18nFile(path.join(workdir, ".claude", "skills", slug), dictDoc);
+    const result = await readCustomViewI18n(userCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "ja");
+    assert.deepEqual(result.dict, dictDoc.ja);
+  });
+
+  it("refuses path traversal in the i18nFile arg", async () => {
+    const result = await readCustomViewI18n(authoredProjectCollection(), "../../../etc/secret.i18n.json", "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "");
+    assert.deepEqual(result.dict, {});
   });
 });
 
