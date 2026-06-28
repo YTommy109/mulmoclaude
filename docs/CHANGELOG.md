@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ## [Unreleased]
 
+### Removed
+
+- **Shared-package version-bump CI guard** — the `Shared package version bump` workflow (and its `scripts/check-shared-pkg-bumps.mjs`) required every PR touching a shared `@mulmoclaude/*` package to also bump that package's `version`. In practice this forced every core-touching PR to edit the same `version` line, so any two such PRs raced into a merge conflict on it. The guard is removed; keeping shared packages bumped before publish is now a convention (see CLAUDE.md), not a CI gate. (Reverts the guard added in #1737 / #1788.)
+
 ---
 
 ## [0.9.1] - 2026-06-28
