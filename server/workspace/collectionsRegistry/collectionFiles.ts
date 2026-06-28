@@ -89,8 +89,7 @@ export function rawBaseForEntry(entry: Pick<RegistryCollectionEntry, "registryNa
 }
 
 export type PreviewResult =
-  | { ok: true; entry: RegistryCollectionEntry; schema: Record<string, unknown>; meta: Record<string, unknown> }
-  | { ok: false; status: number; error: string };
+  { ok: true; entry: RegistryCollectionEntry; schema: Record<string, unknown>; meta: Record<string, unknown> } | { ok: false; status: number; error: string };
 
 /** Resolve an entry by author+slug across every cached registry's entries.
  *  When `registry` is passed we constrain to that registry — needed because

@@ -53,8 +53,7 @@ export interface ImportOrigin {
 }
 
 export type ImportResult =
-  | { ok: true; localSlug: string; updated: boolean; seedWritten: number; seedSkipped: boolean }
-  | { ok: false; status: number; error: string };
+  { ok: true; localSlug: string; updated: boolean; seedWritten: number; seedSkipped: boolean } | { ok: false; status: number; error: string };
 
 async function statType(target: string): Promise<"dir" | "other" | "absent"> {
   try {
