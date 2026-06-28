@@ -1,4 +1,4 @@
-// Notifier value types — now sourced from @mulmoclaude/notifier (shared
+// Notifier value types — now sourced from @mulmoclaude/core/notifier (shared
 // with MulmoTerminal). Re-exported here so existing host imports
 // (`../notifier/types.js`) keep working unchanged.
 export {
@@ -13,4 +13,4 @@ export {
   type NotifierFile,
   type NotifierHistoryFile,
   type NotifierEvent,
-} from "@mulmoclaude/notifier";
+} from "@mulmoclaude/core/notifier";

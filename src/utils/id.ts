@@ -3,7 +3,7 @@
 //
 // `makeUuid()` backs the per-action tool-call `uuid` fields emitted by
 // `src/plugins/*/index.ts`. (The UI-side `shortHexId()` for collection record
-// naming now lives in `@mulmoclaude/collection-plugin`, with CollectionView.)
+// naming now lives in `@mulmoclaude/core/collection`, with CollectionView.)
 
 /**
  * Full UUID v4 (36 chars, hyphenated).

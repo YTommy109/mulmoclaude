@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { isAppSettings, isAppSettingsPatch } from "../../../../server/system/config.ts";
 
 // The whisper model registry / ffmpeg / capture logic moved to the
-// `@mulmoclaude/whisper` package (tested there). This host test covers the
+// `@mulmoclaude/core/whisper` package (tested there). This host test covers the
 // MulmoClaude-owned glue: the `voiceInput` settings shape.
 describe("AppSettings voiceInput validation", () => {
   it("accepts a well-formed voiceInput block", () => {

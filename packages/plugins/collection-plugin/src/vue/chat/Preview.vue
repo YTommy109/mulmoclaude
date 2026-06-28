@@ -15,7 +15,7 @@
 import { computed } from "vue";
 import { useCollectionI18n } from "../lang";
 import type { ToolResult } from "gui-chat-protocol";
-import type { PresentCollectionData } from "../../core/presentCollection";
+import type { PresentCollectionData } from "@mulmoclaude/core/collection";
 
 const { t } = useCollectionI18n();
 

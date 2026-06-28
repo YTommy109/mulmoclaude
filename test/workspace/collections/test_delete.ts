@@ -1,4 +1,4 @@
-import "../../../server/workspace/collections/configure.js"; // configure @mulmoclaude/collection-plugin host binding for tests
+import "../../../server/workspace/collections/configure.js"; // configure @mulmoclaude/core/collection host binding for tests
 // deleteCollection — archives a restorable copy, then removes all three
 // on-disk locations (staging skill, active mirror, records). Also pins
 // the scope guards: user-scope and preset (`mc-*`) collections refuse.
@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { deleteCollection, type LoadedCollection } from "@mulmoclaude/collection-plugin/server";
+import { deleteCollection, type LoadedCollection } from "@mulmoclaude/core/collection/server";
 import type { CollectionSchema, CollectionSource } from "../../../server/workspace/collections/types.js";
 
 let workdir: string;
@@ -86,6 +86,48 @@ describe("deleteCollection", () => {
     const result = await deleteCollection(collection, { workspaceRoot: workdir });
     assert.equal(result.kind, "preset");
     assert.equal(existsSync(path.join(workdir, ".claude", "skills", "mc-invoice")), true, "mirror must survive a refused delete");
+  });
+
+  it("deletes an imported collection whose dataPath lives under data/collections/<slug>/", async () => {
+    // Regression: registry-imported collections have their dataPath
+    // normalized to `data/collections/<slug>/items` (see
+    // `normalizedDataPath` in importCollection.ts), not the authored
+    // default `data/<slug>/items`. The safety check used to only accept
+    // `data/<slug>/`, so importing-then-deleting always failed with
+    // "unsafe-data-path". Both per-slug subtrees are equally per-collection.
+    const slug = "movies-2";
+    const stagingDir = path.join(workdir, "data", "skills", slug);
+    const skillDir = path.join(workdir, ".claude", "skills", slug);
+    const dataDir = path.join(workdir, "data", "collections", slug, "items");
+    for (const dir of [stagingDir, skillDir, dataDir]) mkdirSync(dir, { recursive: true });
+    const importedSchema: CollectionSchema = {
+      title: "Movies",
+      icon: "movie",
+      dataPath: `data/collections/${slug}/items`,
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID", primary: true } },
+    };
+    for (const dir of [stagingDir, skillDir]) {
+      writeFileSync(path.join(dir, "schema.json"), JSON.stringify(importedSchema));
+      writeFileSync(path.join(dir, "SKILL.md"), `# ${slug}`);
+    }
+    writeFileSync(path.join(dataDir, "casino-royale.json"), JSON.stringify({ id: "casino-royale" }));
+    const collection: LoadedCollection = { slug, source: "project", schema: importedSchema, dataDir, skillDir };
+
+    const result = await deleteCollection(collection, { workspaceRoot: workdir, dateStamp: "2026-06-28" });
+    assert.equal(result.kind, "ok", `expected ok, got ${result.kind}`);
+
+    // All three sources are gone — staging, mirror, records.
+    assert.equal(existsSync(stagingDir), false, "staging skill remains");
+    assert.equal(existsSync(skillDir), false, "active mirror remains");
+    assert.equal(existsSync(dataDir), false, "records remain");
+    assert.equal(existsSync(path.join(workdir, "data", "collections", slug)), false, "empty parent of records remains");
+
+    if (result.kind === "ok") {
+      const archiveDir = path.join(workdir, result.archivePath);
+      assert.ok(existsSync(path.join(archiveDir, "skill", "schema.json")), "archived schema.json missing");
+      assert.ok(existsSync(path.join(archiveDir, "records", "casino-royale.json")), "archived record missing");
+    }
   });
 
   it("refuses a dataDir outside the per-collection subtree and deletes nothing", async () => {

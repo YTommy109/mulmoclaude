@@ -6,11 +6,11 @@ export {
   CollectionSchemaZ,
   resolveDataDir,
   type LoadedCollection,
-} from "@mulmoclaude/collection-plugin/server";
-export { validateCollectionRecords, validateRecordObject, COMPUTED_TYPES, type RecordIssue } from "@mulmoclaude/collection-plugin/server";
-export { enrichItems } from "@mulmoclaude/collection-plugin/server";
-export { deleteCollection, deleteCollectionRefusalMessage, type DeleteCollectionResult } from "@mulmoclaude/collection-plugin/server";
-export { deleteCustomView, type DeleteViewResult } from "@mulmoclaude/collection-plugin/server";
+} from "@mulmoclaude/core/collection/server";
+export { validateCollectionRecords, validateRecordObject, COMPUTED_TYPES, type RecordIssue } from "@mulmoclaude/core/collection/server";
+export { enrichItems } from "@mulmoclaude/core/collection/server";
+export { deleteCollection, deleteCollectionRefusalMessage, type DeleteCollectionResult } from "@mulmoclaude/core/collection/server";
+export { deleteCustomView, type DeleteViewResult } from "@mulmoclaude/core/collection/server";
 export {
   listItems,
   readItem,
@@ -20,11 +20,12 @@ export {
   resolveCreateItemId,
   readSkillTemplate,
   readCustomViewHtml,
+  readCustomViewI18n,
   buildActionSeedPrompt,
   buildCollectionActionSeedPrompt,
   type WriteItemResult,
   type DeleteItemResult,
-} from "@mulmoclaude/collection-plugin/server";
+} from "@mulmoclaude/core/collection/server";
 export type {
   CollectionSchema,
   CollectionAction,

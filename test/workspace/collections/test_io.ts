@@ -13,18 +13,41 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
+  configureCollectionHost,
   listItems,
   readItem,
   writeItem,
   deleteItem,
   resolveCreateItemId,
   readSkillTemplate,
+  readCustomViewHtml,
+  readCustomViewI18n,
   buildActionSeedPrompt,
   buildCollectionActionSeedPrompt,
   setCollectionChangePublisher,
   type CollectionChangePayload,
-} from "@mulmoclaude/collection-plugin/server";
+} from "@mulmoclaude/core/collection/server";
 import type { CollectionSchema } from "../../../server/workspace/collections/types.js";
+
+// `readCustomViewHtml` resolves its base path through the configured host
+// (`skillsStagingDir`), so this suite must wire a host stub once. Every test
+// passes `workspaceRoot: workdir` explicitly, so the host's `workspaceRoot`
+// field is only a placeholder — the staging-dir factory is what's exercised.
+// `configureCollectionHost` is a no-op if called again with the same object,
+// which keeps re-runs idempotent.
+const TEST_HOST_PATHS = {
+  userSkillsDir: "/dev/null/.claude/skills",
+  projectSkillsDir: (root: string) => path.join(root, ".claude", "skills"),
+  feedsRoot: (root: string) => path.join(root, "feeds"),
+  skillsStagingDir: (root: string) => path.join(root, "data", "skills"),
+  archiveDir: ".archive",
+};
+configureCollectionHost({
+  workspaceRoot: "/tmp/__test_io_placeholder__",
+  log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+  paths: TEST_HOST_PATHS,
+  isPresetSlug: () => false,
+});
 
 let workdir: string;
 let dataDir: string;
@@ -128,6 +151,178 @@ describe("readSkillTemplate — path-safe template read", () => {
     const skillDir = path.join(workdir, ".claude", "skills", "mc-x");
     mkdirSync(skillDir, { recursive: true });
     assert.equal(await readSkillTemplate(skillDir, "templates/nope.md"), null);
+  });
+});
+
+describe("readCustomViewHtml — source-aware base + import fallback", () => {
+  // Mirrors the two real on-disk shapes a project collection can have:
+  //   - AUTHORED in-place: views live in <workspace>/data/skills/<slug>/views/
+  //     (the staging dir; host-side rendering),
+  //   - IMPORTED via the discover panel (rename-on-conflict): everything,
+  //     views included, lands in <workspace>/.claude/skills/<slug>/views/
+  //     with NO staging-dir mirror — this is what 404'd before the fallback.
+  const slug = "movies-2";
+  const viewFile = "views/cinema.html";
+  const html = "<!doctype html><body>cinema</body>";
+
+  function authoredProjectCollection() {
+    return { slug, source: "project" as const, skillDir: path.join(workdir, ".claude", "skills", slug) };
+  }
+
+  function userCollection() {
+    return { slug, source: "user" as const, skillDir: path.join(workdir, ".claude", "skills", slug) };
+  }
+
+  it("reads project views from the staging dir (authoring layout)", async () => {
+    const stagingViews = path.join(workdir, "data", "skills", slug, "views");
+    mkdirSync(stagingViews, { recursive: true });
+    writeFileSync(path.join(stagingViews, "cinema.html"), html);
+    const result = await readCustomViewHtml(authoredProjectCollection(), viewFile, { workspaceRoot: workdir });
+    assert.equal(result, html);
+  });
+
+  it("falls back to skillDir when a project view only exists there (imported layout)", async () => {
+    // No staging-dir copy at all — the import flow only wrote the skill folder.
+    const skillViews = path.join(workdir, ".claude", "skills", slug, "views");
+    mkdirSync(skillViews, { recursive: true });
+    writeFileSync(path.join(skillViews, "cinema.html"), html);
+    const result = await readCustomViewHtml(authoredProjectCollection(), viewFile, { workspaceRoot: workdir });
+    assert.equal(result, html, "imported project view must read from skillDir, not 404");
+  });
+
+  it("prefers the staging-dir copy over the skillDir copy when both exist", async () => {
+    const stagingViews = path.join(workdir, "data", "skills", slug, "views");
+    const skillViews = path.join(workdir, ".claude", "skills", slug, "views");
+    mkdirSync(stagingViews, { recursive: true });
+    mkdirSync(skillViews, { recursive: true });
+    writeFileSync(path.join(stagingViews, "cinema.html"), "STAGING");
+    writeFileSync(path.join(skillViews, "cinema.html"), "SKILL");
+    const result = await readCustomViewHtml(authoredProjectCollection(), viewFile, { workspaceRoot: workdir });
+    assert.equal(result, "STAGING", "staging dir (the authoring path) wins when present");
+  });
+
+  it("returns null when the view is absent from both bases", async () => {
+    const result = await readCustomViewHtml(authoredProjectCollection(), viewFile, { workspaceRoot: workdir });
+    assert.equal(result, null);
+  });
+
+  it("reads user-collection views from the discovered skillDir", async () => {
+    const skillViews = path.join(workdir, ".claude", "skills", slug, "views");
+    mkdirSync(skillViews, { recursive: true });
+    writeFileSync(path.join(skillViews, "cinema.html"), html);
+    const result = await readCustomViewHtml(userCollection(), viewFile, { workspaceRoot: workdir });
+    assert.equal(result, html);
+  });
+
+  it("refuses path traversal even with the fallback active", async () => {
+    // A staging-dir-relative `..`-escape must not be permitted, and the
+    // fallback must not retry with the same unsafe path against skillDir.
+    const result = await readCustomViewHtml(authoredProjectCollection(), "../../../etc/passwd", { workspaceRoot: workdir });
+    assert.equal(result, null);
+  });
+});
+
+describe("readCustomViewI18n — locale pick + source-aware fallback", () => {
+  const slug = "movies";
+  const i18nFile = "views/cinema.i18n.json";
+  const dictDoc = {
+    en: { hello: "Hello, {name}", next: "Next" },
+    ja: { hello: "{name} さん、こんにちは", next: "次へ" },
+  };
+
+  function authoredProjectCollection() {
+    return { slug, source: "project" as const, skillDir: path.join(workdir, ".claude", "skills", slug) };
+  }
+
+  function importedProjectCollection() {
+    // Imported = same skillDir as authored, but the staging dir was never
+    // created — the `.claude/skills/<slug>/views/` copy is the only one.
+    return { slug, source: "project" as const, skillDir: path.join(workdir, ".claude", "skills", slug) };
+  }
+
+  function userCollection() {
+    return { slug, source: "user" as const, skillDir: path.join(workdir, ".claude", "skills", slug) };
+  }
+
+  function writeI18nFile(base: string, body: unknown) {
+    const dir = path.join(base, "views");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "cinema.i18n.json"), JSON.stringify(body));
+  }
+
+  it("returns only the requested locale's strings (staging dir, project authored)", async () => {
+    writeI18nFile(path.join(workdir, "data", "skills", slug), dictDoc);
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "ja");
+    assert.deepEqual(result.dict, dictDoc.ja);
+  });
+
+  it("falls back to skillDir for an imported project collection (no staging mirror)", async () => {
+    writeI18nFile(path.join(workdir, ".claude", "skills", slug), dictDoc);
+    const result = await readCustomViewI18n(importedProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "ja", "imported view must read its dict from skillDir, not 404");
+    assert.deepEqual(result.dict, dictDoc.ja);
+  });
+
+  it("falls back to the en block when the requested locale is absent", async () => {
+    writeI18nFile(path.join(workdir, "data", "skills", slug), dictDoc);
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "de", { workspaceRoot: workdir });
+    assert.equal(result.locale, "en");
+    assert.deepEqual(result.dict, dictDoc.en);
+  });
+
+  it("returns empty (no en, no requested locale) when neither block exists", async () => {
+    writeI18nFile(path.join(workdir, "data", "skills", slug), { fr: { only: "fr" } });
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "");
+    assert.deepEqual(result.dict, {});
+  });
+
+  it("returns empty when the file is missing in every base", async () => {
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "");
+    assert.deepEqual(result.dict, {});
+  });
+
+  it("returns empty on malformed JSON (no throw — the view must keep rendering)", async () => {
+    const dir = path.join(workdir, "data", "skills", slug, "views");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "cinema.i18n.json"), "not json {");
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "");
+    assert.deepEqual(result.dict, {});
+  });
+
+  it("drops non-string values from the picked locale block (contract: flat string map)", async () => {
+    writeI18nFile(path.join(workdir, "data", "skills", slug), { ja: { greeting: "こんにちは", count: 5, nested: { x: 1 } } });
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "ja");
+    assert.deepEqual(result.dict, { greeting: "こんにちは" });
+  });
+
+  it("returns empty (not locale='en') when the en fallback block filters down to {} (CodeRabbit #1842)", async () => {
+    // The en block exists but every entry is a non-string → after the flat-map
+    // filter it's `{}`. The earlier `primary` arm already guards "no usable
+    // strings"; the fallback arm must symmetrically refuse to report `"en"`
+    // when there's nothing to deliver. Reporting `{ locale: "en", dict: {} }`
+    // would mislead the iframe into thinking English is available.
+    writeI18nFile(path.join(workdir, "data", "skills", slug), { en: { count: 5, nested: { x: 1 } } });
+    const result = await readCustomViewI18n(authoredProjectCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "");
+    assert.deepEqual(result.dict, {});
+  });
+
+  it("reads user-collection i18n from its discovered skillDir", async () => {
+    writeI18nFile(path.join(workdir, ".claude", "skills", slug), dictDoc);
+    const result = await readCustomViewI18n(userCollection(), i18nFile, "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "ja");
+    assert.deepEqual(result.dict, dictDoc.ja);
+  });
+
+  it("refuses path traversal in the i18nFile arg", async () => {
+    const result = await readCustomViewI18n(authoredProjectCollection(), "../../../etc/secret.i18n.json", "ja", { workspaceRoot: workdir });
+    assert.equal(result.locale, "");
+    assert.deepEqual(result.dict, {});
   });
 });
 

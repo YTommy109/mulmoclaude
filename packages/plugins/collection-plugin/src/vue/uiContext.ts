@@ -15,8 +15,8 @@ import type {
   CollectionsListResponse,
   FeedsListResponse,
   CollectionShortcutInfo,
-} from "../core/uiTypes";
-import type { CollectionItem } from "../core/schema";
+  CollectionItem,
+} from "@mulmoclaude/core/collection";
 
 /** Result of a host data fetch — structurally a subset of the host's own
  *  `ApiResult` (so the host can pass `apiGet` straight through). The view layer
@@ -40,11 +40,16 @@ export interface CollectionActionResult {
   role: string;
 }
 
-/** A feed refresh's result — counts + per-source errors. */
+/** A collection refresh's result — counts + per-source errors. `dispatched` is
+ *  true for agent ingest (a worker was launched; records update async).
+ *  `chatId` is the visible worker's session (manual Refresh) so the client can
+ *  open it to watch the run. */
 export interface CollectionRefreshResult {
   refreshed: boolean;
   written: number;
   errors: string[];
+  dispatched?: boolean;
+  chatId?: string;
 }
 
 /** Scoped capability token for a sandboxed custom view (mirrors the host's mint
@@ -67,6 +72,26 @@ export interface CollectionViewSrcdocBoot {
   token: string;
   dataUrl: string;
   origin: string;
+  /** Active app locale the dict was picked for (e.g. `"en"`, `"ja"`); empty
+   *  when the view has no `i18n` declared or no locale block matched. The
+   *  bootstrap surfaces this as `__MC_VIEW.locale`. */
+  locale?: string;
+  /** Host-picked, locale-filtered flat string map (vue-i18n locale-message
+   *  shape). The iframe sees ONLY this locale's strings via `__MC_VIEW.dict`
+   *  and the `__MC_VIEW.t(key, named?)` helper (vue-i18n-style named
+   *  interpolation). Optional — when omitted, the helper falls back to the
+   *  key. */
+  dict?: Record<string, string>;
+}
+
+/** Server response shape for `fetchViewI18n` — already locale-picked + flat.
+ *  `locale === ""` means no translations were available (view has no `i18n`
+ *  declared, file missing, or neither the requested locale nor `"en"` had a
+ *  block). The `dict` matches the `CollectionViewSrcdocBoot.dict` shape so
+ *  the host can pass it through `buildViewSrcdoc` unchanged. */
+export interface CollectionViewI18nResult {
+  locale: string;
+  dict: Record<string, string>;
 }
 
 /** Options for the host's confirm dialog — structurally matches the host's own
@@ -76,6 +101,61 @@ export interface CollectionConfirmOptions {
   confirmText?: string;
   cancelText?: string;
   variant?: "primary" | "success" | "danger";
+}
+
+/** One collection in a curated registry's published index (the host fetches
+ *  each registry's index.json and proxies them all to the Discover tab). */
+export interface RegistryEntry {
+  id: string;
+  author: string;
+  slug: string;
+  title: string;
+  icon: string;
+  description: string;
+  version: string;
+  tags: string[];
+  license: string;
+  fieldCount: number;
+  views: string[];
+  hasSeed: boolean;
+  seedCount: number;
+  screenshot?: string;
+  path: string;
+  contentSha: string;
+  /** Label of the source registry — `"official"` for the canonical
+   *  receptron/mulmoclaude-collections, otherwise the `name` of an entry in
+   *  the user's `config/collections-registries.json`. The Discover card shows
+   *  this as a small badge so users can tell apart same-title collections from
+   *  different sources. */
+  registryName: string;
+}
+
+/** Per-registry summary in the merged Discover response. */
+export interface RegistrySummary {
+  name: string;
+  /** `ok` = fresh, `stale` = served from cache because the upstream failed,
+   *  `failed` = no cache to fall back to (the entries contribution is 0). */
+  status: "ok" | "stale" | "failed";
+  generatedAt: string | null;
+  error: string | null;
+  entryCount: number;
+}
+
+/** `GET …collectionsRegistry.list` — the Discover catalog merged across every
+ *  configured registry. */
+export interface RegistryListResponse {
+  registries: RegistrySummary[];
+  /** Convenience flag: true iff any single registry's contribution was stale. */
+  stale: boolean;
+  collections: RegistryEntry[];
+}
+
+/** `POST …collectionsRegistry.import` — install result. */
+export interface RegistryImportResponse {
+  localSlug: string;
+  updated: boolean;
+  seedWritten: number;
+  seedSkipped: boolean;
 }
 
 export interface CollectionUi {
@@ -106,6 +186,12 @@ export interface CollectionUi {
   /** Fetch a custom view's raw HTML (host: `apiFetchRaw` over
    *  `API_ROUTES.collections.viewFile`, global bearer attached). */
   fetchViewHtml: (slug: string, viewId: string) => Promise<CollectionViewHtmlResult>;
+  /** Fetch the translation dict for one custom view, already locale-picked
+   *  server-side (host: `apiGet` over `API_ROUTES.collections.viewI18n`,
+   *  global bearer attached). Returns `{ locale: "", dict: {} }` when the
+   *  view has no `i18n` declared or the file is missing / malformed — the
+   *  iframe-side `__MC_VIEW.t(key)` then echoes the key. */
+  fetchViewI18n: (slug: string, viewId: string, locale: string) => Promise<CollectionApiResult<CollectionViewI18nResult>>;
   /** Wrap a custom view's HTML in a sandboxed `<iframe srcdoc>` with the token +
    *  data URL injected and the host's CSP applied. Replaces the host's
    *  `buildCustomViewSrcdoc`. */
@@ -162,6 +248,14 @@ export interface CollectionUi {
   listCollections: () => Promise<CollectionApiResult<CollectionsListResponse>>;
   /** List feed-backed collections (`apiGet` over `…feeds.list`). */
   listFeeds: () => Promise<CollectionApiResult<FeedsListResponse>>;
+  /** List the curated registry's collections for the Discover tab (`apiGet` over
+   *  `…collectionsRegistry.list`). */
+  listRegistry: () => Promise<CollectionApiResult<RegistryListResponse>>;
+  /** Import a registry collection by author+slug. `registry` (the source
+   *  registry's name from the entry the user clicked) disambiguates when more
+   *  than one registry publishes the same author/slug; pass null for
+   *  best-match. (`apiPost` over `…collectionsRegistry.import`). */
+  importRegistry: (author: string, slug: string, registry: string | null) => Promise<CollectionApiResult<RegistryImportResponse>>;
   /** Bulk-reconcile pinned launcher shortcuts of one kind against the
    *  authoritative list — prune dead slugs, refresh stale labels
    *  (`useShortcuts().reconcile`). */

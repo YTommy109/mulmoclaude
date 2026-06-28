@@ -4,7 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { actionVisible, fieldVisible } from "@mulmoclaude/collection-plugin";
+import { actionVisible, fieldVisible } from "@mulmoclaude/core/collection";
 
 describe("actionVisible", () => {
   it("is always visible when no `when` predicate is set", () => {

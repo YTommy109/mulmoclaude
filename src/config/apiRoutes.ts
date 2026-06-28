@@ -61,6 +61,11 @@ const HOST_API_ROUTES = {
   // order). Single replace-endpoint — no add/remove route sprawl.
   shortcuts: "/api/shortcuts",
 
+  // Dashboard layout (per-tile view mode + order for the favorites grid).
+  // GET reads the list; PUT replaces it wholesale (client owns order /
+  // view mode). Single replace-endpoint, mirroring `shortcuts`.
+  dashboard: "/api/dashboard",
+
   agent: {
     run: "/api/agent",
     cancel: "/api/agent/cancel",
@@ -167,7 +172,7 @@ const HOST_API_ROUTES = {
   // Local voice input (Mac-only, whisper.cpp). `run` transcribes one
   // audio clip; `model` reports capability + download status; `modelDownload`
   // is the opt-in trigger fired by the Settings → Voice enable toggle.
-  // See plans/feat-voice-input.md.
+  // See plans/done/feat-voice-input.md.
   transcribe: {
     run: "/api/transcribe",
     model: "/api/transcribe/model",
@@ -267,6 +272,14 @@ const HOST_API_ROUTES = {
     /** GET ?id=<viewId> → the custom view's HTML file (global-bearer auth),
      *  read from data/skills/:slug/views/. The parent renders it sandboxed. */
     viewFile: "/api/collections/:slug/view-file",
+    /** GET ?id=<viewId>&locale=<tag> → translation dict for one custom view
+     *  (global-bearer auth) → { locale, dict }. `dict` is the host-picked
+     *  flat map for the requested locale (fallback `"en"`, else `{}`); the
+     *  host never streams other locales' strings. Empty dict + `locale: ""`
+     *  when the view declares no `i18n` file or the file is missing /
+     *  malformed — the view keeps working via `__MC_VIEW.t()`'s key
+     *  fallback. */
+    viewI18n: "/api/collections/:slug/view-i18n",
     /** POST → mint a slug- and capability-scoped token for a custom view
      *  (global-bearer auth) → { token, exp, dataUrl, capabilities }. */
     viewToken: "/api/collections/:slug/view-token",
@@ -278,6 +291,22 @@ const HOST_API_ROUTES = {
      *  unlink its `views/<file>.html` (global-bearer auth) → { deleted, viewId }.
      *  Source-aware; refuses user-scope + preset collections. */
     viewDelete: "/api/collections/:slug/views/:viewId",
+  },
+
+  // Curated collection registry (receptron/mulmoclaude-collections). The host
+  // server-fetches the published index.json (GitHub Pages) and proxies it to the
+  // /collections Discover tab — the upstream URL is never exposed to the client.
+  collectionsRegistry: {
+    list: "/api/collections-registry",
+    /** GET ?author=&slug= → { entry, schema, meta } for one in-index collection. */
+    preview: "/api/collections-registry/preview",
+    /** POST { author, slug } → fetch + re-validate + install into .claude/skills/,
+     *  normalize dataPath, materialize seed, record provenance. */
+    import: "/api/collections-registry/import",
+    /** POST { slug, author, license?, includeSeed? } → write a registry-contribution
+     *  bundle (collections/<author>/<slug>/ + meta.json + optional seed) under
+     *  data/registry-export/ for the user to open a PR. */
+    export: "/api/collections-registry/export",
   },
 
   // `scheduler` group migrated to META — see `src/plugins/scheduler/automationsMeta.ts`.

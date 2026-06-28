@@ -18,7 +18,7 @@
 import { computed } from "vue";
 import type { ToolResult } from "gui-chat-protocol";
 import CollectionView from "../components/CollectionView.vue";
-import type { PresentCollectionData } from "../../core/presentCollection";
+import type { PresentCollectionData } from "@mulmoclaude/core/collection";
 
 /** Card-local UI state persisted in the tool result's `viewState` so it
  *  survives a re-render — same pattern as presentForm. `selected` is the

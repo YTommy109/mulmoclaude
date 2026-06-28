@@ -21,7 +21,7 @@ import {
   daySlice,
   assignLanes,
   MINUTES_PER_DAY,
-} from "@mulmoclaude/collection-plugin";
+} from "@mulmoclaude/core/collection";
 
 describe("parseIsoDate", () => {
   it("parses a valid YYYY-MM-DD", () => {

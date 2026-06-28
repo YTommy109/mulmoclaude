@@ -15,7 +15,7 @@
 import "../style.css";
 
 import type { ToolPlugin } from "gui-chat-protocol/vue";
-import { TOOL_DEFINITION, executePresentCollection, type PresentCollectionData, type PresentCollectionArgs } from "../core/presentCollection";
+import { TOOL_DEFINITION, executePresentCollection, type PresentCollectionData, type PresentCollectionArgs } from "@mulmoclaude/core/collection";
 import ChatView from "./chat/View.vue";
 import ChatPreview from "./chat/Preview.vue";
 
@@ -29,9 +29,13 @@ export {
   type CollectionConfirmOptions,
   type CollectionViewToken,
   type CollectionViewHtmlResult,
+  type CollectionViewI18nResult,
   type CollectionViewSrcdocBoot,
   type CollectionActionResult,
   type CollectionRefreshResult,
+  type RegistryEntry,
+  type RegistryListResponse,
+  type RegistryImportResponse,
 } from "./uiContext";
 export { useCollectionRendering, type CollectionRendering } from "./useCollectionRendering";
 export {
@@ -39,6 +43,8 @@ export {
   writeCollectionViewMode,
   readCollectionSort,
   writeCollectionSort,
+  customViewKey,
+  applicableViewModes,
   type CollectionViewMode,
   type BuiltInViewMode,
   type CustomViewMode,

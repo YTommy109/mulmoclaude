@@ -21,25 +21,28 @@
             :active-tool-name="selectedResult?.toolName ?? null"
             :active-view-mode="currentPage"
             :shortcuts="shortcuts"
+            :active-session-count="activeSessionCount"
+            :unread-count="unreadCount"
             @navigate="onPluginNavigate"
             @navigate-shortcut="onShortcutNavigate"
+            @navigate-chat="handleHomeClick"
           />
         </div>
       </div>
-      <!-- Row 2: role selector + session tabs. Shown whenever the
-           side panel is hidden — Row 2 and the side panel are
-           mutually exclusive. The header-controls wrapper is pinned
-           to 264px (w-72 minus px-3 padding on each side) so that
+      <!-- Row 2: role selector + session tabs. Chat-only chrome — shown
+           on /chat whenever the side panel is hidden (Row 2 and the
+           side panel are mutually exclusive). Off /chat the whole row
+           is gone; the always-visible Chat button in Row 1 is the way
+           back into a conversation. The header-controls wrapper is
+           pinned to 264px (w-72 minus px-3 padding on each side) so
            RoleSelector / + / toggle occupy the exact same x-range as
            they do inside the open side panel — toggling the panel
            therefore doesn't shift those controls. -->
-      <div v-if="!sidePanelVisible" class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
+      <div v-if="isChatPage && !sidePanelVisible" class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
         <div class="w-[264px] shrink-0">
           <SessionHeaderControls
             :roles="roles"
             :side-panel-visible="sidePanelVisible"
-            :active-session-count="activeSessionCount"
-            :unread-count="unreadCount"
             @role-change="onRoleChange"
             @new-session="handleNewSessionClick"
             @update:side-panel-visible="setSidePanelVisible"
@@ -53,12 +56,12 @@
     <div class="flex flex-1 min-h-0">
       <!-- Session-history side panel. Opt-in column to the left of
            the chat sidebar / canvas, toggled via
-           SessionHistoryToggleButton. Renders on every page when
-           `sidePanelVisible` is true. Row 2 of the top bar hides when
-           the panel is open — the panel's own header supplies the
-           role selector + new-session button instead. -->
+           SessionHistoryToggleButton. Chat-only chrome — renders on
+           /chat when `sidePanelVisible` is true. Row 2 of the top bar
+           hides when the panel is open — the panel's own header
+           supplies the role selector + new-session button instead. -->
       <div
-        v-if="sidePanelVisible"
+        v-if="isChatPage && sidePanelVisible"
         class="relative border-r border-gray-200 bg-white text-gray-900 flex flex-col min-w-0 overflow-hidden"
         :class="sidePanelExpanded ? 'flex-1' : 'w-72 flex-shrink-0'"
         data-testid="session-history-side-panel"
@@ -72,8 +75,6 @@
           <SessionHeaderControls
             :roles="roles"
             :side-panel-visible="sidePanelVisible"
-            :active-session-count="activeSessionCount"
-            :unread-count="unreadCount"
             @role-change="onRoleChange"
             @new-session="handleNewSessionClick"
             @update:side-panel-visible="setSidePanelVisibleAndCollapse"
@@ -211,6 +212,11 @@
                variants; standalone routes are wrapped here against the
                same `pkg-name + endpoints` pair so the `useRuntime()`
                call resolves. -->
+          <!-- Dashboard — grid of favorite (pinned) collections, each a
+               live embedded view. Host component (no PluginScopedRoot):
+               CollectionView talks to /api/collections directly, same as
+               the collections index below. -->
+          <DashboardView v-else-if="currentPage === 'dashboard'" />
           <FilesView v-else-if="currentPage === 'files'" :refresh-token="filesRefreshToken" @load-session="handleSessionSelect" />
           <PluginScopedRoot v-else-if="currentPage === 'automations'" pkg-name="scheduler" :endpoints="API_ROUTES.scheduler">
             <AutomationsView />
@@ -228,6 +234,13 @@
                directly. -->
           <CollectionView v-else-if="currentPage === 'collections' && route.params.slug" :key="String(route.params.slug)" />
           <CollectionsIndexView v-else-if="currentPage === 'collections'" />
+          <!-- Accounting — the double-entry bookkeeping app. Host
+               component (no PluginScopedRoot): the View talks to
+               /api/accounting via the host's apiCall directly and never
+               calls `useRuntime()`, so it needs no plugin scope. Mounted
+               without a `selected-result` prop — standalone it self-fetches
+               the book list and auto-selects a book on mount. -->
+          <AccountingView v-else-if="currentPage === 'accounting'" />
           <!-- Debug page (encore plan PR 1 follow-up). The View ships
                inside the @mulmoclaude/debug-plugin runtime package; we
                look it up by tool name and render the registered
@@ -301,7 +314,7 @@
     <!-- Global confirm dialog. Renders the module-global confirm state opened
          via useConfirm()/the collection plugin's confirm() capability — mounted
          here at the app root so it survives any single view (CollectionView used
-         to render its own before moving into @mulmoclaude/collection-plugin). -->
+         to render its own before moving into @mulmoclaude/core/collection). -->
     <ConfirmModal />
   </div>
 </template>
@@ -324,10 +337,12 @@ import SessionHistoryPanel from "./components/SessionHistoryPanel.vue";
 import SessionSidebar from "./components/SessionSidebar.vue";
 import ThinkingIndicator from "./components/ThinkingIndicator.vue";
 import PluginLauncher from "./components/PluginLauncher.vue";
+import DashboardView from "./components/DashboardView.vue";
 import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
 import AutomationsView from "./plugins/scheduler/AutomationsView.vue";
 import WikiView from "./plugins/wiki/View.vue";
+import { AccountingView } from "@mulmoclaude/accounting-plugin/vue";
 import { buildWikiRouteParams } from "./plugins/wiki/route";
 import { CollectionView, CollectionsIndexView, FeedsView } from "@mulmoclaude/collection-plugin/vue";
 import PluginScopedRoot from "./components/PluginScopedRoot.vue";
@@ -371,7 +386,7 @@ import ConfirmModal from "./components/ConfirmModal.vue";
 import { useNotifications } from "./composables/useNotifications";
 import { collectionNotifiedSeverities } from "./utils/collections/notifiedItems";
 import { installCollectionAppBindings } from "./composables/collections/uiHost";
-import type { CollectionsListResponse } from "@mulmoclaude/collection-plugin";
+import type { CollectionsListResponse } from "@mulmoclaude/core/collection";
 import { useHealth } from "./composables/useHealth";
 import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
@@ -588,7 +603,7 @@ const showSettings = ref(false);
 // When the Settings modal closes, re-check voice-input availability: the
 // user may have just enabled it / started the model download, and the
 // mic button should appear without a reload (the composable then polls
-// until the download finishes). See plans/feat-voice-input.md.
+// until the download finishes). See plans/done/feat-voice-input.md.
 function onSettingsOpenChange(open: boolean): void {
   showSettings.value = open;
   if (!open) chatInputRef.value?.refreshVoiceAvailability()?.catch(() => undefined);
@@ -678,10 +693,18 @@ const canvasDropHandlers = computed(() =>
 // don't persist empty sessions on the server. Fires true → false only;
 // an empty → /chat transition is handled by the route-params watcher
 // and onMounted.
+//
+// Also collapse the side panel's transient full-width mode. The panel
+// itself is chat-only chrome (`isChatPage && sidePanelVisible`), so it
+// unmounts off /chat — but the canvas/sidebar stay gated by
+// `!sidePanelExpanded`. Without this reset, leaving /chat while expanded
+// would unmount the panel AND keep the canvas hidden, blanking plugin
+// pages until the panel is collapsed again.
 watch(isChatPage, (isChat, wasChat) => {
   if (!(wasChat && !isChat)) return;
   removeCurrentIfEmpty();
   currentSessionId.value = "";
+  sidePanelExpanded.value = false;
 });
 
 function handleSessionSelect(sessionId: string): void {
