@@ -89,7 +89,7 @@ import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import { existsSync, readFileSync } from "fs";
 import { realpath as fsRealpath } from "fs/promises";
 import { containsDotfileSegment, resolveWithinRoot } from "./utils/files/safe.js";
-import { cpus, homedir, loadavg } from "os";
+import { cpus, loadavg } from "os";
 import { isDockerAvailable, ensureSandboxImage, getDockerBridgeIp } from "./system/docker.js";
 import { maybeRunJournal } from "./workspace/journal/index.js";
 import { backfillAllSessions } from "./workspace/chat-index/index.js";
