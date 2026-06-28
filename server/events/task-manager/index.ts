@@ -1,12 +1,12 @@
-// Task-manager — thin host binding over @mulmoclaude/scheduler. The
+// Task-manager — thin host binding over @mulmoclaude/core/scheduler. The
 // generic dependency-ordered tick engine lives in the shared package;
 // this file injects MulmoClaude's logger and re-exports the surface
 // existing callers + tests import from `./task-manager/index.js`.
 
 import { log } from "../../system/logger/index.js";
-import { createTaskManager as createSharedTaskManager, type ITaskManager, type TaskManagerOptions } from "@mulmoclaude/scheduler";
+import { createTaskManager as createSharedTaskManager, type ITaskManager, type TaskManagerOptions } from "@mulmoclaude/core/scheduler";
 
-export type { ITaskManager, TaskDefinition, TaskSchedule, TaskRunContext, TaskManagerOptions } from "@mulmoclaude/scheduler";
+export type { ITaskManager, TaskDefinition, TaskSchedule, TaskRunContext, TaskManagerOptions } from "@mulmoclaude/core/scheduler";
 
 /** Create a task-manager wired to MulmoClaude's logger (the package logs
  *  host-agnostically; we prefix the "task-manager" scope here). Callers

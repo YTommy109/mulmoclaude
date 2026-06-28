@@ -1,12 +1,12 @@
 import "dotenv/config";
-// Wire @mulmoclaude/collection-plugin/server to this host's workspace + logger
+// Wire @mulmoclaude/core/collection/server to this host's workspace + logger
 // before any module that touches collection storage loads.
 import "./workspace/collections/configure.js";
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import agentRoutes, { startChat } from "./api/routes/agent.js";
-import accountingRoutes from "./api/routes/accounting.js";
+import agentRoutes, { startChat, spawnSystemWorker } from "./api/routes/agent.js";
+import { createAccountingRouter, initAccountingEventPublisher, configureAccountingServer } from "@mulmoclaude/accounting-plugin/server";
 import photoLocationsRoutes from "./api/routes/photo-locations.js";
 import schedulerRoutes from "./api/routes/scheduler.js";
 import sessionsRoutes, { loadAllSessions } from "./api/routes/sessions.js";
@@ -21,6 +21,7 @@ import presentSvgRoutes from "./api/routes/presentSvg.js";
 import chartRoutes from "./api/routes/chart.js";
 import rolesRoutes from "./api/routes/roles.js";
 import shortcutsRoutes from "./api/routes/shortcuts.js";
+import dashboardRoutes from "./api/routes/dashboard.js";
 import { DEFAULT_ROLE_ID } from "../src/config/roles.js";
 import mulmoScriptRoutes from "./api/routes/mulmo-script.js";
 import wikiRoutes from "./api/routes/wiki.js";
@@ -34,6 +35,7 @@ import configRefreshRoutes from "./api/routes/config-refresh.js";
 import hookLogRoutes from "./api/routes/hookLog.js";
 import skillsRoutes from "./api/routes/skills.js";
 import collectionsRoutes from "./api/routes/collections.js";
+import collectionsRegistryRoutes from "./api/routes/collectionsRegistry.js";
 import { startCollectionWatchers } from "./workspace/collections/watcher.js";
 import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
 // Side-effect: registers the built-in "markdown" dispatch handler so the
@@ -49,6 +51,7 @@ import { loadPresetPlugins } from "./plugins/preset-loader.js";
 import { registerRuntimePlugins } from "./plugins/runtime-registry.js";
 import { makePluginRuntime } from "./plugins/runtime.js";
 import { MCP_PLUGIN_NAMES } from "./agent/plugin-names.js";
+import { claudeCredentialsPath } from "./utils/claudeConfigPath.js";
 import { setActiveBackend } from "./agent/backend/index.js";
 import { fakeEchoBackend } from "./agent/backend/fake-echo.js";
 import { startMacosReminderAdapter } from "./notifier/macosReminderAdapter.js";
@@ -66,7 +69,6 @@ import { createChatService } from "@mulmobridge/chat-service";
 import { readSessionJsonl } from "./utils/files/session-io.js";
 import { onSessionEvent, initSessionStore } from "./events/session-store/index.js";
 import { initFileChangePublisher } from "./events/file-change.js";
-import { initAccountingEventPublisher } from "./accounting/eventPublisher.js";
 import { initCollectionChangePublisher } from "./events/collection-change.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";
 import { discoverSkills } from "./workspace/skills/index.js";
@@ -87,11 +89,12 @@ import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import { existsSync, readFileSync } from "fs";
 import { realpath as fsRealpath } from "fs/promises";
 import { containsDotfileSegment, resolveWithinRoot } from "./utils/files/safe.js";
-import { cpus, homedir, loadavg } from "os";
+import { cpus, loadavg } from "os";
 import { isDockerAvailable, ensureSandboxImage, getDockerBridgeIp } from "./system/docker.js";
 import { maybeRunJournal } from "./workspace/journal/index.js";
 import { backfillAllSessions } from "./workspace/chat-index/index.js";
-import { refreshDue as refreshDueFeeds } from "./workspace/feeds/index.js";
+import { feedRefreshTaskDef } from "@mulmoclaude/core/feeds/server";
+import { configureFeeds } from "./workspace/feeds/configure.js";
 import { createPubSub } from "./events/pub-sub/index.js";
 import { PUBSUB_CHANNELS } from "../src/config/pubsubChannels.js";
 import { createTaskManager } from "./events/task-manager/index.js";
@@ -636,7 +639,23 @@ app.get(API_ROUTES.sandbox, (_req: Request, res: Response) => {
 // `app.use("/api", ...)` prefix was dropped when #289 part 1 moved
 // the `/api` literal into each `router.post(API_ROUTES.…)` call.
 app.use(agentRoutes);
-app.use(accountingRoutes);
+// Configure the accounting backend's host seams (workspace root +
+// logger) at module load — BEFORE app.listen — so a request landing in
+// the gap before startRuntimeServices runs can't hit an unconfigured
+// defaultWorkspaceRoot() and 500. Same rationale as the module-load
+// route registration noted above. (Pub/sub init stays in
+// startRuntimeServices, where the pubsub instance is created; a missed
+// fire-and-forget event in the boot window is the same accepted
+// tradeoff as the file-change / collection publishers.)
+configureAccountingServer({ workspaceRoot: workspacePath, logger: log });
+// Wire @mulmoclaude/core/feeds/server (workspace, logger, atomic writer, and the
+// agent-ingest worker launcher) at module load — BEFORE app.listen — for the same
+// reason as the accounting config above: a `POST /api/collections/:slug/refresh`
+// landing in the gap before startRuntimeServices runs must not hit an unconfigured
+// feeds host. `spawnSystemWorker` is injected here because workspace code must not
+// import the routes layer.
+configureFeeds(spawnSystemWorker);
+app.use(createAccountingRouter());
 app.use(photoLocationsRoutes);
 app.use(schedulerRoutes);
 app.use(sessionsRoutes);
@@ -651,6 +670,7 @@ app.use(presentSvgRoutes);
 app.use(chartRoutes);
 app.use(rolesRoutes);
 app.use(shortcutsRoutes);
+app.use(dashboardRoutes);
 app.use(mulmoScriptRoutes);
 app.use(wikiRoutes);
 // Mounted under /api/wiki so the inner router's relative paths
@@ -665,6 +685,7 @@ app.use(configRefreshRoutes);
 app.use(hookLogRoutes);
 app.use(skillsRoutes);
 app.use(collectionsRoutes);
+app.use(collectionsRegistryRoutes);
 app.use(runtimePluginRoutes);
 async function listSessionsForBridge(opts: { limit: number; offset: number }) {
   const rows = await loadAllSessions();
@@ -813,7 +834,7 @@ async function resolvePort(): Promise<number> {
 }
 
 async function ensureCredentialsAvailable(): Promise<void> {
-  const credentialsPath = path.join(homedir(), ".claude", ".credentials.json");
+  const credentialsPath = claudeCredentialsPath();
   if (existsSync(credentialsPath)) return;
 
   if (process.platform === "darwin") {
@@ -1094,6 +1115,8 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // Wired here (not at first publish) so the very first save after
   // boot already sees a live publisher.
   initFileChangePublisher(pubsub);
+  // Accounting DI (workspace root + logger) is configured at module load
+  // near the route mount; only the pub/sub instance is wired here.
   initAccountingEventPublisher(pubsub);
   initCollectionChangePublisher(pubsub);
 
@@ -1118,14 +1141,12 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
       missedRunPolicy: MISSED_RUN_POLICIES.runOnce,
       run: () => backfillAllSessions().then(() => {}),
     },
-    {
-      id: "system:feed-refresh",
-      name: "Data-source feed refresh",
-      description: "Fetch declarative data-source feeds (RSS / JSON) into their collections",
-      schedule: { type: SCHEDULE_TYPES.interval, intervalMs: ONE_HOUR_MS },
-      missedRunPolicy: MISSED_RUN_POLICIES.runOnce,
-      run: () => refreshDueFeeds().then(() => {}),
-    },
+    // Drives ALL scheduled ingest: declarative feeds (RSS / JSON) AND
+    // skill-backed `ingest.kind: "agent"` collections (dispatch a hidden
+    // worker). Shared with standalone MulmoTerminal/MulmoBooks via the core
+    // factory so the id/schedule/run can't drift across hosts. The override
+    // loop below still mutates `task.schedule` host-side.
+    feedRefreshTaskDef(),
   ];
 
   // Apply user-configurable schedule overrides from
@@ -1154,6 +1175,9 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
     }
   }
 
+  // Feeds host is configured at module load (before app.listen) — see the
+  // `configureFeeds(spawnSystemWorker)` call beside the accounting config — so it
+  // is already wired by the time `initScheduler` catch-up can fire a feed refresh.
   initScheduler(taskManager, systemTasks).catch((err) => {
     log.error("scheduler", "init failed (non-fatal)", {
       error: String(err),

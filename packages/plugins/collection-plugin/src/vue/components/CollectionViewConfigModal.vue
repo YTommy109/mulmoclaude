@@ -57,8 +57,8 @@
 import { ref } from "vue";
 import { useCollectionI18n } from "../lang";
 import CollectionRecordModal from "./CollectionRecordModal.vue";
-import type { CollectionCustomView } from "../../core/schema";
-import { errorMessage } from "../../core/errorMessage";
+import type { CollectionCustomView } from "@mulmoclaude/core/collection";
+import { errorMessage } from "@mulmoclaude/core/collection";
 import { collectionUi } from "../uiContext";
 
 const props = defineProps<{ slug: string; title: string; views: CollectionCustomView[] }>();

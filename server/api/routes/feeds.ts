@@ -9,7 +9,7 @@
 import { Router, Request, Response } from "express";
 import { workspacePath } from "../../workspace/workspace.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
-import { listFeeds, readFeedState, removeFeed } from "../../workspace/feeds/index.js";
+import { listFeeds, readFeedState, removeFeed } from "@mulmoclaude/core/feeds/server";
 import { errorMessage } from "../../utils/errors.js";
 import { serverError } from "../../utils/httpError.js";
 import { log } from "../../system/logger/index.js";
@@ -33,7 +33,7 @@ router.get(API_ROUTES.feeds.list, async (_req: Request, res: Response<FeedsListR
     const feeds = await listFeeds(workspacePath);
     const summaries: FeedSummary[] = [];
     for (const feed of feeds) {
-      const state = await readFeedState(workspacePath, feed.slug);
+      const state = await readFeedState(workspacePath, feed);
       const { ingest } = feed.schema;
       summaries.push({
         slug: feed.slug,

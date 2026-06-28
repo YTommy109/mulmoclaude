@@ -10,7 +10,7 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
-import { actionVisible } from "@mulmoclaude/collection-plugin";
+import { actionVisible } from "@mulmoclaude/core/collection";
 import {
   discoverCollections,
   generateItemId,
@@ -23,6 +23,7 @@ import {
   readItem,
   readSkillTemplate,
   readCustomViewHtml,
+  readCustomViewI18n,
   buildActionSeedPrompt,
   buildCollectionActionSeedPrompt,
   resolveCreateItemId,
@@ -44,7 +45,7 @@ import { badRequest, notFound, conflict, forbidden, serverError } from "../../ut
 import { errorMessage } from "../../utils/errors.js";
 import { log } from "../../system/logger/index.js";
 import { workspacePath } from "../../workspace/workspace.js";
-import { refreshOne } from "../../workspace/feeds/index.js";
+import { refreshOne } from "@mulmoclaude/core/feeds/server";
 import { manageCollection } from "../../agent/mcp-tools/manageCollection.js";
 import { clampCapabilities, mintViewToken, requireViewToken, type ViewCapability } from "../auth/viewToken.js";
 
@@ -279,6 +280,13 @@ interface RefreshResponse {
   refreshed: true;
   written: number;
   errors: string[];
+  /** True when an agent-ingest refresh dispatched a worker (fire-and-forget):
+   *  records update asynchronously, so the client shows a note rather than a
+   *  written count. */
+  dispatched?: boolean;
+  /** The visible worker's chat session id (manual Refresh only) so the client
+   *  can open it to watch the refresh run. */
+  chatId?: string;
 }
 
 // Re-run a feed collection's retrieval now. Generic over kind — the
@@ -296,9 +304,12 @@ router.post(API_ROUTES.collections.refresh, async (req: Request<{ slug: string }
     return;
   }
   try {
-    const result = await refreshOne(workspacePath, collection);
-    log.info("collections", "feed refreshed via collection route", { slug: collection.slug, written: result.written });
-    res.json({ refreshed: true, written: result.written, errors: result.errors });
+    // Manual Refresh button → run a VISIBLE worker (hidden:false) so the user
+    // can open the session and watch/debug it. Scheduled refreshes (the
+    // `refreshDue` loop) stay hidden. Declarative feeds ignore the flag.
+    const result = await refreshOne(workspacePath, collection, { hidden: false });
+    log.info("collections", "feed refreshed via collection route", { slug: collection.slug, written: result.written, dispatched: result.dispatched ?? false });
+    res.json({ refreshed: true, written: result.written, errors: result.errors, dispatched: result.dispatched, chatId: result.chatId });
   } catch (err) {
     log.warn("collections", "feed refresh failed", { slug: collection.slug, error: errorMessage(err) });
     serverError(res, errorMessage(err));
@@ -467,6 +478,47 @@ router.get(API_ROUTES.collections.viewFile, async (req: Request<{ slug: string }
     res.type("text/html").send(html);
   } catch (err) {
     log.warn("collections", "view-file read failed", { slug: req.params.slug, error: errorMessage(err) });
+    serverError(res, errorMessage(err));
+  }
+});
+
+// Translation dict for ONE custom view, locale-filtered server-side. The
+// client passes its active app locale; the host returns only that locale's
+// strings (fallback `"en"`, then `{}`). The view never sees other locales'
+// strings — the host is the picker, the iframe is the consumer. Empty dict
+// + `locale: ""` when the view has no `i18n` declared or the file is
+// absent / malformed; the iframe-side `__MC_VIEW.t(key)` falls back to the
+// key, so an i18n-less view keeps working unchanged.
+router.get(API_ROUTES.collections.viewI18n, async (req: Request<{ slug: string }>, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const viewId = typeof req.query.id === "string" ? req.query.id : "";
+    const locale = typeof req.query.locale === "string" ? req.query.locale : "";
+    const collection = await loadCollection(slug);
+    if (!collection) {
+      notFound(res, `collection '${slug}' not found`);
+      return;
+    }
+    const view = (collection.schema.views ?? []).find((entry) => entry.id === viewId);
+    if (!view) {
+      notFound(res, `custom view '${viewId}' not found on collection '${slug}'`);
+      return;
+    }
+    if (!view.i18n) {
+      // The view declared no translation file — return the empty contract so
+      // the client doesn't have to special-case "no i18n" with a different
+      // shape. `t(key)` will just echo the key.
+      res.json({ locale: "", dict: {} });
+      return;
+    }
+    const result = await readCustomViewI18n(collection, view.i18n, locale);
+    res.json(result);
+  } catch (err) {
+    // Strip CR/LF before logging — `loadCollection` already rejects malformed
+    // slugs above (so this path always has a safe slug in practice), but
+    // belt-and-suspenders for log-injection / forged-line resistance per
+    // CodeRabbit review on #1842.
+    log.warn("collections", "view-i18n read failed", { slug: req.params.slug.replace(/[\r\n]/g, " "), error: errorMessage(err) });
     serverError(res, errorMessage(err));
   }
 });

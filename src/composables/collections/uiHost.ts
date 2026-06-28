@@ -10,7 +10,13 @@
 // they're deferred behind `installCollectionAppBindings`, which App.vue calls in
 // its setup (see App.vue). Until it does, `startChat` is a no-op and
 // `notifiedSeverities` returns an empty map.
-import { configureCollectionUi, type CollectionViewToken } from "@mulmoclaude/collection-plugin/vue";
+import {
+  configureCollectionUi,
+  type CollectionViewI18nResult,
+  type CollectionViewToken,
+  type RegistryListResponse,
+  type RegistryImportResponse,
+} from "@mulmoclaude/collection-plugin/vue";
 // The package's compiled Tailwind classes — the library build extracts the SFCs'
 // styles into this file rather than injecting them, and node_modules isn't in
 // this host's Tailwind content scan, so the classes must be loaded explicitly.
@@ -32,7 +38,7 @@ import { useConfirm } from "../useConfirm";
 import { useShortcuts } from "../useShortcuts";
 import PinToggle from "../../components/PinToggle.vue";
 import type { NotifierSeverity } from "../../utils/collections/notifiedItems";
-import type { CollectionsListResponse, FeedsListResponse } from "@mulmoclaude/collection-plugin";
+import type { CollectionsListResponse, FeedsListResponse } from "@mulmoclaude/core/collection";
 import type { CollectionDetailResponse, ItemMutationResponse } from "../../components/collectionTypes";
 
 const { openConfirm } = useConfirm();
@@ -90,6 +96,7 @@ configureCollectionUi({
       return { ok: false, status: 0 };
     }
   },
+  fetchViewI18n: (slug, viewId, locale) => apiGet<CollectionViewI18nResult>(withSlug(API_ROUTES.collections.viewI18n, slug), { id: viewId, locale }),
   buildViewSrcdoc: (html, boot) => buildCustomViewSrcdoc(html, boot),
 
   // record CRUD + actions
@@ -132,6 +139,8 @@ configureCollectionUi({
   // index pages
   listCollections: () => apiGet<CollectionsListResponse>(API_ROUTES.collections.list),
   listFeeds: () => apiGet<FeedsListResponse>(API_ROUTES.feeds.list),
+  listRegistry: () => apiGet<RegistryListResponse>(API_ROUTES.collectionsRegistry.list),
+  importRegistry: (author, slug, registry) => apiPost<RegistryImportResponse>(API_ROUTES.collectionsRegistry.import, { author, slug, registry }),
   reconcileShortcuts: (kind, live) => useShortcuts().reconcile(kind, live),
 
   // app integration

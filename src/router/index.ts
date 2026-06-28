@@ -34,6 +34,10 @@ const Stub = defineComponent({ render: () => h("div") });
 const routes: RouteRecordRaw[] = [
   { path: "/", redirect: "/chat" },
   { path: "/chat/:sessionId?", name: PAGE_ROUTES.chat, component: Stub },
+  // Dashboard — a grid of the user's favorite (pinned) collections, each
+  // rendered as a live embedded view. Layout (order + per-tile view mode)
+  // is persisted in config/dashboard.json, independent of the URL.
+  { path: "/dashboard", name: PAGE_ROUTES.dashboard, component: Stub },
   // Files view uses a repeatable catch-all so `/files/a/b/c.md` maps
   // to `params.pathMatch = ["a", "b", "c.md"]`. Joining on `/` at read
   // time keeps each segment URL-encoded independently — passing a
@@ -75,6 +79,14 @@ const routes: RouteRecordRaw[] = [
   // `/collections` lists every discovered collection;
   // `/collections/:slug` opens that collection's <CollectionView>.
   { path: "/collections/:slug?", name: PAGE_ROUTES.collections, component: Stub },
+  // Accounting — the double-entry bookkeeping app (manageAccounting).
+  // Standalone page so the user can reach the books directly without
+  // going through an LLM `openBook` tool call. The View self-fetches
+  // the book list on mount and auto-selects a book (or shows the
+  // first-run "New book" form on an empty workspace), so no route
+  // param is required. The `manageAccounting` *tool* stays opt-in per
+  // Role; this only adds a UI entry point to the same View.
+  { path: "/accounting", name: PAGE_ROUTES.accounting, component: Stub },
   // Legacy `/apps` URL — kept as a redirect for ~one release so any
   // existing bookmarks survive the rename. Safe to delete after.
   { path: "/apps", redirect: "/collections" },

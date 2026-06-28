@@ -1,6 +1,6 @@
 <template>
   <div class="h-full flex flex-col bg-slate-50/30">
-    <header class="flex items-center gap-3 px-6 py-2 border-b border-slate-200 bg-white">
+    <header v-if="!hideHeader" class="flex items-center gap-3 px-6 py-2 border-b border-slate-200 bg-white">
       <button
         v-if="!embedded"
         type="button"
@@ -111,15 +111,27 @@
       </button>
     </header>
 
+    <!-- Transient note for an agent-ingest Refresh: the worker runs in the
+         background, so records don't update synchronously — tell the user the
+         refresh started rather than leaving the click feeling like a no-op. -->
+    <div
+      v-if="refreshNote"
+      class="mx-6 mt-2 rounded-lg border border-indigo-200 bg-indigo-50/60 px-4 py-2 text-sm text-indigo-800 flex items-center gap-2"
+      data-testid="collections-refresh-note"
+    >
+      <span class="material-icons text-base text-indigo-600">hourglass_top</span>
+      <span class="flex-1">{{ refreshNote }}</span>
+    </div>
+
     <!-- Search Toolbar. Shown when there are items to search OR when a view
          toggle is available — the toggle must reach an empty date-bearing
          collection (empty-day create) and a collection whose only views are
          custom ones (so its buttons + the "+" stay reachable). -->
     <div
-      v-if="collection && (items.length > 0 || hasCalendar || hasKanban || hasCustomViews || canAddCustomView)"
+      v-if="collection && ((!hideSearch && items.length > 0) || (!hideViewToggle && (hasCalendar || hasKanban || hasCustomViews || canAddCustomView)))"
       class="px-6 py-3 bg-white border-b border-slate-100 flex items-center justify-between gap-4"
     >
-      <div v-if="items.length > 0" class="relative flex-1 max-w-md">
+      <div v-if="!hideSearch && items.length > 0" class="relative flex-1 max-w-md">
         <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
           <span class="material-icons text-lg">search</span>
         </span>
@@ -145,7 +157,7 @@
              the schema has a `date` field, kanban only with an `enum` field;
              local UI state, never persisted. -->
         <div
-          v-if="hasCalendar || hasKanban || hasCustomViews || canAddCustomView"
+          v-if="!hideViewToggle && (hasCalendar || hasKanban || hasCustomViews || canAddCustomView)"
           class="flex gap-0.5"
           role="group"
           :aria-label="t('collectionsView.viewToggle')"
@@ -737,13 +749,14 @@ import {
   writeCollectionViewMode,
   readCollectionSort,
   writeCollectionSort,
+  customViewKey,
   type CollectionViewMode,
   type BuiltInViewMode,
 } from "../collectionViewMode";
 import { collectionUi } from "../uiContext";
 import { activateRefLink, activatePathLink } from "../refLink";
-import { dateOf, type Ymd } from "../../core/calendarGrid";
 import {
+  dateOf,
   isSortableField,
   nextSortDirection,
   sortItems,
@@ -752,22 +765,29 @@ import {
   dateSortValue,
   enumSortValue,
   boolSortValue,
+  shortHexId,
+  defangForPrompt,
+  actionVisible,
+  fieldVisible,
+  resolveEnumColor,
+  buildUpdatedRecord,
+  coerceInlineValue,
+  draftToRecord,
+  firstMissingRequiredField,
+  rowFromItem,
+  type Ymd,
   type SortState,
   type SortValue,
-} from "../../core/sortItems";
-import { shortHexId } from "../../core/shortHexId";
-import { defangForPrompt } from "../../core/promptSafety";
-import { actionVisible, fieldVisible } from "../../core/actionVisible";
-import { resolveEnumColor } from "../../core/enumColors";
-import { buildUpdatedRecord, coerceInlineValue, draftToRecord, firstMissingRequiredField, rowFromItem } from "../../core/draft";
-import type {
-  CollectionAction,
-  CollectionCustomView as CustomViewSpec,
-  CollectionDetail,
-  CollectionItem,
-  CollectionFieldSpec as FieldSpec,
-} from "../../core/schema";
-import type { CollectionRecordIssue, CollectionNotifySeverity, EditState, TableRowDraft } from "../../core/uiTypes";
+  type CollectionAction,
+  type CollectionCustomView as CustomViewSpec,
+  type CollectionDetail,
+  type CollectionItem,
+  type CollectionFieldSpec as FieldSpec,
+  type CollectionRecordIssue,
+  type CollectionNotifySeverity,
+  type EditState,
+  type TableRowDraft,
+} from "@mulmoclaude/core/collection";
 
 /** `slug` / `selected` are supplied only in EMBEDDED mode (the
  *  `presentCollection` chat card mounts this component and drives both
@@ -786,10 +806,25 @@ const props = defineProps<{
   /** Embedded mode only: initial view / anchor / group restored from the
    *  card's persisted `viewState` so a switch to calendar or kanban
    *  survives a remount. (The table sort is NOT a card prop — it's a shared
-   *  per-collection localStorage preference, read by both modes.) */
-  initialView?: BuiltInViewMode;
+   *  per-collection localStorage preference, read by both modes.) Accepts a
+   *  `custom:<id>` mode too so the dashboard can open a tile directly on a
+   *  custom view. */
+  initialView?: CollectionViewMode;
   initialAnchorField?: string;
   initialGroupField?: string;
+  /** Hide the header's view-mode toggle (table ↔ calendar ↔ kanban ↔
+   *  custom + "add view"). The dashboard sets this because each tile
+   *  carries its own view picker, persisting the choice to the dashboard
+   *  layout rather than the card/localStorage. Search stays available. */
+  hideViewToggle?: boolean;
+  /** Hide the top header (icon / title / chat / add / delete). The
+   *  dashboard sets this because each tile renders its own header
+   *  (drag handle + icon + title + view picker), so the view's built-in
+   *  header would be a redundant second title bar. */
+  hideHeader?: boolean;
+  /** Hide the record search input. The dashboard sets this to keep tiles
+   *  compact; with the toggle also hidden the whole toolbar collapses. */
+  hideSearch?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -849,6 +884,11 @@ const notifiedSeverities = computed<Map<string, CollectionNotifySeverity>>(() =>
 });
 /** True while a feed collection's manual refresh is in flight. */
 const refreshing = ref(false);
+/** Transient note shown after an agent-ingest Refresh dispatches a background
+ *  worker (records update asynchronously, so there's nothing to show inline).
+ *  Auto-clears; `refreshNoteTimer` cancels a pending clear on re-trigger. */
+const refreshNote = ref<string | null>(null);
+let refreshNoteTimer: ReturnType<typeof setTimeout> | undefined;
 /** Slug already auto-refreshed on first open — prevents a reload loop
  *  (the auto-refresh reloads the view, which would re-trigger otherwise). */
 const autoRefreshedSlug = ref<string | null>(null);
@@ -1103,7 +1143,25 @@ async function refreshFeed(): Promise<void> {
   // surface them — otherwise a failed refresh looks like success.
   if (result.data.errors.length > 0) {
     inlineError.value = t("collectionsView.refreshFailed", { error: result.data.errors.join("; ") });
+    return;
   }
+  // Agent ingest dispatched a worker — records update later. A manual refresh
+  // runs a VISIBLE session: open it so the user can watch/debug the run. Fall
+  // back to a transient note if the host can't navigate (router-less embed).
+  if (result.data.dispatched) {
+    if (result.data.chatId && cui.navigate) cui.navigate(`/chat/${result.data.chatId}`);
+    else showRefreshNote(t("collectionsView.refreshDispatched"));
+  }
+}
+
+/** Show a transient refresh note, replacing any pending auto-clear. */
+function showRefreshNote(message: string): void {
+  refreshNote.value = message;
+  if (refreshNoteTimer !== undefined) clearTimeout(refreshNoteTimer);
+  refreshNoteTimer = setTimeout(() => {
+    refreshNote.value = null;
+    refreshNoteTimer = undefined;
+  }, 6000);
 }
 
 /** Collection-level header actions. No `when` predicate (no record). */
@@ -1208,12 +1266,14 @@ function closeChat(): void {
  *  (`feeds/<slug>/schema.json` and `<dataPath>/`) and let it act on the
  *  request directly. */
 function buildChatSeed(slug: string, message: string, itemId?: string): string {
-  const schema = collection.value?.schema;
-  // A feed carries an `ingest` block; a plain collection does not. Checked
-  // here (rather than via the `isFeed` computed, defined further down) to
-  // keep this helper self-contained and avoid a use-before-define.
-  if (!schema?.ingest) return itemId ? `/${slug} id=${itemId} ${message}` : `/${slug} ${message}`;
-  const dataPath = schema.dataPath ?? `data/feeds/${slug}`;
+  const current = collection.value;
+  // Only an actual Feed (source `feed`) is skill-less + data-only. A
+  // skill-backed collection — even one carrying an agent-ingest block — DOES
+  // have a `/<slug>` skill command, so seed that. (Checked via `source`
+  // directly, not the `isFeed` computed defined further down, to keep this
+  // helper self-contained and avoid a use-before-define.)
+  if (current?.source !== "feed") return itemId ? `/${slug} id=${itemId} ${message}` : `/${slug} ${message}`;
+  const dataPath = current.schema.dataPath ?? `data/feeds/${slug}`;
   // A feed has no skill command — point the agent at a specific record by id
   // inside the same schema-driven seed.
   const scoped = itemId ? `(for record \`${itemId}\`) ${message}` : message;
@@ -1338,10 +1398,16 @@ async function refreshItemsInPlace(slug: string): Promise<void> {
 // so data appears without a manual Refresh. Guarded per slug so the reload
 // `refreshFeed` triggers can't loop; the view re-mounts per slug, so each
 // open retries at most once.
+//
+// Restricted to ACTUAL feeds (`source === "feed"`): a declarative feed
+// populates synchronously here, but a skill-backed `ingest.kind: "agent"`
+// collection would dispatch a VISIBLE worker and navigate the user to its
+// chat just by opening an empty collection — those refresh on schedule or an
+// explicit Refresh click only.
 function maybeAutoRefreshFeed(slug: string): void {
   if (embedded.value) return;
   const current = collection.value;
-  if (current?.slug !== slug || !current.schema.ingest) return;
+  if (current?.slug !== slug || current.source !== "feed") return;
   if (items.value.length > 0 || autoRefreshedSlug.value === slug) return;
   autoRefreshedSlug.value = slug;
   void refreshFeed();
@@ -1386,10 +1452,13 @@ const canDeleteCollection = computed<boolean>(() => {
   return current.source === "project" && !current.slug.startsWith("mc-");
 });
 
-// True when this view was opened as a feed (`/feeds/:slug`): the schema
-// carries an `ingest` block. Feeds are deleted via DELETE /api/feeds/:slug,
-// not the project-scope collection delete above.
-const isFeed = computed<boolean>(() => Boolean(collection.value?.schema.ingest));
+// True only for an actual Feed (discovered from `feeds/<slug>/`, source
+// `feed`) — NOT merely any collection carrying an `ingest` block. A
+// skill-backed collection can now declare `ingest.kind: "agent"` (scheduled
+// agent refresh) yet still be a project-scope collection, deleted the normal
+// way; keying off `schema.ingest` here used to surface a SECOND delete button
+// on those. Feeds are deleted via DELETE /api/feeds/:slug.
+const isFeed = computed<boolean>(() => collection.value?.source === "feed");
 const canDeleteFeed = computed<boolean>(() => isFeed.value && !embedded.value);
 
 // Which list to return to from the back arrow: feeds opened via /feeds
@@ -1494,7 +1563,7 @@ const canAddCustomView = computed<boolean>(() => Boolean(collection.value) && !e
 function addCustomView(): void {
   const current = collection.value;
   if (!current) return;
-  const base = current.schema.ingest ? `feeds/${current.slug}` : `data/skills/${current.slug}`;
+  const base = current.source === "feed" ? `feeds/${current.slug}` : `data/skills/${current.slug}`;
   const prompt = t("collectionsView.addViewPrompt", { title: current.title, base });
   if (props.sendTextMessage) {
     props.sendTextMessage(prompt);
@@ -1569,11 +1638,6 @@ function setView(next: CollectionViewMode): void {
 function setCustomView(viewId: string): void {
   const mode: CollectionViewMode = `custom:${viewId}`;
   view.value = mode;
-}
-
-/** Selector-key for a custom view, for active-state comparison in the template. */
-function customViewKey(viewId: string): CollectionViewMode {
-  return `custom:${viewId}`;
 }
 
 /** A short, slug-safe id not already used by a loaded record. Collisions
@@ -2180,6 +2244,7 @@ onUnmounted(() => {
   changeUnsub?.();
   changeUnsub = null;
   clearLiveRefreshTimer();
+  if (refreshNoteTimer !== undefined) clearTimeout(refreshNoteTimer);
 });
 
 // Embedded mode: report view/anchor changes so the chat card persists them

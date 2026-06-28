@@ -475,14 +475,18 @@
 import { computed, ref, watch } from "vue";
 import { useCollectionI18n } from "../lang";
 import CollectionEmbedView from "./CollectionEmbedView.vue";
-import { fieldVisible } from "../../core/actionVisible";
-import { resolveEnumColor } from "../../core/enumColors";
-import { emptyRow } from "../../core/draft";
+import { fieldVisible, resolveEnumColor, emptyRow } from "@mulmoclaude/core/collection";
 import { collectionUi } from "../uiContext";
 import { activateRefLink, activatePathLink } from "../refLink";
 import type { CollectionRendering } from "../useCollectionRendering";
-import type { CollectionAction, CollectionDetail, CollectionItem, CollectionFieldSpec as FieldSpec } from "../../core/schema";
-import type { EditState, TableRowDraft } from "../../core/uiTypes";
+import type {
+  CollectionAction,
+  CollectionDetail,
+  CollectionItem,
+  CollectionFieldSpec as FieldSpec,
+  EditState,
+  TableRowDraft,
+} from "@mulmoclaude/core/collection";
 
 // The UI binding: ref/file navigation (router-optional) + the host's raw-file
 // `imageSrc`. `resolveImageSrc` keeps its local name so the template's `:src` is

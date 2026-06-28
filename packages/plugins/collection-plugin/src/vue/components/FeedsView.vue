@@ -118,7 +118,7 @@
 import { nextTick, onMounted, ref } from "vue";
 import { useCollectionI18n } from "../lang";
 import { collectionUi } from "../uiContext";
-import type { FeedSummary } from "../../core/uiTypes";
+import type { FeedSummary } from "@mulmoclaude/core/collection";
 
 const { t } = useCollectionI18n();
 // Host couplings (list/refresh/navigate/chat/shortcuts/pin) via the binding.

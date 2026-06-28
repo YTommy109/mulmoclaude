@@ -172,6 +172,21 @@ theme: corporate
 
 `<script>` を書くと escape されて画面に `&lt;script&gt;` と表示されます (= 動作はしないが見えてしまう)。
 
+## PDF エクスポート時の日本語フォント (Linux / Docker)
+
+PDF エクスポートは server プロセス側の **headless Chromium (puppeteer)** で render します。サーバ側の OS に **日本語フォントがインストールされていないと、PDF 内で日本語が tofu (□□□) になります** (#1821)。
+
+| OS | デフォルト状態 | 必要な対応 |
+|---|---|---|
+| macOS | Hiragino Sans が同梱 | なし |
+| Windows | Yu Gothic / Meiryo が同梱 | なし |
+| Linux (Ubuntu/Debian) | CJK フォント未同梱 | `sudo apt-get install fonts-noto-cjk` |
+| Docker (node:22-slim 等) | CJK フォント未同梱 | Dockerfile に `apt-get install -y fonts-noto-cjk` を追加 |
+
+CSS の `font-family` には Hiragino / Yu Gothic / Meiryo / Noto Sans CJK JP をフォールバックチェーンとして既に含めているので、上記フォントが OS にあれば追加の CSS は不要です。
+
+容量の目安: `fonts-noto-cjk` (CJK 全言語) は約 115MB。日本語特化の `fonts-takao` なら ~7MB、`fonts-vlgothic` なら ~5MB で代替可能。
+
 ## 関連
 
 - Marp 公式のテーマ仕様: <https://marpit.marp.app/theme-css>

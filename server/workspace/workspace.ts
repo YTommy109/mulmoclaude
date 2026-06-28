@@ -5,9 +5,9 @@ import { log } from "../system/logger/index.js";
 import { EAGER_WORKSPACE_DIRS, WORKSPACE_PATHS, workspacePath } from "./paths.js";
 import { readWorkspaceTextSync, writeWorkspaceTextSync } from "../utils/files/workspace-io.js";
 import { loadCustomDirs, ensureCustomDirs } from "./custom-dirs.js";
-// Helps + preset skills + their sync logic now live in @mulmoclaude/workspace-setup
+// Helps + preset skills + their sync logic now live in @mulmoclaude/core/workspace-setup
 // (shared with MulmoTerminal); the bundled source dirs come from the package.
-import { seedHelps, presetSkillsAssetDir, syncActivePresetSkills, syncPresetSkills } from "@mulmoclaude/workspace-setup";
+import { seedHelps, presetSkillsAssetDir, syncActivePresetSkills, syncPresetSkills } from "@mulmoclaude/core/workspace-setup";
 
 // Re-exported so existing callers (`import { workspacePath } from
 // "./workspace.js"`) keep working. See workspace-paths.ts for the

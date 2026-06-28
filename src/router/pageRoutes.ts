@@ -9,12 +9,14 @@
 
 export const PAGE_ROUTES = {
   chat: "chat",
+  dashboard: "dashboard",
   files: "files",
   automations: "automations",
   wiki: "wiki",
   feeds: "feeds",
   debug: "debug",
   collections: "collections",
+  accounting: "accounting",
 } as const;
 
 export type PageRouteName = (typeof PAGE_ROUTES)[keyof typeof PAGE_ROUTES];

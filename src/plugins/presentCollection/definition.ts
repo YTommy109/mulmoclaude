@@ -1,9 +1,9 @@
 import { META } from "./meta";
 import type { ResolvedRoute } from "../meta-types";
-import { TOOL_DEFINITION } from "@mulmoclaude/collection-plugin";
+import { TOOL_DEFINITION } from "@mulmoclaude/core/collection";
 
 // presentCollection's tool schema + executor now live in the shared
-// @mulmoclaude/collection-plugin package (single source of truth, also consumed
+// @mulmoclaude/core/collection package (single source of truth, also consumed
 // by MulmoTerminal). This built-in is a thin host adapter: it keeps MulmoClaude's
 // host-specific routing META + endpoint types while sourcing the definition from
 // the package. The plugin codegen scans this file's default ToolDefinition export.

@@ -119,6 +119,13 @@ const HOST_WORKSPACE_DIRS = {
   // Non-skill data-source feed registry: feeds/<slug>/schema.json (+
   // _state.json). Records land under each schema's dataPath (data/feeds/*).
   feeds: "feeds",
+  // Retrieval state for NON-feed collections with an `ingest` block
+  // (`kind: "agent"` on a skill-backed collection). Feeds keep their state
+  // at feeds/<slug>/_state.json; skill collections can't (a feeds/<slug>/
+  // dir without schema.json confuses feed discovery, and _state.json must
+  // never live in a collection's dataDir where listItems would read it as a
+  // record). One file per collection: data/ingest-state/<slug>.json.
+  ingestState: "data/ingest-state",
   translation: "data/translation",
   // Pasted/dropped chat attachments — saved at upload time so the
   // LLM can be handed a stable workspace path instead of inline
@@ -216,7 +223,7 @@ const HOST_WORKSPACE_DIRS = {
   // git) — since model files are large binaries that must stay out of
   // the git-tracked tree. Created lazily on first download, never
   // eagerly (most users never enable voice input). See
-  // plans/feat-voice-input.md.
+  // plans/done/feat-voice-input.md.
   models: "models",
   // Runtime-loaded plugins (#1043 C-2). The `plugins/` directory holds
   // user-installed npm-published plugin tarballs; `.cache/<name>/<ver>/`
