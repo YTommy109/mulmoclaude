@@ -727,7 +727,17 @@
     protobufjs "^7.5.4"
     ws "^8.18.0"
 
-"@google/genai@^2.2.0", "@google/genai@^2.7.0":
+"@google/genai@^2.10.0":
+  version "2.10.0"
+  resolved "https://npm.flatt.tech/@google/genai/-/genai-2.10.0.tgz#a668a0cc98f83e58fa8c80e04b780513d7281715"
+  integrity sha512-e4cFxj3tiuMtsgOT4G9c1hXyGJhg7/Buj7VVeBacRY3fRtkRZZ59Q3nuVp2xbq8BGQXLXCDB253qMhklMOeUDg==
+  dependencies:
+    google-auth-library "^10.3.0"
+    p-retry "^4.6.2"
+    protobufjs "^7.5.4"
+    ws "^8.18.0"
+
+"@google/genai@^2.7.0":
   version "2.7.0"
   resolved "https://npm.flatt.tech/@google/genai/-/genai-2.7.0.tgz#8259b66b83d3576cb1d604fa44a0a267558c3f84"
   integrity sha512-tv0DRtcndt2oEhBYy+5mA0TaXH98+L1Gt0AP9unBfH7DP20KhB7+O3QqAN1Lz+laMARGTHS7BFQSNpLbl4gm1g==
@@ -1315,6 +1325,11 @@
   version "18.3.0"
   resolved "https://registry.yarnpkg.com/@matrix-org/matrix-sdk-crypto-wasm/-/matrix-sdk-crypto-wasm-18.3.0.tgz#a5206792a78a3ebebd901662c65753e0914d204a"
   integrity sha512-9a4feyt8QLysARu7PHKaRWT+wcCd+IYH074LXp9QK5WqfN4zUXueRhiSSMNT18Bm+8q3sBR/4zxDxOSDR0M8Kg==
+
+"@matrix-org/matrix-sdk-crypto-wasm@^18.3.1":
+  version "18.3.1"
+  resolved "https://npm.flatt.tech/@matrix-org/matrix-sdk-crypto-wasm/-/matrix-sdk-crypto-wasm-18.3.1.tgz#284dbaf8bfaee159773f04bb6b4e6d5f177f193c"
+  integrity sha512-VRjWhE1UgHnPpJ3b9B5+8z71ZC/HICFngPPFIN6ktzmUBKI5RusPujzbAQUoB3CgZ0yU58L99AfSQS4YTztSWw==
 
 "@modelcontextprotocol/sdk@^1.27.1", "@modelcontextprotocol/sdk@^1.29.0":
   version "1.29.0"
@@ -3456,6 +3471,11 @@ content-type@^1.0.4, content-type@^1.0.5:
   resolved "https://registry.yarnpkg.com/content-type/-/content-type-1.0.5.tgz#8b773162656d1d1086784c8f23a54ce6d73d7918"
   integrity sha512-nTjqfcBFEipKdXCv4YDQWCfmcLZKm81ldF0pAopTvyrFGVbcR6P/VAAd5G7N+0tTr8QqiU0tFadD6FK4NtJwOA==
 
+content-type@^2.0.0:
+  version "2.0.0"
+  resolved "https://npm.flatt.tech/content-type/-/content-type-2.0.0.tgz#2fb3ede69dffa0af78ca7c4ce7589680638b56df"
+  integrity sha512-j/O/d7GcZCyNl7/hwZAb606rzqkyvaDctLmckbxLzHvFBzTJHuGEdodATcP3yIRoDrLHkIATJuvzbFlp/ki2cQ==
+
 cookie-signature@^1.2.1:
   version "1.2.2"
   resolved "https://registry.yarnpkg.com/cookie-signature/-/cookie-signature-1.2.2.tgz#57c7fc3cc293acab9fec54d73e15690ebe4a1793"
@@ -3829,13 +3849,13 @@ ecdsa-sig-formatter@1.0.11, ecdsa-sig-formatter@^1.0.11:
   dependencies:
     safe-buffer "^5.0.1"
 
-echarts@^6.0.0:
-  version "6.0.0"
-  resolved "https://registry.yarnpkg.com/echarts/-/echarts-6.0.0.tgz#2935aa7751c282d1abbbf7d719d397199a15b9e7"
-  integrity sha512-Tte/grDQRiETQP4xz3iZWSvoHrkCQtwqd6hs+mifXcjrCuo2iKWbajFObuLJVBlDIJlOzgQPd1hsaKt/3+OMkQ==
+echarts@^6.1.0:
+  version "6.1.0"
+  resolved "https://npm.flatt.tech/echarts/-/echarts-6.1.0.tgz#ae0f68590f5ebbd728d900907c27acde7c5456d1"
+  integrity sha512-q0yaFPggC9FUdsWH4blavRWFmxdrIodbkoKNAjJudAI6CA9gNPxHtV2RcZNEepZVlk4yvBYkOkbk6HIVpIyHZA==
   dependencies:
     tslib "2.3.0"
-    zrender "6.0.0"
+    zrender "6.1.0"
 
 ee-first@1.1.1:
   version "1.1.1"
@@ -6072,10 +6092,10 @@ material-icons@^1.13.14:
   resolved "https://registry.yarnpkg.com/material-icons/-/material-icons-1.13.14.tgz#65ae8693550b9f789036bd4cf29e775f1bd389ed"
   integrity sha512-kZOfc7xCC0rAT8Q3DQixYAeT+tBqZnxkseQtp2bxBxz7q5pMAC+wmit7vJn1g/l7wRU+HEPq23gER4iPjGs5Cg==
 
-material-symbols@^0.44.8:
-  version "0.44.8"
-  resolved "https://npm.flatt.tech/material-symbols/-/material-symbols-0.44.8.tgz#e5025b6a542ab13b123127ab3edcdc28afc060c8"
-  integrity sha512-drWG88gPlJXmvQrpSc3zKxjzysuvD7ayoGDJecUTr5tt0l4URh3XhDqKjKjCC773oYfTi39ljEzk+CZ6ereikg==
+material-symbols@^0.45.4:
+  version "0.45.4"
+  resolved "https://npm.flatt.tech/material-symbols/-/material-symbols-0.45.4.tgz#4060f4dacf5a2949fd7cfa56cd9f2353a383b061"
+  integrity sha512-yBdiCnRbXenVfovbQBqT+lBakq1Vc+XEL2/vZIBDeYTi+yuTog9OG7A9cLtM/KeDrldNJDrj6+F9eUFRlUrZOQ==
 
 math-intrinsics@^1.1.0:
   version "1.1.0"
@@ -6097,7 +6117,7 @@ matrix-events-sdk@0.0.1:
   resolved "https://registry.yarnpkg.com/matrix-events-sdk/-/matrix-events-sdk-0.0.1.tgz#c8c38911e2cb29023b0bbac8d6f32e0de2c957dd"
   integrity sha512-1QEOsXO+bhyCroIe2/A5OwaxHvBm7EsSQ46DEDn8RBIfQwN5HWBpFvyWWR4QY0KHPPnnJdI99wgRiAl7Ad5qaA==
 
-matrix-js-sdk@*, matrix-js-sdk@^41.5.0:
+matrix-js-sdk@*:
   version "41.5.0"
   resolved "https://npm.flatt.tech/matrix-js-sdk/-/matrix-js-sdk-41.5.0.tgz#8519fc9a4626be7fe3f6ebe1ed13019e0b097314"
   integrity sha512-CK3h+qQJ4wkVEUgEWc5MdLjccXyiFqncCC53P+auqOhnX2U6tAFsRfnbML1QQiKIsFMzqTrAnF/4a5LUUOIeXg==
@@ -6107,6 +6127,25 @@ matrix-js-sdk@*, matrix-js-sdk@^41.5.0:
     another-json "^0.2.0"
     bs58 "^6.0.0"
     content-type "^1.0.4"
+    jwt-decode "^4.0.0"
+    loglevel "^1.9.2"
+    matrix-events-sdk "0.0.1"
+    matrix-widget-api "^1.16.1"
+    oidc-client-ts "^3.0.1"
+    p-retry "8"
+    sdp-transform "^3.0.0"
+    unhomoglyph "^1.0.6"
+
+matrix-js-sdk@^41.8.0:
+  version "41.8.0"
+  resolved "https://npm.flatt.tech/matrix-js-sdk/-/matrix-js-sdk-41.8.0.tgz#fd345521c0574255d13e3caeab6bf7fbb2b39897"
+  integrity sha512-ojbSE7s9hbK49a43QYP/RGPnpXQdXzDvAr9HfG5boqyHcVFAwansxzXEYXbooiIaYxFZA2Xfzu6waxxB1yCVPg==
+  dependencies:
+    "@babel/runtime" "^7.12.5"
+    "@matrix-org/matrix-sdk-crypto-wasm" "^18.3.1"
+    another-json "^0.2.0"
+    bs58 "^6.0.0"
+    content-type "^2.0.0"
     jwt-decode "^4.0.0"
     loglevel "^1.9.2"
     matrix-events-sdk "0.0.1"
@@ -8933,9 +8972,9 @@ zod@^4.4.3:
   resolved "https://registry.yarnpkg.com/zod/-/zod-4.4.3.tgz#b680f172885d18bbebf21a834ea25e55a1bbf356"
   integrity sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==
 
-zrender@6.0.0:
-  version "6.0.0"
-  resolved "https://registry.yarnpkg.com/zrender/-/zrender-6.0.0.tgz#947077bc69cdea744134984927f132f3727f8079"
-  integrity sha512-41dFXEEXuJpNecuUQq6JlbybmnHaqqpGlbH1yxnA5V9MMP4SbohSVZsJIwz+zdjQXSSlR1Vc34EgH1zxyTDvhg==
+zrender@6.1.0:
+  version "6.1.0"
+  resolved "https://npm.flatt.tech/zrender/-/zrender-6.1.0.tgz#c3ef06e6426d5c28865b7183035680d685e00136"
+  integrity sha512-oEGMDB6pOP2S6OwRR4PdVv610zrjnA3Bh+JnSG12fYJlBKjtNAoEb5fSUoCOOINlH96I2fU38/A2UpRKs67xYQ==
   dependencies:
     tslib "2.3.0"
