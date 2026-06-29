@@ -103,7 +103,7 @@ export const ROLES: Role[] = [
     queries: [
       // Collection-creation starters moved to the Collections "New collection"
       // modal (collection-plugin `starters.ts`) so they surface independent of
-      // the active role. See plans/feat-collection-starters-modal.md.
+      // the active role. See plans/done/feat-collection-starters-modal.md.
       "Register this feed. https://feeds.captivate.fm/guy-kawasakis-remarkable/",
     ],
   },
@@ -141,7 +141,7 @@ export const ROLES: Role[] = [
       "Perform relevant search on X about OpenAI and Anthropic, pick top ten interesting topics from them and show the list to me. Then, create a presentation about each article, one by one.",
       // Collection-creation starters (bills / clients+worklog / invoice) moved to
       // the Collections "New collection" modal (collection-plugin `starters.ts`).
-      // See plans/feat-collection-starters-modal.md.
+      // See plans/done/feat-collection-starters-modal.md.
     ],
   },
   {
@@ -216,7 +216,7 @@ export const ROLES: Role[] = [
       "Teach me about the water cycle",
       // Collection-creation starters (vocabulary / lessons) moved to the
       // Collections "New collection" modal (collection-plugin `starters.ts`).
-      // See plans/feat-collection-starters-modal.md.
+      // See plans/done/feat-collection-starters-modal.md.
     ],
   },
   {
@@ -343,7 +343,7 @@ export const ROLES: Role[] = [
       "Show insider transactions filed by META officers in the last 90 days",
       // Collection-creation starter (stock portfolio tracker) moved to the
       // Collections "New collection" modal (collection-plugin `starters.ts`).
-      // See plans/feat-collection-starters-modal.md.
+      // See plans/done/feat-collection-starters-modal.md.
       "Fetch AAPL's revenue and net profit for the last several quarters and visualize the trends using D3.js.",
       "Fetch NVDA's latest financial data and present it as a modern financial infographic with a left-to-right Sankey diagram using D3.js.",
       "Get the weekly closing prices of the Magnificent 7 stocks for the last five years, and multiply each by the number of shares outstanding to compute the market cap. Then plot them on a single graph so we can compare their market caps over time.",

@@ -7,7 +7,7 @@
 // "collection-starters"), the same mechanism the host's role-query chips use.
 // These prompts were previously per-role suggestion chips in the host's
 // `roles.ts`; they live here now so they surface from the Collections UI
-// independent of which role is active. (See plans/feat-collection-starters-modal.md.)
+// independent of which role is active. (See plans/done/feat-collection-starters-modal.md.)
 //
 // `icon` is a Material Symbols name, matching the collection-card convention.
 

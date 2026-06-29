@@ -2,7 +2,7 @@
   <!-- Chooser for creating a collection: two generic ways to start (free-form
        chat / guided form) plus a gallery of ready-made starters. Each path seeds
        a new chat; the starter prompts/titles/descriptions are translated into the
-       active locale at runtime. See plans/feat-collection-starters-modal.md. -->
+       active locale at runtime. See plans/done/feat-collection-starters-modal.md. -->
   <CollectionRecordModal @close="emit('close')">
     <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
       <h2 class="text-lg font-semibold text-slate-800">{{ t("collectionsView.newCollection.title") }}</h2>

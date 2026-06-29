@@ -4,7 +4,7 @@
 // the old behavior of immediately launching the guided chat. Guards that opening
 // the modal starts no chat, that Guided setup still auto-sends the create prompt,
 // and that a starter seeds an EDITABLE DRAFT (not an auto-send).
-// See plans/feat-collection-starters-modal.md.
+// See plans/done/feat-collection-starters-modal.md.
 
 import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
