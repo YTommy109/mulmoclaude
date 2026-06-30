@@ -77,6 +77,28 @@ yarn install         # picks up any new deps from §1
 yarn build           # builds workspace packages AND dist/client (Vite)
 ```
 
+### 3.5. README content check (catches "npm-shown README is stale")
+
+`packages/mulmoclaude/README.md` is the file npm displays on the package page. It is hand-curated, NOT auto-copied from the repo root README — so every release should re-read it against what's actually shipping. Run BEFORE §4 / §6.
+
+Open `packages/mulmoclaude/README.md` and verify each of:
+
+- **Features added since the last release** are reflected (collections / Discover / Contribute, Marp slides, sandbox credential flags, new bridges, voice input, plugin authoring, etc.) — at least a one-line mention each.
+- **Removed / renamed features** no longer appear (don't ship `npx mulmoclaude --old-flag` examples after the flag was renamed).
+- **CLI flags** in the "Options" table match `bin/mulmoclaude.js` exactly. Diff: `grep -E "^  --" packages/mulmoclaude/bin/mulmoclaude.js | head -20`.
+- **Env vars** (`MULMOCLAUDE_AUTH_TOKEN`, `SANDBOX_FORWARD_SSH_AGENT`, `SANDBOX_MOUNT_CONFIGS`, `GEMINI_API_KEY`, `DISABLE_SANDBOX`) match the launcher's behaviour.
+- **Bridge npm names** (`@mulmobridge/<x>`) match what's currently published. New bridges added since last release? Add them. Drop any deprecated.
+- **Length** is in the right zone — the file is a focused npm landing page, not a full developer guide. Don't paste in the full repo README (~700 lines today). Target: ~150-200 lines; defer the rest to `docs/` in the repo via links.
+
+When in doubt about a feature's npm-user relevance, default to including a short mention with a "see docs/<file>.md" link rather than a full how-to.
+
+The README is shipped via `package.json`'s standard inclusion — no explicit `files: [...]` entry needed for it. Confirm it's in the tarball:
+
+```bash
+cd packages/mulmoclaude && npm pack --dry-run 2>&1 | grep -E "README" | head -3
+# expect: npm notice <kB> README.md
+```
+
 ### 4. Local tarball test — verified by CI on every PR, rerun locally when needed
 
 `prepare-dist` runs via `prepack`, so `npm pack` exercises the exact same flow `npm publish` would. CI runs the full pack → clean install → boot → HTTP 200 probe on every PR; before releasing, confirm the latest `MulmoClaude publish smoke` run on `main` is green.

@@ -33,11 +33,13 @@ type ResolveRoutes<R extends Readonly<Record<string, RouteSpec>>> = {
   readonly [K in keyof R]: ResolvedRoute;
 };
 type PluginApiRoutesMap<T extends BuiltInPluginMetas> = {
-  readonly [M in T[number] as M extends { readonly apiRoutes: Readonly<Record<string, RouteSpec>> }
-    ? M extends { readonly apiNamespace: infer K extends string }
-      ? K
-      : M["toolName"]
-    : never]: M extends { readonly apiRoutes: infer R extends Readonly<Record<string, RouteSpec>> } ? ResolveRoutes<R> : never;
+  readonly [
+    M in T[number] as M extends { readonly apiRoutes: Readonly<Record<string, RouteSpec>> }
+      ? M extends { readonly apiNamespace: infer K extends string }
+        ? K
+        : M["toolName"]
+      : never
+  ]: M extends { readonly apiRoutes: infer R extends Readonly<Record<string, RouteSpec>> } ? ResolveRoutes<R> : never;
 };
 
 /** Resolve every plugin route into a `ResolvedRoute` keyed by the
@@ -374,9 +376,7 @@ const HOST_API_ROUTES = {
 // `defineHostAggregate` is runtime-generic; the cast on the merged
 // result narrows it back to the literal-preserving shape above.
 type ApiRoutesAggregateValue =
-  | (typeof HOST_API_ROUTES)[keyof typeof HOST_API_ROUTES]
-  | Readonly<Record<string, string>>
-  | Readonly<Record<string, ResolvedRoute>>;
+  (typeof HOST_API_ROUTES)[keyof typeof HOST_API_ROUTES] | Readonly<Record<string, string>> | Readonly<Record<string, ResolvedRoute>>;
 
 const API_ROUTES_AGGREGATE = defineHostAggregate<ApiRoutesAggregateValue>(BUILT_IN_PLUGIN_METAS, {
   label: "API_ROUTES",

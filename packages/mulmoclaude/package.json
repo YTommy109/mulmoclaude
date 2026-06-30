@@ -1,6 +1,6 @@
 {
   "name": "mulmoclaude",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "MulmoClaude — GUI-chat with Claude Code + long-term memory. One command to start.",
   "type": "module",
   "bin": {
@@ -20,7 +20,7 @@
     "sandbox-entrypoint.sh"
   ],
   "dependencies": {
-    "@google/genai": "^2.2.0",
+    "@google/genai": "^2.10.0",
     "@gui-chat-plugin/browse": "^0.5.0",
     "@gui-chat-plugin/camera": "^0.5.0",
     "@gui-chat-plugin/google-map": "^0.6.0",
@@ -35,8 +35,8 @@
     "@mulmochat-plugin/ui-image": "^0.4.0",
     "@mulmoclaude/accounting-plugin": "^0.2.0",
     "@mulmoclaude/chart-plugin": "^0.1.1",
-    "@mulmoclaude/collection-plugin": "^0.5.1",
-    "@mulmoclaude/core": "^0.2.10",
+    "@mulmoclaude/collection-plugin": "^0.5.18",
+    "@mulmoclaude/core": "^0.2.12",
     "@mulmoclaude/form-plugin": "^0.1.0",
     "@mulmoclaude/html-plugin": "^0.2.0",
     "@mulmoclaude/markdown-plugin": "^0.1.2",
@@ -50,10 +50,10 @@
     "fast-xml-parser": "^5.9.3",
     "gui-chat-protocol": "0.4.0",
     "ignore": "^7.0.5",
-    "js-yaml": "^4.2.0",
+    "js-yaml": "^5.2.0",
     "mammoth": "^1.12.0",
     "marked": "^18.0.5",
-    "mulmocast": "^2.6.22",
+    "mulmocast": "^2.6.23",
     "puppeteer": "^25.2.1",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
