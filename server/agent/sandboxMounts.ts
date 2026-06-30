@@ -209,7 +209,7 @@ export interface ResolveSandboxAuthParams {
    *  to generate a restrictive `~/.ssh/config`. */
   sshAllowedHosts?: string;
   configMountNames: readonly string[];
-  sshAuthSock?: string | undefined;
+  sshAuthSock?: string;
   home?: string;
 }
 

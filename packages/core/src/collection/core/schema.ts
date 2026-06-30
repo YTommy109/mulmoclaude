@@ -287,9 +287,20 @@ export interface CollectionFieldSpec {
    *  record to pull from the `to` collection (e.g. `me` for the
    *  singleton mc-profile). Nothing is stored on this record — the
    *  embed is a display-only directive resolved at render time, so
-   *  it never appears in the list table or the edit form. Required
-   *  when type is `embed`; ignored on every other type. */
+   *  it never appears in the list table or the edit form. Supply
+   *  either this (a fixed target, same for every record) or
+   *  `idField` (a per-record target) — exactly one. Ignored on every
+   *  other type. */
   id?: string;
+  /** When `type === "embed"`: the name of a sibling top-level field
+   *  whose value names the target record's primary key — letting the
+   *  embed point at a *different* record per row (e.g. an invoice's
+   *  `issuerId` ref selects which `profile` to embed as the
+   *  bill-from block). The renderer reads `record[idField]` at render
+   *  time; an absent/empty value resolves to "no record" (the same
+   *  fail-soft as a missing fixed `id`). Mutually exclusive with `id`
+   *  — an embed must declare exactly one. Ignored on every other type. */
+  idField?: string;
   /** When `type === "money"` (or `type === "derived"` with
    *  `display: "money"`): a literal ISO 4217 currency code passed to
    *  `Intl.NumberFormat` for display — fixed for every record. The
@@ -472,3 +483,14 @@ export interface CollectionDetail extends CollectionSummary {
 }
 
 export type CollectionItem = Record<string, unknown>;
+
+/** Resolve an `embed` field's target record id: the fixed `id`, or the value
+ *  of the sibling `idField` on this record (empty string when neither applies
+ *  — the caller renders that as "no record"). Pure + isomorphic so the server
+ *  projection (`derive.ts`) and the client preview (`useCollectionRendering`)
+ *  resolve embeds identically. */
+export function embedTargetId(field: CollectionFieldSpec, record: CollectionItem | null): string {
+  if (field.id) return field.id;
+  if (field.idField && record) return String(record[field.idField] ?? "");
+  return "";
+}
